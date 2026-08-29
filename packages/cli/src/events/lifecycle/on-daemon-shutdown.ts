@@ -31,39 +31,18 @@ export const onDaemonShutdownEffect: Effect.Effect<
   const activeAgents = agentPm.listActive();
 
   if (activeAgents.length > 0) {
-    console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s)...`);
+    console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s) locally...`);
 
-    const chatroomIds = [...new Set(activeAgents.map(({ chatroomId }) => chatroomId))];
     let totalStopped = 0;
     let totalFailed = 0;
     yield* Effect.all(
-      chatroomIds.map((chatroomId) =>
-        Effect.promise(async () => {
-          const result = await session.backend.mutation(api.agentStops.requestScope, {
-            sessionId: session.sessionId,
-            machineId: session.machineId,
-            chatroomId,
-            scope: { kind: 'chatroom' },
-            reason: 'daemon.shutdown',
-          });
-          if (!result.inboxCommandId) return;
-          if (!agentPm.executeScopedStopForCommand) return;
-          const summary = await Effect.runPromise(
-            agentPm.executeScopedStopForCommand({
-              stopCommandId: result.stopCommandId as string,
-              chatroomId,
-              scope: { kind: 'chatroom' },
-              reason: 'daemon.shutdown',
-              inboxCommandId: result.inboxCommandId as string,
-            })
-          );
-          totalStopped += summary.stoppedCount;
-          totalFailed += summary.failedCount;
-        }).pipe(
+      activeAgents.map(({ chatroomId, role }) =>
+        agentPm.stop({ chatroomId, role, reason: 'daemon.shutdown' }).pipe(
+          Effect.tap(() => Effect.sync(() => { totalStopped += 1; })),
           Effect.catchAll((e) =>
             Effect.sync(() => {
               totalFailed += 1;
-              console.log(`   ⚠️  Failed chatroom stop: ${(e as Error).message}`);
+              console.log(`   ⚠️  Failed to stop ${role}@${chatroomId}: ${(e as Error).message}`);
             })
           )
         )

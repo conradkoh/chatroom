@@ -1,6 +1,7 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
+import { reconcileOrphanedStopCommandsForMachine } from './reconcile-orphaned-stop-commands-for-machine';
 import { transitionAgentStatus } from './transition-agent-status';
 import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
@@ -41,7 +42,13 @@ export type AgentLifecycleFactInput =
 export async function projectAgentLifecycleFact(
   ctx: MutationCtx,
   args: { machineId: string; fact: AgentLifecycleFactInput }
-): Promise<{ success: true; skipped?: boolean; clearedCount?: number; rejectionReason?: string }> {
+): Promise<{
+  success: true;
+  skipped?: boolean;
+  clearedCount?: number;
+  reconciledExecutionCount?: number;
+  rejectionReason?: string;
+}> {
   const { machineId, fact } = args;
   if (fact.kind === 'activity') {
     const participant = await getParticipantForChatroomRole(ctx, fact.chatroomId, fact.role);
@@ -74,7 +81,8 @@ export async function projectAgentLifecycleFact(
         { config }
       );
     }
-    return { success: true, clearedCount };
+    const { reconciledExecutionCount } = await reconcileOrphanedStopCommandsForMachine(ctx, machineId);
+    return { success: true, clearedCount, reconciledExecutionCount };
   }
   if (fact.kind === 'exited') {
     const result = await agentExitedUseCase(ctx, {
