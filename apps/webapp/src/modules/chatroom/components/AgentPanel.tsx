@@ -2,7 +2,7 @@
 
 import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { TeamStructure } from '@workspace/shared/domain/team-presets';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Users } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
@@ -20,6 +20,7 @@ import {
 } from './AgentPanel/AgentStatusRow';
 import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
+import { SIDEBAR_PREVIEW_LIMIT, SidebarSection } from './sidebar/SidebarSection';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
@@ -222,40 +223,47 @@ export const AgentPanel = memo(function AgentPanel({
   // Loading state
   if (lifecycle === undefined || teamStructure === undefined) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
-          Agents
-        </div>
-        <div className="p-4 flex items-center justify-center">
+      <SidebarSection.Root className="border-b-2 border-chatroom-border-strong overflow-hidden">
+        <SidebarSection.Header
+          title="Agents"
+          count={0}
+          icon={Users}
+          iconClassName="text-chatroom-accent"
+        />
+        <SidebarSection.Loading>
           <ChatroomLoader size="md" />
-        </div>
-      </div>
+        </SidebarSection.Loading>
+      </SidebarSection.Root>
     );
   }
 
   // Legacy chatroom without team
   if (lifecycle === null) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
-          Agents
-        </div>
-        <div className="p-4 text-center text-chatroom-text-muted text-xs">No team configured</div>
-      </div>
+      <SidebarSection.Root className="border-b-2 border-chatroom-border-strong overflow-hidden">
+        <SidebarSection.Header
+          title="Agents"
+          count={0}
+          icon={Users}
+          iconClassName="text-chatroom-accent"
+        />
+        <SidebarSection.Empty>No team configured</SidebarSection.Empty>
+      </SidebarSection.Root>
     );
   }
 
   return (
-    <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      <div className="flex items-center h-14 px-4 border-b-2 border-chatroom-border min-w-0">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-          Agents
-        </div>
-      </div>
+    <SidebarSection.Root className="border-b-2 border-chatroom-border-strong overflow-hidden flex flex-col">
+      <SidebarSection.Header
+        title="Agents"
+        count={rolesToShow.length}
+        icon={Users}
+        iconClassName="text-chatroom-accent"
+      />
 
       {/* Team selector — own row below the Agents header */}
       {teamName && teams && defaultTeamId && onTeamChange && (
-        <div className="px-4 py-2 border-b border-chatroom-border/50 flex items-center gap-4">
+        <SidebarSection.Toolbar>
           <div className="flex-1 min-w-0">
             <TeamSelectorDropdown
               teamName={teamName}
@@ -274,20 +282,24 @@ export const AgentPanel = memo(function AgentPanel({
             disabled={isStartingAllAgents}
             isStarting={isStartingAllAgents}
           />
-        </div>
+        </SidebarSection.Toolbar>
       )}
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
-        {renderAgentRows(permanentRoles)}
-        {ephemeralRoles.length > 0 && (
+        {renderAgentRows(permanentRoles.slice(0, SIDEBAR_PREVIEW_LIMIT))}
+        {ephemeralRoles.length > 0 && permanentRoles.length < SIDEBAR_PREVIEW_LIMIT && (
           <>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted px-4 py-2 border-t border-chatroom-border">
-              Ephemeral
-            </div>
-            {renderAgentRows(ephemeralRoles)}
+            <SidebarSection.Subheader>Ephemeral ({ephemeralRoles.length})</SidebarSection.Subheader>
+            {renderAgentRows(
+              ephemeralRoles.slice(0, SIDEBAR_PREVIEW_LIMIT - permanentRoles.length)
+            )}
           </>
         )}
       </div>
+      <SidebarSection.ViewMore
+        count={Math.max(0, rolesToShow.length - SIDEBAR_PREVIEW_LIMIT)}
+        onClick={openAgentListModal}
+      />
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}
       <UnifiedAgentListModal
@@ -295,6 +307,6 @@ export const AgentPanel = memo(function AgentPanel({
         onClose={closeAgentListModal}
         chatroomId={chatroomId}
       />
-    </div>
+    </SidebarSection.Root>
   );
 });
