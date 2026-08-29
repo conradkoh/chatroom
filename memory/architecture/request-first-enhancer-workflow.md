@@ -28,7 +28,7 @@ Later implementation and builder handbacks never retrigger the enhancer.
 
 ## Boundaries
 
-The enhancer receives its output contract, stripped request, origin identifier, role instructions, and completion command. It does not receive entry-point grounding, a draft, downstream handoff templates, or user-report requirements.
+The enhancer receives its output contract, stripped request, origin identifier, role instructions, and a **handoff** completion command (`chatroom handoff --role=enhancer`). It does not receive entry-point grounding, a draft, downstream handoff templates, or user-report requirements. The deprecated `chatroom enhancer complete` CLI was removed; daemon salvage may still call the deprecated backend complete mutation when the agent exits without handoff.
 
 Supported team capability is defined once in `packages/shared/src/domain/enhancer-team-capability.ts`, which is consumed by the web controls, prompt delivery, and backend handoff authorization. The enhancer remains transient and returns to the configured persistent entry point; it is never added to `teamRoles`.
 
@@ -44,4 +44,4 @@ Persisted names `targetId: 'handoff:planner-to-builder'`, `draftContent`, and op
 
 ## Related
 
-The implementation reference is `docs/plans/enhancers.md` in the repository documentation.
+The implementation reference is `docs/plans/enhancers.md` in the repository documentation. Stack and completion-path details: `/migrations/enhancer-handoff-only-stack.md`.

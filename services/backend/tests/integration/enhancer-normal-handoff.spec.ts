@@ -197,6 +197,14 @@ describe('enhancer normal handoff completion', () => {
     expect(completedJob?.status).toBe('complete');
     expect(completedJob?.enhancedContent).toContain('Design input delivered');
 
+    const enhancerStatus = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'enhancer'))
+        .first()
+    );
+    expect(enhancerStatus?.status).toBe('offline');
+
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
