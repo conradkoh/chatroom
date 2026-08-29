@@ -99,10 +99,13 @@ export function useAllTabConversation(chatroomId: string) {
   // Loading until the current anchor's first page arrives. Convex resets the
   // paginated query to LoadingFirstPage synchronously when its args change, so
   // a stale slice from the previous anchor is never shown during transitions.
+  const isEmptyChatroom = nav !== undefined && nav.anchor === null;
+
   const isSliceLoading =
-    nav === undefined ||
-    paginated.status === 'LoadingFirstPage' ||
-    (paginated.status === 'LoadingMore' && paginatedMessages.length === 0);
+    !isEmptyChatroom &&
+    (nav === undefined ||
+      paginated.status === 'LoadingFirstPage' ||
+      (paginated.status === 'LoadingMore' && paginatedMessages.length === 0));
 
   const goToPrev = useCallback(() => {
     if (nav?.prevAnchorId) setSelectedAnchorId(nav.prevAnchorId);

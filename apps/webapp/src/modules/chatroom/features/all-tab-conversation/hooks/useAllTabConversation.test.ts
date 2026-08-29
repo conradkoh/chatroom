@@ -95,6 +95,28 @@ describe('useAllTabConversation', () => {
     expect(result.current.hasNext).toBe(false);
   });
 
+  it('is not loading when chatroom has no user messages (empty anchor)', () => {
+    mockSessionQueryForNav({
+      anchor: null,
+      prevAnchorId: null,
+      nextAnchorId: null,
+      sliceUpperBoundExclusive: null,
+    });
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [],
+      status: 'LoadingFirstPage',
+      loadMore: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useAllTabConversation('room-1'));
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.events).toHaveLength(0);
+    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listAllTabSlicePaginated', 'skip', {
+      initialNumItems: 50,
+    });
+  });
+
   it('skips queries when session is missing', () => {
     mockUseSessionId.mockReturnValue([undefined as unknown as string]);
     mockUseSessionQuery.mockReturnValue(undefined);
