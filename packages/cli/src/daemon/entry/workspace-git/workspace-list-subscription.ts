@@ -4,7 +4,10 @@
  * Legacy WS `onUpdate` and reconcile timer removed in U13.
  */
 
-import { OBSERVATION_TTL_MS } from '@workspace/backend/config/reliability.js';
+import {
+  OBSERVATION_TTL_MS,
+  OBSERVED_SAFETY_POLL_MS,
+} from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
@@ -48,8 +51,12 @@ export const startWorkspaceListSubscriptionEffect = (): Effect.Effect<
     session.workspaceListStore = { workspaces: [], updatedAt: 0 };
     yield* Effect.promise(() => reconcileWorkspaceList(session));
 
+    const interval = setInterval(() => {
+      void reconcileWorkspaceList(session).catch(() => undefined);
+    }, OBSERVED_SAFETY_POLL_MS);
     return {
       stop: () => {
+        clearInterval(interval);
         session.workspaceListStore = undefined;
       },
     };

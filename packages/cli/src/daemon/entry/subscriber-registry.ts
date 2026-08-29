@@ -15,7 +15,6 @@ import { startFileTreeRequestSubscriber } from '../infrastructure/convex/subscri
 import { startFileWriteRequestSubscriber } from '../infrastructure/convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
 import { startMachineCommandInboxSubscriber } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
-import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
   router: EventRouterDeps;
@@ -39,7 +38,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     });
   });
   const commandRun = startCommandRunSubscriber(deps, onEvent);
-  const workspaceList = startWorkspaceListSubscriber(deps, onEvent);
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
   const fileTree = startFileTreeRequestSubscriber(deps, onEvent);
   const fileTreeRelease = startFileTreeReleaseRequestSubscriber(deps, onEvent);
@@ -57,7 +55,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
         directHarnessCommand.stop(),
         machineCommands.stop(),
         commandRun.stop(),
-        workspaceList.stop(),
         gitRequest.stop(),
         fileTree.stop(),
         fileTreeRelease.stop(),

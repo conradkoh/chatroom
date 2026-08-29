@@ -45,6 +45,7 @@ const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = 
   'daemon.ping': ['Daemon Ping', 'muted'],
   'daemon.pong': ['Daemon Pong', 'muted'],
   'daemon.gitRefresh': ['Git Refresh', 'muted'],
+  'daemon.workspaceListChanged': ['Workspace List Changed', 'muted'],
   'daemon.refreshCapabilities': ['Capabilities Refresh', 'muted'],
   'daemon.pickFolder': ['Pick Folder', 'muted'],
   'daemon.localAction': ['Local Action', 'muted'],

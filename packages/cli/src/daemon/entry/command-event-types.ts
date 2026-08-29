@@ -6,6 +6,7 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'agent.stopScope',
   'daemon.ping',
   'daemon.gitRefresh',
+  'daemon.workspaceListChanged',
   'daemon.localAction',
   'daemon.pickFolder',
   'daemon.refreshCapabilities',
