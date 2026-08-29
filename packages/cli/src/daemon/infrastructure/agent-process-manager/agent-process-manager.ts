@@ -21,8 +21,8 @@
  * Phase 1: standalone, no caller changes. Built and tested in isolation.
  */
 
-import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { isExplicitDaemonStart } from '@workspace/backend/src/domain/entities/agent.js';
+import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
@@ -2224,7 +2224,9 @@ export class AgentProcessManager {
     }
     await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
     if (getHarnessCapabilities(opts.agentHarness).supportsNativeIntegration) {
-      getNativeTaskDeliveryCoordinator().tryInjectNextForRole(opts.chatroomId, opts.role);
+      const coordinator = getNativeTaskDeliveryCoordinator();
+      coordinator.tryInjectNextForRole(opts.chatroomId, opts.role);
+      queueMicrotask(() => coordinator.tryInjectNextForRole(opts.chatroomId, opts.role));
     }
   }
 
