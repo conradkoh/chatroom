@@ -5,7 +5,7 @@ import {
   releaseEphemeralAgentRolesWithoutStopTargets,
 } from './release-ephemeral-agent-role';
 import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
+import { AGENT_STOP_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentStopReason, AgentPostStopDesiredState } from '../../entities/agent';
@@ -47,7 +47,7 @@ export async function applyAgentStopCommand(
     reason: input.reason,
     requestedBy: input.requestedBy,
     status: 'pending',
-    deadlineAt: now + AGENT_REQUEST_DEADLINE_MS,
+    deadlineAt: now + AGENT_STOP_REQUEST_DEADLINE_MS,
     createdAt: now,
     postStopDesiredState: input.postStopDesiredState ?? 'stopped',
   });

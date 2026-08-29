@@ -18,6 +18,7 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
+import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-stop-commands';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -109,6 +110,9 @@ export async function startAgent(
       `Cannot start ephemeral role "${role}" directly. It runs on demand when work is assigned.`
     );
   }
+
+  if (reason === 'user.start' || reason === 'user.restart')
+    await supersedeInflightAgentStopCommands(ctx, { chatroomId });
 
   // ── Step 1: Verify harness is available on the machine ────────────────
 
