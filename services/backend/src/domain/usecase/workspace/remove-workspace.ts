@@ -43,7 +43,7 @@ export async function removeWorkspace(
   await ctx.db.patch('chatroom_workspaces', input.workspaceId, {
     removedAt: Date.now(),
   });
-  await enqueueWorkspaceListChangedForChatroom(ctx, workspace.machineId, workspace.chatroomId);
+  await enqueueWorkspaceListChangedForChatroom(ctx, workspace.chatroomId);
 
   // Purge workspace-scoped data to prevent ghost machines
   await purgeTeamAgentConfigsForMachine(

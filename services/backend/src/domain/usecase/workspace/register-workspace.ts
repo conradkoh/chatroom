@@ -52,7 +52,7 @@ export async function registerWorkspace(
         registeredBy,
         registeredAt: Date.now(),
       });
-      await enqueueWorkspaceListChangedForChatroom(ctx, machineId, chatroomId as Id<'chatroom_rooms'>);
+      await enqueueWorkspaceListChangedForChatroom(ctx, chatroomId as Id<'chatroom_rooms'>);
     }
     // If active, no-op — return existing ID
     return existing._id;
@@ -67,7 +67,7 @@ export async function registerWorkspace(
     registeredBy,
     registeredAt: Date.now(),
   });
-  await enqueueWorkspaceListChangedForChatroom(ctx, machineId, chatroomId as Id<'chatroom_rooms'>);
+  await enqueueWorkspaceListChangedForChatroom(ctx, chatroomId as Id<'chatroom_rooms'>);
 
   return id;
 }
