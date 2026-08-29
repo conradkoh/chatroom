@@ -72,7 +72,7 @@ export function LogViewer({
         <button
           type="button"
           onClick={() => scrollToEnd('smooth')}
-          className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-md bg-chatroom-accent px-2 py-1 text-xs text-chatroom-bg-primary shadow"
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-md bg-chatroom-accent px-2 py-1 text-xs text-chatroom-text-on-accent shadow"
         >
           <ChevronDown className="size-3" />
           Jump to new
