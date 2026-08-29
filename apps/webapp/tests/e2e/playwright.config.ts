@@ -47,7 +47,7 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    // CI already supplies a deployed Convex URL, so only start Next.js there.
+    // CI starts the self-hosted Convex backend separately, so only start Next.js here.
     command: process.env.CI ? 'pnpm --filter @workspace/webapp dev' : 'pnpm dev',
     url: baseURL,
     reuseExistingServer: !process.env.CI,

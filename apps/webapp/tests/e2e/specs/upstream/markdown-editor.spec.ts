@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { MarkdownEditorTestPage } from '../../pages/markdown-editor.page';
+import { setFirstCodeBlockTextAndFocusEnd } from '../../support/prosemirror';
 import { TAG_MARKDOWN, TAG_UPSTREAM } from '../../support/tags';
 import { UPSTREAM_FLOWS } from '../../support/upstream-flows';
 
@@ -82,12 +83,9 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     const editable = markdownPage.interactiveEditorEditable;
     const code = editable.locator('pre code').first();
 
-    await code.click();
-    await page.keyboard.press('Control+a');
-    await page.keyboard.insertText(repro);
+    await setFirstCodeBlockTextAndFocusEnd(editable, repro);
     await expect(code).toContainText(repro);
 
-    await page.keyboard.press('Control+End');
     await page.keyboard.press('Shift+Alt+ArrowUp');
 
     const selection = await code.evaluate((node) => {
@@ -129,8 +127,8 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     const view = markdownPage.clickToEditView;
     await expect(view).toBeVisible();
 
-    // Click view area (not a link) to enter edit mode
-    await view.click();
+    // Click heading — not the embedded link (EditableMarkdown ignores link clicks)
+    await view.getByRole('heading', { level: 2, name: 'Editable demo' }).click();
     await expect(markdownPage.clickToEditSaveButton).toBeVisible();
     await expect(markdownPage.clickToEditSection.getByTestId('markdown-editor')).toBeVisible();
 
