@@ -63,31 +63,16 @@ export const MACHINE_COMMAND_LOCAL_ACTION_TTL_MS = 60_000;
 // ─── Observed Chatroom Sync ───────────────────────────────────────────────────
 
 /** How long a chatroom remains marked as "observed" before TTL expires (ms).
- *  If frontend stops sending heartbeats within this window, daemon stops syncing.
- *  Set to 60s. */
-/** How long a chatroom remains marked as "observed" before TTL expires (ms).
- * If frontend stops sending heartbeats within this window, daemon stops syncing
- * git state for that chatroom's workspaces (workspace-list recency window). */
+ * If frontend stops sending heartbeats within this window, the chatroom drops off
+ * the daemon workspace watch list (recency window for listRecentlyObservedWorkspacesForMachine).
+ * Does not gate handoff-to-user git refresh. Set to 60s. */
 export const OBSERVATION_TTL_MS = 60_000;
 
-/** How often the daemon performs a full (non-slim) git state push per workspace.
- *  Slim pushes run every safety poll; this ensures non-slim fields (diffStat,
- *  commitsAhead, remotes, recentCommits) refresh at least this often.
- *  allPullRequests are fetched on demand via requestAllPullRequests.
- *  Set to 5 minutes. */
-export const OBSERVED_FULL_PUSH_INTERVAL_MS = 5 * 60_000;
-
 /** Safety poll interval for observed chatrooms (ms).
- *  Daemon additionally polls observed chatrooms periodically as a safety net
- *  in case frontend heartbeat stops unexpectedly. Set to 30s. */
+ * Daemon reconciles the workspace watch list periodically as a safety net
+ * in case frontend heartbeats stop unexpectedly. Does not push git state.
+ * Set to 30s. */
 export const OBSERVED_SAFETY_POLL_MS = 30_000;
-
-/**
- * Slow reconcile interval for the observed-sync subscription (ms).
- * Convex `onUpdate` handles reactive invalidation; this timer is a fallback for
- * TTL drift when observation rows expire without a reactive callback. Set to 15 min.
- */
-export const OBSERVED_SYNC_RECONCILE_MS = 15 * 60_000;
 
 /** Minimum interval between `lastObservedAt` patches for regular (non-refresh) heartbeats (ms).
  *  Dedupes burst writes from mount + visibility refresh + interval firing close together.
