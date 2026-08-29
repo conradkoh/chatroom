@@ -58,7 +58,7 @@ Consequently, a machine with 100 projects can still carry the state of dozens or
 
 `workspaces.listRecentlyObservedWorkspacesForMachine` is subscribed by the daemon through `packages/cli/src/daemon/infrastructure/convex/subscribers/workspace-list.ts`.
 
-The backend query reads the machine's observed-workspace projections and includes every workspace whose chatroom was observed within `WORKSPACE_RECENCY_WINDOW_MS`, currently seven days. It returns working-directory strings, but the set can contain entries from many projects. See `services/backend/src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine.ts`.
+The backend query reads the machine's observed-workspace projections and includes every workspace whose chatroom was observed within `OBSERVATION_TTL_MS` (60 seconds). It returns working-directory strings, but the set can contain entries from many projects. See `services/backend/src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine.ts`.
 
 This directly matches the largest screenshot entries:
 
