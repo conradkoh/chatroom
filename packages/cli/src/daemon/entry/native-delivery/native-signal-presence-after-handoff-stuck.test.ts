@@ -32,11 +32,14 @@ import {
 } from './native-delivery-session-registry.js';
 import {
   NativeTaskDeliveryCoordinator,
+  getNativeTaskDeliveryCoordinator,
   notifyNativeTurnIdle,
+  reconcileDeliverableWorkForRole,
 } from './native-task-delivery-coordinator.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { listTasksReadyForNudge, RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import {
   operationalRow,
@@ -90,12 +93,7 @@ function makePostHandoffPendingSnapshotDoc(
   };
 }
 
-function makeTurnInFlightSlot(): {
-  state: 'running';
-  pid: number;
-  harnessSessionId: string;
-  nativeTurnPhase: 'turn_in_flight' | 'idle';
-} {
+function makeTurnInFlightSlot() {
   return {
     state: 'running' as const,
     pid: SPAWNED_PID,
@@ -148,13 +146,11 @@ describe('native inbox recovery after planner handoff', () => {
     vi.restoreAllMocks();
   });
 
-  test('inbox reconcile recovers stale turn_in_flight and injects', async () => {
+  test('reproduces inbox reconcile while turn_in_flight does not inject', async () => {
     const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
 
-    const signal = snapshotDocToSignal(
-      makePostHandoffPendingSnapshotDoc({ lastStatus: 'task.completed' })
-    );
+    const signal = snapshotDocToSignal(makePostHandoffPendingSnapshotDoc());
     const row = snapshot.mergeSignal(signal);
     expect(row).toBeDefined();
 
@@ -171,13 +167,8 @@ describe('native inbox recovery after planner handoff', () => {
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
-    const slot = makeTurnInFlightSlot();
     const agentMgr = {
-      getSlot: vi.fn().mockReturnValue(slot),
-      reconcileNativeTurnPhaseIdle: vi.fn(() => {
-        slot.nativeTurnPhase = 'idle';
-        return Effect.succeed(undefined);
-      }),
+      getSlot: vi.fn().mockReturnValue(makeTurnInFlightSlot()),
       resumeTurnForSlot,
       setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
     } as unknown as DaemonAgentProcessManagerServiceShape;
@@ -190,38 +181,36 @@ describe('native inbox recovery after planner handoff', () => {
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
         logEvent: async () => undefined,
-        backend: {
-          mutation: vi.fn(),
-          query: vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY' }),
-        },
+        backend: { mutation: vi.fn(), query: vi.fn() },
       },
     });
 
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(agentMgr.reconcileNativeTurnPhaseIdle).toHaveBeenCalled();
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
       '[NativeDelivery:fallback] inbox-signal planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a task nh7dh7bj63fdns9zkyasjgnga58afx3s — reconcile'
     );
-    expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('turn_not_idle'));
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '[NativeDelivery:skip] planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a task nh7dh7bj63fdns9zkyasjgnga58afx3s — turn_not_idle'
+      )
+    );
+    expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('[NativeDelivery:inject]'));
   });
 
-  test('reproduces stuck when notifyNativeTurnIdle already ran before pending task existed', async () => {
+  test('delivers pending task when inbox updates after idle with empty inbox', async () => {
     unregisterNativeDeliverySession();
 
     const backendQuery = vi.fn(async () => ({ tasks: [] }));
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
-    const slot = makeTurnInFlightSlot();
 
-    registerNativeDeliverySession({
+    const taskSnapshotState = new MachineTaskSnapshotState();
+    registerTestNativeDeliverySession({
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr: {
-        getSlot: vi.fn().mockReturnValue(slot),
-        reconcileNativeTurnPhaseIdle: vi.fn(() => {
-          slot.nativeTurnPhase = 'idle';
-          return Effect.succeed(undefined);
-        }),
+        getSlot: vi.fn().mockReturnValue(makeIdleSlot()),
         resumeTurnForSlot,
         setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
       } as never,
@@ -233,9 +222,12 @@ describe('native inbox recovery after planner handoff', () => {
         backend: { mutation: vi.fn(), query: backendQuery },
       },
       machineId: MACHINE_ID,
+      taskSnapshotState,
+      operationalRows: [operationalRow(String(CHATROOM_ID), 'planner')],
     });
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const reconcileSpy = vi.spyOn(getNativeTaskDeliveryCoordinator(), 'reconcileAssignedTasks');
 
     // Idle delivery consults the inbox-owned state and does not query Convex.
     notifyNativeTurnIdle({ chatroomId: CHATROOM_ID, role: 'planner' });
@@ -247,47 +239,17 @@ describe('native inbox recovery after planner handoff', () => {
     );
     resumeTurnForSlot.mockClear();
 
+    taskSnapshotState.replace([]);
     const snapshot = createTaskSnapshot();
-    snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(
-      snapshotDocToSignal(makePostHandoffPendingSnapshotDoc({ lastStatus: 'task.completed' }))
-    );
+    const row = snapshot.mergeSignal(snapshotDocToSignal(makePostHandoffPendingSnapshotDoc()));
     expect(row).toBeDefined();
+    taskSnapshotState.upsert([row!]);
 
-    simulateSignalPresenceReconcile({
-      row: row!,
-      agentMgr: {
-        getSlot: vi.fn().mockReturnValue(slot),
-        reconcileNativeTurnPhaseIdle: vi.fn(() => {
-          slot.nativeTurnPhase = 'idle';
-          return Effect.succeed(undefined);
-        }),
-        resumeTurnForSlot,
-        setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
-      } as unknown as DaemonAgentProcessManagerServiceShape,
-      sessionDeps: {
-        sessionId: SESSION_ID,
-        convexUrl: 'http://test:3210',
-        machineId: MACHINE_ID,
-        logEvent: async () => undefined,
-        backend: {
-          mutation: vi.fn(),
-          query: vi.fn(async (_fn: unknown, args: unknown) => {
-            if (args && typeof args === 'object' && 'machineId' in args && !('taskId' in args)) {
-              return { tasks: [row] };
-            }
-            return { fullCliOutput: 'DELIVERY' };
-          }),
-        },
-      },
-    });
+    reconcileDeliverableWorkForRole(CHATROOM_ID, 'planner');
 
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(resumeTurnForSlot).not.toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[NativeDelivery:skip] planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a')
-    );
+    await vi.waitFor(() => expect(reconcileSpy).toHaveBeenCalled());
 
     unregisterNativeDeliverySession();
     logSpy.mockRestore();

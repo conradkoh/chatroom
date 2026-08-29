@@ -5,7 +5,6 @@ import {
   logNativeDeliveryInjecting,
   logNativeDeliveryFallback,
   logNativeDeliveryMutexSkip,
-  logNativeDeliveryNoTasks,
   logNativeDeliveryPrimary,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
@@ -66,24 +65,7 @@ export class NativeTaskDeliveryCoordinator {
   }
 
   tryInjectNextForRole(chatroomId: string, role: string): void {
-    if (isRestartOrchestratorInFlight(chatroomId, role)) return;
-    const session = getNativeDeliverySession();
-    if (!session) return;
-
-    const { runtime, effectContext, agentMgr, sessionDeps, machineId } = session;
-    const tasks = session.taskSnapshotState?.listForRole(chatroomId, role) ?? [];
-    if (tasks.length === 0) {
-      logNativeDeliveryNoTasks(role, chatroomId);
-      return;
-    }
-    this.reconcileAssignedTasks({
-      tasks,
-      runtime,
-      effectContext,
-      agentMgr,
-      sessionDeps,
-      machineId,
-    });
+    reconcileDeliverableWorkForRole(chatroomId, role);
   }
 
   // fallow-ignore-next-line complexity
@@ -241,6 +223,24 @@ export function getNativeTaskDeliveryCoordinator(): NativeTaskDeliveryCoordinato
   return coordinator;
 }
 
+/** Single delivery entry for a role — inbox SSOT + local readiness gates. */
+export function reconcileDeliverableWorkForRole(chatroomId: string, role: string): void {
+  if (isRestartOrchestratorInFlight(chatroomId, role)) return;
+  const session = getNativeDeliverySession();
+  if (!session) return;
+  const { runtime, effectContext, agentMgr, sessionDeps, machineId, taskSnapshotState } = session;
+  const tasks = taskSnapshotState?.listForRole(chatroomId, role) ?? [];
+  if (tasks.length === 0) return;
+  getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
+    tasks,
+    runtime,
+    effectContext,
+    agentMgr,
+    sessionDeps,
+    machineId,
+  });
+}
+
 export function notifyNativeSessionLost(params: NativeSessionLostParams): void {
   getNativeTaskDeliveryCoordinator().onSessionLost(params);
 }
@@ -252,5 +252,5 @@ export function resetRoleDeliveryState(chatroomId: string, role: string): void {
 export function notifyNativeTurnIdle(params: { chatroomId: string; role: string }): void {
   if (isRestartOrchestratorInFlight(params.chatroomId, params.role)) return;
   logNativeDeliveryPrimary(params.role, params.chatroomId);
-  getNativeTaskDeliveryCoordinator().tryInjectNextForRole(params.chatroomId, params.role);
+  reconcileDeliverableWorkForRole(params.chatroomId, params.role);
 }
