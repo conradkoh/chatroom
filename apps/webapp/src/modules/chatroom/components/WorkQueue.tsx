@@ -315,9 +315,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   if (tasks === undefined) {
     return (
       <div className="flex flex-col min-h-0 overflow-hidden">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
-          Task Queue
-        </div>
         <div className="p-4 text-center text-chatroom-text-muted text-xs">Loading...</div>
       </div>
     );
@@ -325,21 +322,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
 
   return (
     <div className="flex flex-col overflow-hidden min-h-0">
-      {/* Header */}
-      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border flex items-center justify-between flex-shrink-0">
-        <span>Task Queue</span>
-        <button
-          type="button"
-          onClick={() => setIsQueueFrontModalOpen(true)}
-          className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
-          aria-label="Add message to front of queue"
-          title="Add message to front of queue"
-          data-testid="queue-front-add-button"
-        >
-          <Plus size={14} />
-        </button>
-      </div>
-
       {/* Scrollable Task List Container */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Queue Health Warning - Show when promotion needed */}
@@ -407,31 +389,41 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
           </div>
         )}
 
-        {/* Queued Messages - Messages waiting to be processed */}
-        {queuedMessages.length > 0 && (
-          <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 bg-chatroom-bg-tertiary flex items-center gap-2">
+        {/* Queued Messages - Always visible; add button lives in section header */}
+        <div className="border-b border-chatroom-border">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 bg-chatroom-bg-tertiary flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <Clock size={12} />
               <span>Queued ({queuedMessages.length})</span>
             </div>
-            {/* Show queued messages */}
-            {queuedMessages.slice(0, 3).map((message) => (
-              <QueuedMessageItem
-                key={message._id}
-                chatroomId={chatroomId}
-                message={message}
-                teamSupportsEnhancer={teamSupportsEnhancerFlag}
-                onDelete={handleQueuedDelete}
-              />
-            ))}
-            {queuedMessages.length > 3 && (
-              <ViewMoreButton
-                count={queuedMessages.length - 3}
-                onClick={() => setIsQueuedMessagesModalOpen(true)}
-              />
-            )}
+            <button
+              type="button"
+              onClick={() => setIsQueueFrontModalOpen(true)}
+              className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+              aria-label="Add message to front of queue"
+              title="Add message to front of queue"
+              data-testid="queue-front-add-button"
+            >
+              <Plus size={14} />
+            </button>
           </div>
-        )}
+          {/* Show queued messages */}
+          {queuedMessages.slice(0, 3).map((message) => (
+            <QueuedMessageItem
+              key={message._id}
+              chatroomId={chatroomId}
+              message={message}
+              teamSupportsEnhancer={teamSupportsEnhancerFlag}
+              onDelete={handleQueuedDelete}
+            />
+          ))}
+          {queuedMessages.length > 3 && (
+            <ViewMoreButton
+              count={queuedMessages.length - 3}
+              onClick={() => setIsQueuedMessagesModalOpen(true)}
+            />
+          )}
+        </div>
 
         {/* Pending Review - Backlog items awaiting user confirmation */}
         {pendingReviewBacklogItems.length > 0 && (
