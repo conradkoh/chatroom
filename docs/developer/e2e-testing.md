@@ -38,15 +38,15 @@ Filter by tag: `--grep @upstream`, `--grep @markdown`, etc.
 
 The destination URL git passes as `$2` is resolved by `scripts/resolve-e2e-suite.ts` using `isTemplateRemote` from `scripts/template-repo.ts`. Tag constants are imported from `apps/webapp/tests/e2e/support/tags.ts`.
 
-Pull requests targeting `master` run the full unfiltered suite in `.github/workflows/e2e.yml`. CI starts the open-source Convex backend in an ephemeral Docker container, deploys this repository's backend functions to it, and enables E2E seeding there. No hosted Convex URL or repository secret is required.
+Pull requests targeting `master` use `github.repository` in `.github/workflows/e2e.yml` to select the same ownership boundary: the template repository runs `@upstream`, while forks and downstream repositories run `@downstream`. CI starts the open-source Convex backend in an ephemeral Docker container, deploys this repository's backend functions to it, and enables E2E seeding there. No hosted Convex URL or repository secret is required.
 
 If Playwright finds zero matching tests (e.g. a fork with no `@downstream` specs yet), the direct `master` push **fails** — add at least one downstream spec in `specs/downstream/` before pushing to a fork remote.
 
-`pnpm e2e` runs the full unfiltered suite for manual and CI runs on any checkout.
+`pnpm e2e` remains the explicit full, unfiltered suite for manual compatibility checks on any checkout.
 
 ## Reusability
 
-This suite is designed to be reusable across downstream projects: upstream specs define the template regression baseline, downstream specs hold fork-specific flows, and destination-based suite selection keeps fork pre-push focused on their own tests.
+This suite is designed to be reusable across downstream projects: upstream specs define the template regression baseline, downstream specs hold fork-specific flows, and repository-aware suite selection keeps local pre-push and pull-request CI focused on the owning repository's tests.
 
 ## Full detail
 

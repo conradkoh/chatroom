@@ -12,7 +12,7 @@ pnpm e2e
 cd apps/webapp && pnpm e2e
 ```
 
-`pnpm e2e` is also wired into the git **pre-push** hook (alongside `test` and `typecheck`) for direct pushes to `master`. Pull requests targeting `master` run the full suite in GitHub Actions. CI starts an ephemeral open-source Convex backend, deploys the backend functions, and enables E2E seeding before running Playwright.
+E2E is also wired into the git **pre-push** hook (alongside `test` and `typecheck`) for direct pushes to `master`. Pull requests targeting `master` select the repository-owned suite in GitHub Actions. CI starts an ephemeral open-source Convex backend, deploys the backend functions, and enables E2E seeding before running Playwright.
 
 ## Pre-Push Suite Selection
 
@@ -21,7 +21,7 @@ When a pushed ref targets `master`, the pre-push hook invokes `scripts/run-pre-p
 - **Template destination** (`conradkoh/next-convex-starter-app` on `github.com`) → `@upstream` specs
 - **Fork or non-template destination** → `@downstream` specs only
 
-Pushes to other branches skip the local pre-push E2E run; pull requests targeting `master` run the full suite in GitHub Actions. `pnpm e2e` remains available for explicit local runs on every checkout.
+Pushes to other branches skip the local pre-push E2E run. For pull requests targeting `master`, GitHub Actions uses `github.repository` to run `@upstream` in the template repository and `@downstream` in forks or downstream repositories. `pnpm e2e` remains available for explicit full-suite compatibility checks on every checkout.
 
 Convenience scripts (values match `support/tags.ts`):
 
