@@ -11,6 +11,8 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
+import type { AgentHarness } from '../src/domain/entities/agent';
+import { migrateFavoriteModelForHarness } from '../src/domain/entities/harness/model-provider';
 import { isActiveWorkspace } from '../src/domain/entities/workspace';
 import {
   rebuildAgentOperationalStatusForChatroom,
@@ -33,6 +35,7 @@ import {
 import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
+type HarnessModelFavorite = { agentHarness: AgentHarness; model: string };
 
 export const migrations = new Migrations<DataModel>(components.migrations);
 
@@ -500,6 +503,58 @@ export const migrateMachineConfigFavoritesToMachineScope = migrations.define({
   },
 });
 
+function rewriteAndDedupeFavorites<T extends HarnessModelFavorite>(favorites: T[]): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const entry of favorites) {
+    const model = migrateFavoriteModelForHarness(entry.agentHarness, entry.model);
+    const key = `${entry.agentHarness}|${model}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ ...entry, model });
+  }
+  return result;
+}
+
+function favoritesNeedModelPrefixMigration<T extends HarnessModelFavorite>(
+  favorites: T[]
+): boolean {
+  return favorites.some(
+    (favorite) =>
+      migrateFavoriteModelForHarness(favorite.agentHarness, favorite.model) !== favorite.model
+  );
+}
+
+/**
+ * Migration: Rewrite stale machine config favorite model ids to provider-prefixed ids.
+ * Idempotent: rows whose favorites already use provider prefixes are skipped.
+ */
+export const migrateMachineConfigFavoriteModelPrefixes = migrations.define({
+  table: 'chatroom_machineConfigFavorites',
+  migrateOne: async (_ctx, row) => {
+    if (!favoritesNeedModelPrefixMigration(row.favorites)) return;
+    return {
+      favorites: rewriteAndDedupeFavorites(row.favorites),
+      updatedAt: Date.now(),
+    };
+  },
+});
+
+/**
+ * Migration: Rewrite stale enhancer config favorite model ids to provider-prefixed ids.
+ * Idempotent: rows whose favorites already use provider prefixes are skipped.
+ */
+export const migrateEnhancerConfigFavoriteModelPrefixes = migrations.define({
+  table: 'chatroom_enhancerConfigFavorites',
+  migrateOne: async (_ctx, row) => {
+    if (!favoritesNeedModelPrefixMigration(row.favorites)) return;
+    return {
+      favorites: rewriteAndDedupeFavorites(row.favorites),
+      updatedAt: Date.now(),
+    };
+  },
+});
+
 /**
  * Migration: Seed per-user standing-instruction history from existing room instructions.
  * For each room with non-empty standingInstructions, upsert into
@@ -912,6 +967,8 @@ export const runAll = migrations.runner([
   internal.migrations.migrateTaskEnhancerEnabledSnapshot,
   // Machine Config Favorites
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
+  internal.migrations.migrateMachineConfigFavoriteModelPrefixes,
+  internal.migrations.migrateEnhancerConfigFavoriteModelPrefixes,
   // Standing Instructions History
   internal.migrations.seedStandingInstructionHistory,
   // Standing Instructions Title
