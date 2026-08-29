@@ -52,7 +52,6 @@ import {
   resolveTaskPlannerEnhancerEnabled,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import { validateEnhancerHandoff } from '../src/domain/usecase/enhancer/validate-enhancer-handoff';
-import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   insertChatroomMessage,
   isMessageReadModelComplete,
@@ -1054,8 +1053,6 @@ export async function runHandoffHandler(
       lastSeenAt: Date.now(),
       lastInFlightTaskId: undefined,
     });
-    // Step 1.5 promotion may have projected snapshots before this transition.
-    await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.senderRole);
   }
 
   if (args.enhancerJobId) {

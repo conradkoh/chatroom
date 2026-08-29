@@ -161,7 +161,5 @@ describe('Native queued delivery after agent_end', () => {
     expect(snapshot.agentConfig.agentHarness).toBe('cursor-sdk');
     // Operational PID is no longer denormalized into task snapshots.
     expect(snapshot.agentConfig.spawnedAgentPid).toBeUndefined();
-    expect(snapshot.participant?.lastSeenAction).toBe(NATIVE_TASK_INJECTED_ACTION);
-    expect(snapshot.participant?.lastStatus).toBe('agent.waiting');
   });
 });
