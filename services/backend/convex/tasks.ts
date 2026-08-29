@@ -416,8 +416,7 @@ export const completeTaskById = mutation({
     ) {
       if (!args.force) {
         throw new Error(
-          `Task is ${task.status}. Use --force to complete an active task. ` +
-            `This will mark it as completed and promote the next message from the queue.`
+          `Task is ${task.status}. Use --force to complete an active task.`
         );
       }
 
@@ -428,6 +427,7 @@ export const completeTaskById = mutation({
       // Emitting agent status events here would mislead the UI.
       await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById', undefined, {
         skipAgentStatusUpdate: true,
+        skipAutoPromotion: task.createdBy !== 'user',
       } satisfies TransitionTaskOptions);
 
       // Log force completion (suppress during testing)

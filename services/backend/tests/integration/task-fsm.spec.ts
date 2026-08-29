@@ -926,6 +926,81 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(completedTask?.status).toBe('completed');
       expect(completedTask?.completedAt).toBeDefined();
     });
+
+    test('force-completing user-origin task promotes queued message', async () => {
+      const { sessionId } = await createTestSession('test-fsm-force-promotes-user');
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        content: 'First task',
+        senderRole: 'user',
+        type: 'message',
+      });
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        content: 'Queued task',
+        senderRole: 'user',
+        type: 'message',
+      });
+
+      const tasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId });
+      const firstTask = tasks.find((task) => task.content === 'First task');
+      expect(firstTask).toBeDefined();
+      await t.mutation(api.tasks.completeTaskById, {
+        sessionId,
+        taskId: firstTask!._id,
+        force: true,
+      });
+
+      const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+      expect(queued).toHaveLength(0);
+      const pendingTasks = await t.query(api.tasks.listTasks, {
+        sessionId,
+        chatroomId,
+        statusFilter: 'pending',
+      });
+      expect(pendingTasks.some((task) => task.content === 'Queued task')).toBe(true);
+    });
+
+    test('force-completing delegation task does not promote queued message', async () => {
+      const { sessionId } = await createTestSession('test-fsm-force-no-promote-delegation');
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+      const delegationTaskId = await t.run(async (ctx) => {
+        const now = Date.now();
+        return await ctx.db.insert('chatroom_tasks', {
+          chatroomId,
+          createdBy: 'planner',
+          content: 'Delegated task',
+          status: 'in_progress',
+          createdAt: now,
+          updatedAt: now,
+          queuePosition: 0,
+          assignedTo: 'builder',
+        });
+      });
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        content: 'Queued behind delegation',
+        senderRole: 'user',
+        type: 'message',
+      });
+
+      await t.mutation(api.tasks.completeTaskById, {
+        sessionId,
+        taskId: delegationTaskId,
+        force: true,
+      });
+
+      const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+      expect(queued).toHaveLength(1);
+    });
   });
 });
 
