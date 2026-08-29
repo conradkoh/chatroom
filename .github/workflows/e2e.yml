@@ -74,8 +74,13 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter @workspace/webapp exec playwright install --with-deps
 
-      - name: Run E2E tests
-        run: pnpm --filter @workspace/webapp e2e
+      - name: Run upstream E2E tests
+        if: github.repository == 'conradkoh/next-convex-starter-app'
+        run: pnpm --filter @workspace/webapp e2e:upstream
+
+      - name: Run downstream E2E tests
+        if: github.repository != 'conradkoh/next-convex-starter-app'
+        run: pnpm --filter @workspace/webapp e2e:downstream
 
       - name: Show Convex logs on failure
         if: failure()

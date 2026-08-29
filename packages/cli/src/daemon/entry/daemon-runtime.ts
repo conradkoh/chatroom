@@ -42,7 +42,6 @@ import { drainActionableCommandRuns } from './handlers/process/command-run-subsc
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { getActiveLogSink } from './init-daemon.js';
 import { startTaskInboxEffect } from './task-inbox-runtime.js';
-import { drainGitStateSync } from './workspace-git/git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
@@ -50,7 +49,6 @@ import {
 import { api } from '../../api.js';
 import {
   startWorkspaceListSubscriptionEffect,
-  reconcileWorkspaceList,
 } from './workspace-git/workspace-list-subscription.js';
 import {
   registerWorkspaceGitInboundHandler,
@@ -261,10 +259,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
 
     registerWorkspaceGitInboundHandler(async (event) => {
       switch (event.type) {
-        case 'workspace.list-changed':
-          await reconcileWorkspaceList(session);
-          await drainGitStateSync(effectContext);
-          break;
         case 'git.request':
           if (gitHandle) await gitHandle.drainPendingGitRequests();
           break;

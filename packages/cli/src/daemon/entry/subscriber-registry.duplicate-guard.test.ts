@@ -52,7 +52,6 @@ describe('subscriber-registry duplicate guard (G4)', () => {
     expect(registrySource).not.toContain('startCommandEventsSubscriber');
     expect(registrySource).not.toContain('getCommandEvents');
     expect(registrySource).toContain('startCommandRunSubscriber');
-    expect(registrySource).toContain('startWorkspaceListSubscriber');
     expect(registrySource).toContain('startGitRequestSubscriber');
     expect(registrySource).toContain('startFileTreeRequestSubscriber');
     expect(registrySource).toContain('startFileContentRequestSubscriber');

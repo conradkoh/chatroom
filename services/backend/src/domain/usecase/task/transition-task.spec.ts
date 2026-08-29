@@ -150,7 +150,7 @@ describe('transitionTask usecase — valid transitions', () => {
     expect(task?.completedAt).toBeDefined();
   });
 
-  test('queued message → pending task via auto-promotion after task completes', async () => {
+  test('completeTask does not auto-promote queued message', async () => {
     const { sessionId } = await createTestSession('tt-valid-4');
     const chatroomId = await createChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
@@ -181,7 +181,7 @@ describe('transitionTask usecase — valid transitions', () => {
     expect(queuedMessages.length).toBe(1);
     expect(queuedMessages[0]?.content).toBe('Second task (queued)');
 
-    // Complete first task → auto-promotes second message from queue
+    // Complete first task without promoting the second message from the queue
     await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
     await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
     await t.mutation(api.tasks.completeTask, {
@@ -190,22 +190,20 @@ describe('transitionTask usecase — valid transitions', () => {
       role: 'builder',
     });
 
-    // Queue should now be empty (message was promoted)
+    // Queue should still contain the second message
     const queuedAfter = await t.query(api.messages.listQueued, {
       sessionId,
       chatroomId,
     });
-    expect(queuedAfter.length).toBe(0);
+    expect(queuedAfter.length).toBe(1);
 
-    // A new pending task should have been created from the queued message
+    // No pending task should have been created from the queued message
     const pendingTasks = await t.query(api.tasks.listTasks, {
       sessionId,
       chatroomId,
       statusFilter: 'pending',
     });
-    expect(pendingTasks.length).toBe(1);
-    expect(pendingTasks[0]?.content).toBe('Second task (queued)');
-    expect(pendingTasks[0]?.status).toBe('pending');
+    expect(pendingTasks.length).toBe(0);
   });
 });
 

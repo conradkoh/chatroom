@@ -43,6 +43,8 @@ Track remediation progress here. Update status and PR links as work lands.
 
 Assume one machine has many projects, but only one or two projects currently have agents working. The desired behavior is that idle bandwidth is approximately proportional to the active projects, with a small fixed machine/daemon baseline.
 
+Phase 2 removes the always-on workspace-list subscription. Daemons now receive a `daemon.workspaceListChanged` inbox nudge on watch-start/refresh or workspace membership changes, imperatively reconcile, and run a 30-second `OBSERVED_SAFETY_POLL_MS` safety poll for TTL drift. The query remains for imperative reconcile only.
+
 The current behavior is instead a mixture of:
 
 - current activity;
@@ -58,7 +60,7 @@ Consequently, a machine with 100 projects can still carry the state of dozens or
 
 `workspaces.listRecentlyObservedWorkspacesForMachine` is subscribed by the daemon through `packages/cli/src/daemon/infrastructure/convex/subscribers/workspace-list.ts`.
 
-The backend query reads the machine's observed-workspace projections and includes every workspace whose chatroom was observed within `WORKSPACE_RECENCY_WINDOW_MS`, currently seven days. It returns working-directory strings, but the set can contain entries from many projects. See `services/backend/src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine.ts`.
+The backend query reads the machine's observed-workspace projections and includes every workspace whose chatroom was observed within `OBSERVATION_TTL_MS` (60 seconds). It returns working-directory strings, but the set can contain entries from many projects. See `services/backend/src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine.ts`.
 
 This directly matches the largest screenshot entries:
 
@@ -69,7 +71,7 @@ This directly matches the largest screenshot entries:
 
 The web app records an observation for a visible chatroom approximately every 45 seconds. The daemon subscriber deduplicates the returned directory array before triggering downstream Git work, so an unchanged directory set does not necessarily cause a Git resynchronization. That optimization does not make the live query active-project-only: the query still depends on a potentially large machine-wide projection and can re-evaluate when observation/projection rows change.
 
-The key architectural issue is that a seven-day recency cache is being used as a live daemon watch list. A project that was visited yesterday is still part of the daemon's reactive workspace set even if no agent is currently running there.
+Phase 1 and Phase 2 landed in PRs #1544 and #1545, replacing the live subscription with watch-gated inbox delivery and safety reconciliation.
 
 ### 2. Machine operational status is returned for all projects and roles
 

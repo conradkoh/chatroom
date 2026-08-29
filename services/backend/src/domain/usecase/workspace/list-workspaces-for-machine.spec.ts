@@ -10,7 +10,7 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+import { OBSERVATION_TTL_MS } from '../../../../config/reliability';
 const FIXED_NOW = 1_800_000_000_000;
 
 beforeEach(() => {
@@ -91,7 +91,7 @@ describe('listWorkspacesForMachine (recency filter)', () => {
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_observation', {
         chatroomId,
-        lastObservedAt: FIXED_NOW - SEVEN_DAYS_MS - 86_400_000,
+        lastObservedAt: FIXED_NOW - OBSERVATION_TTL_MS - 1_000,
       });
     });
 

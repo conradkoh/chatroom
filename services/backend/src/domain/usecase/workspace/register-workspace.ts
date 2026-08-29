@@ -11,7 +11,7 @@
  * Returns the workspace document ID.
  */
 
-import { rebuildObservedWorkspaceView } from './project-observed-workspace-view';
+import { enqueueWorkspaceListChangedForChatroom } from './enqueue-workspace-list-changed';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
@@ -52,7 +52,7 @@ export async function registerWorkspace(
         registeredBy,
         registeredAt: Date.now(),
       });
-      await rebuildObservedWorkspaceView(ctx, machineId, chatroomId as Id<'chatroom_rooms'>);
+      await enqueueWorkspaceListChangedForChatroom(ctx, chatroomId as Id<'chatroom_rooms'>);
     }
     // If active, no-op — return existing ID
     return existing._id;
@@ -67,7 +67,7 @@ export async function registerWorkspace(
     registeredBy,
     registeredAt: Date.now(),
   });
-  await rebuildObservedWorkspaceView(ctx, machineId, chatroomId as Id<'chatroom_rooms'>);
+  await enqueueWorkspaceListChangedForChatroom(ctx, chatroomId as Id<'chatroom_rooms'>);
 
   return id;
 }

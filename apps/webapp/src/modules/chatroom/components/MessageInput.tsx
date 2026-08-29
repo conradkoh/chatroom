@@ -38,6 +38,7 @@ import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocompl
 import { useStartInNewSessionPreference } from '../hooks/useStartInNewSessionPreference';
 import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
 import { setFileTreeAutocompleteVisible } from '../workspace/files/workspaceFileTreeAutocompleteVisible';
+import { takePendingComposerFocus } from '../utils/pendingComposerFocus';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -257,6 +258,12 @@ export function MessageInput({
   const snippetRefsRef = useRef<string[]>([]);
   const isTouchDevice = useIsTouchDevice();
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
+
+  useLayoutEffect(() => {
+    if (takePendingComposerFocus()) {
+      textareaRef.current?.focus();
+    }
+  }, []);
 
   // Register focus callback for external callers
   onRegisterFocus?.(() => textareaRef.current?.focus());

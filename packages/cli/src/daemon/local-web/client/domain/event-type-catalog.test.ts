@@ -10,7 +10,7 @@ describe('event type catalog', () => {
       classification: 'error',
     });
     expect(resolveEventTypeMeta('task.custom').classification).toBe('success');
-    expect(Object.keys(EVENT_TYPE_CATALOG)).toHaveLength(54);
+    expect(Object.keys(EVENT_TYPE_CATALOG)).toHaveLength(55);
   });
   it('resolves classification styles', () => {
     expect(getClassificationStyle('error').badge).toContain('status-error');

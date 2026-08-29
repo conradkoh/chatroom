@@ -19,15 +19,19 @@ const DEV_NODE_ENVS = new Set(['development', 'test']);
  *
  * Non-production dev node environments also allow self signup. Everything else
  * (production and unknown/missing environment markers) fails closed to
- * invite-only.
+ * invite-only. E2E seeding also enables self signup for CI self-hosted deploys.
  */
 // Exported so config/featureFlags.spec.ts can cover every branch without
 // mutating process state; the getter below is the only runtime consumer.
 // fallow-ignore-next-line unused-export
 export function getAllowedSignupMethodsForEnvironment(
   nodeEnv: string | undefined,
-  convexDeployment: string | undefined
+  convexDeployment: string | undefined,
+  e2eSeedingEnabled: string | undefined
 ): SignupMethod[] {
+  if (e2eSeedingEnabled === 'true') {
+    return ['self', 'invite'];
+  }
   if (convexDeployment?.startsWith('local:')) {
     return ['self', 'invite'];
   }
@@ -45,7 +49,8 @@ export const featureFlags = {
   get allowedSignupMethods(): SignupMethod[] | null {
     return getAllowedSignupMethodsForEnvironment(
       process.env.NODE_ENV,
-      process.env.CONVEX_DEPLOYMENT
+      process.env.CONVEX_DEPLOYMENT,
+      process.env.E2E_SEEDING_ENABLED
     );
   },
 };
