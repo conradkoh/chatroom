@@ -2033,8 +2033,8 @@ export function ChatroomDashboard({
                     {/* On mobile: uses fixed positioning with translate for overlay effect */}
                     <div
                       className={`
-                ${isSmallScreen ? `fixed right-0 top-14 bottom-0 ${Z_PANEL} overscroll-contain w-80` : 'relative overflow-hidden'}
-                ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
+                ${isSmallScreen ? `fixed right-0 top-14 bottom-0 ${Z_PANEL} overscroll-contain w-72` : 'relative overflow-hidden'}
+                ${!isSmallScreen && sidebarVisible ? 'w-72' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
                 grid grid-rows-[auto_1fr] border-l-2 border-chatroom-border-strong
                 ${isSmallScreen ? 'bg-chatroom-bg-primary' : 'bg-chatroom-bg-surface backdrop-blur-xl'}
