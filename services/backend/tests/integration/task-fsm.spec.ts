@@ -526,7 +526,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(queuedMessages[0]?.content).toBe('Second task');
     });
 
-    test('completing first task auto-promotes queued message', async () => {
+    test('completing first task does not auto-promote queued message', async () => {
       const { sessionId } = await createTestSession('test-fsm-move-pur-queued');
       const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
@@ -553,23 +553,22 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       const queuedBefore = await t.query(api.messages.listQueued, { sessionId, chatroomId });
       expect(queuedBefore.length).toBe(1);
 
-      // Complete first task — should auto-promote second
+      // Complete first task — queue remains available for explicit promotion
       await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.completeTask, { sessionId, chatroomId, role: 'builder' });
 
-      // Queue should now be empty
+      // Queue should still contain the second message
       const queuedAfter = await t.query(api.messages.listQueued, { sessionId, chatroomId });
-      expect(queuedAfter.length).toBe(0);
+      expect(queuedAfter.length).toBe(1);
 
-      // Second task should now be pending
+      // No second task should be pending yet
       const pendingTasks = await t.query(api.tasks.listTasks, {
         sessionId,
         chatroomId,
         statusFilter: 'pending',
       });
-      expect(pendingTasks.length).toBe(1);
-      expect(pendingTasks[0]?.status).toBe('pending');
+      expect(pendingTasks.length).toBe(0);
     });
 
     test('promoteNextTask promotes queued message to pending task', async () => {
@@ -603,7 +602,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(queuedMessages.length).toBe(1);
       expect(queuedMessages[0]?.content).toBe('Second task');
 
-      // Complete first task (should auto-promote second message from queue)
+      // Complete first task without promoting the queued message
       await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.completeTask, {
@@ -611,6 +610,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
         chatroomId,
         role: 'builder',
       });
+
+      await t.mutation(api.tasks.promoteNextTask, { sessionId, chatroomId });
 
       // Queue should now be empty
       const queuedAfter = await t.query(api.messages.listQueued, {
@@ -925,6 +926,81 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       const completedTask = archivedTasks.find((t) => t._id === taskId);
       expect(completedTask?.status).toBe('completed');
       expect(completedTask?.completedAt).toBeDefined();
+    });
+
+    test('force-completing user-origin task promotes queued message', async () => {
+      const { sessionId } = await createTestSession('test-fsm-force-promotes-user');
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        content: 'First task',
+        senderRole: 'user',
+        type: 'message',
+      });
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        content: 'Queued task',
+        senderRole: 'user',
+        type: 'message',
+      });
+
+      const tasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId });
+      const firstTask = tasks.find((task) => task.content === 'First task');
+      expect(firstTask).toBeDefined();
+      await t.mutation(api.tasks.completeTaskById, {
+        sessionId,
+        taskId: firstTask!._id,
+        force: true,
+      });
+
+      const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+      expect(queued).toHaveLength(0);
+      const pendingTasks = await t.query(api.tasks.listTasks, {
+        sessionId,
+        chatroomId,
+        statusFilter: 'pending',
+      });
+      expect(pendingTasks.some((task) => task.content === 'Queued task')).toBe(true);
+    });
+
+    test('force-completing delegation task does not promote queued message', async () => {
+      const { sessionId } = await createTestSession('test-fsm-force-no-promote-delegation');
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+      const delegationTaskId = await t.run(async (ctx) => {
+        const now = Date.now();
+        return await ctx.db.insert('chatroom_tasks', {
+          chatroomId,
+          createdBy: 'planner',
+          content: 'Delegated task',
+          status: 'in_progress',
+          createdAt: now,
+          updatedAt: now,
+          queuePosition: 0,
+          assignedTo: 'builder',
+        });
+      });
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        content: 'Queued behind delegation',
+        senderRole: 'user',
+        type: 'message',
+      });
+
+      await t.mutation(api.tasks.completeTaskById, {
+        sessionId,
+        taskId: delegationTaskId,
+        force: true,
+      });
+
+      const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+      expect(queued).toHaveLength(1);
     });
   });
 });

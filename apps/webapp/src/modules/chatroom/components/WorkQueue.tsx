@@ -102,8 +102,8 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   );
   const { aggregateStatus } = useAgentStatuses(nonUserRoles, statusReadModel);
 
-  // Derive needsPromotion from read-model readiness (replaces checkQueueHealth subscription)
-  // A promotion is needed when: no active task, there are queued tasks, and all agents are waiting
+  // UI-only idle hint for the manual promote button — not an auto-promoter.
+  // A promotion is needed when: no active task, queued messages exist, and all agents are waiting.
   const needsPromotionRaw = useMemo(() => {
     if (!counts) return false;
     const hasActiveTask = counts.pending > 0 || counts.acknowledged > 0 || counts.in_progress > 0;
