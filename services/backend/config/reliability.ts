@@ -65,6 +65,9 @@ export const MACHINE_COMMAND_LOCAL_ACTION_TTL_MS = 60_000;
 /** How long a chatroom remains marked as "observed" before TTL expires (ms).
  *  If frontend stops sending heartbeats within this window, daemon stops syncing.
  *  Set to 60s. */
+/** How long a chatroom remains marked as "observed" before TTL expires (ms).
+ * If frontend stops sending heartbeats within this window, daemon stops syncing
+ * git state for that chatroom's workspaces (workspace-list recency window). */
 export const OBSERVATION_TTL_MS = 60_000;
 
 /** How often the daemon performs a full (non-slim) git state push per workspace.
@@ -97,7 +100,6 @@ export const OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS = 25_000;
 export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 45_000;
 
 /** Workspaces are included in daemon sync lists only if observed within this window (ms). */
-export const WORKSPACE_RECENCY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /** Daemon reconcile interval for workspace-list subscription TTL drift (ms). */
 export const WORKSPACE_LIST_RECONCILE_MS = 60 * 60 * 1000; // 1 hour

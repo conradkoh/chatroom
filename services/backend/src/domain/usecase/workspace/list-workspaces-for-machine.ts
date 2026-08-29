@@ -10,7 +10,7 @@ import {
   type ListRecentlyObservedWorkspacesForMachineResult,
   type WorkspaceForMachineView,
 } from './list-recently-observed-workspaces-for-machine';
-import { WORKSPACE_RECENCY_WINDOW_MS } from '../../../../config/reliability';
+import { OBSERVATION_TTL_MS } from '../../../../config/reliability';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
 export type { WorkspaceForMachineView };
@@ -27,6 +27,6 @@ export async function listWorkspacesForMachine(
 ): Promise<ListWorkspacesForMachineResult> {
   return listRecentlyObservedWorkspacesForMachine(ctx, {
     machineId: input.machineId,
-    recencyWindowMs: WORKSPACE_RECENCY_WINDOW_MS,
+    recencyWindowMs: OBSERVATION_TTL_MS,
   });
 }
