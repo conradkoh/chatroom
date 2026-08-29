@@ -438,8 +438,8 @@ export const completeTaskById = mutation({
         );
       }
 
-      // Queue promotion is now handled automatically by the transitionTask usecase
-      // whenever a task transitions to 'completed'. No inline promotion needed here.
+      // Queue promotion is not triggered by completeTask. Promotion happens on
+      // handoff-to-user, force-complete of user-origin tasks, or manual promote.
 
       return { success: true, taskId: args.taskId, wasForced: true };
     }
@@ -764,6 +764,9 @@ export const checkQueueHealth = query({
 
     const hasActiveTask = activeTasks.length > 0;
     const hasQueuedTasks = firstQueuedMessage !== null;
+    // needsPromotion is a UI hint for the manual promote button only.
+    // Do not wire daemon idle detection to auto-call promoteNextTask — duplicate
+    // promotion paths cause race conditions with handoff-to-user.
     // Promotion is possible only if no active tasks, there are queued messages, AND all agents are waiting
     const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsWaiting;
 
