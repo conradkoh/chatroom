@@ -11,6 +11,8 @@ import {
   XCircle,
   Clock,
   CheckCheck,
+  CircleDot,
+  List,
 } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
@@ -39,16 +41,10 @@ import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
 import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
-import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
+import { SIDEBAR_PREVIEW_LIMIT, WorkQueueSection } from './WorkQueue/WorkQueueSection';
 import { teamSupportsEnhancer } from '../hooks/persistence/teamEnhancerSupport';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
-
-// Maximum number of pending review items to show in sidebar before "View More"
-const PENDING_REVIEW_PREVIEW_LIMIT = 3;
-
-// Maximum number of current tasks to show in sidebar before "View More"
-const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
 export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
@@ -361,11 +357,16 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
           </div>
         )}
 
-        {/* Current Task */}
-        {categorizedTasks.current.length > 0 && (
-          <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
-              <span>Current ({categorizedTasks.current.length})</span>
+        <WorkQueueSection
+          title="Current"
+          count={categorizedTasks.current.length}
+          icon={CircleDot}
+          iconClassName="text-chatroom-accent"
+          emptyMessage="No current tasks"
+          viewMoreCount={Math.max(0, categorizedTasks.current.length - SIDEBAR_PREVIEW_LIMIT)}
+          onViewMore={() => setIsCurrentTasksModalOpen(true)}
+          headerAction={
+            categorizedTasks.current.length > 0 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   type="button"
@@ -384,63 +385,64 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-            {/* Show only first CURRENT_TASKS_PREVIEW_LIMIT items */}
-            {categorizedTasks.current.slice(0, CURRENT_TASKS_PREVIEW_LIMIT).map((task) => (
-              <TaskItem
-                key={task._id}
-                task={task}
-                isProtected
-                onClick={() => handleOpenTaskDetail(task)}
-                showCancelEnhancer={task.assignedTo === 'enhancer' && isEnhancing}
-                onCancelEnhancer={cancelJob}
-                isCancellingEnhancer={isCancelling}
-              />
-            ))}
-            {/* Show "View More" button when there are more items */}
-            {categorizedTasks.current.length > CURRENT_TASKS_PREVIEW_LIMIT && (
-              <ViewMoreButton
-                count={categorizedTasks.current.length - CURRENT_TASKS_PREVIEW_LIMIT}
-                onClick={() => setIsCurrentTasksModalOpen(true)}
-              />
-            )}
-          </div>
-        )}
+            ) : undefined
+          }
+        >
+          {categorizedTasks.current.slice(0, SIDEBAR_PREVIEW_LIMIT).map((task) => (
+            <TaskItem
+              key={task._id}
+              task={task}
+              isProtected
+              onClick={() => handleOpenTaskDetail(task)}
+              showCancelEnhancer={task.assignedTo === 'enhancer' && isEnhancing}
+              onCancelEnhancer={cancelJob}
+              isCancellingEnhancer={isCancelling}
+            />
+          ))}
+        </WorkQueueSection>
 
-        {/* Queued Messages - Messages waiting to be processed */}
-        {queuedMessages.length > 0 && (
-          <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 bg-chatroom-bg-tertiary flex items-center gap-2">
-              <Clock size={12} />
-              <span>Queued ({queuedMessages.length})</span>
-            </div>
-            {/* Show queued messages */}
-            {queuedMessages.slice(0, 3).map((message) => (
-              <QueuedMessageItem
-                key={message._id}
-                chatroomId={chatroomId}
-                message={message}
-                teamSupportsEnhancer={teamSupportsEnhancerFlag}
-                onDelete={handleQueuedDelete}
-              />
-            ))}
-            {queuedMessages.length > 3 && (
-              <ViewMoreButton
-                count={queuedMessages.length - 3}
-                onClick={() => setIsQueuedMessagesModalOpen(true)}
-              />
-            )}
-          </div>
-        )}
+        <WorkQueueSection
+          title="Queued"
+          count={queuedMessages.length}
+          icon={Clock}
+          iconClassName="text-orange-600 dark:text-orange-400"
+          emptyMessage="No queued messages"
+          viewMoreCount={Math.max(0, queuedMessages.length - SIDEBAR_PREVIEW_LIMIT)}
+          onViewMore={() => setIsQueuedMessagesModalOpen(true)}
+          headerAction={
+            <button
+              type="button"
+              onClick={() => setIsQueueFrontModalOpen(true)}
+              className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+              aria-label="Add message to front of queue"
+              title="Add message to front of queue"
+              data-testid="queue-front-add-button"
+            >
+              <Plus size={14} />
+            </button>
+          }
+        >
+          {queuedMessages.slice(0, SIDEBAR_PREVIEW_LIMIT).map((message) => (
+            <QueuedMessageItem
+              key={message._id}
+              chatroomId={chatroomId}
+              message={message}
+              teamSupportsEnhancer={teamSupportsEnhancerFlag}
+              onDelete={handleQueuedDelete}
+            />
+          ))}
+        </WorkQueueSection>
 
-        {/* Pending Review - Backlog items awaiting user confirmation */}
-        {pendingReviewBacklogItems.length > 0 && (
-          <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
-                <span>Pending Review ({pendingReviewBacklogItems.length})</span>
-              </div>
+        <WorkQueueSection
+          title="Pending Review"
+          count={pendingReviewBacklogItems.length}
+          icon={ClipboardCheck}
+          iconClassName="text-violet-500 dark:text-violet-400"
+          emptyMessage="No items pending review"
+          viewMoreCount={Math.max(0, pendingReviewBacklogItems.length - SIDEBAR_PREVIEW_LIMIT)}
+          onViewMore={() => setIsPendingReviewModalOpen(true)}
+          headerAction={
+            pendingReviewBacklogItems.length > 0 ? (
               <button
                 onClick={handleMarkAllReviewed}
                 className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
@@ -448,29 +450,26 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
               >
                 <CheckCheck size={14} />
               </button>
-            </div>
-            {/* Show backlog pending review items */}
-            {pendingReviewBacklogItems.slice(0, PENDING_REVIEW_PREVIEW_LIMIT).map((item) => (
-              <PendingReviewBacklogItem
-                key={item._id}
-                item={item}
-                onClick={() => setSelectedBacklogItemId(item._id)}
-              />
-            ))}
-            {/* Show "View More" button when there are more items in total */}
-            {pendingReviewBacklogItems.length > PENDING_REVIEW_PREVIEW_LIMIT && (
-              <ViewMoreButton
-                count={pendingReviewBacklogItems.length - PENDING_REVIEW_PREVIEW_LIMIT}
-                onClick={() => setIsPendingReviewModalOpen(true)}
-              />
-            )}
-          </div>
-        )}
+            ) : undefined
+          }
+        >
+          {pendingReviewBacklogItems.slice(0, SIDEBAR_PREVIEW_LIMIT).map((item) => (
+            <PendingReviewBacklogItem
+              key={item._id}
+              item={item}
+              onClick={() => setSelectedBacklogItemId(item._id)}
+            />
+          ))}
+        </WorkQueueSection>
 
-        {/* Backlog Tasks */}
-        <div className="border-b border-chatroom-border">
-          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
-            <span>Backlog ({categorizedTasks.backlog.length})</span>
+        <WorkQueueSection
+          title="Backlog"
+          count={categorizedTasks.backlog.length}
+          icon={List}
+          emptyMessage="No backlog items"
+          viewMoreCount={Math.max(0, categorizedTasks.backlog.length - SIDEBAR_PREVIEW_LIMIT)}
+          onViewMore={() => setIsBacklogQueueModalOpen(true)}
+          headerAction={
             <button
               onClick={() => setIsBacklogCreateModalOpen(true)}
               className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
@@ -478,29 +477,16 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
             >
               <Plus size={14} />
             </button>
-          </div>
-
-          {/* Compact Backlog Items - Show first 3 */}
-          {categorizedTasks.backlog.slice(0, 3).map((item) => (
+          }
+        >
+          {categorizedTasks.backlog.slice(0, SIDEBAR_PREVIEW_LIMIT).map((item) => (
             <CompactBacklogItem
               key={item._id}
               item={item}
               onClick={() => setSelectedBacklogItemId(item._id)}
             />
           ))}
-
-          {/* View More Button */}
-          {categorizedTasks.backlog.length > 3 && (
-            <ViewMoreButton
-              count={categorizedTasks.backlog.length - 3}
-              onClick={() => setIsBacklogQueueModalOpen(true)}
-            />
-          )}
-
-          {categorizedTasks.backlog.length === 0 && (
-            <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
-          )}
-        </div>
+        </WorkQueueSection>
         {/* End of Backlog Tasks */}
       </div>
       {/* End of Scrollable Task List Container */}
