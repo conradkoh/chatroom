@@ -84,8 +84,6 @@ export const OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS = 25_000;
  *  Set to 45s (within 60s OBSERVATION_TTL_MS with margin). */
 export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 45_000;
 
-/** Workspaces are included in daemon sync lists only if observed within this window (ms). */
-
 /** Daemon reconcile interval for workspace-list subscription TTL drift (ms). */
 export const WORKSPACE_LIST_RECONCILE_MS = 60 * 60 * 1000; // 1 hour
 
