@@ -1,6 +1,6 @@
+import { getTeamPreset } from '@workspace/shared/domain/team-presets';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
-import { getTeamPreset } from '@workspace/shared/domain/team-presets';
 
 import { applyEnhancerComplete } from './completeLogic';
 import { deliverPendingHandoffFromJob } from './delivery';
@@ -193,6 +193,7 @@ export const recordAttemptFailure = mutation({
   },
 });
 
+/** @deprecated Use enhancer `chatroom handoff` delivery. Retained for daemon salvage only. */
 export const complete = mutation({
   args: {
     ...SessionIdArg,

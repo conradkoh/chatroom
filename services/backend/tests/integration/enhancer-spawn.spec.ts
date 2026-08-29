@@ -227,6 +227,8 @@ describe('daemon.enhancer.index', () => {
     expect(payload.taskEnvelope).toContain('<requirements>');
     expect(payload.taskEnvelope).toContain('one complete recommended design');
     expect(payload.taskEnvelope).toContain('<cli-handoff-command>');
+    expect(payload.taskEnvelope).toContain('chatroom handoff');
+    expect(payload.taskEnvelope).not.toContain('enhancer complete');
   });
 
   test('pendingForMachine respects nextRetryAt filter', async () => {
