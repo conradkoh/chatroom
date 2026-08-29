@@ -8,6 +8,8 @@ import {
   DaemonSessionService,
   type DaemonAgentProcessManagerServiceShape,
 } from './daemon-services.js';
+import { AgentLifecycleOutboxService } from './daemon-services.js';
+import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { api } from '../../api.js';
 import {
@@ -103,10 +105,13 @@ export const startTaskInboxEffect = (
   { stop: () => void },
   never,
   DaemonSessionService | DaemonAgentProcessManagerService
+    | AgentLifecycleOutboxService
 > =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const agentMgr = yield* DaemonAgentProcessManagerService;
+    const lifecycleOutboxService = yield* AgentLifecycleOutboxService;
+    const lifecycleOutbox = { enqueue: (fact: AgentLifecycleFact) => Effect.runPromise(lifecycleOutboxService.enqueue(fact)) };
     const effectContext = yield* Effect.context<
       DaemonSessionService | DaemonAgentProcessManagerService
     >();
@@ -141,6 +146,7 @@ export const startTaskInboxEffect = (
       machineId: session.machineId,
       taskSnapshotState,
       agentOperationalReadModel,
+      lifecycleOutbox,
     });
     const cooldown = new RecoveryCooldown();
     let inboxUpdateInFlight = false;

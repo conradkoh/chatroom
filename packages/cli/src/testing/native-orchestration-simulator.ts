@@ -4,7 +4,6 @@
  * Wires runNativeInjectionEffect against a RecordingHarness and mocked Convex backend.
  */
 
-import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
@@ -55,8 +54,9 @@ function createBackendMock(deliveryOutput: string) {
   const mutation = async (fn: unknown, args: Record<string, unknown>) => {
     if (
       isClaimMutation(args) ||
-      args.action === NATIVE_TASK_INJECTED_ACTION ||
-      fn === api.machines.emitSessionAugmented
+      'deliveryKind' in args ||
+      fn === api.machines.emitSessionAugmented ||
+      fn === api.daemon.agentEvents.sessionAugmented
     ) {
       return undefined;
     }
@@ -108,6 +108,7 @@ export class NativeOrchestrationSimulator {
         logEvent: async () => undefined,
         convexUrl,
         backend,
+        lifecycleOutbox: { enqueue: async () => ({ success: true }) },
         agentMgr: this.harness,
       })
     );

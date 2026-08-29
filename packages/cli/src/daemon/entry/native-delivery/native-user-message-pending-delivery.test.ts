@@ -21,7 +21,10 @@ import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machi
 import { Context, Effect, Runtime } from 'effect';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
+import {
+  getNativeDeliverySession,
+  unregisterNativeDeliverySession,
+} from './native-delivery-session-registry.js';
 import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
@@ -186,9 +189,9 @@ describe('user message pending delivery path', () => {
         taskId: row!.taskId,
       })
     );
-    expect(backendMutation).toHaveBeenCalledWith(
-      api.participants.join,
+    expect(getNativeDeliverySession()!.lifecycleOutbox!.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
+        kind: 'activity',
         action: NATIVE_TASK_INJECTED_ACTION,
         taskId: row!.taskId,
       })

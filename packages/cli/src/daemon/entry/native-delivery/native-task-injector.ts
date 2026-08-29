@@ -5,6 +5,7 @@ import {
   sessionAugmentationNewSessionStarted,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect } from 'effect';
+import { buildActivityLifecycleFact, type AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 
 import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
 import { buildNativeInjectionPrompt } from './native-task-injector-logic.js';
@@ -45,6 +46,7 @@ export interface NativeInjectorDeps {
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
   };
   agentMgr: NativeInjectorAgentMgr;
+  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
   convexUrl?: string;
   onTaskDelivered?: (args: { chatroomId: string; role: string; taskId: string }) => void;
 }
@@ -318,13 +320,9 @@ function injectNativeTaskPrompt(
 
     yield* Effect.tryPromise({
       try: () =>
-        deps.backend.mutation(api.participants.join, {
-          sessionId: deps.sessionId,
-          chatroomId,
-          role,
-          action: NATIVE_TASK_INJECTED_ACTION,
-          taskId,
-        }),
+        deps.lifecycleOutbox
+          ? deps.lifecycleOutbox.enqueue(buildActivityLifecycleFact({ chatroomId, role, action: NATIVE_TASK_INJECTED_ACTION, taskId }))
+          : Promise.reject(new Error('lifecycle outbox missing')),
       catch: (err) => err,
     });
 

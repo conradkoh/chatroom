@@ -1,6 +1,15 @@
 // fallow-ignore-file code-duplication
 export type AgentLifecycleFact =
   | {
+      kind: 'activity';
+      chatroomId: string;
+      role: string;
+      action: string;
+      taskId?: string;
+      revisionKey: string;
+      emittedAt: number;
+    }
+  | {
       kind: 'spawned';
       chatroomId: string;
       role: string;
@@ -77,10 +86,19 @@ export function normalizeAgentLifecycleFact(raw: unknown): AgentLifecycleFact {
       emittedAt: Number(rest.emittedAt),
     };
   }
-  if (kind === 'spawned' || kind === 'exited') {
+  if (kind === 'spawned' || kind === 'exited' || kind === 'activity') {
     return rest as AgentLifecycleFact;
   }
   throw new Error(`Unknown agent lifecycle fact kind: ${String(kind)}`);
+}
+
+export function buildActivityLifecycleFact(params: {
+  chatroomId: string; role: string; action: string; taskId?: string; emittedAt?: number;
+}): Extract<AgentLifecycleFact, { kind: 'activity' }> {
+  const emittedAt = params.emittedAt ?? Date.now();
+  return { kind: 'activity', chatroomId: params.chatroomId, role: params.role, action: params.action,
+    ...(params.taskId ? { taskId: params.taskId } : {}),
+    revisionKey: buildAgentLifecycleRevisionKey('activity', { ...params, emittedAt }), emittedAt };
 }
 
 export function agentLifecycleDeliveryKey(machineId: string, fact: AgentLifecycleFact): string {

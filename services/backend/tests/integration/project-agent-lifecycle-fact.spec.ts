@@ -7,6 +7,7 @@ import {
   buildAgentStopTargetKey,
 } from '../../src/domain/entities/agent-stop-command';
 import { t } from '../../test.setup';
+import type { Id } from '../../convex/_generated/dataModel';
 import {
   createDuoTeamChatroom,
   createTestSession,
@@ -39,6 +40,13 @@ async function projectionFor(chatroomId: any) {
   }));
 }
 
+async function seedAcknowledgedTask(chatroomId: Id<'chatroom_rooms'>, role: string) {
+  return t.run(async (ctx) => {
+    const now = Date.now();
+    return ctx.db.insert('chatroom_tasks', { chatroomId, createdBy: 'user', content: 'activity test task', status: 'acknowledged', assignedTo: role, createdAt: now, updatedAt: now, queuePosition: 0 });
+  });
+}
+
 describe('projectAgentLifecycleFact', () => {
   test('spawned sets PID and participant status', async () => {
     const { sessionId } = await createTestSession('lifecycle-spawn');
@@ -46,6 +54,7 @@ describe('projectAgentLifecycleFact', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
     await t.mutation(api.machines.projectAgentLifecycleFact, {
       sessionId: sessionId as any,
       machineId,
@@ -74,6 +83,7 @@ describe('projectAgentLifecycleFact', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
     await t.mutation(api.machines.projectAgentLifecycleFact, {
       sessionId: sessionId as any,
       machineId,
@@ -105,6 +115,7 @@ describe('projectAgentLifecycleFact', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
     const fact = {
       kind: 'spawned' as const,
       chatroomId,
@@ -312,5 +323,44 @@ describe('projectAgentLifecycleFact', () => {
     });
     expect(result.clearedCount).toBeGreaterThanOrEqual(1);
     expect((await configFor(chatroomId, 'builder'))!.spawnedAgentPid).toBeUndefined();
+  });
+
+  test('activity native:waiting transitions role to agent.waiting', async () => {
+    const { sessionId } = await createTestSession('lifecycle-activity-waiting');
+    const machineId = 'lifecycle-machine-activity-waiting';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.machines.projectAgentLifecycleFact, { sessionId: sessionId as any, machineId, fact: { kind: 'activity', chatroomId, role: 'builder', action: 'native:waiting', revisionKey: 'activity:waiting:1', emittedAt: Date.now() } });
+    const participant = await t.query(api.participants.getByRole, { sessionId, chatroomId, role: 'builder' });
+    expect(participant?.lastStatus).toBe('agent.waiting');
+  });
+
+  test('activity native:waiting does not transition when acknowledged task exists', async () => {
+    const { sessionId } = await createTestSession('lifecycle-activity-waiting-guard');
+    const machineId = 'lifecycle-machine-activity-waiting-guard';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
+    await seedAcknowledgedTask(chatroomId, 'builder');
+    await t.mutation(api.machines.projectAgentLifecycleFact, { sessionId: sessionId as any, machineId, fact: { kind: 'activity', chatroomId, role: 'builder', action: 'native:waiting', revisionKey: 'activity:waiting:guard', emittedAt: Date.now() } });
+    const participant = await t.query(api.participants.getByRole, { sessionId, chatroomId, role: 'builder' });
+    expect(participant?.lastStatus).not.toBe('agent.waiting');
+  });
+
+  test('activity native:task-injected transitions to task.acknowledged', async () => {
+    const { sessionId } = await createTestSession('lifecycle-activity-injected');
+    const machineId = 'lifecycle-machine-activity-injected';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
+    const taskId = await seedAcknowledgedTask(chatroomId, 'builder');
+    await t.mutation(api.machines.projectAgentLifecycleFact, { sessionId: sessionId as any, machineId, fact: { kind: 'activity', chatroomId, role: 'builder', action: 'native:task-injected', taskId, revisionKey: 'activity:injected:1', emittedAt: Date.now() } });
+    const participant = await t.query(api.participants.getByRole, { sessionId, chatroomId, role: 'builder' });
+    expect(participant?.lastStatus).toBe('task.acknowledged');
+    expect(participant?.lastInFlightTaskId).toBe(taskId);
   });
 });

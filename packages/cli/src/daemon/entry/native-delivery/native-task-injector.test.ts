@@ -55,17 +55,21 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
       query: vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY OUTPUT' }),
     },
     agentMgr: createAgentMgrMocks(),
+    lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue(undefined) },
     convexUrl: 'http://test:3210',
     ...overrides,
   };
 }
 
 describe('runNativeInjectionEffect', () => {
-  test('claim → query → join → resumeTurn in order', async () => {
+  test('claim → query → activity → receipt → resumeTurn in order', async () => {
     const deps = createDeps();
     const task = makeTask();
     const order: string[] = [];
     const auditOrder: string[] = [];
+    (deps.lifecycleOutbox!.enqueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      order.push('activity');
+    });
 
     (deps.logEvent as ReturnType<typeof vi.fn>).mockImplementation(async (event) => {
       if (event.type === 'agent.sessionAugmented') auditOrder.push('augmented');
@@ -73,8 +77,7 @@ describe('runNativeInjectionEffect', () => {
     });
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
       async (_fn: unknown, args: Record<string, unknown>) => {
-        if ('action' in args) order.push('join');
-        else if ('mode' in args) order.push('augmented-state');
+        if ('mode' in args) order.push('augmented-state');
         else if ('deliveryKind' in args) order.push('receipt');
         else if ('taskId' in args && 'role' in args) order.push('claim');
         return undefined;
@@ -90,9 +93,10 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    expect(order).toEqual(['claim', 'query', 'join', 'receipt', 'augmented-state', 'resume']);
+    expect(order).toEqual(['claim', 'query', 'activity', 'receipt', 'augmented-state', 'resume']);
     expect(auditOrder).toEqual(['augmented', 'delivered']);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
+    expect(deps.lifecycleOutbox!.enqueue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'activity', action: 'native:task-injected', taskId: 'task_1' }));
   });
 
   test('skips claim when task is already acknowledged', async () => {
