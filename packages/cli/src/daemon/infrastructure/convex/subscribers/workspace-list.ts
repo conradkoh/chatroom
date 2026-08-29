@@ -1,4 +1,4 @@
-import { WORKSPACE_RECENCY_WINDOW_MS } from '@workspace/backend/config/reliability.js';
+import { OBSERVATION_TTL_MS } from '@workspace/backend/config/reliability.js';
 
 import { api } from '../../../../api.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
@@ -15,7 +15,7 @@ export function startWorkspaceListSubscriber(
   const queryArgs = {
     sessionId: deps.sessionId,
     machineId: deps.machineId,
-    recencyWindowMs: WORKSPACE_RECENCY_WINDOW_MS,
+    recencyWindowMs: OBSERVATION_TTL_MS,
   };
 
   const unsub = deps.wsClient.onUpdate(

@@ -4,7 +4,7 @@
  * Legacy WS `onUpdate` and reconcile timer removed in U13.
  */
 
-import { WORKSPACE_RECENCY_WINDOW_MS } from '@workspace/backend/config/reliability.js';
+import { OBSERVATION_TTL_MS } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
@@ -26,7 +26,7 @@ export async function reconcileWorkspaceList(session: DaemonSessionServiceShape)
     {
       sessionId: session.sessionId,
       machineId: session.machineId,
-      recencyWindowMs: WORKSPACE_RECENCY_WINDOW_MS,
+      recencyWindowMs: OBSERVATION_TTL_MS,
     }
   );
   if (workspaces == null) return;
