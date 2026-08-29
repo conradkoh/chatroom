@@ -17,6 +17,7 @@ import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
+import { findActiveEnhancerJobForChatroom } from './web/enhancer/jobHelpers';
 import {
   assemblePrimaryDeliveryAttachments,
   resolvePrimaryDeliveryAssemblyInput,
@@ -33,6 +34,7 @@ import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueu
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import { completeEnhancerJob } from '../src/domain/usecase/enhancer/complete-enhancer-job';
 import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
   hasActiveEnhancerWork,
@@ -1068,6 +1070,12 @@ export async function runHandoffHandler(
       args.chatroomId,
       enhancerEntryPointRole ?? args.targetRole
     );
+    if (!args.enhancerJobId) {
+      const activeJob = await findActiveEnhancerJobForChatroom(ctx, args.chatroomId);
+      if (activeJob) {
+        await completeEnhancerJob(ctx, { jobId: activeJob._id, enhancedContent: args.content });
+      }
+    }
   }
 
   // Step 5: Attached backlog items remain in their current status on handoff.
