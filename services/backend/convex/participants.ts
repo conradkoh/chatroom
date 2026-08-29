@@ -18,19 +18,15 @@ import {
   isActiveParticipant,
 } from '../src/domain/entities/participant';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
-import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
-import { hasActiveEntryPointEnhancerJob } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
-import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
 import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
-import {
-  findActiveAssignedTaskForRole,
-  findAcknowledgedTaskForRole,
-} from '../src/domain/usecase/task/find-acknowledged-task-for-role';
+import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
+import { touchAgentRoleStatusLastSeen } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
 
 async function getParticipantByChatroomRole(
   ctx: QueryCtx | MutationCtx,
@@ -100,7 +96,6 @@ export const join = mutation({
 
     let participantId;
     const now = Date.now();
-    let actionChangedForPresence = false;
 
     if (existing) {
       // connectionId is only updated when explicitly provided — never cleared by heartbeats
@@ -112,7 +107,6 @@ export const join = mutation({
       const agentTypeChanged =
         args.agentType !== undefined && args.agentType !== existing.agentType;
       const actionChanged = args.action !== undefined && args.action !== existing.lastSeenAction;
-      actionChangedForPresence = actionChanged;
       const lastSeenAtStale =
         existing.lastSeenAt === undefined ||
         now - existing.lastSeenAt >= PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS;
@@ -154,7 +148,6 @@ export const join = mutation({
       participantId = existing._id;
     } else {
       // Create new participant
-      actionChangedForPresence = args.action !== undefined;
       participantId = await ctx.db.insert('chatroom_participants', {
         chatroomId: args.chatroomId,
         role: args.role,
@@ -165,6 +158,12 @@ export const join = mutation({
         ...(args.agentType ? { agentType: args.agentType } : {}),
       });
     }
+
+    await touchAgentRoleStatusLastSeen(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      lastSeenAt: now,
+    });
 
     // Auto-promote queued tasks when the entry point role joins.
     // maybePromoteNextQueuedTask skips non-entry-point roles internally.
@@ -199,64 +198,28 @@ export const join = mutation({
       );
     }
 
-    // Emit agent.waiting event when agent enters the get-next-task loop
-    const isStopRequested = teamConfig?.desiredState === 'stopped';
-    if (args.action === 'get-next-task:started' && !isStopRequested) {
-      const entryPointEnhancerActive = await hasActiveEntryPointEnhancerJob(
-        ctx,
-        args.chatroomId,
-        args.role
-      );
-      const waitingStatus = entryPointEnhancerActive ? 'agent.enhancing' : 'agent.waiting';
-
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, waitingStatus);
-    }
-
-    if (args.action === 'get-next-task:stopped') {
-      // Agent left the blocking listener to process a claimed task.
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
-    }
-
     if (args.action === NATIVE_WAITING_ACTION) {
       const activeTask = await findActiveAssignedTaskForRole(ctx, {
         chatroomId: args.chatroomId,
         role: args.role,
       });
-      // Do not downgrade while agent has claimed work (awaiting tokens or actively working).
-      if (activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress') {
-        await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.role, {
-          actionChanged: actionChangedForPresence,
-        });
+      if (activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress')
         return participantId;
-      }
-
-      if (!isStopRequested) {
-        await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
-      }
     }
-
-    if (args.action === NATIVE_TASK_INJECTED_ACTION) {
-      const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
+    if (
+      args.action === 'get-next-task:started' ||
+      args.action === 'get-next-task:stopped' ||
+      args.action === NATIVE_WAITING_ACTION ||
+      args.action === NATIVE_TASK_INJECTED_ACTION
+    ) {
+      await applyAgentActivityHeartbeat(ctx, {
         chatroomId: args.chatroomId,
         role: args.role,
+        action: args.action,
         taskId: args.taskId,
+        participantId,
       });
-
-      if (acknowledgedTask) {
-        // Do NOT re-emit task.acknowledged — claim already wrote it.
-        await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
-      }
-
-      if (args.taskId && participantId) {
-        await ctx.db.patch('chatroom_participants', participantId, {
-          lastInFlightTaskId: args.taskId,
-        });
-      }
     }
-
-    await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.role, {
-      actionChanged: actionChangedForPresence,
-    });
 
     return participantId;
   },

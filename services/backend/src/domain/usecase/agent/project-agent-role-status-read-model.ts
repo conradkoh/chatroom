@@ -4,6 +4,7 @@ import type { ChatroomAgentActivityStatusValue } from '@workspace/shared/domain/
 import type { Id, Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-for-role';
 
 export type AgentRoleStatusReadModelStatus = ChatroomAgentActivityStatusValue;
 
@@ -58,16 +59,13 @@ export async function projectAgentRoleStatusReadModel(
     role: string;
     event?: StatusEvent;
     config?: Doc<'chatroom_teamAgentConfigs'>;
+    lastSeenAt?: number;
   }
 ): Promise<void> {
   const role = args.role.trim().toLowerCase();
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
   if (!room) return;
 
-  const participant = await ctx.db
-    .query('chatroom_participants')
-    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
-    .first();
   const teamId = room.teamId;
   const config =
     args.config ??
@@ -81,6 +79,14 @@ export async function projectAgentRoleStatusReadModel(
       : null);
   const event = args.event ?? { status: 'offline' as const };
   const now = Date.now();
+  const existing = await ctx.db
+    .query('chatroom_agentRoleStatusReadModel')
+    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
+    .first();
+  const activeTask =
+    event.status === 'working'
+      ? await findActiveAssignedTaskForRole(ctx, { chatroomId: args.chatroomId, role })
+      : null;
   const error =
     event.errorCode && event.errorSource
       ? {
@@ -95,19 +101,32 @@ export async function projectAgentRoleStatusReadModel(
     role,
     roleKind: isEphemeralAgentRole(role) ? ('ephemeral' as const) : ('persistent' as const),
     status: event.status,
-    machineId: config?.machineId ?? participant?.machineId,
-    lastSeenAt: participant?.lastSeenAt,
-    activeWork:
-      event.status === 'working' && participant?.lastInFlightTaskId
-        ? { kind: 'task' as const, id: participant.lastInFlightTaskId }
-        : undefined,
+    machineId: config?.machineId,
+    ...(args.lastSeenAt !== undefined
+      ? { lastSeenAt: args.lastSeenAt }
+      : existing?.lastSeenAt !== undefined
+        ? { lastSeenAt: existing.lastSeenAt }
+        : {}),
+    activeWork: activeTask ? { kind: 'task' as const, id: activeTask._id } : undefined,
     error,
     projectedAt: now,
   };
+  if (existing) await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, fields);
+  else await ctx.db.insert('chatroom_agentRoleStatusReadModel', fields);
+}
+
+export async function touchAgentRoleStatusLastSeen(
+  ctx: MutationCtx,
+  args: { chatroomId: Id<'chatroom_rooms'>; role: string; lastSeenAt?: number }
+): Promise<void> {
+  const role = args.role.trim().toLowerCase();
   const existing = await ctx.db
     .query('chatroom_agentRoleStatusReadModel')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
     .first();
-  if (existing) await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, fields);
-  else await ctx.db.insert('chatroom_agentRoleStatusReadModel', fields);
+  if (!existing) return;
+  await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, {
+    lastSeenAt: args.lastSeenAt ?? Date.now(),
+    projectedAt: Date.now(),
+  });
 }

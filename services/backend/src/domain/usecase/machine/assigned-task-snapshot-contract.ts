@@ -68,8 +68,6 @@ export const assignedTaskSignalBootstrapFields = {
   createdAt: z.number(),
   workingDir: z.string().optional(),
   assignedTo: z.string().optional(),
-  lastSeenAction: z.string().nullable().optional(),
-  lastStatus: z.string().nullable().optional(),
   sessionAugmentation: sessionAugmentationSchema.optional(),
 } as const;
 

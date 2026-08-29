@@ -85,11 +85,12 @@ describe('enhancer delegation-loop workflow', () => {
     });
     expect(enhancerTask?.originUserMessageId).toBe(userMessageId);
 
-    await t.mutation(api.web.enhancer.mutations.complete, {
+    await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      jobId: enhancerJob!._id,
-      enhancedContent: '## Summary\nTighten scope',
+      senderRole: 'enhancer',
+      targetRole: 'planner',
+      content: '## Summary\nTighten scope',
     });
 
     // New planner pending task from enhancer planning input
@@ -155,6 +156,7 @@ describe('enhancer delegation-loop workflow', () => {
       targetRole: 'enhancer',
       content: '<request>Build multi-slice feature</request>',
     });
+    expect(enhancerHandoff.success).toBe(true);
     const enhancerJob = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_enhancerJobs')
@@ -165,12 +167,6 @@ describe('enhancer delegation-loop workflow', () => {
       sessionId,
       jobId: enhancerJob!._id,
       machineId,
-    });
-    await t.mutation(api.web.enhancer.mutations.complete, {
-      sessionId,
-      chatroomId,
-      jobId: enhancerJob!._id,
-      enhancedContent: '## Summary\nSlice 1 feedback',
     });
     await t.mutation(api.messages.handoff, {
       sessionId,

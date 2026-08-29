@@ -7,14 +7,12 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 export function buildAssignedTaskRevisionKey(params: {
   taskUpdatedAt: number;
   configUpdatedAt: number;
-  lastSeenAction: string;
-  lastStatus: string;
   taskId: Id<'chatroom_tasks'>;
   role: string;
 }): string {
   const paddedTask = String(params.taskUpdatedAt).padStart(16, '0');
   const paddedConfig = String(params.configUpdatedAt).padStart(16, '0');
-  return `${paddedTask}:${paddedConfig}:${params.lastSeenAction}:${params.lastStatus}:${params.taskId}:${params.role}`;
+  return `${paddedTask}:${paddedConfig}:${params.taskId}:${params.role}`;
 }
 
 export function buildAssignedTaskPresenceKey(params: {

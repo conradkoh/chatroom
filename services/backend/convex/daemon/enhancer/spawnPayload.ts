@@ -2,7 +2,11 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { getDaemonMachineAuth } from './auth';
-import { ENHANCER_STDIN_DELIMITER } from '../../../prompts/cli/stdin-heredoc';
+import {
+  ENHANCER_STDIN_DELIMITER,
+  HANDOFF_MESSAGE_MARKER,
+  formatStdinHeredocCommand,
+} from '../../../prompts/cli/stdin-heredoc';
 import { getConfig } from '../../../prompts/config/index';
 import { renderEnhancerTaskEnvelope } from '../../../prompts/enhancer/render-task-envelope';
 import { renderEnhancerSystemPrompt } from '../../../prompts/enhancer/system-prompt';
@@ -11,6 +15,9 @@ import { query } from '../../_generated/server';
 
 const config = getConfig();
 
+/**
+ * @deprecated Use `getTaskDeliveryForJob` (task pipeline). Retained for transitional callers.
+ */
 export const getSpawnPayload = query({
   args: {
     ...SessionIdArg,
@@ -37,7 +44,12 @@ export const getSpawnPayload = query({
     }
 
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURL());
-    const cliCompleteCommand = `chatroom enhancer complete --chatroom-id=${job.chatroomId} --job-id=${job._id} << '${ENHANCER_STDIN_DELIMITER}'`;
+    const cliHandoffCommand = formatStdinHeredocCommand(
+      `chatroom handoff --chatroom-id=${job.chatroomId} --role=enhancer --next-role=${job.fromRole}`,
+      ENHANCER_STDIN_DELIMITER,
+      '[Design input markdown — follow the output template]',
+      { messageMarker: HANDOFF_MESSAGE_MARKER }
+    );
     const taskEnvelope = renderEnhancerTaskEnvelope({
       jobId: job._id,
       chatroomId: job.chatroomId,
@@ -45,7 +57,7 @@ export const getSpawnPayload = query({
       entryPointRole: job.fromRole,
       outputTemplateContent: job.templateSnapshot,
       requestContent: job.draftContent,
-      cliCompleteCommand,
+      cliCompleteCommand: cliHandoffCommand,
     });
     const systemPrompt = renderEnhancerSystemPrompt({
       chatroomId: job.chatroomId,

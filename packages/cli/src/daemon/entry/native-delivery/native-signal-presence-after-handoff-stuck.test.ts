@@ -32,11 +32,14 @@ import {
 } from './native-delivery-session-registry.js';
 import {
   NativeTaskDeliveryCoordinator,
+  getNativeTaskDeliveryCoordinator,
   notifyNativeTurnIdle,
+  reconcileDeliverableWorkForRole,
 } from './native-task-delivery-coordinator.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { listTasksReadyForNudge, RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import {
   operationalRow,
@@ -196,17 +199,18 @@ describe('native inbox recovery after planner handoff', () => {
     expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('[NativeDelivery:inject]'));
   });
 
-  test('reproduces stuck when notifyNativeTurnIdle already ran before pending task existed', async () => {
+  test('delivers pending task when inbox updates after idle with empty inbox', async () => {
     unregisterNativeDeliverySession();
 
     const backendQuery = vi.fn(async () => ({ tasks: [] }));
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
 
-    registerNativeDeliverySession({
+    const taskSnapshotState = new MachineTaskSnapshotState();
+    registerTestNativeDeliverySession({
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr: {
-        getSlot: vi.fn().mockReturnValue(makeTurnInFlightSlot()),
+        getSlot: vi.fn().mockReturnValue(makeIdleSlot()),
         resumeTurnForSlot,
         setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
       } as never,
@@ -218,9 +222,12 @@ describe('native inbox recovery after planner handoff', () => {
         backend: { mutation: vi.fn(), query: backendQuery },
       },
       machineId: MACHINE_ID,
+      taskSnapshotState,
+      operationalRows: [operationalRow(String(CHATROOM_ID), 'planner')],
     });
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const reconcileSpy = vi.spyOn(getNativeTaskDeliveryCoordinator(), 'reconcileAssignedTasks');
 
     // Idle delivery consults the inbox-owned state and does not query Convex.
     notifyNativeTurnIdle({ chatroomId: CHATROOM_ID, role: 'planner' });
@@ -232,41 +239,17 @@ describe('native inbox recovery after planner handoff', () => {
     );
     resumeTurnForSlot.mockClear();
 
+    taskSnapshotState.replace([]);
     const snapshot = createTaskSnapshot();
-    snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostHandoffPendingSnapshotDoc()));
     expect(row).toBeDefined();
+    taskSnapshotState.upsert([row!]);
 
-    simulateSignalPresenceReconcile({
-      row: row!,
-      agentMgr: {
-        getSlot: vi.fn().mockReturnValue(makeTurnInFlightSlot()),
-        resumeTurnForSlot,
-        setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
-      } as unknown as DaemonAgentProcessManagerServiceShape,
-      sessionDeps: {
-        sessionId: SESSION_ID,
-        convexUrl: 'http://test:3210',
-        machineId: MACHINE_ID,
-        logEvent: async () => undefined,
-        backend: {
-          mutation: vi.fn(),
-          query: vi.fn(async (_fn: unknown, args: unknown) => {
-            if (args && typeof args === 'object' && 'machineId' in args && !('taskId' in args)) {
-              return { tasks: [row] };
-            }
-            return { fullCliOutput: 'SHOULD NOT REACH' };
-          }),
-        },
-      },
-    });
+    reconcileDeliverableWorkForRole(CHATROOM_ID, 'planner');
 
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(resumeTurnForSlot).not.toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[NativeDelivery:skip] planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a')
-    );
+    await vi.waitFor(() => expect(reconcileSpy).toHaveBeenCalled());
 
     unregisterNativeDeliverySession();
     logSpy.mockRestore();

@@ -4,21 +4,11 @@
  * Command-level reasons are set by the caller (doStop) and passed directly.
  * Process-level reasons are derived by resolveStopReason from exit info.
  */
-export type StopReason =
-  | 'user.stop'
-  | 'user.restart'
-  | 'platform.dedup'
-  | 'platform.task_monitor_nudge'
-  | 'platform.task_start_in_new_session'
-  | 'platform.team_switch'
-  | 'platform.resume_storm'
-  | 'daemon.respawn'
-  | 'daemon.shutdown'
-  | 'daemon.stop_timeout'
-  | 'agent_process.exited_clean'
-  | 'agent_process.signal'
-  | 'agent_process.crashed'
-  | 'test';
+import type { AgentStopReason } from '@workspace/backend/src/domain/entities/agent.js';
+
+export type AgentProcessStopReason =
+  'agent_process.exited_clean' | 'agent_process.signal' | 'agent_process.crashed';
+export type StopReason = AgentStopReason | AgentProcessStopReason;
 
 export function resolveStopReason(code: number | null, signal: string | null): StopReason {
   if (signal !== null) return 'agent_process.signal';

@@ -242,11 +242,12 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       machineId,
     });
 
-    await t.mutation(api.web.enhancer.index.complete, {
+    await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      jobId,
-      enhancedContent: '## Summary\nPlanning feedback for planner',
+      senderRole: 'enhancer',
+      targetRole: 'planner',
+      content: '## Summary\nPlanning feedback for planner',
     });
 
     const tasks = await t.run(async (ctx) =>

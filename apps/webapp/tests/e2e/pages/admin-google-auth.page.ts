@@ -83,9 +83,13 @@ export class AdminGoogleAuthPage extends BasePage {
     // Show/hide secret is UI-only — safe to click
     await this.showSecretButton.click();
 
-    // Mutation buttons: assert present, do not click
+    // Mutation buttons: assert present when applicable, do not click
     await expect(this.saveButton).toBeVisible();
-    await expect(this.resetButton).toBeVisible();
+    // Reset only renders when existing Google auth config is loaded from Convex.
+    // Fresh CI deploys have no config, so the button is correctly absent.
+    if ((await this.resetButton.count()) > 0) {
+      await expect(this.resetButton).toBeVisible();
+    }
 
     // Copy buttons (origins + redirect URI) — enabled only, no click
     const copyButtons = this.page.getByRole('button', { name: 'Copy' });

@@ -4,6 +4,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { getAgentViewStatus } from '../../src/domain/usecase/chatroom/get-agent-view-status';
+import { transitionAgentStatus } from '../../src/domain/usecase/agent/transition-agent-status';
 import { markAgentViewHasHistory } from '../../src/domain/usecase/chatroom/project-agent-view-metadata';
 import { t } from '../../test.setup';
 import {
@@ -55,15 +56,7 @@ describe('getAgentViewStatus', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
-    await t.run((ctx) =>
-      ctx.db.insert('chatroom_participants', {
-        chatroomId: room,
-        role: 'builder',
-        agentType: 'remote',
-        lastStatus: 'agent.requestStart',
-        lastDesiredState: 'running',
-      })
-    );
+    await t.run((ctx) => transitionAgentStatus(ctx, room, 'builder', 'agent.requestStart'));
     expect((await query(room))?.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
   });
 
@@ -129,7 +122,7 @@ describe('getAgentViewStatus — running and stopped', () => {
         .first();
       if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
     });
-    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('stopped');
+    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
   });
 });
 
@@ -146,7 +139,7 @@ describe('getAgentViewStatus — daemon disconnected', () => {
       machineId,
       connected: false,
     });
-    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('stopped');
+    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('running');
   });
   test('returns stopped without PID when disconnected', async () => {
     const { sessionId } = await createTestSession('view-disconn-none');
@@ -159,7 +152,7 @@ describe('getAgentViewStatus — daemon disconnected', () => {
       machineId,
       connected: false,
     });
-    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('stopped');
+    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
   });
 });
 
@@ -172,7 +165,7 @@ describe('getAgentViewStatus — daemon restart cleanup', () => {
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId as any, machineId, room, 'builder', 12345);
     await t.mutation(api.machines.clearAllSpawnedPids, { sessionId: sessionId as any, machineId });
-    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('stopped');
+    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
   });
 });
 

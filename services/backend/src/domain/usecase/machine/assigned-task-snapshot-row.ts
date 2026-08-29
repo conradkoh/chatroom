@@ -8,7 +8,7 @@ import type {
   AssignedTaskSignal,
   AssignedTaskSnapshotView,
 } from './assigned-task-snapshot-contract';
-import { toAgentConfigView, toParticipantView } from './assigned-tasks-core';
+import { toAgentConfigView } from './assigned-tasks-core';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
@@ -36,15 +36,6 @@ export function assignedTaskSnapshotFromDoc(doc: SnapshotDoc): AssignedTaskSnaps
     updatedAt: doc.taskUpdatedAt,
     createdAt: doc.taskCreatedAt,
     agentConfig: toAgentConfigView(configStub as RemoteAgentConfig, doc.machineId),
-    participant: toParticipantView({
-      lastSeenAction: doc.lastSeenAction,
-      lastSeenAt: doc.lastSeenAt,
-      lastStatus: doc.lastStatus,
-    } as Doc<'chatroom_participants'>) ?? {
-      lastSeenAction: null,
-      lastSeenAt: null,
-      lastStatus: null,
-    },
   };
 }
 
@@ -73,11 +64,6 @@ function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTask
       agentHarness: signal.agentHarness,
       workingDir: signal.workingDir,
     },
-    participant: {
-      lastSeenAction: signal.lastSeenAction ?? null,
-      lastSeenAt: null,
-      lastStatus: signal.lastStatus ?? null,
-    },
   };
 }
 
@@ -92,26 +78,13 @@ function patchMonitorRowFromSignal(
     agentConfig: {
       ...existing.agentConfig,
     },
-    participant: {
-      lastSeenAction: signal.lastSeenAction ?? existing.participant?.lastSeenAction ?? null,
-      lastSeenAt: existing.participant?.lastSeenAt ?? null,
-      lastStatus: signal.lastStatus ?? existing.participant?.lastStatus ?? null,
-    },
   };
 }
 
 // fallow-ignore-next-line complexity
 export function applyAssignedTaskPresence(
   existing: AssignedTaskSnapshotView | undefined,
-  presence: AssignedTaskPresenceSignal
+  _presence: AssignedTaskPresenceSignal
 ): AssignedTaskSnapshotView | undefined {
-  if (!existing) return undefined;
-  return {
-    ...existing,
-    participant: {
-      lastSeenAction: presence.lastSeenAction ?? existing.participant?.lastSeenAction ?? null,
-      lastSeenAt: presence.lastSeenAt ?? existing.participant?.lastSeenAt ?? null,
-      lastStatus: existing.participant?.lastStatus ?? null,
-    },
-  };
+  return existing;
 }

@@ -13,6 +13,7 @@ Agent memory for this repository, stored as an [Open Knowledge Format (OKF)](htt
 - [Testing](testing/) — test strategy, coverage, and quality practices
 - [Development](development/) — developer workflows, tooling, and guides
 - [Migrations](migrations/) — migration inventories, plans, and transition records
+- [Releases](releases/) — release notes and unified change reviews
 
 ## Key concepts
 

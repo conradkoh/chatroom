@@ -147,6 +147,10 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
 export const AGENT_START_REASONS = [
   'user.start',
   'user.restart',
+  'user.manual_spawn',
+  'platform.task_monitor_nudge',
+  'platform.task_start_in_new_session',
+  'platform.pending_task_wake',
   'platform.crash_recovery',
   'platform.auto_restart_on_new_context',
   'platform.restart_offline_on_user_message',
@@ -164,6 +168,30 @@ export const agentStartReasonValidator = v.union(...toLiteralValidators(AGENT_ST
 
 export const isAgentStartReason = (value: unknown): value is AgentStartReason =>
   (AGENT_START_REASONS as readonly string[]).includes(value as string);
+
+/** User-initiated starts that supersede inflight stop commands (backend). */
+// fallow-ignore-next-line unused-export
+export const USER_EXPLICIT_START_REASONS = [
+  AgentStartReasonEnum['user.start'],
+  AgentStartReasonEnum['user.restart'],
+] as const;
+export type UserExplicitStartReason = (typeof USER_EXPLICIT_START_REASONS)[number];
+// fallow-ignore-next-line unused-export
+export const isUserExplicitStart = (reason: string): reason is UserExplicitStartReason =>
+  (USER_EXPLICIT_START_REASONS as readonly string[]).includes(reason);
+
+/** Daemon start reasons that clear local stop intent before spawning. */
+// fallow-ignore-next-line unused-export
+export const EXPLICIT_DAEMON_START_REASONS = [
+  ...USER_EXPLICIT_START_REASONS,
+  AgentStartReasonEnum['user.manual_spawn'],
+  AgentStartReasonEnum['platform.task_monitor_nudge'],
+  AgentStartReasonEnum['platform.task_start_in_new_session'],
+  'daemon.respawn',
+] as const;
+export type ExplicitDaemonStartReason = (typeof EXPLICIT_DAEMON_START_REASONS)[number];
+export const isExplicitDaemonStart = (reason: string): reason is ExplicitDaemonStartReason =>
+  (EXPLICIT_DAEMON_START_REASONS as readonly string[]).includes(reason);
 
 /**
  * Why an agent was stopped. Used in `agent.requestStop` events and
@@ -184,6 +212,8 @@ export const AGENT_STOP_REASONS = [
   'platform.dedup',
   'platform.team_switch',
   'platform.resume_storm',
+  'platform.task_monitor_nudge',
+  'platform.task_start_in_new_session',
   'daemon.respawn',
   'daemon.shutdown',
   'daemon.stop_timeout',

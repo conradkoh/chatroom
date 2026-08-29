@@ -7,6 +7,7 @@ import {
   buildAgentStopTargetKey,
 } from '../../src/domain/entities/agent-stop-command';
 import { t } from '../../test.setup';
+import { authorizeAgentStart } from '../../src/domain/usecase/agent/authorize-agent-start';
 import {
   createDuoTeamChatroom,
   createTestSession,
@@ -312,5 +313,53 @@ describe('projectAgentLifecycleFact', () => {
     });
     expect(result.clearedCount).toBeGreaterThanOrEqual(1);
     expect((await configFor(chatroomId, 'builder'))!.spawnedAgentPid).toBeUndefined();
+  });
+
+  test('cleared_all_pids reconciles orphaned inflight stop commands for machine', async () => {
+    const { sessionId } = await createTestSession('lifecycle-clear-stop');
+    const machineId = 'lifecycle-machine-clear-stop';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    const stopCommandId = await t.run(async (ctx) => {
+      const commandId = await ctx.db.insert('chatroom_agentStopCommands', {
+        chatroomId,
+        scope: { kind: 'agent', role: 'builder' },
+        scopeKey: 'agent:builder',
+        reason: 'daemon.shutdown',
+        status: 'processing',
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert('chatroom_agentStopTargets', {
+        stopCommandId: commandId,
+        chatroomId,
+        machineId,
+        role: 'builder',
+        pid: 99,
+        targetKey: 'orphan-target',
+        revisionKey: 'orphan-revision',
+        status: 'processing',
+      });
+      await ctx.db.insert('chatroom_agentStopMachineExecutions', {
+        stopCommandId: commandId,
+        chatroomId,
+        machineId,
+        status: 'processing',
+      });
+      return commandId;
+    });
+
+    await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: sessionId as any,
+      machineId,
+      fact: { kind: 'cleared_all_pids', revisionKey: 'clear:stop', emittedAt: Date.now() },
+    });
+
+    const command = await t.run((ctx) => ctx.db.get('chatroom_agentStopCommands', stopCommandId));
+    expect(command?.status).toBe('completed');
+    const authorization = await t.run((ctx) =>
+      authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })
+    );
+    expect(authorization.allowed).toBe(true);
   });
 });

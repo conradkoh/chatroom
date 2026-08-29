@@ -7,6 +7,11 @@ import {
   type NativeDeliverySessionContext,
 } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import { MachineTaskSnapshotState } from '../inbox/task-snapshot-state.js';
+import { vi } from 'vitest';
+
+export function mockLifecycleOutbox() {
+  return { enqueue: vi.fn().mockResolvedValue({ success: true }) };
+}
 
 export function operationalRow(
   chatroomId: string,
@@ -43,5 +48,6 @@ export function registerTestNativeDeliverySession(
     ...ctx,
     taskSnapshotState: ctx.taskSnapshotState ?? new MachineTaskSnapshotState(),
     agentOperationalReadModel: createOperationalReadModel(ctx.operationalRows ?? []),
+    lifecycleOutbox: ctx.lifecycleOutbox ?? mockLifecycleOutbox(),
   });
 }

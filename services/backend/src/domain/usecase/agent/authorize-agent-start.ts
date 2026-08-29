@@ -3,6 +3,7 @@ import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { expireInflightStopCommandsForRole } from './expire-inflight-stop-commands-for-role';
 
 export type AuthorizeAgentStartArgs = {
   chatroomId: Id<'chatroom_rooms'>;
@@ -61,6 +62,7 @@ export async function authorizeAgentStart(
     return { allowed: false, reason: 'stale_revision' };
   if (config.enabled === false) return { allowed: false, reason: 'disabled' };
   if (config.desiredState === 'stopped') return { allowed: false, reason: 'stopped' };
+  await expireInflightStopCommandsForRole(ctx, args.chatroomId, args.role);
   if (await hasInflightStop(ctx, args.chatroomId, args.role))
     return { allowed: false, reason: 'stop_in_flight' };
   if (isEphemeralAgentRole(args.role)) {

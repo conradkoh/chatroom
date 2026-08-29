@@ -42,6 +42,7 @@ import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
 import { teamSupportsEnhancer } from '../hooks/persistence/teamEnhancerSupport';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { useAgentStatuses } from '../hooks/useAgentStatuses';
 
 // Maximum number of pending review items to show in sidebar before "View More"
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;
@@ -49,7 +50,7 @@ const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 // Maximum number of current tasks to show in sidebar before "View More"
 const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
-export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueueProps) {
+export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [isQueueFrontModalOpen, setIsQueueFrontModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -93,24 +94,30 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   // Active entry-point→enhancer job (job-only hook; disabling enhancement is separate)
   const { isEnhancing, cancelJob, isCancelling } = useActiveEnhancerJob(chatroomId as string);
 
-  // Derive needsPromotion from counts and lifecycle (replaces checkQueueHealth subscription)
+  const {
+    teamId,
+    teamRoles,
+    statusReadModel,
+    isLoading: teamRolesLoading,
+  } = useAgentPanelData(chatroomId);
+  const nonUserRoles = useMemo(
+    () => (teamRoles ?? []).filter((role) => role.toLowerCase() !== 'user'),
+    [teamRoles]
+  );
+  const { aggregateStatus } = useAgentStatuses(nonUserRoles, statusReadModel);
+
+  // Derive needsPromotion from read-model readiness (replaces checkQueueHealth subscription)
   // A promotion is needed when: no active task, there are queued tasks, and all agents are waiting
   const needsPromotionRaw = useMemo(() => {
     if (!counts) return false;
     const hasActiveTask = counts.pending > 0 || counts.acknowledged > 0 || counts.in_progress > 0;
     const hasQueuedTasks = counts.queued > 0;
     if (!hasActiveTask && hasQueuedTasks) {
-      // Check if all agents are waiting (lastSeenAction === 'get-next-task:started')
-      const participants = lifecycle?.participants ?? [];
-      const activeParticipants = participants.filter((p) => p.lastSeenAction !== 'exited');
-      if (activeParticipants.length === 0) return true; // No active agents — allow promote
-      const allWaiting = activeParticipants.every(
-        (p) => p.lastSeenAction === 'get-next-task:started'
-      );
-      return allWaiting;
+      if (nonUserRoles.length === 0) return true;
+      return aggregateStatus === 'ready';
     }
     return false;
-  }, [counts, lifecycle]);
+  }, [counts, nonUserRoles, aggregateStatus]);
 
   // Debounce needsPromotion to prevent flashing during normal task transitions.
   // The notice only appears after staying true for 2 seconds.
@@ -178,7 +185,6 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
-  const { teamId, teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
   const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamId, teamRoles);
 
   // Categorize tasks by status

@@ -31,7 +31,7 @@ export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopePar
     '- Do not propose multiple alternative approaches.',
     '- Complete <handoff-frontend-design> and <handoff-data-design> when applicable; write "Not Applicable." for sections that do not apply.',
     '- Follow the output-template section order; **Files touched (index)** must be last.',
-    '- Run the CLI complete command as your final action. Stdout alone does not deliver design input.',
+    '- Run the CLI handoff command as your final action. Stdout alone does not deliver design input.',
     '</requirements>',
     '<cli-handoff-command>',
     escapeXmlText(params.cliCompleteCommand),

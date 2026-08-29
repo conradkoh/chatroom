@@ -61,6 +61,7 @@ export function toAgentConfigView(
 }
 
 // fallow-ignore-next-line complexity
+/** @deprecated Legacy snapshot mapping only; new projections omit participant presence. */
 export function toParticipantView(
   participant: Doc<'chatroom_participants'> | null
 ): AssignedTaskSnapshotView['participant'] {

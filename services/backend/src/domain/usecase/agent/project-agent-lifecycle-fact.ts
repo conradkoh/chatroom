@@ -1,13 +1,17 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
+import { reconcileOrphanedStopCommandsForMachine } from './reconcile-orphaned-stop-commands-for-machine';
 import { transitionAgentStatus } from './transition-agent-status';
+import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
+import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =
+  | { kind: 'activity'; chatroomId: Id<'chatroom_rooms'>; role: string; action: string; taskId?: Id<'chatroom_tasks'>; revisionKey: string; emittedAt: number }
   | {
       kind: 'spawned';
       chatroomId: Id<'chatroom_rooms'>;
@@ -38,8 +42,19 @@ export type AgentLifecycleFactInput =
 export async function projectAgentLifecycleFact(
   ctx: MutationCtx,
   args: { machineId: string; fact: AgentLifecycleFactInput }
-): Promise<{ success: true; skipped?: boolean; clearedCount?: number; rejectionReason?: string }> {
+): Promise<{
+  success: true;
+  skipped?: boolean;
+  clearedCount?: number;
+  reconciledExecutionCount?: number;
+  rejectionReason?: string;
+}> {
   const { machineId, fact } = args;
+  if (fact.kind === 'activity') {
+    const participant = await getParticipantForChatroomRole(ctx, fact.chatroomId, fact.role);
+    await applyAgentActivityHeartbeat(ctx, { ...fact, participantId: participant?._id });
+    return { success: true };
+  }
   if (fact.kind === 'cleared_all_pids') {
     const configs = await ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -66,7 +81,8 @@ export async function projectAgentLifecycleFact(
         { config }
       );
     }
-    return { success: true, clearedCount };
+    const { reconciledExecutionCount } = await reconcileOrphanedStopCommandsForMachine(ctx, machineId);
+    return { success: true, clearedCount, reconciledExecutionCount };
   }
   if (fact.kind === 'exited') {
     const result = await agentExitedUseCase(ctx, {

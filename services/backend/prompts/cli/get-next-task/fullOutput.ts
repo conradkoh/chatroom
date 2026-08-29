@@ -57,6 +57,7 @@ export interface FullCliOutputParams {
   /** When true, entry-point task delivery includes handoff-enhancer guidance. */
   plannerEnhancerEnabled?: boolean;
   entryPointRole?: string;
+  originUserMessageId?: string;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -90,6 +91,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     standingInstructions,
     plannerEnhancerEnabled,
     entryPointRole,
+    originUserMessageId: params.originUserMessageId,
   });
 }
 
@@ -106,6 +108,8 @@ function appendCliSharedHandoffSections(
     | 'availableHandoffTargets'
     | 'isEntryPoint'
     | 'plannerEnhancerEnabled'
+    | 'originUserMessageId'
+    | 'entryPointRole'
   >
 ): void {
   const { message, ...rest } = params;
@@ -163,6 +167,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     availableHandoffTargets,
     isEntryPoint,
     plannerEnhancerEnabled,
+    entryPointRole: params.entryPointRole,
+    originUserMessageId: params.originUserMessageId,
   });
   appendCliTaskDeliveryFooter(lines, { chatroomId, role, cliEnvPrefix });
 

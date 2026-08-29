@@ -33,6 +33,10 @@ import {
 } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
 import { Effect } from 'effect';
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
 import {
   formatCodexSdkError,
   formatCodexSdkLoadError,
@@ -571,7 +575,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
             const deferredResume = await waitForResumeOrAbort(session);
             if (deferredResume === null || session.aborted) {
               if (session.aborted) {
-                exitCode = 1;
+                exitCode = 0;
                 exitSignal = 'SIGTERM';
               }
               break;
@@ -598,13 +602,14 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
             });
             nextPrompt = null;
           } catch (turnErr) {
+            if (session.aborted && isAbortError(turnErr)) break;
             exitCode = 1;
             writeSpawnError(logPrefix, turnErr, emitLogLine);
             break;
           }
 
           if (session.aborted) {
-            exitCode = 1;
+            exitCode = 0;
             exitSignal = 'SIGTERM';
             break;
           }
@@ -697,14 +702,12 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
         TURN_TIMEOUT_MS,
         'thread.runStreamed'
       );
+    } catch (err) {
+      if (!(session.aborted && isAbortError(err))) throw err;
     } finally {
       session.abortController = undefined;
+      adapter.finish();
     }
-
-    // finish() emits lifecycle.turn.completed (wired to onAgentEnd) once per
-    // turn, whether the turn completed or failed, so a later resumeTurn can arm
-    // a new onAgentEnd.
-    adapter.finish();
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {

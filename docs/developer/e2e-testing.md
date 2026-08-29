@@ -38,7 +38,7 @@ Filter by tag: `--grep @upstream`, `--grep @markdown`, etc.
 
 The destination URL git passes as `$2` is resolved by `scripts/resolve-e2e-suite.ts` using `isTemplateRemote` from `scripts/template-repo.ts`. Tag constants are imported from `apps/webapp/tests/e2e/support/tags.ts`.
 
-Pull requests targeting `master` run the full unfiltered suite in `.github/workflows/e2e.yml`. Configure the `E2E_CONVEX_URL` repository variable (or secret) with a non-production Convex deployment that has E2E seeding enabled.
+Pull requests targeting `master` run the full unfiltered suite in `.github/workflows/e2e.yml`. CI starts the open-source Convex backend in an ephemeral Docker container, deploys this repository's backend functions to it, and enables E2E seeding there. No hosted Convex URL or repository secret is required.
 
 If Playwright finds zero matching tests (e.g. a fork with no `@downstream` specs yet), the direct `master` push **fails** — add at least one downstream spec in `specs/downstream/` before pushing to a fork remote.
 

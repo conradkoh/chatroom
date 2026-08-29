@@ -1138,19 +1138,15 @@ export function ChatroomDashboard({
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
   const teamName = useMemo(() => chatroom?.teamName || 'Team', [chatroom?.teamName]);
 
-  // Derive participants list from lifecycle data
   const participants = useMemo(() => lifecycle?.participants ?? [], [lifecycle?.participants]);
 
   // Check if all team members have joined (memoized)
-  const allMembersJoined = useMemo(
-    () =>
-      teamRoles.every((role) =>
-        participants.some(
-          (p) => p.role.toLowerCase() === role.toLowerCase() && p.lastSeenAt != null
-        )
-      ),
-    [teamRoles, participants]
-  );
+  const allMembersJoined = useMemo(() => {
+    const rows = agentPanelData.statusReadModel ?? [];
+    return teamRoles.every((role) =>
+      rows.some((row) => row.role.toLowerCase() === role.toLowerCase() && row.lastSeenAt != null)
+    );
+  }, [teamRoles, agentPanelData.statusReadModel]);
 
   const chatStatus = useChatroomActivityStatus(chatroomId);
 

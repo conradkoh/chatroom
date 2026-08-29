@@ -11,6 +11,10 @@
  */
 
 import {
+  AgentStartReasonEnum,
+  AgentStopReasonEnum,
+} from '@workspace/backend/src/domain/entities/agent.js';
+import {
   shouldEmitSessionAugmentation,
   resolveSessionAugmentationForTask,
   sessionAugmentationNewSessionStarted,
@@ -123,14 +127,18 @@ function executeCliNudge(
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
-      yield* agentMgr.stop({ chatroomId, role, reason: 'platform.task_monitor_nudge' });
+      yield* agentMgr.stop({
+        chatroomId,
+        role,
+        reason: AgentStopReasonEnum['platform.task_monitor_nudge'],
+      });
       yield* agentMgr.ensureRunning({
         chatroomId,
         role,
         agentHarness: agentConfig.agentHarness as AgentHarness,
         model: agentConfig.model,
         workingDir,
-        reason: 'platform.task_monitor_nudge',
+        reason: AgentStartReasonEnum['platform.task_monitor_nudge'],
         wantResume,
         lifecycleRevision: task.agentConfig.configLifecycleRevision,
         taskId: task.taskId,
@@ -195,7 +203,7 @@ function runNativeReviveEffect(
         agentHarness: agentConfig.agentHarness as AgentHarness,
         model: agentConfig.model,
         workingDir,
-        reason: 'platform.task_monitor_nudge',
+        reason: AgentStartReasonEnum['platform.task_monitor_nudge'],
         wantResume,
         lifecycleRevision: task.agentConfig.configLifecycleRevision,
         taskId: task.taskId,
@@ -233,7 +241,7 @@ function runNativeWakeEffect(
         agentHarness: agentConfig.agentHarness as AgentHarness,
         model: agentConfig.model,
         workingDir,
-        reason: 'platform.pending_task_wake',
+        reason: AgentStartReasonEnum['platform.pending_task_wake'],
         wantResume,
         lifecycleRevision: task.agentConfig.configLifecycleRevision,
         taskId: task.taskId,

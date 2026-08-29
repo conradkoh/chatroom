@@ -22,6 +22,7 @@
  */
 
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
+import { isExplicitDaemonStart } from '@workspace/backend/src/domain/entities/agent.js';
 import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
@@ -385,26 +386,13 @@ export class AgentProcessManager {
     slot.expectedStopPid = undefined;
   }
 
-  private isExplicitStartReason(reason: string): boolean {
-    return (
-      reason === 'user.start' ||
-      reason === 'user.manual_spawn' ||
-      reason === 'user.restart' ||
-      // These platform flows intentionally stop and immediately start a fresh
-      // process/session, so their start must replace the prior stop intent.
-      reason === 'platform.task_monitor_nudge' ||
-      reason === 'platform.task_start_in_new_session' ||
-      reason === 'daemon.respawn'
-    );
-  }
-
   async ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult> {
     if (isChatroomStopScopeActive(opts.chatroomId)) {
       return { success: false, error: 'stop_in_progress' };
     }
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
-    if (this.isExplicitStartReason(opts.reason)) {
+    if (isExplicitDaemonStart(opts.reason)) {
       this.bumpStopGeneration(slot);
       this.clearStopIntent(slot);
     } else if (slot.stopRequested) {
@@ -2251,6 +2239,7 @@ export class AgentProcessManager {
         sessionId: this.deps.sessionId,
         chatroomId,
         role,
+        lifecycleOutbox: this.deps.lifecycleOutbox,
       },
       harness,
       {

@@ -1,6 +1,7 @@
 import type { Runtime, Context } from 'effect';
 
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
+import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type {
@@ -17,6 +18,7 @@ export type NativeDeliverySessionContext = {
   machineId: string;
   taskSnapshotState?: MachineTaskSnapshotState;
   agentOperationalReadModel?: AgentOperationalReadModel;
+  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
 };
 
 let registered: NativeDeliverySessionContext | null = null;

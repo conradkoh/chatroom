@@ -7,8 +7,8 @@
 
 /**
  * Participant info from the backend readiness query.
- * Presence is derived from lastSeenAt; action context from lastSeenAction.
- * lastSeenAction is used by WorkQueue and lastSeenAt by ChatroomDashboard.
+ * Presence is projected from the role-status read model. lastSeenAction is
+ * retained for compatibility but is no longer populated for UI lifecycle data.
  */
 export interface ParticipantInfo {
   role: string;

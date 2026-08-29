@@ -286,16 +286,14 @@ describe('AgentProcessManager', () => {
           createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
         );
 
-        const nativeWaitingCalls = getMutationCallsByArgs(
-          deps,
-          (args) => args.action === 'native:waiting'
+        expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: 'activity',
+            chatroomId: CHATROOM_ID,
+            role: ROLE,
+            action: 'native:waiting',
+          })
         );
-        expect(nativeWaitingCalls).toHaveLength(1);
-        expect(nativeWaitingCalls[0]).toMatchObject({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-          action: 'native:waiting',
-        });
       }
     );
 
@@ -422,6 +420,7 @@ describe('AgentProcessManager', () => {
           needsHandoffReminder: true,
           transitionedToWaiting: false,
         });
+        vi.mocked(deps.lifecycleOutbox.enqueue).mockClear();
         mockNotifyNativeTurnIdle.mockClear();
 
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
@@ -431,11 +430,12 @@ describe('AgentProcessManager', () => {
         expect(getHandleNativeAgentEndCalls(deps)[0]).not.toHaveProperty('bufferedContent');
         expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
         expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
-        const nativeWaitingCalls = getMutationCallsByArgs(
-          deps,
-          (args) => args.action === 'native:waiting'
-        );
-        expect(nativeWaitingCalls).toHaveLength(0);
+        const nativeWaitingEnqueues = vi
+          .mocked(deps.lifecycleOutbox.enqueue)
+          .mock.calls.filter(
+            ([fact]) => fact.kind === 'activity' && fact.action === 'native:waiting'
+          );
+        expect(nativeWaitingEnqueues).toHaveLength(0);
       }
     );
 
@@ -498,11 +498,12 @@ describe('AgentProcessManager', () => {
       expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
       // CLI harnesses (opencode, cursor, etc.) do not support native integration —
       // turn-end kills the process instead of emitting native:waiting.
-      const nativeWaitingCalls = getMutationCallsByArgs(
-        deps,
-        (args) => args.action === 'native:waiting'
-      );
-      expect(nativeWaitingCalls).toHaveLength(0);
+      const nativeWaitingEnqueues = vi
+        .mocked(deps.lifecycleOutbox.enqueue)
+        .mock.calls.filter(
+          ([fact]) => fact.kind === 'activity' && fact.action === 'native:waiting'
+        );
+      expect(nativeWaitingEnqueues).toHaveLength(0);
     });
 
     test('substitutes DEFAULT_TRIGGER_PROMPT when backend returns empty initialMessage', async () => {

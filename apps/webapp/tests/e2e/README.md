@@ -12,7 +12,7 @@ pnpm e2e
 cd apps/webapp && pnpm e2e
 ```
 
-`pnpm e2e` is also wired into the git **pre-push** hook (alongside `test` and `typecheck`) for direct pushes to `master`. Pull requests targeting `master` run the full suite in GitHub Actions. Admin specs require the Convex env setup below before pushing or configuring CI.
+`pnpm e2e` is also wired into the git **pre-push** hook (alongside `test` and `typecheck`) for direct pushes to `master`. Pull requests targeting `master` run the full suite in GitHub Actions. CI starts an ephemeral open-source Convex backend, deploys the backend functions, and enables E2E seeding before running Playwright.
 
 ## Pre-Push Suite Selection
 
@@ -36,7 +36,7 @@ Behavior is locked by `scripts/resolve-e2e-suite.spec.ts`, `scripts/run-pre-push
 
 ## Prerequisites
 
-- `apps/webapp/.env.local` must exist with a valid `NEXT_PUBLIC_CONVEX_URL`
+- `apps/webapp/.env.local` must exist with a valid `NEXT_PUBLIC_CONVEX_URL` for local runs; CI supplies its self-hosted URL automatically
 - The Convex dev deployment must be reachable from the dev server
 - Playwright browsers installed (`npx playwright install` if needed)
 - **For admin specs:** `E2E_SEEDING_ENABLED` must be set on the Convex deployment (see [E2E Admin Seeding](#e2e-admin-seeding) below)
@@ -120,13 +120,14 @@ cd apps/webapp && pnpm exec playwright test --config=tests/e2e/playwright.config
 
 Admin specs promote the anonymous test user to `system_admin` via a dev-only, env-gated Convex mutation (`services/backend/convex/e2e.ts`). The gate is the deployment env var `E2E_SEEDING_ENABLED`.
 
-**Mandatory one-time setup** on the deployment matching `NEXT_PUBLIC_CONVEX_URL` in `apps/webapp/.env.local`:
+For local runs, perform this setup once on the deployment matching `NEXT_PUBLIC_CONVEX_URL` in `apps/webapp/.env.local`:
 
 ```bash
 cd services/backend && npx convex env set E2E_SEEDING_ENABLED true
 ```
 
 - **Never set `E2E_SEEDING_ENABLED` on production deployments** — local/dev only.
+- GitHub Actions sets `E2E_SEEDING_ENABLED` on its ephemeral self-hosted Convex deployment automatically.
 - The mutation is safe by default: when the env var is missing it throws `FORBIDDEN`.
 - If the env var is missing, the `systemAdminPage` fixture fails fast with actionable setup instructions (`support/seed-guard.ts`).
 

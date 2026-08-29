@@ -1,4 +1,4 @@
-import { emitEnhancerEvent } from './internal';
+import { completeEnhancerJob } from '../../../src/domain/usecase/enhancer/complete-enhancer-job';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { performHandoffFromEnhancer } from '../../messages';
@@ -17,6 +17,9 @@ export type ApplyEnhancerCompleteResult =
       message: string;
     };
 
+/**
+ * @deprecated Use `chatroom handoff` from the enhancer agent. Retained for daemon salvage only.
+ */
 export async function applyEnhancerComplete(
   ctx: MutationCtx,
   params: ApplyEnhancerCompleteParams
@@ -60,23 +63,7 @@ export async function applyEnhancerComplete(
     };
   }
 
-  const now = Date.now();
-  await ctx.db.patch('chatroom_enhancerJobs', params.jobId, {
-    status: 'complete',
-    enhancedContent,
-    completedAt: now,
-  });
-
-  await emitEnhancerEvent(
-    ctx,
-    {
-      type: 'enhancer.job.complete' as const,
-      chatroomId: job.chatroomId,
-      jobId: params.jobId,
-      attemptCount: job.attemptCount,
-    },
-    now
-  );
+  await completeEnhancerJob(ctx, { jobId: params.jobId, enhancedContent });
 
   return { ok: true };
 }
