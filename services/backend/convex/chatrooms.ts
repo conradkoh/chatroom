@@ -19,7 +19,7 @@ import {
 } from '../src/domain/usecase/chatroom/unread-status';
 import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
-import { rebuildObservedWorkspaceViewsForChatroom } from '../src/domain/usecase/workspace/project-observed-workspace-view';
+import { enqueueWorkspaceListChangedForChatroom } from '../src/domain/usecase/workspace/enqueue-workspace-list-changed';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -651,7 +651,7 @@ export const recordChatroomObservation = mutation({
         patch.lastRefreshedAt = now;
       }
       await ctx.db.patch('chatroom_observation', existing._id, patch);
-      await rebuildObservedWorkspaceViewsForChatroom(ctx, args.chatroomId);
+      if (isRefresh) await enqueueWorkspaceListChangedForChatroom(ctx, args.chatroomId);
     } else {
       // Create new observation record
       await ctx.db.insert('chatroom_observation', {
@@ -659,7 +659,7 @@ export const recordChatroomObservation = mutation({
         lastObservedAt: now,
         lastRefreshedAt: args.refresh ? now : undefined,
       });
-      await rebuildObservedWorkspaceViewsForChatroom(ctx, args.chatroomId);
+      await enqueueWorkspaceListChangedForChatroom(ctx, args.chatroomId);
     }
   },
 });
