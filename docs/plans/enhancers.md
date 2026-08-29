@@ -110,7 +110,7 @@ flowchart TD
     P2 --> X[Verified user handoff]
 ```
 
-The enhancer is an ephemeral chatroom team role rather than part of the persistent team roster. It runs one turn, completes through the CLI, and is disposed. Active invocations are visible through the normal participant/status surface, while retries and terminal failure use the enhancer job lifecycle for both teams; no entry-point draft is available as a fallback.
+The enhancer is an ephemeral chatroom team role rather than part of the persistent team roster. It runs one turn, completes via `chatroom handoff`, and is disposed. Active invocations are visible through the role status read model, while retries and terminal failure use the enhancer job lifecycle for both teams; no entry-point draft is available as a fallback.
 
 ## Key modules
 
@@ -123,8 +123,9 @@ The enhancer is an ephemeral chatroom team role rather than part of the persiste
 | Workflow policy              | `services/backend/src/domain/usecase/enhancer/enhancer-workflow.ts`           | Limits enhancer availability to the initial user task           |
 | Handoff enforcement          | `services/backend/convex/messages.ts`                                         | Authorizes entry points; completes job on enhancer handoff      |
 | Entry-point status           | `services/backend/src/domain/usecase/enhancer/enhancer-entry-point-status.ts` | Tracks planner or solo while the transient enhancer is active   |
-| Task delivery query          | `services/backend/convex/daemon/enhancer/taskDeliveryForJob.ts`               | Remote daemon prompt via standard task pipeline                 |
-| Spawn payload (deprecated)   | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                     | Legacy envelope; use `getTaskDeliveryForJob`                    |
+| Task delivery query          | `services/backend/convex/daemon/enhancer/taskDeliveryForJob.ts`               | Remote daemon prompt via standard task pipeline (primary)       |
+| Spawn payload (deprecated)   | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                     | Legacy envelope; prefer `getTaskDeliveryForJob`                 |
+| Codex teardown               | `packages/cli/src/daemon/entry/enhancer/job-subscriber.ts`                    | Wait for `agent_end` before stopping spawn (#1539)              |
 | History guidance             | `services/backend/prompts/enhancer/history-retrieval.ts`                      | Renders anchor and origin-based download commands               |
 | Enhancer role                | `services/backend/prompts/enhancer/system-prompt.ts`                          | Defines independent, memoryless planning behavior               |
 | Task envelope                | `services/backend/prompts/enhancer/render-task-envelope.ts`                   | Excludes entry-point drafts and downstream templates            |

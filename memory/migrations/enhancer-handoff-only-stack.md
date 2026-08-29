@@ -3,7 +3,8 @@ type: decision-log
 title: Enhancer handoff-only completion stack
 description: Enhancer jobs complete via chatroom handoff; CLI complete removed; remote delivery uses standard task pipeline; ephemeral release on terminal task transitions.
 tags: [enhancer, handoff, daemon, migration]
-status: active
+status: archived
+merged: 2026-08-29
 ---
 
 # Enhancer handoff-only completion stack
@@ -22,6 +23,9 @@ Ship a four-PR enhancer stack on top of participant-decoupling PR3 (`feat/heartb
 | #1528          | `feat/enhancer-handoff-only-completion` | Remove `chatroom enhancer complete` CLI; align spawn envelope to handoff                         |
 | #1529          | `feat/enhancer-task-delivery`           | `getTaskDeliveryForJob` + thin `job-subscriber`; deprecate `getSpawnPayload`                     |
 | (fix on #1529) | same branch                             | `transitionTask` always releases ephemeral roles; `skipAutoPromotion` only skips queue promotion |
+| #1539          | `fix/codex-enhancer-graceful-teardown`  | Codex `agent_end` before spawn stop; 3s grace before `service.stop()`                            |
+
+**Status:** Merged to `release/v1.101.2` (2026-08-29). See [release v1.101.2 notes](../releases/v1.101.2.md).
 
 **Completion path:** enhancer agents run `chatroom handoff --role=enhancer --next-role=<entry-point>`. `web.enhancer.index.complete` remains `@deprecated` for daemon salvage only.
 
