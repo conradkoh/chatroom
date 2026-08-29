@@ -145,6 +145,7 @@ reloading all configs.
 See also [agent operational status tech debt tracker](../development/agent-operational-status-tech-debt.md).
 
 - [x] Remove read-time derivation from migrated use cases
+- [x] Remove participant `lastStatus` inference from operational projection rebuild and `getAgentViewStatus` — PR6 (#1532)
 - [ ] Remove duplicate daemon-connectivity joins in queries
 - [ ] Remove direct Convex mutations from `agent-process-manager` once outbox is sole path
 - [ ] Update `transition-agent-status.ts` comment to point to the projection table
@@ -154,7 +155,7 @@ See also [agent operational status tech debt tracker](../development/agent-opera
 
 | Stage                      | Cleanup                                                                                                                                                                                                                                         |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| After Phase 3 reader flips | Remove `IN_FLIGHT_START_STATUSES` derivation from `get-agent-view-status.ts`; remove `runningConfigs` filtering from `list-chatroom-agent-overview.ts`; remove inline `isAgentAlive(config.spawnedAgentPid)` derivation from `participants.ts`. |
+| After Phase 3 reader flips | ~~Remove `IN_FLIGHT_START_STATUSES` derivation from `get-agent-view-status.ts`~~ — Done in participant-decoupling PR6 (#1532); remove `runningConfigs` filtering from `list-chatroom-agent-overview.ts`; remove inline `isAgentAlive(config.spawnedAgentPid)` derivation from `participants.ts`. |
 | After all readers migrate  | Keep `is-agent-alive.ts` only for daemon-local use and remove it from Convex query paths.                                                                                                                                                       |
 | After outbox stabilization | Remove direct mutations from `agent-process-manager`; PR #1475 changes are superseded.                                                                                                                                                          |
 | Final archive              | Update this tracker to `status: archived` after operational and projection parity is verified.                                                                                                                                                  |

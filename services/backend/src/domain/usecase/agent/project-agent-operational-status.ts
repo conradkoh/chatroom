@@ -163,11 +163,13 @@ export async function projectAgentOperationalStatusForRole(
     viewState:
       isEphemeralAgentRole(roleKey) && acceptsTasks && !projection.isAlive
         ? ('idle' as const)
-        : deriveAgentRoleViewState(
-            snapshot(config, room.teamId),
-            projection.daemonConnected,
-            opts?.lastStatus
-          ),
+        : opts?.lastStatus != null
+          ? deriveAgentRoleViewState(
+              snapshot(config, room.teamId),
+              projection.daemonConnected,
+              opts.lastStatus
+            )
+          : projection.operationalState,
     acceptsTasks,
     projectedAt,
     revisionKey: key,
@@ -286,27 +288,15 @@ export async function projectDaemonConnectivityForMachine(
   >();
   for (const config of configs) {
     const room = await ctx.db.get('chatroom_rooms', config.chatroomId);
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', config.chatroomId))
-      .collect();
-    const lastStatus = participants.find(
-      (p) => p.role.toLowerCase() === config.role.toLowerCase()
-    )?.lastStatus;
-    const viewState = deriveAgentRoleViewState(
-      {
-        desiredState: config.desiredState,
-        circuitState: config.circuitState,
-        spawnedAgentPid: config.spawnedAgentPid,
-      },
-      daemonConnected,
-      lastStatus
-    );
     if (
       !room?.teamId ||
       !filterTeamAgentConfigsForTeam([config], config.chatroomId, room.teamId).length
     )
       continue;
+    const viewState = deriveRoleOperationalState(
+      snapshot(config, room.teamId),
+      daemonConnected
+    ).operationalState;
     const row = await ctx.db
       .query('chatroom_agentRoleOperationalStatus')
       .withIndex('by_chatroom_role', (q) =>
@@ -379,11 +369,6 @@ export async function rebuildAgentOperationalStatusForChatroom(
   for (const c of configs) {
     if (c.machineId) statuses.set(c.machineId, await machineConnected(ctx, c.machineId));
   }
-  const participants = await ctx.db
-    .query('chatroom_participants')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
-  const participantByRole = new Map(participants.map((p) => [p.role.toLowerCase(), p.lastStatus]));
   const derived = deriveAgentOperationalState({
     teamId,
     configs: configs.map((c) => snapshot(c, teamId)),
@@ -394,7 +379,6 @@ export async function rebuildAgentOperationalStatusForChatroom(
   for (const p of derived.roles)
     await projectAgentOperationalStatusForRole(ctx, chatroomId, p.role, key, {
       config: configs.find((c) => c.role.toLowerCase() === p.role.toLowerCase()),
-      lastStatus: participantByRole.get(p.role.toLowerCase()),
     });
   await writeOperationalSummary(ctx, { ...derived.summary, chatroomId, ownerId: room.ownerId });
   if (options?.pruneStale) {
