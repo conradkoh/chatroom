@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef } from 'react';
 /**
  * Page-level chatroom observation: mount + interval heartbeats.
  *
- * Heartbeats keep the workspace-list subscription scoped to chatrooms the
+ * Heartbeats keep the workspace watch list scoped to chatrooms the frontend is
  * actively viewing. Git/command pushes are enqueued on handoff-to-user and other
  * explicit triggers — not on regular observation heartbeats.
  */
