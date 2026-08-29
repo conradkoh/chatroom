@@ -19,10 +19,8 @@ import {
   subscribeActiveContextManagedDialog,
 } from '@/modules/chatroom/context/contextManagedDialogsController';
 import { fileTreeEntriesToFileEntries } from '@/modules/chatroom/workspace/files/fileTreeUtils';
-import {
-  useAcquireFileTreeWatch,
-  useFileTreeWatchEnabled,
-} from '@/modules/chatroom/workspace/files/useFileTreeWatch';
+import { useAcquireFileTreeWatch } from '@/modules/chatroom/workspace/files/useFileTreeWatch';
+import { useWorkspaceFileTree } from '@/modules/chatroom/workspace/files/useWorkspaceFileTree';
 import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 import {
   getWorkspaceFileTreeEntries,
@@ -72,14 +70,31 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   );
   const syncEnabled = hasWorkspace && fileSelectorOpen;
   useAcquireFileTreeWatch(machineId, workingDir, syncEnabled);
-  const watchEnabled = useFileTreeWatchEnabled(machineId ?? '', workingDir ?? '');
 
-  const { entries, refresh, hasTree } = useWorkspaceFileTreeEntries({
+  const tree = useWorkspaceFileTree({
     machineId: machineId ?? '',
     workingDir: workingDir ?? '',
-    enabled: syncEnabled && watchEnabled,
+    enabled: syncEnabled,
+  });
+
+  const {
+    entries,
+    refresh: refreshEntries,
+    hasTree: entriesHasTree,
+  } = useWorkspaceFileTreeEntries({
+    machineId: machineId ?? '',
+    workingDir: workingDir ?? '',
+    enabled: syncEnabled,
     includeDirectories: false,
   });
+
+  const refresh = useCallback(
+    (options?: { force?: boolean }) => {
+      tree.refresh(options);
+      refreshEntries(options);
+    },
+    [tree, refreshEntries]
+  );
 
   const [partitionState$, setPartitionState$] =
     useState<Observable<FileSelectorPartitionState> | null>(null);
@@ -147,6 +162,8 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     };
   });
 
+  const hasTree = entriesHasTree || tree.hasTree;
+
   const liveFiles = useMemo(() => entries.filter((entry) => entry.type === 'file'), [entries]);
 
   const files = useMemo(() => {
@@ -155,7 +172,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     return liveFiles;
   }, [hasTree, liveFiles, partitionStatus, preloadFiles]);
 
-  const isLoading = hasWorkspace && !hasTree && partitionStatus !== 'ready';
+  const isLoading = hasWorkspace && (tree.isLoading || (!hasTree && partitionStatus !== 'ready'));
 
   const recentFilesStorageKey = getRecentFilesStorageKey(chatroomId);
 
