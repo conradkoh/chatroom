@@ -544,6 +544,68 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     expect(promotedTask?.status).toBe('pending');
   });
 
+  test('handoff-to-user promotes queue after handoff message so All-tab slice ordering is correct', async () => {
+    const { sessionId } = await createTestSession('handoff-promote-order');
+    const chatroomId = await createChatroom(sessionId);
+
+    const activeTaskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'task in progress',
+        status: 'in_progress',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+        assignedTo: 'builder',
+      });
+    });
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued message',
+      type: 'message',
+    });
+
+    await t.run(async (ctx) => {
+      const msg = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('content'), 'task in progress'))
+        .first();
+      if (msg) await ctx.db.patch(activeTaskId, { sourceMessageId: msg._id });
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'work complete',
+      targetRole: 'user',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.messageId).toBeTruthy();
+    expect(result.promotedTaskId).toBeTruthy();
+
+    const { handoffMsg, promotedUserMsg } = await t.run(async (ctx) => {
+      const handoff = await ctx.db.get('chatroom_messages', result.messageId!);
+      const promotedTask = await ctx.db.get('chatroom_tasks', result.promotedTaskId!);
+      const promotedUser = promotedTask?.sourceMessageId
+        ? await ctx.db.get('chatroom_messages', promotedTask.sourceMessageId)
+        : null;
+      return { handoffMsg: handoff, promotedUserMsg: promotedUser };
+    });
+
+    expect(handoffMsg?.type).toBe('handoff');
+    expect(promotedUserMsg?.senderRole).toBe('user');
+    expect(promotedUserMsg?.content).toBe('queued message');
+    expect(handoffMsg!._creationTime).toBeLessThan(promotedUserMsg!._creationTime);
+  });
+
   test('when handing off to user and no queued tasks, no promotion happens', async () => {
     const { sessionId } = await createTestSession('handoff-promote-2');
     const chatroomId = await createChatroom(sessionId);
