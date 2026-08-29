@@ -3,7 +3,6 @@
  *
  * Tests for the Effect twins of heartbeat functions:
  *   pushGitStateEffect, pushSingleWorkspaceGitStateEffect,
- *   pushSingleWorkspaceGitSummaryForObservedEffect,
  *   syncCommitDetailsEffect,
  *   pushCommandsEffect, pushSingleWorkspaceCommandsEffect,
  *   fulfillFileContentRequestsEffect.
@@ -71,7 +70,6 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
-  OBSERVED_FULL_PUSH_INTERVAL_MS: 60_000,
   NATIVE_DELIVERY_RECONCILE_MS: 10_000,
   HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));
@@ -179,37 +177,6 @@ describe('pushSingleWorkspaceGitStateEffect', () => {
       expect.anything(),
       expect.objectContaining({ sessionId: 'session-d3' })
     );
-  });
-});
-
-describe('pushSingleWorkspaceGitSummaryForObservedEffect', () => {
-  it('completes without error when workspace is not a git repo', async () => {
-    const { pushSingleWorkspaceGitSummaryForObservedEffect } =
-      await import('../../daemon/entry/workspace-git/git-heartbeat.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-
-    await expect(
-      runWithCtx(pushSingleWorkspaceGitSummaryForObservedEffect('/tmp/not-a-repo'), withDeps(deps))
-    ).resolves.toBeUndefined();
-  });
-
-  it('forwards the reason argument when provided', async () => {
-    const gitReader = await import('../infrastructure/git/git-reader.js');
-    const { pushSingleWorkspaceGitSummaryForObservedEffect } =
-      await import('../../daemon/entry/workspace-git/git-heartbeat.js');
-
-    vi.mocked(gitReader.isGitRepo).mockResolvedValue(false);
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-
-    // refresh reason forces push even if hash matches — just verify it resolves cleanly
-    await expect(
-      runWithCtx(
-        pushSingleWorkspaceGitSummaryForObservedEffect('/tmp/repo', 'refresh'),
-        withDeps(deps)
-      )
-    ).resolves.toBeUndefined();
   });
 });
 
