@@ -28,6 +28,7 @@ import {
   subscribeActiveContextManagedDialog,
 } from '@/modules/chatroom/context/contextManagedDialogsController';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
+import { requestComposerFocusAfterNavigation } from '@/modules/chatroom/utils/pendingComposerFocus';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
 
@@ -148,6 +149,7 @@ export function ChatroomSwitcher() {
 
   const handleSelect = (chatroomId: string) => {
     if (activeChatroomId !== chatroomId) {
+      requestComposerFocusAfterNavigation();
       router.push(`/app/chatroom?id=${chatroomId}`);
     }
     setOpen(false);
