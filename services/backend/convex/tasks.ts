@@ -371,7 +371,9 @@ export const completeTask = mutation({
 
     // Complete ALL tasks (in_progress + acknowledged) → completed
     for (const task of allTasksToComplete) {
-      await transitionTask(ctx, task._id, 'completed', 'completeTask');
+      await transitionTask(ctx, task._id, 'completed', 'completeTask', undefined, {
+        skipAutoPromotion: true,
+      });
     }
 
     // Log if multiple tasks were completed (indicates a stuck state that was cleaned up)
@@ -382,8 +384,8 @@ export const completeTask = mutation({
       );
     }
 
-    // Queue promotion is now handled automatically by the transitionTask usecase
-    // whenever a task transitions to 'completed'. No inline promotion needed here.
+    // Queue promotion is not triggered by completeTask. Promotion happens on
+    // handoff-to-user, force-complete of user-origin tasks, or manual promote.
 
     return {
       completed: true,
@@ -415,9 +417,7 @@ export const completeTaskById = mutation({
       task.status === 'acknowledged'
     ) {
       if (!args.force) {
-        throw new Error(
-          `Task is ${task.status}. Use --force to complete an active task.`
-        );
+        throw new Error(`Task is ${task.status}. Use --force to complete an active task.`);
       }
 
       // Use FSM for transition.

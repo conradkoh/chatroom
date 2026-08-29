@@ -526,7 +526,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(queuedMessages[0]?.content).toBe('Second task');
     });
 
-    test('completing first task auto-promotes queued message', async () => {
+    test('completing first task does not auto-promote queued message', async () => {
       const { sessionId } = await createTestSession('test-fsm-move-pur-queued');
       const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
@@ -553,23 +553,22 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       const queuedBefore = await t.query(api.messages.listQueued, { sessionId, chatroomId });
       expect(queuedBefore.length).toBe(1);
 
-      // Complete first task — should auto-promote second
+      // Complete first task — queue remains available for explicit promotion
       await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.completeTask, { sessionId, chatroomId, role: 'builder' });
 
-      // Queue should now be empty
+      // Queue should still contain the second message
       const queuedAfter = await t.query(api.messages.listQueued, { sessionId, chatroomId });
-      expect(queuedAfter.length).toBe(0);
+      expect(queuedAfter.length).toBe(1);
 
-      // Second task should now be pending
+      // No second task should be pending yet
       const pendingTasks = await t.query(api.tasks.listTasks, {
         sessionId,
         chatroomId,
         statusFilter: 'pending',
       });
-      expect(pendingTasks.length).toBe(1);
-      expect(pendingTasks[0]?.status).toBe('pending');
+      expect(pendingTasks.length).toBe(0);
     });
 
     test('promoteNextTask promotes queued message to pending task', async () => {
@@ -603,7 +602,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(queuedMessages.length).toBe(1);
       expect(queuedMessages[0]?.content).toBe('Second task');
 
-      // Complete first task (should auto-promote second message from queue)
+      // Complete first task without promoting the queued message
       await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.completeTask, {
@@ -611,6 +610,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
         chatroomId,
         role: 'builder',
       });
+
+      await t.mutation(api.tasks.promoteNextTask, { sessionId, chatroomId });
 
       // Queue should now be empty
       const queuedAfter = await t.query(api.messages.listQueued, {
