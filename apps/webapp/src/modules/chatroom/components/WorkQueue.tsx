@@ -22,6 +22,7 @@ import { BacklogCreateModal } from './BacklogCreateModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { QueueFrontMessageModal } from './QueueFrontMessageModal';
 import { ReviewPanel } from './ReviewPanel';
+import { SIDEBAR_PREVIEW_LIMIT, SidebarSection } from './sidebar/SidebarSection';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
 import {
@@ -41,7 +42,6 @@ import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
 import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
-import { SIDEBAR_PREVIEW_LIMIT, WorkQueueSection } from './WorkQueue/WorkQueueSection';
 import { teamSupportsEnhancer } from '../hooks/persistence/teamEnhancerSupport';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
@@ -357,7 +357,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
           </div>
         )}
 
-        <WorkQueueSection
+        <SidebarSection.Root
           title="Current"
           count={categorizedTasks.current.length}
           icon={CircleDot}
@@ -365,7 +365,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
           emptyMessage="No current tasks"
           viewMoreCount={Math.max(0, categorizedTasks.current.length - SIDEBAR_PREVIEW_LIMIT)}
           onViewMore={() => setIsCurrentTasksModalOpen(true)}
-          headerAction={
+          action={
             categorizedTasks.current.length > 0 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -399,9 +399,9 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
               isCancellingEnhancer={isCancelling}
             />
           ))}
-        </WorkQueueSection>
+        </SidebarSection.Root>
 
-        <WorkQueueSection
+        <SidebarSection.Root
           title="Queued"
           count={queuedMessages.length}
           icon={Clock}
@@ -409,7 +409,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
           emptyMessage="No queued messages"
           viewMoreCount={Math.max(0, queuedMessages.length - SIDEBAR_PREVIEW_LIMIT)}
           onViewMore={() => setIsQueuedMessagesModalOpen(true)}
-          headerAction={
+          action={
             <button
               type="button"
               onClick={() => setIsQueueFrontModalOpen(true)}
@@ -431,9 +431,9 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
               onDelete={handleQueuedDelete}
             />
           ))}
-        </WorkQueueSection>
+        </SidebarSection.Root>
 
-        <WorkQueueSection
+        <SidebarSection.Root
           title="Pending Review"
           count={pendingReviewBacklogItems.length}
           icon={ClipboardCheck}
@@ -441,7 +441,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
           emptyMessage="No items pending review"
           viewMoreCount={Math.max(0, pendingReviewBacklogItems.length - SIDEBAR_PREVIEW_LIMIT)}
           onViewMore={() => setIsPendingReviewModalOpen(true)}
-          headerAction={
+          action={
             pendingReviewBacklogItems.length > 0 ? (
               <button
                 onClick={handleMarkAllReviewed}
@@ -460,16 +460,16 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
               onClick={() => setSelectedBacklogItemId(item._id)}
             />
           ))}
-        </WorkQueueSection>
+        </SidebarSection.Root>
 
-        <WorkQueueSection
+        <SidebarSection.Root
           title="Backlog"
           count={categorizedTasks.backlog.length}
           icon={List}
           emptyMessage="No backlog items"
           viewMoreCount={Math.max(0, categorizedTasks.backlog.length - SIDEBAR_PREVIEW_LIMIT)}
           onViewMore={() => setIsBacklogQueueModalOpen(true)}
-          headerAction={
+          action={
             <button
               onClick={() => setIsBacklogCreateModalOpen(true)}
               className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
@@ -486,7 +486,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
               onClick={() => setSelectedBacklogItemId(item._id)}
             />
           ))}
-        </WorkQueueSection>
+        </SidebarSection.Root>
         {/* End of Backlog Tasks */}
       </div>
       {/* End of Scrollable Task List Container */}

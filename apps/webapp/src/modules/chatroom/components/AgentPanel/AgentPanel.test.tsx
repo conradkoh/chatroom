@@ -74,7 +74,8 @@ describe('AgentPanel', () => {
   it('renders permanent agents before the ephemeral section', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} />);
 
-    expect(screen.getByText('Ephemeral')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (1)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (3)')).toBeInTheDocument();
     const planner = screen.getByLabelText(/planner:/i);
     const builder = screen.getByLabelText(/builder:/i);
     const enhancer = screen.getByLabelText(/enhancer:/i);
@@ -98,6 +99,6 @@ describe('AgentPanel', () => {
       />
     );
 
-    expect(screen.queryByText('Ephemeral')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ephemeral/)).not.toBeInTheDocument();
   });
 });
