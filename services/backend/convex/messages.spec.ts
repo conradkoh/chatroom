@@ -589,7 +589,7 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     expect(result.promotedTaskId).toBeNull();
   });
 
-  test('when handing off to planner with queued user message, promotes queue before creating handoff task', async () => {
+  test('when handing off to planner with queued user message, does not promote queue', async () => {
     const { sessionId } = await createTestSession('handoff-promote-3');
     const chatroomId = await createChatroom(sessionId);
 
@@ -646,18 +646,14 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.promotedTaskId).toBeTruthy();
+    expect(result.promotedTaskId).toBeNull();
     expect(result.newTaskId).toBeTruthy();
 
     const queuedAfter = await t.query(api.messages.listQueued, {
       sessionId,
       chatroomId,
     });
-    expect(queuedAfter.length).toBe(0);
-
-    const promotedTask = await t.run(async (ctx) => ctx.db.get(result.promotedTaskId!));
-    expect(promotedTask?.status).toBe('pending');
-    expect(promotedTask?.assignedTo).toBe('planner');
+    expect(queuedAfter.length).toBe(1);
 
     const handoffTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
     expect(handoffTask?.status).toBe('pending');

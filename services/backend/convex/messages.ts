@@ -906,9 +906,9 @@ export async function runHandoffHandler(
   const completedTaskIds = await completeTasks(ctx, tasksToComplete, { skipAutoPromotion: true });
   let promotedTaskId: Id<'chatroom_tasks'> | null = null;
 
-  // Promote queued user messages after active work is complete and before the
-  // handoff task is created; canPromote rejects chats with any pending task.
-  if (!isEnhancerDelivery) {
+  // Promote queued user messages only on handoff-to-user (user instruction delivered).
+  // Agent-to-agent handoffs must not promote synchronously.
+  if (isHandoffToUser) {
     const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
     if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;
   }
@@ -1084,7 +1084,7 @@ export async function runHandoffHandler(
   // items would incorrectly mark items that were attached for context only.
 
   // Step 6: Final handoff-to-user participant cleanup. Queue promotion already
-  // ran after Step 1 for every non-enhancer handoff. Native handoffs can retain
+  // ran after Step 1 on handoff-to-user only. Native handoffs can retain
   // a pending sender task until delivery, so keep a guarded fallback here.
   if (isHandoffToUser) {
     if (promotedTaskId === null) {
