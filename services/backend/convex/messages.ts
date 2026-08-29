@@ -906,13 +906,6 @@ export async function runHandoffHandler(
   const completedTaskIds = await completeTasks(ctx, tasksToComplete, { skipAutoPromotion: true });
   let promotedTaskId: Id<'chatroom_tasks'> | null = null;
 
-  // Promote queued user messages only on handoff-to-user (user instruction delivered).
-  // Agent-to-agent handoffs must not promote synchronously.
-  if (isHandoffToUser) {
-    const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
-    if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;
-  }
-
   if (tasksToComplete.length > 1) {
     console.warn(
       `[handoff] Completed ${tasksToComplete.length} tasks (in_progress + acknowledged) in chatroom ${args.chatroomId}`
@@ -969,6 +962,14 @@ export async function runHandoffHandler(
   await ctx.db.patch('chatroom_rooms', args.chatroomId, {
     lastActivityAt: now,
   });
+
+  // Promote queued user messages only on handoff-to-user, after the handoff
+  // message is inserted so All-tab slice ordering stays correct (handoff must
+  // precede the promoted user anchor chronologically).
+  if (isHandoffToUser) {
+    const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
+    if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;
+  }
 
   // After the handoff message is inserted, enqueue workspace git+command sync
   // for handoff-to-user only. Do not fail the handoff if enqueueing fails.
@@ -1084,7 +1085,7 @@ export async function runHandoffHandler(
   // items would incorrectly mark items that were attached for context only.
 
   // Step 6: Final handoff-to-user participant cleanup. Queue promotion already
-  // ran after Step 1 on handoff-to-user only. Native handoffs can retain
+  // ran after Step 2 on handoff-to-user. Native handoffs can retain
   // a pending sender task until delivery, so keep a guarded fallback here.
   if (isHandoffToUser) {
     if (promotedTaskId === null) {
