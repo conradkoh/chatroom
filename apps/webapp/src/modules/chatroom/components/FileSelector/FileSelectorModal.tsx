@@ -27,23 +27,23 @@ import {
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 
-interface FileSelectorModalProps {
+export interface FileSelectorModalProps {
   files: FileEntry[];
-  recentFiles?: string[];
+  recentFiles: string[];
   onSelectFile: (filePath: string) => void;
-  isLoading?: boolean;
-  isSyncing?: boolean;
-  isNeverSynced?: boolean;
-  loadError?: string | null;
-  hasWorkspace?: boolean;
+  isLoading: boolean;
+  isSyncing: boolean;
+  isNeverSynced: boolean;
+  loadError: string | null;
+  hasWorkspace: boolean;
   /** Refreshes the file tree when the picker opens. */
-  onRefresh?: (options?: { force?: boolean }) => void;
+  onRefresh: (options?: { force?: boolean }) => void;
 }
 
 // fallow-ignore-next-line complexity
 export const FileSelectorModal = memo(function FileSelectorModal({
   files,
-  recentFiles = [],
+  recentFiles,
   onSelectFile,
   isLoading,
   isSyncing,
@@ -79,7 +79,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
   useEffect(() => {
     if (!open || !hasWorkspace) return;
     const frame = requestAnimationFrame(() => {
-      if (getFileSelectorOpen()) onRefresh?.();
+      if (getFileSelectorOpen()) onRefresh();
     });
     return () => cancelAnimationFrame(frame);
   }, [open, hasWorkspace, onRefresh]);
@@ -149,7 +149,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                 <button
                   type="button"
                   className="rounded border border-chatroom-border px-3 py-1 text-[10px] text-chatroom-text hover:bg-chatroom-surface-hover"
-                  onClick={() => onRefresh?.({ force: true })}
+                  onClick={() => onRefresh({ force: true })}
                 >
                   Retry
                 </button>
@@ -162,7 +162,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                 <button
                   type="button"
                   className="rounded border border-chatroom-border px-3 py-1 text-[10px] text-chatroom-text hover:bg-chatroom-surface-hover"
-                  onClick={() => onRefresh?.()}
+                  onClick={() => onRefresh()}
                 >
                   Sync now
                 </button>

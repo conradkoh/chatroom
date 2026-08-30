@@ -7,6 +7,18 @@ import { FileSelectorModal } from './FileSelectorModal';
 const mockCloseDialog = vi.fn();
 const mockGetFileSelectorOpen = vi.fn(() => true);
 
+const defaultModalProps: React.ComponentProps<typeof FileSelectorModal> = {
+  files: [],
+  recentFiles: [],
+  onSelectFile: vi.fn(),
+  isLoading: false,
+  isSyncing: false,
+  isNeverSynced: false,
+  loadError: null,
+  hasWorkspace: true,
+  onRefresh: vi.fn(),
+};
+
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: vi.fn(() => true),
 }));
@@ -47,7 +59,7 @@ describe('FileSelectorModal', () => {
   });
 
   const renderModal = (props: Partial<React.ComponentProps<typeof FileSelectorModal>> = {}) =>
-    render(<FileSelectorModal files={[]} onSelectFile={vi.fn()} hasWorkspace {...props} />);
+    render(<FileSelectorModal {...defaultModalProps} {...props} />);
 
   it('shows load error with retry button', async () => {
     const onRefresh = vi.fn();
