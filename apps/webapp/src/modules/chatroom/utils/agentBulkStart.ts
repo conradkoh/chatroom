@@ -40,7 +40,6 @@ function withRestartDefaults(
     updatedAt: source.updatedAt as number,
     spawnedAgentPid: source.spawnedAgentPid,
     spawnedAt: source.spawnedAt,
-    wantResume: source.wantResume,
   };
 }
 
@@ -77,7 +76,6 @@ export async function startAgentsForRoles(
         model: config.model ?? '',
         agentHarness: config.agentType,
         workingDir: config.workingDir,
-        wantResume: config.wantResume,
       };
     },
     sendCommand
@@ -111,7 +109,6 @@ async function restartAgentsForRoles(
           model: config.model,
           agentHarness: config.agentType,
           workingDir: config.workingDir,
-          wantResume: config.wantResume,
         },
       });
     })

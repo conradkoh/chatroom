@@ -6,7 +6,6 @@ import {
   getHarnessDisplayName,
   getModelDisplayLabel,
   getCompactModelId,
-  harnessSupportsDaemonMemoryResume,
   harnessSupportsNativeIntegration,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
@@ -88,15 +87,6 @@ describe('isCursorSdkHarness', () => {
     expect(isCursorSdkHarness('cursor-sdk')).toBe(true);
     expect(isCursorSdkHarness('cursor')).toBe(false);
     expect(isCursorSdkHarness('opencode-sdk')).toBe(false);
-  });
-});
-
-describe('harnessSupportsDaemonMemoryResume', () => {
-  it('returns true only for cursor-sdk and opencode-sdk', () => {
-    expect(harnessSupportsDaemonMemoryResume('cursor-sdk')).toBe(true);
-    expect(harnessSupportsDaemonMemoryResume('opencode-sdk')).toBe(true);
-    expect(harnessSupportsDaemonMemoryResume('cursor')).toBe(false);
-    expect(harnessSupportsDaemonMemoryResume('pi-sdk')).toBe(false);
   });
 });
 
