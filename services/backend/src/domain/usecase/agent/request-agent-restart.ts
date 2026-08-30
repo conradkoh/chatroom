@@ -94,7 +94,11 @@ async function releaseRestartTasks(
 // fallow-ignore-next-line complexity
 async function persistRestartAndEmit(
   ctx: MutationCtx,
-  input: { chatroomId: Id<'chatroom_rooms'>; role: string },
+  input: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    request: AgentRestartRequest;
+  },
   resolved: RunnableRemoteAgentConfig,
   chatroom: Doc<'chatroom_rooms'> | null,
   correlationId: string,
