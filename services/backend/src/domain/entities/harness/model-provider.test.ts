@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   inferCommandCodeModelProvider,
   inferCopilotModelProvider,
+  migrateFavoriteModelForHarness,
   prefixCatalogModels,
   prefixCatalogModelsWithInfer,
   prefixModelWithProvider,
@@ -36,5 +37,24 @@ describe('model provider helpers', () => {
     expect(prefixCatalogModelsWithInfer(inferCopilotModelProvider, ['gpt-4o'])).toEqual([
       'openai/gpt-4o',
     ]);
+  });
+
+  it('migrates favorite model ids by harness', () => {
+    expect(migrateFavoriteModelForHarness('cursor-sdk', 'composer-1')).toBe('cursor/composer-1');
+    expect(migrateFavoriteModelForHarness('claude-sdk', 'claude-sonnet-4-6')).toBe(
+      'anthropic/claude-sonnet-4-6'
+    );
+    expect(migrateFavoriteModelForHarness('codex-sdk', 'gpt-5.6-terra')).toBe(
+      'openai/gpt-5.6-terra'
+    );
+    expect(migrateFavoriteModelForHarness('copilot', 'claude-sonnet-4-6')).toBe(
+      'anthropic/claude-sonnet-4-6'
+    );
+    expect(migrateFavoriteModelForHarness('commandcode', 'gpt-5')).toBe('openai/gpt-5');
+    expect(migrateFavoriteModelForHarness('cursor', 'cursor/composer-1')).toBe('cursor/composer-1');
+    expect(migrateFavoriteModelForHarness('cursor', 'composer-1[reasoning=high]')).toBe(
+      'cursor/composer-1[reasoning=high]'
+    );
+    expect(migrateFavoriteModelForHarness('opencode', 'custom-model')).toBe('custom-model');
   });
 });

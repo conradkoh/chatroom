@@ -32,6 +32,7 @@
   --color-chatroom-status-info: var(--chatroom-status-info);
   --color-chatroom-status-purple: var(--chatroom-status-purple);
   --color-chatroom-accent: var(--chatroom-accent);
+  --color-chatroom-text-on-accent: var(--chatroom-text-on-accent);
   --radius-sm: 0px;
   --radius-md: 0px;
   --radius-lg: 0px;
@@ -71,6 +72,7 @@
   --chatroom-status-info: #60a5fa;
   --chatroom-status-purple: #a78bfa;
   --chatroom-accent: #fafafa;
+  --chatroom-text-on-accent: #09090b;
   color-scheme: dark;
 }
 

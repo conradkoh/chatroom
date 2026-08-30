@@ -111,4 +111,38 @@ describe('native-ready-invariant', () => {
       )
     ).toBeNull();
   });
+
+  it('allows a healthy local slot when snapshot spawnedAgentPid is stale from a prior agent', () => {
+    expect(
+      explainAgentReadyForNativeDeliveryBlock(
+        task({
+          agentConfig: {
+            role: 'builder',
+            machineId: 'machine-1',
+            agentHarness: 'cursor-sdk',
+            workingDir: '/tmp',
+            spawnedAgentPid: 42,
+          },
+        }),
+        idleSlot({ pid: 99 })
+      )
+    ).toBeNull();
+  });
+
+  it('still blocks pid mismatch when local slot is not running', () => {
+    expect(
+      explainAgentReadyForNativeDeliveryBlock(
+        task({
+          agentConfig: {
+            role: 'builder',
+            machineId: 'machine-1',
+            agentHarness: 'cursor-sdk',
+            workingDir: '/tmp',
+            spawnedAgentPid: 42,
+          },
+        }),
+        idleSlot({ pid: 99, state: 'spawning' })
+      )
+    ).toContain('pid_mismatch');
+  });
 });

@@ -289,7 +289,7 @@ describe('user message pending delivery path', () => {
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
   });
 
-  test('stuck pending: does not inject when local slot pid mismatches snapshot spawnedAgentPid', async () => {
+  test('stuck pending: does not inject when local slot is spawning with a mismatched PID', async () => {
     const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
@@ -298,7 +298,7 @@ describe('user message pending delivery path', () => {
 
     expect(
       shouldDeliverNativeTask(row!, {
-        slot: makeIdleNativeSlot({ pid: SPAWNED_PID + 1 }),
+        slot: makeIdleNativeSlot({ pid: SPAWNED_PID + 1, state: 'spawning' }),
       })
     ).toBe(false);
 
@@ -309,7 +309,9 @@ describe('user message pending delivery path', () => {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr: {
-        getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ pid: SPAWNED_PID + 1 })),
+        getSlot: vi
+          .fn()
+          .mockReturnValue(makeIdleNativeSlot({ pid: SPAWNED_PID + 1, state: 'spawning' })),
         resumeTurnForSlot,
         setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
       } as unknown as DaemonAgentProcessManagerServiceShape,
