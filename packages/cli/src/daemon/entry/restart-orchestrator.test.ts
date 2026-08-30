@@ -73,7 +73,7 @@ describe('runRestartOrchestrator', () => {
       model: 'gpt-4',
       workingDir: '/tmp/test',
       correlationId: 'test-correlation',
-      wantResume: true,
+      wantResume: false,
     });
 
     const restartCompleted = auditLog.filter((event) => event.type === 'agent.restartCompleted');
@@ -101,7 +101,7 @@ describe('runRestartOrchestrator', () => {
       model: 'gpt-4',
       workingDir: '/tmp/test',
       correlationId: 'test-correlation',
-      wantResume: true,
+      wantResume: false,
     });
 
     const failedPhases = auditLog.filter(

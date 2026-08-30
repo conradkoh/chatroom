@@ -777,7 +777,6 @@ export const getMachineAgentConfigs = query({
           updatedAt: config.updatedAt,
           spawnedAgentPid: config.spawnedAgentPid,
           spawnedAt: config.spawnedAt,
-          wantResume: config.wantResume,
         },
       ];
     });
