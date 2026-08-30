@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file code-duplication complexity
+// fallow-ignore-file code-duplication complexity
 
 /**
  * Local ref-count for file-tree delta Convex subscriptions (per browser tab).
@@ -26,6 +26,7 @@ function workspaceKey(machineId: string, workingDir: string): string {
   return toWorkspaceFileTreeKey(machineId, normalizeWorkspaceWorkingDir(workingDir));
 }
 
+// fallow-ignore-next-line unused-export
 export function __resetWorkspaceFileTreeDeltaSyncCoordinatorForTests(): void {
   localRefCounts.clear();
   ownerQueues.clear();
@@ -47,6 +48,7 @@ export function isFileTreeDeltaSyncOwner(
   return queue !== undefined && queue.length > 0 && queue[0] === ownerId;
 }
 
+// fallow-ignore-next-line unused-export
 export function isFileTreeDeltaSyncActive(machineId: string, workingDir: string): boolean {
   const key = workspaceKey(machineId, workingDir);
   return (localRefCounts.get(key) ?? 0) > 0;
