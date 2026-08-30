@@ -21,7 +21,8 @@ export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
   if (
     lastStatus === 'agent.enhancing' ||
     lastStatus === 'agent.awaitingHandoff' ||
-    lastStatus === 'task.inProgress'
+    lastStatus === 'task.inProgress' ||
+    lastStatus === 'task.acknowledged'
   )
     return { status: 'working' };
   if (
@@ -30,7 +31,6 @@ export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
     lastStatus === 'agent.restartPhase' ||
     lastStatus === 'agent.registered' ||
     lastStatus === 'agent.started' ||
-    lastStatus === 'task.acknowledged' ||
     lastStatus === 'agent.sessionResumeRequested'
   )
     return { status: 'starting' };
