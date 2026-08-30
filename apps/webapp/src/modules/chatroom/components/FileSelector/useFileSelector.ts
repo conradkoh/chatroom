@@ -76,6 +76,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     workingDir: workingDir ?? '',
     enabled: syncEnabled,
   });
+  const treeIsLoading = tree.isLoading;
 
   const {
     entries,
@@ -122,20 +123,26 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
       return false;
     };
 
-    const unsubscribe = subscribeWorkspaceFileTree(workspaceKey, tryCommit);
+    const tryCommitOrSettleEmpty = () => {
+      if (tryCommit()) return;
+      // Hydration settled with no store data — commit empty so partition reaches 'ready'.
+      if (!treeIsLoading) commitFileSelectorPreload(state$, generation, []);
+    };
+
+    const unsubscribe = subscribeWorkspaceFileTree(workspaceKey, tryCommitOrSettleEmpty);
 
     const idleId =
       typeof requestIdleCallback !== 'undefined'
         ? requestIdleCallback(
             () => {
               if (fileSelectorOpen) refresh();
-              tryCommit();
+              tryCommitOrSettleEmpty();
             },
             { timeout: 2000 }
           )
         : setTimeout(() => {
             if (fileSelectorOpen) refresh();
-            tryCommit();
+            tryCommitOrSettleEmpty();
           }, 0);
 
     return () => {
@@ -148,7 +155,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
       releaseFileSelectorPartition(chatroomId, machineId, workingDir);
       setPartitionState$(null);
     };
-  }, [chatroomId, machineId, workingDir, hasWorkspace, refresh, fileSelectorOpen]);
+  }, [chatroomId, machineId, workingDir, hasWorkspace, refresh, fileSelectorOpen, treeIsLoading]);
 
   const { preloadFiles, partitionStatus } = useSelector(() => {
     if (!partitionState$) {
@@ -172,7 +179,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     return liveFiles;
   }, [hasTree, liveFiles, partitionStatus, preloadFiles]);
 
-  const isLoading = hasWorkspace && (tree.isLoading || (!hasTree && partitionStatus !== 'ready'));
+  const isLoading = hasWorkspace && treeIsLoading;
 
   const recentFilesStorageKey = getRecentFilesStorageKey(chatroomId);
 

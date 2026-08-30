@@ -69,4 +69,37 @@ describe('useFileSelector', () => {
 
     expect(result.current.isLoading).toBe(false);
   });
+
+  it('is not loading when tree hydration settled without store data', () => {
+    mockUseWorkspaceFileTree.mockReturnValue({
+      hasTree: false,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
+    mockUseWorkspaceFileTreeEntries.mockReturnValue({
+      entries: [],
+      hasTree: false,
+      refresh: vi.fn(),
+    });
+
+    const { result } = renderHook(() =>
+      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
+    );
+
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('is loading while tree hydration is in progress', () => {
+    mockUseWorkspaceFileTree.mockReturnValue({
+      hasTree: false,
+      isLoading: true,
+      refresh: vi.fn(),
+    });
+
+    const { result } = renderHook(() =>
+      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
+    );
+
+    expect(result.current.isLoading).toBe(true);
+  });
 });
