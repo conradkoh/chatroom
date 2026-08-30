@@ -2097,6 +2097,9 @@ export function ChatroomDashboard({
                   recentFiles={fileSelector.recentFiles}
                   onSelectFile={handleCmdPFileSelect}
                   isLoading={fileSelector.isLoading}
+                  isSyncing={fileSelector.isSyncing}
+                  isNeverSynced={fileSelector.isNeverSynced}
+                  loadError={fileSelector.loadError}
                   hasWorkspace={fileSelector.hasWorkspace}
                   onRefresh={fileSelector.refresh}
                 />

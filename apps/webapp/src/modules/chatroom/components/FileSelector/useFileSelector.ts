@@ -2,6 +2,8 @@
 
 import type { Observable } from '@legendapp/state';
 import { useSelector } from '@legendapp/state/react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -77,6 +79,17 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     enabled: syncEnabled,
   });
   const treeIsLoading = tree.isLoading;
+  const pendingRequestsRaw = useSessionQuery(
+    api.workspaceFiles.getPendingFileTreeRequests,
+    syncEnabled && machineId ? { machineId } : 'skip'
+  );
+  const hasPendingSync = useMemo(() => {
+    if (!syncEnabled || !workingDir) return false;
+    const normalized = normalizeWorkspaceWorkingDir(workingDir);
+    return !!pendingRequestsRaw?.some(
+      (request) => normalizeWorkspaceWorkingDir(request.workingDir) === normalized
+    );
+  }, [pendingRequestsRaw, syncEnabled, workingDir]);
 
   const {
     entries,
@@ -170,6 +183,10 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   });
 
   const hasTree = entriesHasTree || tree.hasTree;
+  const loadError = hasWorkspace ? tree.loadError : null;
+  const isNeverSynced =
+    hasWorkspace && !hasTree && !treeIsLoading && !loadError && tree.isNeverSynced;
+  const isSyncing = hasWorkspace && !hasTree && !treeIsLoading && !loadError && hasPendingSync;
 
   const liveFiles = useMemo(() => entries.filter((entry) => entry.type === 'file'), [entries]);
 
@@ -215,6 +232,9 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     selectedFile,
     selectFile,
     isLoading,
+    isSyncing,
+    isNeverSynced,
+    loadError,
     hasWorkspace,
     refresh,
   };

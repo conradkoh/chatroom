@@ -8,6 +8,17 @@ const mockUseWorkspaceFileTreeEntries = vi.fn();
 const mockUseAcquireFileTreeWatch = vi.fn();
 const mockGetFileSelectorOpen = vi.fn(() => true);
 
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: () => undefined,
+}));
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: {
+    workspaceFiles: {
+      getPendingFileTreeRequests: { name: 'getPendingFileTreeRequests' },
+    },
+  },
+}));
+
 vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTree', () => ({
   useWorkspaceFileTree: (...args: unknown[]) => mockUseWorkspaceFileTree(...args),
 }));
@@ -32,6 +43,8 @@ describe('useFileSelector', () => {
     mockUseWorkspaceFileTree.mockReturnValue({
       hasTree: false,
       isLoading: false,
+      loadError: null,
+      isNeverSynced: false,
       refresh: vi.fn(),
     });
     mockUseWorkspaceFileTreeEntries.mockReturnValue({
@@ -101,5 +114,37 @@ describe('useFileSelector', () => {
     );
 
     expect(result.current.isLoading).toBe(true);
+  });
+
+  it('exposes loadError from tree', () => {
+    mockUseWorkspaceFileTree.mockReturnValue({
+      hasTree: false,
+      isLoading: false,
+      loadError: 'File tree sync timed out',
+      isNeverSynced: false,
+      refresh: vi.fn(),
+    });
+
+    const { result } = renderHook(() =>
+      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
+    );
+
+    expect(result.current.loadError).toMatch(/timed out/i);
+  });
+
+  it('reports isNeverSynced when tree never synced and no files', () => {
+    mockUseWorkspaceFileTree.mockReturnValue({
+      hasTree: false,
+      isLoading: false,
+      loadError: null,
+      isNeverSynced: true,
+      refresh: vi.fn(),
+    });
+
+    const { result } = renderHook(() =>
+      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
+    );
+
+    expect(result.current.isNeverSynced).toBe(true);
   });
 });

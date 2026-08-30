@@ -32,16 +32,23 @@ interface FileSelectorModalProps {
   recentFiles?: string[];
   onSelectFile: (filePath: string) => void;
   isLoading?: boolean;
+  isSyncing?: boolean;
+  isNeverSynced?: boolean;
+  loadError?: string | null;
   hasWorkspace?: boolean;
   /** Refreshes the file tree when the picker opens. */
-  onRefresh?: () => void;
+  onRefresh?: (options?: { force?: boolean }) => void;
 }
 
+// fallow-ignore-next-line complexity
 export const FileSelectorModal = memo(function FileSelectorModal({
   files,
   recentFiles = [],
   onSelectFile,
   isLoading,
+  isSyncing,
+  isNeverSynced,
+  loadError,
   hasWorkspace,
   onRefresh,
 }: FileSelectorModalProps) {
@@ -129,12 +136,36 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                   Start a daemon to browse files
                 </span>
               </div>
-            ) : isLoading ? (
+            ) : isLoading || isSyncing ? (
               <div className="flex flex-col items-center justify-center py-10 gap-2">
                 <Loader2 className="h-5 w-5 animate-spin text-chatroom-text-muted" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-                  LOADING FILE TREE...
+                  {isSyncing ? 'SYNCING FILE TREE...' : 'LOADING FILE TREE...'}
                 </span>
+              </div>
+            ) : loadError ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 px-4 text-center">
+                <span className="text-[10px] text-chatroom-text-muted">{loadError}</span>
+                <button
+                  type="button"
+                  className="rounded border border-chatroom-border px-3 py-1 text-[10px] text-chatroom-text hover:bg-chatroom-surface-hover"
+                  onClick={() => onRefresh?.({ force: true })}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : isNeverSynced && files.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 px-4 text-center">
+                <span className="text-[10px] text-chatroom-text-muted">
+                  Workspace files haven&apos;t synced yet.
+                </span>
+                <button
+                  type="button"
+                  className="rounded border border-chatroom-border px-3 py-1 text-[10px] text-chatroom-text hover:bg-chatroom-surface-hover"
+                  onClick={() => onRefresh?.()}
+                >
+                  Sync now
+                </button>
               </div>
             ) : (
               <>
