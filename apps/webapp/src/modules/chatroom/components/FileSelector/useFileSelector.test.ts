@@ -147,4 +147,58 @@ describe('useFileSelector', () => {
 
     expect(result.current.isNeverSynced).toBe(true);
   });
+
+  it('does not infinite-loop when tree reference is unstable across rerenders', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    mockUseWorkspaceFileTree.mockImplementation(() => ({
+      hasTree: false,
+      isLoading: false,
+      loadError: null,
+      isNeverSynced: false,
+      refresh: vi.fn(),
+    }));
+
+    const { rerender } = renderHook(() =>
+      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
+    );
+
+    for (let i = 0; i < 20; i++) {
+      rerender();
+    }
+
+    const depthErrors = consoleError.mock.calls.filter((args) =>
+      String(args[0]).includes('Maximum update depth')
+    );
+    expect(depthErrors).toHaveLength(0);
+
+    consoleError.mockRestore();
+  });
+
+  it('settles empty partition when tree hydration completes', () => {
+    mockUseWorkspaceFileTree.mockReturnValue({
+      hasTree: false,
+      isLoading: true,
+      loadError: null,
+      isNeverSynced: false,
+      refresh: vi.fn(),
+    });
+
+    const { result, rerender } = renderHook(() =>
+      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
+    );
+
+    expect(result.current.isLoading).toBe(true);
+
+    mockUseWorkspaceFileTree.mockReturnValue({
+      hasTree: false,
+      isLoading: false,
+      loadError: null,
+      isNeverSynced: false,
+      refresh: vi.fn(),
+    });
+    rerender();
+
+    expect(result.current.isLoading).toBe(false);
+  });
 });

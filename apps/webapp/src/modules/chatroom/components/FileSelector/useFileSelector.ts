@@ -4,7 +4,7 @@ import type { Observable } from '@legendapp/state';
 import { useSelector } from '@legendapp/state/react';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
   acquireFileSelectorPartition,
@@ -102,13 +102,19 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     includeDirectories: false,
   });
 
+  const refreshTree = tree.refresh;
   const refresh = useCallback(
     (options?: { force?: boolean }) => {
-      tree.refresh(options);
+      refreshTree(options);
       refreshEntries(options);
     },
-    [tree, refreshEntries]
+    [refreshTree, refreshEntries]
   );
+
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const treeIsLoadingRef = useRef(treeIsLoading);
+  treeIsLoadingRef.current = treeIsLoading;
 
   const [partitionState$, setPartitionState$] =
     useState<Observable<FileSelectorPartitionState> | null>(null);
@@ -139,7 +145,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     const tryCommitOrSettleEmpty = () => {
       if (tryCommit()) return;
       // Hydration settled with no store data — commit empty so partition reaches 'ready'.
-      if (!treeIsLoading) commitFileSelectorPreload(state$, generation, []);
+      if (!treeIsLoadingRef.current) commitFileSelectorPreload(state$, generation, []);
     };
 
     const unsubscribe = subscribeWorkspaceFileTree(workspaceKey, tryCommitOrSettleEmpty);
@@ -148,13 +154,13 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
       typeof requestIdleCallback !== 'undefined'
         ? requestIdleCallback(
             () => {
-              if (fileSelectorOpen) refresh();
+              if (fileSelectorOpen) refreshRef.current();
               tryCommitOrSettleEmpty();
             },
             { timeout: 2000 }
           )
         : setTimeout(() => {
-            if (fileSelectorOpen) refresh();
+            if (fileSelectorOpen) refreshRef.current();
             tryCommitOrSettleEmpty();
           }, 0);
 
@@ -168,7 +174,25 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
       releaseFileSelectorPartition(chatroomId, machineId, workingDir);
       setPartitionState$(null);
     };
-  }, [chatroomId, machineId, workingDir, hasWorkspace, refresh, fileSelectorOpen, treeIsLoading]);
+  }, [chatroomId, machineId, workingDir, hasWorkspace, fileSelectorOpen]);
+
+  // Settle empty partition when hydration completes without re-acquiring partition state.
+  // fallow-ignore-next-line complexity
+  useEffect(() => {
+    if (treeIsLoading || !partitionState$ || !machineId || !workingDir) return;
+
+    const workspaceKey = toWorkspaceFileTreeKey(
+      machineId,
+      normalizeWorkspaceWorkingDir(workingDir)
+    );
+    const revision = getWorkspaceFileTreeRevision(workspaceKey);
+    if (revision !== null) return;
+    const storeEntries = getWorkspaceFileTreeEntries(workspaceKey);
+    if (storeEntries.length > 0) return;
+    if (partitionState$.status.get() !== 'loading') return;
+
+    commitFileSelectorPreload(partitionState$, partitionState$.generation.get(), []);
+  }, [treeIsLoading, partitionState$, machineId, workingDir]);
 
   const { preloadFiles, partitionStatus } = useSelector(() => {
     if (!partitionState$) {
