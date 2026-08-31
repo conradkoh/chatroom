@@ -1,6 +1,7 @@
 // fallow-ignore-next-line complexity
 
 import { getOrCreateBoundHarness } from './get-or-create-bound-harness.js';
+import { handleSessionIdle } from './idle-handler.js';
 import type {
   HarnessWorkerSession,
   OpenPendingHarnessSessionInput,
@@ -12,7 +13,6 @@ import type { HarnessSessionId } from '../../domain/entities/harness-session.js'
 import type { SessionHandle } from '../../domain/usecase/open-harness-session.js';
 import { createChunkExtractor } from '../../infrastructure/local/harness/bound-harness-registry.js';
 import { isOpenCodeSessionEventType } from '../../infrastructure/local/harness/services/opencode-sdk/opencode-session-events.js';
-import { handleSessionIdle } from '../direct-harness/idle-handler.js';
 
 export async function openPendingHarnessSession(
   daemonSession: HarnessWorkerSession,

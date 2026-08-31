@@ -12,7 +12,7 @@ import { useCallback } from 'react';
  * Returns a stable refresh function reference.
  */
 export function useRefreshCapabilities() {
-  const mutate = useSessionMutation(api.web.directHarness.commands.refreshCapabilities);
+  const mutate = useSessionMutation(api.web.harnessCapabilities.commands.refreshCapabilities);
 
   const refresh = useCallback(
     (workspaceId: Id<'chatroom_workspaces'>) => {

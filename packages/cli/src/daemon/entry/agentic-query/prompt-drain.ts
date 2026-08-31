@@ -19,9 +19,9 @@ import {
   type NativeDirectHarnessName,
 } from '../../infrastructure/local/harness/bound-harness-registry.js';
 import { makeHarnessKey } from '../../infrastructure/local/harness/harness-key.js';
-import { handleSessionIdle } from '../direct-harness/idle-handler.js';
-import type { ActiveSession } from '../direct-harness/session-processor.js';
 import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';
+import { handleSessionIdle } from '../shared-harness/idle-handler.js';
+import type { ActiveSession } from '../shared-harness/types.js';
 
 interface SubscriberDeps {
   activeSessions: Map<string, ActiveSession>;

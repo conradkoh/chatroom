@@ -1,4 +1,4 @@
-import type { HarnessTurnView } from '../../src/domain/direct-harness/types';
+import type { HarnessTurnView } from '../../src/domain/harness/types';
 import type { QueryCtx } from '../_generated/server';
 
 /** Minimal turn row fields needed for wire view mapping. */
@@ -49,7 +49,7 @@ export function buildOlderTurnsPage(
   return { turns, hasMore };
 }
 
-type StreamingChunkTable = 'chatroom_harnessSessionMessages' | 'chatroom_agenticQueryRunMessages';
+type StreamingChunkTable = 'chatroom_agenticQueryRunMessages';
 
 /** Shared streaming chunk fetch (cursor + initial-load paths). */
 export async function fetchStreamingTurnChunks(

@@ -140,17 +140,6 @@ export function createRecoverAgentStateDeps(
           hostname: session.config?.hostname ?? 'unknown',
           registeredBy: args.registeredBy,
         }),
-      getMachineHarnessSessions: async () =>
-        session.backend.query(api.daemon.directHarness.turns.getMachineHarnessSessions, {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-        }) as Promise<{ chatroomId: string; harnessSessionId: string }[]>,
-      markOrphanTurnsFailed: async (harnessSessionId) =>
-        session.backend.mutation(api.daemon.directHarness.turns.markOrphanTurnsFailed, {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-          harnessSessionId,
-        }) as Promise<{ failedTurns: number }>,
     },
     session: {
       sessionId: session.sessionId,

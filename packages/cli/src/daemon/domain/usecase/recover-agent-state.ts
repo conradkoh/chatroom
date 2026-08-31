@@ -17,8 +17,6 @@ export interface RecoverAgentBackendPort {
     workingDir: string;
     registeredBy: string;
   }): Promise<void>;
-  getMachineHarnessSessions(): Promise<{ chatroomId: string; harnessSessionId: string }[]>;
-  markOrphanTurnsFailed(harnessSessionId: string): Promise<{ failedTurns: number }>;
 }
 
 export interface RecoverAgentSessionPort {
@@ -74,35 +72,5 @@ export async function recoverAgentState(deps: RecoverAgentStateDeps): Promise<vo
     if (registeredCount > 0) {
       log(`   🔀 Registered ${registeredCount} workspace(s) on recovery`);
     }
-  }
-
-  try {
-    const managedSessions = await deps.backend.getMachineHarnessSessions();
-
-    let orphanSessionCount = 0;
-    let totalFailedTurns = 0;
-
-    for (const hs of managedSessions) {
-      const hasActiveSlot = activeSlots.some((s) => s.chatroomId === hs.chatroomId);
-      if (hasActiveSlot) continue;
-
-      try {
-        const result = await deps.backend.markOrphanTurnsFailed(hs.harnessSessionId);
-        orphanSessionCount++;
-        totalFailedTurns += result.failedTurns;
-      } catch (err) {
-        warn(
-          `[daemon] ⚠️ Failed to mark orphan turns for session ${hs.harnessSessionId}: ${(err as Error).message}`
-        );
-      }
-    }
-
-    if (orphanSessionCount > 0) {
-      log(
-        `   🧹 Marked ${totalFailedTurns} turns as failed across ${orphanSessionCount} orphan sessions`
-      );
-    }
-  } catch (err) {
-    warn(`[daemon] ⚠️ Orphan turn cleanup failed: ${(err as Error).message}`);
   }
 }

@@ -11,8 +11,6 @@ function makeDeps(overrides?: Partial<RecoverAgentStateDeps>): RecoverAgentState
     backend: {
       getMachineAgentConfigs: vi.fn().mockResolvedValue({ configs: [] }),
       registerWorkspace: vi.fn().mockResolvedValue(undefined),
-      getMachineHarnessSessions: vi.fn().mockResolvedValue([]),
-      markOrphanTurnsFailed: vi.fn().mockResolvedValue({ failedTurns: 0 }),
     },
     session: {
       sessionId: 'sess-1',
@@ -57,25 +55,5 @@ describe('recoverAgentState', () => {
       registeredBy: 'builder',
     });
     expect(deps.log).toHaveBeenCalledWith('   🔀 Registered 1 workspace(s) on recovery');
-  });
-
-  it('marks orphan harness sessions failed', async () => {
-    const deps = makeDeps();
-    deps.agentProcessManager.listActive = vi
-      .fn()
-      .mockReturnValue([{ chatroomId: 'room-active', role: 'builder' }]);
-    deps.backend.getMachineHarnessSessions = vi.fn().mockResolvedValue([
-      { chatroomId: 'room-active', harnessSessionId: 'hs-active' },
-      { chatroomId: 'room-orphan', harnessSessionId: 'hs-orphan' },
-    ]);
-    deps.backend.markOrphanTurnsFailed = vi.fn().mockResolvedValue({ failedTurns: 2 });
-
-    await recoverAgentState(deps);
-
-    expect(deps.backend.markOrphanTurnsFailed).toHaveBeenCalledTimes(1);
-    expect(deps.backend.markOrphanTurnsFailed).toHaveBeenCalledWith('hs-orphan');
-    expect(deps.log).toHaveBeenCalledWith(
-      '   🧹 Marked 2 turns as failed across 1 orphan sessions'
-    );
   });
 });

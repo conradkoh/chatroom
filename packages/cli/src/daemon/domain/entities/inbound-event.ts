@@ -16,9 +16,6 @@ export type InboundEvent =
       commandId: string;
       claimedCommand: ClaimedMachineCommand;
     }
-  | { type: 'direct-harness.session-opened'; harnessSessionId: string }
-  | { type: 'direct-harness.prompt'; harnessSessionId: string }
-  | { type: 'direct-harness.command'; commandId: string }
   | { type: 'agentic-query.session-opened'; sessionId: string }
   | { type: 'agentic-query.prompt'; sessionId: string }
   | { type: 'enhancer.job-assigned'; jobId: string }

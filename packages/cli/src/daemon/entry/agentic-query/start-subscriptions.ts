@@ -8,8 +8,7 @@ import {
   registerAgenticQueryInboundHandler,
   unregisterAgenticQueryInboundHandler,
 } from '../agentic-query-inbound-registry.js';
-import type { ActiveSession } from '../direct-harness/session-processor.js';
-import type { HarnessWorkerSession } from '../shared-harness/types.js';
+import type { ActiveSession, HarnessWorkerSession } from '../shared-harness/types.js';
 
 export interface AgenticQuerySubscriptionSession extends HarnessWorkerSession {
   machineId: string;

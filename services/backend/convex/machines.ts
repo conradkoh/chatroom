@@ -334,6 +334,73 @@ export const refreshCapabilities = mutation({
 const CAPABILITIES_REFRESH_ERROR_MESSAGE_MAX = 2000;
 const CAPABILITIES_REFRESH_QUERY_ERROR_PREVIEW_MAX = 500;
 
+/** Enqueue a capabilities refresh after the caller has authorized the chatroom. */
+export async function enqueueCapabilitiesRefresh(
+  ctx: MutationCtx,
+  args: { userId: Id<'users'>; chatroomId: Id<'chatroom_rooms'>; machineId: string }
+) {
+  const now = Date.now();
+  const COOLDOWN_MS = 10 * 1000;
+
+  const machine = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+    .first();
+
+  if (!machine || machine.userId !== args.userId) {
+    return { applied: false as const, reason: 'not_owner' as const };
+  }
+
+  const workspaces = await ctx.db
+    .query('chatroom_workspaces')
+    .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
+    .filter((q) => q.eq(q.field('chatroomId'), args.chatroomId))
+    .collect();
+
+  if (workspaces.length === 0) {
+    return { applied: false as const, reason: 'not_linked' as const };
+  }
+
+  const lastRefresh = machine.lastCapabilitiesRefreshRequestedAt ?? 0;
+  if (now - lastRefresh < COOLDOWN_MS) {
+    const rawRemaining = COOLDOWN_MS - (now - lastRefresh);
+    return {
+      applied: false as const,
+      reason: 'cooldown' as const,
+      retryAfterMs: Math.max(0, Math.min(COOLDOWN_MS, rawRemaining)),
+    };
+  }
+
+  const batchId = await ctx.db.insert('chatroom_capabilities_refresh_batches', {
+    chatroomId: args.chatroomId,
+    userId: args.userId,
+    createdAt: now,
+    expectedMachineCount: 1,
+    finishedMachineCount: 0,
+    aggregateStatus: 'pending',
+  });
+
+  await ctx.db.insert('chatroom_capabilities_refresh_machine_results', {
+    batchId,
+    chatroomId: args.chatroomId,
+    machineId: machine.machineId,
+    status: 'pending',
+    createdAt: now,
+  });
+
+  await enqueueMachineCommand(ctx, {
+    machineId: machine.machineId,
+    now,
+    command: { type: 'daemon.refreshCapabilities', batchId },
+  });
+
+  await ctx.db.patch('chatroom_machines', machine._id, {
+    lastCapabilitiesRefreshRequestedAt: now,
+  });
+
+  return { applied: true as const, batchId };
+}
+
 export const requestCapabilitiesRefresh = mutation({
   args: {
     ...SessionIdArg,
@@ -353,66 +420,11 @@ export const requestCapabilitiesRefresh = mutation({
       permission: 'write-access',
     });
 
-    const now = Date.now();
-    const COOLDOWN_MS = 10 * 1000; // 10 seconds
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (!machine || machine.userId !== userId) {
-      return { applied: false as const, reason: 'not_owner' as const };
-    }
-
-    const workspaces = await ctx.db
-      .query('chatroom_workspaces')
-      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
-      .filter((q) => q.eq(q.field('chatroomId'), args.chatroomId))
-      .collect();
-
-    if (workspaces.length === 0) {
-      return { applied: false as const, reason: 'not_linked' as const };
-    }
-
-    const lastRefresh = machine.lastCapabilitiesRefreshRequestedAt ?? 0;
-    if (now - lastRefresh < COOLDOWN_MS) {
-      const rawRemaining = COOLDOWN_MS - (now - lastRefresh);
-      return {
-        applied: false as const,
-        reason: 'cooldown' as const,
-        retryAfterMs: Math.max(0, Math.min(COOLDOWN_MS, rawRemaining)),
-      };
-    }
-
-    const batchId = await ctx.db.insert('chatroom_capabilities_refresh_batches', {
+    return enqueueCapabilitiesRefresh(ctx, {
+      userId,
       chatroomId: args.chatroomId,
-      userId: userId,
-      createdAt: now,
-      expectedMachineCount: 1,
-      finishedMachineCount: 0,
-      aggregateStatus: 'pending',
+      machineId: args.machineId,
     });
-
-    await ctx.db.insert('chatroom_capabilities_refresh_machine_results', {
-      batchId,
-      chatroomId: args.chatroomId,
-      machineId: machine.machineId,
-      status: 'pending',
-      createdAt: now,
-    });
-
-    await enqueueMachineCommand(ctx, {
-      machineId: machine.machineId,
-      now,
-      command: { type: 'daemon.refreshCapabilities', batchId },
-    });
-
-    await ctx.db.patch('chatroom_machines', machine._id, {
-      lastCapabilitiesRefreshRequestedAt: now,
-    });
-
-    return { applied: true as const, batchId };
   },
 });
 

@@ -12,7 +12,6 @@ process.env.NODE_ENV = 'test';
 vi.mock('../config/featureFlags', () => ({
   featureFlags: {
     disableLogin: false,
-    directHarnessWorkers: true,
     allowedSignupMethods: ['self'],
   },
 }));

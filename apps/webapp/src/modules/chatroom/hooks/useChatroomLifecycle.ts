@@ -4,11 +4,8 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import type { ActivityView } from '../components/ActivityBar';
 import { useActivityView } from './persistence/useActivityView';
-import { useExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
-import type { ExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
 import { useExplorerSplitViewEnabled } from './persistence/useExplorerSplitViewEnabled';
 import { useExplorerSyncPreference } from './persistence/useExplorerSyncPreference';
-import { useHarnessSessionId } from './persistence/useHarnessSessionId';
 import type { ChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
 import { useChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
 import type { Workspace } from '../types/workspace';
@@ -21,22 +18,14 @@ import type { UseFileTabsReturn } from '../workspace/hooks/useFileTabs';
 export interface UseChatroomLifecycleReturn {
   /** File tab state (left pane tabs + right pane tabs). */
   fileTabs: UseFileTabsReturn;
-  /** Current right-split-panel mode ('messages' | 'direct-harness'). */
-  splitMode: ExplorerSplitPanelMode;
-  /** Setter for the right-split-panel mode. */
-  setSplitMode: (mode: ExplorerSplitPanelMode) => void;
   /** Currently-active workspace (null if none connected). */
   activeWorkspace: ChatroomActiveWorkspace | null;
   /** All workspaces for the chatroom (including unconnected). */
   workspaces: Workspace[];
-  /** Current activity view ('messages' | 'explorer' | 'direct-harness'), persisted per chatroom. */
+  /** Current activity view, persisted per chatroom. */
   activityView: ActivityView;
   /** Setter for the activity view. */
   setActivityView: (view: ActivityView) => void;
-  /** Selected direct-harness session ID (null = "new session"), persisted per chatroom. */
-  selectedHarnessSessionId: string | null;
-  /** Setter for the selected harness session ID. */
-  setSelectedHarnessSessionId: (id: string | null) => void;
   /** Whether the explorer-split chat panel is open, persisted per chatroom. */
   explorerSplitViewEnabled: boolean;
   /** Setter for explorer-split chat panel visibility. */
@@ -58,24 +47,18 @@ export interface UseChatroomLifecycleReturn {
  */
 export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatroomLifecycleReturn {
   const fileTabs = useFileTabs({ chatroomId: chatroomId as string });
-  const [splitMode, setSplitMode] = useExplorerSplitPanelMode(chatroomId);
   const { activeWorkspace, workspaces } = useChatroomActiveWorkspace(chatroomId);
   const [activityView, setActivityView] = useActivityView(chatroomId);
-  const [selectedHarnessSessionId, setSelectedHarnessSessionId] = useHarnessSessionId(chatroomId);
   const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] =
     useExplorerSplitViewEnabled(chatroomId);
   const [explorerSyncEnabled, setExplorerSyncEnabled] = useExplorerSyncPreference(chatroomId);
 
   return {
     fileTabs,
-    splitMode,
-    setSplitMode,
     activeWorkspace,
     workspaces,
     activityView,
     setActivityView,
-    selectedHarnessSessionId,
-    setSelectedHarnessSessionId,
     explorerSplitViewEnabled,
     setExplorerSplitViewEnabled,
     explorerSyncEnabled,

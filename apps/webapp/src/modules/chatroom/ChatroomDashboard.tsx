@@ -157,14 +157,6 @@ const FileExplorerPanel = dynamic(
   { loading: () => <FileExplorerPanelLoadingShell /> }
 );
 
-const DirectHarnessView = dynamic(
-  () =>
-    import('./direct-harness/components/DirectHarnessView').then((m) => ({
-      default: m.DirectHarnessView,
-    })),
-  { loading: () => <PanelLoadingSpinner /> }
-);
-
 const PullRequestsPanel = dynamic(
   () =>
     import('./workspace/components/panels/PullRequestsPanel').then((m) => ({
@@ -682,10 +674,6 @@ export function ChatroomDashboard({
     setActivityView,
     activeWorkspace,
     workspaces: chatroomWorkspaces,
-    splitMode,
-    setSplitMode,
-    selectedHarnessSessionId,
-    setSelectedHarnessSessionId,
     explorerSplitViewEnabled,
     setExplorerSplitViewEnabled,
     explorerSyncEnabled,
@@ -835,8 +823,6 @@ export function ChatroomDashboard({
         setExplorerSplitViewEnabled(true);
       }
 
-      setSplitMode('messages');
-
       dispatchComposerPrefill({
         target: 'messages',
         fileSource: filePath,
@@ -844,7 +830,7 @@ export function ChatroomDashboard({
       });
       toast.message(PREFILL_TOAST_MESSAGE);
     },
-    [explorerSplitViewEnabled, setExplorerSplitViewEnabled, setSplitMode]
+    [explorerSplitViewEnabled, setExplorerSplitViewEnabled]
   );
 
   const handleActivityViewChange = useCallback(
@@ -1947,10 +1933,6 @@ export function ChatroomDashboard({
                                 workingDir: activeWorkspace?.workingDir ?? null,
                                 onUploadComplete: handleAtTriggerActivate,
                               }}
-                              selectedHarnessSessionId={selectedHarnessSessionId}
-                              setSelectedHarnessSessionId={setSelectedHarnessSessionId}
-                              mode={splitMode}
-                              setMode={setSplitMode}
                             />
                           </ResizablePanel>
                         </ResizablePanelGroup>
@@ -1977,10 +1959,6 @@ export function ChatroomDashboard({
                             </div>
                           }
                         />
-                      ) : activeView === 'direct-harness' ? (
-                        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                          <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
-                        </div>
                       ) : activeView === 'source-control' ? (
                         sourceControlPanel
                       ) : activeView === 'pull-requests' ? (

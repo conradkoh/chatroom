@@ -1,32 +1,10 @@
 'use client';
 
-/**
- * RightSplitPanel — the right side of the explorer-split view.
- *
- * Contains a header with a mode dropdown that switches between:
- *   • Messages (All-tab conversation + SendForm)
- *   • Direct Harness (session browser/composer)
- *
- * Mode is persisted per chatroom via useExplorerSplitPanelMode.
- * Only available in the explorer-split view (md+ screens).
- */
+/** RightSplitPanel — the messages side of the explorer-split view. */
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { DirectHarnessPanel } from './DirectHarnessPanel';
 import { MessagesPanel, type MessagesPanelProps } from './MessagesPanel';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
-import {
-  useExplorerSplitPanelMode,
-  type ExplorerSplitPanelMode,
-} from '../hooks/persistence/useExplorerSplitPanelMode';
-import { WorkspaceTabBarShell } from '../workspace/components/WorkspaceTabBar';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -36,83 +14,14 @@ type MessagesPanelOwnProps = Omit<MessagesPanelProps, 'chatroomId'>;
 export interface RightSplitPanelProps {
   chatroomId: Id<'chatroom_rooms'>;
   messagesPanelProps: MessagesPanelOwnProps;
-  /** Selected harness session ID, persisted by the parent lifecycle hook. */
-  selectedHarnessSessionId: string | null;
-  /** Setter for the selected harness session ID. */
-  setSelectedHarnessSessionId: (id: string | null) => void;
-  /** Optional mode override (when managed by parent lifecycle hook). */
-  mode?: ExplorerSplitPanelMode;
-  /** Optional mode setter (when managed by parent lifecycle hook). */
-  setMode?: (mode: ExplorerSplitPanelMode) => void;
-}
-
-// ─── Mode labels ──────────────────────────────────────────────────────────────
-
-const MODE_LABELS: Record<ExplorerSplitPanelMode, string> = {
-  messages: 'Messages',
-  'direct-harness': 'Direct Harness',
-};
-
-function RightSplitPanelHeader({
-  mode,
-  setMode,
-}: {
-  mode: ExplorerSplitPanelMode;
-  setMode: (mode: ExplorerSplitPanelMode) => void;
-}) {
-  return (
-    <WorkspaceTabBarShell testId="right-split-panel-header">
-      <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2 px-2">
-        <Select value={mode} onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}>
-          <SelectTrigger
-            size="sm"
-            className="!h-6 py-0 px-2 text-[10px] w-36 shrink-0 bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none [&_svg]:size-3"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(MODE_LABELS) as ExplorerSplitPanelMode[]).map((m) => (
-              <SelectItem key={m} value={m} className="text-xs">
-                {MODE_LABELS[m]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </WorkspaceTabBarShell>
-  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function RightSplitPanel({
-  chatroomId,
-  messagesPanelProps,
-  selectedHarnessSessionId,
-  setSelectedHarnessSessionId,
-  mode: modeProp,
-  setMode: setModeProp,
-}: RightSplitPanelProps) {
-  const [internalMode, internalSetMode] = useExplorerSplitPanelMode(chatroomId);
-  const mode = modeProp ?? internalMode;
-  const setMode = setModeProp ?? internalSetMode;
-
+export function RightSplitPanel({ chatroomId, messagesPanelProps }: RightSplitPanelProps) {
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <RightSplitPanelHeader mode={mode} setMode={setMode} />
-
-      {/* Body: panel content */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {mode === 'messages' ? (
-          <MessagesPanel chatroomId={chatroomId as string} {...messagesPanelProps} />
-        ) : (
-          <DirectHarnessPanel
-            chatroomId={chatroomId}
-            selectedSessionId={selectedHarnessSessionId}
-            setSelectedSessionId={setSelectedHarnessSessionId}
-          />
-        )}
-      </div>
+    <div className="flex flex-col h-full min-h-0 overflow-hidden" data-testid="right-split-panel">
+      <MessagesPanel chatroomId={chatroomId as string} {...messagesPanelProps} />
     </div>
   );
 }

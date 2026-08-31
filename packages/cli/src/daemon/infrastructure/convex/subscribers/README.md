@@ -18,18 +18,15 @@
 
 ## Stub files (scaffold)
 
-| File                        | Legacy direction                                   | Status   |
-| --------------------------- | -------------------------------------------------- | -------- |
-| `command-events.ts`         | `daemon-start/command-loop.ts`                     | **done** |
-| `direct-harness-session.ts` | `daemon-start/direct-harness/`                     | **done** |
-| `direct-harness-prompt.ts`  | `daemon-start/direct-harness/prompt-subscriber.ts` | **done** |
-| `direct-harness-command.ts` | `daemon-start/direct-harness/`                     | **done** |
-| `agentic-query-session.ts`  | `daemon-start/agentic-query/`                      | **done** |
-| `agentic-query-prompt.ts`   | `daemon-start/agentic-query/prompt-subscriber.ts`  | **done** |
-| `enhancer-job.ts`           | `daemon-start/enhancer/job-subscriber.ts`          | **done** |
-| `git-request.ts`            | `daemon-start/git-subscription.ts`                 | **done** |
-| `file-tree-request.ts`      | `daemon-start/file-tree-subscription.ts`           | **done** |
-| `file-content-request.ts`   | `daemon-start/file-content-subscription.ts`        | **done** |
-| `file-write-request.ts`     | `daemon-start/file-write-subscription.ts`          | **done** |
-| `workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`      | **done** |
-| `command-run.ts`            | `daemon-start/` command run feeds                  | **done** |
+| File                       | Legacy direction                                  | Status   |
+| -------------------------- | ------------------------------------------------- | -------- |
+| `command-events.ts`        | `daemon-start/command-loop.ts`                    | **done** |
+| `agentic-query-session.ts` | `daemon-start/agentic-query/`                     | **done** |
+| `agentic-query-prompt.ts`  | `daemon-start/agentic-query/prompt-subscriber.ts` | **done** |
+| `enhancer-job.ts`          | `daemon-start/enhancer/job-subscriber.ts`         | **done** |
+| `git-request.ts`           | `daemon-start/git-subscription.ts`                | **done** |
+| `file-tree-request.ts`     | `daemon-start/file-tree-subscription.ts`          | **done** |
+| `file-content-request.ts`  | `daemon-start/file-content-subscription.ts`       | **done** |
+| `file-write-request.ts`    | `daemon-start/file-write-subscription.ts`         | **done** |
+| `workspace-list.ts`        | `daemon-start/workspace-list-subscription.ts`     | **done** |
+| `command-run.ts`           | `daemon-start/` command run feeds                 | **done** |

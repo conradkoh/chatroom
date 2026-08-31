@@ -6,11 +6,11 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { setupPlannerWorkspaceForSession } from './harness-fixtures';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { joinParticipant, enableEnhancerTeamAgent } from '../helpers/integration';
-import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 async function createPlannerUserMessageAndTask(
   sessionId: string,

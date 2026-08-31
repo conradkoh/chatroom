@@ -7,7 +7,6 @@ import { validateAgenticQueryCompleteResult } from '../../../prompts/agentic-que
 import type { Id } from '../../_generated/dataModel';
 import { mutation } from '../../_generated/server';
 import type { MutationCtx } from '../../_generated/server';
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
 import { trySyncAgenticQueryFromRunTurn } from '../../daemon/agenticQuery/syncFromRunTurn';
 
@@ -40,8 +39,6 @@ async function submitAgenticMessage(
   },
   allowStatuses: ('draft' | 'complete' | 'failed')[]
 ) {
-  requireDirectHarnessWorkers();
-
   const message = args.message.trim();
   if (!message) {
     throw new ConvexError({ code: 'INVALID_MESSAGE', message: 'Message must not be empty' });
@@ -151,7 +148,6 @@ export const complete = mutation({
     result: v.string(),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const query = await ctx.db.get('chatroom_agenticQueries', args.queryId);

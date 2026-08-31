@@ -6,9 +6,9 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { t } from '../../test.setup';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import { setupWorkspaceForSession } from './harness-fixtures';
 import { walkToUserMessageId } from '../../src/domain/usecase/enhancer/resolve-origin-user-message-id';
+import { t } from '../../test.setup';
 
 describe('resolve-origin-user-message-id', () => {
   test('resolves direct user message from planner task sourceMessageId', async () => {

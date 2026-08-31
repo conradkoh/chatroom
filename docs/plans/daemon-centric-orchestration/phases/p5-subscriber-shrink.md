@@ -31,7 +31,7 @@ Daemon stops subscribing to self-projected orchestration state — eliminates fe
 - [ ] **Soak gate:** P3 on ≥1 week AND P4 on ≥1 week in dev (or explicit sign-off) with zero orchestration regressions
 - [ ] Flag off: all 16 subscribers registered; behavior unchanged
 - [ ] Flag on: handoff → delivery → lifecycle E2E without assigned-task signal subscriber
-- [ ] File/git/direct-harness inbound still works
+- [ ] File/git inbound still works
 - [ ] Rollback: re-enable full subscriber registry via flag off
 
 ---
@@ -62,7 +62,6 @@ Remove orchestration-related Convex WS subscribers. Daemon no longer subscribes 
   - `workspace-list.ts`
   - `command-events.ts` (webapp-initiated)
   - `command-run.ts` (if webapp-initiated — verify)
-  - `direct-harness-*` (sessions from webapp)
   - `agentic-query-*` (webapp-initiated)
 
 **Modify:**
@@ -72,7 +71,6 @@ Remove orchestration-related Convex WS subscribers. Daemon no longer subscribes 
 **Verify:**
 
 - File/git fulfillment still works from webapp
-- Direct harness web sessions still drain
 
 ### P5-T2 — Remove orchestration subscribers `[delete]`
 

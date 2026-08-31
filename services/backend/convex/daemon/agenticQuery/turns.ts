@@ -8,7 +8,6 @@ import type { MutationCtx, QueryCtx } from '../../_generated/server';
 import {
   getNextRunTurnSeq,
   getRunWithAccess,
-  requireDirectHarnessWorkers,
   requireRunOnOwnedMachine,
 } from '../../api/agenticQueryHelpers';
 import { aggregateAssistantChunks } from '../../api/harnessChunkAggregate';
@@ -20,7 +19,6 @@ export const beginAssistantTurn = mutation({
     runId: v.id('chatroom_agenticQueryRuns'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await getRunWithAccess(ctx, args.sessionId, args.runId);
 
     const turnSeq = await getNextRunTurnSeq(ctx, args.runId);
@@ -46,8 +44,6 @@ export const markTurnProcessed = mutation({
     turnSeq: v.number(),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
     const run = await ctx.db.get('chatroom_agenticQueryRuns', args.runId);
     if (!run) {
       throw new ConvexError({
@@ -79,8 +75,6 @@ export const bindTurnMessageId = mutation({
     messageId: v.string(),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
     const turn = await ctx.db.get('chatroom_agenticQueryRunTurns', args.turnId);
     if (!turn) return;
 
@@ -102,8 +96,6 @@ export const finalizeAssistantTurn = mutation({
     turnId: v.id('chatroom_agenticQueryRunTurns'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
     const turn = await ctx.db.get('chatroom_agenticQueryRunTurns', args.turnId);
     if (!turn) return;
 
@@ -160,8 +152,6 @@ export const markOrphanTurnsFailed = mutation({
     runId: v.id('chatroom_agenticQueryRuns'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
     await requireRunOnOwnedMachine(ctx, args.sessionId, args.machineId, args.runId);
 
     const now = Date.now();
