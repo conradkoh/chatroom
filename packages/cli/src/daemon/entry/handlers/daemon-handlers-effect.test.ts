@@ -32,14 +32,6 @@ vi.mock('../../../api.js', () => ({
     workspaces: {
       registerWorkspace: 'workspaces.registerWorkspace',
     },
-    daemon: {
-      directHarness: {
-        turns: {
-          getMachineHarnessSessions: 'daemon.directHarness.turns.getMachineHarnessSessions',
-          markOrphanTurnsFailed: 'daemon.directHarness.turns.markOrphanTurnsFailed',
-        },
-      },
-    },
   },
 }));
 
@@ -163,7 +155,6 @@ describe('recoverAgentStateEffect', () => {
   it('calls agentProcessManager.recover() and completes', async () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.agentProcessManager.listActive).mockReturnValue([]);
-    vi.mocked(deps.backend.query).mockResolvedValue([]); // getMachineHarnessSessions
 
     await runRecovery({
       backend: deps.backend,
@@ -191,41 +182,5 @@ describe('recoverAgentStateEffect', () => {
         agentProcessManager: deps.agentProcessManager,
       })
     ).resolves.toBeUndefined();
-  });
-
-  it('marks orphan turns when managed sessions have no active slot', async () => {
-    const deps = createMockDaemonDeps();
-
-    // No active slots recovered
-    vi.mocked(deps.agentProcessManager.listActive).mockReturnValue([]);
-
-    // getMachineHarnessSessions returns one orphan session
-    vi.mocked(deps.backend.query).mockResolvedValue([
-      {
-        harnessSessionId: 'harness-session-001',
-        chatroomId: 'room-orphan',
-        workspaceId: 'ws-001',
-        status: 'active',
-      },
-    ]);
-
-    // markOrphanTurnsFailed returns failedTurns count
-    vi.mocked(deps.backend.mutation).mockResolvedValue({ failedTurns: 2 });
-
-    await runRecovery({
-      backend: deps.backend,
-      fs: deps.fs,
-      machine: deps.machine,
-      spawning: deps.spawning,
-      agentProcessManager: deps.agentProcessManager,
-      machineId: 'test-machine-id',
-    });
-
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(), // markOrphanTurnsFailed api ref
-      expect.objectContaining({
-        harnessSessionId: 'harness-session-001',
-      })
-    );
   });
 });

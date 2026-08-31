@@ -1,6 +1,6 @@
 'use client';
 
-import { Command, Files, MessageCircle, MessagesSquare, Terminal } from 'lucide-react';
+import { Command, Files, MessagesSquare, Terminal } from 'lucide-react';
 import { memo, useSyncExternalStore } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ActivityView =
-  'explorer' | 'messages' | 'direct-harness' | 'source-control' | 'pull-requests' | 'processes';
+  'explorer' | 'messages' | 'source-control' | 'pull-requests' | 'processes';
 
 interface ActivityBarProps {
   /** Currently active view */
@@ -76,10 +76,9 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * 2. Messages   — chatroom messages
  * 3. Scheduled Prompts — scheduled prompts (Clock)
  * 4. Enhancer   — enhancer configuration (Sparkles)
- * 5. Direct Harness — direct AI harness
- * 6. Source Control — git diff + history
- * 7. Pull Requests  — GitHub PR list
- * 8. Processes  — command launcher / process manager
+ * 5. Source Control — git diff + history
+ * 6. Pull Requests  — GitHub PR list
+ * 7. Processes  — command launcher / process manager
  *
  * On mobile (hidden via CSS):
  * - Shows a command palette trigger at the bottom (Cmd+Shift+P equivalent)
@@ -116,12 +115,6 @@ export const ActivityBar = memo(function ActivityBar({
       {chatroomId && (
         <EnhancerActivityBarItem chatroomId={chatroomId} machineId={machineId ?? null} />
       )}
-      <ActivityBarItem
-        icon={<MessageCircle size={20} />}
-        label="Direct Harness"
-        isActive={activeView === 'direct-harness'}
-        onClick={() => onViewChange('direct-harness')}
-      />
       <ActivityBarItem
         icon={<VscSourceControl size={20} />}
         label="Source Control"

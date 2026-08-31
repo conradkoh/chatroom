@@ -923,6 +923,57 @@ export const stripMachineAssignedTaskSnapshotOperationalFields = migrations.defi
   },
 });
 
+/** Purge legacy direct-harness rows before their tables are removed from schema. */
+export const purgeHarnessSessionMessages = migrations.define({
+  table: 'chatroom_harnessSessionMessages' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_harnessSessionMessages' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+export const purgeHarnessMessageQueue = migrations.define({
+  table: 'chatroom_harnessMessageQueue' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_harnessMessageQueue' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+export const purgeHarnessSessionTurns = migrations.define({
+  table: 'chatroom_harnessSessionTurns' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_harnessSessionTurns' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+export const purgeHarnessSessions = migrations.define({
+  table: 'chatroom_harnessSessions' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_harnessSessions' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+export const purgeDirectHarnessCommands = migrations.define({
+  table: 'chatroom_directHarnessCommands' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_directHarnessCommands' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
 /**
  * Run all migrations in order.
  * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
@@ -984,4 +1035,10 @@ export const runAll = migrations.runner([
   internal.migrations.backfillMachineObservedWorkspaceViews,
   internal.migrations.backfillMessageReadModels,
   internal.migrations.backfillMessageReadModelState,
+  // Direct-harness data purge (children before parents, then command rows)
+  internal.migrations.purgeHarnessSessionMessages,
+  internal.migrations.purgeHarnessMessageQueue,
+  internal.migrations.purgeHarnessSessionTurns,
+  internal.migrations.purgeHarnessSessions,
+  internal.migrations.purgeDirectHarnessCommands,
 ]);

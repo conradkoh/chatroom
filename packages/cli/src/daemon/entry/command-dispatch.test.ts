@@ -65,12 +65,6 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
   }),
 }));
 
-vi.mock('@workspace/backend/config/featureFlags.js', () => ({
-  featureFlags: {
-    directHarnessWorkers: false,
-  },
-}));
-
 vi.mock('@workspace/backend/config/reliability.js', () => ({
   // Keep short in tests — production DAEMON_HEARTBEAT_INTERVAL_MS is 5 min.
   DAEMON_HEARTBEAT_INTERVAL_MS: 30_000,

@@ -6,7 +6,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { query } from '../../_generated/server';
-import { getRunWithAccess, requireDirectHarnessWorkers } from '../../api/agenticQueryHelpers';
+import { getRunWithAccess } from '../../api/agenticQueryHelpers';
 import {
   buildLatestTurnsPage,
   buildOlderTurnsPage,
@@ -21,7 +21,6 @@ export const getLatestTurns = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await getRunWithAccess(ctx, args.sessionId, args.runId);
 
     const limit = args.limit ?? 50;
@@ -43,7 +42,6 @@ export const getTurnsSince = query({
     afterTurnSeq: v.number(),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await getRunWithAccess(ctx, args.sessionId, args.runId);
 
     const rows = await ctx.db
@@ -66,7 +64,6 @@ export const getOlderTurns = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await getRunWithAccess(ctx, args.sessionId, args.runId);
 
     const limit = args.limit ?? 50;
@@ -92,7 +89,6 @@ export const getStreamingTurnChunks = query({
     afterCreationTime: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await getRunWithAccess(ctx, args.sessionId, args.runId);
 
     return fetchStreamingTurnChunks(ctx, 'chatroom_agenticQueryRunMessages', {

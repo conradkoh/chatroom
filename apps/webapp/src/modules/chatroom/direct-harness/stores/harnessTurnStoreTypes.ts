@@ -1,7 +1,4 @@
-import type {
-  HarnessTurnView,
-  HarnessMessage,
-} from '@workspace/backend/src/domain/direct-harness/types';
+import type { HarnessTurnView, HarnessMessage } from '@workspace/backend/src/domain/harness/types';
 import type { FunctionReference } from 'convex/server';
 
 /** Typed config for the parameterized core hook. Query refs are Convex FunctionReference. */

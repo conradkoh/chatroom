@@ -6,12 +6,12 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { setupPlannerWorkspaceForSession } from './harness-fixtures';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { insertEnhancerJob } from '../helpers/enhancer-job';
 import { createTestSession, joinParticipant, addEnhancerToTeamRoles } from '../helpers/integration';
-import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 describe('daemon.enhancer.index unauthorized access', () => {
   test('pendingForMachine returns empty for caller without machine owner access', async () => {

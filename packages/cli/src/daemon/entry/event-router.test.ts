@@ -4,15 +4,11 @@ import { routeInboundEvent } from './event-router.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { AgenticQueryInboundEvent } from '../domain/usecase/handle-agentic-query-inbound.js';
 import type { CommandInboundEvent } from '../domain/usecase/handle-command-inbound.js';
-import type { DirectHarnessInboundEvent } from '../domain/usecase/handle-direct-harness-inbound.js';
 import type { EnhancerInboundEvent } from '../domain/usecase/handle-enhancer-inbound.js';
 import type { FileInboundEvent } from '../domain/usecase/handle-file-inbound.js';
 import type { WorkspaceGitInboundEvent } from '../domain/usecase/handle-workspace-git-inbound.js';
 
 const routerDeps = {
-  directHarness: {} as {
-    deliverInbound?: (event: DirectHarnessInboundEvent) => Promise<void>;
-  },
   command: {} as { deliverInbound?: (event: CommandInboundEvent) => Promise<void> },
   workspaceGit: {} as {
     deliverInbound?: (event: WorkspaceGitInboundEvent) => Promise<void>;
@@ -25,42 +21,6 @@ const routerDeps = {
 };
 
 describe('routeInboundEvent', () => {
-  test('dispatches direct-harness.session-opened to handler', async () => {
-    const deliverInbound = vi.fn().mockResolvedValue(undefined);
-    const event: DirectHarnessInboundEvent = {
-      type: 'direct-harness.session-opened',
-      harnessSessionId: 'harness_1',
-    };
-
-    await routeInboundEvent({ ...routerDeps, directHarness: { deliverInbound } }, event);
-
-    expect(deliverInbound).toHaveBeenCalledWith(event);
-  });
-
-  test('dispatches direct-harness.prompt to handler', async () => {
-    const deliverInbound = vi.fn().mockResolvedValue(undefined);
-    const event: DirectHarnessInboundEvent = {
-      type: 'direct-harness.prompt',
-      harnessSessionId: 'harness_1',
-    };
-
-    await routeInboundEvent({ ...routerDeps, directHarness: { deliverInbound } }, event);
-
-    expect(deliverInbound).toHaveBeenCalledWith(event);
-  });
-
-  test('dispatches direct-harness.command to handler', async () => {
-    const deliverInbound = vi.fn().mockResolvedValue(undefined);
-    const event: DirectHarnessInboundEvent = {
-      type: 'direct-harness.command',
-      commandId: 'cmd_1',
-    };
-
-    await routeInboundEvent({ ...routerDeps, directHarness: { deliverInbound } }, event);
-
-    expect(deliverInbound).toHaveBeenCalledWith(event);
-  });
-
   test('dispatches command.received to handler', async () => {
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: CommandInboundEvent = {
@@ -189,7 +149,6 @@ describe('routeInboundEvent', () => {
   });
 
   test('ignores unhandled event types', async () => {
-    const deliverDirectHarnessInbound = vi.fn().mockResolvedValue(undefined);
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const deliverWorkspaceGitInbound = vi.fn().mockResolvedValue(undefined);
     const deliverFileInbound = vi.fn().mockResolvedValue(undefined);
@@ -198,7 +157,6 @@ describe('routeInboundEvent', () => {
 
     await routeInboundEvent(
       {
-        directHarness: { deliverInbound: deliverDirectHarnessInbound },
         command: { deliverInbound },
         workspaceGit: { deliverInbound: deliverWorkspaceGitInbound },
         file: { deliverInbound: deliverFileInbound },
@@ -208,7 +166,6 @@ describe('routeInboundEvent', () => {
       { type: 'not-a-real-type' } as unknown as InboundEvent
     );
 
-    expect(deliverDirectHarnessInbound).not.toHaveBeenCalled();
     expect(deliverInbound).not.toHaveBeenCalled();
     expect(deliverWorkspaceGitInbound).not.toHaveBeenCalled();
     expect(deliverFileInbound).not.toHaveBeenCalled();

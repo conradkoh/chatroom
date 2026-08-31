@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 
+import { setupWorkspaceForSession } from './harness-fixtures';
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
 
 const VALID_RESULT = `## Summary
 

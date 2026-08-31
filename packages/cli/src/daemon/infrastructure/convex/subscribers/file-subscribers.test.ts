@@ -183,7 +183,6 @@ describe('file v2 subscribers', () => {
       sessionId: SESSION_ID,
       machineId: MACHINE_ID,
       router: {
-        directHarness: {},
         command: {},
         workspaceGit: {},
         file: {
@@ -210,7 +209,6 @@ describe('file v2 subscribers', () => {
 
     await routeInboundEvent(
       {
-        directHarness: {},
         command: {},
         workspaceGit: {},
         file: {

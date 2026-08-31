@@ -28,7 +28,6 @@ const LEGACY_INIT_FILES_TO_GUARD = [
   'src/daemon/entry/files/file-write-subscription.ts',
   'src/daemon/entry/workspace-git/workspace-list-subscription.ts',
   'src/daemon/entry/handlers/process/command-run-subscription.ts',
-  'src/daemon/entry/direct-harness/start-subscriptions.ts',
   'src/daemon/entry/agentic-query/start-subscriptions.ts',
   'src/daemon/entry/enhancer/job-subscriber.ts',
   'src/daemon/entry/daemon-runtime.ts',
@@ -45,9 +44,6 @@ function readRepoFile(relPath: string): string {
 describe('subscriber-registry duplicate guard (G4)', () => {
   it('v2 subscriber-registry wires all migrated inbound contexts', () => {
     const registrySource = readRepoFile('src/daemon/entry/subscriber-registry.ts');
-    expect(registrySource).toContain('startDirectHarnessSessionSubscriber');
-    expect(registrySource).toContain('startDirectHarnessPromptSubscriber');
-    expect(registrySource).toContain('startDirectHarnessCommandSubscriber');
     expect(registrySource).toContain('startMachineCommandInboxSubscriber');
     expect(registrySource).not.toContain('startCommandEventsSubscriber');
     expect(registrySource).not.toContain('getCommandEvents');

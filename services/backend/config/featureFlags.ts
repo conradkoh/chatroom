@@ -43,8 +43,6 @@ export function getAllowedSignupMethodsForEnvironment(
 
 export const featureFlags = {
   disableLogin: false,
-  /** Direct-harness sessions feature. Always on; kill-switch via requireDirectHarnessWorkers helper. */
-  directHarnessWorkers: true,
   /** null or [] = signups disabled. ['invite'] = invite-only registration. */
   get allowedSignupMethods(): SignupMethod[] | null {
     return getAllowedSignupMethodsForEnvironment(

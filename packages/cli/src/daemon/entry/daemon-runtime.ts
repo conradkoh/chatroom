@@ -3,7 +3,6 @@
  * Replaces legacy startCommandLoopEffect (G6).
  */
 
-import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import { Effect, type Layer } from 'effect';
@@ -24,7 +23,6 @@ import {
   type DaemonMutableStateService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
-import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
 import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
 import {
   registerFileInboundHandler,
@@ -47,9 +45,7 @@ import {
   type GitSubscriptionHandle,
 } from './workspace-git/git-subscription.js';
 import { api } from '../../api.js';
-import {
-  startWorkspaceListSubscriptionEffect,
-} from './workspace-git/workspace-list-subscription.js';
+import { startWorkspaceListSubscriptionEffect } from './workspace-git/workspace-list-subscription.js';
 import {
   registerWorkspaceGitInboundHandler,
   unregisterWorkspaceGitInboundHandler,
@@ -84,7 +80,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
-  let directHarnessWorkerHandle: ReturnType<typeof startDirectHarnessSubscriptions> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let enhancerWorkerHandle: { stop: () => void } | null = null;
   let taskInboxHandle: { stop: () => void } | null = null;
@@ -134,7 +129,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     workspaceListSubscriptionHandle?.stop();
     taskInboxHandle?.stop();
     logObserverSubscriptionHandle?.stop();
-    directHarnessWorkerHandle?.stop();
     agenticQueryWorkerHandle?.stop();
     enhancerWorkerHandle?.stop();
   };
@@ -170,15 +164,8 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     // effect has completed so confirmed exits are not silently discarded.
     await deps.agentLifecycleOutbox?.stopAll().catch(() => undefined);
 
-    if (directHarnessWorkerHandle) {
-      await withTimeout(
-        directHarnessWorkerHandle.closeSessionsOnShutdown(),
-        PROCESS_KILL_TIMEOUT_MS
-      );
-    } else {
-      for (const handle of activeSessions.values()) {
-        await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
-      }
+    for (const handle of activeSessions.values()) {
+      await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
     }
     for (const harness of harnesses.values()) {
       await withTimeout(harness.close(), CLOSE_TIMEOUT_MS);
@@ -274,39 +261,26 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
 
     const commandRunRuntime = yield* Effect.runtime<DaemonSessionService>();
 
-    if (featureFlags.directHarnessWorkers) {
-      directHarnessWorkerHandle = startDirectHarnessSubscriptions(
-        {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-          backend: session.backend,
-          convexUrl: session.convexUrl,
-        },
-        activeSessions,
-        harnesses
-      );
+    agenticQueryWorkerHandle = startAgenticQuerySubscriptions(
+      {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        backend: session.backend,
+        convexUrl: session.convexUrl,
+      },
+      activeSessions,
+      harnesses
+    );
 
-      agenticQueryWorkerHandle = startAgenticQuerySubscriptions(
-        {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-          backend: session.backend,
-          convexUrl: session.convexUrl,
-        },
-        activeSessions,
-        harnesses
-      );
-
-      enhancerWorkerHandle = startEnhancerSubscriptions(
-        session.sessionId,
-        session.machineId,
-        session.convexUrl,
-        deps.wsClient,
-        session.backend,
-        session.agentServices,
-        getActiveLogSink()
-      );
-    }
+    enhancerWorkerHandle = startEnhancerSubscriptions(
+      session.sessionId,
+      session.machineId,
+      session.convexUrl,
+      deps.wsClient,
+      session.backend,
+      session.agentServices,
+      getActiveLogSink()
+    );
 
     console.log(`\nListening for commands...`);
     console.log(`Press Ctrl+C to stop\n`);
