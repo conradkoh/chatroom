@@ -73,7 +73,6 @@ export async function startTargetTeamAgentsOnSwitch(
           agentHarness,
           workingDir,
           reason: 'platform.team_switch',
-          wantResume: config.wantResume,
         },
         machine
       );

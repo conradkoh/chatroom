@@ -50,12 +50,7 @@ export interface AgentConfig {
   updatedAt: number;
   spawnedAgentPid?: number;
   spawnedAt?: number;
-  /**
-   * The resume-session preference the agent was started with (from the backend
-   * team config). Used to display the actual running value rather than local
-   * form state. Undefined for configs that were never started after this field
-   * was introduced.
-   */
+  /** Legacy runtime value returned by older backend configs; not read or persisted by the webapp. */
   wantResume?: boolean;
 }
 
@@ -89,10 +84,9 @@ export type SendCommandArgs =
       payload: {
         chatroomId: Id<'chatroom_rooms'>;
         role: string;
-        model?: string;
+        model: string;
         agentHarness: AgentHarness;
-        workingDir?: string;
-        wantResume?: boolean;
+        workingDir: string;
       };
     }
   | {
@@ -129,11 +123,6 @@ export function getHarnessDisplayName(harness: string): string {
 /** Display label for a harness, optionally including daemon-reported version. */
 export function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): string {
   return `${getHarnessDisplayName(harness)}${version ? ` v${version.version}` : ''}`;
-}
-
-/** Whether stop→start can reconnect to the daemon's preserved session on this machine. */
-export function harnessSupportsDaemonMemoryResume(harness: AgentHarness): boolean {
-  return getHarnessCapabilities(harness).supportsDaemonMemoryResume;
 }
 
 /** Whether the harness receives tasks via direct session injection (no get-next-task loop). */

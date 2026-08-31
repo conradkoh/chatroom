@@ -16,10 +16,12 @@ export interface RunnableRemoteAgentConfig {
   wantResume: boolean;
 }
 
+export type UserAgentRestartOverrides = Omit<RunnableRemoteAgentConfig, 'wantResume'>;
+
 export type AgentRestartRequest =
   | {
       reason: Extract<AgentRestartReason, 'user.restart'>;
-      overrides?: Partial<RunnableRemoteAgentConfig>;
+      overrides: UserAgentRestartOverrides;
     }
   | {
       reason: Extract<AgentRestartReason, 'platform.restart_offline_on_user_message'>;
@@ -31,10 +33,10 @@ export type AgentRestartResult =
 
 export function isRunnableRemoteTeamConfig(config: {
   type: string;
-  machineId?: string;
-  agentHarness?: AgentHarness;
-  model?: string;
-  workingDir?: string;
+  machineId: string | undefined;
+  agentHarness: AgentHarness | undefined;
+  model: string | undefined;
+  workingDir: string | undefined;
 }): config is {
   type: 'remote';
   machineId: string;

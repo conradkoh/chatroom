@@ -14,14 +14,13 @@ describe('getFailedAgentRoles', () => {
 });
 
 describe('runAgentRestartBatch', () => {
-  it('dispatches atomic restart commands with the complete persisted config', async () => {
+  it('dispatches atomic restart commands with the complete agent config', async () => {
     const sendCommand = vi.fn().mockResolvedValue(undefined);
     const config = {
       machineId: 'machine-1',
       agentType: 'cursor-sdk',
       model: 'cursor/model',
       workingDir: '/workspace',
-      wantResume: true,
     } as any;
 
     await runAgentRestartBatch(
@@ -43,7 +42,6 @@ describe('runAgentRestartBatch', () => {
         model: 'cursor/model',
         agentHarness: 'cursor-sdk',
         workingDir: '/workspace',
-        wantResume: true,
       },
     });
   });

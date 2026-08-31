@@ -30,6 +30,17 @@ describe('restart-agent use case', () => {
       agentHarness: 'cursor-sdk',
     });
 
+    // Preserve a legacy reconnect preference to verify user restart ignores it.
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { wantResume: true });
+    });
+
     const { taskId } = await t.mutation(api.tasks.createTask, {
       sessionId,
       chatroomId,
@@ -54,7 +65,6 @@ describe('restart-agent use case', () => {
         model: TEST_MODEL_CURSOR_SDK,
         agentHarness: 'cursor-sdk',
         workingDir: '/tmp/project',
-        wantResume: true,
       },
     });
 
@@ -70,7 +80,7 @@ describe('restart-agent use case', () => {
       expect(restartRow.command.agentHarness).toBe('cursor-sdk');
       expect(restartRow.command.model).toBe(TEST_MODEL_CURSOR_SDK);
       expect(restartRow.command.workingDir).toBe('/tmp/project');
-      expect(restartRow.command.wantResume).toBe(true);
+      expect(restartRow.command.wantResume).toBe(false);
       expect(restartRow.command.correlationId).toEqual(expect.any(String));
     }
 
@@ -86,7 +96,6 @@ describe('restart-agent use case', () => {
         agentHarness: 'cursor-sdk',
         model: TEST_MODEL_CURSOR_SDK,
         workingDir: '/tmp/project',
-        wantResume: true,
       });
     });
   });

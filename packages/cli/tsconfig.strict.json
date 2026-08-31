@@ -1,0 +1,14 @@
+{
+  "extends": ["./tsconfig.json", "../../tsconfig.strict-base.json"],
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src/daemon/entry/restart-orchestrator.ts",
+    "src/daemon/entry/events/agent/on-request-restart-agent.ts",
+    "src/daemon/entry/events/agent/on-request-start-agent.ts",
+    "src/daemon/entry/bridge/agent-control-bridge.ts",
+    "src/daemon/domain/usecase/restart-agent.ts",
+    "src/daemon/domain/usecase/start-agent.ts"
+  ]
+}

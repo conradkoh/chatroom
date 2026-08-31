@@ -51,19 +51,29 @@ export async function requestAgentRestart(
 
 function resolveRestartOverrides(
   request: AgentRestartRequest,
-  base: Omit<RunnableRemoteAgentConfig, 'wantResume'> & { wantResume?: boolean },
+  base: {
+    machineId: string;
+    agentHarness: RunnableRemoteAgentConfig['agentHarness'];
+    model: string;
+    workingDir: string;
+    wantResume: boolean | undefined;
+  },
   chatroom: Doc<'chatroom_rooms'> | null,
   role: string
 ): RunnableRemoteAgentConfig {
-  const overrides =
-    request.reason === AgentStartReasonEnum['user.restart'] ? request.overrides : undefined;
-  const source = Object.assign({}, base, overrides);
+  if (request.reason === AgentStartReasonEnum['user.restart']) {
+    return {
+      ...request.overrides,
+      wantResume: false,
+    };
+  }
+
   return {
-    machineId: source.machineId,
-    agentHarness: source.agentHarness,
-    model: source.model,
-    workingDir: source.workingDir,
-    wantResume: source.wantResume ?? defaultWantResume(chatroom, role),
+    machineId: base.machineId,
+    agentHarness: base.agentHarness,
+    model: base.model,
+    workingDir: base.workingDir,
+    wantResume: base.wantResume ?? defaultWantResume(chatroom, role),
   };
 }
 
@@ -91,13 +101,18 @@ async function releaseRestartTasks(
 // fallow-ignore-next-line complexity
 async function persistRestartAndEmit(
   ctx: MutationCtx,
-  input: { chatroomId: Id<'chatroom_rooms'>; role: string },
+  input: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    request: AgentRestartRequest;
+  },
   resolved: RunnableRemoteAgentConfig,
   chatroom: Doc<'chatroom_rooms'> | null,
   correlationId: string,
   now: number
 ): Promise<void> {
   if (chatroom?.teamId) {
+    const { wantResume, ...configFields } = resolved;
     await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey: buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role),
       createdAt: now,
@@ -105,7 +120,8 @@ async function persistRestartAndEmit(
         chatroomId: input.chatroomId,
         role: input.role,
         type: 'remote' as AgentType,
-        ...resolved,
+        ...configFields,
+        ...(input.request.reason !== AgentStartReasonEnum['user.restart'] ? { wantResume } : {}),
         updatedAt: now,
         desiredState: 'running' as const,
         circuitState: 'closed' as const,
@@ -150,7 +166,11 @@ async function persistRestartAndEmit(
         )
         .first()
     : null;
-  await projectAgentOperationalStatusForRole(ctx, input.chatroomId, input.role, undefined, {
-    config: restartedConfig ?? undefined,
-  });
+  await projectAgentOperationalStatusForRole(
+    ctx,
+    input.chatroomId,
+    input.role,
+    undefined,
+    restartedConfig ? { config: restartedConfig } : {}
+  );
 }

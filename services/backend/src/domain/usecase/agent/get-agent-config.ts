@@ -66,9 +66,14 @@ export interface ResolvedAgentConfig {
   spawnedAgentPid: number | undefined;
   /** When the agent was last spawned. */
   spawnedAt: number | undefined;
-  wantResume: boolean | undefined;
   desiredState: 'running' | 'stopped' | undefined;
   circuitState: 'closed' | 'open' | 'half-open' | undefined;
+
+  /**
+   * Persisted reconnect preference for platform-driven starts/restarts.
+   * Omitted for user-initiated starts/restarts.
+   */
+  wantResume: boolean | undefined;
 
   // ── Derived flags ───────────────────────────────────────────────────
 
@@ -143,9 +148,9 @@ export async function getAgentConfig(
     modelSource,
     spawnedAgentPid: teamConfig.spawnedAgentPid,
     spawnedAt: teamConfig.spawnedAt,
-    wantResume: teamConfig.wantResume,
     desiredState: teamConfig.desiredState,
     circuitState: teamConfig.circuitState,
+    wantResume: teamConfig.wantResume,
     hasSystemPromptControl: teamConfig.type === 'remote',
   };
 

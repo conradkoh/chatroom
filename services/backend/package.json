@@ -1,6 +1,6 @@
 {
   "name": "@workspace/backend",
-  "version": "1.101.4",
+  "version": "1.101.5",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "codegen": "CONVEX_NON_INTERACTIVE=true convex codegen --typecheck disable",
     "deploy": "convex deploy",
     "typecheck": "tsc --build",
+    "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
     "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest"
   },

@@ -10,7 +10,6 @@ export interface StartAgentInput {
   agentHarness: AgentHarness;
   model?: string;
   workingDir?: string;
-  wantResume?: boolean;
   allowNewMachine?: boolean;
 }
 
@@ -28,7 +27,6 @@ function buildStartAgentCommand(
       agentHarness: input.agentHarness,
       ...(input.model ? { model: input.model } : {}),
       ...(trimmedWorkingDir ? { workingDir: trimmedWorkingDir } : {}),
-      ...(input.wantResume !== undefined ? { wantResume: input.wantResume } : {}),
       ...(input.allowNewMachine ? { allowNewMachine: true as const } : {}),
     },
   };
