@@ -66,7 +66,6 @@ export interface ResolvedAgentConfig {
   spawnedAgentPid: number | undefined;
   /** When the agent was last spawned. */
   spawnedAt: number | undefined;
-  wantResume: boolean | undefined;
   desiredState: 'running' | 'stopped' | undefined;
   circuitState: 'closed' | 'open' | 'half-open' | undefined;
 
@@ -143,7 +142,6 @@ export async function getAgentConfig(
     modelSource,
     spawnedAgentPid: teamConfig.spawnedAgentPid,
     spawnedAt: teamConfig.spawnedAt,
-    wantResume: teamConfig.wantResume,
     desiredState: teamConfig.desiredState,
     circuitState: teamConfig.circuitState,
     hasSystemPromptControl: teamConfig.type === 'remote',

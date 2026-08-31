@@ -35,7 +35,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       requestCapabilitiesRefresh: 'machines:requestCapabilitiesRefresh',
       getCapabilitiesRefreshBatch: 'machines:getCapabilitiesRefreshBatch',
       getAgentRestartSummaryByRole: 'machines:getAgentRestartSummaryByRole',
-      setWantResume: 'machines:setWantResume',
     },
   },
 }));

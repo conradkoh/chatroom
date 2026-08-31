@@ -10,6 +10,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 import { TEST_MODEL_OPENCODE } from '../../../../tests/helpers/test-models';
+import { getInboxCommandsForMachine } from '../../../../tests/helpers/machine-command-inbox';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -263,7 +264,7 @@ describe('startAgent use case — desiredState', () => {
   });
 });
 
-describe('startAgent use case — wantResume persistence', () => {
+describe('startAgent use case — wantResume runtime behavior', () => {
   async function readTeamConfig(chatroomId: Id<'chatroom_rooms'>, role: string) {
     return await t.run(async (ctx) => {
       return await ctx.db
@@ -275,19 +276,26 @@ describe('startAgent use case — wantResume persistence', () => {
     });
   }
 
-  test('persists wantResume: false on the team config when explicitly disabled', async () => {
+  test('does not persist wantResume on user start and emits the false default', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-false');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-false';
 
     await registerMachine(sessionId, machineId);
-    await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: false });
+    await startAgent(sessionId, machineId, chatroomId, 'builder');
 
     const config = await readTeamConfig(chatroomId, 'builder');
-    expect(config?.wantResume).toBe(false);
+    expect(config?.wantResume).toBeUndefined();
+
+    const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+    const start = starts.at(-1);
+    expect(start?.command.type).toBe('agent.requestStart');
+    if (start?.command.type === 'agent.requestStart') {
+      expect(start.command.wantResume).toBe(false);
+    }
   });
 
-  test('persists wantResume: true on the team config when explicitly enabled', async () => {
+  test('keeps an explicit wantResume value runtime-only on user start', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-true');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-true';
@@ -296,32 +304,13 @@ describe('startAgent use case — wantResume persistence', () => {
     await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: true });
 
     const config = await readTeamConfig(chatroomId, 'builder');
-    expect(config?.wantResume).toBe(true);
-  });
+    expect(config?.wantResume).toBeUndefined();
 
-  test('defaults wantResume to false for duo builder when omitted', async () => {
-    const { sessionId } = await createTestSession('start-agent-resume-default');
-    const chatroomId = await createChatroom(sessionId);
-    const machineId = 'start-machine-resume-default';
-
-    await registerMachine(sessionId, machineId);
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
-
-    const config = await readTeamConfig(chatroomId, 'builder');
-    expect(config?.wantResume).toBe(false);
-  });
-
-  test('updates persisted wantResume on a subsequent start (false then true)', async () => {
-    const { sessionId } = await createTestSession('start-agent-resume-update');
-    const chatroomId = await createChatroom(sessionId);
-    const machineId = 'start-machine-resume-update';
-
-    await registerMachine(sessionId, machineId);
-
-    await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: false });
-    expect((await readTeamConfig(chatroomId, 'builder'))?.wantResume).toBe(false);
-
-    await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: true });
-    expect((await readTeamConfig(chatroomId, 'builder'))?.wantResume).toBe(true);
+    const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+    const start = starts.at(-1);
+    expect(start?.command.type).toBe('agent.requestStart');
+    if (start?.command.type === 'agent.requestStart') {
+      expect(start.command.wantResume).toBe(true);
+    }
   });
 });

@@ -279,7 +279,7 @@ export async function runRestartOrchestrator(
         model: event.model,
         workingDir: event.workingDir,
         reason: 'user.restart',
-        wantResume: event.wantResume ?? true,
+        wantResume: event.wantResume ?? false,
       })
     );
 

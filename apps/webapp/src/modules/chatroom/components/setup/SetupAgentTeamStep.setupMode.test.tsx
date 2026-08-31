@@ -43,7 +43,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       requestCapabilitiesRefresh: 'machines:requestCapabilitiesRefresh',
       getCapabilitiesRefreshBatch: 'machines:getCapabilitiesRefreshBatch',
       getAgentRestartSummaryByRole: 'machines:getAgentRestartSummaryByRole',
-      setWantResume: 'machines:setWantResume',
     },
   },
 }));
@@ -138,36 +137,12 @@ describe('SetupAgentTeamStep setup mode harness selection', () => {
     const harnessOption = await screen.findByRole('option', { name: 'Cursor (SDK)' });
     await userEvent.click(harnessOption);
 
-    await waitFor(() => {
-      expect(screen.getByRole('switch', { name: 'Reconnect to last session' })).toBeInTheDocument();
-    });
-
     const depthErrors = consoleError.mock.calls.filter(([msg]) =>
       String(msg).includes('Maximum update depth exceeded')
     );
     expect(depthErrors).toHaveLength(0);
 
     consoleError.mockRestore();
-  });
-
-  it('hides reconnect toggle for duo builder in setup mode', async () => {
-    renderSetupStep();
-
-    await waitFor(() => {
-      expect(screen.getAllByTitle('Select Harness').length).toBe(2);
-    });
-
-    const harnessButtons = screen.getAllByTitle('Select Harness');
-    await userEvent.click(harnessButtons[1]!);
-
-    const harnessOption = await screen.findByRole('option', { name: 'Cursor (SDK)' });
-    await userEvent.click(harnessOption);
-
-    await waitFor(() => {
-      expect(
-        screen.queryByRole('switch', { name: 'Reconnect to last session' })
-      ).not.toBeInTheDocument();
-    });
   });
 
   it('shows favorites section in setup mode when teamId is provided', async () => {

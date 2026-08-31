@@ -53,7 +53,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       upsertMachineModelFilters: 'machines:upsertMachineModelFilters',
       requestCapabilitiesRefresh: 'machines:requestCapabilitiesRefresh',
       getCapabilitiesRefreshBatch: 'machines:getCapabilitiesRefreshBatch',
-      setWantResume: 'machines:setWantResume',
     },
   },
 }));

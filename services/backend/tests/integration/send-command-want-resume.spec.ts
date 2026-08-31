@@ -8,6 +8,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -73,13 +74,13 @@ describe('sendCommand start-agent wantResume', () => {
     }
   });
 
-  test('backfills wantResume from the persisted config when omitted on a restart', async () => {
+  test('defaults omitted wantResume to false instead of reading persisted config', async () => {
     const { sessionId } = await createTestSession('test-cmd-want-resume-3');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-cmd-want-resume-3';
     await registerMachineWithDaemon(sessionId, machineId);
 
-    // First start persists wantResume: false on the team config.
+    // Seed a legacy persisted preference from before this deprecation.
     await t.mutation(api.machines.sendCommand, {
       sessionId,
       machineId,
@@ -90,12 +91,22 @@ describe('sendCommand start-agent wantResume', () => {
         model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',
-        wantResume: false,
+        wantResume: true,
       },
     });
 
-    // Second start OMITS wantResume (e.g. a restart). It must NOT reset to the
-    // default true — it should backfill the persisted false.
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { wantResume: true });
+    });
+
+    // Second start omits wantResume. It must use the cold-start default instead
+    // of reading the stale persisted true value.
     await t.mutation(api.machines.sendCommand, {
       sessionId,
       machineId,
@@ -115,29 +126,5 @@ describe('sendCommand start-agent wantResume', () => {
     if (latest?.command.type === 'agent.requestStart') {
       expect(latest.command.wantResume).toBe(false);
     }
-  });
-});
-
-describe('setWantResume mutation', () => {
-  test('persists wantResume on team agent config without starting the agent', async () => {
-    const { sessionId } = await createTestSession('test-set-want-resume-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-
-    await t.mutation(api.machines.setWantResume, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      wantResume: false,
-    });
-
-    const config = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('role'), 'builder'))
-        .first();
-    });
-
-    expect(config?.wantResume).toBe(false);
   });
 });

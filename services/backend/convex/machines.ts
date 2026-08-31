@@ -26,7 +26,6 @@ import {
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
-import { deleteStaleTeamAgentConfigs } from '../src/domain/usecase/agent/delete-stale-team-agent-configs';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import {
@@ -778,7 +777,6 @@ export const getMachineAgentConfigs = query({
           updatedAt: config.updatedAt,
           spawnedAgentPid: config.spawnedAgentPid,
           spawnedAt: config.spawnedAt,
-          wantResume: config.wantResume,
         },
       ];
     });
@@ -1141,14 +1139,6 @@ export const sendCommand = mutation({
       const resolvedWorkingDir =
         args.payload.workingDir ??
         (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
-      // Backfill the resume preference from the persisted config when the caller
-      // omits it (e.g. a restart that doesn't re-send the flag). Without this, an
-      // omitted value would fall through to the use-case default and silently
-      // reset a previously-persisted `false` back to `true`.
-      const resolvedWantResume =
-        args.payload.wantResume ??
-        (existingConfig?.type === 'remote' ? existingConfig.wantResume : undefined);
-
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
           'Cannot start agent: model, agentHarness, and workingDir are required. ' +
@@ -1175,7 +1165,7 @@ export const sendCommand = mutation({
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
           reason: AgentStartReasonEnum['user.start'],
-          wantResume: resolvedWantResume,
+          ...(args.payload.wantResume !== undefined ? { wantResume: args.payload.wantResume } : {}),
         },
         machine
       );
@@ -1703,66 +1693,6 @@ export const saveTeamAgentConfig = mutation({
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
-  },
-});
-
-/** Persist reconnect-on-start preference for a team agent config. */
-export const setWantResume = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    wantResume: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new ConvexError({ code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
-    }
-
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
-    }
-    if (chatroom.ownerId !== auth.userId) {
-      throw new ConvexError({
-        code: 'UNAUTHORIZED',
-        message: 'Not authorized to modify team agent configs for this chatroom',
-      });
-    }
-    if (!chatroom.teamId) {
-      throw new ConvexError({
-        code: 'CHATROOM_NO_TEAM_ID',
-        message: 'Chatroom has no teamId — cannot build agent config key',
-      });
-    }
-
-    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
-    const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-
-    const now = Date.now();
-
-    if (existing) {
-      await patchTeamAgentConfig(ctx, existing._id, { wantResume: args.wantResume });
-    } else {
-      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey,
-        chatroomId: args.chatroomId,
-        role: args.role,
-        type: 'remote',
-        wantResume: args.wantResume,
-        enabled: true,
-        lifecycleRevision: 0,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    return { success: true, wantResume: args.wantResume };
   },
 });
 

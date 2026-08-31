@@ -18,9 +18,9 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
-import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-stop-commands';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
+import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-stop-commands';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -59,11 +59,8 @@ export interface StartAgentInput {
    */
   reason: AgentStartReason;
   /**
-   * When true (default), resume-capable harnesses try to continue from the
-   * daemon's last session for this chatroom+role on first launch. The resolved
-   * value is persisted on the team agent config so the UI can show the actual
-   * value the running agent was started with, and is also emitted on the
-   * agent.requestStart event for observability.
+   * When true, resume-capable harnesses try to continue from the daemon's last
+   * session. For user starts this is runtime-only and is not persisted.
    */
   wantResume?: boolean;
   lifecycleRevision?: number;
@@ -146,7 +143,9 @@ export async function startAgent(
         workingDir,
         updatedAt: teamConfigNow,
         desiredState: 'running' as const,
-        wantResume: resolvedWantResume,
+        ...(reason !== 'user.start' && reason !== 'user.restart'
+          ? { wantResume: resolvedWantResume }
+          : {}),
         circuitState: 'closed' as const,
         circuitOpenedAt: undefined,
       },

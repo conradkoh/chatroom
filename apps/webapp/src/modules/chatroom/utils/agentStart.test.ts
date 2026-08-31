@@ -51,11 +51,10 @@ describe('dispatchStartAgent', () => {
     });
   });
 
-  it('includes wantResume and allowNewMachine when set', async () => {
+  it('includes allowNewMachine when set', async () => {
     const sendCommand = vi.fn<SendCommandFn>().mockResolvedValue(undefined);
     await dispatchStartAgent(sendCommand, {
       ...baseInput,
-      wantResume: false,
       allowNewMachine: true,
     });
     expect(sendCommand).toHaveBeenCalledWith({
@@ -67,7 +66,6 @@ describe('dispatchStartAgent', () => {
         agentHarness: 'cursor',
         model: 'auto',
         workingDir: '/proj',
-        wantResume: false,
         allowNewMachine: true,
       },
     });
