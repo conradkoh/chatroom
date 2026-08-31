@@ -100,7 +100,6 @@ describe('Phase E — pending task after agent restart', () => {
         model: TEST_MODEL_CURSOR_SDK,
         agentHarness: 'cursor-sdk',
         workingDir: '/tmp/project',
-        wantResume: true,
       },
     });
 
