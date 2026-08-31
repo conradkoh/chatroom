@@ -65,6 +65,8 @@ interface AttachmentsContextValue {
   isAttached: (type: Attachment['type'], id: string) => boolean;
   /** Clear all attachments */
   clearAll: () => void;
+  /** Update cached content for a task/backlog/message attachment after an inline edit. */
+  updateContent: (type: Attachment['type'], id: string, content: string) => void;
 }
 
 const AttachmentsContext = createContext<AttachmentsContextValue | null>(null);
@@ -112,6 +114,16 @@ export function AttachmentsProvider({ children }: { children: React.ReactNode })
     setAttachments([]);
   }, []);
 
+  const updateContent = useCallback((type: Attachment['type'], id: string, content: string) => {
+    setAttachments((prev) =>
+      prev.map((a) => {
+        if (a.type !== type || a.id !== id) return a;
+        if (a.type === 'snippet') return a;
+        return { ...a, content };
+      })
+    );
+  }, []);
+
   const value = useMemo(
     () => ({
       attachments,
@@ -121,8 +133,9 @@ export function AttachmentsProvider({ children }: { children: React.ReactNode })
       remove,
       isAttached,
       clearAll,
+      updateContent,
     }),
-    [attachments, totalCount, canAddMore, add, remove, isAttached, clearAll]
+    [attachments, totalCount, canAddMore, add, remove, isAttached, clearAll, updateContent]
   );
 
   return <AttachmentsContext.Provider value={value}>{children}</AttachmentsContext.Provider>;
