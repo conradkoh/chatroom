@@ -44,7 +44,7 @@ interface RestartOrchestratorEvent {
   model: string;
   workingDir: string;
   correlationId: string;
-  wantResume?: boolean;
+  wantResume: boolean;
 }
 
 export interface RestartOrchestratorSession {
@@ -279,7 +279,7 @@ export async function runRestartOrchestrator(
         model: event.model,
         workingDir: event.workingDir,
         reason: 'user.restart',
-        wantResume: event.wantResume ?? false,
+        wantResume: event.wantResume,
       })
     );
 

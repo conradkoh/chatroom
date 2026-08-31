@@ -21,7 +21,7 @@ export interface AgentRequestStartEventPayload {
   workingDir: string;
   reason: string;
   deadline: number;
-  wantResume?: boolean;
+  wantResume: boolean;
   lifecycleRevision?: number;
 }
 

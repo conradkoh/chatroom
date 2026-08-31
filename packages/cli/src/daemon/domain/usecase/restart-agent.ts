@@ -8,7 +8,7 @@ export interface RestartAgentInput {
   workingDir: string;
   correlationId: string;
   deadline: number;
-  wantResume?: boolean;
+  wantResume: boolean;
   lifecycleRevision?: number;
 }
 
@@ -45,7 +45,9 @@ export async function restartAgent(
       workingDir: input.workingDir,
       correlationId: input.correlationId,
       wantResume: input.wantResume,
-      lifecycleRevision: input.lifecycleRevision,
+      ...(input.lifecycleRevision !== undefined
+        ? { lifecycleRevision: input.lifecycleRevision }
+        : {}),
     });
   } catch {
     // Swallow errors like legacy Effect.catchAll

@@ -9,7 +9,7 @@ export interface StartAgentInput {
   workingDir: string;
   reason: string;
   deadline: number;
-  wantResume?: boolean;
+  wantResume: boolean;
   lifecycleRevision?: number;
 }
 
@@ -67,8 +67,10 @@ export async function startAgent(deps: StartAgentDeps, input: StartAgentInput): 
     model: input.model,
     workingDir: input.workingDir,
     reason: input.reason,
-    wantResume: input.wantResume ?? true,
-    lifecycleRevision: input.lifecycleRevision,
+    wantResume: input.wantResume,
+    ...(input.lifecycleRevision !== undefined
+      ? { lifecycleRevision: input.lifecycleRevision }
+      : {}),
   });
   if (!result.success) {
     log(`[daemon] Agent start rejected for role=${input.role}: ${result.error ?? 'unknown'}`);
