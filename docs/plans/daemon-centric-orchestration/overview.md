@@ -213,11 +213,11 @@ packages/cli/src/daemon/
 │   ├── task-monitor/                [exists]  # [migrate] reads local read models, not Convex snapshots
 │   ├── native-delivery/               [exists]  # [migrate] → application/use-cases/tasks/
 │   ├── enhancer/                      [exists]  # [migrate] → application/use-cases/enhancer/
-│   ├── direct-harness/              [exists]  # stays; session queues may go local later
 │   ├── agentic-query/                 [exists]
 │   ├── files/                         [exists]  # stays inbound-from-Convex
 │   ├── workspace-git/                 [exists]
 │   └── …
+
 │
 ├── local-web/                       [exists]  # localhost UI — reads SQLite read models + SSE
 │   ├── server/
@@ -229,6 +229,9 @@ packages/cli/src/daemon/
 ├── README.md                        [exists]  # update layer diagram when implementation starts
 └── plan.md                          [exists]  # legacy daemon plan — superseded by docs/plans/
 ```
+
+Direct-harness session UI and daemon integration were removed in v1.102.0. The
+remaining harness code supports agentic query and shared harness capabilities.
 
 ---
 

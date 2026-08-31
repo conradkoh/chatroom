@@ -181,21 +181,22 @@ All other types use T0 (local only), T1/T2 (batched), or T4 (on-demand inbound) 
 
 All subscribers are registered in `subscriber-registry.ts` and map to `InboundEvent` types.
 
-| Subscriber             | Convex API (subscribe target)                                 | Inbound event                   | Primary handler / runtime            |
-| ---------------------- | ------------------------------------------------------------- | ------------------------------- | ------------------------------------ |
-| Command events         | `machines.getCommandEvents`                                   | `command.received`              | `command-dispatch.ts`                |
-| Command runs           | `daemon.commands.listActionableCommandRuns`                   | `command-run.updated`           | `command-run-subscription.ts`        |
-| Direct harness session | `daemon.directHarness.sessions.listPendingSessionsForMachine` | `direct-harness.session-opened` | `session-processor.ts`               |
-| Direct harness prompt  | `daemon.directHarness.messages.pendingForMachine`             | `direct-harness.prompt`         | `prompt-drain.ts`                    |
-| Direct harness command | `daemon.directHarness.commands.listPendingCommands`           | `direct-harness.command`        | `command-processor.ts`               |
-| Agentic query session  | `daemon.agenticQuery.runs.pendingForMachine`                  | `agentic-query.session-opened`  | `agentic-query/session-processor.ts` |
-| Agentic query prompt   | `daemon.agenticQuery.messages.pendingForMachine`              | `agentic-query.prompt`          | `agentic-query/prompt-drain.ts`      |
-| Enhancer job           | `daemon.enhancer.index.pendingForMachine`                     | `enhancer.job-assigned`         | `enhancer/job-subscriber.ts`         |
-| Workspace list         | `workspaces.listRecentlyObservedWorkspacesForMachine`         | `workspace.list-changed`        | `workspace-list-subscription.ts`     |
-| Git request            | `workspaces.getPendingRequests`                               | `git.request`                   | `git-subscription.ts`                |
-| File tree request      | `workspaceFiles.getPendingFileTreeRequests`                   | `file-tree.request`             | `file-tree-subscription.ts`          |
-| File content request   | `workspaceFiles.getPendingFileContentRequests`                | `file-content.request`          | `file-content-fulfillment.ts`        |
-| File write request     | `workspaceFiles.getPendingFileWriteRequests`                  | `file-write.request`            | `file-write-fulfillment.ts`          |
+| Subscriber            | Convex API (subscribe target)                         | Inbound event                  | Primary handler / runtime            |
+| --------------------- | ----------------------------------------------------- | ------------------------------ | ------------------------------------ |
+| Command events        | `machines.getCommandEvents`                           | `command.received`             | `command-dispatch.ts`                |
+| Command runs          | `daemon.commands.listActionableCommandRuns`           | `command-run.updated`          | `command-run-subscription.ts`        |
+| Agentic query session | `daemon.agenticQuery.runs.pendingForMachine`          | `agentic-query.session-opened` | `agentic-query/session-processor.ts` |
+| Agentic query prompt  | `daemon.agenticQuery.messages.pendingForMachine`      | `agentic-query.prompt`         | `agentic-query/prompt-drain.ts`      |
+| Enhancer job          | `daemon.enhancer.index.pendingForMachine`             | `enhancer.job-assigned`        | `enhancer/job-subscriber.ts`         |
+| Workspace list        | `workspaces.listRecentlyObservedWorkspacesForMachine` | `workspace.list-changed`       | `workspace-list-subscription.ts`     |
+| Git request           | `workspaces.getPendingRequests`                       | `git.request`                  | `git-subscription.ts`                |
+| File tree request     | `workspaceFiles.getPendingFileTreeRequests`           | `file-tree.request`            | `file-tree-subscription.ts`          |
+| File content request  | `workspaceFiles.getPendingFileContentRequests`        | `file-content.request`         | `file-content-fulfillment.ts`        |
+| File write request    | `workspaceFiles.getPendingFileWriteRequests`          | `file-write.request`           | `file-write-fulfillment.ts`          |
+
+> Direct-harness session, prompt, and command subscribers were removed in
+> v1.102.0. Agentic query work now uses the `daemon.agenticQuery.*` feeds and
+> capability refresh uses `web.harnessCapabilities.*`.
 
 **Enhancer (migration target):** Subscriber `enhancer.job-assigned` will be replaced by local queue; Convex projection for visibility only.
 
@@ -208,7 +209,7 @@ All subscribers are registered in `subscriber-registry.ts` and map to `InboundEv
 | Command run drain (legacy HTTP)    | `daemon.commands.listActionableCommandRuns`                 | `command-run-subscription.ts`                       |
 | Log observers                      | `daemon.commands.listRunsWithLogObservers`                  | `log-observer-subscription.ts`                      |
 | Init prompt / task delivery prompt | `messages.getInitPrompt`, `messages.getTaskDeliveryPrompt`  | Agent spawn, native task injector                   |
-| Workspace lookup                   | `workspaces.getWorkspaceById`                               | Direct harness, agentic query, bridge               |
+| Workspace lookup                   | `workspaces.getWorkspaceById`                               | Agentic query                                       |
 | Enhancer claim/payload             | `daemon.enhancer.index.claimForSpawn`, `getSpawnPayload`    | `enhancer/job-subscriber.ts`                        |
 
 ### 4.2 Daemon → Convex (outbound)
@@ -218,11 +219,8 @@ All subscribers are registered in `subscriber-registry.ts` and map to `InboundEv
 | Outbound event type                             | Convex publisher                      | Convex API                                                                        |
 | ----------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------- |
 | `heartbeat`                                     | `daemon-heartbeat.ts`                 | `machines.daemonHeartbeat`                                                        |
-| `turn.chunk`, `turn.completed`                  | `turn-output.ts`                      | `daemon.directHarness.*` (via repos)                                              |
-| `session.lifecycle`                             | `session-lifecycle.ts`                | `daemon.directHarness.sessions.*`                                                 |
 | `task.status`                                   | `assigned-task-status.ts`             | `machines.emitTaskDelivered`, `emitTaskDeliveryFailed`                            |
 | `git.state`                                     | `git-state.ts`                        | `workspaces.upsertWorkspaceGitState`                                              |
-| `capabilities.updated`                          | `capabilities.ts`                     | `daemon.directHarness.capabilities.publishMachineCapabilities`                    |
 | `models.updated`, `harness.fingerprint.updated` | `models.ts`, `harness-fingerprint.ts` | `machines.refreshCapabilities`                                                    |
 | `command.result.*`                              | `command-result.ts`                   | `machines.ackPing`, `reportFolderPickerResult`, `reportCapabilitiesRefreshResult` |
 | `workspace.commands`                            | `workspace-commands.ts`               | `commands.syncCommands`                                                           |
@@ -281,21 +279,19 @@ These are high-churn orchestration writes — primary migration targets.
 | ------------------------------------------------------------------ | ------------------------- |
 | `workspaceFiles.*` (claim, fulfill, sync, checkpoint, delta batch) | Webapp-initiated file ops |
 
-**Direct harness / agentic query / enhancer / commands** (entry processors):
+**Agentic query / enhancer / commands** (entry processors):
 
-| Area           | Key APIs                                                                                                             |
-| -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Direct harness | `daemon.directHarness.commands.updateCommandStatus`, `sessions.updateSessionTitle`, `turns.markOrphanTurnsFailed`, … |
-| Agentic query  | `daemon.agenticQuery.*` session/message processing                                                                   |
-| Enhancer       | `daemon.enhancer.index.claimForSpawn`, `getSpawnPayload`                                                             |
-| Commands       | `daemon.commands.updateRunTail`                                                                                      |
+| Area          | Key APIs                                                 |
+| ------------- | -------------------------------------------------------- |
+| Agentic query | `daemon.agenticQuery.*` session/message processing       |
+| Enhancer      | `daemon.enhancer.index.claimForSpawn`, `getSpawnPayload` |
+| Commands      | `daemon.commands.updateRunTail`                          |
 
 **Shutdown / lifecycle** (`on-daemon-shutdown.ts`, `shutdown-sessions.ts`):
 
-| API                                                                             | Purpose        |
-| ------------------------------------------------------------------------------- | -------------- |
-| `machines.updateDaemonStatus`                                                   | Offline marker |
-| `daemon.directHarness.turns.getMachineHarnessSessions`, `markOrphanTurnsFailed` | Cleanup        |
+| API                           | Purpose        |
+| ----------------------------- | -------------- |
+| `machines.updateDaemonStatus` | Offline marker |
 
 ### 4.3 CLI commands that talk to Convex directly (bypass daemon)
 
@@ -326,7 +322,6 @@ These run inside agent harness processes, not the daemon. They are **orchestrati
 | `chatroom_participants`                 | Presence, native turn phase, `lastSeenAt` |
 | `chatroom_enhancerJobs`                 | Async enhancer queue                      |
 | `machines` / agent events               | Lifecycle telemetry (`emit*` targets)     |
-| `daemon.directHarness.*`                | Harness session/message/command state     |
 | `daemon.agenticQuery.*`                 | Agentic search sessions                   |
 | `daemon.commands.*`                     | Saved command runs                        |
 | Workspace / file tables                 | Git and explorer sync                     |
@@ -335,18 +330,18 @@ These run inside agent harness processes, not the daemon. They are **orchestrati
 
 ## 5. Flow-by-flow migration map
 
-| Flow                               | Current path                                                             | Target (daemon-centric)                                                                                       | Complexity |
-| ---------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ---------- |
-| **Handoff planner→builder**        | CLI `messages.handoff` → Convex → signal subscriber → native delivery    | CLI → daemon command → local handoff use case → append events → project handoff message + task rows to Convex | High       |
-| **Task delivery / nudge**          | Convex snapshots + signals → task monitor → inject + `emitTaskDelivered` | Local task read model → nudge scheduler → inject; project delivery outcome (batched)                          | High       |
-| **Missed handoff reminder**        | `handleNativeAgentEnd` → Convex → (implicit) next turn                   | Local turn-end handler → schedule reminder without Convex round-trip                                          | Medium     |
-| **Agent start/stop**               | APM ↔ `machines.updateSpawnedAgent`, `recordAgentExited`, many `emit*`   | APM emits local lifecycle events; sync worker projects subset to Convex                                       | High       |
-| **Restart orchestrator**           | Direct `emitRestartPhase/Completed` + snapshot sync                      | Local restart state machine; project phases                                                                   | Medium     |
-| **Enhancer job**                   | Convex pending → subscriber → spawn                                      | Fully local job queue in daemon; Convex projection for webapp visibility only                                 | Medium     |
-| **Direct harness / agentic query** | Convex pending queues → drain loops                                      | Local session queues with Convex as backup/projection                                                         | Medium     |
-| **Command runs**                   | Convex actionable runs → drain                                           | Local command inbox; project status                                                                           | Medium     |
-| **Workspace git/file**             | Convex request queue → fulfill → upsert                                  | **Likely stays inbound-from-Convex** in v1; batch upserts                                                     | Low–Med    |
-| **Harness stream**                 | SQLite + SSE (done)                                                      | Extend to other high-frequency types                                                                          | Low        |
+| Flow                        | Current path                                                             | Target (daemon-centric)                                                                                       | Complexity |
+| --------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ---------- |
+| **Handoff planner→builder** | CLI `messages.handoff` → Convex → signal subscriber → native delivery    | CLI → daemon command → local handoff use case → append events → project handoff message + task rows to Convex | High       |
+| **Task delivery / nudge**   | Convex snapshots + signals → task monitor → inject + `emitTaskDelivered` | Local task read model → nudge scheduler → inject; project delivery outcome (batched)                          | High       |
+| **Missed handoff reminder** | `handleNativeAgentEnd` → Convex → (implicit) next turn                   | Local turn-end handler → schedule reminder without Convex round-trip                                          | Medium     |
+| **Agent start/stop**        | APM ↔ `machines.updateSpawnedAgent`, `recordAgentExited`, many `emit*`   | APM emits local lifecycle events; sync worker projects subset to Convex                                       | High       |
+| **Restart orchestrator**    | Direct `emitRestartPhase/Completed` + snapshot sync                      | Local restart state machine; project phases                                                                   | Medium     |
+| **Enhancer job**            | Convex pending → subscriber → spawn                                      | Fully local job queue in daemon; Convex projection for webapp visibility only                                 | Medium     |
+| **Agentic query**           | Convex pending queues → drain loops                                      | Local session queues with Convex as backup/projection                                                         | Medium     |
+| **Command runs**            | Convex actionable runs → drain                                           | Local command inbox; project status                                                                           | Medium     |
+| **Workspace git/file**      | Convex request queue → fulfill → upsert                                  | **Likely stays inbound-from-Convex** in v1; batch upserts                                                     | Low–Med    |
+| **Harness stream**          | SQLite + SSE (done)                                                      | Extend to other high-frequency types                                                                          | Low        |
 
 ---
 

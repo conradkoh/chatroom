@@ -21,7 +21,7 @@ In the explorer view, **Cmd+F** (macOS) / **Ctrl+F** (Windows/Linux) should open
 - Sidebar or modal search UI
 - Replacing file-explorer tree filter search
 - Multi-chatroom cross-workspace search
-- Replacing the existing Direct Harness panel (parallel integration, not merge)
+- Replacing the retired direct-harness panel is out of scope
 
 ---
 
@@ -38,7 +38,6 @@ flowchart TD
 
     subgraph Backend
         M --> S[(chatroom_agenticQueries)]
-        M --> C[chatroom_directHarnessCommands]
         S --> TD[Task delivery prompt builder]
     end
 
@@ -53,7 +52,7 @@ flowchart TD
     R --> P
 ```
 
-**Pattern:** Mirror direct harness (web command → daemon → harness session → turns stream) but with a **dedicated domain** (query type, task envelope, return CLI, tab UX) instead of bolting onto generic harness sessions.
+**Pattern:** Use the daemon agentic-query subscribers and a **dedicated domain** (query type, task envelope, return CLI, tab UX) rather than coupling the feature to a generic session UI.
 
 ---
 
@@ -123,7 +122,7 @@ chatroom_agenticQueries: defineTable({
     v.literal('failed')
   ),
   title: v.string(), // tab display / session title
-  harnessSessionId: v.optional(v.id('chatroom_harnessSessions')),
+  activeRunId: v.optional(v.id('chatroom_agenticQueryRuns')),
   parentQueryId: v.optional(v.id('chatroom_agenticQueries')), // follow-ups
   createdBySessionId: v.optional(v.string()),
   createdAt: v.number(),
@@ -147,15 +146,10 @@ chatroom_agenticQueryTurns: defineTable({
   .index('by_query', ['queryId', 'turnSeq']),
 ```
 
-**Reuse:** Link to `chatroom_harnessSessions` for daemon execution; do **not** show agentic sessions in Direct Harness session list (filter by `purpose` field on harness session or by join through `agenticQueries`).
+**Execution:** Agentic queries use their own `chatroom_agenticQueryRuns` and `chatroom_agenticQueryRunMessages` tables. Their daemon lifecycle is handled by the `daemon.agenticQuery.*` subscribers.
 
-**Harness session extension (minimal):**
-
-```typescript
-// On chatroom_harnessSessions add optional:
-purpose: v.optional(v.union(v.literal('direct'), v.literal('agentic-query'))),
-agenticQueryId: v.optional(v.id('chatroom_agenticQueries')),
-```
+No shared harness-session table is required. Each run is represented by an
+agentic-query run and its run-turn/message records.
 
 ---
 
@@ -307,15 +301,13 @@ CHATROOM_AGENTIC_QUERY_END
 
 ### 2.4 Daemon integration
 
-**Path:** `packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-subscriber.ts` (extend)
+**Path:** `packages/cli/src/daemon/entry/agentic-query/prompt-drain.ts`
 
-Add command type `submitAgenticQuery` on `chatroom_directHarnessCommands`:
+Drain pending agentic-query prompts from the agentic-query queue:
 
-- Spawn harness with `purpose: 'agentic-query'`
+- Spawn the selected harness for the agentic-query run
 - Inject task envelope as first user message
-- Same turn streaming path as direct harness
-
-**Filter:** Direct Harness UI `listSessions` excludes `purpose === 'agentic-query'`.
+- Persist streamed turns in the agentic-query run/message tables
 
 ---
 
@@ -323,7 +315,8 @@ Add command type `submitAgenticQuery` on `chatroom_directHarnessCommands`:
 
 ### 3.1 Live streaming
 
-Subscribe to `chatroom_harnessSessionTurns` via query id → harness session id (same pattern as `useHarnessTurnStore`).
+Subscribe to `chatroom_agenticQueryRunTurns` and
+`chatroom_agenticQueryRunMessages` by run id.
 
 Map harness turns into `AgenticQueryPanel` thread. On CLI `complete`, finalize structured sections.
 
@@ -353,7 +346,7 @@ Map harness turns into `AgenticQueryPanel` thread. On CLI `complete`, finalize s
 | Web API        | `convex/web/agenticQuery/*.ts`                                                                   |
 | Prompts        | `prompts/agentic-query/*`                                                                        |
 | CLI            | `packages/cli/src/commands/agentic-query/*`, `index.ts`                                          |
-| Daemon         | `direct-harness/prompt-subscriber.ts`, `command-loop.ts`                                         |
+| Daemon         | `agentic-query/prompt-drain.ts`, `agentic-query/session-processor.ts`                            |
 | Tests          | webapp component tests, backend integration spec, CLI unit tests                                 |
 
 ---
@@ -386,5 +379,4 @@ Map harness turns into `AgenticQueryPanel` thread. On CLI `complete`, finalize s
 - [ ] Follow-up refines prior result in same tab
 - [ ] Markdown matches chatroom timeline styling
 - [ ] File path clicks open in explorer editor
-- [ ] Agentic sessions hidden from Direct Harness panel
 - [ ] CLI `agentic-query complete` rejects malformed templates
