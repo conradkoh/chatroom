@@ -518,6 +518,11 @@ export function useAgentControls({
 
   const handleRestartAgent = useCallback(async () => {
     if (!displayAgentConfig) return;
+    const model = displayAgentConfig.model ?? selectedModel;
+    if (!model) {
+      setError('Cannot restart agent: model is required');
+      return;
+    }
     setIsStarting(true);
     setError(null);
     try {
@@ -527,7 +532,7 @@ export function useAgentControls({
         payload: {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
-          model: displayAgentConfig.model ?? selectedModel ?? undefined,
+          model,
           agentHarness: displayAgentConfig.agentType,
           workingDir: displayAgentConfig.workingDir,
         },

@@ -84,10 +84,9 @@ export type SendCommandArgs =
       payload: {
         chatroomId: Id<'chatroom_rooms'>;
         role: string;
-        model?: string;
+        model: string;
         agentHarness: AgentHarness;
-        workingDir?: string;
-        wantResume?: boolean;
+        workingDir: string;
       };
     }
   | {
