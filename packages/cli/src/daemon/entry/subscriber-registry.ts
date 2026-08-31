@@ -5,9 +5,6 @@ import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-d
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
 import { startAgenticQuerySessionSubscriber } from '../infrastructure/convex/subscribers/agentic-query-session.js';
 import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/command-run.js';
-import { startDirectHarnessCommandSubscriber } from '../infrastructure/convex/subscribers/direct-harness-command.js';
-import { startDirectHarnessPromptSubscriber } from '../infrastructure/convex/subscribers/direct-harness-prompt.js';
-import { startDirectHarnessSessionSubscriber } from '../infrastructure/convex/subscribers/direct-harness-session.js';
 import { startEnhancerJobSubscriber } from '../infrastructure/convex/subscribers/enhancer-job.js';
 import { startFileContentRequestSubscriber } from '../infrastructure/convex/subscribers/file-content-request.js';
 import { startFileTreeReleaseRequestSubscriber } from '../infrastructure/convex/subscribers/file-tree-release-request.js';
@@ -27,9 +24,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     void routeInboundEvent(deps.router, event);
   };
 
-  const session = startDirectHarnessSessionSubscriber(deps, onEvent);
-  const prompt = startDirectHarnessPromptSubscriber(deps, onEvent);
-  const directHarnessCommand = startDirectHarnessCommandSubscriber(deps, onEvent);
   const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
     await dispatchCommandInboundEvent({
       type: 'command.received',
@@ -50,9 +44,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   return {
     async stopAll() {
       await Promise.all([
-        session.stop(),
-        prompt.stop(),
-        directHarnessCommand.stop(),
         machineCommands.stop(),
         commandRun.stop(),
         gitRequest.stop(),

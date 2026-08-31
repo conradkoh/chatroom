@@ -63,7 +63,6 @@ describe('workspace-git v2 subscribers', () => {
       sessionId: SESSION_ID,
       machineId: MACHINE_ID,
       router: {
-        directHarness: {},
         command: {},
         workspaceGit: {
           deliverInbound: async (event) => {
@@ -90,7 +89,6 @@ describe('workspace-git v2 subscribers', () => {
 
     await routeInboundEvent(
       {
-        directHarness: {},
         command: {},
         workspaceGit: {
           deliverInbound: async (event) => {

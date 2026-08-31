@@ -13,6 +13,8 @@ export type HarnessWorkerSession = {
   readonly convexUrl: string;
 };
 
+export type ActiveSession = SessionHandle;
+
 export type SharedHarnessMaps = {
   activeSessions: Map<string, SessionHandle>;
   harnesses: Map<string, BoundHarness>;

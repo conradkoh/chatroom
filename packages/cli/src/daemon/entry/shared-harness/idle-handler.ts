@@ -47,7 +47,7 @@ export const handleSessionIdleEffect = (
           Effect.catchAll((err) =>
             Effect.sync(() => {
               console.warn(
-                `[direct-harness] Failed to finalize turn ${turnId} for session ${rowId}:`,
+                `[harness] Failed to finalize turn ${turnId} for session ${rowId}:`,
                 err instanceof Error ? err.message : String(err)
               );
             })
@@ -86,7 +86,7 @@ export const handleSessionIdleEffect = (
         Effect.catchAll((err) =>
           Effect.gen(function* () {
             console.warn(
-              `[direct-harness] Failed to prompt queued message for session ${rowId}:`,
+              `[harness] Failed to prompt queued message for session ${rowId}:`,
               err instanceof Error ? err.message : String(err)
             );
             yield* Effect.promise(() => sessionRepository.setGenerating(rowId, false));
@@ -98,7 +98,7 @@ export const handleSessionIdleEffect = (
     (err) =>
       Effect.sync(() => {
         console.warn(
-          `[direct-harness] Unexpected error in handleSessionIdleEffect:`,
+          `[harness] Unexpected error in handleSessionIdleEffect:`,
           err instanceof Error ? err.message : String(err)
         );
       })

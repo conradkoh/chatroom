@@ -2,7 +2,7 @@
  * state-recovery handler Unit Tests
  *
  * Tests recoverAgentStateEffect — delegates to AgentProcessManager.recover(),
- * registers workspaces via backend mutations, and marks orphan turns as failed.
+ * registers workspaces via backend mutations.
  */
 
 import { Effect, Layer } from 'effect';
@@ -23,12 +23,7 @@ function makeSessionLayer(overrides?: {
   backendQuery?: ReturnType<typeof vi.fn>;
   backendMutation?: ReturnType<typeof vi.fn>;
 }): Layer.Layer<DaemonSessionService> {
-  // Default query mock distinguishes getMachineHarnessSessions (returns [])
-  // from getMachineAgentConfigs (returns { configs: [] }) based on args shape.
-  const defaultQuery = vi.fn().mockImplementation((_api: any, args: any) => {
-    if (args && 'machineId' in args && !('chatroomId' in args)) {
-      return Promise.resolve([]); // getMachineHarnessSessions
-    }
+  const defaultQuery = vi.fn().mockImplementation((_api: any, _args: any) => {
     return Promise.resolve({ configs: [] }); // getMachineAgentConfigs
   });
 
@@ -114,10 +109,7 @@ describe('recoverAgentStateEffect', () => {
 
   it('registers workspaces using session.backend for active agents', async () => {
     const backendMutation = vi.fn().mockResolvedValue({ failedTurns: 0 });
-    const backendQuery = vi.fn().mockImplementation((_api: any, args: any) => {
-      if (args && 'machineId' in args && !('chatroomId' in args)) {
-        return Promise.resolve([]); // no managed sessions
-      }
+    const backendQuery = vi.fn().mockImplementation((_api: any, _args: any) => {
       return Promise.resolve({
         configs: [{ machineId: 'test-machine-id', workingDir: '/tmp/ws', role: 'builder' }],
       });
@@ -142,31 +134,6 @@ describe('recoverAgentStateEffect', () => {
     );
   });
 
-  it('marks orphan sessions using session.backend', async () => {
-    const backendMutation = vi.fn().mockResolvedValue({ failedTurns: 2 });
-    const backendQuery = vi.fn().mockImplementation((_api: any, args: any) => {
-      if (args && 'machineId' in args && !('chatroomId' in args)) {
-        return Promise.resolve([
-          {
-            harnessSessionId: 'hs-orphan',
-            chatroomId: 'room-orphan',
-            workspaceId: 'ws-o',
-            status: 'idle',
-          },
-        ]);
-      }
-      return Promise.resolve({ configs: [] });
-    });
-
-    await runWithLayers({ backendQuery, backendMutation }, { listActive: () => [] });
-
-    expect(backendMutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ harnessSessionId: 'hs-orphan' })
-    );
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🧹'));
-  });
-
   // ── Regression: error-isolation boundaries must survive ─────────────────────
   // The split-at-seam design keeps try/catch in recoverAgentStatePostRecoveryCore
   // (plain async) so per-chatroom and per-session errors never abort the whole
@@ -174,10 +141,7 @@ describe('recoverAgentStateEffect', () => {
 
   it('continues when getMachineAgentConfigs rejects for one chatroom (error isolation)', async () => {
     let queryCallCount = 0;
-    const backendQuery = vi.fn().mockImplementation((_api: any, args: any) => {
-      if (args && 'machineId' in args && !('chatroomId' in args)) {
-        return Promise.resolve([]); // getMachineHarnessSessions — no orphans
-      }
+    const backendQuery = vi.fn().mockImplementation((_api: any, _args: any) => {
       // getMachineAgentConfigs: first call fails, second succeeds
       queryCallCount++;
       if (queryCallCount === 1) {
@@ -206,7 +170,6 @@ describe('recoverAgentStateEffect', () => {
   it('skips a chatroom whose getMachineAgentConfigs rejects and continues to the next', async () => {
     const backendMutation = vi.fn().mockResolvedValue({ failedTurns: 0 });
     const backendQuery = vi.fn().mockImplementation((_api: any, args: any) => {
-      if (args && 'machineId' in args && !('chatroomId' in args)) return Promise.resolve([]); // getMachineHarnessSessions
       if (args.chatroomId === 'room-1') return Promise.reject(new Error('boom')); // configs fails for room-1
       return Promise.resolve({
         configs: [{ machineId: 'test-machine-id', workingDir: '/tmp/ws2', role: 'builder' }],
