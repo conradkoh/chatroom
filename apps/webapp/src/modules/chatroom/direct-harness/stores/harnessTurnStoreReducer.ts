@@ -1,4 +1,4 @@
-import type { HarnessTurnView } from '@workspace/backend/src/domain/direct-harness/types';
+import type { HarnessTurnView } from '@workspace/backend/src/domain/harness/types';
 
 export interface HarnessTurnStoreState {
   turns: HarnessTurnView[];

@@ -6,9 +6,9 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { t } from '../../test.setup';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import { setupWorkspaceForSession } from './harness-fixtures';
 import { completeActiveTasksForRole } from '../../src/domain/usecase/task/complete-active-tasks';
+import { t } from '../../test.setup';
 
 describe('completeActiveTasksForRole', () => {
   test('completes only planner tasks, leaves builder tasks in_progress', async () => {

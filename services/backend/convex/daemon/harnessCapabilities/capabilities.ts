@@ -8,7 +8,6 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from '../../_generated/server';
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── publishMachineCapabilities ───────────────────────────────────────────────
@@ -48,8 +47,6 @@ export const publishMachineCapabilities = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const existing = await ctx.db
@@ -80,7 +77,6 @@ export const getForMachine = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const existing = await ctx.db

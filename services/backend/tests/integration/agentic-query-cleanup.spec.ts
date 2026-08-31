@@ -4,9 +4,9 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { setupWorkspaceForSession } from './harness-fixtures';
 import { api, internal } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 

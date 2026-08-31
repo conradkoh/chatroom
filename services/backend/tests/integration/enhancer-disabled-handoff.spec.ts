@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { setupPlannerWorkspaceForSession } from './harness-fixtures';
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import {
@@ -14,7 +15,6 @@ import {
   addEnhancerToTeamRoles,
   enableEnhancerTeamAgent,
 } from '../helpers/integration';
-import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 async function setupPlannerEntryWorkspace(prefix: string) {
   const { sessionId } = await createTestSession(`${prefix}-session`);

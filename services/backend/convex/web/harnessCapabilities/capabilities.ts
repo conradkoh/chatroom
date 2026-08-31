@@ -8,7 +8,6 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { query } from '../../_generated/server';
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 
 // ─── listForWorkspace ─────────────────────────────────────────────────────────
 
@@ -18,8 +17,6 @@ export const listForWorkspace = query({
     workspaceId: v.id('chatroom_workspaces'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
     const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
     if (!workspace) return { machineId: null, harnesses: [] };
 

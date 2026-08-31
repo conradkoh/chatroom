@@ -1,7 +1,6 @@
-import type { Doc } from '../../_generated/dataModel';
-import type { QueryCtx } from '../../_generated/server';
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
+import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
+import { requireMachineOwner } from '../auth/cli/machineAccess';
 
 /** Authorize daemon access and load workspaces registered for a machine. */
 export async function requireMachineWorkspaces(
@@ -9,7 +8,6 @@ export async function requireMachineWorkspaces(
   sessionId: string,
   machineId: string
 ): Promise<Doc<'chatroom_workspaces'>[]> {
-  requireDirectHarnessWorkers();
   await requireMachineOwner(ctx, sessionId, machineId);
 
   return ctx.db

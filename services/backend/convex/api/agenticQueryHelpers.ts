@@ -4,18 +4,11 @@
 
 import { ConvexError } from 'convex/values';
 
-import { featureFlags } from '../../config/featureFlags';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { AuthenticatedChatroomAccess } from '../auth/chatroomAccess';
 import { requireChatroomAccess } from '../auth/chatroomAccess';
 import { type MachineAuth, requireMachineOwner } from '../auth/cli/machineAccess';
-
-export function requireDirectHarnessWorkers(): void {
-  if (!featureFlags.directHarnessWorkers) {
-    throw new ConvexError('directHarnessWorkers feature flag is disabled');
-  }
-}
 
 export async function getNextRunTurnSeq(
   ctx: { db: MutationCtx['db'] },

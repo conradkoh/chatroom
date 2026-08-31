@@ -2,12 +2,8 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from '../../_generated/server';
-import {
-  getRunWithAccess,
-  requireDirectHarnessWorkers,
-  requireOpencodeRun,
-} from '../../api/agenticQueryHelpers';
-import { withMachineWorkspaces } from '../directHarness/machineWorkspaces';
+import { getRunWithAccess, requireOpencodeRun } from '../../api/agenticQueryHelpers';
+import { withMachineWorkspaces } from '../machineWorkspaces';
 
 export const associateOpenCodeSessionId = mutation({
   args: {
@@ -17,7 +13,6 @@ export const associateOpenCodeSessionId = mutation({
     sessionTitle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     const { run } = await getRunWithAccess(ctx, args.sessionId, args.runId);
     const s = requireOpencodeRun(run);
 
@@ -47,7 +42,6 @@ export const closeRun = mutation({
     runId: v.id('chatroom_agenticQueryRuns'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     const { run } = await getRunWithAccess(ctx, args.sessionId, args.runId);
     if (run.status === 'closed') return;
     await ctx.db.patch('chatroom_agenticQueryRuns', args.runId, {
@@ -63,7 +57,6 @@ export const markIdle = mutation({
     runId: v.id('chatroom_agenticQueryRuns'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     const { run } = await getRunWithAccess(ctx, args.sessionId, args.runId);
     if (run.status === 'failed' || run.status === 'closed') return;
     await ctx.db.patch('chatroom_agenticQueryRuns', args.runId, {
@@ -80,7 +73,6 @@ export const markFailed = mutation({
     runId: v.id('chatroom_agenticQueryRuns'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await getRunWithAccess(ctx, args.sessionId, args.runId);
     await ctx.db.patch('chatroom_agenticQueryRuns', args.runId, {
       status: 'failed',
@@ -96,7 +88,6 @@ export const markActive = mutation({
     runId: v.id('chatroom_agenticQueryRuns'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     const { run } = await getRunWithAccess(ctx, args.sessionId, args.runId);
     if (run.status === 'failed' || run.status === 'closed') return;
     await ctx.db.patch('chatroom_agenticQueryRuns', args.runId, {
@@ -112,7 +103,6 @@ export const getRun = query({
     runId: v.id('chatroom_agenticQueryRuns'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     const { run } = await getRunWithAccess(ctx, args.sessionId, args.runId);
     const s = requireOpencodeRun(run);
     return {
@@ -189,3 +179,4 @@ export const pendingForMachine = query({
       return shaped;
     }),
 });
+// fallow-ignore-file code-duplication

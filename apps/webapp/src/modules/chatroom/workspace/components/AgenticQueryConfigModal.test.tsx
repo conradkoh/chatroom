@@ -14,7 +14,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     web: {
-      directHarness: {
+      harnessCapabilities: {
         commands: {
           refreshCapabilities: 'refreshCapabilities',
         },

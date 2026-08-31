@@ -1,19 +1,17 @@
-/**
- * Shared fixtures for direct-harness integration tests.
- */
+/** Shared workspace fixtures for harness-backed integration tests. */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { api } from '../../../convex/_generated/api';
-import type { Id } from '../../../convex/_generated/dataModel';
-import { t } from '../../../test.setup';
+import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
+import { t } from '../../test.setup';
 import {
   createTestSession,
   createDuoTeamChatroom,
   createPlannerBuilderDuoChatroom,
   createSoloTeamChatroom,
   registerMachineWithDaemon,
-} from '../../helpers/integration';
+} from '../helpers/integration';
 
 export const TEST_CWD = '/home/test/repo';
 export const TEST_HARNESS_NAME = 'opencode-sdk';
@@ -94,19 +92,4 @@ export async function setupSoloWorkspaceForSession(prefix?: string): Promise<Wor
 
 export async function setupPlannerWorkspaceForSession(prefix?: string): Promise<WorkspaceSetup> {
   return setupWorkspaceForTeam(prefix, 'duo-planner');
-}
-
-/** Shared helper to create a session using the new `create` endpoint. */
-export async function createSession(
-  sessionId: SessionId,
-  workspaceId: Id<'chatroom_workspaces'>,
-  agent = 'builder'
-) {
-  return t.mutation(api.web.directHarness.sessions.create, {
-    sessionId,
-    workspaceId,
-    harnessName: TEST_HARNESS_NAME,
-    config: { agent },
-    firstMessage: `Starting session as ${agent}`,
-  });
 }

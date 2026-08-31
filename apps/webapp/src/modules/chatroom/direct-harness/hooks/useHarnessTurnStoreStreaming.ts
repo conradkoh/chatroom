@@ -1,6 +1,6 @@
 'use client';
 
-import type { HarnessTurnView } from '@workspace/backend/src/domain/direct-harness/types';
+import type { HarnessTurnView } from '@workspace/backend/src/domain/harness/types';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 

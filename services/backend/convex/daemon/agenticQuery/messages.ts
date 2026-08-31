@@ -2,12 +2,8 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from '../../_generated/server';
-import {
-  getRunWithAccess,
-  requireDirectHarnessWorkers,
-  requireOpencodeRun,
-} from '../../api/agenticQueryHelpers';
-import { withMachineWorkspaces } from '../directHarness/machineWorkspaces';
+import { getRunWithAccess, requireOpencodeRun } from '../../api/agenticQueryHelpers';
+import { withMachineWorkspaces } from '../machineWorkspaces';
 
 export const appendMessages = mutation({
   args: {
@@ -23,7 +19,6 @@ export const appendMessages = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
     await getRunWithAccess(ctx, args.sessionId, args.runId);
 
     if (args.chunks.length === 0) return { inserted: 0 };

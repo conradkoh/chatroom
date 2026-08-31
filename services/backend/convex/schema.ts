@@ -2684,68 +2684,6 @@ export default defineSchema({
     .index('by_machineId', ['machineId'])
     .index('by_machineId_chatroomId', ['machineId', 'chatroomId']),
 
-  // ─── direct-harness (feature flag: directHarnessWorkers) ─────────────────
-
-  /**
-   * A HarnessSession represents one conversation with a harness process.
-   * Uses a discriminated union on `type` - each harness type groups its own
-   * fields under a matching sub-object (e.g. type='opencode' → opencode:{...}).
-   *
-   * Currently only 'opencode' is supported; new types are added as union members.
-   */
-  chatroom_harnessSessions: defineTable(
-    v.union(
-      // ── opencode ────────────────────────────────────────────────
-      v.object({
-        type: v.literal('opencode'),
-        workspaceId: v.id('chatroom_workspaces'),
-        status: v.union(
-          v.literal('pending'),
-          v.literal('spawning'),
-          v.literal('active'),
-          v.literal('idle'),
-          v.literal('closed'),
-          v.literal('failed')
-        ),
-        createdBy: v.id('users'),
-        createdAt: v.number(),
-        lastActiveAt: v.number(),
-        /**
-         * Cursor for the daemon's turn-based message processing.
-         * Indexes into chatroom_harnessSessionTurns. Default treated as 0.
-         */
-        lastProcessedTurnSeq: v.optional(v.number()),
-        /**
-         * True while the agent is actively generating a response.
-         * Combined with the unprocessed-message and queue-item checks in
-         * web/messages.send, this ensures messages sent while work is in
-         * flight are held in chatroom_harnessMessageQueue instead of
-         * landing mid-stream in the main message table.
-         * Owned exclusively by the daemon.
-         */
-        isGenerating: v.optional(v.boolean()),
-        /** OpenCode-specific session state. */
-        opencode: v.object({
-          harnessName: v.string(),
-          /** OpenCode SDK session identifier (set after spawning). */
-          opencodeSessionId: v.optional(v.string()),
-          /** Display title synced from the opencode SDK session. */
-          sessionTitle: v.optional(v.string()),
-          /** The last-used configuration for this session. */
-          lastUsedConfig: v.object({
-            agent: v.string(),
-            model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
-            system: v.optional(v.string()),
-            tools: v.optional(v.record(v.string(), v.boolean())),
-          }),
-        }),
-      })
-      // Add new harness types here as additional union members.
-    )
-  )
-    .index('by_workspace', ['workspaceId'])
-    .index('by_workspace_status', ['workspaceId', 'status']),
-
   /**
    * Agentic queries — user-submitted search/ask requests that spawn harness sessions.
    * Each query produces turns (user question + agent response) stored in chatroom_agenticQueryTurns.
@@ -2788,7 +2726,7 @@ export default defineSchema({
 
   /**
    * One SDK harness execution per agentic query submit/follow-up.
-   * Parallel to chatroom_harnessSessions but owned exclusively by agentic query.
+   * Owned exclusively by agentic query.
    */
   chatroom_agenticQueryRuns: defineTable({
     agenticQueryId: v.id('chatroom_agenticQueries'),
@@ -2950,81 +2888,6 @@ export default defineSchema({
     .index('by_taskId', ['taskId']),
 
   /**
-   * Messages produced by a harness session (both user prompts and assistant
-   * response chunks). seq is monotonically increasing per session.
-   * role distinguishes user messages from assistant responses.
-   */
-  chatroom_harnessSessionMessages: defineTable({
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    role: v.union(v.literal('user'), v.literal('assistant')),
-    content: v.string(),
-    timestamp: v.number(),
-    /** opencode SDK messageID - groups all tokens of one agent turn. Absent on user messages. */
-    messageId: v.optional(v.string()),
-    /** Distinguishes reasoning (thinking) tokens from regular text output. */
-    partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
-  })
-    .index('by_session', ['harnessSessionId'])
-    .index('by_session_role', ['harnessSessionId', 'role'])
-    .index('by_messageId', ['messageId']),
-
-  /**
-   * Long-term, source-of-truth turn-level message store.
-   *
-   * One row per logical turn (one user message OR one complete agent response).
-   * Assistant turns are eagerly created with status='pending' at session start,
-   * transition to 'streaming' on the first chunk, and to 'complete' on session.idle
-   * once the daemon flushes the consolidated content. User turns are inserted
-   * directly with status='complete' (no chunk phase).
-   *
-   * The companion chunk table (chatroom_harnessSessionMessages) is treated as
-   * ephemeral — chunks are streamed in for live UI updates and purged ~1 hour
-   * after their turn finalizes via a cron job.
-   *
-   * messageId on assistant turns matches the messageId on chunks belonging to
-   * that turn — the join key for both finalization and TTL cleanup.
-   */
-  chatroom_harnessSessionTurns: defineTable({
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    /** Monotonic, unique per session. 1-based. */
-    turnSeq: v.number(),
-    role: v.union(v.literal('user'), v.literal('assistant')),
-    status: v.union(
-      v.literal('pending'), // eagerly created, agent not yet streaming
-      v.literal('streaming'), // first chunk arrived, more incoming
-      v.literal('complete'), // finalized with consolidated content
-      v.literal('failed') // daemon crashed mid-stream, recovered as 'interrupted'
-    ),
-    /** SDK messageId — joins this turn to its chunks. Absent on user turns. */
-    messageId: v.optional(v.string()),
-    /** Concatenated regular text content. Empty until status='complete'. Empty for user role unless content is present (user turns are 'complete' on insert with full content here). */
-    textContent: v.string(),
-    /** Concatenated reasoning (thinking) content. Empty for user role and pending/streaming assistant. */
-    reasoningContent: v.string(),
-    startedAt: v.number(),
-    /** Set when status transitions to 'complete' or 'failed'. */
-    completedAt: v.optional(v.number()),
-  })
-    .index('by_session_turnSeq', ['harnessSessionId', 'turnSeq'])
-    .index('by_session_status', ['harnessSessionId', 'status'])
-    .index('by_messageId', ['messageId'])
-    .index('by_status_completedAt', ['status', 'completedAt']),
-
-  /**
-   * User messages held in reserve while work is in flight for a session.
-   * The web send mutation routes here instead of the main message table
-   * whenever isGenerating is true, unprocessed user messages exist, or
-   * the queue already has items. The daemon promotes items one-by-one
-   * (FIFO by _creationTime) after each session.idle event.
-   */
-  chatroom_harnessMessageQueue: defineTable({
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    content: v.string(),
-    timestamp: v.number(),
-    status: v.union(v.literal('queued'), v.literal('delivered')),
-  }).index('by_session_status', ['harnessSessionId', 'status']),
-
-  /**
    * Per-machine capability snapshot: registered workspaces + per-workspace
    * agent list from the running harness. Published by the daemon on startup
    * and on harness boot. Upsert semantics (one row per machineId).
@@ -3070,45 +2933,4 @@ export default defineSchema({
       })
     ),
   }).index('by_machineId', ['machineId']),
-
-  /**
-   * Commands issued by the web UI for the daemon to execute.
-   *
-   * Uses a tagged-union pattern: `type` discriminates the command kind, and
-   * a field matching the type name holds the type-specific payload (e.g.
-   * when type is 'refreshCapabilities', `refreshCapabilities` holds the
-   * payload). This keeps the schema extensible - new types add a new optional
-   * field without changing the existing structure.
-   *
-   * Indexed by (machineId, status) for daemon polling.
-   */
-  chatroom_directHarnessCommands: defineTable({
-    /** The machine (daemon) that should execute this command. */
-    machineId: v.string(),
-    /** Workspace context the command applies to. */
-    workspaceId: v.id('chatroom_workspaces'),
-    /** Discriminated union: selects the command kind. */
-    type: v.union(
-      v.literal('refreshCapabilities'),
-      v.literal('refreshSessionTitle'),
-      v.literal('closeSession')
-    ),
-    /** Payload for refreshCapabilities commands. */
-    refreshCapabilities: v.optional(v.object({ initiatedBy: v.string() })),
-    /** Payload for refreshSessionTitle commands. */
-    refreshSessionTitle: v.optional(
-      v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })
-    ),
-    /** Payload for closeSession commands. */
-    closeSession: v.optional(v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })),
-    status: v.union(
-      v.literal('pending'),
-      v.literal('inProgress'),
-      v.literal('done'),
-      v.literal('failed')
-    ),
-    createdAt: v.number(),
-    completedAt: v.optional(v.number()),
-    errorMessage: v.optional(v.string()),
-  }).index('by_machineId_status', ['machineId', 'status']),
 });
