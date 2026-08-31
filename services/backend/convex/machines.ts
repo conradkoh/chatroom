@@ -1165,7 +1165,7 @@ export const sendCommand = mutation({
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
           reason: AgentStartReasonEnum['user.start'],
-          ...(args.payload.wantResume !== undefined ? { wantResume: args.payload.wantResume } : {}),
+          wantResume: args.payload.wantResume ?? false,
         },
         machine
       );
@@ -1174,6 +1174,13 @@ export const sendCommand = mutation({
 
     // ── restart-agent: delegate to use case ─────────────────────────────
     if (args.type === 'restart-agent' && args.payload?.chatroomId && args.payload?.role) {
+      const { model, agentHarness, workingDir } = args.payload;
+      if (!model || !agentHarness || !workingDir) {
+        throw new Error(
+          'Cannot restart agent: model, agentHarness, and workingDir are required in the payload.'
+        );
+      }
+
       const cmdChatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
       let existingConfig: Doc<'chatroom_teamAgentConfigs'> | null = null;
       if (cmdChatroom?.teamId) {
@@ -1205,10 +1212,9 @@ export const sendCommand = mutation({
             reason: AgentStartReasonEnum['user.restart'],
             overrides: {
               machineId: args.machineId,
-              model: args.payload.model,
-              agentHarness: args.payload.agentHarness,
-              workingDir: args.payload.workingDir,
-              wantResume: args.payload.wantResume,
+              model,
+              agentHarness,
+              workingDir,
             },
           },
         },
