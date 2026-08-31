@@ -20,7 +20,7 @@ export interface AgentRestartEventPayload {
   workingDir: string;
   correlationId: string;
   deadline: number;
-  wantResume?: boolean;
+  wantResume: boolean;
   lifecycleRevision?: number;
 }
 

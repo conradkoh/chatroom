@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true
+  },
+  "include": [
+    "./restart-orchestrator.ts",
+    "./events/agent/on-request-restart-agent.ts",
+    "./events/agent/on-request-start-agent.ts",
+    "./bridge/agent-control-bridge.ts",
+    "../domain/usecase/restart-agent.ts",
+    "../domain/usecase/start-agent.ts"
+  ]
+}

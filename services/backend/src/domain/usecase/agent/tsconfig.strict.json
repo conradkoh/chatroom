@@ -1,0 +1,16 @@
+{
+  "extends": "../../../../tsconfig.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "emitDeclarationOnly": false
+  },
+  "include": [
+    "../../entities/agent-restart.ts",
+    "./get-agent-config.ts",
+    "./request-agent-restart.ts",
+    "./start-agent.ts"
+  ]
+}
