@@ -15,6 +15,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { OBSERVATION_TTL_MS } from '../../config/reliability';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
@@ -23,8 +24,6 @@ import {
   createDuoTeamChatroom,
   registerMachineWithDaemon,
 } from '../helpers/integration';
-
-const RECENCY_WINDOW_MS = 60_000;
 
 async function registerWorkspace(
   sessionId: string,
@@ -61,7 +60,6 @@ async function listForMachine(sessionId: string, machineId: string) {
   return t.query(api.workspaces.listRecentlyObservedWorkspacesForMachine, {
     sessionId: sessionId as any,
     machineId,
-    recencyWindowMs: RECENCY_WINDOW_MS,
   });
 }
 
@@ -79,7 +77,7 @@ describe('recently-observed workspaces scoping', () => {
 
     const now = Date.now();
     await setObservedAt(recentRoom, now);
-    await setObservedAt(staleRoom, now - 2 * RECENCY_WINDOW_MS);
+    await setObservedAt(staleRoom, now - 2 * OBSERVATION_TTL_MS);
 
     const result = await listForMachine(sid, machineId);
     const workingDirs = result ?? [];
@@ -133,16 +131,16 @@ describe('recently-observed workspaces scoping', () => {
     expect(workingDirs).not.toContain('/ws/theirs');
   });
 
-  test('returns null when no workspaces are recently observed', async () => {
+  test('returns an empty list when no workspaces are recently observed', async () => {
     const { sessionId: sid } = await createTestSession('test-rows-null');
     const machineId = 'machine-rows-null';
     await registerMachineWithDaemon(sid, machineId);
 
     const staleRoom = await createDuoTeamChatroom(sid);
     await registerWorkspace(sid, staleRoom, machineId, '/ws/stale');
-    await setObservedAt(staleRoom, Date.now() - 2 * RECENCY_WINDOW_MS);
+    await setObservedAt(staleRoom, Date.now() - OBSERVATION_TTL_MS);
 
     const result = await listForMachine(sid, machineId);
-    expect(result).toBeNull();
+    expect(result).toEqual([]);
   });
 });

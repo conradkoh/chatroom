@@ -27,15 +27,13 @@ export type ListRecentlyObservedWorkspacesForMachineResult = WorkspaceForMachine
 
 export interface ListRecentlyObservedWorkspacesForMachineInput {
   machineId: string;
-  recencyWindowMs?: number;
 }
 
-async function listRecentlyObservedWorkspacesForMachineLegacy(
+export async function listRecentlyObservedWorkspacesForMachine(
   ctx: QueryCtx,
   input: ListRecentlyObservedWorkspacesForMachineInput
 ): Promise<ListRecentlyObservedWorkspacesForMachineResult> {
-  const recencyWindowMs = input.recencyWindowMs ?? OBSERVATION_TTL_MS;
-  const cutoff = Date.now() - recencyWindowMs;
+  const cutoff = Date.now() - OBSERVATION_TTL_MS;
 
   const workspaces = await ctx.db
     .query('chatroom_workspaces')
@@ -56,7 +54,7 @@ async function listRecentlyObservedWorkspacesForMachineLegacy(
         .query('chatroom_observation')
         .withIndex('by_chatroomId', (q) => q.eq('chatroomId', chatroomId))
         .first();
-      if (observation && observation.lastObservedAt >= cutoff) {
+      if (observation && observation.lastObservedAt > cutoff) {
         recentlyObservedChatrooms.add(chatroomId);
       }
     })
@@ -72,11 +70,4 @@ async function listRecentlyObservedWorkspacesForMachineLegacy(
       registeredAt: ws.registeredAt,
       registeredBy: ws.registeredBy,
     }));
-}
-
-export async function listRecentlyObservedWorkspacesForMachine(
-  ctx: QueryCtx,
-  input: ListRecentlyObservedWorkspacesForMachineInput
-): Promise<ListRecentlyObservedWorkspacesForMachineResult> {
-  return listRecentlyObservedWorkspacesForMachineLegacy(ctx, input);
 }

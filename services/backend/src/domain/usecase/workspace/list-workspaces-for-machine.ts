@@ -1,7 +1,7 @@
 /**
  * Use Case: List Workspaces for Machine
  *
- * Returns active workspaces on a machine whose chatroom was observed within 7 days.
+ * Returns active workspaces on a machine whose chatroom is currently observed.
  * Used by the daemon to discover which chatrooms/workspaces it manages.
  */
 
@@ -10,7 +10,6 @@ import {
   type ListRecentlyObservedWorkspacesForMachineResult,
   type WorkspaceForMachineView,
 } from './list-recently-observed-workspaces-for-machine';
-import { OBSERVATION_TTL_MS } from '../../../../config/reliability';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
 export type { WorkspaceForMachineView };
@@ -27,6 +26,5 @@ export async function listWorkspacesForMachine(
 ): Promise<ListWorkspacesForMachineResult> {
   return listRecentlyObservedWorkspacesForMachine(ctx, {
     machineId: input.machineId,
-    recencyWindowMs: OBSERVATION_TTL_MS,
   });
 }

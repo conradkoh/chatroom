@@ -3,7 +3,6 @@
  * and one-shot startup reconcile. No polling.
  */
 
-import { OBSERVATION_TTL_MS } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
@@ -11,8 +10,8 @@ import { api } from '../../../api.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 import type { WorkspaceForSync } from '../daemon-types.js';
 
-type RecentlyObservedWorkspaces = NonNullable<
-  FunctionReturnType<typeof api.workspaces.listRecentlyObservedWorkspacesForMachine>
+type RecentlyObservedWorkspaces = FunctionReturnType<
+  typeof api.workspaces.listRecentlyObservedWorkspacesForMachine
 >;
 
 function toSyncWorkspaces(workingDirs: RecentlyObservedWorkspaces): WorkspaceForSync[] {
@@ -25,10 +24,8 @@ export async function reconcileWorkspaceList(session: DaemonSessionServiceShape)
     {
       sessionId: session.sessionId,
       machineId: session.machineId,
-      recencyWindowMs: OBSERVATION_TTL_MS,
     }
   );
-  if (workspaces == null) return;
   if (!session.workspaceListStore) {
     session.workspaceListStore = { workspaces: [], updatedAt: 0 };
   }

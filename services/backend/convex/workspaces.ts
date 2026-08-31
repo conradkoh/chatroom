@@ -14,7 +14,6 @@ import { getSession, requireSession } from './auth/session';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { str } from './utils/types';
-import { OBSERVATION_TTL_MS } from '../config/reliability';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
@@ -99,14 +98,13 @@ export const removeWorkspace = mutation({
 
 /**
  * Observation-first workspace list for a machine (daemon subscription target).
- * Only returns workspaces whose chatroom was observed within `recencyWindowMs`.
- * Returns workingDir strings only (not full workspace objects) and null when idle.
+ * Only returns workspaces whose chatroom was observed within the fixed observation TTL.
+ * Returns workingDir strings only (not full workspace objects).
  */
 export const listRecentlyObservedWorkspacesForMachine = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    recencyWindowMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -118,11 +116,7 @@ export const listRecentlyObservedWorkspacesForMachine = query({
     });
     const workspaces = await listRecentlyObservedWorkspacesForMachineUseCase(ctx, {
       machineId: args.machineId,
-      recencyWindowMs: args.recencyWindowMs ?? OBSERVATION_TTL_MS,
     });
-    if (workspaces.length === 0) {
-      return null;
-    }
     return workspaces.map((ws) => ws.workingDir);
   },
 });
