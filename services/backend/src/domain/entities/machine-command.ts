@@ -41,7 +41,7 @@ export const machineCommandPayloadValidator = v.union(
     model: v.string(),
     workingDir: v.string(),
     reason: v.string(),
-    wantResume: v.optional(v.boolean()),
+    wantResume: v.boolean(),
     lifecycleRevision: v.optional(v.number()),
   }),
   v.object({
@@ -52,7 +52,7 @@ export const machineCommandPayloadValidator = v.union(
     model: v.string(),
     workingDir: v.string(),
     correlationId: v.string(),
-    wantResume: v.optional(v.boolean()),
+    wantResume: v.boolean(),
     lifecycleRevision: v.optional(v.number()),
   }),
   v.object({

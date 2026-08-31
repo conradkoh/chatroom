@@ -26,6 +26,7 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
+import type { MachineCommandPayload } from '../../entities/machine-command';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
@@ -138,7 +139,7 @@ export async function startAgent(
         role,
         type: 'remote' as AgentType,
         machineId,
-        agentHarness: agentHarness as AgentHarness | undefined,
+        agentHarness,
         model,
         workingDir,
         updatedAt: teamConfigNow,
@@ -168,20 +169,24 @@ export async function startAgent(
 
   const now = Date.now();
 
+  const startCommand: Extract<MachineCommandPayload, { type: 'agent.requestStart' }> = {
+    type: 'agent.requestStart',
+    chatroomId,
+    role,
+    agentHarness,
+    model,
+    workingDir,
+    reason,
+    wantResume: resolvedWantResume,
+    ...(input.lifecycleRevision !== undefined
+      ? { lifecycleRevision: input.lifecycleRevision }
+      : {}),
+  };
+
   await enqueueMachineCommand(ctx, {
     machineId,
     now,
-    command: {
-      type: 'agent.requestStart',
-      chatroomId,
-      role,
-      agentHarness,
-      model,
-      workingDir,
-      reason,
-      wantResume: resolvedWantResume,
-      lifecycleRevision: input.lifecycleRevision,
-    },
+    command: startCommand,
   });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
@@ -196,9 +201,13 @@ export async function startAgent(
       q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, chatroom?.teamId ?? '', role))
     )
     .first();
-  await projectAgentOperationalStatusForRole(ctx, chatroomId, role, undefined, {
-    config: startedConfig ?? undefined,
-  });
+  await projectAgentOperationalStatusForRole(
+    ctx,
+    chatroomId,
+    role,
+    undefined,
+    startedConfig ? { config: startedConfig } : {}
+  );
 
   return {
     agentHarness,

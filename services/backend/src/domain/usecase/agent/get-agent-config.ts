@@ -69,6 +69,12 @@ export interface ResolvedAgentConfig {
   desiredState: 'running' | 'stopped' | undefined;
   circuitState: 'closed' | 'open' | 'half-open' | undefined;
 
+  /**
+   * Persisted reconnect preference for platform-driven starts/restarts.
+   * Omitted for user-initiated starts/restarts.
+   */
+  wantResume: boolean | undefined;
+
   // ── Derived flags ───────────────────────────────────────────────────
 
   /**
@@ -144,6 +150,7 @@ export async function getAgentConfig(
     spawnedAt: teamConfig.spawnedAt,
     desiredState: teamConfig.desiredState,
     circuitState: teamConfig.circuitState,
+    wantResume: teamConfig.wantResume,
     hasSystemPromptControl: teamConfig.type === 'remote',
   };
 

@@ -51,22 +51,29 @@ export async function requestAgentRestart(
 
 function resolveRestartOverrides(
   request: AgentRestartRequest,
-  base: Omit<RunnableRemoteAgentConfig, 'wantResume'> & { wantResume?: boolean },
+  base: {
+    machineId: string;
+    agentHarness: RunnableRemoteAgentConfig['agentHarness'];
+    model: string;
+    workingDir: string;
+    wantResume: boolean | undefined;
+  },
   chatroom: Doc<'chatroom_rooms'> | null,
   role: string
 ): RunnableRemoteAgentConfig {
-  const overrides =
-    request.reason === AgentStartReasonEnum['user.restart'] ? request.overrides : undefined;
-  const source = Object.assign({}, base, overrides);
-  const isUserRestart = request.reason === AgentStartReasonEnum['user.restart'];
+  if (request.reason === AgentStartReasonEnum['user.restart']) {
+    return {
+      ...request.overrides,
+      wantResume: false,
+    };
+  }
+
   return {
-    machineId: source.machineId,
-    agentHarness: source.agentHarness,
-    model: source.model,
-    workingDir: source.workingDir,
-    wantResume: isUserRestart
-      ? (overrides?.wantResume ?? defaultWantResume(chatroom, role))
-      : (source.wantResume ?? defaultWantResume(chatroom, role)),
+    machineId: base.machineId,
+    agentHarness: base.agentHarness,
+    model: base.model,
+    workingDir: base.workingDir,
+    wantResume: base.wantResume ?? defaultWantResume(chatroom, role),
   };
 }
 
@@ -159,7 +166,11 @@ async function persistRestartAndEmit(
         )
         .first()
     : null;
-  await projectAgentOperationalStatusForRole(ctx, input.chatroomId, input.role, undefined, {
-    config: restartedConfig ?? undefined,
-  });
+  await projectAgentOperationalStatusForRole(
+    ctx,
+    input.chatroomId,
+    input.role,
+    undefined,
+    restartedConfig ? { config: restartedConfig } : {}
+  );
 }
