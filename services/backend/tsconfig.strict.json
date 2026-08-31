@@ -1,0 +1,15 @@
+{
+  "extends": ["./tsconfig.json", "../../tsconfig.strict-base.json"],
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "emitDeclarationOnly": false
+  },
+  "include": [
+    "src/domain/entities/agent-restart.ts",
+    "src/domain/usecase/agent/get-agent-config.ts",
+    "src/domain/usecase/agent/request-agent-restart.ts",
+    "src/domain/usecase/agent/start-agent.ts"
+  ]
+}
