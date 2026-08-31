@@ -36,9 +36,9 @@ import { composerAccessoryRowClassName } from './shared/composerAccessoryButtonS
 import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 import { useStartInNewSessionPreference } from '../hooks/useStartInNewSessionPreference';
+import { takePendingComposerFocus } from '../utils/pendingComposerFocus';
 import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
 import { setFileTreeAutocompleteVisible } from '../workspace/files/workspaceFileTreeAutocompleteVisible';
-import { takePendingComposerFocus } from '../utils/pendingComposerFocus';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -531,6 +531,7 @@ export function MessageInput({
             <AttachedBacklogItemChip
               key={item.id}
               mode="editable"
+              chatroomId={chatroomId as Id<'chatroom_rooms'>}
               itemId={item.id}
               content={item.content}
               onRemove={() => remove('backlog', item.id)}
