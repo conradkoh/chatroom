@@ -59,6 +59,7 @@ import type {
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
+import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
 
@@ -728,7 +729,8 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const variant = decodeCodexVariant(options.model); // strict — refuses malformed variants before any side effects
+    const model = requireHarnessModel(options.model, 'codex-sdk spawn');
+    const variant = decodeCodexVariant(model);
     const deferInitialTurn = options.deferInitialTurn ?? false;
     const keeper = this.spawnKeeper(options.workingDir);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
@@ -760,7 +762,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       thread,
       context,
       workingDir: options.workingDir,
-      model: options.model,
+      model,
       initialPrompt: fullPrompt,
       deferInitialTurn,
       storedSystemPrompt: options.systemPrompt,
@@ -776,7 +778,12 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
       const pid = keeper.pid!;
 
-      const variant = decodeCodexVariant(options.model ?? stored.model);
+      const model = resolveHarnessResumeModel(
+        options.model,
+        stored.model,
+        'codex-sdk resumeFromDaemonMemory'
+      );
+      const variant = decodeCodexVariant(model);
       const { Codex } = await loadSdk();
       const codexPath = resolveCodexExecutablePath();
       const codex = new Codex({
@@ -795,7 +802,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
         thread,
         context: options.context,
         workingDir: stored.workingDir,
-        model: options.model ?? stored.model,
+        model,
         initialPrompt: options.prompt,
         storedSystemPrompt: options.systemPrompt,
         resumedThreadId: stored.harnessSessionId,

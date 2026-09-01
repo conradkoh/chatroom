@@ -86,7 +86,7 @@ describe('CursorSdkHarness', () => {
   it('creates a session via Agent.create', async () => {
     stubAgent();
     const harness = new CursorSdkHarness('/tmp/work');
-    const session = await harness.newSession({});
+    const session = await harness.newSession({ model: 'cursor/composer-2.5' });
 
     expect(mockAgentCreate).toHaveBeenCalled();
     expect(session.opencodeSessionId).toBe('agent-1');

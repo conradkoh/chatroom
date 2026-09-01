@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeCursorVariant,
   resolveCursorSdkModel,
-  resolveCursorSdkSpawnModelId,
   resolveCursorSdkSpawnModelSelection,
 } from './cursor-models.js';
 
@@ -76,13 +75,6 @@ describe('resolveCursorSdkModel', () => {
 
   it('passes through auto', () => {
     expect(resolveCursorSdkModel('auto')).toBe('auto');
-  });
-});
-
-describe('resolveCursorSdkSpawnModelId', () => {
-  it('decodes variants and prefixes', () => {
-    expect(resolveCursorSdkSpawnModelId('gpt-5.4[effort=high]')).toBe('gpt-5.4-high');
-    expect(resolveCursorSdkSpawnModelId('cursor/default')).toBe('auto');
   });
 });
 

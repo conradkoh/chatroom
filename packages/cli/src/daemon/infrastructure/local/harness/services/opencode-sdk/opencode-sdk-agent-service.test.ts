@@ -160,7 +160,7 @@ function spawnOptions(
     workingDir: '/tmp/test',
     prompt: createSpawnPrompt(overrides?.prompt ?? 'do the thing'),
     systemPrompt: overrides?.systemPrompt ?? 'you are a helpful builder',
-    model: overrides?.model,
+    model: overrides && 'model' in overrides ? overrides.model : TEST_MODEL_OPENCODE,
     context: { ...SPAWN_CONTEXT, ...contextOverride },
     resolvedConvexUrl: 'http://test:3210',
   };
@@ -477,8 +477,10 @@ describe('OpenCodeSdkAgentService', () => {
         pid: 4321,
         createdAt: new Date().toISOString(),
         baseUrl: 'http://127.0.0.1:5678',
+        model: TEST_MODEL_OPENCODE,
       });
       const deps = createMockDeps({ sessionMetadataStore: sessionStore });
+      stubSdkClient();
       const service = new OpenCodeSdkAgentService(deps);
 
       await service.resumeTurn(4321, 'resume prompt');
@@ -1141,17 +1143,14 @@ describe('OpenCodeSdkAgentService', () => {
       });
     });
 
-    it('omits the model field when no model is selected (lets opencode default apply)', async () => {
+    it('throws when no model is provided', async () => {
       const child = makeFakeChild();
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
-      const sdk = stubSdkClient();
       const service = new OpenCodeSdkAgentService(deps);
 
-      const spawnPromise = service.spawn(spawnOptions({ model: undefined }));
-      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
-      await spawnPromise;
-
-      expect(sdk.promptAsync.mock.calls[0][0].body.model).toBeUndefined();
+      await expect(
+        service.spawn(spawnOptions({ model: undefined as unknown as string }))
+      ).rejects.toThrow('Harness model is required');
     });
 
     it('omits the model field when the slug has no provider prefix (malformed input)', async () => {

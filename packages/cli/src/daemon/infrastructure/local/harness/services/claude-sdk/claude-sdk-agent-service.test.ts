@@ -7,6 +7,7 @@ import {
   resetClaudeSdkModuleCacheForTests,
   type ClaudeSdkAgentServiceDeps,
 } from './claude-sdk-agent-service.js';
+import { TEST_MODEL_CLAUDE } from '../../../../../../testing/test-models.js';
 import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
@@ -137,6 +138,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -182,6 +184,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -212,6 +215,7 @@ describe('ClaudeSdkAgentService', () => {
           workingDir: '/tmp/work-a',
           prompt: createSpawnPrompt('bootstrap a'),
           systemPrompt: 'you are helpful',
+          model: TEST_MODEL_CLAUDE,
           context: SPAWN_CONTEXT,
           resolvedConvexUrl: 'http://test:3210',
           deferInitialTurn: true,
@@ -220,6 +224,7 @@ describe('ClaudeSdkAgentService', () => {
           workingDir: '/tmp/work-b',
           prompt: createSpawnPrompt('bootstrap b'),
           systemPrompt: 'you are helpful',
+          model: TEST_MODEL_CLAUDE,
           context: SPAWN_CONTEXT,
           resolvedConvexUrl: 'http://test:3210',
           deferInitialTurn: true,
@@ -247,6 +252,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -276,6 +282,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -329,6 +336,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -366,6 +374,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -413,6 +422,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -441,6 +451,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -482,6 +493,7 @@ describe('ClaudeSdkAgentService', () => {
           workingDir: '/tmp/resume-wd',
           prompt: createSpawnPrompt('resume hello'),
           systemPrompt: 'sys',
+          model: TEST_MODEL_CLAUDE,
           context: SPAWN_CONTEXT,
           resolvedConvexUrl: 'http://test:3210',
         },
@@ -531,6 +543,7 @@ describe('ClaudeSdkAgentService', () => {
           workingDir: '/tmp/resume-wd',
           prompt: createSpawnPrompt('resume hello'),
           systemPrompt: 'sys',
+          model: TEST_MODEL_CLAUDE,
           context: SPAWN_CONTEXT,
           resolvedConvexUrl: 'http://test:3210',
         },
@@ -558,6 +571,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CLAUDE,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });

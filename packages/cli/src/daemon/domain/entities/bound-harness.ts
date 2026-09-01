@@ -112,7 +112,7 @@ export interface NewSessionConfig {
    * Model identifier, e.g. 'openai/gpt-4'.
    * Use `models()` to discover available IDs.
    */
-  readonly model?: string;
+  readonly model: string;
   /** System prompt for the session. */
   readonly systemPrompt?: string;
   /** Default agent for this session (e.g. 'builder', 'planner'). */

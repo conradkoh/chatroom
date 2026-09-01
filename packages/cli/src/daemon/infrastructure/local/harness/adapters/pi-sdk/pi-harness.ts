@@ -21,10 +21,10 @@ import type {
 import { getPiSessionDir } from '../../services/pi/pi-agent-service.js';
 import { parsePiSpawnModel, resolvePiThinkingLevel } from '../../services/pi/pure.js';
 import { formatPiSdkLoadError, importBundledPiSdk } from '../../services/pi-sdk/pi-sdk-package.js';
+import { requireHarnessModel } from '../../services/require-harness-model.js';
 import { withTimeout } from '../../services/with-timeout.js';
 
 const SESSION_CREATE_TIMEOUT_MS = 60_000;
-const DEFAULT_MODEL = 'opencode/big-pickle';
 
 type LoadedPiSdk = Awaited<ReturnType<typeof importBundledPiSdk>>;
 
@@ -47,17 +47,16 @@ type PiModelRegistry = ReturnType<LoadedPiSdk['ModelRegistry']['create']>;
 type PiAuthStorage = ReturnType<LoadedPiSdk['AuthStorage']['create']>;
 type PiSessionManager = ReturnType<LoadedPiSdk['SessionManager']['create']>;
 
-function resolveModel(modelRegistry: PiModelRegistry, model?: string) {
-  if (model) {
-    const slash = model.indexOf('/');
-    if (slash === -1) {
-      return modelRegistry.getAll().find((entry: { id: string }) => entry.id === model);
-    }
-    const provider = model.slice(0, slash);
-    const modelId = model.slice(slash + 1);
-    return modelRegistry.find(provider, modelId);
+function resolveRequiredModel(modelRegistry: PiModelRegistry, model: string) {
+  const slash = model.indexOf('/');
+  const resolved =
+    slash === -1
+      ? modelRegistry.getAll().find((entry: { id: string }) => entry.id === model)
+      : modelRegistry.find(model.slice(0, slash), model.slice(slash + 1));
+  if (!resolved) {
+    throw new Error(`Pi model not found: ${model}`);
   }
-  return modelRegistry.getAvailable()[0];
+  return resolved;
 }
 
 export class PiSdkHarness implements BoundHarness {
@@ -108,10 +107,11 @@ export class PiSdkHarness implements BoundHarness {
   async newSession(config: NewSessionConfig): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
 
+    const model = requireHarnessModel(config.model, 'pi-sdk newSession');
     const { SessionManager } = await loadSdk();
     const session = await this.openAgentSession({
       systemPrompt: config.systemPrompt ?? '',
-      model: config.model ?? DEFAULT_MODEL,
+      model,
       sessionManager: SessionManager.create(getPiSessionDir(this.cwd)),
       requireModel: true,
     });
@@ -187,9 +187,12 @@ export class PiSdkHarness implements BoundHarness {
     const parsed = args.model ? parsePiSpawnModel(args.model) : undefined;
     const modelSlug = parsed?.model ?? args.model;
     const resolvedModel = args.requireModel
-      ? resolveModel(this.modelRegistry, modelSlug ?? DEFAULT_MODEL)
+      ? resolveRequiredModel(
+          this.modelRegistry,
+          requireHarnessModel(modelSlug, 'pi-sdk openAgentSession')
+        )
       : modelSlug
-        ? resolveModel(this.modelRegistry, modelSlug)
+        ? resolveRequiredModel(this.modelRegistry, modelSlug)
         : undefined;
     const thinkingLevel = resolvePiThinkingLevel(parsed?.thinking);
 

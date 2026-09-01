@@ -7,6 +7,7 @@ import {
   CursorSdkAgentService,
   type CursorSdkAgentServiceDeps,
 } from './cursor-sdk-agent-service.js';
+import { TEST_MODEL_CURSOR } from '../../../../../../testing/test-models.js';
 import { wireTokenActivityReporting } from '../native-spawn-presence.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
@@ -127,6 +128,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -154,6 +156,7 @@ describe('CursorSdkAgentService', () => {
           workingDir: '/tmp/work',
           prompt: createSpawnPrompt('do work'),
           systemPrompt: 'you are helpful',
+          model: TEST_MODEL_CURSOR,
           context: SPAWN_CONTEXT,
           resolvedConvexUrl: 'http://test:3210',
         })
@@ -177,6 +180,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -222,6 +226,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -252,6 +257,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -296,6 +302,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -321,6 +328,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -369,6 +377,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -401,6 +410,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -430,6 +440,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -486,6 +497,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -533,6 +545,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -579,6 +592,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('run tools'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -604,6 +618,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -669,6 +684,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -723,6 +739,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -830,6 +847,7 @@ describe('CursorSdkAgentService', () => {
           workingDir: '/tmp/resume-wd',
           prompt: createSpawnPrompt('resume hello'),
           systemPrompt: 'sys',
+          model: TEST_MODEL_CURSOR,
           context: SPAWN_CONTEXT,
           resolvedConvexUrl: 'http://test:3210',
         },
@@ -893,6 +911,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -958,6 +977,7 @@ describe('CursorSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('run tools'),
         systemPrompt: 'system',
+        model: TEST_MODEL_CURSOR,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });

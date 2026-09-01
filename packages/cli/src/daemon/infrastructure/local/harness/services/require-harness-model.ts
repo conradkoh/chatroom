@@ -6,3 +6,12 @@ export function requireHarnessModel(model: string | undefined, context: string):
   }
   return trimmed;
 }
+
+/** Resolve model for daemon-memory resume from spawn options or stored session metadata. */
+export function resolveHarnessResumeModel(
+  spawnModel: string | undefined,
+  storedModel: string | undefined,
+  context: string
+): string {
+  return requireHarnessModel(spawnModel ?? storedModel, context);
+}

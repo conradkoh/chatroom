@@ -27,6 +27,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createOpencodeSdkChunkExtractor } from './event-extractor.js';
 import { startOpencodeSdkHarness } from './index.js';
 import type { OpencodeSdkHarness } from './opencode-harness.js';
+import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
 import type { BoundHarness } from '../../../../../domain/entities/bound-harness.js';
 
 // ─── Skip guard ───────────────────────────────────────────────────────────────
@@ -100,7 +101,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
   // ── Session + prompt ───────────────────────────────────────────────────────
 
   it('opens a session, receives text events, and returns a response', async () => {
-    const session = await harness.newSession({ agent: AGENT });
+    const session = await harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE });
 
     const chunks: string[] = [];
     const eventTypes: string[] = [];
@@ -151,8 +152,8 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
 
   it('can open two sessions independently on the same harness', async () => {
     const [s1, s2] = await Promise.all([
-      harness.newSession({ agent: AGENT }),
-      harness.newSession({ agent: AGENT }),
+      harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE }),
+      harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE }),
     ]);
 
     expect(s1.opencodeSessionId).not.toBe(s2.opencodeSessionId);
@@ -169,8 +170,8 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
     const subscribeBefore = h._debugSubscribeCount();
 
     const [s1, s2] = await Promise.all([
-      harness.newSession({ agent: AGENT }),
-      harness.newSession({ agent: AGENT }),
+      harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE }),
+      harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE }),
     ]);
 
     // Attach listeners (triggers per-session SSE loops in current code)
@@ -213,7 +214,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
   });
 
   it('streams text deltas via SSE only — no events arrive after session.idle', async () => {
-    const session = await harness.newSession({ agent: AGENT });
+    const session = await harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE });
 
     const deltaEventsWithTimestamp: { type: string; ts: number }[] = [];
     let firstIdleTs: number | null = null;
@@ -277,7 +278,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
   });
 
   it('aggregated text from streamed chunks matches a non-empty response', async () => {
-    const session = await harness.newSession({ agent: AGENT });
+    const session = await harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE });
 
     const chunksByMessage = new Map<string, string[]>();
     const extractChunk = createOpencodeSdkChunkExtractor();
@@ -337,7 +338,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
   // (idle-handler.test.ts) cover the finalizeAssistantTurn call path.
 
   it('session.idle arrives exactly once, and no delta events arrive after it', async () => {
-    const session = await harness.newSession({ agent: AGENT });
+    const session = await harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE });
 
     const deltaTimestamps: number[] = [];
     let firstIdleTs: number | null = null;

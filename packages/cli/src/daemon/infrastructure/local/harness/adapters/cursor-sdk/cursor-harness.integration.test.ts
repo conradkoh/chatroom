@@ -47,7 +47,11 @@ describe.skipIf(SKIP)('Cursor SDK harness integration', { timeout: 180_000 }, ()
   });
 
   it('runs a prompt and emits text chunks', async () => {
-    const session = await harness.newSession({ agent: 'builder', title: 'integration' });
+    const session = await harness.newSession({
+      agent: 'builder',
+      title: 'integration',
+      model: 'composer-2.5',
+    });
     const extract = createStandardSdkChunkExtractor();
     const chunks: string[] = [];
 
@@ -67,7 +71,11 @@ describe.skipIf(SKIP)('Cursor SDK harness integration', { timeout: 180_000 }, ()
 
   it('smoke: composer-2.5 run with tool use emits chunks without unhandled stream warnings', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const session = await harness.newSession({ agent: 'builder', title: 'sdk-smoke' });
+    const session = await harness.newSession({
+      agent: 'builder',
+      title: 'sdk-smoke',
+      model: 'composer-2.5',
+    });
     const extract = createStandardSdkChunkExtractor();
     const chunks: string[] = [];
 
