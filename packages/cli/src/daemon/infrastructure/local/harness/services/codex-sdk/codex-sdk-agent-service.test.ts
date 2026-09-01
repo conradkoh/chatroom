@@ -73,6 +73,12 @@ function stubStream(events: Record<string, unknown>[], overrides?: Record<string
 const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const THREAD_ID = 'codex-thread-abc';
+const SAMPLE_DAEMON_SESSION = {
+  harnessSessionId: THREAD_ID,
+  agentName: 'codex-sdk',
+  model: 'gpt-5.6',
+  workingDir: '/tmp/resume-wd',
+};
 
 function completedTurnEvents(): Record<string, unknown>[] {
   return [
@@ -490,14 +496,162 @@ describe('CodexSdkAgentService', () => {
     });
   });
 
-  describe('resumeFromDaemonMemory', () => {
-    const SAMPLE_DAEMON_SESSION = {
-      harnessSessionId: THREAD_ID,
-      agentName: 'codex-sdk',
-      model: 'gpt-5.6',
-      workingDir: '/tmp/resume-wd',
+  describe('maxReasoningLevel cap', () => {
+    const THREAD_OPTIONS_BASE = {
+      workingDirectory: '/tmp/work',
+      skipGitRepoCheck: true,
+      sandboxMode: 'danger-full-access',
+      networkAccessEnabled: true,
     };
 
+    async function spawnWithCap(overrides: {
+      model?: string;
+      maxReasoningLevel?: 'low' | 'medium' | 'high' | 'xhigh';
+    }) {
+      stubStream(completedTurnEvents());
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+      await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        ...overrides,
+      });
+      await vi.waitFor(() => expect(mockStartThread).toHaveBeenCalled());
+    }
+
+    it('caps reasoning=high to maxReasoningLevel medium on fresh spawn', async () => {
+      await spawnWithCap({
+        model: 'gpt-5.6-sol[reasoning=high]',
+        maxReasoningLevel: 'medium',
+      });
+      expect(mockStartThread).toHaveBeenCalledWith({
+        ...THREAD_OPTIONS_BASE,
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'medium',
+      });
+    });
+
+    it('keeps reasoning=low when max is medium', async () => {
+      await spawnWithCap({
+        model: 'gpt-5.6-sol[reasoning=low]',
+        maxReasoningLevel: 'medium',
+      });
+      expect(mockStartThread).toHaveBeenCalledWith({
+        ...THREAD_OPTIONS_BASE,
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'low',
+      });
+    });
+
+    it('passes maxReasoningLevel high for a plain model', async () => {
+      await spawnWithCap({
+        model: 'gpt-5.6',
+        maxReasoningLevel: 'high',
+      });
+      expect(mockStartThread).toHaveBeenCalledWith({
+        ...THREAD_OPTIONS_BASE,
+        model: 'gpt-5.6',
+        modelReasoningEffort: 'high',
+      });
+    });
+
+    it('passes maxReasoningLevel high when variant requests reasoning=none', async () => {
+      await spawnWithCap({
+        model: 'gpt-5.6-sol[reasoning=none]',
+        maxReasoningLevel: 'high',
+      });
+      expect(mockStartThread).toHaveBeenCalledWith({
+        ...THREAD_OPTIONS_BASE,
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'high',
+      });
+    });
+
+    it('preserves unset max behavior for explicit reasoning', async () => {
+      await spawnWithCap({ model: 'gpt-5.6-sol[reasoning=high]' });
+      expect(mockStartThread).toHaveBeenCalledWith({
+        ...THREAD_OPTIONS_BASE,
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'high',
+      });
+    });
+
+    it('preserves unset max behavior for reasoning=none', async () => {
+      await spawnWithCap({ model: 'gpt-5.6-sol[reasoning=none]' });
+      expect(mockStartThread).toHaveBeenCalledWith({
+        ...THREAD_OPTIONS_BASE,
+        model: 'gpt-5.6-sol',
+      });
+    });
+
+    it('resume applies stored max and prefers explicit option over stored metadata', async () => {
+      stubStream(completedTurnEvents());
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await service.resumeFromDaemonMemory(
+        {
+          workingDir: '/tmp/resume-wd',
+          prompt: createSpawnPrompt('resume hello'),
+          systemPrompt: 'sys',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+          model: 'gpt-5.6-sol[reasoning=high]',
+          maxReasoningLevel: 'medium',
+        },
+        {
+          ...SAMPLE_DAEMON_SESSION,
+          model: 'gpt-5.6-sol[reasoning=low]',
+          maxReasoningLevel: 'high',
+        }
+      );
+
+      expect(mockResumeThread).toHaveBeenCalledWith(THREAD_ID, {
+        ...THREAD_OPTIONS_BASE,
+        workingDirectory: '/tmp/resume-wd',
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'medium',
+      });
+    });
+
+    it('resume uses stored max when option is absent', async () => {
+      stubStream(completedTurnEvents());
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await service.resumeFromDaemonMemory(
+        {
+          workingDir: '/tmp/resume-wd',
+          prompt: createSpawnPrompt('resume hello'),
+          systemPrompt: 'sys',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        },
+        {
+          ...SAMPLE_DAEMON_SESSION,
+          model: 'gpt-5.6-sol[reasoning=none]',
+          maxReasoningLevel: 'high',
+        }
+      );
+
+      expect(mockResumeThread).toHaveBeenCalledWith(THREAD_ID, {
+        ...THREAD_OPTIONS_BASE,
+        workingDirectory: '/tmp/resume-wd',
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'high',
+      });
+    });
+  });
+
+  describe('resumeFromDaemonMemory', () => {
     it('resumes the stored thread id via Codex.resumeThread', async () => {
       stubStream(completedTurnEvents());
 

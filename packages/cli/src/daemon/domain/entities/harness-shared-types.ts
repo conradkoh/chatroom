@@ -25,3 +25,6 @@ export interface HarnessCapability {
 
 /** Known agent harness identifiers used by the daemon. */
 export type AgentHarness = string;
+
+/** Upper bound on Codex SDK `modelReasoningEffort` (excludes harness `none`). */
+export type MaxReasoningLevel = 'low' | 'medium' | 'high' | 'xhigh';

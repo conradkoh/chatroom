@@ -7,7 +7,10 @@
  */
 
 import type { SpawnPrompt } from './spawn-prompt.js';
+import type { MaxReasoningLevel } from '../../../../domain/entities/harness-shared-types.js';
 import type { HarnessActivityEmitter } from '../../../agent-process-manager/harness-activity-emitter.js';
+
+export type { MaxReasoningLevel };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,12 +59,15 @@ export interface SpawnOptions {
   resolvedConvexUrl: string;
   /** When true, harness creates session but waits for resumeTurn before first user turn. */
   deferInitialTurn?: boolean;
+  /** Optional upper bound on model reasoning effort; currently consumed by Codex SDK. */
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 /** Harness-specific metadata needed to reconnect after stop (daemon memory only). */
 export interface HarnessReconnectMetadata {
   agentName: string;
   model?: string;
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 /** Daemon-memory session context for stop→start resume (same daemon process). */
@@ -70,6 +76,7 @@ export interface DaemonHarnessSessionContext {
   agentName: string;
   workingDir: string;
   model?: string;
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 /** When the harness learns or rotates its provider-native session ID. */

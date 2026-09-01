@@ -1,5 +1,5 @@
 import type { HarnessSessionIdPair } from './harness-session-id-pair.js';
-import type { AgentHarness } from './harness-shared-types.js';
+import type { AgentHarness, MaxReasoningLevel } from './harness-shared-types.js';
 
 /**
  * Daemon-memory harness session context for stop→start or crash reconnect.
@@ -10,4 +10,5 @@ export interface HarnessSessionSnapshot extends HarnessSessionIdPair {
   agentName: string;
   workingDir: string;
   model?: string;
+  maxReasoningLevel?: MaxReasoningLevel;
 }

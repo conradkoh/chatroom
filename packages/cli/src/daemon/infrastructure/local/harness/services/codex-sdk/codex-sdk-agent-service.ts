@@ -54,6 +54,7 @@ import type {
   DaemonHarnessSessionContext,
   HarnessReconnectMetadata,
   HarnessSessionIdUpdatedInfo,
+  MaxReasoningLevel,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
@@ -109,6 +110,7 @@ interface SdkSession {
   aborted: boolean;
   threadId?: string;
   model?: string;
+  maxReasoningLevel?: MaxReasoningLevel;
   agentName: string;
   /** System prompt prepended to the first injected turn when deferInitialTurn is set. */
   storedSystemPrompt?: string;
@@ -125,6 +127,62 @@ function buildAgentName(context: SpawnContext): string {
 /** A codex variant validated against the codex schema (literal param types). */
 type CodexModelVariant = ValidatedModelVariant<typeof CODEX_MODEL_VARIANT_COMBINATIONS>;
 
+type CodexReasoningLevel = CodexModelVariant['params']['reasoning'];
+
+const REASONING_RANK: Record<MaxReasoningLevel, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  xhigh: 3,
+};
+
+// fallow-ignore-next-line complexity
+function resolveCodexReasoningEffort(
+  requested: CodexReasoningLevel | undefined,
+  max: MaxReasoningLevel | undefined
+): MaxReasoningLevel | undefined {
+  if (max === undefined) {
+    return requested === undefined || requested === 'none' ? undefined : requested;
+  }
+  if (requested === undefined || requested === 'none') return max;
+  return REASONING_RANK[requested] <= REASONING_RANK[max] ? requested : max;
+}
+
+function buildThreadOptions(
+  workingDir: string,
+  variant?: CodexModelVariant,
+  maxReasoningLevel?: MaxReasoningLevel
+): ThreadOptions {
+  const options: ThreadOptions = {
+    workingDirectory: workingDir,
+    skipGitRepoCheck: true,
+    // The agent must be able to reach the Convex deployment from shell tools.
+    sandboxMode: 'danger-full-access',
+    // Chatroom agents must be able to call the Chatroom CLI, which reaches the
+    // Convex deployment over the network.
+    networkAccessEnabled: true,
+  };
+  if (!variant) {
+    const effort = resolveCodexReasoningEffort(undefined, maxReasoningLevel);
+    if (effort !== undefined) {
+      options.modelReasoningEffort = effort;
+    }
+    return options;
+  }
+
+  options.model = variant.model;
+  const effort = resolveCodexReasoningEffort(variant.params.reasoning, maxReasoningLevel);
+  if (effort !== undefined) {
+    // The Codex SDK names this option "modelReasoningEffort"; our vocabulary
+    // is the neutral reasoning level (see model-variant.ts — thinking and
+    // effort mean different things across harnesses). "none" leaves the SDK
+    // default untouched when no max is configured; a configured max applies
+    // to plain/none requests to enforce the user's cap.
+    options.modelReasoningEffort = effort;
+  }
+  return options;
+}
+
 /**
  * Strict decode + schema validation of a codex model variant string.
  *
@@ -140,30 +198,6 @@ function decodeCodexVariant(encoded: string | undefined): CodexModelVariant | un
     decodeModelVariant(stripProviderPrefix('openai', encoded)),
     CODEX_MODEL_VARIANT_COMBINATIONS
   );
-}
-
-function buildThreadOptions(workingDir: string, variant?: CodexModelVariant): ThreadOptions {
-  const options: ThreadOptions = {
-    workingDirectory: workingDir,
-    skipGitRepoCheck: true,
-    // The agent must be able to reach the Convex deployment from shell tools.
-    sandboxMode: 'danger-full-access',
-    // Chatroom agents must be able to call the Chatroom CLI, which reaches the
-    // Convex deployment over the network.
-    networkAccessEnabled: true,
-  };
-  if (!variant) return options;
-
-  options.model = variant.model;
-  const reasoning = variant.params.reasoning;
-  if (reasoning !== undefined && reasoning !== 'none') {
-    // The Codex SDK names this option "modelReasoningEffort"; our vocabulary
-    // is the neutral reasoning level (see model-variant.ts — thinking and
-    // effort mean different things across harnesses). "none" leaves the
-    // SDK default untouched.
-    options.modelReasoningEffort = reasoning;
-  }
-  return options;
 }
 
 function buildCodexEnv(resolvedConvexUrl: string): Record<string, string> {
@@ -329,6 +363,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     return {
       agentName: session.agentName,
       ...(session.model ? { model: session.model } : {}),
+      ...(session.maxReasoningLevel ? { maxReasoningLevel: session.maxReasoningLevel } : {}),
     };
   }
 
@@ -356,6 +391,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     context: SpawnContext;
     workingDir: string;
     model?: string;
+    maxReasoningLevel?: MaxReasoningLevel;
     initialPrompt: string;
     deferInitialTurn?: boolean;
     storedSystemPrompt?: string;
@@ -368,6 +404,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       thread,
       context,
       model,
+      maxReasoningLevel,
       initialPrompt,
       deferInitialTurn = false,
       storedSystemPrompt,
@@ -389,6 +426,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       aborted: false,
       agentName,
       model,
+      maxReasoningLevel,
       storedSystemPrompt,
       ...(resumedThreadId ? { threadId: resumedThreadId } : {}),
     };
@@ -744,7 +782,9 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
         codexPathOverride: codexPath,
         env: buildCodexEnv(options.resolvedConvexUrl),
       });
-      thread = codex.startThread(buildThreadOptions(options.workingDir, variant));
+      thread = codex.startThread(
+        buildThreadOptions(options.workingDir, variant, options.maxReasoningLevel)
+      );
     } catch (err) {
       writeSpawnError(buildAgentLogPrefix('codex-sdk', context), err);
       keeper.kill();
@@ -760,12 +800,14 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       context,
       workingDir: options.workingDir,
       model: options.model,
+      maxReasoningLevel: options.maxReasoningLevel,
       initialPrompt: fullPrompt,
       deferInitialTurn,
       storedSystemPrompt: options.systemPrompt,
     });
   }
 
+  // fallow-ignore-next-line complexity
   async resumeFromDaemonMemory(
     options: SpawnOptions,
     stored: DaemonHarnessSessionContext
@@ -776,6 +818,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       const pid = keeper.pid!;
 
       const variant = decodeCodexVariant(options.model ?? stored.model);
+      const maxReasoningLevel = options.maxReasoningLevel ?? stored.maxReasoningLevel;
       const { Codex } = await loadSdk();
       const codexPath = resolveCodexExecutablePath();
       const codex = new Codex({
@@ -784,7 +827,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       });
       const thread = codex.resumeThread(
         stored.harnessSessionId,
-        buildThreadOptions(stored.workingDir, variant)
+        buildThreadOptions(stored.workingDir, variant, maxReasoningLevel)
       );
 
       return this.startRunningSession({
@@ -795,6 +838,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
         context: options.context,
         workingDir: stored.workingDir,
         model: options.model ?? stored.model,
+        maxReasoningLevel,
         initialPrompt: options.prompt,
         storedSystemPrompt: options.systemPrompt,
         resumedThreadId: stored.harnessSessionId,
