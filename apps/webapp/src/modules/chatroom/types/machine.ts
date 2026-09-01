@@ -231,7 +231,29 @@ export function getModelDisplayLabel(modelId: string, options?: ModelDisplayLabe
 }
 
 /** Last segment of a provider/model path for compact agent sidebar display. */
+// fallow-ignore-next-line unused-export
 export function getCompactModelId(modelId: string): string {
   const parts = getBaseModelId(modelId).split('/').filter(Boolean);
   return parts.at(-1) ?? modelId;
+}
+
+/**
+ * Compact sidebar label with one normalized effort-like model level.
+ * Harnesses currently call this parameter effort, reasoning, or thinking;
+ * the sidebar treats those values as equivalent at this density. Prefer an
+ * explicit effort/reasoning level over Cursor's boolean thinking marker.
+ */
+// fallow-ignore-next-line complexity
+export function getCompactModelLabel(modelId: string): string {
+  const compactModelId = getCompactModelId(modelId);
+
+  try {
+    const { params } = decodeModelVariant(modelId);
+    const level = params.effort ?? params.reasoning ?? params.thinking;
+    return level
+      ? `${compactModelId} [${level === 'enabled' ? 'thinking' : level}]`
+      : compactModelId;
+  } catch {
+    return compactModelId;
+  }
 }
