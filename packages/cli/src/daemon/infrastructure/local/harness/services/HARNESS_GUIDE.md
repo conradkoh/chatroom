@@ -455,9 +455,10 @@ A **requestStart replace** always kills via `doStop` regardless of resume state.
 
 Roles are split into two execution kinds, defined in `src/domain/execution-kind.ts`:
 
-| Kind            | Roles                                            | `participants.join` / `updateTokenActivity` | Example                              |
-| --------------- | ------------------------------------------------ | ------------------------------------------- | ------------------------------------ |
-| `team_agent`    | planner, builder, enhancer (default for unknown) | Yes — standard native presence wiring       | Persistent and ephemeral team roles  |
-| `daemon_worker` | (none currently)                                 | N/A                                         | Reserved for non-participant workers |
+<!-- prettier-ignore -->
+| Kind            | Roles                                  | `participants.join` / `updateTokenActivity` | Example                |
+| --------------- | -------------------------------------- | ------------------------------------------- | ---------------------- |
+| `team_agent`    | planner, builder, enhancer (default for unknown) | Yes — standard native presence wiring       | Persistent and ephemeral team roles |
+| `daemon_worker` | (none currently)                       | N/A                                         | Reserved for non-participant workers |
 
 The enhancer is an ephemeral team role. Its participant row is registered by the backend when an enhancer job is claimed, while native harness presence helpers may report subsequent activity using the same participant lifecycle. The enhancer job subscriber does not duplicate that registration or run long-lived token activity.
