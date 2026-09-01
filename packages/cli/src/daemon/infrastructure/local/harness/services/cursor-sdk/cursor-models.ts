@@ -2,6 +2,7 @@ import type { ModelSelection } from '@cursor/sdk';
 import {
   cursorLegacySlugToVariant,
   cursorVariantToCliSlug,
+  normalizeCursorParamsForCliSlug,
 } from '@workspace/backend/src/domain/entities/harness/cursor.model-variants.js';
 import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
 
@@ -25,7 +26,10 @@ export function decodeCursorVariant(
   try {
     const decoded = decodeModelVariant(encoded);
     return {
-      cliSlug: cursorVariantToCliSlug(decoded.model, decoded.params),
+      cliSlug: cursorVariantToCliSlug(
+        decoded.model,
+        normalizeCursorParamsForCliSlug(decoded.params)
+      ),
       params: decoded.params,
     };
   } catch {

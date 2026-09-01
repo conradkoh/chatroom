@@ -20,6 +20,35 @@ export function cursorLegacySlugToVariant(flatSlug: string) {
   return { base, params };
 }
 
+/**
+ * SDK catalog uses `reasoning`; legacy CLI slugs use `effort` suffixes.
+ * Maps SDK-only params to CLI-slug params. SDK-only keys (e.g. context) are dropped.
+ * Does NOT mutate the original params object.
+ */
+// fallow-ignore-next-line complexity
+export function normalizeCursorParamsForCliSlug(
+  params: Record<string, string>
+): Record<string, string> {
+  const out: Record<string, string> = {};
+
+  const effort =
+    params.effort ??
+    (params.reasoning && params.reasoning !== 'none' ? params.reasoning : undefined);
+  if (effort && effort !== 'none') {
+    out.effort = effort;
+  }
+
+  if (params.fast === 'enabled' || params.fast === 'true') {
+    out.fast = 'enabled';
+  }
+
+  if (params.thinking === 'enabled' || params.thinking === 'true') {
+    out.thinking = 'enabled';
+  }
+
+  return out;
+}
+
 export function cursorVariantToCliSlug(base: string, params: Record<string, string>): string {
   const suffix: string[] = [];
   if (params.effort && params.effort !== 'none')

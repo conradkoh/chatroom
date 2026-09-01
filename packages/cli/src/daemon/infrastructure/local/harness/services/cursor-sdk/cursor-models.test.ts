@@ -34,6 +34,34 @@ describe('decodeCursorVariant', () => {
   it('rejects malformed variants', () => {
     expect(() => decodeCursorVariant('gpt-5.4[effort')).toThrow();
   });
+
+  it('maps SDK reasoning param to CLI slug', () => {
+    expect(decodeCursorVariant('gpt-5.6-luna[reasoning=max]')).toEqual({
+      cliSlug: 'gpt-5.6-luna-max',
+      params: { reasoning: 'max' },
+    });
+  });
+
+  it('maps SDK catalog entry with extra params to CLI slug', () => {
+    expect(decodeCursorVariant('gpt-5.6-luna[reasoning=max,context=272k,fast=false]')).toEqual({
+      cliSlug: 'gpt-5.6-luna-max',
+      params: { reasoning: 'max', context: '272k', fast: 'false' },
+    });
+  });
+
+  it('reasoning=none yields plain slug', () => {
+    expect(decodeCursorVariant('gpt-5.6-luna[reasoning=none]')).toEqual({
+      cliSlug: 'gpt-5.6-luna',
+      params: { reasoning: 'none' },
+    });
+  });
+
+  it('effort param still takes precedence over reasoning', () => {
+    expect(decodeCursorVariant('gpt-5.4[effort=high,reasoning=max]')).toEqual({
+      cliSlug: 'gpt-5.4-high',
+      params: { effort: 'high', reasoning: 'max' },
+    });
+  });
 });
 
 describe('resolveCursorSdkModel', () => {
@@ -88,5 +116,12 @@ describe('resolveCursorSdkSpawnModelSelection', () => {
   it('maps auto to default', () => {
     expect(resolveCursorSdkSpawnModelSelection('cursor/default')).toEqual({ id: 'default' });
     expect(resolveCursorSdkSpawnModelSelection('auto')).toEqual({ id: 'default' });
+  });
+
+  it('cursor-sdk spawn still passes reasoning param verbatim', () => {
+    expect(resolveCursorSdkSpawnModelSelection('gpt-5.6-luna[reasoning=max]')).toEqual({
+      id: 'gpt-5.6-luna',
+      params: [{ id: 'reasoning', value: 'max' }],
+    });
   });
 });

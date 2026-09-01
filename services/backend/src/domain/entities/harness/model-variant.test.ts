@@ -6,7 +6,10 @@ import { describe, expect, test } from 'vitest';
 
 import { CLAUDE_MODEL_VARIANT_COMBINATIONS, CLAUDE_SPAWN_ALIASES } from './claude.model-variants';
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
-import { cursorLegacySlugToVariant } from './cursor.model-variants';
+import {
+  cursorLegacySlugToVariant,
+  normalizeCursorParamsForCliSlug,
+} from './cursor.model-variants';
 import { HARNESS_MODEL_CATALOG, type CatalogBackedHarness } from './model-catalog';
 import {
   ModelVariantParseError,
@@ -195,6 +198,21 @@ describe('HARNESS_MODEL_CATALOG', () => {
       params: { effort: 'max' },
     });
     expect(cursorLegacySlugToVariant('composer-2.5')).toBeUndefined();
+  });
+
+  test('normalizeCursorParamsForCliSlug maps reasoning to effort', () => {
+    expect(normalizeCursorParamsForCliSlug({ reasoning: 'max' })).toEqual({ effort: 'max' });
+    expect(normalizeCursorParamsForCliSlug({ reasoning: 'none' })).toEqual({});
+    expect(normalizeCursorParamsForCliSlug({ effort: 'high', reasoning: 'max' })).toEqual({
+      effort: 'high',
+    });
+    expect(normalizeCursorParamsForCliSlug({ reasoning: 'high', fast: 'false' })).toEqual({
+      effort: 'high',
+    });
+    expect(normalizeCursorParamsForCliSlug({ reasoning: 'high', fast: 'true' })).toEqual({
+      effort: 'high',
+      fast: 'enabled',
+    });
   });
 
   test('formats suffixes and expands catalogs', () => {
