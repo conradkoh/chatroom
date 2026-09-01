@@ -26,13 +26,35 @@ describe('agent commands', () => {
         workingDir: '/workspace',
         machineId: 'machine_1',
         desiredState: 'running',
+        maxReasoningLevel: 'high',
       },
     ]);
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await getAgentConfig('room_1', 'solo', d);
     expect(d.backend.query).toHaveBeenCalled();
     expect(log.mock.calls.join('\n')).toContain('codex-sdk');
+    expect(log.mock.calls.join('\n')).toContain('high');
     log.mockRestore();
+  });
+
+  test('sets remote config with maxReasoningLevel', async () => {
+    const d = deps();
+    await setAgentConfig(
+      'room_1',
+      {
+        role: 'solo',
+        harness: 'codex-sdk',
+        model: 'gpt-5.6-luna[reasoning=low]',
+        maxReasoningLevel: 'medium',
+      },
+      d
+    );
+    expect(d.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        maxReasoningLevel: 'medium',
+      })
+    );
   });
 
   test('sets remote config with machine and resolved working directory', async () => {
@@ -63,6 +85,7 @@ describe('agent commands', () => {
         agentHarness: 'codex-sdk',
         model: 'gpt-5.6-luna[reasoning=low]',
         workingDir: '/workspace',
+        maxReasoningLevel: 'high',
       },
     ]);
     await startAgent('room_1', { role: 'solo' }, d);
@@ -75,7 +98,27 @@ describe('agent commands', () => {
           role: 'solo',
           agentHarness: 'codex-sdk',
           model: 'gpt-5.6-luna[reasoning=low]',
+          maxReasoningLevel: 'high',
         }),
+      })
+    );
+  });
+
+  test('start override sends maxReasoningLevel in payload', async () => {
+    const d = deps([
+      {
+        role: 'solo',
+        agentHarness: 'codex-sdk',
+        model: 'gpt-5.6-luna[reasoning=low]',
+        workingDir: '/workspace',
+        maxReasoningLevel: 'high',
+      },
+    ]);
+    await startAgent('room_1', { role: 'solo', maxReasoningLevel: 'low' }, d);
+    expect(d.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({ maxReasoningLevel: 'low' }),
       })
     );
   });

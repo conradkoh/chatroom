@@ -1,3 +1,5 @@
+import type { MaxReasoningLevel } from '../entities/harness-shared-types.js';
+
 export interface RestartAgentInput {
   commandId: string;
   chatroomId: string;
@@ -10,6 +12,7 @@ export interface RestartAgentInput {
   deadline: number;
   wantResume: boolean;
   lifecycleRevision?: number;
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 export interface RestartOrchestratorPort {
@@ -22,6 +25,7 @@ export interface RestartAgentDeps {
   log?: (message: string) => void;
 }
 
+// fallow-ignore-next-line complexity
 export async function restartAgent(
   deps: RestartAgentDeps,
   input: RestartAgentInput
@@ -47,6 +51,9 @@ export async function restartAgent(
       wantResume: input.wantResume,
       ...(input.lifecycleRevision !== undefined
         ? { lifecycleRevision: input.lifecycleRevision }
+        : {}),
+      ...(input.maxReasoningLevel !== undefined
+        ? { maxReasoningLevel: input.maxReasoningLevel }
         : {}),
     });
   } catch {

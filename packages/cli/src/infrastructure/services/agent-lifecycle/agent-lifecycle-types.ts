@@ -9,6 +9,7 @@ import type { Effect } from 'effect';
 import { Context } from 'effect';
 
 import type { AgentSlotSnapshot } from '../../../daemon/domain/entities/agent-slot.js';
+import type { MaxReasoningLevel } from '../../../daemon/domain/entities/harness-shared-types.js';
 import type { StopReason } from '../../../daemon/domain/entities/stop-reason.js';
 import type { SpawnPrompt } from '../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 import type { AgentHarness } from '../../machine/types.js';
@@ -25,6 +26,7 @@ export interface AgentLifecycleSlot extends AgentSlotSnapshot {
   readonly workingDir?: string;
   readonly startedAt?: number;
   readonly wantResume?: boolean;
+  readonly maxReasoningLevel?: MaxReasoningLevel;
   readonly authorizedLifecycleRevision?: number;
   readonly recentLogLines?: string[];
   readonly _stopReasonCode?: number;
@@ -52,6 +54,7 @@ export interface EnsureRunningOpts {
   readonly reason: string;
   readonly wantResume: boolean;
   readonly lifecycleRevision?: number;
+  readonly maxReasoningLevel?: MaxReasoningLevel;
   readonly taskId?: string;
   readonly initPrompt?: string;
   readonly systemPrompt?: string;

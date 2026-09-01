@@ -6,6 +6,7 @@
 import { Effect } from 'effect';
 
 import type { Id } from '../../../../api.js';
+import type { MaxReasoningLevel } from '../../../../daemon/domain/entities/harness-shared-types.js';
 import { restartAgent } from '../../../../daemon/domain/usecase/restart-agent.js';
 import { createRestartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
@@ -22,6 +23,7 @@ export interface AgentRestartEventPayload {
   deadline: number;
   wantResume: boolean;
   lifecycleRevision?: number;
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 export const onRequestRestartAgentEffect = (
@@ -44,6 +46,7 @@ export const onRequestRestartAgentEffect = (
         deadline: event.deadline,
         wantResume: event.wantResume,
         lifecycleRevision: event.lifecycleRevision,
+        maxReasoningLevel: event.maxReasoningLevel,
       })
     );
   });

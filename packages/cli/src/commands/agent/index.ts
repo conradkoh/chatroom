@@ -2,6 +2,7 @@ import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent.
 
 import type { AgentDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
+import type { MaxReasoningLevel } from '../../daemon/domain/entities/harness-shared-types.js';
 import { getSessionId } from '../../infrastructure/auth/storage.js';
 import { getConvexClient } from '../../infrastructure/convex/client.js';
 import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/storage.js';
@@ -13,6 +14,7 @@ interface AgentConfig {
   workingDir?: string;
   machineId?: string;
   desiredState?: string;
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 async function createDefaultDeps(): Promise<AgentDeps> {
@@ -74,8 +76,10 @@ export async function getAgentConfig(
   console.log(`  Working directory: ${config.workingDir ?? '(unset)'}`);
   console.log(`  Machine ID: ${config.machineId ?? '(unset)'}`);
   console.log(`  Desired state: ${config.desiredState ?? '(unset)'}`);
+  console.log(`  Max reasoning level: ${config.maxReasoningLevel ?? '(unset)'}`);
 }
 
+// fallow-ignore-next-line complexity
 export async function setAgentConfig(
   chatroomId: string,
   options: {
@@ -83,6 +87,7 @@ export async function setAgentConfig(
     harness: string;
     model: string;
     workingDir?: string;
+    maxReasoningLevel?: MaxReasoningLevel;
   },
   deps?: AgentDeps
 ): Promise<void> {
@@ -100,12 +105,18 @@ export async function setAgentConfig(
     agentHarness: options.harness as AgentHarness,
     model: options.model,
     workingDir,
+    ...(options.maxReasoningLevel !== undefined
+      ? { maxReasoningLevel: options.maxReasoningLevel }
+      : {}),
   });
   console.log(`✅ Agent config saved for ${options.role}`);
   console.log(`  Harness: ${options.harness}`);
   console.log(`  Model: ${options.model}`);
   console.log(`  Working directory: ${workingDir}`);
   console.log(`  Machine ID: ${machineId}`);
+  if (options.maxReasoningLevel) {
+    console.log(`  Max reasoning level: ${options.maxReasoningLevel}`);
+  }
 }
 
 // fallow-ignore-next-line complexity
@@ -116,6 +127,7 @@ export async function startAgent(
     harness?: string;
     model?: string;
     workingDir?: string;
+    maxReasoningLevel?: MaxReasoningLevel;
   },
   deps?: AgentDeps
 ): Promise<void> {
@@ -134,6 +146,7 @@ export async function startAgent(
     existing?.workingDir ??
     configuredWorkingDir(machineConfig) ??
     process.cwd();
+  const maxReasoningLevel = options.maxReasoningLevel ?? existing?.maxReasoningLevel;
   if (!harness || !model) {
     throw new Error('Harness and model are required; provide flags or configure the agent first');
   }
@@ -147,6 +160,7 @@ export async function startAgent(
       agentHarness: harness as AgentHarness,
       model,
       workingDir,
+      ...(maxReasoningLevel !== undefined ? { maxReasoningLevel } : {}),
     },
   });
   console.log(`✅ Start command sent for ${options.role}`);
@@ -154,4 +168,7 @@ export async function startAgent(
   console.log(`  Model: ${model}`);
   console.log(`  Working directory: ${workingDir}`);
   console.log(`  Machine ID: ${machineId}`);
+  if (maxReasoningLevel) {
+    console.log(`  Max reasoning level: ${maxReasoningLevel}`);
+  }
 }

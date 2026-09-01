@@ -61,6 +61,7 @@ import type {
   AgentStopReason,
 } from '../../domain/entities/agent-stop.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
+import type { MaxReasoningLevel } from '../../domain/entities/harness-shared-types.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../domain/entities/stop-reason.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
@@ -146,6 +147,7 @@ interface ExitContext {
   harnessSessionId: string | undefined;
   resumableHarnessSessionId: string | undefined;
   wantResume: boolean | undefined;
+  maxReasoningLevel: MaxReasoningLevel | undefined;
   recentLogLines: string[] | undefined;
   stopReason: StopReason;
   terminalProviderFailureHandled: boolean;
@@ -161,6 +163,7 @@ export interface AgentSlot {
   /** Latest provider-native session ID for daemon-memory resume. */
   resumableHarnessSessionId?: string;
   model?: string;
+  maxReasoningLevel?: MaxReasoningLevel;
   workingDir?: string;
   startedAt?: number;
   /** Promise that resolves when a pending spawn or stop completes */
@@ -312,6 +315,7 @@ export class AgentProcessManager {
         harnessSessionId: slot.harnessSessionId,
         resumableHarnessSessionId: slot.resumableHarnessSessionId,
         model: slot.model,
+        maxReasoningLevel: slot.maxReasoningLevel,
         workingDir: slot.workingDir,
         startedAt: slot.startedAt,
         recentLogLines: slot.recentLogLines,
@@ -337,6 +341,7 @@ export class AgentProcessManager {
     slot.harnessSessionId = undefined;
     slot.resumableHarnessSessionId = undefined;
     slot.model = undefined;
+    slot.maxReasoningLevel = undefined;
     slot.workingDir = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
@@ -687,6 +692,7 @@ export class AgentProcessManager {
       startedAt: slot?.startedAt,
       recentLogLines: slot?.recentLogLines,
       wantResume: slot?.wantResume,
+      maxReasoningLevel: slot?.maxReasoningLevel,
     });
 
     console.log(
@@ -872,6 +878,7 @@ export class AgentProcessManager {
       harnessSessionId: slot.harnessSessionId,
       resumableHarnessSessionId: slot.resumableHarnessSessionId,
       wantResume: slot.wantResume,
+      maxReasoningLevel: slot.maxReasoningLevel,
       recentLogLines: slot.recentLogLines,
       stopReason,
       terminalProviderFailureHandled: slot.terminalProviderFailureHandled === true,
@@ -895,6 +902,7 @@ export class AgentProcessManager {
       agentName: harnessMeta?.agentName ?? '',
       workingDir: ctx.workingDir ?? '',
       model: ctx.model ?? harnessMeta?.model,
+      maxReasoningLevel: ctx.maxReasoningLevel ?? harnessMeta?.maxReasoningLevel,
     });
   }
 
@@ -1018,7 +1026,7 @@ export class AgentProcessManager {
   }
 
   private maybeRestartAgent(opts: HandleExitOpts, ctx: ExitContext): void {
-    const { harness, model, workingDir, recentLogLines } = ctx;
+    const { harness, model, workingDir, recentLogLines, maxReasoningLevel } = ctx;
     const logs = recentLogLines ?? [];
 
     if (!harness || !workingDir) {
@@ -1044,6 +1052,7 @@ export class AgentProcessManager {
       workingDir,
       reason: 'platform.crash_recovery',
       wantResume: hadRunError ? false : (ctx.wantResume ?? true),
+      ...(maxReasoningLevel !== undefined ? { maxReasoningLevel } : {}),
     });
   }
 
@@ -1194,6 +1203,9 @@ export class AgentProcessManager {
           workingDir,
           reason: CURSOR_SDK_SESSION_REOPEN_REASON,
           wantResume,
+          ...(ctx.maxReasoningLevel !== undefined
+            ? { maxReasoningLevel: ctx.maxReasoningLevel }
+            : {}),
         });
 
         if (result.success) {
@@ -1600,6 +1612,7 @@ export class AgentProcessManager {
     agentHarness: AgentHarness;
     workingDir: string;
     model?: string;
+    maxReasoningLevel?: MaxReasoningLevel;
     initPrompt: string;
     systemPrompt: string;
     service: RemoteAgentService;
@@ -1619,6 +1632,7 @@ export class AgentProcessManager {
 
     try {
       const resumableId = resolveResumableHarnessSessionId(stored);
+      const maxReasoningLevel = opts.maxReasoningLevel ?? stored.maxReasoningLevel;
       await this.emitSessionResumeRequested(
         opts.chatroomId,
         opts.role,
@@ -1631,6 +1645,7 @@ export class AgentProcessManager {
           prompt: createSpawnPrompt(opts.initPrompt),
           systemPrompt: opts.systemPrompt,
           model: opts.model ?? stored.model,
+          ...(maxReasoningLevel !== undefined ? { maxReasoningLevel } : {}),
           context: {
             machineId: this.deps.machineId,
             chatroomId: opts.chatroomId,
@@ -1643,6 +1658,9 @@ export class AgentProcessManager {
           agentName: stored.agentName,
           workingDir: stored.workingDir,
           model: stored.model,
+          ...(stored.maxReasoningLevel !== undefined
+            ? { maxReasoningLevel: stored.maxReasoningLevel }
+            : {}),
         }
       );
       await this.emitSessionResumed(opts.chatroomId, opts.role, resumableId);
@@ -2006,6 +2024,7 @@ export class AgentProcessManager {
           agentHarness: opts.agentHarness,
           workingDir: opts.workingDir,
           model: opts.model,
+          maxReasoningLevel: opts.maxReasoningLevel,
           initPrompt: initPrompt.initialMessage,
           systemPrompt: initPrompt.rolePrompt,
           service,
@@ -2023,6 +2042,9 @@ export class AgentProcessManager {
           prompt,
           systemPrompt: initPrompt.rolePrompt,
           model: opts.model,
+          ...(opts.maxReasoningLevel !== undefined
+            ? { maxReasoningLevel: opts.maxReasoningLevel }
+            : {}),
           context: {
             machineId: this.deps.machineId,
             chatroomId: opts.chatroomId,
@@ -2064,9 +2086,12 @@ export class AgentProcessManager {
         agentName: spawnResult.harnessReconnect?.agentName ?? '',
         workingDir: opts.workingDir,
         model: opts.model ?? spawnResult.harnessReconnect?.model,
+        maxReasoningLevel:
+          opts.maxReasoningLevel ?? spawnResult.harnessReconnect?.maxReasoningLevel,
       });
     }
     slot.model = opts.model;
+    slot.maxReasoningLevel = opts.maxReasoningLevel;
     slot.wantResume = wantResume;
     slot.workingDir = opts.workingDir;
     slot.startedAt = this.deps.clock.now();
@@ -2354,6 +2379,7 @@ export class AgentProcessManager {
       agentName: harnessMeta?.agentName ?? '',
       workingDir: slot.workingDir ?? '',
       model: slot.model ?? harnessMeta?.model,
+      maxReasoningLevel: slot.maxReasoningLevel ?? harnessMeta?.maxReasoningLevel,
     });
   }
 

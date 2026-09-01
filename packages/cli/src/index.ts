@@ -180,6 +180,15 @@ teamCommand
     await listTeamPresets();
   });
 
+const MAX_REASONING_LEVELS = ['low', 'medium', 'high', 'xhigh'] as const;
+
+function parseMaxReasoningLevel(value: string): (typeof MAX_REASONING_LEVELS)[number] {
+  if (!(MAX_REASONING_LEVELS as readonly string[]).includes(value)) {
+    throw new Error(`--max-reasoning-level must be one of: ${MAX_REASONING_LEVELS.join(', ')}`);
+  }
+  return value as (typeof MAX_REASONING_LEVELS)[number];
+}
+
 const agentCommand = program.command('agent').description('Manage agent harness and lifecycle');
 const agentConfigCommand = agentCommand.command('config').description('Agent configuration');
 
@@ -202,6 +211,11 @@ agentConfigCommand
   .requiredOption('--harness <harness>', 'Agent harness')
   .requiredOption('--model <model>', 'Model identifier')
   .option('--working-dir <dir>', 'Agent working directory')
+  .option(
+    '--max-reasoning-level <level>',
+    'Codex SDK maximum reasoning level',
+    parseMaxReasoningLevel
+  )
   .action(
     async (options: {
       chatroomId: string;
@@ -209,6 +223,7 @@ agentConfigCommand
       harness: string;
       model: string;
       workingDir?: string;
+      maxReasoningLevel?: (typeof MAX_REASONING_LEVELS)[number];
     }) => {
       await maybeRequireAuth();
       const { setAgentConfig } = await import('./commands/agent/index.js');
@@ -224,6 +239,11 @@ agentCommand
   .option('--harness <harness>', 'Agent harness override')
   .option('--model <model>', 'Model identifier override')
   .option('--working-dir <dir>', 'Agent working directory override')
+  .option(
+    '--max-reasoning-level <level>',
+    'Codex SDK maximum reasoning level',
+    parseMaxReasoningLevel
+  )
   .action(
     async (options: {
       chatroomId: string;
@@ -231,6 +251,7 @@ agentCommand
       harness?: string;
       model?: string;
       workingDir?: string;
+      maxReasoningLevel?: (typeof MAX_REASONING_LEVELS)[number];
     }) => {
       await maybeRequireAuth();
       const { startAgent } = await import('./commands/agent/index.js');

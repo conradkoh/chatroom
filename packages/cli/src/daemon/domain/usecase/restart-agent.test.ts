@@ -54,6 +54,16 @@ describe('restartAgent', () => {
     });
   });
 
+  it('forwards maxReasoningLevel to restart orchestrator', async () => {
+    const deps = makeDeps();
+
+    await restartAgent(deps, { ...baseInput, maxReasoningLevel: 'high' });
+
+    expect(deps.restartOrchestrator.runRestart).toHaveBeenCalledWith(
+      expect.objectContaining({ maxReasoningLevel: 'high' })
+    );
+  });
+
   it('swallows orchestrator errors', async () => {
     const deps = makeDeps();
     deps.restartOrchestrator.runRestart = vi

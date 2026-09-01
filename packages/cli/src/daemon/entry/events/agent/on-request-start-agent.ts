@@ -6,6 +6,7 @@
 import { Effect } from 'effect';
 
 import type { Id } from '../../../../api.js';
+import type { MaxReasoningLevel } from '../../../../daemon/domain/entities/harness-shared-types.js';
 import { startAgent } from '../../../../daemon/domain/usecase/start-agent.js';
 import { createStartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
@@ -23,6 +24,7 @@ export interface AgentRequestStartEventPayload {
   deadline: number;
   wantResume: boolean;
   lifecycleRevision?: number;
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 export const onRequestStartAgentEffect = (
@@ -44,6 +46,7 @@ export const onRequestStartAgentEffect = (
         deadline: event.deadline,
         wantResume: event.wantResume,
         lifecycleRevision: event.lifecycleRevision,
+        maxReasoningLevel: event.maxReasoningLevel,
       });
       await drainPendingEnhancerJobsIfRegistered();
     });

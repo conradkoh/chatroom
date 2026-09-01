@@ -35,6 +35,7 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import { isDeliverableTaskStatus } from '../domain/entities/assigned-task.js';
 import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
+import type { MaxReasoningLevel } from '../domain/entities/harness-shared-types.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 
 interface RestartOrchestratorEvent {
@@ -45,6 +46,7 @@ interface RestartOrchestratorEvent {
   workingDir: string;
   correlationId: string;
   wantResume: boolean;
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 export interface RestartOrchestratorSession {
@@ -280,6 +282,9 @@ export async function runRestartOrchestrator(
         workingDir: event.workingDir,
         reason: 'user.restart',
         wantResume: event.wantResume,
+        ...(event.maxReasoningLevel !== undefined
+          ? { maxReasoningLevel: event.maxReasoningLevel }
+          : {}),
       })
     );
 

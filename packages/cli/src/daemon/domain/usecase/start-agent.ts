@@ -1,4 +1,4 @@
-import type { AgentHarness } from '../entities/harness-shared-types.js';
+import type { AgentHarness, MaxReasoningLevel } from '../entities/harness-shared-types.js';
 
 export interface StartAgentInput {
   commandId: string;
@@ -11,6 +11,7 @@ export interface StartAgentInput {
   deadline: number;
   wantResume: boolean;
   lifecycleRevision?: number;
+  maxReasoningLevel?: MaxReasoningLevel;
 }
 
 export interface EnsureRunningResult {
@@ -28,6 +29,7 @@ export interface AgentProcessManagerPort {
     reason: string;
     wantResume: boolean;
     lifecycleRevision?: number;
+    maxReasoningLevel?: MaxReasoningLevel;
   }): Promise<EnsureRunningResult>;
 }
 
@@ -50,6 +52,7 @@ export interface StartAgentDeps {
   log?: (message: string) => void;
 }
 
+// fallow-ignore-next-line complexity
 export async function startAgent(deps: StartAgentDeps, input: StartAgentInput): Promise<void> {
   const now = deps.now?.() ?? Date.now();
   const log = deps.log ?? console.log;
@@ -70,6 +73,9 @@ export async function startAgent(deps: StartAgentDeps, input: StartAgentInput): 
     wantResume: input.wantResume,
     ...(input.lifecycleRevision !== undefined
       ? { lifecycleRevision: input.lifecycleRevision }
+      : {}),
+    ...(input.maxReasoningLevel !== undefined
+      ? { maxReasoningLevel: input.maxReasoningLevel }
       : {}),
   });
   if (!result.success) {

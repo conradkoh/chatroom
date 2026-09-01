@@ -275,6 +275,88 @@ describe('AgentProcessManager', () => {
       );
     });
 
+    test('forwards maxReasoningLevel to service.spawn', async () => {
+      const service = {
+        ...createMockService(),
+        id: 'codex-sdk',
+        resumeFromDaemonMemory: vi.fn(),
+      };
+      deps.agentServices = new Map([['codex-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({
+          agentHarness: 'codex-sdk',
+          model: 'gpt-5.6',
+          maxReasoningLevel: 'medium',
+        })
+      );
+
+      expect(service.spawn).toHaveBeenCalledWith(
+        expect.objectContaining({ maxReasoningLevel: 'medium' })
+      );
+    });
+
+    test('preserved session maxReasoningLevel reaches resumeFromDaemonMemory', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'thread-1',
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const service = {
+        ...createMockService(),
+        id: 'codex-sdk',
+        resumeFromDaemonMemory,
+      };
+      deps.agentServices = new Map([['codex-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+
+      getLastHarnessSessions(manager).set(`${CHATROOM_ID}:${ROLE.toLowerCase()}`, {
+        harnessSessionId: 'thread-1',
+        harness: 'codex-sdk',
+        agentName: 'builder@c1',
+        workingDir: '/tmp/test',
+        model: 'gpt-5.6',
+        maxReasoningLevel: 'high',
+      });
+
+      await manager.ensureRunning(
+        createOpts({
+          agentHarness: 'codex-sdk',
+          model: 'gpt-5.6',
+          wantResume: true,
+          reason: 'platform.crash_recovery',
+        })
+      );
+
+      expect(resumeFromDaemonMemory).toHaveBeenCalledWith(
+        expect.objectContaining({ maxReasoningLevel: 'high' }),
+        expect.objectContaining({ maxReasoningLevel: 'high' })
+      );
+      expect(service.spawn).not.toHaveBeenCalled();
+    });
+
+    test('omitted maxReasoningLevel is not passed to spawn', async () => {
+      const service = {
+        ...createMockService(),
+        id: 'codex-sdk',
+      };
+      deps.agentServices = new Map([['codex-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({
+          agentHarness: 'codex-sdk',
+          model: 'gpt-5.6',
+        })
+      );
+
+      const spawnArgs = (service.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(spawnArgs.maxReasoningLevel).toBeUndefined();
+    });
+
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
       'ensureRunning %s emits native:waiting after spawn',
       async (harness) => {

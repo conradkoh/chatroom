@@ -63,6 +63,16 @@ describe('startAgent', () => {
     expect(deps.session.emitAgentStartFailed).not.toHaveBeenCalled();
   });
 
+  it('forwards maxReasoningLevel to ensureRunning', async () => {
+    const deps = makeDeps();
+
+    await startAgent(deps, { ...baseInput, maxReasoningLevel: 'medium' });
+
+    expect(deps.agentProcessManager.ensureRunning).toHaveBeenCalledWith(
+      expect.objectContaining({ maxReasoningLevel: 'medium' })
+    );
+  });
+
   it('emits startFailed when ensureRunning fails', async () => {
     const deps = makeDeps();
     deps.agentProcessManager.ensureRunning = vi
