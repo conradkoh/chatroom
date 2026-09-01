@@ -13,6 +13,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentType, ModelSource } from '../../entities/agent';
+import type { CodexMaxReasoningLevel } from '../../entities/harness/codex-sdk.model-variants';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,9 @@ export interface ResolvedAgentConfig {
    */
   wantResume: boolean | undefined;
 
+  /** Codex SDK max reasoning effort cap (only for codex-sdk remote agents). */
+  maxReasoningLevel?: CodexMaxReasoningLevel;
+
   // ── Derived flags ───────────────────────────────────────────────────
 
   /**
@@ -99,6 +103,7 @@ export type GetAgentConfigResult = { found: true; config: ResolvedAgentConfig } 
  * @param input - The lookup parameters
  * @returns The resolved config, or { found: false } if no team config exists
  */
+// fallow-ignore-next-line complexity
 export async function getAgentConfig(
   ctx: QueryCtx | MutationCtx,
   input: GetAgentConfigInput
@@ -151,6 +156,9 @@ export async function getAgentConfig(
     desiredState: teamConfig.desiredState,
     circuitState: teamConfig.circuitState,
     wantResume: teamConfig.wantResume,
+    ...(teamConfig.agentHarness === 'codex-sdk' && teamConfig.maxReasoningLevel !== undefined
+      ? { maxReasoningLevel: teamConfig.maxReasoningLevel }
+      : {}),
     hasSystemPromptControl: teamConfig.type === 'remote',
   };
 

@@ -14,6 +14,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness } from '../../entities/agent';
+import type { CodexMaxReasoningLevel } from '../../entities/harness/codex-sdk.model-variants';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ export interface AgentStartDefaults {
   agentHarness?: AgentHarness;
   model?: string;
   workingDir?: string;
+  maxReasoningLevel?: CodexMaxReasoningLevel;
 }
 
 export interface AgentStartFormData {
@@ -98,6 +100,9 @@ export async function getAgentConfigForStart(
         agentHarness: teamConfig.agentHarness as AgentHarness | undefined,
         model: teamConfig.model,
         workingDir: teamConfig.workingDir,
+        ...(teamConfig.agentHarness === 'codex-sdk' && teamConfig.maxReasoningLevel !== undefined
+          ? { maxReasoningLevel: teamConfig.maxReasoningLevel }
+          : {}),
       },
     };
   }

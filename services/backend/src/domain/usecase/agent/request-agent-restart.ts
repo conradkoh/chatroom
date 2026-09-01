@@ -49,6 +49,7 @@ export async function requestAgentRestart(
   return { status: 'requested', correlationId, releasedTaskCount };
 }
 
+// fallow-ignore-next-line complexity
 function resolveRestartOverrides(
   request: AgentRestartRequest,
   base: {
@@ -57,14 +58,21 @@ function resolveRestartOverrides(
     model: string;
     workingDir: string;
     wantResume: boolean | undefined;
+    maxReasoningLevel?: RunnableRemoteAgentConfig['maxReasoningLevel'];
   },
   chatroom: Doc<'chatroom_rooms'> | null,
   role: string
 ): RunnableRemoteAgentConfig {
   if (request.reason === AgentStartReasonEnum['user.restart']) {
+    const harness = request.overrides.agentHarness;
+    const maxReasoningLevel =
+      harness === 'codex-sdk'
+        ? (request.overrides.maxReasoningLevel ?? base.maxReasoningLevel)
+        : undefined;
     return {
       ...request.overrides,
       wantResume: false,
+      ...(maxReasoningLevel !== undefined ? { maxReasoningLevel } : {}),
     };
   }
 
@@ -74,6 +82,9 @@ function resolveRestartOverrides(
     model: base.model,
     workingDir: base.workingDir,
     wantResume: base.wantResume ?? defaultWantResume(chatroom, role),
+    ...(base.agentHarness === 'codex-sdk' && base.maxReasoningLevel !== undefined
+      ? { maxReasoningLevel: base.maxReasoningLevel }
+      : {}),
   };
 }
 
@@ -122,6 +133,11 @@ async function persistRestartAndEmit(
         type: 'remote' as AgentType,
         ...configFields,
         ...(input.request.reason !== AgentStartReasonEnum['user.restart'] ? { wantResume } : {}),
+        ...(resolved.agentHarness === 'codex-sdk' && resolved.maxReasoningLevel !== undefined
+          ? { maxReasoningLevel: resolved.maxReasoningLevel }
+          : resolved.agentHarness !== 'codex-sdk'
+            ? { maxReasoningLevel: undefined }
+            : {}),
         updatedAt: now,
         desiredState: 'running' as const,
         circuitState: 'closed' as const,
@@ -154,6 +170,9 @@ async function persistRestartAndEmit(
       correlationId,
       wantResume: resolved.wantResume,
       lifecycleRevision,
+      ...(resolved.agentHarness === 'codex-sdk' && resolved.maxReasoningLevel !== undefined
+        ? { maxReasoningLevel: resolved.maxReasoningLevel }
+        : {}),
     },
   });
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');

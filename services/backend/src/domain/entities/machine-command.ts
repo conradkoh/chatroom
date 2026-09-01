@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { agentHarnessValidator, agentStopReasonValidator } from './agent';
 import { agentStopScopeValidator } from './agent-stop-command';
+import { codexMaxReasoningLevelValidator } from './harness/codex-sdk.model-variants';
 import {
   AGENT_REQUEST_DEADLINE_MS,
   AGENT_STOP_REQUEST_DEADLINE_MS,
@@ -43,6 +44,7 @@ export const machineCommandPayloadValidator = v.union(
     reason: v.string(),
     wantResume: v.boolean(),
     lifecycleRevision: v.optional(v.number()),
+    maxReasoningLevel: v.optional(codexMaxReasoningLevelValidator),
   }),
   v.object({
     type: v.literal('agent.restart'),
@@ -54,6 +56,7 @@ export const machineCommandPayloadValidator = v.union(
     correlationId: v.string(),
     wantResume: v.boolean(),
     lifecycleRevision: v.optional(v.number()),
+    maxReasoningLevel: v.optional(codexMaxReasoningLevelValidator),
   }),
   v.object({
     type: v.literal('agent.requestStop'),

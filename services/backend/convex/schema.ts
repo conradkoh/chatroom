@@ -12,6 +12,7 @@ import {
   agentStopStatusValidator,
   agentStopTargetStatusValidator,
 } from '../src/domain/entities/agent-stop-command';
+import { codexMaxReasoningLevelValidator } from '../src/domain/entities/harness/codex-sdk.model-variants';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 
 const attachedSnippetValidator = v.object({
@@ -1192,6 +1193,7 @@ export default defineSchema({
     agentHarness: v.optional(agentHarnessValidator),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
+    maxReasoningLevel: v.optional(codexMaxReasoningLevelValidator),
 
     // Timestamps
     createdAt: v.number(),

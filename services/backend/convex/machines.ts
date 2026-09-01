@@ -23,6 +23,7 @@ import {
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
+import { codexMaxReasoningLevelValidator } from '../src/domain/entities/harness/codex-sdk.model-variants';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
@@ -784,6 +785,7 @@ export const getMachineAgentConfigs = query({
           agentType: config.agentHarness,
           workingDir: config.workingDir,
           model: config.model,
+          maxReasoningLevel: config.maxReasoningLevel,
           daemonConnected: status?.daemonConnected ?? false,
           availableHarnesses: machine?.availableHarnesses ?? [],
           updatedAt: config.updatedAt,
@@ -1107,6 +1109,7 @@ export const sendCommand = mutation({
         allowNewMachine: v.optional(v.boolean()),
         /** When true (default), resume from the daemon's last session on first launch. */
         wantResume: v.optional(v.boolean()),
+        maxReasoningLevel: v.optional(codexMaxReasoningLevelValidator),
         // For stop-agent: optional reason (defaults to 'user.stop')
         reason: v.optional(agentStopReasonValidator),
       })
@@ -1151,6 +1154,9 @@ export const sendCommand = mutation({
       const resolvedWorkingDir =
         args.payload.workingDir ??
         (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
+      const resolvedMaxReasoningLevel =
+        args.payload.maxReasoningLevel ??
+        (existingConfig?.type === 'remote' ? existingConfig.maxReasoningLevel : undefined);
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
           'Cannot start agent: model, agentHarness, and workingDir are required. ' +
@@ -1178,6 +1184,9 @@ export const sendCommand = mutation({
           workingDir: resolvedWorkingDir,
           reason: AgentStartReasonEnum['user.start'],
           wantResume: args.payload.wantResume ?? false,
+          ...(resolvedMaxReasoningLevel !== undefined
+            ? { maxReasoningLevel: resolvedMaxReasoningLevel }
+            : {}),
         },
         machine
       );
@@ -1215,6 +1224,10 @@ export const sendCommand = mutation({
         allowNewMachine,
       });
 
+      const resolvedMaxReasoningLevel =
+        args.payload.maxReasoningLevel ??
+        (existingConfig?.type === 'remote' ? existingConfig.maxReasoningLevel : undefined);
+
       const result = await requestAgentRestart(
         ctx,
         {
@@ -1227,6 +1240,9 @@ export const sendCommand = mutation({
               model,
               agentHarness,
               workingDir,
+              ...(resolvedMaxReasoningLevel !== undefined
+                ? { maxReasoningLevel: resolvedMaxReasoningLevel }
+                : {}),
             },
           },
         },
@@ -1632,6 +1648,7 @@ export const saveTeamAgentConfig = mutation({
     agentHarness: v.optional(agentHarnessValidator),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
+    maxReasoningLevel: v.optional(codexMaxReasoningLevelValidator),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1676,6 +1693,10 @@ export const saveTeamAgentConfig = mutation({
     // Preserve existing agentHarness if the new value is undefined (e.g. register-agent doesn't pass agentHarness)
     const resolvedAgentHarness =
       args.type === 'remote' ? (args.agentHarness ?? existing?.agentHarness) : undefined;
+    const resolvedMaxReasoningLevel =
+      args.type === 'remote' && resolvedAgentHarness === 'codex-sdk'
+        ? (args.maxReasoningLevel ?? existing?.maxReasoningLevel)
+        : undefined;
 
     const config = {
       chatroomId: args.chatroomId,
@@ -1685,6 +1706,11 @@ export const saveTeamAgentConfig = mutation({
       agentHarness: resolvedAgentHarness,
       model: resolvedModel,
       workingDir: args.type === 'remote' ? args.workingDir : undefined,
+      ...(resolvedAgentHarness === 'codex-sdk' && resolvedMaxReasoningLevel !== undefined
+        ? { maxReasoningLevel: resolvedMaxReasoningLevel }
+        : resolvedAgentHarness !== 'codex-sdk'
+          ? { maxReasoningLevel: undefined }
+          : {}),
       updatedAt: now,
       desiredState: 'running' as const,
     };

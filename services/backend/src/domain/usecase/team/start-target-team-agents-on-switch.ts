@@ -50,7 +50,7 @@ export async function startTargetTeamAgentsOnSwitch(
 
     if (config?.type !== 'remote') continue;
 
-    const { machineId, model, workingDir, agentHarness } = config;
+    const { machineId, model, workingDir, agentHarness, maxReasoningLevel } = config;
     if (!machineId || !model || !workingDir || !agentHarness) continue;
 
     let machine = machineCache.get(machineId);
@@ -73,6 +73,9 @@ export async function startTargetTeamAgentsOnSwitch(
           agentHarness,
           workingDir,
           reason: 'platform.team_switch',
+          ...(agentHarness === 'codex-sdk' && maxReasoningLevel !== undefined
+            ? { maxReasoningLevel }
+            : {}),
         },
         machine
       );

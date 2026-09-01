@@ -26,6 +26,7 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
+import type { CodexMaxReasoningLevel } from '../../entities/harness/codex-sdk.model-variants';
 import type { MachineCommandPayload } from '../../entities/machine-command';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
@@ -65,6 +66,8 @@ export interface StartAgentInput {
    */
   wantResume?: boolean;
   lifecycleRevision?: number;
+  /** Codex SDK max reasoning effort cap; only persisted for codex-sdk harness. */
+  maxReasoningLevel?: CodexMaxReasoningLevel;
 }
 
 /** Successful result of a start-agent operation. */
@@ -102,6 +105,8 @@ export async function startAgent(
 ): Promise<StartAgentResult> {
   const { machineId, chatroomId, role, model, agentHarness, workingDir, reason, wantResume } =
     input;
+  const effectiveMaxReasoningLevel =
+    agentHarness === 'codex-sdk' ? input.maxReasoningLevel : undefined;
 
   if (isEphemeralAgentRole(role)) {
     throw new Error(
@@ -149,6 +154,11 @@ export async function startAgent(
           : {}),
         circuitState: 'closed' as const,
         circuitOpenedAt: undefined,
+        ...(effectiveMaxReasoningLevel !== undefined
+          ? { maxReasoningLevel: effectiveMaxReasoningLevel }
+          : agentHarness !== 'codex-sdk'
+            ? { maxReasoningLevel: undefined }
+            : {}),
       },
     });
 
@@ -180,6 +190,9 @@ export async function startAgent(
     wantResume: resolvedWantResume,
     ...(input.lifecycleRevision !== undefined
       ? { lifecycleRevision: input.lifecycleRevision }
+      : {}),
+    ...(effectiveMaxReasoningLevel !== undefined
+      ? { maxReasoningLevel: effectiveMaxReasoningLevel }
       : {}),
   };
 

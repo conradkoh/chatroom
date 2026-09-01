@@ -11,6 +11,7 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildMachineFavoriteScopeKey } from '../../../../convex/utils/machineFavoriteScopeKey';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import type { CodexMaxReasoningLevel } from '../../entities/harness/codex-sdk.model-variants';
 
 export interface SeedTeamAgentConfigInput {
   ctx: MutationCtx;
@@ -27,6 +28,7 @@ export type SeedTeamAgentConfigFields = {
   agentHarness: NonNullable<Doc<'chatroom_teamAgentConfigs'>['agentHarness']>;
   model: string;
   workingDir: string;
+  maxReasoningLevel?: CodexMaxReasoningLevel;
 };
 
 async function resolveWorkingDirFallback(
@@ -95,10 +97,14 @@ export async function buildSeedTeamAgentConfigFields(
 
   if (!model || !workingDir) return null;
 
+  const maxReasoningLevel =
+    agentHarness === 'codex-sdk' ? entryConfig?.maxReasoningLevel : undefined;
+
   return {
     machineId: seedMachineId,
     agentHarness,
     model,
     workingDir,
+    ...(maxReasoningLevel !== undefined ? { maxReasoningLevel } : {}),
   };
 }

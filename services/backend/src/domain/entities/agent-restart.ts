@@ -1,4 +1,5 @@
 import type { AgentHarness } from './agent';
+import type { CodexMaxReasoningLevel } from './harness/codex-sdk.model-variants';
 
 // fallow-ignore-next-line unused-export
 export const AGENT_RESTART_REASONS = [
@@ -14,6 +15,7 @@ export interface RunnableRemoteAgentConfig {
   model: string;
   workingDir: string;
   wantResume: boolean;
+  maxReasoningLevel?: CodexMaxReasoningLevel;
 }
 
 export type UserAgentRestartOverrides = Omit<RunnableRemoteAgentConfig, 'wantResume'>;
