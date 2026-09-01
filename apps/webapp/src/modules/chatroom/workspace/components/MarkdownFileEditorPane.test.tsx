@@ -18,6 +18,7 @@ type MarkdownEditorMockState = {
 
 const mockSave = vi.fn();
 const mockSetContent = vi.fn();
+const mockPurgeFileContentEntry = vi.fn().mockResolvedValue(undefined);
 const contentRef = { current: '# Hello' };
 
 const defaultMarkdownEditorState: MarkdownEditorMockState = {
@@ -37,6 +38,18 @@ vi.mock('../hooks/useMarkdownFileEditor', () => ({
   useMarkdownFileEditor: () => mockUseMarkdownFileEditor(),
 }));
 
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: () => mockPurgeFileContentEntry,
+}));
+
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: {
+    workspaceFiles: {
+      purgeFileContentEntryV2: 'purgeFileContentEntryV2',
+    },
+  },
+}));
+
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -47,6 +60,7 @@ vi.mock('sonner', () => ({
 describe('MarkdownFileEditorPane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPurgeFileContentEntry.mockResolvedValue(undefined);
     mockUseMarkdownFileEditor.mockReturnValue(defaultMarkdownEditorState);
     Object.defineProperty(globalThis.navigator, 'clipboard', {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -128,6 +142,62 @@ describe('MarkdownFileEditorPane', () => {
 
     expect(screen.getByText('Workspace is not registered on this machine.')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /edit README\.md/i })).toHaveValue('');
+  });
+
+  it('dismisses workspace registration error via per-file purge mutation', async () => {
+    const user = userEvent.setup();
+    mockUseMarkdownFileEditor.mockReturnValue({
+      content: '',
+      setContent: mockSetContent,
+      isDirty: false,
+      contentRef: { current: '' },
+      save: mockSave,
+      saving: false,
+      error: 'Workspace is not registered on this machine.',
+      isLoading: false,
+    });
+
+    render(
+      <MarkdownFileEditorPane
+        machineId="machine-1"
+        workingDir="/Users/alice/chatroom/"
+        filePath="README.md"
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /dismiss error/i }));
+
+    await waitFor(() => {
+      expect(mockPurgeFileContentEntry).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/Users/alice/chatroom/',
+        filePath: 'README.md',
+      });
+    });
+  });
+
+  it('does not show dismiss control for non-registration errors', () => {
+    mockUseMarkdownFileEditor.mockReturnValue({
+      content: '',
+      setContent: mockSetContent,
+      isDirty: false,
+      contentRef: { current: '' },
+      save: mockSave,
+      saving: false,
+      error: 'File not found.',
+      isLoading: false,
+    });
+
+    render(
+      <MarkdownFileEditorPane
+        machineId="machine-1"
+        workingDir="/Users/alice/chatroom/"
+        filePath="README.md"
+      />
+    );
+
+    expect(screen.getByText('File not found.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /dismiss error/i })).not.toBeInTheDocument();
   });
 
   it('copies markdown when Copy button is clicked', async () => {

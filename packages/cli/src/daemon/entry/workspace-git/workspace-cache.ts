@@ -19,6 +19,7 @@ export type WorkspaceCacheDeps = {
   sessionId: SessionId;
   machineId: string;
   backend: BackendOps;
+  forceRefresh?: boolean;
 };
 
 /** Returns workspaces for this machine from the subscription store or a fallback query. */
@@ -26,7 +27,7 @@ export async function getWorkspacesForMachine(
   deps: WorkspaceCacheDeps
 ): Promise<WorkspaceForSync[]> {
   const store = deps.workspaceListStore;
-  if (store && store.updatedAt > 0) {
+  if (store && store.updatedAt > 0 && !deps.forceRefresh) {
     return store.workspaces;
   }
 

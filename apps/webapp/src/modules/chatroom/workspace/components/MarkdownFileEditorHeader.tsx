@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpen } from 'lucide-react';
+import { BookOpen, X } from 'lucide-react';
 
 import { FileContentActionBar } from './FileContentActionBar';
 
@@ -14,6 +14,8 @@ interface MarkdownFileEditorHeaderProps {
   error: string | null;
   onCopy: () => void;
   onOpenPreview?: (filePath: string) => void;
+  onDismissError?: () => void;
+  isDismissingError?: boolean;
 }
 
 export function MarkdownFileEditorHeader({
@@ -23,6 +25,8 @@ export function MarkdownFileEditorHeader({
   error,
   onCopy,
   onOpenPreview,
+  onDismissError,
+  isDismissingError,
 }: MarkdownFileEditorHeaderProps) {
   return (
     <>
@@ -61,8 +65,25 @@ export function MarkdownFileEditorHeader({
       />
 
       {error && (
-        <div className="px-4 py-2 text-xs text-chatroom-status-error border-b border-chatroom-border">
-          {error}
+        <div className="flex items-center gap-2 px-4 py-2 text-xs text-chatroom-status-error border-b border-chatroom-border">
+          <span className="flex-1">{error}</span>
+          {onDismissError && (
+            <button
+              type="button"
+              className={cn(
+                'shrink-0 rounded p-1 transition-colors cursor-pointer',
+                'text-chatroom-status-error hover:bg-chatroom-bg-hover',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+              aria-label="Dismiss error"
+              title="Dismiss error"
+              aria-busy={isDismissingError || undefined}
+              disabled={isDismissingError}
+              onClick={onDismissError}
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
     </>
