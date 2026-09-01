@@ -68,6 +68,21 @@ describe('resolveCursorSdkSpawnModelSelection', () => {
       id: 'gpt-5.6-terra',
       params: [{ id: 'effort', value: 'high' }],
     });
+    expect(resolveCursorSdkSpawnModelSelection('gpt-5.6-luna[effort=max]')).toEqual({
+      id: 'gpt-5.6-luna',
+      params: [{ id: 'effort', value: 'max' }],
+    });
+  });
+
+  it('round-trips gpt-5.6-luna max effort via bracket and legacy slug', () => {
+    expect(decodeCursorVariant('gpt-5.6-luna[effort=max]')).toEqual({
+      cliSlug: 'gpt-5.6-luna-max',
+      params: { effort: 'max' },
+    });
+    expect(decodeCursorVariant('gpt-5.6-luna-max')).toEqual({
+      cliSlug: 'gpt-5.6-luna-max',
+      params: { effort: 'max' },
+    });
   });
 
   it('maps auto to default', () => {
