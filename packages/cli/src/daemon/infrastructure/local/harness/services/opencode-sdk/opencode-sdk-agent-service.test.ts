@@ -1167,6 +1167,25 @@ describe('OpenCodeSdkAgentService', () => {
       expect(sdk.promptAsync.mock.calls[0][0].body.model).toBeUndefined();
     });
 
+    it('forwards variant from bracket model string', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const sdk = stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(
+        spawnOptions({ model: 'opencode-go/gpt-5.6-luna[variant=max]' })
+      );
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      await spawnPromise;
+
+      expect(sdk.promptAsync.mock.calls[0][0].body.variant).toBe('max');
+      expect(sdk.promptAsync.mock.calls[0][0].body.model).toEqual({
+        providerID: 'opencode-go',
+        modelID: 'gpt-5.6-luna',
+      });
+    });
+
     it('routes non-INFO child stderr to onLogLine and filters INFO lines', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });

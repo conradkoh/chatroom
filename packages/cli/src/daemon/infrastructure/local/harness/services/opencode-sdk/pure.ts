@@ -1,5 +1,6 @@
 import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
 
+// fallow-ignore-next-line complexity
 export function parseModelId(model: string): { providerID: string; modelID: string } | undefined {
   if (!model) return undefined;
   const slashIdx = model.indexOf('/');
@@ -10,6 +11,7 @@ export function parseModelId(model: string): { providerID: string; modelID: stri
   return { providerID, modelID };
 }
 
+/** Used by opencode CLI and opencode-sdk harnesses. */
 // fallow-ignore-next-line complexity
 export function parseOpencodeSpawnModel(model: string): {
   model: string;

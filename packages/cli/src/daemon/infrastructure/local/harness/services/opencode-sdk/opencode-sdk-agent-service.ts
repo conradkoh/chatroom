@@ -20,7 +20,7 @@ import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { withTimeout } from '../with-timeout.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
-import { isInfoLine, parseModelId } from './pure.js';
+import { isInfoLine, parseModelId, parseOpencodeSpawnModel } from './pure.js';
 import { selectAgent } from './select-agent.js';
 import {
   startSessionEventForwarder,
@@ -66,6 +66,7 @@ interface DisabledToolsPromptBody {
   system?: string;
   parts: [{ type: 'text'; text: string }];
   model?: ReturnType<typeof parseModelId>;
+  variant?: string;
   tools: {
     task: false;
     question: false;
@@ -73,18 +74,26 @@ interface DisabledToolsPromptBody {
   };
 }
 
+/**
+ * Builds prompt body for v1 createOpencodeClient session.promptAsync.
+ * Variant is passed on the body at runtime; v1 SDK types omit it but the server accepts it
+ * (v2 API types document variant on promptAsync).
+ */
+// fallow-ignore-next-line complexity
 function buildDisabledToolsPromptBody(args: {
   agentName: string;
   prompt: string;
   composedSystem?: string;
   model?: string;
 }): DisabledToolsPromptBody {
-  const modelParts = args.model ? parseModelId(args.model) : undefined;
+  const parsed = args.model ? parseOpencodeSpawnModel(args.model) : undefined;
+  const modelParts = parsed?.model ? parseModelId(parsed.model) : undefined;
   return {
     agent: args.agentName,
     ...(args.composedSystem ? { system: args.composedSystem } : {}),
     parts: [{ type: 'text', text: args.prompt }],
     ...(modelParts ? { model: modelParts } : {}),
+    ...(parsed?.variant ? { variant: parsed.variant } : {}),
     tools: {
       task: false,
       question: false,
