@@ -23,7 +23,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
-import type { Codex, Thread, ThreadOptions } from '@openai/codex-sdk';
+import type { Codex, Thread, ThreadOptions, ModelReasoningEffort } from '@openai/codex-sdk';
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from '@workspace/backend/src/domain/entities/harness/codex-sdk.model-variants.js';
 import { stripProviderPrefix } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 import {
@@ -161,7 +161,8 @@ function buildThreadOptions(workingDir: string, variant?: CodexModelVariant): Th
     // is the neutral reasoning level (see model-variant.ts — thinking and
     // effort mean different things across harnesses). "none" leaves the
     // SDK default untouched.
-    options.modelReasoningEffort = reasoning;
+    // SDK runtime accepts "max" (verified via probe); published types may lag.
+    options.modelReasoningEffort = reasoning as ModelReasoningEffort;
   }
   return options;
 }
