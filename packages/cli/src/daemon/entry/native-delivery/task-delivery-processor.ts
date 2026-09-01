@@ -6,18 +6,13 @@
  * - Inbox signal delivery processes snapshots hydrated by the machine inbox.
  * - Periodic reconciliation retries delivery decisions from the inbox-owned state.
  *
- * Fat task.content is fetched only when nudging, reviving, or injecting.
+ * Fat task.content is fetched when reviving or injecting.
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
+import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
 import {
-  AgentStartReasonEnum,
-  AgentStopReasonEnum,
-} from '@workspace/backend/src/domain/entities/agent.js';
-import {
-  shouldEmitSessionAugmentation,
   resolveSessionAugmentationForTask,
-  sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect, Runtime, type Context } from 'effect';
@@ -33,7 +28,6 @@ import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { isNativeHarness } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
@@ -42,13 +36,11 @@ import type {
   AssignedTaskSnapshotView,
   AssignedTaskWithContent,
 } from '../../domain/entities/assigned-task.js';
-import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
 } from '../restart-orchestrator-in-flight.js';
 import {
-  listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
   listNativePendingTasksNeedingWake,
 } from '../task-delivery/task-delivery-logic.js';
@@ -75,18 +67,6 @@ function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   );
 }
 
-function buildCliNudgeLogLine(task: AssignedTaskWithContent): string {
-  const { chatroomId, agentConfig } = task;
-  const { role } = agentConfig;
-  const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
-  const augmentationMode = resolveSessionAugmentationForTask(
-    { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
-    role
-  );
-  const wantResume = resolveTaskWantResume(task);
-  return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, session_augmentation=${augmentationMode}, wantResume=${wantResume}`;
-}
-
 function resolveTaskRunnerContextFromFull(task: AssignedTaskWithContent):
   | {
       chatroomId: string;
@@ -107,78 +87,6 @@ function resolveTaskRunnerContextFromFull(task: AssignedTaskWithContent):
     workingDir,
     wantResume: resolveTaskWantResume(task),
   };
-}
-
-function executeCliNudge(
-  task: AssignedTaskWithContent,
-  runtime: TaskDeliveryRuntime,
-  effectContext: TaskDeliveryContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  sessionDeps: NativeTaskDeliverySessionDeps,
-  machineId: string
-): void {
-  const ctx = resolveTaskRunnerContextFromFull(task);
-  if (!ctx) return;
-  const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
-  const augmentationMode = resolveSessionAugmentationForTask(
-    { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
-    role
-  );
-
-  Runtime.runFork(runtime)(
-    Effect.gen(function* () {
-      yield* agentMgr.stop({
-        chatroomId,
-        role,
-        reason: AgentStopReasonEnum['platform.task_monitor_nudge'],
-      });
-      yield* agentMgr.ensureRunning({
-        chatroomId,
-        role,
-        agentHarness: agentConfig.agentHarness as AgentHarness,
-        model: agentConfig.model,
-        workingDir,
-        reason: AgentStartReasonEnum['platform.task_monitor_nudge'],
-        wantResume,
-        lifecycleRevision: task.agentConfig.configLifecycleRevision,
-        taskId: task.taskId,
-      });
-      if (shouldEmitSessionAugmentation(role, augmentationMode)) {
-        yield* Effect.tryPromise({
-          try: async () => {
-            await logDaemonAuditEvent(sessionDeps.logEvent ?? (async () => undefined), {
-              type: 'agent.sessionAugmented',
-              chatroomId,
-              role,
-              machineId,
-              taskId: task.taskId,
-              mode: augmentationMode,
-              newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
-            });
-            await sessionDeps.backend.mutation(api.daemon.agentEvents.sessionAugmented, {
-              sessionId: sessionDeps.sessionId,
-              machineId,
-              chatroomId,
-              role,
-              taskId: task.taskId,
-              mode: augmentationMode,
-              newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
-            });
-          },
-          catch: (err) => err,
-        }).pipe(Effect.catchAll(() => Effect.void));
-      }
-    }).pipe(
-      Effect.provide(effectContext),
-      Effect.catchAll((err) =>
-        Effect.sync(() =>
-          console.warn(
-            `[TaskMonitor] nudge failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
-          )
-        )
-      )
-    )
-  );
 }
 
 function runNativeReviveEffect(
@@ -273,18 +181,6 @@ async function fetchTaskForAction(
   return result ? mapAssignedTaskView(result as Parameters<typeof mapAssignedTaskView>[0]) : null;
 }
 
-function runCliNudgeEffect(
-  task: AssignedTaskWithContent,
-  runtime: TaskDeliveryRuntime,
-  effectContext: TaskDeliveryContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  sessionDeps: NativeTaskDeliverySessionDeps,
-  machineId: string
-): void {
-  console.log(buildCliNudgeLogLine(task));
-  executeCliNudge(task, runtime, effectContext, agentMgr, sessionDeps, machineId);
-}
-
 async function clearStuckStoppingSlotIfNeeded(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   chatroomId: string,
@@ -293,27 +189,6 @@ async function clearStuckStoppingSlotIfNeeded(
   const cleared = await agentMgr.clearStuckStoppingSlot(chatroomId, role);
   if (cleared) {
     console.log(`[TaskMonitor] cleared stuck stopping slot for ${role}@${chatroomId}`);
-  }
-}
-
-async function nudgeStuckTasks(
-  tasks: AssignedTaskSnapshotView[],
-  now: number,
-  cooldown: RecoveryCooldown,
-  runtime: TaskDeliveryRuntime,
-  effectContext: TaskDeliveryContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  sessionDeps: NativeTaskDeliverySessionDeps,
-  machineId: string
-): Promise<void> {
-  const getSlot = (chatroomId: string, role: string) => agentMgr.getSlot(chatroomId, role);
-
-  const cliTasks = tasks.filter((task) => !isNativeHarness(task.agentConfig.agentHarness));
-  for (const row of listTasksReadyForNudge(cliTasks, now, cooldown, getSlot)) {
-    await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
-    const full = await fetchTaskForAction(sessionDeps, machineId, row);
-    if (!full) continue;
-    runCliNudgeEffect(full, runtime, effectContext, agentMgr, sessionDeps, machineId);
   }
 }
 
@@ -416,14 +291,4 @@ export async function processTasksUpdate(
     sessionDeps,
     machineId,
   });
-  await nudgeStuckTasks(
-    filteredTasks,
-    now,
-    cooldown,
-    runtime,
-    effectContext,
-    agentMgr,
-    sessionDeps,
-    machineId
-  );
 }

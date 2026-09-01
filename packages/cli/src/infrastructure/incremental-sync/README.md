@@ -77,7 +77,7 @@ Every new daemon feed should implement these steps:
 5. **Working snapshot** — in-memory map of snapshot rows, keyed by stable identity (e.g. `taskId:role`). **Not** source of truth; not durable across restart.
 6. **Signal path** — `onItem`: patch snapshot from incremental signal → run **signal pass** on affected row(s). No full reconcile refetch unless the row is unknown (cold hydrate).
 7. **Reconcile path** — slow HTTP poll: `replaceAll` snapshot from `list*ForReconcile` → run **reconcile pass** on full snapshot.
-8. **Action fetch** — when executing (inject, nudge, etc.), one-shot query for large blobs only.
+8. **Action fetch** — when executing (inject, revive, etc.), one-shot query for large blobs only.
 
 ```mermaid
 flowchart TD
@@ -141,15 +141,15 @@ If `mergeSignal` returns `undefined` (no base row), **cold hydrate**: one `list*
 
 Do not run the same handler logic on signal and reconcile. Split by what each channel can know:
 
-| Pass          | Trigger                 | Scope                                | Typical actions                            |
-| ------------- | ----------------------- | ------------------------------------ | ------------------------------------------ |
-| **Signal**    | WS `onItem` after patch | One row (or small batch from buffer) | Event-driven: inject, revive, config react |
-| **Reconcile** | HTTP poll timer         | Full snapshot                        | Timing / staleness: idle nudge             |
+| Pass          | Trigger                 | Scope                                | Typical actions                                |
+| ------------- | ----------------------- | ------------------------------------ | ---------------------------------------------- |
+| **Signal**    | WS `onItem` after patch | One row (or small batch from buffer) | Event-driven: inject, revive, config react     |
+| **Reconcile** | HTTP poll timer         | Full snapshot                        | State/PID recovery, coordinator reconciliation |
 
 Example (task monitor):
 
 - **Signal pass** — revive + native inject (needs `lastSeenAction`, status, PID; compares with local agent slots).
-- **Reconcile pass** — above plus CLI nudge (needs `createdAt` vs `participant.lastSeenAt`).
+- **Reconcile pass** — native wake/revive and coordinator reconciliation over the full snapshot.
 
 Define `pass: 'signal' | 'reconcile'` on your processor and gate branches explicitly.
 
@@ -318,7 +318,7 @@ getAssignedTaskForAction (full task.content)
 | Domain snapshot  | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |
 | Handler logic    | `packages/cli/src/daemon/entry/task-delivery/task-delivery-logic.ts`                          |
 
-Signal buffer: max 200, dedupe on. Subscribe page limit: 50. Reconcile interval: 15s (matches idle nudge threshold).
+Signal buffer: max 200, dedupe on. Subscribe page limit: 50. Reconcile interval: 15s (independent reconciliation cadence).
 
 ---
 

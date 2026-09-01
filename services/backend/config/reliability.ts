@@ -65,14 +65,9 @@ export const MACHINE_COMMAND_LOCAL_ACTION_TTL_MS = 60_000;
 /** How long a chatroom remains marked as "observed" before TTL expires (ms).
  * If frontend stops sending heartbeats within this window, the chatroom drops off
  * the daemon workspace watch list (recency window for listRecentlyObservedWorkspacesForMachine).
+ * The backend schedules a one-shot expiry nudge so daemons reconcile without polling.
  * Does not gate handoff-to-user git refresh. Set to 60s. */
 export const OBSERVATION_TTL_MS = 60_000;
-
-/** Safety poll interval for observed chatrooms (ms).
- * Daemon reconciles the workspace watch list periodically as a safety net
- * in case frontend heartbeats stop unexpectedly. Does not push git state.
- * Set to 30s. */
-export const OBSERVED_SAFETY_POLL_MS = 30_000;
 
 /** Minimum interval between `lastObservedAt` patches for regular (non-refresh) heartbeats (ms).
  *  Dedupes burst writes from mount + visibility refresh + interval firing close together.
@@ -83,9 +78,6 @@ export const OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS = 25_000;
  *  Frontend sends this heartbeat to keep chatrooms marked as observed.
  *  Set to 45s (within 60s OBSERVATION_TTL_MS with margin). */
 export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 45_000;
-
-/** Daemon reconcile interval for workspace-list subscription TTL drift (ms). */
-export const WORKSPACE_LIST_RECONCILE_MS = 60 * 60 * 1000; // 1 hour
 
 // ─── Participant Lifecycle Heartbeat ─────────────────────────────────────────
 

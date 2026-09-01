@@ -26,25 +26,21 @@ import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi, beforeEach } from 'vitest';
 
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
-import {
-  unregisterNativeDeliverySession,
-  registerNativeDeliverySession,
-} from './native-delivery-session-registry.js';
+import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
 import {
   NativeTaskDeliveryCoordinator,
   getNativeTaskDeliveryCoordinator,
   notifyNativeTurnIdle,
   reconcileDeliverableWorkForRole,
 } from './native-task-delivery-coordinator.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { listTasksReadyForNudge, RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
-import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
-import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
+import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
 import {
   operationalRow,
   registerTestNativeDeliverySession,
 } from '../../infrastructure/agent-operational/test-support.js';
+import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 
 const CHATROOM_ID = 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a' as Id<'chatroom_rooms'>;
 beforeEach(() =>
@@ -253,20 +249,6 @@ describe('native inbox recovery after planner handoff', () => {
 
     unregisterNativeDeliverySession();
     logSpy.mockRestore();
-  });
-
-  test('native recovery predicate remains conservative after native:waiting', () => {
-    const now = 1_700_000_000_000;
-    const snapshot = createTaskSnapshot();
-    const pendingRow = snapshot.mergeSignal(
-      snapshotDocToSignal(makePostHandoffPendingSnapshotDoc())
-    );
-    expect(pendingRow).toBeDefined();
-
-    const ready = listTasksReadyForNudge([pendingRow!], now + 5_000, new RecoveryCooldown(0), () =>
-      makeIdleSlot()
-    );
-    expect(ready).toHaveLength(0);
   });
 
   test('positive control: inbox reconcile injects when slot is idle after handoff', async () => {

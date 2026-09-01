@@ -9,6 +9,7 @@ import {
   type CursorAgentServiceDeps,
 } from './cursor-agent-service.js';
 import { TEST_MODEL_CURSOR } from '../../../../../../testing/test-models.js';
+import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 vi.mock('@cursor/sdk', () => ({
@@ -439,6 +440,149 @@ describe('CursorAgentService', () => {
       expect(bashLine).toBeDefined();
       expect(bashLine).toContain('git status');
       expect(bashLine).toContain('[cursor:builder');
+    });
+
+    it('returns activityEmitter with transport and progress signals from stream events', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 52,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CursorAgentService(deps);
+
+      const onOutput = vi.fn();
+      const onAgentEnd = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('hello'),
+        systemPrompt: 'system',
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      expect(result.activityEmitter).toBeDefined();
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+      result.onOutput(onOutput);
+      result.onAgentEnd?.(onAgentEnd);
+
+      mockStdout.push(
+        JSON.stringify({ type: 'system', subtype: 'init', session_id: 'sess-1' }) + '\n'
+      );
+      mockStdout.push(
+        JSON.stringify({
+          type: 'assistant',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'secret text' }] },
+        }) + '\n'
+      );
+      mockStdout.push(
+        JSON.stringify({
+          type: 'tool_call',
+          subtype: 'started',
+          call_id: 'call-1',
+          tool_call: { bashToolCall: { args: { command: 'secret-cmd' } } },
+        }) + '\n'
+      );
+      mockStdout.push(
+        JSON.stringify({
+          type: 'tool_call',
+          subtype: 'completed',
+          call_id: 'call-1',
+          tool_call: { result: 'done' },
+        }) + '\n'
+      );
+      mockStdout.push(
+        JSON.stringify({ type: 'result', subtype: 'success', session_id: 'sess-1' }) + '\n'
+      );
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'cursor-cli.assistant.text')).toBe(true)
+      );
+
+      expect(signals.some((s) => s.kind === 'transport' && s.source === 'cursor-cli.message')).toBe(
+        true
+      );
+      expect(signals.some((s) => s.source === 'cursor-cli.tool-call' && s.kind === 'waiting')).toBe(
+        true
+      );
+      expect(signals.some((s) => s.source === 'cursor-cli.tool-result')).toBe(true);
+      expect(onOutput).toHaveBeenCalled();
+      await vi.waitFor(() => expect(onAgentEnd).toHaveBeenCalledTimes(1));
+      const resultSignals = signals.filter(
+        (s) => s.source === 'cursor-cli.message' && s.kind === 'failure'
+      );
+      expect(resultSignals).toHaveLength(0);
+      for (const signal of signals) {
+        expect(signal.source).not.toContain('secret');
+      }
+    });
+
+    it('emits failure for failed result and explicit tool errors', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 53,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CursorAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('hello'),
+        systemPrompt: 'system',
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+
+      mockStdout.push(
+        JSON.stringify({
+          type: 'tool_call',
+          subtype: 'completed',
+          call_id: 'call-err',
+          tool_call: { is_error: true, error: 'secret tool fail' },
+        }) + '\n'
+      );
+      mockStdout.push(JSON.stringify({ type: 'result', subtype: 'error', is_error: true }) + '\n');
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.kind === 'failure' && s.source === 'cursor-cli.message')).toBe(
+          true
+        )
+      );
+      expect(
+        signals.some((s) => s.kind === 'failure' && s.source === 'cursor-cli.tool-result')
+      ).toBe(true);
+      for (const signal of signals) {
+        expect(signal.source).not.toContain('secret');
+      }
     });
   });
 });

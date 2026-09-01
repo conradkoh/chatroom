@@ -29,6 +29,8 @@ import { join } from 'node:path';
 
 import { PiRpcReader } from './pi-rpc-reader.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
+import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
@@ -46,6 +48,13 @@ export type PiAgentServiceDeps = CLIAgentServiceDeps;
 const PI_COMMAND = 'pi';
 const GET_STATE_TIMEOUT_MS = 5_000;
 const SPAWN_READY_DELAY_MS = 500;
+
+function isExplicitToolError(result: unknown): boolean {
+  if (result === null || typeof result !== 'object') return false;
+  const obj = result as Record<string, unknown>;
+  if (obj.is_error === true || obj.isError === true) return true;
+  return 'error' in obj && obj.error !== undefined;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -117,8 +126,10 @@ export class PiAgentService extends BaseCLIAgentService {
       throw new Error('Pi RPC process has no stdout');
     }
 
+    const activityEmitter = createHarnessActivityEmitter();
     const reader = new PiRpcReader(childProcess.stdout);
     const harnessSessionId = await this.querySessionId(reader, childProcess.stdin);
+    activityEmitter.beginTurn();
     await this.writePrompt(childProcess, prompt);
 
     return this.wireRpcProcess({
@@ -126,6 +137,7 @@ export class PiAgentService extends BaseCLIAgentService {
       context,
       harnessSessionId,
       reader,
+      activityEmitter,
     });
   }
 
@@ -204,8 +216,9 @@ export class PiAgentService extends BaseCLIAgentService {
     context: SpawnOptions['context'];
     harnessSessionId: string;
     reader?: PiRpcReader;
+    activityEmitter: HarnessActivityEmitter;
   }): SpawnResult {
-    const { childProcess, context, harnessSessionId } = args;
+    const { childProcess, context, harnessSessionId, activityEmitter } = args;
     const pid = childProcess.pid;
     if (pid == null) {
       throw new Error('Pi RPC process has no PID');
@@ -251,6 +264,7 @@ export class PiAgentService extends BaseCLIAgentService {
     const baseResult: SpawnResult = {
       pid,
       harnessSessionId,
+      activityEmitter,
       onExit,
       onOutput,
       onLogLine,
@@ -258,7 +272,15 @@ export class PiAgentService extends BaseCLIAgentService {
 
     const log = createAgentLogWriter(logPrefix, { emitLogLine, suppressConsole: true });
 
+    const emitActivity = (
+      kind: 'transport' | 'progress' | 'waiting' | 'failure',
+      source: string
+    ) => {
+      activityEmitter.emit({ kind, source, at: Date.now() });
+    };
+
     const onStderrData = (chunk: Buffer | string) => {
+      emitActivity('transport', 'pi-cli.stderr');
       entry.lastOutputAt = Date.now();
       for (const cb of outputCallbacks) cb();
       emitLogLine(chunk.toString());
@@ -301,6 +323,7 @@ export class PiAgentService extends BaseCLIAgentService {
     };
 
     reader.onTextDelta((delta) => {
+      emitActivity('progress', 'pi-cli.assistant.text');
       flushThinking();
       textBuffer += delta;
       if (textBuffer.includes('\n')) flushText();
@@ -308,14 +331,19 @@ export class PiAgentService extends BaseCLIAgentService {
     });
 
     reader.onThinkingDelta((delta) => {
+      emitActivity('progress', 'pi-cli.assistant.thinking');
       flushText();
       thinkingBuffer += delta;
       if (thinkingBuffer.includes('\n')) flushThinking();
       notifyOutput();
     });
 
-    reader.onAnyEvent(() => {
+    reader.onAnyEvent((metadata) => {
       notifyOutput();
+      emitActivity('transport', 'pi-cli.message');
+      if (metadata.isError) {
+        emitActivity('failure', 'pi-cli.message');
+      }
     });
 
     reader.onAgentEnd(() => {
@@ -326,6 +354,8 @@ export class PiAgentService extends BaseCLIAgentService {
     });
 
     reader.onToolCall((name, toolArgs) => {
+      emitActivity('progress', 'pi-cli.tool-call');
+      emitActivity('waiting', 'pi-cli.tool-call');
       flushText();
       flushThinking();
       const bashCmd = resolveBashCommandForLog(name, toolArgs);
@@ -338,6 +368,10 @@ export class PiAgentService extends BaseCLIAgentService {
     });
 
     reader.onToolResult((name, result) => {
+      emitActivity('progress', 'pi-cli.tool-result');
+      if (isExplicitToolError(result)) {
+        emitActivity('failure', 'pi-cli.tool-result');
+      }
       const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
       log.write('tool_result', `${name} result: ${resultStr}`);
     });

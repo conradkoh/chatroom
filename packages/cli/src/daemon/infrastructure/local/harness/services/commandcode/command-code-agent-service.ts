@@ -27,6 +27,8 @@ import {
   prefixModelWithProvider,
 } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 
+import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CommandCodeStreamReader } from './command-code-stream-reader.js';
@@ -109,9 +111,11 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
   private createExitSubscription(
     childProcess: ChildProcess,
     pid: number,
-    context: SpawnContext
+    context: SpawnContext,
+    activityEmitter?: HarnessActivityEmitter
   ): SpawnResult['onExit'] {
     let exitInfo: { code: number | null; signal: string | null } | null = null;
+    let failureEmitted = false;
     const exitCallbacks: ((exit: {
       code: number | null;
       signal: string | null;
@@ -121,6 +125,18 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
     childProcess.on('exit', (code, signal) => {
       this.deleteProcess(pid);
       exitInfo = { code, signal };
+      if (
+        activityEmitter &&
+        !failureEmitted &&
+        ((code !== null && code !== 0) || signal !== null)
+      ) {
+        failureEmitted = true;
+        activityEmitter.emit({
+          kind: 'failure',
+          source: 'commandcode-cli.process',
+          at: Date.now(),
+        });
+      }
       for (const cb of exitCallbacks) {
         cb({ code, signal, context });
       }
@@ -135,6 +151,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
     };
   }
 
+  // fallow-ignore-next-line complexity
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     // NOTE: Tool-call logging to the daemon is currently UNSUPPORTED for commandcode.
     // `cmd -p` has no structured output / verbose / stream-events flag — only the final
@@ -157,6 +174,9 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
     const fullPrompt = options.systemPrompt
       ? `${options.systemPrompt}\n\n${options.prompt}`
       : options.prompt;
+
+    const activityEmitter = createHarnessActivityEmitter();
+    activityEmitter.beginTurn();
 
     const childProcess: ChildProcess = this.deps.spawn(COMMANDCODE_COMMAND, args, {
       cwd: options.workingDir,
@@ -181,6 +201,13 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
 
     const outputCallbacks: (() => void)[] = [];
 
+    const emitActivity = (
+      kind: 'transport' | 'progress' | 'waiting' | 'failure',
+      source: string
+    ) => {
+      activityEmitter.emit({ kind, source, at: Date.now() });
+    };
+
     if (childProcess.stdout) {
       const reader = new CommandCodeStreamReader(childProcess.stdout);
 
@@ -194,6 +221,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
       };
 
       reader.onText((text) => {
+        emitActivity('progress', 'commandcode-cli.assistant.text');
         textBuffer += text;
         if (textBuffer.includes('\n')) flushText();
         entry.lastOutputAt = Date.now();
@@ -202,6 +230,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
 
       reader.onAnyEvent(() => {
         entry.lastOutputAt = Date.now();
+        emitActivity('transport', 'commandcode-cli.message');
         for (const cb of outputCallbacks) cb();
       });
 
@@ -212,16 +241,18 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
 
       if (childProcess.stderr) {
         childProcess.stderr.on('data', (chunk: Buffer) => {
+          emitActivity('transport', 'commandcode-cli.stderr');
           emitFormatted(chunk.toString('utf8'), 'stderr');
           entry.lastOutputAt = Date.now();
           for (const cb of outputCallbacks) cb();
         });
       }
 
-      const onExit = this.createExitSubscription(childProcess, pid, context);
+      const onExit = this.createExitSubscription(childProcess, pid, context, activityEmitter);
 
       return {
         pid,
+        activityEmitter,
         onExit,
         onOutput: (cb) => {
           outputCallbacks.push(cb);
@@ -233,10 +264,11 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
       };
     }
 
-    const onExit = this.createExitSubscription(childProcess, pid, context);
+    const onExit = this.createExitSubscription(childProcess, pid, context, activityEmitter);
 
     if (childProcess.stderr) {
       childProcess.stderr.on('data', (chunk: Buffer) => {
+        emitActivity('transport', 'commandcode-cli.stderr');
         emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
@@ -245,6 +277,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
 
     return {
       pid,
+      activityEmitter,
       onExit,
       onOutput: (cb) => {
         outputCallbacks.push(cb);

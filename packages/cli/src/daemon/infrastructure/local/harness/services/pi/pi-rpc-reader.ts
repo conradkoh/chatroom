@@ -23,12 +23,17 @@ import type { Readable } from 'node:stream';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
+export interface PiCliEventMetadata {
+  readonly type: string;
+  readonly isError: boolean;
+}
+
 type TextDeltaCallback = (delta: string) => void;
 type ThinkingDeltaCallback = (delta: string) => void;
 type AgentEndCallback = () => void;
 type ToolCallCallback = (name: string, args: unknown) => void;
 type ToolResultCallback = (name: string, result: unknown) => void;
-type AnyEventCallback = () => void;
+type AnyEventCallback = (event: PiCliEventMetadata) => void;
 type StateResponseCallback = (sessionId: string) => void;
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -84,6 +89,7 @@ export class PiRpcReader {
 
   // ─── Private ───────────────────────────────────────────────────────────────
 
+  // fallow-ignore-next-line complexity
   private _handleLine(line: string): void {
     const trimmed = line.trim();
     if (!trimmed) return;
@@ -95,9 +101,18 @@ export class PiRpcReader {
       return;
     }
 
-    for (const cb of this.anyEventCallbacks) cb();
+    const metadata: PiCliEventMetadata = {
+      type: typeof event['type'] === 'string' ? event['type'] : 'unknown',
+      isError: this._isErrorEvent(event),
+    };
+    for (const cb of this.anyEventCallbacks) cb(metadata);
 
     this._dispatchEvent(event);
+  }
+
+  private _isErrorEvent(event: Record<string, unknown>): boolean {
+    if (event['is_error'] === true || event['isError'] === true) return true;
+    return 'error' in event && event['error'] !== undefined;
   }
 
   private readonly eventHandlers: Record<string, (event: Record<string, unknown>) => void> = {

@@ -10,6 +10,7 @@ import {
   logUnhandledInteractionDelta,
   logUnhandledSdkMessage,
 } from './cursor-sdk-stream-fallback.js';
+import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import {
   BASH_TOOL_KIND,
   extractBashCommandFromToolInput,
@@ -24,15 +25,30 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
   private sawTextDelta = false;
 
+  constructor(
+    logPrefix: string,
+    emitLogLine?: (line: string) => void,
+    activityEmitter?: HarnessActivityEmitter
+  ) {
+    super(logPrefix, emitLogLine, activityEmitter);
+  }
+
   // fallow-ignore-next-line complexity
   handleMessage(message: SDKMessage): void {
-    this.notifyOutput();
+    this.notifyOutput('cursor-sdk.message');
 
     switch (message.type) {
       case 'assistant':
+        this.notifyProgress('cursor-sdk.assistant');
         this.handleAssistant(message);
         break;
       case 'tool_call': {
+        this.notifyProgress('cursor-sdk.tool_call');
+        if (message.status === 'running') {
+          this.notifyWaiting('cursor-sdk.tool_call');
+        } else if (message.status === 'error') {
+          this.notifyFailure('cursor-sdk.tool_call');
+        }
         this.flushText();
         if (message.status === 'error') {
           const detail =
@@ -62,11 +78,17 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       }
       case 'status': {
+        if (message.status === 'RUNNING') {
+          this.notifyProgress('cursor-sdk.status');
+        } else if (message.status === 'ERROR') {
+          this.notifyFailure('cursor-sdk.status');
+        }
         const payload = message.message ? `${message.status}: ${message.message}` : message.status;
         this.writeLine(formatAgentLogLine(this.logPrefix, 'status', payload));
         break;
       }
       case 'thinking':
+        this.notifyProgress('cursor-sdk.thinking');
         // Thinking streams via thinking-delta (onDelta) since SDK 1.0.24+.
         // run.stream() thinking SDKMessages duplicate the same content.
         break;
@@ -76,6 +98,7 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
         }
         break;
       case 'task':
+        this.notifyProgress('cursor-sdk.task');
         this.writeLine(
           formatAgentLogLine(
             this.logPrefix,
@@ -105,37 +128,57 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
    */
   // fallow-ignore-next-line complexity
   handleInteractionDelta(update: InteractionUpdate): void {
-    this.notifyOutput();
+    this.notifyOutput('cursor-sdk.interaction');
     switch (update.type) {
       case 'text-delta':
+        this.notifyProgress('cursor-sdk.interaction.text-delta');
         this.sawTextDelta = true;
         this.appendAssistantText(update.text);
         break;
       case 'thinking-delta':
+        this.notifyProgress('cursor-sdk.interaction.thinking-delta');
         this.writeLine(formatAgentLogLine(this.logPrefix, 'thinking', update.text));
         break;
       case 'tool-call-started':
+        this.notifyProgress('cursor-sdk.interaction.tool-call-started');
+        this.notifyWaiting('cursor-sdk.interaction.tool-call-started');
         this.flushText();
         this.logToolCallStarted(update);
         break;
       case 'tool-call-completed':
+        this.notifyProgress('cursor-sdk.interaction.tool-call-completed');
         this.flushText();
         // informational — existing tool_call SDKMessage handles detailed status
         break;
       case 'tool-call-delta':
+        this.notifyProgress('cursor-sdk.interaction.tool-call-delta');
         this.handleToolCallDelta(update);
+        break;
+      case 'partial-tool-call':
+        this.notifyProgress('cursor-sdk.interaction.partial-tool-call');
+        break;
+      case 'shell-output-delta':
+        this.notifyProgress('cursor-sdk.interaction.shell-output-delta');
+        break;
+      case 'step-started':
+        this.notifyProgress('cursor-sdk.interaction.step-started');
+        break;
+      case 'step-completed':
+        this.notifyProgress('cursor-sdk.interaction.step-completed');
+        break;
+      case 'summary-started':
+        this.notifyProgress('cursor-sdk.interaction.summary-started');
+        break;
+      case 'summary-completed':
+        this.notifyProgress('cursor-sdk.interaction.summary-completed');
+        break;
+      case 'summary':
+        this.notifyProgress('cursor-sdk.interaction.summary');
         break;
       case 'turn-ended':
       case 'thinking-completed':
       case 'token-delta':
-      case 'summary-started':
-      case 'summary-completed':
-      case 'summary':
       case 'user-message-appended':
-      case 'partial-tool-call':
-      case 'shell-output-delta':
-      case 'step-started':
-      case 'step-completed':
         // intentionally silent — informational / handled elsewhere
         break;
       default:
@@ -180,6 +223,8 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
         this.appendAssistantText(nested.text);
         break;
       case 'tool-call-started':
+        this.notifyProgress('cursor-sdk.interaction.tool-call-started');
+        this.notifyWaiting('cursor-sdk.interaction.tool-call-started');
         this.flushText();
         this.logToolCallStarted(nested);
         break;

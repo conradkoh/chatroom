@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { OpenCodeAgentService, type OpenCodeAgentServiceDeps } from './opencode-agent-service.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
+import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 function createMockDeps(overrides?: Partial<OpenCodeAgentServiceDeps>): OpenCodeAgentServiceDeps {
@@ -281,6 +282,146 @@ describe('OpenCodeAgentService', () => {
           resolvedConvexUrl: 'http://test:3210',
         })
       ).rejects.toThrow('exited immediately');
+    });
+
+    it('returns activityEmitter with transport and progress for stdout chunks', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 55,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new OpenCodeAgentService(deps);
+
+      const onOutput = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('hello'),
+        systemPrompt: 'system',
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      expect(result.activityEmitter).toBeDefined();
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+      result.onOutput(onOutput);
+
+      mockStdout.emit('data', Buffer.from('secret response'));
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'opencode-cli.assistant.text')).toBe(true)
+      );
+
+      expect(
+        signals.some((s) => s.kind === 'transport' && s.source === 'opencode-cli.stdout')
+      ).toBe(true);
+      expect(onOutput).toHaveBeenCalled();
+      for (const signal of signals) {
+        expect(signal.source).not.toContain('secret');
+      }
+    });
+
+    it('emits transport without progress for whitespace-only stdout', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 56,
+        killed: false,
+        exitCode: null,
+      });
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new OpenCodeAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('hello'),
+        systemPrompt: 'system',
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+
+      mockStdout.emit('data', Buffer.from('   \n'));
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'opencode-cli.stdout')).toBe(true)
+      );
+
+      expect(signals.some((s) => s.source === 'opencode-cli.assistant.text')).toBe(false);
+    });
+
+    it('emits transport-only stderr and failure on non-zero exit', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 57,
+        killed: false,
+        exitCode: null,
+      });
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new OpenCodeAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('hello'),
+        systemPrompt: 'system',
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+
+      mockStderr.emit('data', Buffer.from('secret stderr'));
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'opencode-cli.stderr')).toBe(true)
+      );
+
+      expect(signals.some((s) => s.kind === 'failure')).toBe(false);
+      for (const signal of signals) {
+        expect(signal.source).not.toContain('secret');
+      }
+
+      const onExit = vi.fn();
+      result.onExit(onExit);
+      mockChild.emit('exit', 2, null);
+
+      await vi.waitFor(() =>
+        expect(
+          signals.some((s) => s.kind === 'failure' && s.source === 'opencode-cli.process')
+        ).toBe(true)
+      );
+      expect(onExit).toHaveBeenCalledTimes(1);
     });
   });
 });

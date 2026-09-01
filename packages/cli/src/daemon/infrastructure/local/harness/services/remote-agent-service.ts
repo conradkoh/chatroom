@@ -95,9 +95,11 @@ export interface SpawnResult {
   /** `lifecycle.output.activity` — stream or stdout/stderr activity. */
   onOutput: (cb: () => void) => void;
   /**
-   * Typed first-activity signal for backend token reporting.
-   * Producers MUST emit at most once per agent turn (e.g. first thinking/text/tool output).
-   * When present, wireTokenActivityReporting uses this exclusively; onOutput remains for liveness/logs.
+   * Typed harness activity signals for observability and first-progress presence reporting.
+   * Emitters report transport/progress/waiting/failure signals; producers call beginTurn()
+   * before each agent turn. Raw onOutput remains broad stream activity for liveness/logs.
+   * Does not replace onAgentEnd. When present, wireTokenActivityReporting subscribes to
+   * first typed progress per turn instead of throttled raw onOutput.
    */
   activityEmitter?: HarnessActivityEmitter;
   /**

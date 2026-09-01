@@ -13,6 +13,7 @@
 
 import { type ChildProcess } from 'node:child_process';
 
+import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { createSessionLogCallbacks } from '../session-log-callbacks.js';
@@ -53,6 +54,7 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
       .filter((line) => line.length > 0);
   }
 
+  // fallow-ignore-next-line complexity
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const args: string[] = ['run'];
     if (options.model) {
@@ -64,6 +66,9 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
     const fullPrompt = options.systemPrompt
       ? `${options.systemPrompt}\n\n${options.prompt}`
       : options.prompt;
+
+    const activityEmitter = createHarnessActivityEmitter();
+    activityEmitter.beginTurn();
 
     const childProcess: ChildProcess = this.deps.spawn(OPENCODE_COMMAND, args, {
       cwd: options.workingDir,
@@ -86,15 +91,30 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
 
     // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
+    let processFailureEmitted = false;
+
+    const emitActivity = (
+      kind: 'transport' | 'progress' | 'waiting' | 'failure',
+      source: string
+    ) => {
+      activityEmitter.emit({ kind, source, at: Date.now() });
+    };
+
     if (childProcess.stdout) {
       childProcess.stdout.on('data', (chunk: Buffer) => {
-        emitFormatted(chunk.toString('utf8'), 'stdout');
+        const text = chunk.toString('utf8');
+        emitActivity('transport', 'opencode-cli.stdout');
+        if (text.trim().length > 0) {
+          emitActivity('progress', 'opencode-cli.assistant.text');
+        }
+        emitFormatted(text, 'stdout');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
     }
     if (childProcess.stderr) {
       childProcess.stderr.on('data', (chunk: Buffer) => {
+        emitActivity('transport', 'opencode-cli.stderr');
         emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
@@ -103,9 +123,14 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
 
     return {
       pid,
+      activityEmitter,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
           this.deleteProcess(pid);
+          if (!processFailureEmitted && ((code !== null && code !== 0) || signal !== null)) {
+            processFailureEmitted = true;
+            emitActivity('failure', 'opencode-cli.process');
+          }
           cb({ code, signal, context });
         });
       },

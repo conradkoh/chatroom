@@ -4,7 +4,7 @@ title: Bandwidth at rest across projects
 description: Cross-app audit of Convex subscriptions and heartbeat paths when a machine has many projects but only one or two active agents.
 tags: [bandwidth, convex, daemon, subscriptions, projects, performance]
 status: active
-last_reviewed: 2026-08-28
+last_reviewed: 2026-08-31
 ---
 
 # Bandwidth at rest across projects
@@ -43,7 +43,7 @@ Track remediation progress here. Update status and PR links as work lands.
 
 Assume one machine has many projects, but only one or two projects currently have agents working. The desired behavior is that idle bandwidth is approximately proportional to the active projects, with a small fixed machine/daemon baseline.
 
-Phase 2 removes the always-on workspace-list subscription. Daemons now receive a `daemon.workspaceListChanged` inbox nudge on watch-start/refresh or workspace membership changes, imperatively reconcile, and run a 30-second `OBSERVED_SAFETY_POLL_MS` safety poll for TTL drift. The query remains for imperative reconcile only.
+Phase 2 removes the always-on workspace-list subscription. Daemons now receive a `daemon.workspaceListChanged` inbox nudge on watch-start/refresh or workspace membership changes and imperatively reconcile. Each accepted observation heartbeat schedules a one-shot expiry nudge at the fixed 60-second TTL, so expiry reconciliation does not require daemon polling. The query remains for imperative reconcile only and returns only working-directory strings.
 
 The current behavior is instead a mixture of:
 
@@ -71,7 +71,7 @@ This directly matches the largest screenshot entries:
 
 The web app records an observation for a visible chatroom approximately every 45 seconds. The daemon subscriber deduplicates the returned directory array before triggering downstream Git work, so an unchanged directory set does not necessarily cause a Git resynchronization. That optimization does not make the live query active-project-only: the query still depends on a potentially large machine-wide projection and can re-evaluate when observation/projection rows change.
 
-Phase 1 and Phase 2 landed in PRs #1544 and #1545, replacing the live subscription with watch-gated inbox delivery and safety reconciliation.
+Phase 1 and Phase 2 landed in PRs #1544 and #1545, replacing the live subscription with watch-gated inbox delivery. PR #1561 replaces safety polling with one-shot observation-expiry nudges.
 
 ### 2. Machine operational status is returned for all projects and roles
 

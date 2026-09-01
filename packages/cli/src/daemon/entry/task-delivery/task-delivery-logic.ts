@@ -5,10 +5,6 @@ import {
   isSlotStopping,
 } from '../../../daemon/domain/usecase/check-agent-slot.js';
 import {
-  isCliIdleNotListening,
-  isStaleCliGetNextTaskWaiting,
-} from '../../domain/native-integration/predicates.js';
-import {
   isOperationalDesiredRunning,
   isOperationalStopIntentActive,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
@@ -16,24 +12,9 @@ import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent
 import { STOPPING_TIMEOUT_MS } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
 import { getNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
-import { isAgentReadyForNativeDelivery } from '../native-delivery/native-ready-invariant.js';
 import { isNativeHarness } from '../native-delivery/native-task-injector-logic.js';
 
-const PENDING_IDLE_NUDGE_MS = 15_000;
-const NUDGE_COOLDOWN_MS = 60_000;
-
-function isPendingAliveRunningTask(task: AssignedTaskSnapshotView): boolean {
-  const { agentConfig, status } = task;
-  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
-    task.chatroomId,
-    agentConfig.role
-  );
-  return (
-    status === 'pending' &&
-    (agentConfig.spawnedAgentPid != null || op?.isAlive === true) &&
-    isOperationalDesiredRunning(op)
-  );
-}
+const RECOVERY_COOLDOWN_MS = 60_000;
 
 export interface NativeAgentLocalHealth {
   getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
@@ -157,48 +138,12 @@ export function listNativePendingTasksNeedingWake(
   });
 }
 
-function shouldNudgeCliPendingTask(
-  task: AssignedTaskSnapshotView,
-  now: number,
-  pendingIdleThresholdMs: number
-): boolean {
-  if (!isPendingAliveRunningTask(task)) return false;
-  return (
-    isStaleCliGetNextTaskWaiting(task) || isCliIdleNotListening(task, now, pendingIdleThresholdMs)
-  );
-}
-
-/** Returns true when a pending CLI task should trigger an agent restart nudge. */
-function shouldNudgePendingTask(
-  task: AssignedTaskSnapshotView,
-  now: number,
-  pendingIdleThresholdMs = PENDING_IDLE_NUDGE_MS
-): boolean {
-  if (isNativeHarness(task.agentConfig.agentHarness)) {
-    return shouldNudgeNativePendingTask(task, now, pendingIdleThresholdMs);
-  }
-  return shouldNudgeCliPendingTask(task, now, pendingIdleThresholdMs);
-}
-
-function shouldNudgeNativePendingTask(
-  task: AssignedTaskSnapshotView,
-  now: number,
-  pendingIdleThresholdMs: number,
-  slot?: AgentSlot
-): boolean {
-  if (!isPendingAliveRunningTask(task)) return false;
-  if (!isAgentReadyForNativeDelivery(task, slot)) return false;
-  const lastSeenAt = task.participant?.lastSeenAt ?? 0;
-  const idleSince = lastSeenAt > 0 ? now - lastSeenAt : now - task.createdAt;
-  return idleSince > pendingIdleThresholdMs;
-}
-
-export type RecoveryKind = 'wake' | 'revive' | 'nudge';
+export type RecoveryKind = 'wake' | 'revive';
 
 export class RecoveryCooldown {
   private readonly lastAttemptAt = new Map<string, number>();
 
-  constructor(private readonly cooldownMs = NUDGE_COOLDOWN_MS) {}
+  constructor(private readonly cooldownMs = RECOVERY_COOLDOWN_MS) {}
 
   canAttempt(chatroomId: string, role: string, kind: RecoveryKind, now: number): boolean {
     const key = `${kind}:${chatroomId}:${role}`;
@@ -209,35 +154,4 @@ export class RecoveryCooldown {
   recordAttempt(chatroomId: string, role: string, kind: RecoveryKind, now: number): void {
     this.lastAttemptAt.set(`${kind}:${chatroomId}:${role}`, now);
   }
-}
-
-function isTaskReadyForNudge(
-  task: AssignedTaskSnapshotView,
-  now: number,
-  cooldown: RecoveryCooldown,
-  getSlot?: (chatroomId: string, role: string) => AgentSlot | undefined
-): boolean {
-  if (isNativeHarness(task.agentConfig.agentHarness)) {
-    const slot = getSlot?.(task.chatroomId, task.agentConfig.role);
-    if (!shouldNudgeNativePendingTask(task, now, PENDING_IDLE_NUDGE_MS, slot)) return false;
-  } else if (!shouldNudgePendingTask(task, now)) {
-    return false;
-  }
-  const { chatroomId, agentConfig } = task;
-  if (!cooldown.canAttempt(chatroomId, agentConfig.role, 'nudge', now)) return false;
-  if (!agentConfig.workingDir) return false;
-  return true;
-}
-
-export function listTasksReadyForNudge(
-  tasks: AssignedTaskSnapshotView[],
-  now: number,
-  cooldown: RecoveryCooldown,
-  getSlot?: (chatroomId: string, role: string) => AgentSlot | undefined
-): AssignedTaskSnapshotView[] {
-  return tasks.filter((task) => {
-    if (!isTaskReadyForNudge(task, now, cooldown, getSlot)) return false;
-    cooldown.recordAttempt(task.chatroomId, task.agentConfig.role, 'nudge', now);
-    return true;
-  });
 }

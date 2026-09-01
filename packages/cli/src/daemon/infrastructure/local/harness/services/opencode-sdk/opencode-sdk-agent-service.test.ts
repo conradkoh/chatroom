@@ -11,6 +11,7 @@ import {
 import { startSessionEventForwarder as realStartForwarder } from './session-event-forwarder.js';
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
+import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 // ---------------------------------------------------------------------------
@@ -516,30 +517,42 @@ describe('OpenCodeSdkAgentService', () => {
 
     it('resumeTurn falls back to fresh session when promptAsync fails', async () => {
       const sessionStore = new InMemorySessionMetadataStore();
-      sessionStore.upsert({
-        sessionId: 'sess-1',
-        machineId: 'm1',
-        chatroomId: 'c1',
-        role: 'builder',
-        agentName: 'build',
-        pid: 4321,
-        createdAt: new Date().toISOString(),
-        baseUrl: 'http://127.0.0.1:5678',
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        sessionMetadataStore: sessionStore,
       });
-      const deps = createMockDeps({ sessionMetadataStore: sessionStore });
       stubSdkClient();
+      vi.mocked(createOpencodeClient).mockImplementation(
+        () =>
+          ({
+            session: {
+              create: sharedCreateFn,
+              get: sharedGetFn,
+              promptAsync: sharedPromptAsyncFn,
+              abort: sharedAbortFn,
+            },
+            app: { agents: sharedAppAgentsFn },
+            event: { subscribe: sharedEventSubscribeFn },
+          }) as unknown as ReturnType<typeof createOpencodeClient>
+      );
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const result = await spawnPromise;
+
       sharedPromptAsyncFn
         .mockRejectedValueOnce(new Error('session not found'))
         .mockResolvedValue({ data: {} });
       sharedCreateFn.mockResolvedValue({ data: { id: 'sess-2' } });
-      const service = new OpenCodeSdkAgentService(deps);
 
-      await expect(service.resumeTurn(4321, 'resume prompt')).resolves.toBeUndefined();
+      await expect(service.resumeTurn(result.pid, 'resume prompt')).resolves.toBeUndefined();
 
       expect(sharedCreateFn).toHaveBeenCalled();
       expect(sessionStore.get('sess-2')).toBeDefined();
       expect(sessionStore.get('sess-1')).toBeUndefined();
-      expect(sharedPromptAsyncFn).toHaveBeenCalledTimes(2);
+      expect(sharedPromptAsyncFn).toHaveBeenCalledTimes(3);
     });
 
     it('proceeds with SIGTERM when no session metadata exists for the pid', async () => {
@@ -998,6 +1011,100 @@ describe('OpenCodeSdkAgentService', () => {
       child.stderr.emit('data', Buffer.from('chunk-2'));
 
       expect(onOutput).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns activityEmitter with transport and progress signals from session events', async () => {
+      let releaseEvent: (() => void) | undefined;
+      const eventGate = new Promise<void>((resolve) => {
+        releaseEvent = resolve;
+      });
+
+      async function* gatedStream(): AsyncGenerator<unknown> {
+        await eventGate;
+        yield {
+          type: 'message.part.updated',
+          properties: {
+            delta: 'typed hello',
+            part: {
+              id: 'p1',
+              type: 'text',
+              sessionID: 'sess-1',
+              messageID: 'm1',
+              text: '',
+            },
+          },
+        };
+        await new Promise(() => {});
+      }
+
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient({ subscribeStream: gatedStream() });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const result = await spawnPromise;
+
+      expect(result.activityEmitter).toBeDefined();
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+
+      releaseEvent!();
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'opencode.message.part.updated.text')).toBe(true)
+      );
+
+      expect(signals.some((s) => s.kind === 'transport')).toBe(true);
+      expect(signals.some((s) => s.kind === 'progress')).toBe(true);
+    });
+
+    it('process stdout/stderr emits transport on activityEmitter without progress', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const result = await spawnPromise;
+
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+
+      child.stdout.emit('data', Buffer.from('chunk-1'));
+      child.stderr.emit('data', Buffer.from('chunk-2'));
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'opencode.process.stdout')).toBe(true)
+      );
+      expect(signals.some((s) => s.source === 'opencode.process.stderr')).toBe(true);
+      expect(signals.every((s) => s.kind === 'transport')).toBe(true);
+    });
+
+    it('resumeTurn fallback reuses the same activityEmitter across fresh session', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        sessionMetadataStore: new InMemorySessionMetadataStore(),
+      });
+      stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const result = await spawnPromise;
+      const originalEmitter = result.activityEmitter;
+
+      sharedPromptAsyncFn.mockClear();
+      sharedPromptAsyncFn
+        .mockRejectedValueOnce(new Error('session not found'))
+        .mockResolvedValue({ data: {} });
+      sharedCreateFn.mockResolvedValue({ data: { id: 'sess-2' } });
+
+      await service.resumeTurn(result.pid, 'resume prompt');
+
+      expect(originalEmitter).toBe(result.activityEmitter);
     });
 
     it('forwards model slug with a single slash as {providerID, modelID}', async () => {

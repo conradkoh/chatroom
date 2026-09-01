@@ -6,6 +6,7 @@ import {
   CommandCodeAgentService,
   type CommandCodeAgentServiceDeps,
 } from './command-code-agent-service.js';
+import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 function createMockDeps(
@@ -449,6 +450,70 @@ describe('CommandCodeAgentService', () => {
       });
 
       expect(mockStdin.write).toHaveBeenCalledWith('just the prompt');
+    });
+
+    it('returns activityEmitter with transport and progress for stdout lines', async () => {
+      const mockChild = createMockChildWithStreams({ pid: 200 });
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(mockChild) });
+      const service = new CommandCodeAgentService(deps);
+
+      const onOutput = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('secret prompt'),
+        systemPrompt: 'test',
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      expect(result.activityEmitter).toBeDefined();
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+      result.onOutput(onOutput);
+
+      mockChild.stdout!.push('secret response line\n');
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'commandcode-cli.assistant.text')).toBe(true)
+      );
+
+      expect(
+        signals.some((s) => s.kind === 'transport' && s.source === 'commandcode-cli.message')
+      ).toBe(true);
+      expect(onOutput).toHaveBeenCalled();
+      for (const signal of signals) {
+        expect(signal.source).not.toContain('secret');
+      }
+
+      signals.length = 0;
+      mockChild.stdout!.push(null);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(signals.filter((s) => s.kind === 'progress' || s.kind === 'failure')).toHaveLength(0);
+    });
+
+    it('emits failure for non-zero process exit', async () => {
+      const mockChild = createMockChildWithStreams({ pid: 201 });
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(mockChild) });
+      const service = new CommandCodeAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('test'),
+        systemPrompt: 'test',
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+
+      mockChild.emit('exit', 1, null);
+
+      await vi.waitFor(() =>
+        expect(
+          signals.some((s) => s.kind === 'failure' && s.source === 'commandcode-cli.process')
+        ).toBe(true)
+      );
     });
   });
 });
