@@ -903,15 +903,6 @@ export async function runHandoffHandler(
     }
   }
 
-  const completedTaskIds = await completeTasks(ctx, tasksToComplete, { skipAutoPromotion: true });
-  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
-
-  if (tasksToComplete.length > 1) {
-    console.warn(
-      `[handoff] Completed ${tasksToComplete.length} tasks (in_progress + acknowledged) in chatroom ${args.chatroomId}`
-    );
-  }
-
   // Resolve user-instruction origin for enhancer correlation on any handoff
   let taskOriginMessageId: Id<'chatroom_messages'> | undefined;
   for (const task of tasksToComplete) {
@@ -935,6 +926,49 @@ export async function runHandoffHandler(
     if (origin) taskOriginMessageId = origin._id;
   }
 
+  const terminalHandoffKey =
+    isHandoffToUser && taskOriginMessageId
+      ? `${args.chatroomId}:${taskOriginMessageId}:${normalizedSenderRole}:user`
+      : undefined;
+
+  const agentConfigResult = await getAgentConfig(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.senderRole,
+  });
+  const supportsNativeIntegration =
+    agentConfigResult.found && isNativeHarness(agentConfigResult.config.agentHarness);
+
+  if (terminalHandoffKey) {
+    const existing = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_terminalHandoffKey', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('terminalHandoffKey', terminalHandoffKey)
+      )
+      .first();
+    if (existing) {
+      return {
+        success: true,
+        error: null,
+        messageId: existing._id,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+        enhancerJobId: args.enhancerJobId ?? null,
+        enhancerRequestQueued: false,
+        supportsNativeIntegration,
+      };
+    }
+  }
+
+  const completedTaskIds = await completeTasks(ctx, tasksToComplete, { skipAutoPromotion: true });
+  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
+
+  if (tasksToComplete.length > 1) {
+    console.warn(
+      `[handoff] Completed ${tasksToComplete.length} tasks (in_progress + acknowledged) in chatroom ${args.chatroomId}`
+    );
+  }
+
   const originMessage =
     isHandoffToEnhancer && taskOriginMessageId
       ? await ctx.db.get('chatroom_messages', taskOriginMessageId)
@@ -956,6 +990,7 @@ export async function runHandoffHandler(
     ...(isEnhancerDelivery ? { visibleInAllTabOnly: true } : {}),
     ...(args.visibleInAllTabOnly && { visibleInAllTabOnly: true }),
     ...(taskOriginMessageId && { taskOriginMessageId }),
+    ...(terminalHandoffKey ? { terminalHandoffKey } : {}),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -1109,13 +1144,6 @@ export async function runHandoffHandler(
     }
     await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, shouldFlagHandoffNotification);
   }
-
-  const agentConfigResult = await getAgentConfig(ctx, {
-    chatroomId: args.chatroomId,
-    role: args.senderRole,
-  });
-  const supportsNativeIntegration =
-    agentConfigResult.found && isNativeHarness(agentConfigResult.config.agentHarness);
 
   return {
     success: true,
