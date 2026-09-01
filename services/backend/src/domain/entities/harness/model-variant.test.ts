@@ -190,6 +190,10 @@ describe('HARNESS_MODEL_CATALOG', () => {
       base: 'claude-4.6-opus',
       params: { effort: 'xhigh', thinking: 'enabled' },
     });
+    expect(cursorLegacySlugToVariant('gpt-5.6-luna-max')).toEqual({
+      base: 'gpt-5.6-luna',
+      params: { effort: 'max' },
+    });
     expect(cursorLegacySlugToVariant('composer-2.5')).toBeUndefined();
   });
 

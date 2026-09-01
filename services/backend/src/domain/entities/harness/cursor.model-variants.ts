@@ -12,7 +12,8 @@ export function cursorLegacySlugToVariant(flatSlug: string) {
   }
   const effort = base.match(/-(low|medium|high|xhigh|max)$/)?.[1];
   if (effort) {
-    params.effort = effort === 'max' ? 'xhigh' : effort;
+    // Opus "max" in Cursor UI maps to xhigh effort; GPT 5.6 models use literal "max".
+    params.effort = effort === 'max' && base.includes('opus') ? 'xhigh' : effort;
     base = base.slice(0, -(effort.length + 1));
   }
   if (Object.keys(params).length === 0) return undefined;
