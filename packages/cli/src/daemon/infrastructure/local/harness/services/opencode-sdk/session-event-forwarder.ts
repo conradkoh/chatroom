@@ -5,6 +5,10 @@ import {
   parseOpenCodeSessionStatus,
 } from './opencode-session-status.js';
 import { isTerminalProviderError } from '../../../../../domain/usecase/detect-terminal-provider-error.js';
+import type {
+  HarnessActivityEvent,
+  HarnessActivityKind,
+} from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
 
 export interface SessionEventForwarderOptions {
@@ -17,8 +21,8 @@ export interface SessionEventForwarderOptions {
   onLogLine?: (line: string) => void;
   /** Raw assistant text deltas for missed-handoff delivery. */
   onAssistantText?: (text: string) => void;
-  /** Fires on agent token/tool activity (drives task.in_progress via updateTokenActivity). */
-  onActivity?: () => void;
+  /** Typed harness activity signals for observability and first-progress presence. */
+  onActivity?: (event: HarnessActivityEvent) => void;
   /** Max wait while OpenCode reports session.status retry before ending the turn. */
   sessionRetryIdleTimeoutMs?: number;
 }
@@ -140,6 +144,28 @@ export function startSessionEventForwarder(
     }
   }
 
+  function emitActivity(kind: HarnessActivityKind, source: string): void {
+    options.onActivity?.({ kind, source, at: Date.now() });
+  }
+
+  function semanticSourceForLogKind(kind: string): string | undefined {
+    switch (kind) {
+      case 'text':
+        return 'opencode.message.part.updated.text';
+      case 'thinking':
+        return 'opencode.message.part.updated.reasoning';
+      case 'file':
+        return 'opencode.file.edited';
+      case 'compacted':
+        return 'opencode.session.compacted';
+      default:
+        if (kind.startsWith('tool:')) {
+          return 'opencode.message.part.updated.tool';
+        }
+        return undefined;
+    }
+  }
+
   function isAgentActivityKind(kind: string): boolean {
     return (
       kind === 'text' ||
@@ -156,7 +182,10 @@ export function startSessionEventForwarder(
     else targetStream.write(`${line}\n`);
     recordRecentLogLine(line);
     if (isAgentActivityKind(kind)) {
-      options.onActivity?.();
+      const source = semanticSourceForLogKind(kind);
+      if (source) {
+        emitActivity('progress', source);
+      }
     }
   }
 
@@ -359,6 +388,7 @@ export function startSessionEventForwarder(
           abortTerminalProviderError();
           return;
         }
+        emitActivity('waiting', 'opencode.session.status.retry');
         scheduleRetryIdleTimeout();
         return;
       }
@@ -371,7 +401,7 @@ export function startSessionEventForwarder(
       }
       case 'busy': {
         clearRetryIdleTimeout();
-        options.onActivity?.();
+        emitActivity('progress', 'opencode.session.status.busy');
         return;
       }
       default: {
@@ -385,6 +415,7 @@ export function startSessionEventForwarder(
     tool?: string;
     command?: string;
   }): Promise<void> {
+    emitActivity('failure', 'opencode.session.error');
     const err = props?.error;
     const errMsg = formatErrorName(err);
     const context = formatErrorContext(props);
@@ -426,6 +457,8 @@ export function startSessionEventForwarder(
   async function handleEvent(event: OpenCodeEvent): Promise<void> {
     const eventSession = eventSessionId(event);
     if (!shouldProcessEvent(event, eventSession)) return;
+
+    emitActivity('transport', `opencode.event.${event.type}`);
 
     if (!sessionStarted) {
       sessionStarted = true;
