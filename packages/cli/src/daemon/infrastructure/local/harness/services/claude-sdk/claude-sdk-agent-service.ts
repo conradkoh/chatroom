@@ -21,6 +21,10 @@ import {
   resolvePathToClaudeCodeExecutable,
 } from './claude-sdk-package.js';
 import { ClaudeSdkStreamAdapter } from './claude-sdk-stream-adapter.js';
+import {
+  createHarnessActivityEmitter,
+  type HarnessActivityEmitter,
+} from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { decodeClaudeVariant } from '../claude/claude-models.js';
@@ -288,6 +292,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     } = args;
 
     const entry = this.registerProcess(pid, context);
+    const activityEmitter = createHarnessActivityEmitter();
     const logPrefix = buildAgentLogPrefix('claude-sdk', context);
 
     const sdkSession: SdkSession = {
@@ -347,6 +352,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
     });
 
     return {
@@ -377,6 +383,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
           });
         }
       },
+      activityEmitter,
     };
   }
 
@@ -398,6 +405,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
     emitLogLine: (line: string) => void;
+    activityEmitter: HarnessActivityEmitter;
   }): void {
     const {
       sdkSession,
@@ -416,6 +424,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
     } = args;
 
     let exited = false;
@@ -437,6 +446,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
       isExited: () => exited,
       markExited: () => {
         exited = true;
@@ -472,6 +482,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
     emitLogLine: (line: string) => void;
+    activityEmitter: HarnessActivityEmitter;
     isExited: () => boolean;
     markExited: () => void;
   }): Promise<void> {
@@ -492,6 +503,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
       isExited,
       markExited,
     } = args;
@@ -518,7 +530,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
             nextPrompt = deferredResume;
           }
 
-          const adapter = new ClaudeSdkStreamAdapter(logPrefix, emitLogLine);
+          activityEmitter.beginTurn();
+          const adapter = new ClaudeSdkStreamAdapter(logPrefix, emitLogLine, activityEmitter);
           wireNativeStreamAdapter({
             adapter,
             assistantTextCallbacks,

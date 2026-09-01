@@ -5,6 +5,7 @@
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
+import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import {
   BASH_TOOL_KIND,
   formatAgentLogLine,
@@ -17,33 +18,48 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
   private thinkingBuffer = '';
 
+  constructor(
+    logPrefix: string,
+    emitLogLine?: (line: string) => void,
+    activityEmitter?: HarnessActivityEmitter
+  ) {
+    super(logPrefix, emitLogLine, activityEmitter);
+  }
+
   // fallow-ignore-next-line complexity
   handleMessage(message: SDKMessage): void {
-    this.notifyOutput();
+    this.notifyOutput('claude-sdk.message');
 
     switch (message.type) {
       case 'stream_event':
         this.handleStreamEvent(message);
         break;
       case 'assistant':
+        this.notifyProgress('claude-sdk.assistant');
+        if (message.error) {
+          this.notifyFailure('claude-sdk.assistant');
+        }
         this.handleAssistant(message);
         break;
       case 'user':
         this.handleUser(message);
         break;
       case 'system':
-        if (message.subtype === 'init') {
-          this.writeLine(formatAgentLogLine(this.logPrefix, 'system: init'));
-        }
+        this.handleSystem(message);
         break;
       case 'result':
         if (message.is_error) {
+          this.notifyFailure('claude-sdk.result');
           const errors =
             'errors' in message && Array.isArray(message.errors)
               ? message.errors.join('; ')
               : 'turn failed';
           this.writeLine(formatAgentLogLine(this.logPrefix, 'run-error', errors));
         }
+        break;
+      case 'tool_progress':
+        this.notifyProgress('claude-sdk.tool-progress');
+        this.notifyWaiting('claude-sdk.tool-progress');
         break;
       default:
         break;
@@ -57,14 +73,28 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
     this.emitAgentEnd();
   }
 
+  // fallow-ignore-next-line complexity
   private handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }>): void {
     const event = message.event;
     if (event.type === 'content_block_delta') {
       const delta = event.delta;
       if (delta.type === 'text_delta') {
+        this.notifyProgress('claude-sdk.stream.text-delta');
         this.appendText(delta.text);
       } else if (delta.type === 'thinking_delta') {
+        this.notifyProgress('claude-sdk.stream.thinking-delta');
         this.appendThinking(delta.thinking);
+      } else if (delta.type === 'input_json_delta') {
+        this.notifyProgress('claude-sdk.stream.tool-input');
+        this.notifyWaiting('claude-sdk.stream.tool-input');
+      }
+      return;
+    }
+    if (event.type === 'content_block_start') {
+      const block = event.content_block;
+      if (block.type === 'tool_use') {
+        this.notifyProgress('claude-sdk.stream.tool-use');
+        this.notifyWaiting('claude-sdk.stream.tool-use');
       }
     }
   }
@@ -85,6 +115,7 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
         this.appendThinking(block.thinking);
         this.flushThinking();
       } else if (block.type === 'tool_use') {
+        this.notifyWaiting('claude-sdk.assistant.tool-use');
         this.flushText();
         this.flushThinking();
         const bashCmd = resolveBashCommandForLog(block.name, block.input);
@@ -109,12 +140,38 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
     for (const block of blocks) {
       if (typeof block === 'string') continue;
       if (block.type === 'tool_result') {
+        this.notifyProgress('claude-sdk.user.tool-result');
+        if (block.is_error === true) {
+          this.notifyFailure('claude-sdk.user.tool-result');
+        }
         const resultStr =
           typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
         this.writeLine(
           formatAgentLogLine(this.logPrefix, 'tool_result', `tool result: ${resultStr}`)
         );
       }
+    }
+  }
+
+  // fallow-ignore-next-line complexity
+  private handleSystem(message: Extract<SDKMessage, { type: 'system' }>): void {
+    switch (message.subtype) {
+      case 'init':
+        this.writeLine(formatAgentLogLine(this.logPrefix, 'system: init'));
+        break;
+      case 'task_started':
+      case 'task_progress':
+        this.notifyProgress('claude-sdk.task-progress');
+        this.notifyWaiting('claude-sdk.task-progress');
+        break;
+      case 'task_updated':
+        this.notifyProgress('claude-sdk.task-progress');
+        break;
+      case 'permission_denied':
+        this.notifyFailure('claude-sdk.permission-denied');
+        break;
+      default:
+        break;
     }
   }
 
