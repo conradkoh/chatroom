@@ -11,7 +11,14 @@
 import type { ModelVariantSchema } from './model-variant';
 
 /** Allowed reasoning-level values. "none" means "leave the harness default". */
-export const CODEX_REASONING_LEVEL_VALUES = ['none', 'low', 'medium', 'high', 'xhigh'] as const;
+export const CODEX_REASONING_LEVEL_VALUES = [
+  'none',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const;
 
 export type CodexReasoningLevel = (typeof CODEX_REASONING_LEVEL_VALUES)[number];
 
@@ -27,4 +34,5 @@ export const CODEX_MODEL_VARIANT_COMBINATIONS = [
   { reasoning: 'medium' },
   { reasoning: 'high' },
   { reasoning: 'xhigh' },
+  { reasoning: 'max' },
 ] as const satisfies ModelVariantSchema;

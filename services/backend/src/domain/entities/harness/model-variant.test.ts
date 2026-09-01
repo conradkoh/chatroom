@@ -93,7 +93,7 @@ describe('validateModelVariantParams', () => {
         CODEX_MODEL_VARIANT_COMBINATIONS
       ).params
     ).toEqual({});
-    for (const level of ['none', 'low', 'medium', 'high', 'xhigh'] as const) {
+    for (const level of ['none', 'low', 'medium', 'high', 'xhigh', 'max'] as const) {
       const variant = validateModelVariantParams(
         decodeModelVariant(`gpt-5.6-sol[reasoning=${level}]`),
         CODEX_MODEL_VARIANT_COMBINATIONS
@@ -169,7 +169,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'gpt-5.4-mini',
     ]) {
       expect(codex).toContain(`openai/${base}`);
-      for (const level of ['none', 'low', 'medium', 'high', 'xhigh']) {
+      for (const level of ['none', 'low', 'medium', 'high', 'xhigh', 'max']) {
         expect(codex).toContain(`openai/${base}[reasoning=${level}]`);
       }
     }
