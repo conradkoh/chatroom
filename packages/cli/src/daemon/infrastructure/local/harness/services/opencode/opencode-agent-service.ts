@@ -10,6 +10,7 @@
  * process registry, stop/isAlive/getTrackedProcesses/untrack, and
  * the underlying isInstalled/getVersion helpers.
  */
+// fallow-ignore-file code-duplication
 
 import { type ChildProcess } from 'node:child_process';
 
