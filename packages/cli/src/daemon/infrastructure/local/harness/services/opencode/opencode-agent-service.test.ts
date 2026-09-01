@@ -257,6 +257,48 @@ describe('OpenCodeAgentService', () => {
       expect(spawnFn).toHaveBeenCalledWith('opencode', ['run'], expect.any(Object));
     });
 
+    it('forwards --variant max when model uses bracket syntax', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 100,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new OpenCodeAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        prompt: createSpawnPrompt('Hello agent'),
+        systemPrompt: 'You are a test agent',
+        model: 'opencode-go/gpt-5.6-luna[variant=max]',
+        context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      expect(spawnFn).toHaveBeenCalledWith(
+        'opencode',
+        ['run', '--model', 'opencode-go/gpt-5.6-luna', '--variant', 'max'],
+        expect.objectContaining({
+          cwd: '/tmp/test',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          shell: false,
+          detached: true,
+        })
+      );
+    });
+
     it('throws when process exits immediately', async () => {
       const mockStdin = { write: vi.fn(), end: vi.fn() };
 

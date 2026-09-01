@@ -15,6 +15,7 @@ import { type ChildProcess } from 'node:child_process';
 
 import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { parseOpencodeSpawnModel } from '../opencode-sdk/pure.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { createSessionLogCallbacks } from '../session-log-callbacks.js';
 
@@ -56,9 +57,13 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
 
   // fallow-ignore-next-line complexity
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
+    const parsed = options.model ? parseOpencodeSpawnModel(options.model) : undefined;
     const args: string[] = ['run'];
-    if (options.model) {
-      args.push('--model', options.model);
+    if (parsed?.model) {
+      args.push('--model', parsed.model);
+    }
+    if (parsed?.variant) {
+      args.push('--variant', parsed.variant);
     }
 
     // Combine systemPrompt and prompt — opencode doesn't have a --system-prompt flag,
