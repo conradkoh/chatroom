@@ -26,6 +26,10 @@ import {
   importBundledPiSdk,
 } from './pi-sdk-package.js';
 import { PiSdkStreamAdapter } from './pi-sdk-stream-adapter.js';
+import {
+  createHarnessActivityEmitter,
+  type HarnessActivityEmitter,
+} from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
@@ -313,6 +317,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     } = args;
 
     const entry = this.registerProcess(pid, context);
+    const activityEmitter = createHarnessActivityEmitter();
     const logPrefix = buildAgentLogPrefix('pi-sdk', context);
 
     const sdkSession: SdkSession = {
@@ -356,6 +361,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
     });
 
     return {
@@ -376,6 +382,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       onAssistantText: (cb) => {
         assistantTextCallbacks.push(cb);
       },
+      activityEmitter,
     };
   }
 
@@ -390,6 +397,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
     emitLogLine: (line: string) => void;
+    activityEmitter: HarnessActivityEmitter;
   }): void {
     const {
       session: sdkSession,
@@ -402,6 +410,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
     } = args;
 
     let exited = false;
@@ -432,7 +441,8 @@ export class PiSdkAgentService extends BaseCLIAgentService {
               prependSystemOnNextResume = false;
             }
 
-            const adapter = new PiSdkStreamAdapter(logPrefix, emitLogLine);
+            activityEmitter.beginTurn();
+            const adapter = new PiSdkStreamAdapter(logPrefix, emitLogLine, activityEmitter);
             wireNativeStreamAdapter({
               adapter,
               assistantTextCallbacks,

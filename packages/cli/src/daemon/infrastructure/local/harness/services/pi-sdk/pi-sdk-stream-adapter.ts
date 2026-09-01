@@ -4,6 +4,7 @@
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
+import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import {
   BASH_TOOL_KIND,
   formatAgentLogLine,
@@ -16,11 +17,20 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
   private thinkingBuffer = '';
 
+  constructor(
+    logPrefix: string,
+    emitLogLine?: (line: string) => void,
+    activityEmitter?: HarnessActivityEmitter
+  ) {
+    super(logPrefix, emitLogLine, activityEmitter);
+  }
+
   handleEvent(event: AgentSessionEvent): void {
-    this.notifyOutput();
+    this.notifyOutput(`pi-sdk.${event.type}`);
 
     switch (event.type) {
       case 'message_update': {
+        this.notifyProgress(`pi-sdk.message.${event.assistantMessageEvent.type}`);
         const assistantEvent = event.assistantMessageEvent;
         if (assistantEvent.type === 'text_delta') {
           this.appendText(assistantEvent.delta);
@@ -30,6 +40,8 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       }
       case 'tool_execution_start': {
+        this.notifyProgress('pi-sdk.tool_execution_start');
+        this.notifyWaiting('pi-sdk.tool_execution_start');
         this.flushText();
         this.flushThinking();
         const bashCmd = resolveBashCommandForLog(event.toolName, event.args);
@@ -44,6 +56,10 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       }
       case 'tool_execution_end': {
+        this.notifyProgress('pi-sdk.tool_execution_end');
+        if (event.isError === true) {
+          this.notifyFailure('pi-sdk.tool_execution_end');
+        }
         const resultStr =
           typeof event.result === 'string' ? event.result : JSON.stringify(event.result);
         this.writeLine(
