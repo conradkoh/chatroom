@@ -5,6 +5,7 @@ import { PiSdkHarness, startPiSdkHarness } from './index.js';
 const mockCreateAgentSession = vi.fn();
 const mockSessionManagerList = vi.fn();
 const mockSessionManagerCreate = vi.fn();
+const mockSessionManagerOpen = vi.fn();
 const mockGetAvailable = vi.fn();
 
 vi.mock('../../services/pi-sdk/pi-sdk-package.js', () => ({
@@ -29,7 +30,7 @@ vi.mock('../../services/pi-sdk/pi-sdk-package.js', () => ({
     SessionManager: {
       create: (...args: unknown[]) => mockSessionManagerCreate(...args),
       list: (...args: unknown[]) => mockSessionManagerList(...args),
-      open: vi.fn(),
+      open: (...args: unknown[]) => mockSessionManagerOpen(...args),
     },
   })),
   formatPiSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
@@ -50,9 +51,12 @@ function stubPiSession(sessionId = 'pi-session-1') {
 describe('PiSdkHarness', () => {
   beforeEach(() => {
     mockCreateAgentSession.mockReset();
+    mockSessionManagerList.mockReset();
+    mockSessionManagerOpen.mockReset();
     mockGetAvailable.mockReset();
     mockGetAvailable.mockReturnValue([{ provider: 'opencode', id: 'big-pickle' }]);
     mockSessionManagerCreate.mockReturnValue({});
+    mockSessionManagerOpen.mockReturnValue({});
   });
 
   it('lists a single primary builder agent', async () => {
@@ -92,6 +96,55 @@ describe('PiSdkHarness', () => {
       AuthStorage.create()
     );
     await harness.newSession({ model: 'opencode/big-pickle[thinking=xhigh]' });
+    expect(mockCreateAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({ provider: 'opencode', id: 'big-pickle' }),
+        thinkingLevel: 'xhigh',
+      })
+    );
+    await harness.close();
+  });
+
+  it('resumeSession omits model and thinkingLevel for SDK session-file restore', async () => {
+    stubPiSession('resumed-session');
+    mockSessionManagerList.mockResolvedValue([
+      { id: 'sess-1', path: '/tmp/sess.jsonl', name: 'test' },
+    ]);
+    const { AuthStorage, ModelRegistry } =
+      await import('../../services/pi-sdk/pi-sdk-package.js').then((m) => m.importBundledPiSdk());
+    const harness = new PiSdkHarness(
+      '/tmp/work',
+      ModelRegistry.create(AuthStorage.create()),
+      AuthStorage.create()
+    );
+
+    await harness.resumeSession('sess-1' as never);
+
+    const call = mockCreateAgentSession.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+    expect(call).toBeDefined();
+    expect(call).not.toHaveProperty('model');
+    expect(call).not.toHaveProperty('thinkingLevel');
+    expect(mockSessionManagerOpen).toHaveBeenCalled();
+    await harness.close();
+  });
+
+  it('resumeSession forwards thinkingLevel from options.model bracket syntax', async () => {
+    stubPiSession('resumed-session');
+    mockSessionManagerList.mockResolvedValue([
+      { id: 'sess-1', path: '/tmp/sess.jsonl', name: 'test' },
+    ]);
+    const { AuthStorage, ModelRegistry } =
+      await import('../../services/pi-sdk/pi-sdk-package.js').then((m) => m.importBundledPiSdk());
+    const harness = new PiSdkHarness(
+      '/tmp/work',
+      ModelRegistry.create(AuthStorage.create()),
+      AuthStorage.create()
+    );
+
+    await harness.resumeSession('sess-1' as never, {
+      model: 'opencode/big-pickle[thinking=xhigh]',
+    });
+
     expect(mockCreateAgentSession).toHaveBeenCalledWith(
       expect.objectContaining({
         model: expect.objectContaining({ provider: 'opencode', id: 'big-pickle' }),

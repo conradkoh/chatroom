@@ -45,6 +45,7 @@ async function loadSdk(): Promise<LoadedPiSdk> {
 
 type PiModelRegistry = ReturnType<LoadedPiSdk['ModelRegistry']['create']>;
 type PiAuthStorage = ReturnType<LoadedPiSdk['AuthStorage']['create']>;
+type PiSessionManager = ReturnType<LoadedPiSdk['SessionManager']['create']>;
 
 function resolveModel(modelRegistry: PiModelRegistry, model?: string) {
   if (model) {
@@ -103,10 +104,17 @@ export class PiSdkHarness implements BoundHarness {
     }));
   }
 
+  // fallow-ignore-next-line complexity
   async newSession(config: NewSessionConfig): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
 
-    const session = await this.createAgentSession(config.systemPrompt ?? '', config.model);
+    const { SessionManager } = await loadSdk();
+    const session = await this.openAgentSession({
+      systemPrompt: config.systemPrompt ?? '',
+      model: config.model ?? DEFAULT_MODEL,
+      sessionManager: SessionManager.create(getPiSessionDir(this.cwd)),
+      requireModel: true,
+    });
     const piSession = new PiSdkSession({
       session,
       opencodeSessionId: session.sessionId,
@@ -117,18 +125,16 @@ export class PiSdkHarness implements BoundHarness {
     return piSession;
   }
 
-  // fallow-ignore-next-line complexity
   async resumeSession(
     sessionId: OpenCodeSessionId,
-    _options?: ResumeHarnessSessionOptions
+    options?: ResumeHarnessSessionOptions
   ): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
 
     const existing = this.sessions.get(sessionId);
     if (existing) return existing;
 
-    const { createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager } =
-      await loadSdk();
+    const { SessionManager } = await loadSdk();
 
     const sessions = await SessionManager.list(this.cwd, getPiSessionDir(this.cwd));
     const match = sessions.find((s) => s.id === sessionId);
@@ -136,30 +142,12 @@ export class PiSdkHarness implements BoundHarness {
       throw new Error(`Session ${sessionId} not found on the harness`);
     }
 
-    const resourceLoader = new DefaultResourceLoader({
-      cwd: this.cwd,
-      agentDir: getAgentDir(),
-      systemPromptOverride: () => '',
+    const session = await this.openAgentSession({
+      systemPrompt: '',
+      model: options?.model,
+      sessionManager: SessionManager.open(match.path, getPiSessionDir(this.cwd)),
+      requireModel: false,
     });
-    await resourceLoader.reload();
-
-    const resolvedModel = resolveModel(this.modelRegistry);
-    if (!resolvedModel) {
-      throw new Error('No Pi model available');
-    }
-
-    const { session } = await withTimeout(
-      createAgentSession({
-        cwd: this.cwd,
-        model: resolvedModel,
-        sessionManager: SessionManager.open(match.path, getPiSessionDir(this.cwd)),
-        authStorage: this.authStorage,
-        modelRegistry: this.modelRegistry,
-        resourceLoader,
-      }),
-      SESSION_CREATE_TIMEOUT_MS,
-      'createAgentSession'
-    );
 
     const piSession = new PiSdkSession({
       session,
@@ -188,13 +176,24 @@ export class PiSdkHarness implements BoundHarness {
   }
 
   // fallow-ignore-next-line complexity
-  private async createAgentSession(systemPrompt: string, model?: string): Promise<AgentSession> {
-    const { createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager } =
-      await loadSdk();
-    const parsed = model ? parsePiSpawnModel(model) : undefined;
-    const resolvedModel = resolveModel(this.modelRegistry, parsed?.model ?? model ?? DEFAULT_MODEL);
+  private async openAgentSession(args: {
+    systemPrompt: string;
+    sessionManager: PiSessionManager;
+    model?: string;
+    requireModel: boolean;
+  }): Promise<AgentSession> {
+    const { createAgentSession, DefaultResourceLoader, getAgentDir } = await loadSdk();
+
+    const parsed = args.model ? parsePiSpawnModel(args.model) : undefined;
+    const modelSlug = parsed?.model ?? args.model;
+    const resolvedModel = args.requireModel
+      ? resolveModel(this.modelRegistry, modelSlug ?? DEFAULT_MODEL)
+      : modelSlug
+        ? resolveModel(this.modelRegistry, modelSlug)
+        : undefined;
     const thinkingLevel = resolvePiThinkingLevel(parsed?.thinking);
-    if (!resolvedModel) {
+
+    if (args.requireModel && !resolvedModel) {
       throw new Error(
         'No Pi model available — configure provider credentials in ~/.pi/agent/auth.json'
       );
@@ -203,19 +202,19 @@ export class PiSdkHarness implements BoundHarness {
     const resourceLoader = new DefaultResourceLoader({
       cwd: this.cwd,
       agentDir: getAgentDir(),
-      systemPromptOverride: () => systemPrompt,
+      systemPromptOverride: () => args.systemPrompt,
     });
     await resourceLoader.reload();
 
     const { session } = await withTimeout(
       createAgentSession({
         cwd: this.cwd,
-        model: resolvedModel,
-        ...(thinkingLevel ? { thinkingLevel } : {}),
-        sessionManager: SessionManager.create(getPiSessionDir(this.cwd)),
+        sessionManager: args.sessionManager,
         authStorage: this.authStorage,
         modelRegistry: this.modelRegistry,
         resourceLoader,
+        ...(resolvedModel ? { model: resolvedModel } : {}),
+        ...(thinkingLevel ? { thinkingLevel } : {}),
       }),
       SESSION_CREATE_TIMEOUT_MS,
       'createAgentSession'

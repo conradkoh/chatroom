@@ -85,6 +85,31 @@ describe('resumeSession', () => {
     expect(result.session).toBe(session);
   });
 
+  it('forwards model option to harness.resumeSession', async () => {
+    const session = mockSession();
+    const harness = mockBoundHarness();
+    (harness.resumeSession as Func).mockResolvedValue(session);
+    const journalFactory: JournalFactory = {
+      create: vi.fn().mockReturnValue(mockJournal()),
+    };
+    const deps: ResumeSessionDeps = {
+      harness,
+      journalFactory,
+      chunkExtractor: vi.fn().mockReturnValue(null),
+      nowFn: () => 1000,
+    };
+
+    await resumeSession(deps, {
+      ...defaultInput,
+      model: 'opencode/big-pickle[thinking=high]',
+    });
+
+    expect(harness.resumeSession).toHaveBeenCalledWith('sess-1' as OpenCodeSessionId, {
+      harnessSessionId: 'row-1',
+      model: 'opencode/big-pickle[thinking=high]',
+    });
+  });
+
   it('wires events through chunk extractor into the journal', async () => {
     const session = mockSession();
     let onEventHandler: ((event: DirectHarnessSessionEvent) => void) | undefined;
