@@ -41,10 +41,10 @@ Native SDK harnesses with a typed activity emitter report once per turn via `wir
 
 **Delivery paths (native SDK harnesses):**
 
-| Path         | Trigger                                                                                                   | Log prefix                  |
-| ------------ | --------------------------------------------------------------------------------------------------------- | --------------------------- |
-| **Primary**  | Harness `agent_end` → slot idle → `notifyNativeTurnIdle`                                                  | `[NativeDelivery:primary]`  |
-| **Fallback** | Signal/presence feed reconcile, subscribed snapshot store + 10s local reconcile timer, native light nudge | `[NativeDelivery:fallback]` |
+| Path         | Trigger                                                                               | Log prefix                  |
+| ------------ | ------------------------------------------------------------------------------------- | --------------------------- |
+| **Primary**  | Harness `agent_end` → slot idle → `notifyNativeTurnIdle`                              | `[NativeDelivery:primary]`  |
+| **Fallback** | Signal/presence feed reconcile, subscribed snapshot store + 10s local reconcile timer | `[NativeDelivery:fallback]` |
 
 Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). Fallback paths exist for daemon restart mid-turn or missed events — monitor logs to measure how often they fire before removing.
 
@@ -54,7 +54,7 @@ Injection wiring:
 2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
 3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after native spawn only; turn-end unlocks delivery via `agent_end` → nativeTurnPhase idle → coordinator, not via `lastSeenAction` predicates
 
-CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path. Native harnesses still cold-start via revive when the backend PID is stale locally.
+CLI harnesses keep the existing `get-next-task` loop. Native harnesses may cold-start through state/PID-based revive when backend state requires it.
 
 ### Native multi-turn invariant
 
@@ -455,9 +455,9 @@ A **requestStart replace** always kills via `doStop` regardless of resume state.
 
 Roles are split into two execution kinds, defined in `src/domain/execution-kind.ts`:
 
-| Kind            | Roles                                  | `participants.join` / `updateTokenActivity` | Example                |
-| --------------- | -------------------------------------- | ------------------------------------------- | ---------------------- |
-| `team_agent`    | planner, builder, enhancer (default for unknown) | Yes — standard native presence wiring       | Persistent and ephemeral team roles |
-| `daemon_worker` | (none currently)                       | N/A                                         | Reserved for non-participant workers |
+| Kind            | Roles                                            | `participants.join` / `updateTokenActivity` | Example                              |
+| --------------- | ------------------------------------------------ | ------------------------------------------- | ------------------------------------ |
+| `team_agent`    | planner, builder, enhancer (default for unknown) | Yes — standard native presence wiring       | Persistent and ephemeral team roles  |
+| `daemon_worker` | (none currently)                                 | N/A                                         | Reserved for non-participant workers |
 
 The enhancer is an ephemeral team role. Its participant row is registered by the backend when an enhancer job is claimed, while native harness presence helpers may report subsequent activity using the same participant lifecycle. The enhancer job subscriber does not duplicate that registration or run long-lived token activity.
