@@ -307,6 +307,28 @@ describe('PiAgentService', () => {
       );
     });
 
+    it('forwards --thinking from bracket syntax', async () => {
+      const child = makeChildProcess(42);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        prompt: createSpawnPrompt('hello'),
+        systemPrompt: 'sys',
+        model: 'anthropic/claude-sonnet[thinking=xhigh]',
+        context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
+        workingDir: '/tmp',
+        resolvedConvexUrl: 'http://localhost:3210',
+      });
+
+      const args = spawnFn.mock.calls[0][1] as string[];
+      expect(args).toContain('--thinking');
+      expect(args).toContain('xhigh');
+      expect(args).toContain('--model');
+      expect(args).toContain('anthropic/claude-sonnet');
+    });
+
     it('omits --model flag when model is not specified', async () => {
       const child = makeChildProcess(42);
       const spawnFn = vi.fn().mockReturnValue(child);
