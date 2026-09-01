@@ -2,6 +2,10 @@ import type { InteractionUpdate, SDKMessage } from '@cursor/sdk';
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
+import {
+  createHarnessActivityEmitter,
+  type HarnessActivitySignal,
+} from '../../../../agent-process-manager/harness-activity-emitter.js';
 
 const LOG_PREFIX = '[cursor-sdk:builder@test';
 
@@ -99,7 +103,23 @@ describe('CursorSdkStreamAdapter', () => {
 
   function createAdapter() {
     const onLogLine = vi.fn();
-    return { adapter: new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine), onLogLine };
+    const emitter = createHarnessActivityEmitter();
+    const signals: HarnessActivitySignal[] = [];
+    emitter.onActivity((signal) => signals.push(signal));
+    return {
+      adapter: new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine, emitter),
+      onLogLine,
+      emitter,
+      signals,
+    };
+  }
+
+  function signalKinds(signals: HarnessActivitySignal[]) {
+    return signals.map((s) => s.kind);
+  }
+
+  function signalSources(signals: HarnessActivitySignal[]) {
+    return signals.map((s) => s.source);
   }
 
   beforeEach(() => {
@@ -405,5 +425,126 @@ describe('CursorSdkStreamAdapter', () => {
       `${LOG_PREFIX} delta:unhandled] mystery-nested: {"type":"mystery-nested"}`
     );
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  describe('typed activity signals', () => {
+    it('emits transport for every handled SDK message', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleMessage(assistantMessage('hello\n'));
+
+      expect(signalKinds(signals)).toContain('transport');
+      expect(signalSources(signals)).toContain('cursor-sdk.message');
+    });
+
+    it('emits progress for assistant messages', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleMessage(assistantMessage('hello\n'));
+
+      expect(signalSources(signals)).toContain('cursor-sdk.assistant');
+      expect(signals.find((s) => s.source === 'cursor-sdk.assistant')?.kind).toBe('progress');
+    });
+
+    it('emits progress and waiting for running tool_call', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleMessage(toolCallMessage());
+
+      expect(signalSources(signals)).toContain('cursor-sdk.tool_call');
+      expect(signals.filter((s) => s.source === 'cursor-sdk.tool_call').map((s) => s.kind)).toEqual(
+        ['progress', 'waiting']
+      );
+    });
+
+    it('emits progress and failure for error tool_call', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleMessage({
+        type: 'tool_call',
+        agent_id: 'agent-1',
+        run_id: 'run-1',
+        call_id: 'call-1',
+        name: 'shell',
+        status: 'error',
+        args: { command: 'curl example.com' },
+        result: { blocked: 'network' },
+      });
+
+      const toolSignals = signals.filter((s) => s.source === 'cursor-sdk.tool_call');
+      expect(toolSignals.map((s) => s.kind)).toEqual(['progress', 'failure']);
+    });
+
+    it('emits progress for RUNNING status and failure for ERROR status', () => {
+      const { adapter: runningAdapter, signals: runningSignals } = createAdapter();
+      runningAdapter.handleMessage(statusMessage('RUNNING'));
+      expect(
+        runningSignals.some((s) => s.source === 'cursor-sdk.status' && s.kind === 'progress')
+      ).toBe(true);
+
+      const { adapter: errorAdapter, signals: errorSignals } = createAdapter();
+      errorAdapter.handleMessage(statusMessage('ERROR'));
+      expect(
+        errorSignals.some((s) => s.source === 'cursor-sdk.status' && s.kind === 'failure')
+      ).toBe(true);
+    });
+
+    it('does not emit semantic signals for FINISHED or CANCELLED status', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleMessage(statusMessage('FINISHED'));
+      adapter.handleMessage(statusMessage('CANCELLED'));
+
+      expect(signals.every((s) => s.kind === 'transport')).toBe(true);
+    });
+
+    it('emits transport only for system init and usage messages', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleMessage({
+        type: 'system',
+        agent_id: 'agent-1',
+        run_id: 'run-1',
+        subtype: 'init',
+      } as SDKMessage);
+      adapter.handleMessage({
+        type: 'usage',
+        agent_id: 'agent-1',
+        run_id: 'run-1',
+        usage: {
+          inputTokens: 1,
+          outputTokens: 1,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          totalTokens: 2,
+        },
+      });
+
+      expect(signals.every((s) => s.kind === 'transport')).toBe(true);
+    });
+
+    it('emits transport for interaction deltas and progress for text-delta', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleInteractionDelta(textDelta('hello\n'));
+
+      expect(signalSources(signals)).toContain('cursor-sdk.interaction');
+      expect(signalSources(signals)).toContain('cursor-sdk.interaction.text-delta');
+      expect(signals.find((s) => s.source === 'cursor-sdk.interaction.text-delta')?.kind).toBe(
+        'progress'
+      );
+    });
+
+    it('emits progress and waiting for tool-call-started interaction', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleInteractionDelta(shellToolCallStarted('pnpm test'));
+
+      expect(
+        signals
+          .filter((s) => s.source === 'cursor-sdk.interaction.tool-call-started')
+          .map((s) => s.kind)
+      ).toEqual(['progress', 'waiting']);
+    });
+
+    it('emits transport only for turn-ended and user-message-appended', () => {
+      const { adapter, signals } = createAdapter();
+      adapter.handleInteractionDelta({ type: 'turn-ended' } as InteractionUpdate);
+      adapter.handleInteractionDelta({ type: 'user-message-appended' } as InteractionUpdate);
+
+      expect(signals.every((s) => s.kind === 'transport')).toBe(true);
+    });
   });
 });

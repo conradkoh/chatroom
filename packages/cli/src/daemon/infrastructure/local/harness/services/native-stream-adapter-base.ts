@@ -1,4 +1,8 @@
 import { createAssistantTextCapture } from './assistant-text-capture.js';
+import {
+  createHarnessActivityEmitter,
+  type HarnessActivityEmitter,
+} from '../../../agent-process-manager/harness-activity-emitter.js';
 
 type AgentEndCallback = () => void;
 type OutputCallback = () => void;
@@ -9,11 +13,15 @@ export abstract class NativeStreamAdapterBase {
   protected readonly outputCallbacks: OutputCallback[] = [];
   protected agentEndEmitted = false;
   protected readonly assistantTextCapture = createAssistantTextCapture();
+  public readonly activityEmitter: HarnessActivityEmitter;
 
   constructor(
     protected readonly logPrefix: string,
-    protected readonly emitLogLine?: (line: string) => void
-  ) {}
+    protected readonly emitLogLine?: (line: string) => void,
+    activityEmitter: HarnessActivityEmitter = createHarnessActivityEmitter()
+  ) {
+    this.activityEmitter = activityEmitter;
+  }
 
   setAssistantTextCapture(cb: (text: string) => void): void {
     this.assistantTextCapture.setAssistantTextCapture(cb);
@@ -27,8 +35,37 @@ export abstract class NativeStreamAdapterBase {
     this.outputCallbacks.push(cb);
   }
 
-  protected notifyOutput(): void {
+  protected notifyOutput(source = 'native-sdk.event'): void {
+    this.activityEmitter.emit({
+      kind: 'transport',
+      source,
+      at: Date.now(),
+    });
     for (const cb of this.outputCallbacks) cb();
+  }
+
+  protected notifyProgress(source: string): void {
+    this.activityEmitter.emit({
+      kind: 'progress',
+      source,
+      at: Date.now(),
+    });
+  }
+
+  protected notifyWaiting(source: string): void {
+    this.activityEmitter.emit({
+      kind: 'waiting',
+      source,
+      at: Date.now(),
+    });
+  }
+
+  protected notifyFailure(source: string): void {
+    this.activityEmitter.emit({
+      kind: 'failure',
+      source,
+      at: Date.now(),
+    });
   }
 
   protected writeLine(line: string): void {
