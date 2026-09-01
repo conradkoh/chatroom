@@ -23,6 +23,7 @@ import {
   stripProviderPrefix,
 } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 
+import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CopilotStreamReader } from './copilot-stream-reader.js';
@@ -81,6 +82,7 @@ export class CopilotAgentService extends BaseCLIAgentService {
    *   $ command to execute
    *   └ output
    */
+  // fallow-ignore-next-line complexity
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
     // at the use-case layer (`agent-process-manager`). See
@@ -104,6 +106,9 @@ export class CopilotAgentService extends BaseCLIAgentService {
     // Add the prompt as the final argument
     args.push(prompt);
 
+    const activityEmitter = createHarnessActivityEmitter();
+    activityEmitter.beginTurn();
+
     const childProcess: ChildProcess = this.deps.spawn(COPILOT_COMMAND, args, {
       cwd: options.workingDir,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -126,18 +131,28 @@ export class CopilotAgentService extends BaseCLIAgentService {
 
     // Output tracking callbacks
     const outputCallbacks: (() => void)[] = [];
+    let processFailureEmitted = false;
+
+    const emitActivity = (
+      kind: 'transport' | 'progress' | 'waiting' | 'failure',
+      source: string
+    ) => {
+      activityEmitter.emit({ kind, source, at: Date.now() });
+    };
 
     if (childProcess.stdout) {
       const reader = new CopilotStreamReader(childProcess.stdout);
 
       // Handle text output
       reader.onText((text) => {
+        emitActivity('progress', 'copilot-cli.assistant.text');
         emitFormatted(`${logPrefix} ${text}`);
       });
 
       // Handle any event (for activity tracking)
       reader.onAnyEvent(() => {
         entry.lastOutputAt = Date.now();
+        emitActivity('transport', 'copilot-cli.message');
         for (const cb of outputCallbacks) cb();
       });
 
@@ -149,6 +164,7 @@ export class CopilotAgentService extends BaseCLIAgentService {
 
     if (childProcess.stderr) {
       childProcess.stderr.on('data', (chunk: Buffer) => {
+        emitActivity('transport', 'copilot-cli.stderr');
         emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
@@ -157,9 +173,14 @@ export class CopilotAgentService extends BaseCLIAgentService {
 
     return {
       pid,
+      activityEmitter,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
           this.deleteProcess(pid);
+          if (!processFailureEmitted && ((code !== null && code !== 0) || signal !== null)) {
+            processFailureEmitted = true;
+            emitActivity('failure', 'copilot-cli.process');
+          }
           cb({ code, signal, context });
         });
       },
