@@ -6,7 +6,13 @@ import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AgentRoleView } from '../../hooks/useAgentPanelData';
-import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
+import type {
+  MachineInfo,
+  AgentConfig,
+  SendCommandFn,
+  AgentHarness,
+  CodexMaxReasoningLevel,
+} from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 import { getFailedAgentRoles } from '../../utils/agentBulkStart';
 import { startAgentsBatch } from '../../utils/agentStart';
@@ -55,7 +61,10 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   const [isStartingAll, setIsStartingAll] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [roleConfigs, setRoleConfigs] = useState<
-    Map<string, { harness: AgentHarness; model: string }>
+    Map<
+      string,
+      { harness: AgentHarness; model: string; maxReasoningLevel?: CodexMaxReasoningLevel }
+    >
   >(() => new Map());
 
   const machine = useMemo(
@@ -77,16 +86,26 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   }, [allJoined, onAllAgentsStarted]);
 
   const handleSetupConfigChange = useCallback(
-    (role: string, harness: AgentHarness | null, model: string | null) => {
+    (
+      role: string,
+      harness: AgentHarness | null,
+      model: string | null,
+      maxReasoningLevel?: CodexMaxReasoningLevel
+    ) => {
       if (!harness || !model) return;
+      const storedCap = harness === 'codex-sdk' ? maxReasoningLevel : undefined;
+      const key = role.toLowerCase();
       setRoleConfigs((prev) => {
-        const key = role.toLowerCase();
         const existing = prev.get(key);
-        if (existing?.harness === harness && existing?.model === model) {
+        if (
+          existing?.harness === harness &&
+          existing?.model === model &&
+          existing?.maxReasoningLevel === storedCap
+        ) {
           return prev;
         }
         const next = new Map(prev);
-        next.set(key, { harness, model });
+        next.set(key, { harness, model, maxReasoningLevel: storedCap });
         return next;
       });
     },
@@ -121,6 +140,9 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           model: config.model,
           agentHarness: config.harness,
           workingDir,
+          ...(config.harness === 'codex-sdk' && config.maxReasoningLevel !== undefined
+            ? { maxReasoningLevel: config.maxReasoningLevel }
+            : {}),
         };
       },
       sendCommand
@@ -196,8 +218,8 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
                 setupMode
                 lockedMachineId={machineId}
                 lockedWorkingDir={workingDir}
-                onSetupConfigChange={(harness, model) =>
-                  handleSetupConfigChange(role, harness, model)
+                onSetupConfigChange={(harness, model, maxReasoningLevel) =>
+                  handleSetupConfigChange(role, harness, model, maxReasoningLevel)
                 }
               />
             );

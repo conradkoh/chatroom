@@ -58,6 +58,7 @@ import type {
   MachineInfo,
   AgentConfig,
   SendCommandFn,
+  CodexMaxReasoningLevel,
 } from '../types/machine';
 import { formatHarnessLabel, getModelDisplayLabel, getMachineDisplayName } from '../types/machine';
 import type { Workspace } from '../types/workspace';
@@ -82,6 +83,51 @@ export interface AgentControlsProps {
 }
 
 // ─── Hook: useAgentControls ─────────────────────────────────────────
+
+const CODEX_MAX_REASONING_LEVEL_OPTIONS: {
+  value: CodexMaxReasoningLevel;
+  label: string;
+}[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'xhigh', label: 'XHigh' },
+];
+
+const CodexMaxReasoningLevelSelect = memo(function CodexMaxReasoningLevelSelect({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: CodexMaxReasoningLevel | undefined;
+  disabled: boolean;
+  onChange: (value: CodexMaxReasoningLevel) => void;
+}) {
+  return (
+    <select
+      aria-label="Max reasoning level"
+      value={value ?? ''}
+      onChange={(e) => {
+        const next = e.target.value as CodexMaxReasoningLevel;
+        if (next) onChange(next);
+      }}
+      disabled={disabled}
+      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {value === undefined && (
+        <option value="" disabled>
+          Not set
+        </option>
+      )}
+      {CODEX_MAX_REASONING_LEVEL_OPTIONS.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+});
+
 // Encapsulates all state + logic for machine/harness/model selection and
 // start/stop/restart actions. Used by both the shared tab content and
 // any container that needs programmatic access.
@@ -191,6 +237,7 @@ export function shouldDeferInitUntilWorkspacesLoad(
   return !config?.workingDir;
 }
 
+// fallow-ignore-next-line complexity
 export function useAgentControls({
   role,
   chatroomId,
@@ -200,6 +247,7 @@ export function useAgentControls({
   teamConfigModel,
   teamConfigHarness,
   teamConfigMachineId,
+  teamConfigMaxReasoningLevel,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
   agentRoleView,
@@ -219,6 +267,8 @@ export function useAgentControls({
   teamConfigHarness?: AgentHarness;
   /** Team-config machine binding for this role (from team agent config / agent status view). */
   teamConfigMachineId?: string | null;
+  /** Codex max reasoning cap from team config — used as fallback when machine config has no cap */
+  teamConfigMaxReasoningLevel?: CodexMaxReasoningLevel;
   /** Team ID for role/team-specific defaults. */
   teamId?: string;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
@@ -241,6 +291,9 @@ export function useAgentControls({
   const [userModelByHarness, setUserModelByHarness] = useState<
     Partial<Record<AgentHarness, string>>
   >({});
+  const [userMaxReasoningLevelOverride, setUserMaxReasoningLevelOverride] = useState<
+    CodexMaxReasoningLevel | undefined
+  >(undefined);
   const [workingDir, setWorkingDir] = useState<string>('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopSubmitting, setIsStopSubmitting] = useState(false);
@@ -257,6 +310,7 @@ export function useAgentControls({
     setSelectedMachineId(null);
     setSelectedHarness(null);
     setUserModelByHarness({});
+    setUserMaxReasoningLevelOverride(undefined);
     setWorkingDir('');
     setIsInitialized(false);
   }, [teamId, teamConfigHarness]);
@@ -401,6 +455,38 @@ export function useAgentControls({
     teamConfigModel,
   ]);
 
+  const selectedMaxReasoningLevel = useMemo((): CodexMaxReasoningLevel | undefined => {
+    if (selectedHarness !== 'codex-sdk') return undefined;
+    if (userMaxReasoningLevelOverride !== undefined) {
+      return userMaxReasoningLevelOverride;
+    }
+    const config = roleConfigs.find(
+      (c) =>
+        c.machineId === selectedMachineId &&
+        c.agentType === selectedHarness &&
+        c.maxReasoningLevel !== undefined
+    );
+    if (config?.maxReasoningLevel) {
+      return config.maxReasoningLevel;
+    }
+    if (
+      teamConfigMaxReasoningLevel &&
+      selectedMachineId === teamConfigMachineId &&
+      selectedHarness === teamConfigHarness
+    ) {
+      return teamConfigMaxReasoningLevel;
+    }
+    return undefined;
+  }, [
+    selectedHarness,
+    userMaxReasoningLevelOverride,
+    roleConfigs,
+    selectedMachineId,
+    teamConfigMaxReasoningLevel,
+    teamConfigMachineId,
+    teamConfigHarness,
+  ]);
+
   const isAgentRunning = !!displayAgentConfig;
   const stopState = agentRoleView?.stopState ?? 'idle';
   const isStopping = isStopSubmitting || isActiveAgentStopState(stopState);
@@ -453,6 +539,9 @@ export function useAgentControls({
           agentHarness: selectedHarness,
           workingDir: workingDir.trim() || undefined,
           allowNewMachine,
+          ...(selectedHarness === 'codex-sdk' && selectedMaxReasoningLevel !== undefined
+            ? { maxReasoningLevel: selectedMaxReasoningLevel }
+            : {}),
         });
         if (selectedHarness && selectedModel) {
           recordMachineConfigUsage({
@@ -472,6 +561,7 @@ export function useAgentControls({
       selectedMachineId,
       selectedHarness,
       selectedModel,
+      selectedMaxReasoningLevel,
       workingDir,
       sendCommand,
       chatroomId,
@@ -535,6 +625,10 @@ export function useAgentControls({
           model,
           agentHarness: displayAgentConfig.agentType,
           workingDir: displayAgentConfig.workingDir,
+          ...(displayAgentConfig.agentType === 'codex-sdk' &&
+          displayAgentConfig.maxReasoningLevel !== undefined
+            ? { maxReasoningLevel: displayAgentConfig.maxReasoningLevel }
+            : {}),
         },
       });
       setSuccess('Restart command sent!');
@@ -553,6 +647,7 @@ export function useAgentControls({
       setSelectedMachineId(machineId);
       setSelectedHarness(null);
       setUserModelByHarness({});
+      setUserMaxReasoningLevelOverride(undefined);
       const wd = deriveInitialWorkingDir(machineId, roleConfigs, chatroomWorkspaces);
       setWorkingDir(wd);
     },
@@ -562,6 +657,11 @@ export function useAgentControls({
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
   const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
     setSelectedHarness(harness);
+    setUserMaxReasoningLevelOverride(undefined);
+  }, []);
+
+  const handleMaxReasoningLevelChange = useCallback((value: CodexMaxReasoningLevel) => {
+    setUserMaxReasoningLevelOverride(value);
   }, []);
 
   // Wrapper for user manually selecting a model — stored per harness
@@ -595,6 +695,7 @@ export function useAgentControls({
     selectedMachineId,
     selectedHarness,
     selectedModel,
+    selectedMaxReasoningLevel,
     workingDir,
     isStarting,
     isStopping,
@@ -622,6 +723,7 @@ export function useAgentControls({
     handleMachineChange,
     handleHarnessChange,
     handleModelChange,
+    handleMaxReasoningLevelChange,
     handleWorkingDirChange,
     rehomeConfirmOpen,
     rehomeDialogLabels,
@@ -647,6 +749,7 @@ interface RemoteTabContentProps {
   setupMode?: boolean;
 }
 
+// fallow-ignore-next-line complexity
 export const RemoteTabContent = memo(function RemoteTabContent({
   controls,
   connectedMachines,
@@ -661,6 +764,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     selectedMachineId,
     selectedHarness,
     selectedModel,
+    selectedMaxReasoningLevel,
     workingDir,
     isStarting,
     isStopping,
@@ -682,6 +786,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleMachineChange,
     handleHarnessChange,
     handleModelChange,
+    handleMaxReasoningLevelChange,
     handleWorkingDirChange,
     rehomeConfirmOpen,
     rehomeDialogLabels,
@@ -696,6 +801,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const displayHarness = runningConfig?.agentType ?? selectedHarness;
   const displayModel = runningConfig?.model ?? selectedModel;
   const displayWorkingDir = runningConfig?.workingDir ?? workingDir;
+  const displayMaxReasoningLevel = isAgentRunning
+    ? runningConfig?.maxReasoningLevel
+    : selectedMaxReasoningLevel;
   // Machine config favorites + recommendations (scoped by machine+team+role)
   const favoriteScope = useMemo(() => {
     if (!displayMachineId || !teamId) return undefined;
@@ -1064,47 +1172,54 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               </p>
             )}
 
-          {/* Row 3: Model + Start/Stop */}
+          {/* Row 3: Model + Max reasoning + Start/Stop */}
           <div className="flex items-center gap-2">
-            {hasModels ? (
-              <div className="flex items-center gap-1 flex-1 min-w-0">
-                {isAgentRunning ? (
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className={cn(
-                        'w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 flex items-center justify-between',
-                        isSelectedModelHidden && 'text-chatroom-status-warning'
-                      )}
-                    >
-                      <span className="truncate">
-                        {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
-                      </span>
-                      <ModelPickerMeta
-                        isSelectedModelHidden={isSelectedModelHidden}
-                        filter={modelFilter.filter}
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              {hasModels ? (
+                <div className="flex items-center gap-1 min-w-0">
+                  {isAgentRunning ? (
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className={cn(
+                          'w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 flex items-center justify-between',
+                          isSelectedModelHidden && 'text-chatroom-status-warning'
+                        )}
+                      >
+                        <span className="truncate">
+                          {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
+                        </span>
+                        <ModelPickerMeta
+                          isSelectedModelHidden={isSelectedModelHidden}
+                          filter={modelFilter.filter}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 min-w-0">
+                      <ModelPickerField
+                        machineId={displayMachineId}
+                        harness={displayHarness}
+                        availableModels={availableModelsForHarness}
+                        value={displayModel ?? ''}
+                        onValueChange={(m) => handleModelChange(m || null)}
+                        disabled={isBusy || !displayHarness}
+                        triggerVariant="chatroom"
+                        allowDeselect={false}
+                        placeholder="Model..."
+                        className="gap-1"
                       />
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex-1 min-w-0">
-                    <ModelPickerField
-                      machineId={displayMachineId}
-                      harness={displayHarness}
-                      availableModels={availableModelsForHarness}
-                      value={displayModel ?? ''}
-                      onValueChange={(m) => handleModelChange(m || null)}
-                      disabled={isBusy || !displayHarness}
-                      triggerVariant="chatroom"
-                      allowDeselect={false}
-                      placeholder="Model..."
-                      className="gap-1"
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex-1" />
-            )}
+                  )}
+                </div>
+              ) : null}
+              {displayHarness === 'codex-sdk' && (
+                <CodexMaxReasoningLevelSelect
+                  value={displayMaxReasoningLevel}
+                  disabled={isBusy || isAgentRunning}
+                  onChange={handleMaxReasoningLevelChange}
+                />
+              )}
+            </div>
 
             {displayMachineId && displayHarness && isAgentRunning && (
               <ModelFilterButton

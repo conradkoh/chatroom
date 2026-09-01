@@ -1,6 +1,11 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import type { AgentHarness, SendCommandArgs, SendCommandFn } from '../types/machine';
+import type {
+  AgentHarness,
+  SendCommandArgs,
+  SendCommandFn,
+  CodexMaxReasoningLevel,
+} from '../types/machine';
 
 /** Canonical input for all client-side start-agent dispatches. */
 export interface StartAgentInput {
@@ -11,6 +16,7 @@ export interface StartAgentInput {
   model?: string;
   workingDir?: string;
   allowNewMachine?: boolean;
+  maxReasoningLevel?: CodexMaxReasoningLevel;
 }
 
 // fallow-ignore-next-line complexity
@@ -28,6 +34,9 @@ function buildStartAgentCommand(
       ...(input.model ? { model: input.model } : {}),
       ...(trimmedWorkingDir ? { workingDir: trimmedWorkingDir } : {}),
       ...(input.allowNewMachine ? { allowNewMachine: true as const } : {}),
+      ...(input.agentHarness === 'codex-sdk' && input.maxReasoningLevel !== undefined
+        ? { maxReasoningLevel: input.maxReasoningLevel }
+        : {}),
     },
   };
 }

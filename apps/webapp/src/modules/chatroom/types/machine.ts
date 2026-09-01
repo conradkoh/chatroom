@@ -17,6 +17,7 @@ import type {
   AgentStopReason,
   HarnessVersionInfo,
 } from '@workspace/backend/src/domain/entities/agent';
+import type { CodexMaxReasoningLevel } from '@workspace/backend/src/domain/entities/harness/codex-sdk.model-variants';
 import {
   decodeModelVariant,
   formatModelVariantParamsSuffix,
@@ -25,7 +26,7 @@ import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/h
 
 import { getBaseModelId } from '../utils/modelSelection';
 
-export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
+export type { AgentHarness, AgentStopReason, HarnessVersionInfo, CodexMaxReasoningLevel };
 
 export interface MachineInfo {
   machineId: string;
@@ -52,6 +53,7 @@ export interface AgentConfig {
   spawnedAt?: number;
   /** Legacy runtime value returned by older backend configs; not read or persisted by the webapp. */
   wantResume?: boolean;
+  maxReasoningLevel?: CodexMaxReasoningLevel;
 }
 
 export type SendCommandArgs =
@@ -68,6 +70,7 @@ export type SendCommandArgs =
         allowNewMachine?: boolean;
         /** When true (default), resume from the daemon's last session on first launch. */
         wantResume?: boolean;
+        maxReasoningLevel?: CodexMaxReasoningLevel;
       };
     }
   | {
@@ -87,6 +90,7 @@ export type SendCommandArgs =
         model: string;
         agentHarness: AgentHarness;
         workingDir: string;
+        maxReasoningLevel?: CodexMaxReasoningLevel;
       };
     }
   | {

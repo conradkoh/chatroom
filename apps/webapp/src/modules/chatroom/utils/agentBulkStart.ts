@@ -1,8 +1,47 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { startAgentsBatch } from './agentStart';
+import { startAgentsBatch, type StartAgentInput } from './agentStart';
 import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import type { AgentConfig, SendCommandFn } from '../types/machine';
+
+function codexMaxReasoningField(
+  config: Pick<AgentConfig, 'agentType' | 'maxReasoningLevel'>
+): Pick<StartAgentInput, 'maxReasoningLevel'> {
+  return config.agentType === 'codex-sdk' && config.maxReasoningLevel !== undefined
+    ? { maxReasoningLevel: config.maxReasoningLevel }
+    : {};
+}
+
+function buildBulkStartInput(
+  role: string,
+  config: AgentConfig,
+  chatroomId: Id<'chatroom_rooms'>
+): StartAgentInput {
+  return {
+    machineId: config.machineId,
+    chatroomId,
+    role,
+    model: config.model ?? '',
+    agentHarness: config.agentType,
+    workingDir: config.workingDir,
+    ...codexMaxReasoningField(config),
+  };
+}
+
+function buildBulkRestartPayload(
+  role: string,
+  config: AgentConfig,
+  chatroomId: Id<'chatroom_rooms'>
+) {
+  return {
+    chatroomId,
+    role,
+    model: config.model ?? '',
+    agentHarness: config.agentType,
+    workingDir: config.workingDir,
+    ...codexMaxReasoningField(config),
+  };
+}
 
 function resolveRequiredRestartFields(
   base: AgentConfig | undefined,
@@ -40,6 +79,7 @@ function withRestartDefaults(
     updatedAt: source.updatedAt as number,
     spawnedAgentPid: source.spawnedAgentPid,
     spawnedAt: source.spawnedAt,
+    maxReasoningLevel: source.maxReasoningLevel,
   };
 }
 
@@ -69,14 +109,7 @@ export async function startAgentsForRoles(
     (role) => {
       const config = roleConfigMap.get(role.toLowerCase());
       if (!config) return null;
-      return {
-        machineId: config.machineId,
-        chatroomId,
-        role,
-        model: config.model ?? '',
-        agentHarness: config.agentType,
-        workingDir: config.workingDir,
-      };
+      return buildBulkStartInput(role, config, chatroomId);
     },
     sendCommand
   );
@@ -103,13 +136,7 @@ async function restartAgentsForRoles(
       return sendCommand({
         machineId: config.machineId,
         type: 'restart-agent',
-        payload: {
-          chatroomId,
-          role,
-          model: config.model,
-          agentHarness: config.agentType,
-          workingDir: config.workingDir,
-        },
+        payload: buildBulkRestartPayload(role, config, chatroomId),
       });
     })
   );

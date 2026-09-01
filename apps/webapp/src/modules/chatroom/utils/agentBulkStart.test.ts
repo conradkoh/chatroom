@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { getFailedAgentRoles, runAgentRestartBatch } from './agentBulkStart';
+import { getFailedAgentRoles, runAgentRestartBatch, startAgentsForRoles } from './agentBulkStart';
 
 describe('getFailedAgentRoles', () => {
   it('returns roles for rejected results', () => {
@@ -106,5 +106,104 @@ describe('runAgentRestartBatch', () => {
       onComplete
     );
     expect(onComplete).toHaveBeenCalledWith(['Builder']);
+  });
+});
+
+describe('startAgentsForRoles', () => {
+  it('forwards maxReasoningLevel for codex-sdk bulk start', async () => {
+    const sendCommand = vi.fn().mockResolvedValue(undefined);
+    const config = {
+      machineId: 'machine-1',
+      agentType: 'codex-sdk',
+      model: 'codex/model',
+      workingDir: '/workspace',
+      maxReasoningLevel: 'high',
+    } as const;
+
+    await startAgentsForRoles(
+      ['Builder'],
+      new Map([['builder', config as any]]),
+      'chatroom-1' as any,
+      sendCommand
+    );
+
+    expect(sendCommand).toHaveBeenCalledWith({
+      machineId: 'machine-1',
+      type: 'start-agent',
+      payload: {
+        chatroomId: 'chatroom-1',
+        role: 'Builder',
+        model: 'codex/model',
+        agentHarness: 'codex-sdk',
+        workingDir: '/workspace',
+        maxReasoningLevel: 'high',
+      },
+    });
+  });
+
+  it('omits maxReasoningLevel for non-codex bulk start', async () => {
+    const sendCommand = vi.fn().mockResolvedValue(undefined);
+    const config = {
+      machineId: 'machine-1',
+      agentType: 'cursor-sdk',
+      model: 'cursor/model',
+      workingDir: '/workspace',
+      maxReasoningLevel: 'high',
+    } as const;
+
+    await startAgentsForRoles(
+      ['Builder'],
+      new Map([['builder', config as any]]),
+      'chatroom-1' as any,
+      sendCommand
+    );
+
+    expect(sendCommand).toHaveBeenCalledWith({
+      machineId: 'machine-1',
+      type: 'start-agent',
+      payload: {
+        chatroomId: 'chatroom-1',
+        role: 'Builder',
+        model: 'cursor/model',
+        agentHarness: 'cursor-sdk',
+        workingDir: '/workspace',
+      },
+    });
+  });
+});
+
+describe('runAgentRestartBatch codex max reasoning', () => {
+  it('forwards maxReasoningLevel for codex-sdk restart', async () => {
+    const sendCommand = vi.fn().mockResolvedValue(undefined);
+    const config = {
+      machineId: 'machine-1',
+      agentType: 'codex-sdk',
+      model: 'codex/model',
+      workingDir: '/workspace',
+      maxReasoningLevel: 'medium',
+    } as any;
+
+    await runAgentRestartBatch(
+      ['Builder'],
+      new Map([['builder', config]]),
+      [],
+      new Map(),
+      'chatroom-1' as any,
+      sendCommand,
+      vi.fn()
+    );
+
+    expect(sendCommand).toHaveBeenCalledWith({
+      machineId: 'machine-1',
+      type: 'restart-agent',
+      payload: {
+        chatroomId: 'chatroom-1',
+        role: 'Builder',
+        model: 'codex/model',
+        agentHarness: 'codex-sdk',
+        workingDir: '/workspace',
+        maxReasoningLevel: 'medium',
+      },
+    });
   });
 });

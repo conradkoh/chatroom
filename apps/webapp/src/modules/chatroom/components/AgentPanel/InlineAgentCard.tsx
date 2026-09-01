@@ -7,7 +7,13 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo, useEffect, useRef } from 'react';
 
 import type { AgentRoleView } from '../../hooks/useAgentPanelData';
-import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
+import type {
+  MachineInfo,
+  AgentConfig,
+  SendCommandFn,
+  AgentHarness,
+  CodexMaxReasoningLevel,
+} from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentControls';
 import { AgentControlsSection } from './AgentControlsSection';
@@ -57,7 +63,11 @@ export interface InlineAgentCardProps {
   setupMode?: boolean;
   lockedMachineId?: string;
   lockedWorkingDir?: string;
-  onSetupConfigChange?: (harness: AgentHarness | null, model: string | null) => void;
+  onSetupConfigChange?: (
+    harness: AgentHarness | null,
+    model: string | null,
+    maxReasoningLevel?: CodexMaxReasoningLevel
+  ) => void;
   teamId?: string;
 }
 
@@ -156,6 +166,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigModel: roleConfig?.model,
     teamConfigHarness: roleConfig?.agentType,
     teamConfigMachineId: roleConfig?.machineId ?? agentRoleView?.machineId,
+    teamConfigMaxReasoningLevel: roleConfig?.maxReasoningLevel,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
     agentRoleView,
@@ -169,8 +180,17 @@ export const InlineAgentCard = memo(function InlineAgentCard({
 
   useEffect(() => {
     if (!setupMode) return;
-    onSetupConfigChangeRef.current?.(controls.selectedHarness, controls.selectedModel);
-  }, [setupMode, controls.selectedHarness, controls.selectedModel]);
+    onSetupConfigChangeRef.current?.(
+      controls.selectedHarness,
+      controls.selectedModel,
+      controls.selectedMaxReasoningLevel
+    );
+  }, [
+    setupMode,
+    controls.selectedHarness,
+    controls.selectedModel,
+    controls.selectedMaxReasoningLevel,
+  ]);
 
   const linkedMachineIds = useMemo(() => {
     const s = new Set<string>();

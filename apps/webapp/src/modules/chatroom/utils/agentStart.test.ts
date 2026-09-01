@@ -51,6 +51,47 @@ describe('dispatchStartAgent', () => {
     });
   });
 
+  it('forwards maxReasoningLevel for codex-sdk harness', async () => {
+    const sendCommand = vi.fn<SendCommandFn>().mockResolvedValue(undefined);
+    await dispatchStartAgent(sendCommand, {
+      ...baseInput,
+      agentHarness: 'codex-sdk',
+      maxReasoningLevel: 'medium',
+    });
+    expect(sendCommand).toHaveBeenCalledWith({
+      machineId: 'machine-a',
+      type: 'start-agent',
+      payload: {
+        chatroomId,
+        role: 'builder',
+        agentHarness: 'codex-sdk',
+        model: 'auto',
+        workingDir: '/proj',
+        maxReasoningLevel: 'medium',
+      },
+    });
+  });
+
+  it('omits maxReasoningLevel for non-codex harness even when provided', async () => {
+    const sendCommand = vi.fn<SendCommandFn>().mockResolvedValue(undefined);
+    await dispatchStartAgent(sendCommand, {
+      ...baseInput,
+      agentHarness: 'cursor',
+      maxReasoningLevel: 'high',
+    });
+    expect(sendCommand).toHaveBeenCalledWith({
+      machineId: 'machine-a',
+      type: 'start-agent',
+      payload: {
+        chatroomId,
+        role: 'builder',
+        agentHarness: 'cursor',
+        model: 'auto',
+        workingDir: '/proj',
+      },
+    });
+  });
+
   it('includes allowNewMachine when set', async () => {
     const sendCommand = vi.fn<SendCommandFn>().mockResolvedValue(undefined);
     await dispatchStartAgent(sendCommand, {
