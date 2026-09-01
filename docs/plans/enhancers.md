@@ -89,6 +89,32 @@ For large or multi-surface revisions, the entry point should activate the `defra
 
 The output is advisory. The stateful entry-point agent reconciles it with persistent task context and owns the final plan and execution.
 
+## Reusable planner skills
+
+The enhancer carries several distinct kinds of guidance. Reusable design techniques are exposed as opt-in built-in skills that planners (and other roles) can activate when a task matches. Mandatory workflow mechanics remain in role prompts and handoff templates — they are not duplicated as skills.
+
+### Selected reusable skills
+
+| Skill ID          | Name                     | Enhancer source                                                                                     | When to activate                                                                                                                                                               |
+| ----------------- | ------------------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user-centricity` | User-Centric Design      | `services/backend/prompts/utils/frontend-design-ux-checklist.ts`                                    | UI changes: user intent/history, project patterns, loading/empty/error/success states, stable layout, keyboard conventions, feedback, affordances, destructive/bulk safeguards |
+| `data-design`     | Data & Query Design      | `<handoff-data-design>` template (shared via `services/backend/prompts/utils/data-query-design.ts`) | Persistence or query changes: write/read risk inventory, hot/cold schema paths, projections for high-frequency writes, index budgets, scan/timeout/invalidation scope          |
+| `defragmentation` | Defragmentation Workflow | Existing built-in skill                                                                             | Large or multi-surface revisions: study surfaces, golden path, migrate callers, delete legacy                                                                                  |
+
+The glossary term `defragmentation` links to the `defragmentation` skill. `structural-decisions` remains a glossary concept without a linked skill.
+
+### Mandatory mechanics (not skills)
+
+These remain enforced by base prompts, enhancer templates, or runtime contracts and are **not** optional skills:
+
+- Origin-message history recovery (`chatroom messages anchor` / `messages download`)
+- Request-first enhancer routing (entry point forwards request before research)
+- Handoff output templates and Proof of Principles
+- One recommended design rule
+- Implementation sequencing
+
+Do not create skills for these; they are required system/role behavior.
+
 ## Runtime architecture
 
 ```mermaid
