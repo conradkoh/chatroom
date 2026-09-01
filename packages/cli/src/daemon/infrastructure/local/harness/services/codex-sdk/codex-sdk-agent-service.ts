@@ -23,7 +23,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
-import type { Codex, Thread, ThreadOptions } from '@openai/codex-sdk';
+import type { Codex, Thread, ThreadOptions, ModelReasoningEffort } from '@openai/codex-sdk';
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from '@workspace/backend/src/domain/entities/harness/codex-sdk.model-variants.js';
 import { stripProviderPrefix } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 import {
@@ -59,6 +59,7 @@ import type {
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
+import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
 
@@ -161,7 +162,8 @@ function buildThreadOptions(workingDir: string, variant?: CodexModelVariant): Th
     // is the neutral reasoning level (see model-variant.ts — thinking and
     // effort mean different things across harnesses). "none" leaves the
     // SDK default untouched.
-    options.modelReasoningEffort = reasoning;
+    // SDK runtime accepts "max" (verified via probe); published types may lag.
+    options.modelReasoningEffort = reasoning as ModelReasoningEffort;
   }
   return options;
 }
@@ -727,7 +729,8 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const variant = decodeCodexVariant(options.model); // strict — refuses malformed variants before any side effects
+    const model = requireHarnessModel(options.model, 'codex-sdk spawn');
+    const variant = decodeCodexVariant(model);
     const deferInitialTurn = options.deferInitialTurn ?? false;
     const keeper = this.spawnKeeper(options.workingDir);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
@@ -759,7 +762,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       thread,
       context,
       workingDir: options.workingDir,
-      model: options.model,
+      model,
       initialPrompt: fullPrompt,
       deferInitialTurn,
       storedSystemPrompt: options.systemPrompt,
@@ -775,7 +778,12 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
       const pid = keeper.pid!;
 
-      const variant = decodeCodexVariant(options.model ?? stored.model);
+      const model = resolveHarnessResumeModel(
+        options.model,
+        stored.model,
+        'codex-sdk resumeFromDaemonMemory'
+      );
+      const variant = decodeCodexVariant(model);
       const { Codex } = await loadSdk();
       const codexPath = resolveCodexExecutablePath();
       const codex = new Codex({
@@ -794,7 +802,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
         thread,
         context: options.context,
         workingDir: stored.workingDir,
-        model: options.model ?? stored.model,
+        model,
         initialPrompt: options.prompt,
         storedSystemPrompt: options.systemPrompt,
         resumedThreadId: stored.harnessSessionId,

@@ -3,6 +3,8 @@
 export const TEST_MODEL_OPENCODE = 'opencode/big-pickle';
 export const TEST_MODEL_PI = 'opencode/big-pickle';
 export const TEST_MODEL_CURSOR = 'composer-2.5';
+export const TEST_MODEL_CLAUDE = 'anthropic/sonnet';
+export const TEST_MODEL_CODEX = 'gpt-5.6';
 export const TEST_MODEL_DEEPSEEK = 'deepseek/deepseek-v4-flash';
 /** Unprefixed cursor slug used in some backend tests */
 export const TEST_MODEL_CURSOR_BARE = 'composer-2.5';

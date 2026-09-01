@@ -41,7 +41,7 @@ describe('ClaudeSdkHarness', () => {
 
   it('newSession creates session with UUID opencodeSessionId', async () => {
     const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
-    const session = await harness.newSession({});
+    const session = await harness.newSession({ model: 'anthropic/sonnet' });
 
     expect(session.opencodeSessionId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -64,7 +64,7 @@ describe('ClaudeSdkHarness', () => {
     ]);
 
     const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
-    const session = await harness.newSession({});
+    const session = await harness.newSession({ model: 'anthropic/sonnet' });
     const events: { type: string; payload?: unknown }[] = [];
 
     session.onEvent((event) => {
@@ -104,7 +104,7 @@ describe('ClaudeSdkHarness', () => {
     ]);
 
     const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
-    const session = await harness.newSession({});
+    const session = await harness.newSession({ model: 'anthropic/sonnet' });
     const textDeltas: string[] = [];
 
     session.onEvent((event) => {
@@ -139,7 +139,7 @@ describe('ClaudeSdkHarness', () => {
     ]);
 
     const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
-    const session = await harness.newSession({});
+    const session = await harness.newSession({ model: 'anthropic/sonnet' });
     const textDeltas: string[] = [];
 
     session.onEvent((event) => {
@@ -177,8 +177,12 @@ describe('ClaudeSdkHarness', () => {
 
   it('resumeSession returns cached in-memory session', async () => {
     const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
-    const resumed = await harness.resumeSession('provider-1' as never);
-    const cached = await harness.resumeSession('provider-1' as never);
+    const resumed = await harness.resumeSession('provider-1' as never, {
+      model: 'anthropic/sonnet',
+    });
+    const cached = await harness.resumeSession('provider-1' as never, {
+      model: 'anthropic/sonnet',
+    });
 
     expect(cached).toBe(resumed);
     await harness.close();

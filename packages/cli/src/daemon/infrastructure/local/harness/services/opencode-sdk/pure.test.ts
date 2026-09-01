@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isInfoLine, parseModelId } from './pure.js';
+import { isInfoLine, parseModelId, parseOpencodeSpawnModel } from './pure.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
 
 describe('parseModelId', () => {
@@ -32,6 +32,21 @@ describe('parseModelId', () => {
 
   it('returns undefined for trailing slash', () => {
     expect(parseModelId('foo/')).toBeUndefined();
+  });
+});
+
+describe('parseOpencodeSpawnModel', () => {
+  it('extracts variant from bracket model string', () => {
+    expect(parseOpencodeSpawnModel('opencode-go/gpt-5.6-luna[variant=max]')).toEqual({
+      model: 'opencode-go/gpt-5.6-luna',
+      variant: 'max',
+    });
+  });
+
+  it('passes through plain model', () => {
+    expect(parseOpencodeSpawnModel('opencode-go/gpt-5.6-luna')).toEqual({
+      model: 'opencode-go/gpt-5.6-luna',
+    });
   });
 });
 

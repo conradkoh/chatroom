@@ -2,6 +2,7 @@ import type { ModelSelection } from '@cursor/sdk';
 import {
   cursorLegacySlugToVariant,
   cursorVariantToCliSlug,
+  normalizeCursorParamsForCliSlug,
 } from '@workspace/backend/src/domain/entities/harness/cursor.model-variants.js';
 import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
 
@@ -25,7 +26,10 @@ export function decodeCursorVariant(
   try {
     const decoded = decodeModelVariant(encoded);
     return {
-      cliSlug: cursorVariantToCliSlug(decoded.model, decoded.params),
+      cliSlug: cursorVariantToCliSlug(
+        decoded.model,
+        normalizeCursorParamsForCliSlug(decoded.params)
+      ),
       params: decoded.params,
     };
   } catch {
@@ -50,16 +54,6 @@ export function resolveCursorSdkModel(model: string): string {
   return bare === DEFAULT_AUTO_MODEL_ID ? UI_AUTO_MODEL_ID : bare;
 }
 
-// fallow-ignore-next-line unused-export
-export function resolveCursorSdkSpawnModelId(
-  model?: string,
-  defaultModel = 'composer-2.5'
-): string {
-  if (!model) return defaultModel;
-  const bare = resolveCursorSdkModel(model);
-  return resolveCursorSdkModel(decodeCursorVariant(bare)?.cliSlug ?? bare);
-}
-
 function decodedVariantToModelSelection(decoded: {
   model: string;
   params: Record<string, string>;
@@ -71,11 +65,7 @@ function decodedVariantToModelSelection(decoded: {
   };
 }
 
-export function resolveCursorSdkSpawnModelSelection(
-  model?: string,
-  defaultModel = 'composer-2.5'
-): ModelSelection {
-  if (!model) return { id: defaultModel };
+export function resolveCursorSdkSpawnModelSelection(model: string): ModelSelection {
   const bare = resolveCursorSdkModel(model);
   if (bare.includes('[')) {
     const decoded = decodeModelVariant(bare);

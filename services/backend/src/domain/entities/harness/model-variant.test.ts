@@ -6,7 +6,10 @@ import { describe, expect, test } from 'vitest';
 
 import { CLAUDE_MODEL_VARIANT_COMBINATIONS, CLAUDE_SPAWN_ALIASES } from './claude.model-variants';
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
-import { cursorLegacySlugToVariant } from './cursor.model-variants';
+import {
+  cursorLegacySlugToVariant,
+  normalizeCursorParamsForCliSlug,
+} from './cursor.model-variants';
 import { HARNESS_MODEL_CATALOG, type CatalogBackedHarness } from './model-catalog';
 import {
   ModelVariantParseError,
@@ -93,7 +96,7 @@ describe('validateModelVariantParams', () => {
         CODEX_MODEL_VARIANT_COMBINATIONS
       ).params
     ).toEqual({});
-    for (const level of ['none', 'low', 'medium', 'high', 'xhigh'] as const) {
+    for (const level of ['none', 'low', 'medium', 'high', 'xhigh', 'max'] as const) {
       const variant = validateModelVariantParams(
         decodeModelVariant(`gpt-5.6-sol[reasoning=${level}]`),
         CODEX_MODEL_VARIANT_COMBINATIONS
@@ -169,7 +172,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'gpt-5.4-mini',
     ]) {
       expect(codex).toContain(`openai/${base}`);
-      for (const level of ['none', 'low', 'medium', 'high', 'xhigh']) {
+      for (const level of ['none', 'low', 'medium', 'high', 'xhigh', 'max']) {
         expect(codex).toContain(`openai/${base}[reasoning=${level}]`);
       }
     }
@@ -190,7 +193,26 @@ describe('HARNESS_MODEL_CATALOG', () => {
       base: 'claude-4.6-opus',
       params: { effort: 'xhigh', thinking: 'enabled' },
     });
+    expect(cursorLegacySlugToVariant('gpt-5.6-luna-max')).toEqual({
+      base: 'gpt-5.6-luna',
+      params: { effort: 'max' },
+    });
     expect(cursorLegacySlugToVariant('composer-2.5')).toBeUndefined();
+  });
+
+  test('normalizeCursorParamsForCliSlug maps reasoning to effort', () => {
+    expect(normalizeCursorParamsForCliSlug({ reasoning: 'max' })).toEqual({ effort: 'max' });
+    expect(normalizeCursorParamsForCliSlug({ reasoning: 'none' })).toEqual({});
+    expect(normalizeCursorParamsForCliSlug({ effort: 'high', reasoning: 'max' })).toEqual({
+      effort: 'high',
+    });
+    expect(normalizeCursorParamsForCliSlug({ reasoning: 'high', fast: 'false' })).toEqual({
+      effort: 'high',
+    });
+    expect(normalizeCursorParamsForCliSlug({ reasoning: 'high', fast: 'true' })).toEqual({
+      effort: 'high',
+      fast: 'enabled',
+    });
   });
 
   test('formats suffixes and expands catalogs', () => {

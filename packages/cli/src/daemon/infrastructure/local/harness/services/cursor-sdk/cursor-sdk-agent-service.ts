@@ -44,6 +44,7 @@ import type {
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
+import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
 import { tapProcessStreamWrites } from '../tap-process-stream-writes.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
@@ -289,7 +290,12 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const context = options.context;
     const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = stored.agentName;
-    const modelSelection = resolveCursorSdkSpawnModelSelection(options.model ?? stored.model);
+    const model = resolveHarnessResumeModel(
+      options.model,
+      stored.model,
+      'cursor-sdk resumeFromDaemonMemory'
+    );
+    const modelSelection = resolveCursorSdkSpawnModelSelection(model);
     const systemPrompt = options.systemPrompt
       ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
       : NO_SUBAGENT_DIRECTIVE;
@@ -320,7 +326,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agent,
       context,
       agentName,
-      model: options.model ?? stored.model,
+      model,
       workingDir: stored.workingDir,
       initialPrompt: fullPrompt,
       forceFirstTurn: true,
@@ -658,7 +664,8 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const context = options.context;
     const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = buildAgentName(context);
-    const modelSelection = resolveCursorSdkSpawnModelSelection(options.model);
+    const model = requireHarnessModel(options.model, 'cursor-sdk spawn');
+    const modelSelection = resolveCursorSdkSpawnModelSelection(model);
     const systemPrompt = options.systemPrompt
       ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
       : NO_SUBAGENT_DIRECTIVE;
@@ -690,7 +697,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agent,
       context,
       agentName,
-      model: options.model,
+      model,
       workingDir: options.workingDir,
       initialPrompt: fullPrompt,
       forceFirstTurn: !deferInitialTurn,

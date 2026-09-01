@@ -19,6 +19,7 @@ import {
   type NativeDirectHarnessName,
 } from '../../infrastructure/local/harness/bound-harness-registry.js';
 import { makeHarnessKey } from '../../infrastructure/local/harness/harness-key.js';
+import { requireHarnessModel } from '../../infrastructure/local/harness/services/require-harness-model.js';
 import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';
 import { handleSessionIdle } from '../shared-harness/idle-handler.js';
 import type { ActiveSession } from '../shared-harness/types.js';
@@ -116,6 +117,13 @@ async function resolveSessionHandle(
   try {
     const harness = await ensureHarnessAlive(daemonSession, deps, info);
     if (!harness) return null;
+    const modelConfig = info.lastUsedConfig.model;
+    const model = modelConfig
+      ? requireHarnessModel(
+          `${modelConfig.providerID}/${modelConfig.modelID}`,
+          'agentic-query resumeSession'
+        )
+      : requireHarnessModel(undefined, 'agentic-query resumeSession');
     const resumed = await resumeSession(
       {
         harness,
@@ -127,6 +135,7 @@ async function resolveSessionHandle(
         opencodeSessionId: info.opencodeSessionId,
         workspaceId: info.workspaceId,
         harnessName: info.harnessName,
+        model,
       }
     );
     deps.activeSessions.set(rowId, resumed);

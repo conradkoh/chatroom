@@ -13,6 +13,7 @@ import type { HarnessSessionId } from '../../domain/entities/harness-session.js'
 import type { SessionHandle } from '../../domain/usecase/open-harness-session.js';
 import { createChunkExtractor } from '../../infrastructure/local/harness/bound-harness-registry.js';
 import { isOpenCodeSessionEventType } from '../../infrastructure/local/harness/services/opencode-sdk/opencode-session-events.js';
+import { requireHarnessModel } from '../../infrastructure/local/harness/services/require-harness-model.js';
 
 export async function openPendingHarnessSession(
   daemonSession: HarnessWorkerSession,
@@ -45,7 +46,13 @@ export async function openPendingHarnessSession(
     });
 
     const modelConfig = lastUsedConfig.model;
-    const model = modelConfig ? `${modelConfig.providerID}/${modelConfig.modelID}` : undefined;
+    if (!modelConfig) {
+      throw new Error('Harness model is required (agentic-query open session)');
+    }
+    const model = requireHarnessModel(
+      `${modelConfig.providerID}/${modelConfig.modelID}`,
+      'agentic-query newSession'
+    );
 
     const liveSession = await harness.newSession({
       agent: lastUsedConfig.agent,

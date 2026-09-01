@@ -43,6 +43,7 @@ import type {
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
 import { waitForListeningUrl } from '../../services/opencode-sdk/parse-listening-url.js';
+import { requireHarnessModel } from '../../services/require-harness-model.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -168,6 +169,7 @@ export class OpencodeSdkHarness implements BoundHarness {
   /** Create a new SDK session. */
   async newSession(config: NewSessionConfig): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
+    requireHarnessModel(config.model, 'opencode-sdk newSession');
 
     const created = await this.client.session.create({
       body: {

@@ -38,6 +38,7 @@ import type {
   VersionInfo,
   HarnessSessionIdUpdatedInfo,
 } from '../remote-agent-service.js';
+import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
 
@@ -48,8 +49,8 @@ const DEFAULT_MAX_TURNS = 200;
 const DEFAULT_EFFORT: EffortLevel = 'medium';
 const TURN_TIMEOUT_MS = 3_600_000;
 
-function decodeClaudeSdkModel(model?: string): { model?: string; effort?: EffortLevel } {
-  const variant = decodeClaudeVariant(model);
+function decodeClaudeSdkModel(model: string): { model?: string; effort?: EffortLevel } {
+  const variant = decodeClaudeVariant(requireHarnessModel(model, 'claude-sdk'));
   return { model: variant?.model, effort: variant?.effort };
 }
 
@@ -622,7 +623,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { model, effort } = decodeClaudeSdkModel(options.model);
+    const resolvedModel = requireHarnessModel(options.model, 'claude-sdk spawn');
+    const { model, effort } = decodeClaudeSdkModel(resolvedModel);
     const deferInitialTurn = options.deferInitialTurn ?? false;
     const keeper = this.spawnKeeper(options.workingDir);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
@@ -664,7 +666,12 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       const pid = keeper.pid!;
       await loadSdk();
       const executablePath = await resolvePathToClaudeCodeExecutable();
-      const { model, effort } = decodeClaudeSdkModel(options.model ?? stored.model);
+      const resolvedModel = resolveHarnessResumeModel(
+        options.model,
+        stored.model,
+        'claude-sdk resumeFromDaemonMemory'
+      );
+      const { model, effort } = decodeClaudeSdkModel(resolvedModel);
 
       return this.startRunningSession({
         pid,

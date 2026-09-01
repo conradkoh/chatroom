@@ -26,8 +26,7 @@ import {
   importBundledClaudeSdk,
   resolvePathToClaudeCodeExecutable,
 } from '../../services/claude-sdk/claude-sdk-package.js';
-
-const DEFAULT_MODEL = 'anthropic/sonnet';
+import { requireHarnessModel } from '../../services/require-harness-model.js';
 
 type LoadedClaudeSdk = Awaited<ReturnType<typeof importBundledClaudeSdk>>;
 
@@ -108,6 +107,7 @@ export class ClaudeSdkHarness implements BoundHarness {
   async newSession(config: NewSessionConfig): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
 
+    const defaultModel = requireHarnessModel(config.model, 'claude-sdk newSession');
     const opencodeSessionId = randomUUID();
     const session = new ClaudeSdkSession({
       cwd: this.cwd,
@@ -115,7 +115,7 @@ export class ClaudeSdkHarness implements BoundHarness {
       query: this.query,
       opencodeSessionId,
       sessionTitle: config.title ?? '',
-      defaultModel: config.model ?? DEFAULT_MODEL,
+      defaultModel,
       systemPrompt: config.systemPrompt,
       onClose: (id) => this.sessions.delete(id),
     });
@@ -126,19 +126,21 @@ export class ClaudeSdkHarness implements BoundHarness {
   // fallow-ignore-next-line code-duplication
   async resumeSession(
     sessionId: OpenCodeSessionId,
-    _options?: ResumeHarnessSessionOptions
+    options?: ResumeHarnessSessionOptions
   ): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
 
     const existing = this.sessions.get(sessionId);
     if (existing) return existing;
 
+    const defaultModel = requireHarnessModel(options?.model, 'claude-sdk resumeSession');
     const session = new ClaudeSdkSession({
       cwd: this.cwd,
       executablePath: this.executablePath,
       query: this.query,
       opencodeSessionId: sessionId,
       sessionTitle: '',
+      defaultModel,
       providerSessionId: sessionId,
       resumeOnFirstQuery: true,
       onClose: (id) => this.sessions.delete(id),

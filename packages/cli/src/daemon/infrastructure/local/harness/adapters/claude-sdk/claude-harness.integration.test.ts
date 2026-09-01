@@ -44,7 +44,11 @@ describe.skipIf(SKIP)('Claude SDK harness integration', { timeout: 180_000 }, ()
   });
 
   it('runs a prompt and emits text chunks', async () => {
-    const session = await harness.newSession({ agent: 'builder', title: 'integration' });
+    const session = await harness.newSession({
+      agent: 'builder',
+      title: 'integration',
+      model: 'anthropic/sonnet',
+    });
     const extract = createStandardSdkChunkExtractor();
     const chunks: string[] = [];
     let idle = false;
