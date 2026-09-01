@@ -22,9 +22,9 @@ import {
   formatCursorSdkLoadError,
   importBundledCursorSdk,
 } from '../../services/cursor-sdk/cursor-sdk-package.js';
+import { requireHarnessModel } from '../../services/require-harness-model.js';
 import { withTimeout } from '../../services/with-timeout.js';
 
-const DEFAULT_MODEL = 'composer-2.5';
 const AGENT_CREATE_TIMEOUT_MS = 60_000;
 
 type LoadedCursorSdk = Awaited<ReturnType<typeof importBundledCursorSdk>>;
@@ -87,14 +87,33 @@ export class CursorSdkHarness implements BoundHarness {
     ];
   }
 
+  private requireApiKey(): string {
+    const apiKey = process.env.CURSOR_API_KEY?.trim();
+    if (!apiKey) throw new Error('CURSOR_API_KEY is not set');
+    return apiKey;
+  }
+
+  private registerAgentSession(
+    agent: Awaited<ReturnType<LoadedCursorSdk['Agent']['create']>>,
+    sessionTitle: string
+  ): DirectHarnessSession {
+    const session = new CursorSdkSession({
+      agent,
+      opencodeSessionId: agent.agentId,
+      sessionTitle,
+      onClose: (id) => this.sessions.delete(id),
+    });
+    this.sessions.set(agent.agentId, session);
+    return session;
+  }
+
   // fallow-ignore-next-line complexity
   async newSession(config: NewSessionConfig): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
 
-    const apiKey = process.env.CURSOR_API_KEY?.trim();
-    if (!apiKey) throw new Error('CURSOR_API_KEY is not set');
-
-    const modelSelection = resolveCursorSdkSpawnModelSelection(config.model ?? DEFAULT_MODEL);
+    const apiKey = this.requireApiKey();
+    const model = requireHarnessModel(config.model, 'cursor-sdk newSession');
+    const modelSelection = resolveCursorSdkSpawnModelSelection(model);
     const { Agent } = await loadSdk();
     const agent = await withTimeout(
       Agent.create({
@@ -106,47 +125,32 @@ export class CursorSdkHarness implements BoundHarness {
       'Agent.create'
     );
 
-    const session = new CursorSdkSession({
-      agent,
-      opencodeSessionId: agent.agentId,
-      sessionTitle: config.title ?? '',
-      onClose: (id) => this.sessions.delete(id),
-    });
-    this.sessions.set(agent.agentId, session);
-    return session;
+    return this.registerAgentSession(agent, config.title ?? '');
   }
 
   async resumeSession(
     sessionId: OpenCodeSessionId,
-    _options?: ResumeHarnessSessionOptions
+    options?: ResumeHarnessSessionOptions
   ): Promise<DirectHarnessSession> {
     if (this.closed) throw new Error('Harness is closed');
 
     const existing = this.sessions.get(sessionId);
     if (existing) return existing;
 
-    const apiKey = process.env.CURSOR_API_KEY?.trim();
-    if (!apiKey) throw new Error('CURSOR_API_KEY is not set');
-
+    const model = requireHarnessModel(options?.model, 'cursor-sdk resumeSession');
+    const apiKey = this.requireApiKey();
     const { Agent } = await loadSdk();
     const agent = await withTimeout(
       Agent.resume(sessionId, {
         apiKey,
-        model: resolveCursorSdkSpawnModelSelection(DEFAULT_MODEL),
+        model: resolveCursorSdkSpawnModelSelection(model),
         local: { cwd: this.cwd, settingSources: [], enableAgentRetries: true },
       }),
       AGENT_CREATE_TIMEOUT_MS,
       'Agent.resume'
     );
 
-    const session = new CursorSdkSession({
-      agent,
-      opencodeSessionId: agent.agentId,
-      sessionTitle: '',
-      onClose: (id) => this.sessions.delete(id),
-    });
-    this.sessions.set(agent.agentId, session);
-    return session;
+    return this.registerAgentSession(agent, '');
   }
 
   async fetchSessionTitle(_opencodeSessionId: string): Promise<string | undefined> {
