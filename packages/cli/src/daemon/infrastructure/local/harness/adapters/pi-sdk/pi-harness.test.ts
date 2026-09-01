@@ -82,6 +82,25 @@ describe('PiSdkHarness', () => {
     await harness.close();
   });
 
+  it('forwards thinkingLevel from bracket model syntax', async () => {
+    stubPiSession();
+    const { AuthStorage, ModelRegistry } =
+      await import('../../services/pi-sdk/pi-sdk-package.js').then((m) => m.importBundledPiSdk());
+    const harness = new PiSdkHarness(
+      '/tmp/work',
+      ModelRegistry.create(AuthStorage.create()),
+      AuthStorage.create()
+    );
+    await harness.newSession({ model: 'opencode/big-pickle[thinking=xhigh]' });
+    expect(mockCreateAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({ provider: 'opencode', id: 'big-pickle' }),
+        thinkingLevel: 'xhigh',
+      })
+    );
+    await harness.close();
+  });
+
   it('startPiSdkHarness fails when no models available', async () => {
     mockGetAvailable.mockReturnValue([]);
     await expect(

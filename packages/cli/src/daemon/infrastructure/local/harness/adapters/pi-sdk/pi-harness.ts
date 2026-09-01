@@ -19,6 +19,7 @@ import type {
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
 import { getPiSessionDir } from '../../services/pi/pi-agent-service.js';
+import { parsePiSpawnModel, resolvePiThinkingLevel } from '../../services/pi/pure.js';
 import { formatPiSdkLoadError, importBundledPiSdk } from '../../services/pi-sdk/pi-sdk-package.js';
 import { withTimeout } from '../../services/with-timeout.js';
 
@@ -186,10 +187,13 @@ export class PiSdkHarness implements BoundHarness {
     this.sessions.clear();
   }
 
+  // fallow-ignore-next-line complexity
   private async createAgentSession(systemPrompt: string, model?: string): Promise<AgentSession> {
     const { createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager } =
       await loadSdk();
-    const resolvedModel = resolveModel(this.modelRegistry, model ?? DEFAULT_MODEL);
+    const parsed = model ? parsePiSpawnModel(model) : undefined;
+    const resolvedModel = resolveModel(this.modelRegistry, parsed?.model ?? model ?? DEFAULT_MODEL);
+    const thinkingLevel = resolvePiThinkingLevel(parsed?.thinking);
     if (!resolvedModel) {
       throw new Error(
         'No Pi model available — configure provider credentials in ~/.pi/agent/auth.json'
@@ -207,6 +211,7 @@ export class PiSdkHarness implements BoundHarness {
       createAgentSession({
         cwd: this.cwd,
         model: resolvedModel,
+        ...(thinkingLevel ? { thinkingLevel } : {}),
         sessionManager: SessionManager.create(getPiSessionDir(this.cwd)),
         authStorage: this.authStorage,
         modelRegistry: this.modelRegistry,

@@ -34,6 +34,7 @@ import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js'
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
 import { getPiSessionDir } from '../pi/pi-agent-service.js';
+import { parsePiSpawnModel, resolvePiThinkingLevel } from '../pi/pure.js';
 import type {
   AgentStopOptions,
   SpawnContext,
@@ -264,7 +265,9 @@ export class PiSdkAgentService extends BaseCLIAgentService {
 
     const authStorage = AuthStorage.create();
     const modelRegistry = ModelRegistry.create(authStorage);
-    const resolvedModel = resolveModel(modelRegistry, args.model);
+    const parsed = args.model ? parsePiSpawnModel(args.model) : undefined;
+    const resolvedModel = resolveModel(modelRegistry, parsed?.model ?? args.model);
+    const thinkingLevel = resolvePiThinkingLevel(parsed?.thinking);
     if (!resolvedModel) {
       throw new Error(
         'No Pi model available — configure provider credentials in ~/.pi/agent/auth.json'
@@ -283,6 +286,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       createAgentSession({
         cwd: args.workingDir,
         model: resolvedModel,
+        ...(thinkingLevel ? { thinkingLevel } : {}),
         sessionManager: SessionManager.create(getPiSessionDir(args.workingDir)),
         authStorage,
         modelRegistry,

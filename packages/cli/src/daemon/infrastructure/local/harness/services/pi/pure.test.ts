@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parsePiSpawnModel } from './pure.js';
+import { parsePiSpawnModel, resolvePiThinkingLevel } from './pure.js';
 
 describe('parsePiSpawnModel', () => {
   it('extracts thinking from bracket model string', () => {
@@ -21,5 +21,17 @@ describe('parsePiSpawnModel', () => {
     expect(parsePiSpawnModel('anthropic/claude-sonnet')).toEqual({
       model: 'anthropic/claude-sonnet',
     });
+  });
+});
+
+describe('resolvePiThinkingLevel', () => {
+  it('returns valid thinking levels', () => {
+    expect(resolvePiThinkingLevel('xhigh')).toBe('xhigh');
+    expect(resolvePiThinkingLevel('high')).toBe('high');
+  });
+
+  it('returns undefined for invalid levels', () => {
+    expect(resolvePiThinkingLevel('max')).toBeUndefined();
+    expect(resolvePiThinkingLevel(undefined)).toBeUndefined();
   });
 });

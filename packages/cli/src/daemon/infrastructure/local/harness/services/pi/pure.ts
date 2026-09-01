@@ -4,7 +4,6 @@ import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harne
 /** Pi CLI valid --thinking values. `max` is NOT valid — use xhigh as ceiling. */
 // fallow-ignore-next-line unused-export
 export const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
-// fallow-ignore-next-line unused-type
 export type PiThinkingLevel = (typeof PI_THINKING_LEVELS)[number];
 
 // fallow-ignore-next-line complexity
@@ -27,4 +26,12 @@ export function parsePiSpawnModel(model: string): {
   }
 
   return { model: resolvedModel, ...(thinking ? { thinking } : {}) };
+}
+
+export function resolvePiThinkingLevel(thinking?: string): PiThinkingLevel | undefined {
+  if (!thinking) return undefined;
+  if ((PI_THINKING_LEVELS as readonly string[]).includes(thinking)) {
+    return thinking as PiThinkingLevel;
+  }
+  return undefined;
 }
