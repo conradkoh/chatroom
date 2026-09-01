@@ -29,9 +29,6 @@ export function createStartAgentDeps(
             workingDir: args.workingDir,
             reason: args.reason as StartAgentReason,
             wantResume: args.wantResume,
-            ...(args.lifecycleRevision !== undefined
-              ? { lifecycleRevision: args.lifecycleRevision }
-              : {}),
             ...(args.maxReasoningLevel !== undefined
               ? { maxReasoningLevel: args.maxReasoningLevel }
               : {}),
@@ -110,9 +107,6 @@ export function createRestartAgentDeps(
             workingDir: input.workingDir,
             correlationId: input.correlationId,
             wantResume: input.wantResume,
-            ...(input.lifecycleRevision !== undefined
-              ? { lifecycleRevision: input.lifecycleRevision }
-              : {}),
             ...(input.maxReasoningLevel !== undefined
               ? { maxReasoningLevel: input.maxReasoningLevel }
               : {}),

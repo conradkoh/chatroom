@@ -336,6 +336,7 @@ describe('AgentProcessManager', () => {
         expect.objectContaining({ maxReasoningLevel: 'high' })
       );
       expect(service.spawn).not.toHaveBeenCalled();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.maxReasoningLevel).toBe('high');
     });
 
     test('omitted maxReasoningLevel is not passed to spawn', async () => {

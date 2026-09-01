@@ -1664,7 +1664,17 @@ export class AgentProcessManager {
         }
       );
       await this.emitSessionResumed(opts.chatroomId, opts.role, resumableId);
-      return spawnResult;
+      if (maxReasoningLevel === undefined) {
+        return spawnResult;
+      }
+      return {
+        ...spawnResult,
+        harnessReconnect: {
+          agentName: spawnResult.harnessReconnect?.agentName ?? stored.agentName,
+          ...spawnResult.harnessReconnect,
+          ...(maxReasoningLevel !== undefined ? { maxReasoningLevel } : {}),
+        },
+      };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       this.clearLastHarnessSession(opts.key);
@@ -2078,6 +2088,8 @@ export class AgentProcessManager {
     slot.harness = opts.agentHarness;
     slot.harnessSessionId = spawnResult.harnessSessionId;
     slot.resumableHarnessSessionId = undefined;
+    const effectiveMaxReasoningLevel =
+      opts.maxReasoningLevel ?? spawnResult.harnessReconnect?.maxReasoningLevel;
     if (spawnResult.harnessSessionId) {
       this.recordLastHarnessSession(key, {
         harnessSessionId: spawnResult.harnessSessionId,
@@ -2086,12 +2098,13 @@ export class AgentProcessManager {
         agentName: spawnResult.harnessReconnect?.agentName ?? '',
         workingDir: opts.workingDir,
         model: opts.model ?? spawnResult.harnessReconnect?.model,
-        maxReasoningLevel:
-          opts.maxReasoningLevel ?? spawnResult.harnessReconnect?.maxReasoningLevel,
+        ...(effectiveMaxReasoningLevel !== undefined
+          ? { maxReasoningLevel: effectiveMaxReasoningLevel }
+          : {}),
       });
     }
     slot.model = opts.model;
-    slot.maxReasoningLevel = opts.maxReasoningLevel;
+    slot.maxReasoningLevel = effectiveMaxReasoningLevel;
     slot.wantResume = wantResume;
     slot.workingDir = opts.workingDir;
     slot.startedAt = this.deps.clock.now();
