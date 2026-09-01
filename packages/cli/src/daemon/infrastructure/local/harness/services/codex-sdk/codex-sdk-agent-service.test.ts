@@ -7,6 +7,7 @@ import {
   resetCodexSdkModuleCacheForTests,
   type CodexSdkAgentServiceDeps,
 } from './codex-sdk-agent-service.js';
+import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 const mockStartThread = vi.fn();
@@ -178,6 +179,7 @@ describe('CodexSdkAgentService', () => {
 
       expect(result.pid).toBe(4321);
       expect(result.harnessSessionId).toMatch(UUID_PATTERN);
+      expect(result.activityEmitter).toBeDefined();
       expect(deps.spawn).toHaveBeenCalled();
 
       result.onOutput(onOutput);
@@ -253,6 +255,67 @@ describe('CodexSdkAgentService', () => {
       expect(mockRunStreamed.mock.calls[0][0]).toContain('you are helpful');
     });
 
+    it('returns activityEmitter with transport and progress signals from stream events', async () => {
+      let releaseEvent: (() => void) | undefined;
+      const eventGate = new Promise<void>((resolve) => {
+        releaseEvent = resolve;
+      });
+
+      async function* gatedStream(): AsyncGenerator<Record<string, unknown>> {
+        await eventGate;
+        yield { type: 'thread.started', thread_id: THREAD_ID };
+        yield {
+          type: 'item.completed',
+          item: { id: 'i1', type: 'agent_message', text: 'typed hello' },
+        };
+        yield {
+          type: 'turn.completed',
+          usage: {
+            input_tokens: 1,
+            cached_input_tokens: 0,
+            cache_write_input_tokens: 0,
+            output_tokens: 1,
+            reasoning_output_tokens: 0,
+          },
+        };
+      }
+
+      const thread = makeThread();
+      mockStartThread.mockReturnValue(thread);
+      mockRunStreamed.mockResolvedValue({ events: gatedStream() });
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      const onOutput = vi.fn();
+      const onAgentEnd = vi.fn();
+      const spawnPromise = service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+      const result = await spawnPromise;
+
+      expect(result.activityEmitter).toBeDefined();
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+      result.onOutput(onOutput);
+      result.onAgentEnd?.(onAgentEnd);
+
+      releaseEvent!();
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'codex-sdk.item.agent-message')).toBe(true)
+      );
+
+      expect(signals.some((s) => s.kind === 'transport')).toBe(true);
+      expect(signals.some((s) => s.kind === 'progress')).toBe(true);
+      expect(onOutput).toHaveBeenCalled();
+      await vi.waitFor(() => expect(onAgentEnd).toHaveBeenCalledTimes(1));
+    });
+
     it('native multi-turn invariant: two resumeTurns each emit onAgentEnd', async () => {
       stubStream(completedTurnEvents());
 
@@ -272,11 +335,22 @@ describe('CodexSdkAgentService', () => {
       if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
       result.onAgentEnd(onEnd);
 
+      const originalEmitter = result.activityEmitter;
+      const progressFirstFlags: boolean[] = [];
+      result.activityEmitter?.onActivity((signal) => {
+        if (signal.kind === 'progress') progressFirstFlags.push(signal.isFirstForTurn);
+      });
+
       await service.resumeTurn(result.pid, 'first task');
       await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(1));
+      expect(originalEmitter).toBe(result.activityEmitter);
+      expect(progressFirstFlags[0]).toBe(true);
 
+      stubStream(completedTurnEvents());
+      progressFirstFlags.length = 0;
       await service.resumeTurn(result.pid, 'second task');
       await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(2));
+      expect(progressFirstFlags[0]).toBe(true);
       expect(mockRunStreamed).toHaveBeenCalledTimes(2);
     });
 

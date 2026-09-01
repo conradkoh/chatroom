@@ -6,6 +6,7 @@ import {
   startSessionEventForwarder,
   type SessionEventForwarderOptions,
 } from './session-event-forwarder.js';
+import type { HarnessActivityEvent } from '../../../../agent-process-manager/harness-activity-emitter.js';
 
 function makeWritable() {
   return {
@@ -1220,4 +1221,135 @@ describe('SessionEventForwarder', () => {
     await handle.done;
     vi.useRealTimers();
   }, 10000);
+
+  describe('typed activity signals', () => {
+    async function runStream(
+      stream: AsyncGenerator<unknown>,
+      extra?: Partial<SessionEventForwarderOptions>
+    ) {
+      const events: HarnessActivityEvent[] = [];
+      vi.useFakeTimers();
+      const fakeClient = createMockClient(stream);
+      const handle = startSessionEventForwarder(fakeClient as never, {
+        ...baseOptions,
+        ...extra,
+        onActivity: (event) => events.push(event),
+      });
+      await vi.advanceTimersByTimeAsync(50);
+      await handle.done;
+      vi.useRealTimers();
+      return events;
+    }
+
+    it('text message.part.updated yields transport then progress with text source', async () => {
+      const events = await runStream(textDeltaStream());
+      expect(events.map((e) => e.kind)).toEqual(['transport', 'progress']);
+      expect(events[0]?.source).toBe('opencode.event.message.part.updated');
+      expect(events[1]?.source).toBe('opencode.message.part.updated.text');
+    });
+
+    it('reasoning update yields progress with reasoning source', async () => {
+      const events = await runStream(reasoningStream());
+      expect(events.some((e) => e.source === 'opencode.message.part.updated.reasoning')).toBe(true);
+      expect(events.find((e) => e.source === 'opencode.message.part.updated.reasoning')?.kind).toBe(
+        'progress'
+      );
+    });
+
+    it('completed tool update yields transport and progress with tool source', async () => {
+      const events = await runStream(toolCallStream());
+      expect(events[0]?.kind).toBe('transport');
+      expect(events.some((e) => e.source === 'opencode.message.part.updated.tool')).toBe(true);
+    });
+
+    it('deduplicated tool state does not emit duplicate semantic progress', async () => {
+      vi.useFakeTimers();
+      async function* duplicateRunningStream(): AsyncGenerator<unknown> {
+        await new Promise((r) => setTimeout(r, 10));
+        for (let i = 0; i < 3; i++) {
+          yield {
+            type: 'message.part.updated',
+            properties: {
+              state: 'running',
+              part: {
+                id: 'p1',
+                type: 'tool',
+                tool: 'bash',
+                sessionID: 'sess-1',
+                messageID: 'm1',
+                callID: 'call-dedup-activity',
+                state: { status: 'running', input: { command: 'ls' } },
+              },
+            },
+          };
+        }
+      }
+      const events: HarnessActivityEvent[] = [];
+      const fakeClient = createMockClient(duplicateRunningStream());
+      const handle = startSessionEventForwarder(fakeClient as never, {
+        ...baseOptions,
+        onActivity: (event) => events.push(event),
+      });
+      await vi.advanceTimersByTimeAsync(50);
+      await handle.done;
+      vi.useRealTimers();
+      const progressEvents = events.filter((e) => e.kind === 'progress');
+      expect(progressEvents).toHaveLength(1);
+    });
+
+    it('session.status busy yields progress; retry yields waiting', async () => {
+      async function* busyThenRetryStream(): AsyncGenerator<unknown> {
+        await new Promise((r) => setTimeout(r, 10));
+        yield {
+          type: 'session.status',
+          properties: { sessionID: 'sess-1', status: { type: 'busy' } },
+        };
+        yield {
+          type: 'session.status',
+          properties: { sessionID: 'sess-1', status: { type: 'retry' } },
+        };
+      }
+      const events = await runStream(busyThenRetryStream());
+      expect(
+        events.some((e) => e.source === 'opencode.session.status.busy' && e.kind === 'progress')
+      ).toBe(true);
+      expect(
+        events.some((e) => e.source === 'opencode.session.status.retry' && e.kind === 'waiting')
+      ).toBe(true);
+    });
+
+    it('session.error yields failure; idle and agent_end do not yield progress', async () => {
+      const errorEvents = await runStream(errorStream());
+      expect(
+        errorEvents.some((e) => e.source === 'opencode.session.error' && e.kind === 'failure')
+      ).toBe(true);
+      expect(errorEvents.some((e) => e.kind === 'progress')).toBe(false);
+
+      const idleEvents = await runStream(idleStream());
+      expect(idleEvents.every((e) => e.kind === 'transport')).toBe(true);
+
+      const statusIdleEvents = await runStream(statusIdleOnlyStream());
+      expect(statusIdleEvents.some((e) => e.kind === 'progress')).toBe(false);
+    });
+
+    it('other-session and unknown non-session events produce no activity', async () => {
+      const otherEvents = await runStream(otherSessionStream());
+      expect(otherEvents).toHaveLength(0);
+
+      const unknownEvents = await runStream(noSessionIdStream());
+      expect(unknownEvents).toHaveLength(0);
+    });
+
+    it('sources contain no payload text and transport precedes semantic for one event', async () => {
+      const events = await runStream(textDeltaStream());
+      for (const event of events) {
+        expect(event.source).not.toContain('hello');
+        expect(event.source).not.toMatch(/[\n{}]/);
+      }
+      const transportIdx = events.findIndex((e) => e.kind === 'transport');
+      const progressIdx = events.findIndex((e) => e.kind === 'progress');
+      expect(transportIdx).toBeGreaterThanOrEqual(0);
+      expect(progressIdx).toBeGreaterThan(transportIdx);
+    });
+  });
 });

@@ -7,6 +7,7 @@ import {
   CursorSdkAgentService,
   type CursorSdkAgentServiceDeps,
 } from './cursor-sdk-agent-service.js';
+import { wireTokenActivityReporting } from '../native-spawn-presence.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 const sharedAgentCreateFn = vi.fn();
@@ -842,6 +843,145 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentCreateFn).toHaveBeenCalled();
       expect(result.pid).toBe(4322);
       expect(keeper.kill).toHaveBeenCalled();
+    });
+  });
+
+  describe('activityEmitter', () => {
+    it('returns a shared emitter across turns with per-turn first-progress tracking', async () => {
+      const makeRun = (id: string, messageType: 'assistant' | 'task') => ({
+        id,
+        stream: async function* () {
+          if (messageType === 'assistant') {
+            yield {
+              type: 'assistant',
+              agent_id: 'agent-1',
+              run_id: id,
+              message: {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'turn output\n' }],
+              },
+            };
+          } else {
+            yield {
+              type: 'task',
+              agent_id: 'agent-1',
+              run_id: id,
+              status: 'in_progress',
+              text: 'working',
+            };
+          }
+        },
+        wait: vi.fn().mockResolvedValue({ id, status: 'finished' }),
+        supports: () => false,
+        cancel: vi.fn(),
+      });
+
+      sharedAgentSendFn.mockResolvedValue(makeRun('run-activity-1', 'assistant'));
+      const agent = {
+        agentId: 'agent-1',
+        send: sharedAgentSendFn,
+        close: sharedAgentCloseFn,
+      };
+      sharedAgentCreateFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(8801);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const onEnd = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        deferInitialTurn: true,
+      });
+      if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
+      result.onAgentEnd(onEnd);
+
+      const emitter = result.activityEmitter!;
+      const progressFirstFlags: boolean[] = [];
+      emitter.onActivity((signal) => {
+        if (signal.kind === 'progress') progressFirstFlags.push(signal.isFirstForTurn);
+      });
+
+      await service.resumeTurn(result.pid, 'first turn');
+      await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(1));
+      expect(progressFirstFlags[0]).toBe(true);
+      if (progressFirstFlags.length > 1) {
+        expect(progressFirstFlags.slice(1).every((flag) => !flag)).toBe(true);
+      }
+
+      sharedAgentSendFn.mockResolvedValue(makeRun('run-activity-2', 'task'));
+      progressFirstFlags.length = 0;
+
+      await service.resumeTurn(result.pid, 'second turn');
+      await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(2));
+      expect(progressFirstFlags[0]).toBe(true);
+    });
+
+    it('process-stream transport does not trigger token presence by itself', async () => {
+      const run = {
+        id: 'run-subprocess-activity',
+        stream: async function* () {
+          process.stdout.write('subprocess only\n');
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          yield {
+            type: 'assistant',
+            agent_id: 'agent-1',
+            run_id: 'run-subprocess-activity',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'done\n' }],
+            },
+          };
+        },
+        wait: vi.fn().mockResolvedValue({ id: 'run-subprocess-activity', status: 'finished' }),
+        supports: () => false,
+        cancel: vi.fn(),
+      };
+
+      const agent = {
+        agentId: 'agent-1',
+        send: sharedAgentSendFn.mockResolvedValue(run),
+        close: sharedAgentCloseFn,
+      };
+      sharedAgentCreateFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(8802);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+      const mutation = vi.fn().mockResolvedValue(undefined);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('run tools'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      let processStreamTransportCount = 0;
+      result.activityEmitter?.onActivity((signal) => {
+        if (signal.kind === 'transport' && signal.source === 'cursor-sdk.process-stream') {
+          processStreamTransportCount++;
+        }
+      });
+
+      wireTokenActivityReporting({
+        backend: { mutation } as any,
+        sessionId: 's',
+        chatroomId: 'c',
+        role: 'builder',
+        spawnResult: { onOutput: result.onOutput },
+        activityEmitter: result.activityEmitter,
+      });
+
+      await vi.waitFor(() => expect(processStreamTransportCount).toBeGreaterThan(0));
+      expect(mutation).not.toHaveBeenCalled();
+
+      await vi.waitFor(() => expect(mutation).toHaveBeenCalledTimes(1));
     });
   });
 

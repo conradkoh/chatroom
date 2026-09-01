@@ -1,4 +1,5 @@
 /** Task inbox → native delivery integration tests (mocked harness, no LLM). */
+import { GET_NEXT_TASK_STARTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
@@ -49,7 +50,8 @@ function createAgentMgrMock(overrides: Record<string, unknown> = {}): never {
       harnessSessionId: 'harness-1',
       nativeTurnPhase: 'idle',
     }),
-    ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 42 }),
+    ensureRunning: vi.fn().mockReturnValue(Effect.succeed({ success: true, pid: 42 })),
+    stop: vi.fn().mockReturnValue(Effect.succeed({ success: true })),
     clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
     setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     ...overrides,
@@ -341,5 +343,79 @@ describe('task inbox delivery integration', () => {
       deps
     );
     await vi.waitFor(() => expect(ensureRunning).not.toHaveBeenCalled());
+  });
+
+  test('does not stop or restart CLI agent for idle pending snapshot', async () => {
+    const stop = vi.fn().mockReturnValue(Effect.succeed({ success: true }));
+    const ensureRunning = vi.fn().mockReturnValue(Effect.succeed({ success: true, pid: 42 }));
+    const agentMgr = createAgentMgrMock({ stop, ensureRunning });
+    const now = Date.now();
+    const row = {
+      taskId: 'task-cli-idle' as never,
+      chatroomId: 'room-1' as never,
+      status: 'pending' as const,
+      assignedTo: 'builder',
+      updatedAt: now - 60_000,
+      createdAt: now - 30_000,
+      agentConfig: {
+        role: 'builder',
+        machineId: 'machine-1',
+        agentHarness: 'opencode',
+        workingDir: '/tmp',
+        spawnedAgentPid: process.pid,
+        desiredState: 'running' as const,
+      },
+      participant: {
+        lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,
+        lastSeenAt: now - 60_000,
+        lastStatus: 'agent.waiting',
+      },
+    };
+    const full = {
+      ...row,
+      taskContent: 'stale pending task',
+      agentConfig: { ...row.agentConfig, model: 'gpt-4' },
+    };
+    const sessionDeps = {
+      sessionId: 'session-1',
+      convexUrl: 'http://test',
+      machineId: 'machine-1',
+      logEvent: vi.fn(),
+      backend: {
+        mutation: vi.fn(),
+        query: vi
+          .fn()
+          .mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+            'taskId' in args ? full : { tasks: [row] }
+          ),
+      },
+    } as never;
+    const deps = {
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      cooldown: new RecoveryCooldown(0),
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+    };
+    registerTestNativeDeliverySession({
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'running')],
+    });
+
+    await expect(
+      handleTaskInboxUpdate(
+        { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
+        deps
+      )
+    ).resolves.toBeUndefined();
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(stop).not.toHaveBeenCalled();
+    expect(ensureRunning).not.toHaveBeenCalled();
   });
 });

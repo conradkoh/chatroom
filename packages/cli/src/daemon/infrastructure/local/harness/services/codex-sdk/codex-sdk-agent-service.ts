@@ -33,10 +33,6 @@ import {
 } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
 import { Effect } from 'effect';
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
-}
-
 import {
   formatCodexSdkError,
   formatCodexSdkLoadError,
@@ -46,6 +42,10 @@ import {
 } from './codex-sdk-package.js';
 import { CodexSdkStreamAdapter } from './codex-sdk-stream-adapter.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
+import {
+  createHarnessActivityEmitter,
+  type HarnessActivityEmitter,
+} from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
@@ -61,6 +61,10 @@ import type {
 } from '../remote-agent-service.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
 
 type LoadedCodexSdk = Awaited<ReturnType<typeof importBundledCodexSdk>>;
 
@@ -391,6 +395,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     this.sessions.set(pid, session);
 
     const callbacks = this.buildSessionCallbacks(pid, context);
+    const activityEmitter = createHarnessActivityEmitter();
 
     this.runTurnLoop({
       session,
@@ -405,6 +410,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks: callbacks.agentEndCallbacks,
       assistantTextCallbacks: callbacks.assistantTextCallbacks,
       emitLogLine: callbacks.emitLogLine,
+      activityEmitter,
     });
 
     return this.buildSpawnResult({
@@ -417,6 +423,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       logLineCallbacks: callbacks.logLineCallbacks,
       assistantTextCallbacks: callbacks.assistantTextCallbacks,
       sessionIdUpdatedCallbacks: callbacks.sessionIdUpdatedCallbacks,
+      activityEmitter,
     });
   }
 
@@ -485,6 +492,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     logLineCallbacks: ((line: string) => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
     sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[];
+    activityEmitter: HarnessActivityEmitter;
   }): SpawnResult {
     const {
       pid,
@@ -496,11 +504,13 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       logLineCallbacks,
       assistantTextCallbacks,
       sessionIdUpdatedCallbacks,
+      activityEmitter,
     } = args;
 
     return {
       pid,
       harnessSessionId,
+      activityEmitter,
       onExit: (cb) => {
         exitCallbacks.push(cb);
       },
@@ -543,6 +553,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
     emitLogLine: (line: string) => void;
+    activityEmitter: HarnessActivityEmitter;
   }): void {
     const {
       session,
@@ -557,6 +568,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
     } = args;
 
     let exited = false;
@@ -599,6 +611,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
               agentEndCallbacks,
               assistantTextCallbacks,
               emitLogLine,
+              activityEmitter,
             });
             nextPrompt = null;
           } catch (turnErr) {
@@ -653,6 +666,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
     emitLogLine: (line: string) => void;
+    activityEmitter: HarnessActivityEmitter;
   }): Promise<void> {
     const {
       session,
@@ -665,9 +679,11 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
     } = args;
 
-    const adapter = new CodexSdkStreamAdapter(logPrefix, emitLogLine);
+    activityEmitter.beginTurn();
+    const adapter = new CodexSdkStreamAdapter(logPrefix, emitLogLine, activityEmitter);
     wireNativeStreamAdapter({
       adapter,
       assistantTextCallbacks,

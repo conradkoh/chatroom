@@ -7,6 +7,7 @@ import {
   resetClaudeSdkModuleCacheForTests,
   type ClaudeSdkAgentServiceDeps,
 } from './claude-sdk-agent-service.js';
+import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 const mockQueryFn = vi.fn();
@@ -142,6 +143,7 @@ describe('ClaudeSdkAgentService', () => {
 
       expect(result.pid).toBe(4321);
       expect(result.harnessSessionId).toMatch(UUID_PATTERN);
+      expect(result.activityEmitter).toBeDefined();
       expect(deps.spawn).toHaveBeenCalled();
 
       result.onOutput(onOutput);
@@ -295,9 +297,63 @@ describe('ClaudeSdkAgentService', () => {
       });
     });
 
+    it('returns activityEmitter with transport and progress signals from SDK messages', async () => {
+      let releaseEvent: (() => void) | undefined;
+      const eventGate = new Promise<void>((resolve) => {
+        releaseEvent = resolve;
+      });
+
+      async function* gatedStream(): AsyncGenerator<Record<string, unknown>> {
+        await eventGate;
+        yield {
+          type: 'stream_event',
+          session_id: 'sess-1',
+          event: {
+            type: 'content_block_delta',
+            delta: { type: 'text_delta', text: 'typed hello' },
+          },
+        };
+        await new Promise(() => {});
+      }
+
+      const queryInstance = Object.assign(gatedStream(), {
+        interrupt: mockInterruptFn.mockResolvedValue(undefined),
+      });
+      mockQueryFn.mockReturnValue(queryInstance);
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+      const result = await spawnPromise;
+
+      expect(result.activityEmitter).toBeDefined();
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+
+      releaseEvent!();
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'claude-sdk.stream.text-delta')).toBe(true)
+      );
+
+      expect(signals.some((s) => s.kind === 'transport')).toBe(true);
+      expect(signals.some((s) => s.kind === 'progress')).toBe(true);
+    });
+
     it('native multi-turn invariant: two resumeTurns each emit onAgentEnd', async () => {
       stubQuery([
         { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        {
+          type: 'assistant',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'turn one\n' }] },
+        },
         { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
       ]);
 
@@ -317,15 +373,29 @@ describe('ClaudeSdkAgentService', () => {
       if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
       result.onAgentEnd(onEnd);
 
+      const originalEmitter = result.activityEmitter;
+      const progressFirstFlags: boolean[] = [];
+      result.activityEmitter?.onActivity((signal) => {
+        if (signal.kind === 'progress') progressFirstFlags.push(signal.isFirstForTurn);
+      });
+
       await service.resumeTurn(result.pid, 'first task');
       await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(1));
+      expect(originalEmitter).toBe(result.activityEmitter);
+      expect(progressFirstFlags[0]).toBe(true);
 
       stubQuery([
         { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        {
+          type: 'assistant',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'turn two\n' }] },
+        },
         { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
       ]);
+      progressFirstFlags.length = 0;
       await service.resumeTurn(result.pid, 'second task');
       await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(2));
+      expect(progressFirstFlags[0]).toBe(true);
     });
 
     it('fires onHarnessSessionIdUpdated when provider session_id is first captured', async () => {

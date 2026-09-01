@@ -21,6 +21,7 @@ import { type ChildProcess } from 'node:child_process';
 
 import { decodeClaudeVariant } from './claude-models.js';
 import { ClaudeStreamReader } from './claude-stream-reader.js';
+import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
@@ -97,6 +98,9 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
     // The prompt is passed as a positional argument
     args.push(prompt);
 
+    const activityEmitter = createHarnessActivityEmitter();
+    activityEmitter.beginTurn();
+
     const childProcess: ChildProcess = this.deps.spawn(CLAUDE_COMMAND, args, {
       cwd: options.workingDir,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -125,6 +129,13 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
       let textBuffer = '';
       let thinkingBuffer = '';
 
+      const emitActivity = (
+        kind: 'transport' | 'progress' | 'waiting' | 'failure',
+        source: string
+      ) => {
+        activityEmitter.emit({ kind, source, at: Date.now() });
+      };
+
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
@@ -143,6 +154,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
 
       // Handle text content blocks
       reader.onText((text) => {
+        emitActivity('progress', 'claude-cli.assistant.text');
         entry.lastOutputAt = Date.now();
         textBuffer += text;
         // Buffer and flush on complete chunks
@@ -154,6 +166,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
 
       // Handle thinking (reasoning) content blocks
       reader.onThinking((thinking) => {
+        emitActivity('progress', 'claude-cli.assistant.thinking');
         entry.lastOutputAt = Date.now();
         thinkingBuffer += thinking;
         if (thinking.includes('\n\n') || thinking.endsWith('\n')) {
@@ -165,6 +178,8 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
       // Handle tool use invocations — log and track in entry
       // fallow-ignore-next-line complexity
       reader.onToolUse((name, input) => {
+        emitActivity('progress', 'claude-cli.tool-use');
+        emitActivity('waiting', 'claude-cli.tool-use');
         entry.lastOutputAt = Date.now();
         const bashCmd = extractBashCommandFromToolInput(name, input);
         if (bashCmd !== null) {
@@ -192,9 +207,19 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
         flushThinking();
         for (const cb of outputCallbacks) cb();
       });
+
+      reader.onAnyEvent((metadata) => {
+        entry.lastOutputAt = Date.now();
+        emitActivity('transport', 'claude-cli.message');
+        if (metadata.isError) {
+          emitActivity('failure', 'claude-cli.message');
+        }
+        for (const cb of outputCallbacks) cb();
+      });
     }
     if (childProcess.stderr) {
       childProcess.stderr.on('data', (chunk: Buffer) => {
+        activityEmitter.emit({ kind: 'transport', source: 'claude-cli.stderr', at: Date.now() });
         emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
@@ -203,6 +228,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
 
     return {
       pid,
+      activityEmitter,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
           this.deleteProcess(pid);

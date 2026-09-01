@@ -34,6 +34,10 @@ import {
 } from './session-metadata-store.js';
 import { StderrLineBuffer } from './stderr-line-buffer.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
+import {
+  createHarnessActivityEmitter,
+  type HarnessActivityEmitter,
+} from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
 import type {
   SpawnContext,
@@ -96,6 +100,8 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   private readonly assistantTextCallbacksByPid = new Map<number, ((text: string) => void)[]>();
   /** Per-pid output callbacks — preserved for startFreshSessionOnServe fallback. */
   private readonly outputCallbacksByPid = new Map<number, (() => void)[]>();
+  /** Per-pid typed activity emitters — shared across turns and forwarder replacement. */
+  private readonly activityEmittersByPid = new Map<number, HarnessActivityEmitter>();
   readonly id = 'opencode-sdk';
   readonly displayName = 'OpenCode (SDK)';
   protected readonly listModelsHarnessId = 'opencode-sdk';
@@ -201,11 +207,17 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     pid: number,
     entry: { lastOutputAt: number },
     emitLogLine: (line: string) => void,
-    outputCallbacks: (() => void)[]
+    outputCallbacks: (() => void)[],
+    activityEmitter: HarnessActivityEmitter
   ): void {
     if (childProcess.stdout) {
       childProcess.stdout.on('data', () => {
         entry.lastOutputAt = Date.now();
+        activityEmitter.emit({
+          kind: 'transport',
+          source: 'opencode.process.stdout',
+          at: Date.now(),
+        });
         for (const cb of outputCallbacks) cb();
       });
     }
@@ -215,6 +227,11 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       });
       childProcess.stderr.on('data', (chunk: Buffer | string) => {
         entry.lastOutputAt = Date.now();
+        activityEmitter.emit({
+          kind: 'transport',
+          source: 'opencode.process.stderr',
+          at: Date.now(),
+        });
         for (const cb of outputCallbacks) cb();
         stderrBuffer.append(chunk.toString());
       });
@@ -230,15 +247,19 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     context: SpawnContext,
     emitLogLine: (line: string) => void,
     emitAssistantText: ((text: string) => void) | undefined,
-    outputCallbacks: (() => void)[]
+    outputCallbacks: (() => void)[],
+    activityEmitter: HarnessActivityEmitter
   ): SessionEventForwarderHandle {
     return startSessionEventForwarder(client, {
       sessionId,
       role: context.role,
       onLogLine: emitLogLine,
       onAssistantText: emitAssistantText,
-      onActivity: () => {
-        for (const cb of outputCallbacks) cb();
+      onActivity: (event) => {
+        activityEmitter.emit(event);
+        if (event.kind === 'progress') {
+          for (const cb of outputCallbacks) cb();
+        }
       },
     });
   }
@@ -257,6 +278,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     assistantTextCallbacks?: ((text: string) => void)[];
     deferredSystemPrompt?: string;
     outputCallbacks?: (() => void)[];
+    activityEmitter: HarnessActivityEmitter;
   }): SpawnResult {
     const {
       childProcess,
@@ -295,9 +317,17 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     if (args.outputCallbacks) {
       this.outputCallbacksByPid.set(pid, args.outputCallbacks);
     }
+    this.activityEmittersByPid.set(pid, args.activityEmitter);
 
     const outputCallbacks = args.outputCallbacks ?? [];
-    this.wireChildOutput(childProcess, pid, entry, emitLogLine, outputCallbacks);
+    this.wireChildOutput(
+      childProcess,
+      pid,
+      entry,
+      emitLogLine,
+      outputCallbacks,
+      args.activityEmitter
+    );
 
     return {
       pid,
@@ -306,6 +336,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         agentName,
         ...(model ? { model } : {}),
       },
+      activityEmitter: args.activityEmitter,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
           const fwd = this.forwarders.get(pid);
@@ -317,6 +348,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
           this.agentEndCallbacksByPid.delete(pid);
           this.assistantTextCallbacksByPid.delete(pid);
           this.outputCallbacksByPid.delete(pid);
+          this.activityEmittersByPid.delete(pid);
           this.deleteProcess(pid);
           cb({ code, signal, context });
         });
@@ -464,6 +496,10 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
 
     const { emitLogLine } = this.createLogLineEmitter();
     const pidOutputCallbacks = this.outputCallbacksByPid.get(args.pid) ?? [];
+    const activityEmitter = this.activityEmittersByPid.get(args.pid);
+    if (!activityEmitter) {
+      throw new Error(`No activity emitter for pid=${args.pid}`);
+    }
 
     const forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
       sessionId: newSessionId,
@@ -473,8 +509,11 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         const callbacks = this.assistantTextCallbacksByPid.get(args.pid) ?? [];
         for (const cb of callbacks) cb(text);
       },
-      onActivity: () => {
-        for (const cb of pidOutputCallbacks) cb();
+      onActivity: (event) => {
+        activityEmitter.emit(event);
+        if (event.kind === 'progress') {
+          for (const cb of pidOutputCallbacks) cb();
+        }
       },
     });
 
@@ -499,6 +538,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       baseUrl: args.baseUrl,
     });
 
+    activityEmitter.beginTurn();
     await this.promptSessionAsync(
       client,
       newSessionId,
@@ -526,6 +566,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     );
 
     let forwarder: SessionEventForwarderHandle | undefined;
+    const activityEmitter = createHarnessActivityEmitter();
     const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
     const { assistantTextCallbacks, emitAssistantText } = this.createAssistantTextEmitter();
     const outputCallbacks: (() => void)[] = [];
@@ -547,13 +588,15 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         context,
         emitLogLine,
         emitAssistantText,
-        outputCallbacks
+        outputCallbacks,
+        activityEmitter
       );
 
       const availableAgents = await this.listAvailableAgents(client);
       const agentDef = availableAgents.find((a) => a.name === agentName);
       const composedSystem = composeSystemPrompt(agentDef?.prompt, systemPrompt);
 
+      activityEmitter.beginTurn();
       await this.promptSessionAsync(
         client,
         sessionId,
@@ -584,6 +627,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       logLineCallbacks,
       assistantTextCallbacks,
       outputCallbacks,
+      activityEmitter,
     });
   }
 
@@ -600,6 +644,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     let forwarder: SessionEventForwarderHandle | undefined;
     let agentName: string | undefined;
     let deferredSystemPrompt: string | undefined;
+    const activityEmitter = createHarnessActivityEmitter();
     const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
     const { assistantTextCallbacks, emitAssistantText } = this.createAssistantTextEmitter();
     const outputCallbacks: (() => void)[] = [];
@@ -622,7 +667,8 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         context,
         emitLogLine,
         emitAssistantText,
-        outputCallbacks
+        outputCallbacks,
+        activityEmitter
       );
 
       // Discover what agents this opencode server actually exposes. We compose
@@ -638,6 +684,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       }
 
       if (!deferInitialTurn) {
+        activityEmitter.beginTurn();
         await this.promptSessionAsync(
           client,
           sessionId,
@@ -677,6 +724,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       assistantTextCallbacks,
       deferredSystemPrompt,
       outputCallbacks,
+      activityEmitter,
     });
   }
 
@@ -701,6 +749,9 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     }
 
     this.forwarders.get(pid)?.armTurnEnd();
+
+    const activityEmitter = this.activityEmittersByPid.get(pid);
+    activityEmitter?.beginTurn();
 
     const client = createOpencodeClient({ baseUrl: meta.baseUrl });
     const deferredSystem = meta.deferredSystemPrompt;

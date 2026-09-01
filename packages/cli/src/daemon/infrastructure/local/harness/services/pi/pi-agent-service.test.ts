@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { getPiSessionDir, PiAgentService, type PiAgentServiceDeps } from './pi-agent-service.js';
 import { TEST_MODEL_PI } from '../../../../../../testing/test-models.js';
+import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 const SAMPLE_SESSION_ID = '019e86d8-39ec-7ae8-8380-c5ee4c904c99';
@@ -608,6 +609,118 @@ describe('PiAgentService', () => {
       const bashLine = logMessages.find((line) => line.includes('tool: bash] running:'));
       expect(bashLine).toBeDefined();
       expect(bashLine).toContain('npm run build');
+    });
+
+    it('returns activityEmitter with transport, progress, waiting, and lifecycle-only agent_end', async () => {
+      const child = makeChildProcess(101);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      const onOutput = vi.fn();
+      const onAgentEnd = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: createSpawnPrompt('prompt'),
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      expect(result.activityEmitter).toBeDefined();
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+      result.onOutput(onOutput);
+      result.onAgentEnd?.(onAgentEnd);
+
+      child.stdout.push(
+        JSON.stringify({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'text_delta', delta: 'secret hello\n' },
+        }) + '\n'
+      );
+      child.stdout.push(
+        JSON.stringify({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'thinking_delta', delta: 'secret plan\n' },
+        }) + '\n'
+      );
+      child.stdout.push(
+        JSON.stringify({
+          type: 'tool_execution_start',
+          toolName: 'bash',
+          toolArgs: { command: 'secret-cmd' },
+        }) + '\n'
+      );
+      child.stdout.push(
+        JSON.stringify({
+          type: 'tool_execution_end',
+          toolName: 'bash',
+          toolResult: 'done',
+        }) + '\n'
+      );
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.source === 'pi-cli.tool-result')).toBe(true)
+      );
+
+      expect(signals.some((s) => s.kind === 'transport' && s.source === 'pi-cli.message')).toBe(
+        true
+      );
+      expect(signals.some((s) => s.source === 'pi-cli.assistant.text')).toBe(true);
+      expect(signals.some((s) => s.source === 'pi-cli.assistant.thinking')).toBe(true);
+      expect(signals.some((s) => s.source === 'pi-cli.tool-call' && s.kind === 'waiting')).toBe(
+        true
+      );
+      expect(onOutput).toHaveBeenCalled();
+      for (const signal of signals) {
+        expect(signal.source).not.toContain('secret');
+        expect(signal.source).not.toContain('bash');
+      }
+
+      signals.length = 0;
+      child.stdout.push('{"type":"agent_end"}\n');
+      await vi.waitFor(() => expect(onAgentEnd).toHaveBeenCalledTimes(1));
+      expect(signals.filter((s) => s.kind === 'progress')).toHaveLength(0);
+    });
+
+    it('emits failure for explicit protocol error events', async () => {
+      const child = makeChildProcess(102);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: createSpawnPrompt('prompt'),
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      const signals: HarnessActivitySignal[] = [];
+      result.activityEmitter!.onActivity((signal) => signals.push(signal));
+
+      child.stdout.push(
+        JSON.stringify({
+          type: 'tool_execution_end',
+          toolName: 'bash',
+          toolResult: { is_error: true, error: 'secret fail' },
+        }) + '\n'
+      );
+      child.stdout.push(JSON.stringify({ type: 'error', error: 'secret stream fail' }) + '\n');
+
+      await vi.waitFor(() =>
+        expect(signals.some((s) => s.kind === 'failure' && s.source === 'pi-cli.message')).toBe(
+          true
+        )
+      );
+      expect(signals.some((s) => s.kind === 'failure' && s.source === 'pi-cli.tool-result')).toBe(
+        true
+      );
+      for (const signal of signals) {
+        expect(signal.source).not.toContain('secret');
+      }
     });
   });
 });

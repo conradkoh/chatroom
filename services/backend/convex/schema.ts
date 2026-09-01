@@ -464,6 +464,9 @@ export default defineSchema({
     // Reference to the original user message that started this task chain
     // Set when an agent runs task read / classify, links all related messages
     taskOriginMessageId: v.optional(v.id('chatroom_messages')),
+    // Deterministic idempotency key for terminal handoff-to-user messages only.
+    // Scope: (chatroomId, originating user message, normalized sender role, user target).
+    terminalHandoffKey: v.optional(v.string()),
     // Link to the task created for this message (for user messages)
     // Used to track processing status in the UI
     taskId: v.optional(v.id('chatroom_tasks')),
@@ -513,7 +516,8 @@ export default defineSchema({
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type'])
     .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole'])
-    .index('by_scheduledPromptId', ['scheduledPromptId']),
+    .index('by_scheduledPromptId', ['scheduledPromptId'])
+    .index('by_chatroom_terminalHandoffKey', ['chatroomId', 'terminalHandoffKey']),
 
   /** Slim selection headers; used only after per-room completeness is marked. */
   chatroom_messageReadModels: defineTable({

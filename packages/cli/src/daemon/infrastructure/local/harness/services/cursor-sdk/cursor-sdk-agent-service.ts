@@ -517,18 +517,16 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               }
             }
 
-            let turnActivityReported = false;
-            // This latch resets for each turn; raw output callbacks and lastOutputAt must still fire on every event.
-            const notifyTurnActivityOnce = () => {
-              if (turnActivityReported) return;
-              turnActivityReported = true;
-              activityEmitter.emit('busy');
-            };
             const notifyHarnessOutput = () => {
               entry.lastOutputAt = Date.now();
-              notifyTurnActivityOnce();
+              activityEmitter.emit({
+                kind: 'transport',
+                source: 'cursor-sdk.process-stream',
+                at: Date.now(),
+              });
               for (const cb of outputCallbacks) cb();
             };
+            activityEmitter.beginTurn();
             const restoreStreamTap = tapProcessStreamWrites(notifyHarnessOutput);
 
             try {
@@ -551,16 +549,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               session.run = run;
               isFirstTurn = false;
 
-              adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine);
+              adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine, activityEmitter);
               wireNativeStreamAdapter({
                 adapter,
                 assistantTextCallbacks,
                 outputCallbacks,
                 agentEndCallbacks,
                 entry,
-              });
-              adapter.onOutput(() => {
-                notifyTurnActivityOnce();
               });
 
               try {

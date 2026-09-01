@@ -1,11 +1,14 @@
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { buildActivityLifecycleFact, type AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 
 import type { SpawnResult } from './remote-agent-service.js';
 import { api } from '../../../../../api.js';
 import type { BackendOps } from '../../../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../../../infrastructure/machine/types.js';
+import {
+  buildActivityLifecycleFact,
+  type AgentLifecycleFact,
+} from '../../../../domain/entities/agent-lifecycle-fact.js';
 import { isTeamAgentRole } from '../../../../domain/entities/execution-kind.js';
 import type { HarnessActivityEmitter } from '../../../agent-process-manager/harness-activity-emitter.js';
 
@@ -43,7 +46,13 @@ export async function emitNativeWaitingAfterSpawn(
   }
   try {
     if (!ctx.lifecycleOutbox) throw new Error('lifecycle outbox missing');
-    await ctx.lifecycleOutbox.enqueue(buildActivityLifecycleFact({ chatroomId: ctx.chatroomId, role: ctx.role, action: NATIVE_WAITING_ACTION }));
+    await ctx.lifecycleOutbox.enqueue(
+      buildActivityLifecycleFact({
+        chatroomId: ctx.chatroomId,
+        role: ctx.role,
+        action: NATIVE_WAITING_ACTION,
+      })
+    );
     return true;
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
@@ -57,6 +66,7 @@ export async function emitNativeWaitingAfterSpawn(
 /**
  * Wire spawnResult.onOutput to throttled participants.updateTokenActivity.
  * First output fires immediately; subsequent calls throttled (default 30s).
+ * When activityEmitter is present, reports first typed progress per turn only.
  */
 function fireTokenActivity(
   backend: BackendOps,
@@ -84,7 +94,8 @@ export function wireTokenActivityReporting(opts: WireTokenActivityReportingOpts)
   if (!isTeamAgentRole(opts.role)) return;
 
   if (opts.activityEmitter) {
-    opts.activityEmitter.onActivity(() => {
+    opts.activityEmitter.onActivity((signal) => {
+      if (signal.kind !== 'progress' || !signal.isFirstForTurn) return;
       void opts.backend
         .mutation(api.participants.updateTokenActivity, {
           sessionId: opts.sessionId,
@@ -116,4 +127,5 @@ export function wireTokenActivityReporting(opts: WireTokenActivityReportingOpts)
 }
 
 /** @deprecated Use wireTokenActivityReporting. */
+// fallow-ignore-next-line unused-export
 export const wireThrottledTokenActivityOnOutput = wireTokenActivityReporting;

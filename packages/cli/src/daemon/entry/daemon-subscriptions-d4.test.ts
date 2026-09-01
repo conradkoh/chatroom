@@ -53,9 +53,7 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
-  OBSERVED_SAFETY_POLL_MS: 5_000,
   OBSERVATION_TTL_MS: 30_000,
-  WORKSPACE_LIST_RECONCILE_MS: 30_000,
   NATIVE_DELIVERY_RECONCILE_MS: 10_000,
   HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));
@@ -241,6 +239,23 @@ describe('startWorkspaceListSubscriptionEffect', () => {
 
     handle.stop();
     expect(capturedSession.workspaceListStore).toBeUndefined();
+  });
+
+  it('clears the cached workspace list when no workspaces remain observed', async () => {
+    const { reconcileWorkspaceList } =
+      await import('./workspace-git/workspace-list-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockResolvedValue([]);
+    const session = createMockDaemonSessionInit({ backend: deps.backend });
+    session.workspaceListStore = {
+      workspaces: [{ workingDir: '/workspace/expired' }],
+      updatedAt: 1,
+    };
+
+    await reconcileWorkspaceList(session as DaemonSessionServiceShape);
+
+    expect(session.workspaceListStore.workspaces).toEqual([]);
+    expect(session.workspaceListStore.updatedAt).toBeGreaterThan(1);
   });
 });
 

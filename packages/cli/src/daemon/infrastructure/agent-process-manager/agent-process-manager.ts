@@ -663,6 +663,18 @@ export class AgentProcessManager {
     harness: AgentHarness;
   }): Promise<void> {
     const slot = this.slots.get(agentKey(opts.chatroomId, opts.role));
+    if (
+      !slot ||
+      slot.pid !== opts.pid ||
+      slot.harness !== opts.harness ||
+      slot.state !== 'running'
+    ) {
+      console.log(
+        `[AgentProcessManager] Ignoring stale agent_end: role=${opts.role} callbackPid=${opts.pid} currentPid=${slot?.pid ?? 'none'} currentState=${slot?.state ?? 'none'}`
+      );
+      return;
+    }
+
     const capabilities = getHarnessCapabilities(opts.harness);
 
     this.updateSlotsMirror(opts.chatroomId, opts.role, {

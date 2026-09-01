@@ -1,13 +1,8 @@
 /**
- * Workspace list store — populated by v2 `workspace-list` subscriber inbound nudges.
- *
- * Legacy WS `onUpdate` and reconcile timer removed in U13.
+ * Workspace list store — populated by inbound `daemon.workspaceListChanged` nudges
+ * and one-shot startup reconcile. No polling.
  */
 
-import {
-  OBSERVATION_TTL_MS,
-  OBSERVED_SAFETY_POLL_MS,
-} from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
@@ -15,8 +10,8 @@ import { api } from '../../../api.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 import type { WorkspaceForSync } from '../daemon-types.js';
 
-type RecentlyObservedWorkspaces = NonNullable<
-  FunctionReturnType<typeof api.workspaces.listRecentlyObservedWorkspacesForMachine>
+type RecentlyObservedWorkspaces = FunctionReturnType<
+  typeof api.workspaces.listRecentlyObservedWorkspacesForMachine
 >;
 
 function toSyncWorkspaces(workingDirs: RecentlyObservedWorkspaces): WorkspaceForSync[] {
@@ -29,10 +24,8 @@ export async function reconcileWorkspaceList(session: DaemonSessionServiceShape)
     {
       sessionId: session.sessionId,
       machineId: session.machineId,
-      recencyWindowMs: OBSERVATION_TTL_MS,
     }
   );
-  if (workspaces == null) return;
   if (!session.workspaceListStore) {
     session.workspaceListStore = { workspaces: [], updatedAt: 0 };
   }
@@ -51,12 +44,8 @@ export const startWorkspaceListSubscriptionEffect = (): Effect.Effect<
     session.workspaceListStore = { workspaces: [], updatedAt: 0 };
     yield* Effect.promise(() => reconcileWorkspaceList(session));
 
-    const interval = setInterval(() => {
-      void reconcileWorkspaceList(session).catch(() => undefined);
-    }, OBSERVED_SAFETY_POLL_MS);
     return {
       stop: () => {
-        clearInterval(interval);
         session.workspaceListStore = undefined;
       },
     };

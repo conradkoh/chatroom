@@ -19,11 +19,17 @@ import { attachLineReader } from '../line-stream-reader.js';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
+export interface CursorCliEventMetadata {
+  readonly type: string;
+  readonly subtype?: string;
+  readonly isError: boolean;
+}
+
 type TextCallback = (text: string) => void;
 type AgentEndCallback = (sessionId: string | undefined) => void;
 type ToolCallCallback = (callId: string, toolCall: unknown) => void;
 type ToolResultCallback = (callId: string, toolCall: unknown) => void;
-type AnyEventCallback = () => void;
+type AnyEventCallback = (event: CursorCliEventMetadata) => void;
 
 // ─── Implementation ───────────────────────────────────────────────────────────
 
@@ -65,6 +71,7 @@ export class CursorStreamReader {
 
   // ─── Private ───────────────────────────────────────────────────────────────
 
+  // fallow-ignore-next-line complexity
   private _handleLine(line: string): void {
     const trimmed = line.trim();
     if (!trimmed) return;
@@ -76,9 +83,22 @@ export class CursorStreamReader {
       return;
     }
 
-    for (const cb of this.anyEventCallbacks) cb();
+    const metadata: CursorCliEventMetadata = {
+      type: typeof event['type'] === 'string' ? event['type'] : 'unknown',
+      subtype: typeof event['subtype'] === 'string' ? event['subtype'] : undefined,
+      isError: this._isErrorEvent(event),
+    };
+    for (const cb of this.anyEventCallbacks) cb(metadata);
 
     this._dispatchEvent(event);
+  }
+
+  private _isErrorEvent(event: Record<string, unknown>): boolean {
+    if (event['is_error'] === true) return true;
+    if (event['type'] === 'result') {
+      return event['subtype'] !== 'success';
+    }
+    return false;
   }
 
   private _dispatchEvent(event: Record<string, unknown>): void {
