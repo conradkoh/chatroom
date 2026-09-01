@@ -17,6 +17,7 @@ import {
   classifyProviderErrorMessage,
   providerUnavailableAgentEndReason,
 } from '../../../../../domain/usecase/classify-provider-error.js';
+import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import {
   BASH_TOOL_KIND,
   formatAgentLogLine,
@@ -24,8 +25,18 @@ import {
 } from '../agent-log-format.js';
 import { NativeStreamAdapterBase } from '../native-stream-adapter-base.js';
 
+type ItemLifecycleEvent = 'item.started' | 'item.updated' | 'item.completed';
+
 export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
+
+  constructor(
+    logPrefix: string,
+    emitLogLine?: (line: string) => void,
+    activityEmitter?: HarnessActivityEmitter
+  ) {
+    super(logPrefix, emitLogLine, activityEmitter);
+  }
 
   /**
    * Handle one top-level ThreadEvent from `runStreamed()`. Item lifecycle
@@ -34,12 +45,13 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
    */
   // fallow-ignore-next-line complexity
   handleEvent(event: ThreadEvent): void {
-    this.notifyOutput();
+    this.notifyOutput(`codex-sdk.${event.type}`);
 
     switch (event.type) {
       case 'item.started':
       case 'item.updated':
       case 'item.completed':
+        this.notifyItemActivity(event.type, event.item);
         this.handleItem(event.item);
         break;
       case 'turn.completed':
@@ -49,12 +61,14 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
         this.flushText();
         this.writeProviderUnavailableMarker(event.error.message);
         this.writeLine(formatAgentLogLine(this.logPrefix, 'run-error', event.error.message));
+        this.notifyFailure('codex-sdk.turn.failed');
         break;
       case 'error':
         // Fatal stream error.
         this.flushText();
         this.writeProviderUnavailableMarker(event.message);
         this.writeLine(formatAgentLogLine(this.logPrefix, 'run-error', event.message));
+        this.notifyFailure('codex-sdk.error');
         break;
       case 'thread.started':
       case 'turn.started':
@@ -68,6 +82,52 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
   finish(): void {
     this.flushText();
     this.emitAgentEnd();
+  }
+
+  // fallow-ignore-next-line complexity
+  private notifyItemActivity(lifecycle: ItemLifecycleEvent, item: ThreadItem): void {
+    switch (item.type) {
+      case 'agent_message':
+        this.notifyProgress('codex-sdk.item.agent-message');
+        break;
+      case 'reasoning':
+        this.notifyProgress('codex-sdk.item.reasoning');
+        break;
+      case 'command_execution':
+        this.notifyProgress('codex-sdk.item.command-execution');
+        if (item.status === 'in_progress') {
+          this.notifyWaiting('codex-sdk.item.command-execution');
+        }
+        break;
+      case 'file_change':
+        this.notifyProgress('codex-sdk.item.file-change');
+        if (item.status === 'failed') {
+          this.notifyFailure('codex-sdk.item.file-change');
+        }
+        break;
+      case 'mcp_tool_call':
+        this.notifyProgress('codex-sdk.item.mcp-tool-call');
+        if (item.status === 'in_progress') {
+          this.notifyWaiting('codex-sdk.item.mcp-tool-call');
+        }
+        if (item.status === 'failed' || item.error) {
+          this.notifyFailure('codex-sdk.item.mcp-tool-call');
+        }
+        break;
+      case 'web_search':
+        this.notifyProgress('codex-sdk.item.web-search');
+        if (lifecycle === 'item.started') {
+          this.notifyWaiting('codex-sdk.item.web-search');
+        }
+        break;
+      case 'error':
+        this.notifyFailure('codex-sdk.item.error');
+        break;
+      case 'todo_list':
+        break;
+      default:
+        break;
+    }
   }
 
   // fallow-ignore-next-line complexity
