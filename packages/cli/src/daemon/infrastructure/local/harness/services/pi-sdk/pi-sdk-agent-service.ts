@@ -37,11 +37,14 @@ import { getPiSessionDir } from '../pi/pi-agent-service.js';
 import { parsePiSpawnModel, resolvePiThinkingLevel } from '../pi/pure.js';
 import type {
   AgentStopOptions,
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
+import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
 
@@ -78,6 +81,7 @@ function getSdkPackageVersion(): string {
 
 interface SdkSession {
   session: AgentSession;
+  model: string;
   unsubscribe?: () => void;
   keeper: ChildProcess;
   aborted: boolean;
@@ -115,17 +119,16 @@ function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
   ]);
 }
 
-function resolveModel(modelRegistry: ModelRegistry, model?: string) {
-  if (model) {
-    const slash = model.indexOf('/');
-    if (slash === -1) {
-      return modelRegistry.getAll().find((entry) => entry.id === model);
-    }
-    const provider = model.slice(0, slash);
-    const modelId = model.slice(slash + 1);
-    return modelRegistry.find(provider, modelId);
+function resolveRequiredModel(modelRegistry: ModelRegistry, model: string) {
+  const slash = model.indexOf('/');
+  const resolved =
+    slash === -1
+      ? modelRegistry.getAll().find((entry) => entry.id === model)
+      : modelRegistry.find(model.slice(0, slash), model.slice(slash + 1));
+  if (!resolved) {
+    throw new Error(`Pi model not found: ${model}`);
   }
-  return modelRegistry.getAvailable()[0];
+  return resolved;
 }
 
 function writeSpawnError(
@@ -187,6 +190,100 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       console.warn(`[pi-sdk] listModels failed:`, err instanceof Error ? err.message : err);
       return [];
     }
+  }
+
+  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
+    const session = this.sessions.get(pid);
+    if (!session) {
+      return undefined;
+    }
+    return {
+      agentName: 'builder',
+      model: session.model,
+    };
+  }
+
+  async resumeFromDaemonMemory(
+    options: SpawnOptions,
+    stored: DaemonHarnessSessionContext
+  ): Promise<SpawnResult> {
+    const model = resolveHarnessResumeModel(
+      options.model,
+      stored.model,
+      'pi-sdk resumeFromDaemonMemory'
+    );
+    const keeper = this.spawnKeeper(stored.workingDir);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
+    const pid = keeper.pid!;
+
+    try {
+      const session = await this.openResumedSession({
+        workingDir: stored.workingDir,
+        systemPrompt: options.systemPrompt,
+        harnessSessionId: stored.harnessSessionId,
+      });
+      const fullPrompt = `${options.systemPrompt}\n\n${options.prompt}`;
+      return this.startRunningSession({
+        pid,
+        keeper,
+        session,
+        context: options.context,
+        workingDir: stored.workingDir,
+        model,
+        initialPrompt: fullPrompt,
+        deferInitialTurn: false,
+        storedSystemPrompt: options.systemPrompt,
+      });
+    } catch (err) {
+      writeSpawnError(buildAgentLogPrefix('pi-sdk', options.context), err);
+      keeper.kill();
+      this.deleteProcess(pid);
+      return this.spawn({ ...options, model });
+    }
+  }
+
+  private async openResumedSession(args: {
+    workingDir: string;
+    systemPrompt: string;
+    harnessSessionId: string;
+  }): Promise<AgentSession> {
+    const {
+      AuthStorage,
+      createAgentSession,
+      DefaultResourceLoader,
+      getAgentDir,
+      ModelRegistry,
+      SessionManager,
+    } = await loadSdk();
+
+    const authStorage = AuthStorage.create();
+    const modelRegistry = ModelRegistry.create(authStorage);
+    const sessions = await SessionManager.list(args.workingDir, getPiSessionDir(args.workingDir));
+    const match = sessions.find((s) => s.id === args.harnessSessionId);
+    if (!match) {
+      throw new Error(`Pi session ${args.harnessSessionId} not found`);
+    }
+
+    const resourceLoader = new DefaultResourceLoader({
+      cwd: args.workingDir,
+      agentDir: getAgentDir(),
+      systemPromptOverride: () => args.systemPrompt,
+    });
+    await resourceLoader.reload();
+
+    const { session } = await withTimeout(
+      createAgentSession({
+        cwd: args.workingDir,
+        sessionManager: SessionManager.open(match.path, getPiSessionDir(args.workingDir)),
+        authStorage,
+        modelRegistry,
+        resourceLoader,
+      }),
+      SESSION_CREATE_TIMEOUT_MS,
+      'createAgentSession'
+    );
+
+    return session;
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {
@@ -252,7 +349,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
   private async createSession(args: {
     workingDir: string;
     systemPrompt: string;
-    model?: string;
+    model: string;
   }): Promise<AgentSession> {
     const {
       AuthStorage,
@@ -265,14 +362,10 @@ export class PiSdkAgentService extends BaseCLIAgentService {
 
     const authStorage = AuthStorage.create();
     const modelRegistry = ModelRegistry.create(authStorage);
-    const parsed = args.model ? parsePiSpawnModel(args.model) : undefined;
-    const resolvedModel = resolveModel(modelRegistry, parsed?.model ?? args.model);
+    const model = requireHarnessModel(args.model, 'pi-sdk spawn');
+    const parsed = parsePiSpawnModel(model);
+    const resolvedModel = resolveRequiredModel(modelRegistry, parsed.model ?? model);
     const thinkingLevel = resolvePiThinkingLevel(parsed?.thinking);
-    if (!resolvedModel) {
-      throw new Error(
-        'No Pi model available — configure provider credentials in ~/.pi/agent/auth.json'
-      );
-    }
 
     const agentDir = getAgentDir();
     const resourceLoader = new DefaultResourceLoader({
@@ -305,7 +398,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     session: AgentSession;
     context: SpawnContext;
     workingDir: string;
-    model?: string;
+    model: string;
     initialPrompt: string;
     deferInitialTurn?: boolean;
     storedSystemPrompt?: string;
@@ -315,6 +408,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       keeper,
       session,
       context,
+      model,
       initialPrompt,
       deferInitialTurn = false,
       storedSystemPrompt,
@@ -326,6 +420,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
 
     const sdkSession: SdkSession = {
       session,
+      model,
       keeper,
       aborted: false,
       storedSystemPrompt,
@@ -519,6 +614,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const deferInitialTurn = options.deferInitialTurn ?? false;
+    const model = requireHarnessModel(options.model, 'pi-sdk spawn');
     const keeper = this.spawnKeeper(options.workingDir);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
     const pid = keeper.pid!;
@@ -530,7 +626,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       session = await this.createSession({
         workingDir: options.workingDir,
         systemPrompt: options.systemPrompt,
-        model: options.model,
+        model,
       });
     } catch (err) {
       keeper.kill();
@@ -544,7 +640,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       session,
       context,
       workingDir: options.workingDir,
-      model: options.model,
+      model,
       initialPrompt: fullPrompt,
       deferInitialTurn,
       storedSystemPrompt: options.systemPrompt,
