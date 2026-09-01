@@ -25,10 +25,34 @@ import { attachLineReader } from '../line-stream-reader.js';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
+export interface ClaudeCliEventMetadata {
+  readonly type: string;
+  readonly subtype?: string;
+  readonly isError: boolean;
+}
+
 type TextCallback = (text: string) => void;
 type ThinkingCallback = (thinking: string) => void;
 type AgentEndCallback = () => void;
 type ToolCallCallback = (name: string, input: unknown) => void;
+type AnyEventCallback = (event: ClaudeCliEventMetadata) => void;
+
+type ParsedEvent = {
+  type?: string;
+  subtype?: string;
+  is_error?: boolean;
+  error?: string;
+  message?: {
+    error?: string;
+    content: {
+      type: string;
+      text?: string;
+      thinking?: string;
+      name?: string;
+      input?: unknown;
+    }[];
+  };
+};
 
 // ─── Stream parser ─────────────────────────────────────────────────────────
 
@@ -40,6 +64,7 @@ export class ClaudeStreamReader {
   private thinkingCallbacks: ThinkingCallback[] = [];
   private endCallbacks: AgentEndCallback[] = [];
   private toolUseCallbacks: ToolCallCallback[] = [];
+  private anyEventCallbacks: AnyEventCallback[] = [];
 
   constructor(stream: Readable) {
     attachLineReader(stream, (line) => this._handleLine(line));
@@ -61,35 +86,38 @@ export class ClaudeStreamReader {
     this.toolUseCallbacks.push(cb);
   }
 
+  onAnyEvent(cb: AnyEventCallback): void {
+    this.anyEventCallbacks.push(cb);
+  }
+
+  // fallow-ignore-next-line complexity
   private _handleLine(line: string): void {
     if (!line.trim()) return;
     try {
-      const event = JSON.parse(line) as {
-        type?: string;
-        subtype?: string;
-        message?: {
-          content: {
-            type: string;
-            text?: string;
-            thinking?: string;
-            name?: string;
-            input?: unknown;
-          }[];
-        };
+      const event = JSON.parse(line) as ParsedEvent;
+      const metadata: ClaudeCliEventMetadata = {
+        type: typeof event.type === 'string' ? event.type : 'unknown',
+        subtype: typeof event.subtype === 'string' ? event.subtype : undefined,
+        isError: this._isErrorEvent(event),
       };
+      for (const cb of this.anyEventCallbacks) cb(metadata);
       this._dispatchEvent(event);
     } catch {
       // Non-JSON line — skip
     }
   }
 
-  private _dispatchEvent(event: {
-    type?: string;
-    subtype?: string;
-    message?: {
-      content: { type: string; text?: string; thinking?: string; name?: string; input?: unknown }[];
-    };
-  }): void {
+  // fallow-ignore-next-line complexity
+  private _isErrorEvent(event: ParsedEvent): boolean {
+    if (event.is_error === true) return true;
+    if (event.type === 'assistant') {
+      const err = event.error ?? event.message?.error;
+      return typeof err === 'string' && err.length > 0;
+    }
+    return false;
+  }
+
+  private _dispatchEvent(event: ParsedEvent): void {
     const { type } = event;
     if (type === 'system') return;
     if (type === 'assistant') {
@@ -101,11 +129,7 @@ export class ClaudeStreamReader {
     }
   }
 
-  private _handleAssistant(event: {
-    message?: {
-      content: { type: string; text?: string; thinking?: string; name?: string; input?: unknown }[];
-    };
-  }): void {
+  private _handleAssistant(event: ParsedEvent): void {
     const content = event.message?.content;
     if (!content) return;
     for (const block of content) {

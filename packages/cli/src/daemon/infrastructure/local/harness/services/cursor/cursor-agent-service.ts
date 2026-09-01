@@ -19,6 +19,7 @@
 import { type ChildProcess } from 'node:child_process';
 
 import { CursorStreamReader } from './cursor-stream-reader.js';
+import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
@@ -46,6 +47,13 @@ const CURSOR_PROVIDER = 'cursor';
  * model and ignore the parent agent's instructions.
  */
 const NO_SUBAGENT_DIRECTIVE = 'NEVER spawn subagents. Follow the chatroom instructions strictly.';
+
+function isExplicitToolError(toolCall: unknown): boolean {
+  if (toolCall === null || typeof toolCall !== 'object') return false;
+  const obj = toolCall as Record<string, unknown>;
+  if (obj.is_error === true || obj.isError === true) return true;
+  return 'error' in obj && obj.error !== undefined;
+}
 
 /** Strip `cursor/` prefix so the CLI receives a bare slug. Bare slugs pass through unchanged. */
 export function resolveCursorCliModel(model: string): string {
@@ -76,6 +84,7 @@ export class CursorAgentService extends BaseCLIAgentService {
     return fetchCursorSdkModelCatalog();
   }
 
+  // fallow-ignore-next-line complexity
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const args: string[] = ['-p', '--force', '--output-format', 'stream-json'];
     if (options.model) {
@@ -87,6 +96,9 @@ export class CursorAgentService extends BaseCLIAgentService {
       ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
       : NO_SUBAGENT_DIRECTIVE;
     const fullPrompt = `${systemPrompt}\n\n${options.prompt}`;
+
+    const activityEmitter = createHarnessActivityEmitter();
+    activityEmitter.beginTurn();
 
     const childProcess: ChildProcess = this.deps.spawn(CURSOR_COMMAND, args, {
       cwd: options.workingDir,
@@ -117,6 +129,13 @@ export class CursorAgentService extends BaseCLIAgentService {
       const reader = new CursorStreamReader(childProcess.stdout);
 
       let textBuffer = '';
+      const emitActivity = (
+        kind: 'transport' | 'progress' | 'waiting' | 'failure',
+        source: string
+      ) => {
+        activityEmitter.emit({ kind, source, at: Date.now() });
+      };
+
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
@@ -126,14 +145,19 @@ export class CursorAgentService extends BaseCLIAgentService {
       };
 
       reader.onText((text) => {
+        emitActivity('progress', 'cursor-cli.assistant.text');
         textBuffer += text;
         if (textBuffer.includes('\n')) flushText();
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
 
-      reader.onAnyEvent(() => {
+      reader.onAnyEvent((metadata) => {
         entry.lastOutputAt = Date.now();
+        emitActivity('transport', 'cursor-cli.message');
+        if (metadata.isError) {
+          emitActivity('failure', 'cursor-cli.message');
+        }
         for (const cb of outputCallbacks) cb();
       });
 
@@ -143,6 +167,8 @@ export class CursorAgentService extends BaseCLIAgentService {
       });
 
       reader.onToolCall((callId, toolCall) => {
+        emitActivity('progress', 'cursor-cli.tool-call');
+        emitActivity('waiting', 'cursor-cli.tool-call');
         flushText();
         const bashCmd = extractBashCommandFromCursorToolCall(toolCall);
         if (bashCmd !== null) {
@@ -152,7 +178,11 @@ export class CursorAgentService extends BaseCLIAgentService {
         emitLog(formatAgentLogLine(logPrefix, 'tool', `${callId} ${JSON.stringify(toolCall)}`));
       });
 
-      reader.onToolResult((callId) => {
+      reader.onToolResult((callId, toolCall) => {
+        emitActivity('progress', 'cursor-cli.tool-result');
+        if (isExplicitToolError(toolCall)) {
+          emitActivity('failure', 'cursor-cli.tool-result');
+        }
         flushText();
         process.stdout.write(`${formatAgentLogLine(logPrefix, 'tool_result', callId)}\n`);
       });
@@ -160,6 +190,7 @@ export class CursorAgentService extends BaseCLIAgentService {
       if (childProcess.stderr) {
         childProcess.stderr.pipe(process.stderr, { end: false });
         childProcess.stderr.on('data', () => {
+          activityEmitter.emit({ kind: 'transport', source: 'cursor-cli.stderr', at: Date.now() });
           entry.lastOutputAt = Date.now();
           for (const cb of outputCallbacks) cb();
         });
@@ -167,6 +198,7 @@ export class CursorAgentService extends BaseCLIAgentService {
 
       return {
         pid,
+        activityEmitter,
         onExit: (cb) => {
           childProcess.on('exit', (code, signal) => {
             this.deleteProcess(pid);
@@ -186,6 +218,7 @@ export class CursorAgentService extends BaseCLIAgentService {
     if (childProcess.stderr) {
       childProcess.stderr.pipe(process.stderr, { end: false });
       childProcess.stderr.on('data', () => {
+        activityEmitter.emit({ kind: 'transport', source: 'cursor-cli.stderr', at: Date.now() });
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
@@ -193,6 +226,7 @@ export class CursorAgentService extends BaseCLIAgentService {
 
     return {
       pid,
+      activityEmitter,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
           this.deleteProcess(pid);
