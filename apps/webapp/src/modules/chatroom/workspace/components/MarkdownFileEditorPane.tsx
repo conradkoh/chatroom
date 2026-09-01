@@ -1,6 +1,9 @@
 'use client';
 
-import { memo, useRef } from 'react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { memo, useCallback, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { MarkdownFileEditorHeader } from './MarkdownFileEditorHeader';
 import {
@@ -39,6 +42,28 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
   );
   const { content, setContent, isDirty, contentRef, save, saving, error, isLoading, encoding } =
     useMarkdownFileEditor({ machineId, workingDir, filePath, initialEmpty });
+  const purgeFileContentEntry = useSessionMutation(api.workspaceFiles.purgeFileContentEntryV2);
+  const [isDismissingError, setIsDismissingError] = useState(false);
+  const isWorkspaceRegistrationError = error === 'Workspace is not registered on this machine.';
+
+  const handleDismissError = useCallback(async () => {
+    if (!isWorkspaceRegistrationError || isDismissingError) return;
+    setIsDismissingError(true);
+    try {
+      await purgeFileContentEntry({ machineId, workingDir, filePath });
+    } catch {
+      toast.error('Could not dismiss workspace registration error');
+    } finally {
+      setIsDismissingError(false);
+    }
+  }, [
+    filePath,
+    isDismissingError,
+    isWorkspaceRegistrationError,
+    machineId,
+    purgeFileContentEntry,
+    workingDir,
+  ]);
   const { handleKeyDown, handleCopyMarkdown } = useMarkdownFileEditorPaneActions({
     editorContainerRef,
     contentRef,
@@ -67,6 +92,8 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
         error={error}
         onCopy={() => void handleCopyMarkdown()}
         onOpenPreview={onOpenPreview}
+        onDismissError={isWorkspaceRegistrationError ? () => void handleDismissError() : undefined}
+        isDismissingError={isDismissingError}
       />
       <SelectionMatchTextarea
         content={content}
