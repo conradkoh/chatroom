@@ -405,6 +405,81 @@ describe('AgentProcessManager', () => {
       }
     );
 
+    test('ignores stale agent_end callback after role slot is replaced by a newer process', async () => {
+      const STALE_PID = 42;
+      const CURRENT_PID = 43;
+      const staleOnAgentEndRegistrar = vi.fn();
+      const currentOnAgentEndRegistrar = vi.fn();
+      let spawnCallCount = 0;
+      const harness = 'cursor-sdk' as NativeSdkHarness;
+      const liveness = createLivenessAwareProcessKill();
+      const service = {
+        ...createMockService(),
+        id: harness,
+        resumeTurn: vi.fn().mockResolvedValue(undefined),
+        spawn: vi.fn().mockImplementation(async () => {
+          spawnCallCount += 1;
+          if (spawnCallCount === 1) {
+            liveness.markAlive(STALE_PID);
+            return {
+              pid: STALE_PID,
+              harnessSessionId: 'sess-stale',
+              onExit: vi.fn(),
+              onOutput: vi.fn(),
+              onAgentEnd: staleOnAgentEndRegistrar,
+            };
+          }
+          liveness.markAlive(CURRENT_PID);
+          return {
+            pid: CURRENT_PID,
+            harnessSessionId: 'sess-current',
+            onExit: vi.fn(),
+            onOutput: vi.fn(),
+            onAgentEnd: currentOnAgentEndRegistrar,
+          };
+        }),
+      };
+      deps = createDeps({
+        agentServices: new Map([[harness, service]]),
+        processes: { kill: liveness.kill },
+      });
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(createOpts({ agentHarness: harness }));
+      const staleAgentEndCb = staleOnAgentEndRegistrar.mock.calls[0][0] as () => void;
+      expect(staleAgentEndCb).toBeTypeOf('function');
+
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+      await manager.ensureRunning(createOpts({ agentHarness: harness, wantResume: false }));
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE);
+      expect(slot?.pid).toBe(CURRENT_PID);
+      expect(slot?.state).toBe('running');
+
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      mockNotifyNativeTurnIdle.mockClear();
+
+      await triggerAgentEnd(manager, staleAgentEndCb);
+
+      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
+      expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBe(CURRENT_PID);
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('running');
+
+      const currentAgentEndCb = currentOnAgentEndRegistrar.mock.calls[0][0] as () => void;
+      await triggerAgentEnd(manager, currentAgentEndCb);
+
+      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
+      expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+      });
+    });
+
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
       'turn-end for %s injects handoff reminder when backend signals missed handoff',
       async (harness) => {
