@@ -10,7 +10,7 @@ export function getSessionMonitor(harnessId: string): HarnessSessionMonitor | un
   return registry.get(harnessId);
 }
 
-// fallow-ignore-next-line unused-export — wired into APM deps in stack PR slice 2
+// fallow-ignore-next-line unused-export
 export function getAllSessionMonitors(): Map<string, HarnessSessionMonitor> {
   return new Map(registry);
 }
