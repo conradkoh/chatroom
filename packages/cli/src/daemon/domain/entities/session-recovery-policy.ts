@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 
 import type { SessionExitClassification } from './session-monitor.js';
@@ -11,6 +10,7 @@ export interface HarnessCrashRecoveryPolicy {
   recoveryReason: string;
 }
 
+// fallow-ignore-next-line unused-export
 export const DEFAULT_CRASH_RECOVERY_POLICY: HarnessCrashRecoveryPolicy = {
   maxAttempts: 1,
   intervalMs: 0,
