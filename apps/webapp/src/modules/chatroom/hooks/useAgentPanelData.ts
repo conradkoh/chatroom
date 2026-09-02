@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 
 import { useAgentConfigs } from './useAgentConfigs';
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
+import { useChatroomListing } from '../context/ChatroomListingContext';
 import type { MachineInfo, AgentConfig } from '../types/machine';
 
 export interface AgentRoleView {
@@ -65,9 +66,11 @@ export function useAgentPanelData(
   const statusReadModelResult = useSessionQuery(api.machines.getAgentRoleStatusReadModel, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
-  const agentOverview = useSessionQuery(api.machines.getAgentOverviewForChatroom, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
+  const { chatrooms } = useChatroomListing();
+  const remoteAgentStatus = useMemo(
+    () => chatrooms?.find((c) => c._id === chatroomId)?.remoteAgentStatus,
+    [chatrooms, chatroomId]
+  );
   const teamStructure = useSessionQuery(api.chatrooms.getTeamStructureForChatroom, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
@@ -129,7 +132,7 @@ export function useAgentPanelData(
     connectedMachines,
     machineConfigs,
     isLoading,
-    remoteAgentStatus: agentOverview?.agentStatus,
+    remoteAgentStatus,
     teamStructure,
     sendCommand,
     teamId: statusResult?.teamId,
