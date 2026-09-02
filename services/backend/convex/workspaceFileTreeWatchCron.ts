@@ -2,7 +2,6 @@ import { internalMutation } from './_generated/server';
 import { isFileTreeWatchLeaseActive, upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
 
 /** Queue coordinator releases for UI watches whose renewable lease expired. */
-// fallow-ignore-next-line unused-export
 export const expireFileTreeWatchLeases = internalMutation({
   args: {},
   handler: async (ctx) => {
