@@ -1,4 +1,4 @@
-// fallow-ignore-file complexity
+// fallow-ignore-file complexity code-duplication
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * AgentProcessManager — single authority for agent lifecycle management.
@@ -61,6 +61,13 @@ import type {
   AgentStopReason,
 } from '../../domain/entities/agent-stop.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
+import type {
+  ExitMonitorContext,
+  HarnessSessionMonitor,
+  SessionExitClassification,
+} from '../../domain/entities/session-monitor.js';
+import { resolveSessionRecoveryPolicy } from '../../domain/entities/session-recovery-policy.js';
+import type { HarnessCrashRecoveryPolicy } from '../../domain/entities/session-recovery-policy.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../domain/entities/stop-reason.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
@@ -77,19 +84,9 @@ import {
   formatPermanentHarnessFailureMessage,
 } from '../../domain/usecase/classify-resume-storm-reason.js';
 import {
-  CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS,
-  CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
-  CURSOR_SDK_SESSION_REOPEN_REASON,
-  CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
-} from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
-import {
   decideResumePathOnRestart,
   shouldAutoRestartAfterProcessExit,
 } from '../../domain/usecase/decide-resume-path.js';
-import {
-  formatCursorSdkRunErrorMessage,
-  isCursorSdkRunErrorInLogs,
-} from '../../domain/usecase/detect-cursor-sdk-run-error.js';
 import {
   handleTurnCompleted,
   type ResumeStormTracker,
@@ -123,6 +120,7 @@ import type {
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../local/harness/services/spawn-prompt.js';
+import { noOpSessionMonitor } from '../local/harness/session-monitors/no-op-session-monitor.js';
 import type { AgentLifecycleOutboxResult } from '../outbox/agent-lifecycle-outbox.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -198,6 +196,7 @@ export interface AgentProcessManagerDeps {
   logEvent: (event: Record<string, unknown>) => Promise<void>;
   logSink?: AgentLogSink;
   agentServices: Map<string, RemoteAgentService>;
+  sessionMonitors: Map<string, HarnessSessionMonitor>;
   /**
    * Backend client for Convex queries/mutations.
    * Uses `any` because the Convex client type is complex and varies by context.
@@ -273,8 +272,8 @@ export class AgentProcessManager {
   /** Latest harness session reconnect context per chatroom+role — in-memory only. */
   private readonly lastHarnessSessions = new Map<string, HarnessSessionSnapshot>();
 
-  /** Active cursor-sdk session reopen retry loops per chatroom+role. */
-  private readonly sessionReopenRetryInFlight = new Set<string>();
+  /** Active multi-attempt session recovery loops per chatroom+role. */
+  private readonly sessionRecoveryRetryInFlight = new Set<string>();
   /** Queue of failed agent.exited log events awaiting retry. */
   private readonly exitRetryQueue: RetryQueueItem[] = [];
   /** Active retry interval timer handle, or null if queue is empty. */
@@ -566,6 +565,7 @@ export class AgentProcessManager {
     slot.stopTargetKey = args.targetKey;
   }
 
+  // fallow-ignore-next-line unused-class-member
   async withScopedRoleStop<T>(
     opts: StopOpts,
     fn: (args: { preserveForResume: boolean }) => Promise<T>
@@ -845,7 +845,7 @@ export class AgentProcessManager {
     );
 
     this.resetSlotAfterExit(slot);
-    await this.emitExitEvent(slot, opts, ctx);
+    const exitLifecyclePromise = this.emitExitEvent(slot, opts, ctx);
     try {
       await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
     } catch {
@@ -854,7 +854,7 @@ export class AgentProcessManager {
     this.untrackAllServices(opts.pid);
 
     void lifecyclePromise
-      .then(() => this.dispatchRestartAfterExit(opts, ctx, key))
+      .then(() => this.dispatchRestartAfterExit(opts, ctx, key, exitLifecyclePromise))
       .catch(() => {
         // Lifecycle error — still emit exit event (already done above)
       });
@@ -925,11 +925,7 @@ export class AgentProcessManager {
     slot.nativeTurnPhase = undefined;
   }
 
-  private async emitExitEvent(
-    slot: AgentSlot,
-    opts: HandleExitOpts,
-    ctx: ExitContext
-  ): Promise<void> {
+  private emitExitEvent(slot: AgentSlot, opts: HandleExitOpts, ctx: ExitContext): Promise<void> {
     const stopReason = ctx.stopReason;
     const exitArgs = {
       sessionId: this.deps.sessionId,
@@ -943,7 +939,7 @@ export class AgentProcessManager {
       signal: opts.signal ?? undefined,
       agentHarness: ctx.harness,
     };
-    this.recordAgentExit(opts.role, exitArgs, 'Failed to record agent exit event');
+    return this.recordAgentExit(opts.role, exitArgs, 'Failed to record agent exit event');
   }
 
   private untrackAllServices(pid: number): void {
@@ -952,7 +948,12 @@ export class AgentProcessManager {
     }
   }
 
-  private dispatchRestartAfterExit(opts: HandleExitOpts, ctx: ExitContext, _key: string): void {
+  private dispatchRestartAfterExit(
+    opts: HandleExitOpts,
+    ctx: ExitContext,
+    _key: string,
+    exitLifecyclePromise?: Promise<void>
+  ): void {
     if (this.isStopRequested(opts.chatroomId, opts.role)) {
       return;
     }
@@ -969,17 +970,214 @@ export class AgentProcessManager {
       return;
     }
 
-    this.maybeRestartAgent(opts, ctx);
+    this.maybeRestartAgent(opts, ctx, exitLifecyclePromise);
   }
 
-  private hasCursorSdkRunErrorInContext(recentLogLines: string[]): boolean {
-    if (!isCursorSdkRunErrorInLogs(recentLogLines)) {
-      return false;
+  private maybeRestartAgent(
+    opts: HandleExitOpts,
+    ctx: ExitContext,
+    exitLifecyclePromise?: Promise<void>
+  ): void {
+    const { harness, recentLogLines } = ctx;
+    const logs = recentLogLines ?? [];
+
+    if (!harness || !ctx.workingDir) {
+      console.log(
+        `[AgentProcessManager] ⚠️  Cannot restart — missing harness or workingDir ` +
+          `(role: ${opts.role}, harness: ${harness ?? 'none'}, workingDir: ${ctx.workingDir ?? 'none'})`
+      );
+      return;
     }
-    console.log(
-      `[AgentProcessManager] cursor-sdk run-error detected: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
+
+    const monitor = this.deps.sessionMonitors.get(harness) ?? noOpSessionMonitor;
+    const monitorCtx: ExitMonitorContext = {
+      recentLogLines: logs,
+      harness,
+      wantResume: ctx.wantResume,
+    };
+    const classification = monitor.classifyExitFailure(monitorCtx);
+
+    void this.retrySessionRecovery(
+      opts,
+      ctx,
+      classification,
+      monitor,
+      monitorCtx,
+      exitLifecyclePromise
     );
-    return true;
+  }
+
+  private async retrySessionRecovery(
+    opts: HandleExitOpts,
+    ctx: ExitContext,
+    classification: SessionExitClassification,
+    monitor: HarnessSessionMonitor,
+    monitorCtx: ExitMonitorContext,
+    exitLifecyclePromise?: Promise<void>
+  ): Promise<void> {
+    const harness = ctx.harness as AgentHarness;
+    const policy = resolveSessionRecoveryPolicy(harness, classification);
+    const key = agentKey(opts.chatroomId, opts.role);
+    const multiAttempt = policy.maxAttempts > 1;
+
+    if (multiAttempt && this.sessionRecoveryRetryInFlight.has(key)) {
+      return;
+    }
+    if (multiAttempt) {
+      this.sessionRecoveryRetryInFlight.add(key);
+    }
+
+    try {
+      await this.prepareSessionRecoveryBeforeRetry(opts, classification, exitLifecyclePromise);
+      const lastError = await this.runSessionRecoveryAttempts(
+        opts,
+        ctx,
+        classification,
+        monitor,
+        monitorCtx,
+        policy,
+        key,
+        multiAttempt
+      );
+      if (lastError === null) return;
+
+      if (multiAttempt) {
+        const failureMessage = `${harness} session recovery failed after ${policy.maxAttempts} attempts: ${lastError}`;
+        console.log(`[AgentProcessManager] ⛔ ${failureMessage}`);
+        this.emitStartFailedEvent(opts.role, opts.chatroomId, failureMessage);
+      } else {
+        console.log(
+          `[AgentProcessManager] ⚠️  Agent restart did not complete for ${opts.role}: ${lastError}`
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(`   ⚠️  Session recovery retry loop failed: ${message}`);
+      this.emitStartFailedEvent(opts.role, opts.chatroomId, message);
+    } finally {
+      if (multiAttempt) {
+        this.sessionRecoveryRetryInFlight.delete(key);
+      }
+    }
+  }
+
+  private async prepareSessionRecoveryBeforeRetry(
+    opts: HandleExitOpts,
+    classification: SessionExitClassification,
+    exitLifecyclePromise?: Promise<void>
+  ): Promise<void> {
+    if (!classification.requiresTaskReleaseBeforeRecovery) return;
+    this.clearLastInFlightTask(opts.chatroomId, opts.role);
+    if (exitLifecyclePromise) {
+      await exitLifecyclePromise;
+    }
+  }
+
+  /** Returns null when recovery succeeded or stop was requested mid-loop. */
+  private async runSessionRecoveryAttempts(
+    opts: HandleExitOpts,
+    ctx: ExitContext,
+    classification: SessionExitClassification,
+    monitor: HarnessSessionMonitor,
+    monitorCtx: ExitMonitorContext,
+    policy: HarnessCrashRecoveryPolicy,
+    key: string,
+    multiAttempt: boolean
+  ): Promise<string | null> {
+    const generation = this.slots.get(key)?.stopGeneration;
+    let lastError = 'unknown';
+
+    for (let attempt = 1; attempt <= policy.maxAttempts; attempt++) {
+      if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return null;
+
+      if (
+        classification.hadSessionFailure &&
+        policy.resumeFirstAttempts > 0 &&
+        attempt === policy.resumeFirstAttempts + 1
+      ) {
+        this.clearHarnessSessionAfterResumePhaseFailure(key, opts);
+      }
+
+      const wantResume =
+        monitor.resolveWantResume?.(attempt, classification, monitorCtx) ??
+        (classification.hadSessionFailure ? false : (ctx.wantResume ?? true));
+
+      if (multiAttempt) {
+        const stored = this.lastHarnessSessions.get(key);
+        const storedSessionId = stored ? resolveResumableHarnessSessionId(stored) : undefined;
+        await this.emitSessionReopenRetry(
+          opts.chatroomId,
+          opts.role,
+          attempt,
+          policy.maxAttempts,
+          attempt > 1 ? lastError : undefined,
+          storedSessionId
+        );
+        if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return null;
+      }
+
+      const attemptResult = await this.executeSessionRecoveryAttempt(
+        opts,
+        ctx,
+        policy,
+        wantResume,
+        multiAttempt,
+        generation
+      );
+      if (attemptResult.kind === 'success' || attemptResult.kind === 'stopped') return null;
+      if (attemptResult.kind === 'crash_loop') return null;
+      lastError = attemptResult.lastError;
+
+      if (attempt < policy.maxAttempts && policy.intervalMs > 0) {
+        await this.deps.clock.delay(policy.intervalMs);
+        if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return null;
+      }
+    }
+
+    return lastError;
+  }
+
+  private async executeSessionRecoveryAttempt(
+    opts: HandleExitOpts,
+    ctx: ExitContext,
+    policy: HarnessCrashRecoveryPolicy,
+    wantResume: boolean,
+    multiAttempt: boolean,
+    generation: number | undefined
+  ): Promise<
+    | { kind: 'success' }
+    | { kind: 'stopped' }
+    | { kind: 'crash_loop' }
+    | { kind: 'failed'; lastError: string }
+  > {
+    const harness = ctx.harness as AgentHarness;
+    const ensureOpts: EnsureRunningOpts = {
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      agentHarness: harness,
+      model: ctx.model,
+      workingDir: ctx.workingDir as string,
+      reason: policy.recoveryReason,
+      wantResume,
+    };
+    const result = await this.ensureRunning(ensureOpts);
+    if (result.success) return { kind: 'success' };
+
+    if (this.isStopRequested(opts.chatroomId, opts.role, generation)) {
+      return { kind: 'stopped' };
+    }
+
+    const error = result.error ?? 'unknown';
+    if (!multiAttempt && result.error === 'backoff') {
+      await this.retryCrashRecoveryAfterBackoff(opts, ctx, ensureOpts, result.retryAfterMs);
+      return { kind: 'success' };
+    }
+    if (result.error === 'crash_loop') {
+      this.handleCrashLoopLimitReached(opts, ctx.recentLogLines);
+      return { kind: 'crash_loop' };
+    }
+
+    return { kind: 'failed', lastError: error };
   }
 
   private maybeEmitProviderUnavailable(
@@ -1015,66 +1213,6 @@ export class AgentProcessManager {
         recoverable: providerUnavailableRecoverable(classification.reason),
       })
       .catch(() => {});
-  }
-
-  private maybeRestartAgent(opts: HandleExitOpts, ctx: ExitContext): void {
-    const { harness, model, workingDir, recentLogLines } = ctx;
-    const logs = recentLogLines ?? [];
-
-    if (!harness || !workingDir) {
-      console.log(
-        `[AgentProcessManager] ⚠️  Cannot restart — missing harness or workingDir ` +
-          `(role: ${opts.role}, harness: ${harness ?? 'none'}, workingDir: ${workingDir ?? 'none'})`
-      );
-      return;
-    }
-
-    const hadRunError = this.hasCursorSdkRunErrorInContext(logs);
-
-    if (harness === 'cursor-sdk') {
-      void this.retryCursorSdkSessionReopen(opts, ctx, hadRunError);
-      return;
-    }
-
-    void this.attemptCrashRecoveryRestart(opts, ctx, {
-      chatroomId: opts.chatroomId,
-      role: opts.role,
-      agentHarness: harness,
-      model,
-      workingDir,
-      reason: 'platform.crash_recovery',
-      wantResume: hadRunError ? false : (ctx.wantResume ?? true),
-    });
-  }
-
-  // fallow-ignore-next-line complexity
-  private async attemptCrashRecoveryRestart(
-    exitOpts: HandleExitOpts,
-    ctx: ExitContext,
-    ensureOpts: EnsureRunningOpts
-  ): Promise<void> {
-    try {
-      const result = await this.ensureRunning(ensureOpts);
-      if (result.success) return;
-
-      if (result.error === 'backoff') {
-        await this.retryCrashRecoveryAfterBackoff(exitOpts, ctx, ensureOpts, result.retryAfterMs);
-        return;
-      }
-
-      if (result.error === 'crash_loop') {
-        this.handleCrashLoopLimitReached(exitOpts, ctx.recentLogLines);
-        return;
-      }
-
-      console.log(
-        `[AgentProcessManager] ⚠️  Agent restart did not complete for ${exitOpts.role}: ${result.error ?? 'unknown'}`
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(`   ⚠️  Failed to restart agent: ${message}`);
-      this.emitStartFailedEvent(exitOpts.role, exitOpts.chatroomId, message);
-    }
   }
 
   private async retryCrashRecoveryAfterBackoff(
@@ -1130,95 +1268,6 @@ export class AgentProcessManager {
         role: opts.role,
         harnessSessionId: stored.harnessSessionId,
       });
-    }
-  }
-
-  private resolveCursorSdkReopenWantResume(
-    hadRunError: boolean,
-    attempt: number,
-    ctx: ExitContext
-  ): boolean {
-    if (hadRunError && attempt <= CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS) {
-      return true;
-    }
-    if (hadRunError) {
-      return false;
-    }
-    return ctx.wantResume ?? true;
-  }
-
-  // fallow-ignore-next-line complexity
-  private async retryCursorSdkSessionReopen(
-    opts: HandleExitOpts,
-    ctx: ExitContext,
-    hadRunError: boolean
-  ): Promise<void> {
-    const key = agentKey(opts.chatroomId, opts.role);
-    if (this.sessionReopenRetryInFlight.has(key)) {
-      return;
-    }
-    this.sessionReopenRetryInFlight.add(key);
-    const generation = this.slots.get(key)?.stopGeneration;
-
-    const harness = ctx.harness as AgentHarness;
-    const model = ctx.model;
-    const workingDir = ctx.workingDir as string;
-    let lastError = 'unknown';
-
-    try {
-      for (let attempt = 1; attempt <= CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS; attempt++) {
-        if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return;
-        if (hadRunError && attempt === CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS + 1) {
-          this.clearHarnessSessionAfterResumePhaseFailure(key, opts);
-        }
-
-        const wantResume = this.resolveCursorSdkReopenWantResume(hadRunError, attempt, ctx);
-        const stored = this.lastHarnessSessions.get(key);
-        const storedSessionId = stored ? resolveResumableHarnessSessionId(stored) : undefined;
-
-        await this.emitSessionReopenRetry(
-          opts.chatroomId,
-          opts.role,
-          attempt,
-          attempt > 1 ? lastError : undefined,
-          storedSessionId
-        );
-
-        if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return;
-
-        const result = await this.ensureRunning({
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-          agentHarness: harness,
-          model,
-          workingDir,
-          reason: CURSOR_SDK_SESSION_REOPEN_REASON,
-          wantResume,
-        });
-
-        if (result.success) {
-          return;
-        }
-
-        if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return;
-
-        lastError = result.error ?? 'unknown';
-
-        if (attempt < CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS) {
-          await this.deps.clock.delay(CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS);
-          if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return;
-        }
-      }
-
-      const failureMessage = `cursor-sdk session reopen failed after ${CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS} attempts: ${lastError}`;
-      console.log(`[AgentProcessManager] ⛔ ${failureMessage}`);
-      this.emitStartFailedEvent(opts.role, opts.chatroomId, failureMessage);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(`   ⚠️  cursor-sdk session reopen retry loop failed: ${message}`);
-      this.emitStartFailedEvent(opts.role, opts.chatroomId, message);
-    } finally {
-      this.sessionReopenRetryInFlight.delete(key);
     }
   }
 
@@ -1503,7 +1552,11 @@ export class AgentProcessManager {
     }
   }
 
-  private recordAgentExit(role: string, exitArgs: AgentExitAuditArgs, failureLog: string): void {
+  private recordAgentExit(
+    role: string,
+    exitArgs: AgentExitAuditArgs,
+    failureLog: string
+  ): Promise<void> {
     void logDaemonAuditEvent(this.deps.logEvent, { type: 'agent.exited', ...exitArgs }).catch(
       (err: Error) => {
         console.log(`   ⚠️  ${failureLog}: ${err.message}`);
@@ -1511,11 +1564,12 @@ export class AgentProcessManager {
       }
     );
     const emittedAt = this.deps.clock.now();
-    void this.deps.lifecycleOutbox
+    return this.deps.lifecycleOutbox
       .enqueue(buildExitedLifecycleFact(exitArgs, emittedAt))
-      .catch((err: Error) =>
-        console.log(`   ⚠️  Failed to enqueue agent exited lifecycle fact: ${err.message}`)
-      );
+      .then(() => undefined)
+      .catch((err: Error) => {
+        console.log(`   ⚠️  Failed to enqueue agent exited lifecycle fact: ${err.message}`);
+      });
   }
 
   private async clearAgentPidQuietly(chatroomId: string, role: string): Promise<void> {
@@ -1798,6 +1852,7 @@ export class AgentProcessManager {
     chatroomId: string,
     role: string,
     attempt: number,
+    maxAttempts: number,
     error?: string,
     harnessSessionId?: string
   ): Promise<void> {
@@ -1808,7 +1863,7 @@ export class AgentProcessManager {
         role,
         machineId: this.deps.machineId,
         attempt,
-        maxAttempts: CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
+        maxAttempts,
         ...(error ? { error } : {}),
         ...(harnessSessionId ? { harnessSessionId } : {}),
       });
@@ -1818,12 +1873,12 @@ export class AgentProcessManager {
         chatroomId,
         role,
         attempt,
-        maxAttempts: CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
+        maxAttempts,
         ...(error ? { error } : {}),
         ...(harnessSessionId ? { harnessSessionId } : {}),
       });
       console.log(
-        `[AgentProcessManager] ✅ Emitted agent.sessionReopenRetry for ${role} (attempt ${attempt}/${CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS})`
+        `[AgentProcessManager] ✅ Emitted agent.sessionReopenRetry for ${role} (attempt ${attempt}/${maxAttempts})`
       );
     } catch (err) {
       console.log(`   ⚠️  Failed to emit sessionReopenRetry event: ${(err as Error).message}`);

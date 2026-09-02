@@ -26,6 +26,8 @@ import type {
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { DEFAULT_TRIGGER_PROMPT } from '../local/harness/services/spawn-prompt.js';
+import { initSessionMonitorRegistry } from '../local/harness/session-monitors/init-session-monitors.js';
+import { getAllSessionMonitors } from '../local/harness/session-monitors/session-monitor-registry.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
 
@@ -110,6 +112,7 @@ function mockBackendMutation(
 }
 
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
+  initSessionMonitorRegistry();
   const liveness = createLivenessAwareProcessKill();
   const mockService = createMockService();
   mockService.stop.mockImplementation(async (pid: number) => {
@@ -122,6 +125,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
   return {
     logEvent: vi.fn().mockResolvedValue(undefined),
     agentServices: new Map([['opencode', mockService]]),
+    sessionMonitors: getAllSessionMonitors(),
     backend: {
       query: vi.fn().mockResolvedValue({
         prompt: true,
@@ -1851,8 +1855,8 @@ describe('AgentProcessManager', () => {
       expect(slot!.pid).toBe(100);
     });
 
-    // cursor-sdk only: session-reopen retry loop on crash (not implemented for opencode-sdk / pi-sdk yet).
-    test('cursor-sdk crash retries session reopen 20 times with event stream logging', async () => {
+    // cursor-sdk uses session monitor + unified recovery loop on session-level failure.
+    test('cursor-sdk crash retries session reopen 6 times with event stream logging', async () => {
       const cursorSdkService = {
         ...createMockService(),
         id: 'cursor-sdk',
@@ -1880,6 +1884,11 @@ describe('AgentProcessManager', () => {
         createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
       );
 
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        '[cursor-sdk:builder@c1 run-error] run abc failed: no error detail from SDK',
+      ];
+
       (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
       let delayCalls = 0;
       deps.clock.delay = vi.fn().mockImplementation(async () => {
@@ -1897,7 +1906,7 @@ describe('AgentProcessManager', () => {
       await vi.waitFor(() => {
         const startFailed = getMutationCallsByArgs(
           deps,
-          (args) => typeof args.error === 'string' && args.error.includes('session reopen failed')
+          (args) => typeof args.error === 'string' && args.error.includes('session recovery failed')
         );
         expect(startFailed).toHaveLength(1);
       });
@@ -1982,6 +1991,124 @@ describe('AgentProcessManager', () => {
       ensureRunningSpy.mockRestore();
     });
 
+    test('cursor-sdk spawn auth error resumes existing session before cold restart', async () => {
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'cursor-agent-1',
+          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory: vi.fn().mockRejectedValue(new Error('resume failed')),
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'builder@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = ['[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error'];
+
+      const ensureRunningSpy = vi.spyOn(manager, 'ensureRunning').mockResolvedValue({
+        success: false,
+        error: 'resume failed',
+      });
+      deps.clock.delay = vi.fn().mockResolvedValue(undefined);
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      await vi.waitFor(() => {
+        expect(ensureRunningSpy.mock.calls.length).toBeGreaterThanOrEqual(4);
+      });
+
+      const wantResumeValues = ensureRunningSpy.mock.calls.map(
+        (call) => (call[0] as EnsureRunningOpts).wantResume
+      );
+      expect(wantResumeValues.slice(0, CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS)).toEqual([
+        true,
+        true,
+        true,
+      ]);
+      expect(wantResumeValues[CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS]).toBe(false);
+
+      ensureRunningSpy.mockRestore();
+    });
+
+    test('cursor-sdk auth release clears task and waits for exit lifecycle before reopening', async () => {
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'cursor-agent-1',
+          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory: vi.fn().mockRejectedValue(new Error('resume failed')),
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'builder@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = ['[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error'];
+      manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-1');
+
+      let resolveLifecycle!: () => void;
+      const lifecycleEnqueued = new Promise<void>((resolve) => {
+        resolveLifecycle = resolve;
+      });
+      deps.lifecycleOutbox.enqueue = vi.fn().mockReturnValue(lifecycleEnqueued);
+      const clearTaskSpy = vi.spyOn(manager, 'clearLastInFlightTask');
+      const ensureRunningSpy = vi
+        .spyOn(manager, 'ensureRunning')
+        .mockResolvedValueOnce({ success: false, error: 'resume failed' })
+        .mockResolvedValue({ success: true });
+
+      await manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+      await Promise.resolve();
+
+      expect(clearTaskSpy).toHaveBeenCalledWith(CHATROOM_ID, ROLE);
+      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledTimes(1);
+      expect(ensureRunningSpy).not.toHaveBeenCalled();
+
+      resolveLifecycle();
+      await vi.waitFor(() => expect(ensureRunningSpy).toHaveBeenCalledTimes(2));
+
+      clearTaskSpy.mockRestore();
+      ensureRunningSpy.mockRestore();
+    });
+
     test('cursor-sdk Authentication error retries instead of permanent startFailed', async () => {
       const cursorSdkService = {
         ...createMockService(),
@@ -2032,6 +2159,10 @@ describe('AgentProcessManager', () => {
 
       await vi.waitFor(() => {
         expect(ensureRunningSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+      });
+
+      await vi.waitFor(() => {
+        expect(ensureRunningSpy.mock.calls.length).toBe(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS);
       });
 
       const permanentStartFailed = getMutationCallsByArgs(

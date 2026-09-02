@@ -9,5 +9,13 @@ export const cursorSdkCapabilities: HarnessCapabilities = {
     outputActivity: true,
     processExited: true,
   },
+  crashRecovery: {
+    onSessionFailure: {
+      maxAttempts: 6,
+      intervalMs: 10_000,
+      resumeFirstAttempts: 3,
+      recoveryReason: 'platform.cursor_sdk_session_reopen',
+    },
+  },
   wireEvents: ['sdk.cursor.message', 'sdk.cursor.run.completed', 'wire.log.agent_end'],
 };
