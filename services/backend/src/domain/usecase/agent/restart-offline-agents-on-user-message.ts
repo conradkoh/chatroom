@@ -13,6 +13,7 @@ import { listTeamAgentConfigsForChatroom } from './list-team-agent-configs-for-c
 import { requestAgentRestart } from './request-agent-restart';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { isOfflineForUserMessageRestart } from '../../entities/participant';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
@@ -53,10 +54,10 @@ async function ensureRunningClosedCircuit(
   await patchTeamAgentConfig(
     ctx,
     config._id,
-    {
+    omitUndefined({
       ...(needsDesiredState ? { desiredState: 'running' as const } : {}),
       ...(needsCircuitClose ? { circuitState: 'closed' as const, circuitOpenedAt: undefined } : {}),
-    },
+    }),
     { skipProject: true }
   );
 }

@@ -1,14 +1,14 @@
+import { touchAgentRoleStatusLastSeen } from './project-agent-role-status-read-model';
+import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { NATIVE_TASK_INJECTED_ACTION, NATIVE_WAITING_ACTION } from '../../entities/participant';
 import { hasActiveEntryPointEnhancerJob } from '../enhancer/enhancer-entry-point-status';
-import { transitionAgentStatus } from './transition-agent-status';
 import {
   findActiveAssignedTaskForRole,
   findAcknowledgedTaskForRole,
 } from '../task/find-acknowledged-task-for-role';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { touchAgentRoleStatusLastSeen } from './project-agent-role-status-read-model';
 
 export async function applyAgentActivityHeartbeat(
   ctx: MutationCtx,
@@ -16,9 +16,9 @@ export async function applyAgentActivityHeartbeat(
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
     action: string;
-    taskId?: Id<'chatroom_tasks'>;
-    participantId?: Id<'chatroom_participants'>;
-    emittedAt?: number;
+    taskId?: Id<'chatroom_tasks'> | undefined;
+    participantId?: Id<'chatroom_participants'> | undefined;
+    emittedAt?: number | undefined;
   }
 ): Promise<void> {
   await touchAgentRoleStatusLastSeen(ctx, {
@@ -27,11 +27,12 @@ export async function applyAgentActivityHeartbeat(
     lastSeenAt: args.emittedAt ?? Date.now(),
   });
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  const config = room?.teamId
+  const teamId = room?.teamId;
+  const config = teamId
     ? await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, room.teamId!, args.role))
+          q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
         )
         .first()
     : null;

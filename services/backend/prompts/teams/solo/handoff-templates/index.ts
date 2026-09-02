@@ -7,9 +7,9 @@ import {
 export interface SoloHandoffTemplateQuery {
   fromRole: string;
   toRole: string;
-  chatroomId?: string;
-  role?: string;
-  cliEnvPrefix?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  cliEnvPrefix?: string | undefined;
 }
 
 const SOLO_HANDOFF_TEMPLATES: Record<string, (query: SoloHandoffTemplateQuery) => string> = {

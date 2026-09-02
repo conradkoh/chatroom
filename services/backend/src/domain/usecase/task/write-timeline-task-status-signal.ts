@@ -5,8 +5,8 @@ import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRole
 import { getTeamEntryPoint } from '../../entities/team';
 
 type TaskSignalRouting = {
-  targetMachineId?: string;
-  targetRole?: string;
+  targetMachineId?: string | undefined;
+  targetRole?: string | undefined;
 };
 
 function buildTimelineTaskStatusSignalKey(

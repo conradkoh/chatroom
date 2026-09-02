@@ -24,7 +24,7 @@ import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 /** Input parameters for the agentExited use case. */
 export interface AgentExitedInput {
-  revisionKey?: string;
+  revisionKey?: string | undefined;
   /** The chatroom the agent was running in. */
   chatroomId: Id<'chatroom_rooms'>;
   /** The role of the exited agent. */
@@ -34,15 +34,15 @@ export interface AgentExitedInput {
   /** The PID of the exited agent process. */
   pid: number;
   /** Optional reason for the stop (e.g. 'user.stop', 'platform.crash_recovery'). */
-  stopReason?: string;
+  stopReason?: string | undefined;
   /** Optional exit code of the process. */
-  exitCode?: number;
+  exitCode?: number | undefined;
   /** Optional signal that killed the process. */
-  signal?: string;
+  signal?: string | undefined;
   /** Optional stop signal requested. */
-  stopSignal?: string;
+  stopSignal?: string | undefined;
   /** Optional agent harness identifier. */
-  agentHarness?: string;
+  agentHarness?: string | undefined;
 }
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
@@ -91,8 +91,8 @@ export async function agentExited(
   //    has been spawned.
   if (config && config.spawnedAgentPid === pid && config.machineId === machineId) {
     await patchTeamAgentConfig(ctx, config._id, {
-      spawnedAgentPid: undefined,
-      spawnedAt: undefined,
+      ...{},
+      ...{},
     });
   }
 

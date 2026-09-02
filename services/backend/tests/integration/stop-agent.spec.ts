@@ -66,7 +66,7 @@ describe('stopAgent', () => {
     });
 
     expect(result).toBeDefined();
-    expect((result as { commandId?: unknown }).commandId).toBeUndefined();
+    expect((result as { commandId?: unknown | undefined }).commandId).toBeUndefined();
   });
 
   test('multiple scoped stop commands can be enqueued independently', async () => {

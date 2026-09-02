@@ -8,8 +8,8 @@ import { type MutationCtx, mutation, type QueryCtx, query } from './_generated/s
  */
 interface _ChecklistItemUpdateData {
   isCompleted: boolean;
-  completedAt?: number;
-  completedBy?: string;
+  completedAt?: number | undefined;
+  completedBy?: string | undefined;
 }
 
 /**

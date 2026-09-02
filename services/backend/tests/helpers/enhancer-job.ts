@@ -6,9 +6,9 @@ export async function insertEnhancerJob(args: {
   chatroomId: Id<'chatroom_rooms'>;
   userId: Id<'users'>;
   machineId: string;
-  originUserMessageId?: Id<'chatroom_messages'>;
-  status?: 'pending' | 'running';
-  draftContent?: string;
+  originUserMessageId?: Id<'chatroom_messages'> | undefined;
+  status?: 'pending' | 'running' | undefined;
+  draftContent?: string | undefined;
 }): Promise<{ jobId: Id<'chatroom_enhancerJobs'>; taskId: Id<'chatroom_tasks'> }> {
   return t.run(async (ctx) => {
     const taskId = await ctx.db.insert('chatroom_tasks', {

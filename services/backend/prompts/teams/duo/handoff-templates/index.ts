@@ -7,10 +7,10 @@ import { getPlannerToUserReportTemplate } from './planner-to-user';
 export interface DuoHandoffTemplateQuery {
   fromRole: string;
   toRole: string;
-  nativeIntegration?: boolean;
-  chatroomId?: string;
-  role?: string;
-  cliEnvPrefix?: string;
+  nativeIntegration?: boolean | undefined;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  cliEnvPrefix?: string | undefined;
 }
 
 const DUO_HANDOFF_TEMPLATES: Record<string, (query: DuoHandoffTemplateQuery) => string> = {

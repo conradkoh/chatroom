@@ -4,7 +4,7 @@ import { MACHINE_COMMAND_TTL_MS, type MachineCommandPayload } from '../../entiti
 export interface EnqueueMachineCommandInput {
   machineId: string;
   command: MachineCommandPayload;
-  now?: number;
+  now?: number | undefined;
 }
 
 /** Insert a pending command, deriving its deadline from the command type. */

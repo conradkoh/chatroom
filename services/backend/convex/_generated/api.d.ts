@@ -92,6 +92,7 @@ import type * as lib_chatroomUtils from "../lib/chatroomUtils.js";
 import type * as lib_fileTreeDeltaOps from "../lib/fileTreeDeltaOps.js";
 import type * as lib_handoffRoles from "../lib/handoffRoles.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
+import type * as lib_omitUndefined from "../lib/omitUndefined.js";
 import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
 import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
@@ -247,6 +248,7 @@ declare const fullApi: ApiFromModules<{
   "lib/fileTreeDeltaOps": typeof lib_fileTreeDeltaOps;
   "lib/handoffRoles": typeof lib_handoffRoles;
   "lib/hierarchy": typeof lib_hierarchy;
+  "lib/omitUndefined": typeof lib_omitUndefined;
   "lib/promoteNextTaskDeps": typeof lib_promoteNextTaskDeps;
   "lib/stdinDecoder": typeof lib_stdinDecoder;
   "lib/taskStateMachine": typeof lib_taskStateMachine;

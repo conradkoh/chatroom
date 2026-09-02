@@ -50,10 +50,10 @@ export interface Team {
  * // → null
  */
 export function toTeam(chatroom: {
-  teamId?: string | null;
-  teamName?: string | null;
-  teamRoles?: string[] | null;
-  teamEntryPoint?: string | null;
+  teamId?: string | null | undefined;
+  teamName?: string | null | undefined;
+  teamRoles?: string[] | null | undefined;
+  teamEntryPoint?: string | null | undefined;
 }): Team | null {
   if (!chatroom.teamId || !chatroom.teamRoles || chatroom.teamRoles.length === 0) {
     return null;
@@ -89,8 +89,8 @@ export function toTeam(chatroom: {
  * // → null
  */
 export function getTeamEntryPoint(team: {
-  teamEntryPoint?: string | null;
-  teamRoles?: string[] | null;
+  teamEntryPoint?: string | null | undefined;
+  teamRoles?: string[] | null | undefined;
 }): string | null {
   return team.teamEntryPoint ?? team.teamRoles?.[0] ?? null;
 }

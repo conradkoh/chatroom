@@ -7,7 +7,7 @@ export async function findAcknowledgedTaskForRole(
   args: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    taskId?: Id<'chatroom_tasks'>;
+    taskId?: Id<'chatroom_tasks'> | undefined;
   }
 ) {
   if (args.taskId) {

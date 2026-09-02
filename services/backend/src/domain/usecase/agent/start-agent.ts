@@ -24,6 +24,7 @@ import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-s
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
 import type { MachineCommandPayload } from '../../entities/machine-command';
@@ -63,8 +64,8 @@ export interface StartAgentInput {
    * When true, resume-capable harnesses try to continue from the daemon's last
    * session. For user starts this is runtime-only and is not persisted.
    */
-  wantResume?: boolean;
-  lifecycleRevision?: number;
+  wantResume?: boolean | undefined;
+  lifecycleRevision?: number | undefined;
 }
 
 /** Successful result of a start-agent operation. */
@@ -134,7 +135,7 @@ export async function startAgent(
     const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey,
       createdAt: teamConfigNow,
-      fields: {
+      fields: omitUndefined({
         chatroomId,
         role,
         type: 'remote' as AgentType,
@@ -149,7 +150,7 @@ export async function startAgent(
           : {}),
         circuitState: 'closed' as const,
         circuitOpenedAt: undefined,
-      },
+      }),
     });
 
     const currentConfig = await ctx.db

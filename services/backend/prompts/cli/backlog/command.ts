@@ -6,10 +6,10 @@ import type { CommandContext } from '../../types/cli';
 import { BACKLOG_STDIN_DELIMITER, formatStdinHeredocCommand } from '../stdin-heredoc';
 
 export interface BacklogContentCommandParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
-  backlogItemId?: string;
-  contentPlaceholder?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  backlogItemId?: string | undefined;
+  contentPlaceholder?: string | undefined;
 }
 
 // fallow-ignore-next-line complexity

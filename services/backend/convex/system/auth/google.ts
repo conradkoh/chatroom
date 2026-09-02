@@ -6,6 +6,7 @@ import { getAuthUser } from '../../../modules/auth/session';
 import { api, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { action, internalMutation, mutation, query } from '../../_generated/server';
+import { omitUndefined } from '../../lib/omitUndefined';
 
 /**
  * Google Authentication Provider Configuration Management
@@ -19,9 +20,9 @@ import { action, internalMutation, mutation, query } from '../../_generated/serv
 export interface GoogleAuthConfigData {
   type: 'google';
   enabled: boolean;
-  projectId?: string;
-  clientId?: string;
-  clientSecret?: string;
+  projectId?: string | undefined;
+  clientId?: string | undefined;
+  clientSecret?: string | undefined;
   hasClientSecret: boolean;
   isConfigured: boolean;
   redirectUris: string[];
@@ -122,7 +123,7 @@ export const updateConfig = mutation({
     const now = Date.now();
     const clientSecretToUse = args.clientSecret.trim() || existingConfig?.clientSecret || '';
 
-    const configData = {
+    const configData = omitUndefined({
       type: 'google' as const,
       enabled: args.enabled,
       projectId: args.projectId?.trim() || undefined,
@@ -131,7 +132,7 @@ export const updateConfig = mutation({
       redirectUris: args.redirectUris,
       configuredBy: user._id,
       configuredAt: now,
-    };
+    });
 
     if (existingConfig) {
       await ctx.db.patch('auth_providerConfigs', existingConfig._id, configData);
@@ -206,7 +207,7 @@ export const testConfig = action({
   ): Promise<{
     success: boolean;
     message: string;
-    details?: { issues?: string[] };
+    details?: { issues?: string[] | undefined } | undefined;
   }> => {
     const authState = await ctx.runQuery(api.auth.getState, { sessionId: args.sessionId });
     if (authState.state !== 'authenticated') {
@@ -274,7 +275,7 @@ async function _testNewCredentials(
 ): Promise<{
   success: boolean;
   message: string;
-  details?: { issues?: string[] };
+  details?: { issues?: string[] | undefined } | undefined;
 }> {
   const issues: string[] = [];
 
@@ -313,8 +314,8 @@ async function _testNewCredentials(
     });
 
     const result = (await response.json()) as {
-      error?: string;
-      error_description?: string;
+      error?: string | undefined;
+      error_description?: string | undefined;
     };
 
     if (result.error === 'invalid_grant') {

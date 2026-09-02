@@ -1,16 +1,16 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
+import { expireInflightStopCommandsForRole } from './expire-inflight-stop-commands-for-role';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { expireInflightStopCommandsForRole } from './expire-inflight-stop-commands-for-role';
 
 export type AuthorizeAgentStartArgs = {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   machineId: string;
-  lifecycleRevision?: number;
-  taskId?: Id<'chatroom_tasks'>;
+  lifecycleRevision?: number | undefined;
+  taskId?: Id<'chatroom_tasks'> | undefined;
 };
 export type AuthorizeAgentStartReason =
   | 'stale_revision'

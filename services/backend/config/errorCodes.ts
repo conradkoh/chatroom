@@ -375,7 +375,7 @@ export type BackendError = {
   code: BackendErrorCode;
   message: string;
   /** Optional list of field names involved in the error (e.g. BAD_REQUEST fields) */
-  fields?: string[];
+  fields?: string[] | undefined;
 };
 
 /**

@@ -9,6 +9,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { omitUndefined } from './lib/omitUndefined';
 import { str } from './utils/types';
 import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
 import { validateWorkingDir } from './workspacePathSecurity';
@@ -64,7 +65,7 @@ import { onAgentExited } from '../src/events/agent/on-agent-exited';
  * once bound, switching machines requires explicit `allowNewMachine: true`.
  */
 function resolveAllowNewMachineForStart(
-  payload: { allowNewMachine?: boolean } | undefined,
+  payload: { allowNewMachine?: boolean | undefined } | undefined,
   existingConfig: Doc<'chatroom_teamAgentConfigs'> | null
 ): boolean {
   if (payload?.allowNewMachine !== undefined) return payload.allowNewMachine;
@@ -228,8 +229,8 @@ export const register = mutation({
       hostname: args.hostname,
       os: args.os,
       availableHarnesses: args.availableHarnesses,
-      harnessVersions: args.harnessVersions,
-      availableModels: args.availableModels,
+      ...(args.harnessVersions !== undefined ? { harnessVersions: args.harnessVersions } : {}),
+      ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
       registeredAt: now,
       lastSeenAt: now,
       daemonConnected: false,
@@ -1296,8 +1297,8 @@ export const updateSpawnedAgent = mutation({
 
     if (args.pid === undefined) {
       await patchTeamAgentConfig(ctx, config._id, {
-        spawnedAgentPid: undefined,
-        spawnedAt: undefined,
+        ...{},
+        ...{},
       });
       return { success: true, accepted: true };
     }
@@ -1431,7 +1432,7 @@ async function runRecordCustomAgentRegistered(
     sessionId: string;
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    allowTypeChange?: boolean;
+    allowTypeChange?: boolean | undefined;
   }
 ): Promise<{ success: true }> {
   const auth = await getSession(ctx, args.sessionId);
@@ -1470,7 +1471,7 @@ async function runRecordCustomAgentRegistered(
   }
 
   const now = Date.now();
-  const nextConfig = {
+  const nextConfig = omitUndefined({
     chatroomId: args.chatroomId,
     role: args.role,
     type: 'custom' as const,
@@ -1480,7 +1481,7 @@ async function runRecordCustomAgentRegistered(
     workingDir: undefined,
     updatedAt: now,
     desiredState: 'running' as const,
-  };
+  });
 
   const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
     teamRoleKey,
@@ -1677,7 +1678,7 @@ export const saveTeamAgentConfig = mutation({
     const resolvedAgentHarness =
       args.type === 'remote' ? (args.agentHarness ?? existing?.agentHarness) : undefined;
 
-    const config = {
+    const config = omitUndefined({
       chatroomId: args.chatroomId,
       role: args.role,
       type: args.type,
@@ -1687,7 +1688,7 @@ export const saveTeamAgentConfig = mutation({
       workingDir: args.type === 'remote' ? args.workingDir : undefined,
       updatedAt: now,
       desiredState: 'running' as const,
-    };
+    });
 
     const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey,
@@ -2811,8 +2812,8 @@ export const clearAllSpawnedPids = mutation({
           ctx,
           config._id,
           {
-            spawnedAgentPid: undefined,
-            spawnedAt: undefined,
+            ...{},
+            ...{},
           },
           { skipProject: true }
         );

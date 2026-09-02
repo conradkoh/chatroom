@@ -14,11 +14,11 @@ import { getSoloHandoffTemplate } from '../../teams/solo/handoff-templates';
 export interface HandoffTemplateQuery {
   fromRole: string;
   toRole: string;
-  teamId?: string;
-  nativeIntegration?: boolean;
-  chatroomId?: string;
-  role?: string;
-  cliEnvPrefix?: string;
+  teamId?: string | undefined;
+  nativeIntegration?: boolean | undefined;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  cliEnvPrefix?: string | undefined;
 }
 
 /**

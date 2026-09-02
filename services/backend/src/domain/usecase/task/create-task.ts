@@ -45,14 +45,14 @@ export interface CreateTaskArgs {
   createdBy: string;
   content: string;
   /** If provided, forces this status instead of auto-detecting pending vs backlog */
-  forceStatus?: 'pending';
-  assignedTo?: string;
-  sourceMessageId?: Id<'chatroom_messages'>;
-  attachedTaskIds?: Id<'chatroom_tasks'>[];
+  forceStatus?: 'pending' | undefined;
+  assignedTo?: string | undefined;
+  sourceMessageId?: Id<'chatroom_messages'> | undefined;
+  attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
   queuePosition: number;
-  plannerEnhancerEnabled?: boolean;
-  originUserMessageId?: Id<'chatroom_messages'>;
-  enhancerEnabledAtEnqueue?: boolean;
+  plannerEnhancerEnabled?: boolean | undefined;
+  originUserMessageId?: Id<'chatroom_messages'> | undefined;
+  enhancerEnabledAtEnqueue?: boolean | undefined;
   startInNewSession: boolean | undefined;
 }
 
@@ -118,11 +118,11 @@ export async function createTask(
     createdBy: args.createdBy,
     content: normalizeMarkdownContent(args.content),
     status,
-    sourceMessageId: args.sourceMessageId,
+    ...(args.sourceMessageId !== undefined ? { sourceMessageId: args.sourceMessageId } : {}),
     createdAt: now,
     updatedAt: now,
     queuePosition: args.queuePosition,
-    assignedTo: args.assignedTo,
+    ...(args.assignedTo !== undefined ? { assignedTo: args.assignedTo } : {}),
     ...(args.attachedTaskIds &&
       args.attachedTaskIds.length > 0 && {
         attachedTaskIds: args.attachedTaskIds,

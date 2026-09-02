@@ -42,14 +42,14 @@ function detectTeamType(teamRoles: string[], teamName?: string): TeamKind | 'unk
 export function buildSelectorContext(params: {
   role: string;
   teamRoles: string[];
-  teamName?: string;
-  teamId?: string;
-  teamEntryPoint?: string;
+  teamName?: string | undefined;
+  teamId?: string | undefined;
+  teamEntryPoint?: string | undefined;
   convexUrl: string;
-  chatroomId?: string;
-  agentType?: 'remote' | 'custom' | 'unset';
-  nativeIntegration?: boolean;
-  plannerEnhancerActive?: boolean;
+  chatroomId?: string | undefined;
+  agentType?: 'remote' | 'custom' | 'unset' | undefined;
+  nativeIntegration?: boolean | undefined;
+  plannerEnhancerActive?: boolean | undefined;
 }): SelectorContext {
   const entryPoint =
     getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ??

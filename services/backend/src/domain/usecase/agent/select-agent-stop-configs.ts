@@ -35,7 +35,7 @@ export function filterSelectedConfigsForScope(
 }
 export async function selectConfigsForAgentStop(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; scope: AgentStopScope; machineId?: string }
+  args: { chatroomId: Id<'chatroom_rooms'>; scope: AgentStopScope; machineId?: string | undefined }
 ) {
   return filterSelectedConfigsForScope(
     await selectCurrentTeamStoppableConfigs(ctx, args.chatroomId),

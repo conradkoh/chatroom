@@ -7,7 +7,7 @@ const OPENCODE_AGENT = 'build';
 
 export interface AgenticHarnessSpawnConfig {
   harnessName: string;
-  model?: { providerID: string; modelID: string };
+  model?: { providerID: string; modelID: string } | undefined;
 }
 
 export async function getAgenticQueryTurns(
@@ -69,7 +69,6 @@ export async function spawnAgenticQueryRun(
     lastActiveAt: now,
     opencode: {
       harnessName: params.harness.harnessName,
-      opencodeSessionId: undefined,
       sessionTitle: params.query.title,
       lastUsedConfig: {
         agent: OPENCODE_AGENT,

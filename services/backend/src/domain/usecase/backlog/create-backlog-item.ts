@@ -13,9 +13,9 @@ export interface CreateBacklogItemArgs {
   chatroomId: Id<'chatroom_rooms'>;
   createdBy: string;
   content: string;
-  priority?: number;
-  complexity?: 'low' | 'medium' | 'high';
-  value?: 'low' | 'medium' | 'high';
+  priority?: number | undefined;
+  complexity?: 'low' | 'medium' | 'high' | undefined;
+  value?: 'low' | 'medium' | 'high' | undefined;
 }
 
 export interface CreateBacklogItemResult {
@@ -38,9 +38,9 @@ export async function createBacklogItem(
     status: 'backlog',
     createdAt: now,
     updatedAt: now,
-    priority: args.priority,
-    complexity: args.complexity,
-    value: args.value,
+    ...(args.priority !== undefined ? { priority: args.priority } : {}),
+    ...(args.complexity !== undefined ? { complexity: args.complexity } : {}),
+    ...(args.value !== undefined ? { value: args.value } : {}),
   });
 
   return { itemId };

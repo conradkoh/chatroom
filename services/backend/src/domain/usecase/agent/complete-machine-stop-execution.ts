@@ -8,7 +8,7 @@ export async function completeMachineStopExecution(
     stopCommandId: Id<'chatroom_agentStopCommands'>;
     machineId: string;
     status: 'completed' | 'failed';
-    errorMessage?: string;
+    errorMessage?: string | undefined;
   }
 ): Promise<void> {
   const execution = await ctx.db

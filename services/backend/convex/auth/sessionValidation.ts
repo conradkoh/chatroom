@@ -17,7 +17,7 @@ import { str } from '../utils/types';
 export interface ValidatedSession {
   sessionId: string;
   userId: Id<'users'>;
-  userName?: string;
+  userName?: string | undefined;
   sessionType: 'cli' | 'web';
 }
 

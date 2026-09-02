@@ -7,11 +7,11 @@ export type HarnessTurnRow = {
   turnSeq: number;
   role: 'user' | 'assistant';
   status: 'pending' | 'streaming' | 'complete' | 'failed';
-  messageId?: string;
+  messageId?: string | undefined;
   textContent: string;
   reasoningContent: string;
   startedAt: number;
-  completedAt?: number;
+  completedAt?: number | undefined;
 };
 
 export function toHarnessTurnView(row: HarnessTurnRow): HarnessTurnView {
@@ -55,7 +55,7 @@ type StreamingChunkTable = 'chatroom_agenticQueryRunMessages';
 export async function fetchStreamingTurnChunks(
   ctx: QueryCtx,
   table: StreamingChunkTable,
-  args: { messageId: string; limit: number; afterCreationTime?: number }
+  args: { messageId: string; limit: number; afterCreationTime?: number | undefined }
 ) {
   const baseIdx = ctx.db.query(table).withIndex('by_messageId', (q) => {
     const eq = q.eq('messageId', args.messageId);

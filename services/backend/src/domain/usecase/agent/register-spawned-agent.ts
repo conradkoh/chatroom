@@ -12,9 +12,9 @@ export type RegisterSpawnedAgentArgs = {
   machineId: string;
   pid: number;
   lifecycleRevision: number;
-  model?: string;
-  harnessSessionId?: string;
-  reason?: string;
+  model?: string | undefined;
+  harnessSessionId?: string | undefined;
+  reason?: string | undefined;
 };
 export type RegisterSpawnedAgentResult =
   { accepted: true } | { accepted: false; reason: AuthorizeAgentStartReason };

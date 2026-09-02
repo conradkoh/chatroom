@@ -28,7 +28,11 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 async function createIntegration(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  config: { botToken?: string; chatId?: string; webhookUrl?: string } = {}
+  config: {
+    botToken?: string | undefined;
+    chatId?: string | undefined;
+    webhookUrl?: string | undefined;
+  } = {}
 ): Promise<Id<'chatroom_integrations'>> {
   return await t.mutation(api.integrations.create, {
     sessionId,

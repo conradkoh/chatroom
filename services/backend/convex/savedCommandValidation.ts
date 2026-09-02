@@ -38,9 +38,9 @@ export async function assertNoDuplicateSavedCommandName(
   args: {
     scope: 'user' | 'chatroom';
     name: string;
-    chatroomId?: Id<'chatroom_rooms'>;
-    ownerId?: Id<'users'>;
-    excludeId?: Id<'chatroom_savedCommands'>;
+    chatroomId?: Id<'chatroom_rooms'> | undefined;
+    ownerId?: Id<'users'> | undefined;
+    excludeId?: Id<'chatroom_savedCommands'> | undefined;
   }
 ): Promise<void> {
   const lower = args.name.toLowerCase();

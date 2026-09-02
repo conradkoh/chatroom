@@ -15,8 +15,8 @@ export interface CreateEnhancerJobFromHandoffArgs {
   content: string;
   taskId: Id<'chatroom_tasks'>;
   messageId: Id<'chatroom_messages'>;
-  originUserMessageId?: Id<'chatroom_messages'>;
-  attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+  originUserMessageId?: Id<'chatroom_messages'> | undefined;
+  attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
   machineId: string;
   agentHarness: Doc<'chatroom_enhancerConfigs'>['agentHarness'];
   model: string;
@@ -51,13 +51,17 @@ export async function createEnhancerJobFromHandoff(
     attemptCount: 1,
     maxAttempts: ENHANCER_MAX_ATTEMPTS,
     createdAt: now,
-    originUserMessageId: args.originUserMessageId,
+    ...(args.originUserMessageId !== undefined
+      ? { originUserMessageId: args.originUserMessageId }
+      : {}),
     taskId: args.taskId,
     handoffMessageId: args.messageId,
     pendingHandoffArgs: {
       senderRole: args.entryPointRole,
       targetRole: args.entryPointRole,
-      attachedArtifactIds: args.attachedArtifactIds,
+      ...(args.attachedArtifactIds !== undefined
+        ? { attachedArtifactIds: args.attachedArtifactIds }
+        : {}),
     },
   });
 

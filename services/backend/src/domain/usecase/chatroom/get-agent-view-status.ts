@@ -9,12 +9,12 @@ export interface AgentViewRole {
   role: string;
   state: OperationalState;
   type: AgentType;
-  machineId?: string;
-  machineName?: string;
+  machineId?: string | undefined;
+  machineName?: string | undefined;
   lastSeenAt: number | null;
   lastSeenAction: string | null;
-  stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
-  activeStopCommandId?: string;
+  stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed' | undefined;
+  activeStopCommandId?: string | undefined;
 }
 export interface AgentViewStatus {
   teamId: string;

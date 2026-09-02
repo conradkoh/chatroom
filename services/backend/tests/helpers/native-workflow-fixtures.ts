@@ -40,9 +40,9 @@ export interface NativeInitScenario {
   team: keyof typeof TEAM_CONFIGS;
   role: string;
   entryPoint: boolean;
-  soloTeam?: boolean;
-  noTaskRead?: boolean;
-  operatingModelHeading?: string;
+  soloTeam?: boolean | undefined;
+  noTaskRead?: boolean | undefined;
+  operatingModelHeading?: string | undefined;
 }
 
 /** Every native harness × team × role init combination we support. */
@@ -86,7 +86,7 @@ export interface NativeDeliveryScenario {
   primaryHandoffTarget: string;
   eagerTemplateHeadings: string[];
   /** Task body used in delivery tests (defaults to generic implementation text). */
-  taskContent?: string;
+  taskContent?: string | undefined;
 }
 
 export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [

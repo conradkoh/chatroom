@@ -39,7 +39,7 @@ export async function syncCommands(
       name: cmd.name,
       script: cmd.script,
       source: cmd.source,
-      subWorkspace: cmd.subWorkspace,
+      ...(cmd.subWorkspace !== undefined ? { subWorkspace: cmd.subWorkspace } : {}),
       syncedAt: now,
     });
   }

@@ -9,8 +9,8 @@ import {
 export interface OnAgentExitedArgs {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
-  stopReason?: string;
-  agentHarness?: string;
+  stopReason?: string | undefined;
+  agentHarness?: string | undefined;
 }
 
 /**

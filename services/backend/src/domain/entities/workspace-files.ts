@@ -10,8 +10,8 @@
 export type FileTreeEntry = {
   path: string;
   type: 'file' | 'directory';
-  size?: number;
-  modifiedAt?: number;
+  size?: number | undefined;
+  modifiedAt?: number | undefined;
 };
 
 /** The complete file tree for a workspace. */
@@ -35,7 +35,7 @@ export type DirListingEntry = {
   name: string;
   path: string;
   type: 'file' | 'directory';
-  size?: number;
+  size?: number | undefined;
 };
 
 /** Directory listing for one path (dirPath '' = workspace root). */

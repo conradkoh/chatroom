@@ -39,7 +39,10 @@ export const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set(['complet
  */
 export function resolveTaskRole(
   assignedTo: string | undefined | null,
-  chatroom: { teamEntryPoint?: string | null; teamRoles?: string[] | null } | null
+  chatroom: {
+    teamEntryPoint?: string | null | undefined;
+    teamRoles?: string[] | null | undefined;
+  } | null
 ): string {
   if (assignedTo) return assignedTo;
   return getTeamEntryPoint(chatroom ?? {}) ?? 'unknown';
