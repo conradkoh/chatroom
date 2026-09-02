@@ -49,5 +49,24 @@ describe('machine operational signals', () => {
         revisionKey: item.revisionKey,
       })
     );
+
+    await t.mutation(api.machines.ackMachineOperationalSignals, {
+      sessionId,
+      machineId,
+      throughSignalKey: subscription!.highKey,
+    });
+    const idle = await t.query(api.machines.subscribeMachineOperationalSignalsSince, {
+      sessionId,
+      machineId,
+      afterKey: subscription!.highKey,
+    });
+    expect(idle).toBeNull();
+    const remaining = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_machineOperationalSignals')
+        .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machineId))
+        .collect()
+    );
+    expect(remaining).toHaveLength(0);
   });
 });

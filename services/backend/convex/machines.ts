@@ -23,6 +23,7 @@ import {
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
+import { ackMachineOperationalSignals as ackMachineOperationalSignalsUseCase } from '../src/domain/usecase/agent/ack-machine-operational-signals';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
@@ -2307,6 +2308,23 @@ export const listMachineAgentOperationalStatus = query({
     return listMachineAgentOperationalStatusUseCase(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
+    });
+  },
+});
+
+/** Acknowledge delivered operational signals and keep the signal head current. */
+export const ackMachineOperationalSignals = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    throughSignalKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+    return ackMachineOperationalSignalsUseCase(ctx, {
+      machineId: args.machineId,
+      throughSignalKey: args.throughSignalKey,
     });
   },
 });
