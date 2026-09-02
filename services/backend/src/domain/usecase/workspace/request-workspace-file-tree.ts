@@ -9,9 +9,10 @@
 
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
+import { FILE_TREE_SNAPSHOT_STALENESS_MS } from '../../constants/workspace-file-tree-watch';
 
 /** Staleness window for ensuring the daemon-side cache is active. */
-const FILE_TREE_STALENESS_MS = 10 * 1000;
+const FILE_TREE_STALENESS_MS = FILE_TREE_SNAPSHOT_STALENESS_MS;
 
 export type RequestWorkspaceFileTreeInput = {
   machineId: string;

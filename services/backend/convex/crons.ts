@@ -127,4 +127,11 @@ crons.interval(
   internal.workspaceUploadCleanup.expireStaleWorkspaceUploadRequests
 );
 
+// Workspace file-tree watches — release daemon coordinators after lease expiry.
+crons.interval(
+  'expire file tree watch leases',
+  { minutes: 2 },
+  internal.workspaceFileTreeWatchCron.expireFileTreeWatchLeases
+);
+
 export default crons;

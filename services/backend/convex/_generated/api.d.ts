@@ -151,6 +151,7 @@ import type * as workspaceFileTree_services_deltaApplyService from "../workspace
 import type * as workspaceFileTree_services_deltaQueryService from "../workspaceFileTree/services/deltaQueryService.js";
 import type * as workspaceFileTree_types from "../workspaceFileTree/types.js";
 import type * as workspaceFileTree_validation from "../workspaceFileTree/validation.js";
+import type * as workspaceFileTreeWatchCron from "../workspaceFileTreeWatchCron.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspacePathSecurity from "../workspacePathSecurity.js";
 import type * as workspaceUploadCleanup from "../workspaceUploadCleanup.js";
@@ -306,6 +307,7 @@ declare const fullApi: ApiFromModules<{
   "workspaceFileTree/services/deltaQueryService": typeof workspaceFileTree_services_deltaQueryService;
   "workspaceFileTree/types": typeof workspaceFileTree_types;
   "workspaceFileTree/validation": typeof workspaceFileTree_validation;
+  workspaceFileTreeWatchCron: typeof workspaceFileTreeWatchCron;
   workspaceFiles: typeof workspaceFiles;
   workspacePathSecurity: typeof workspacePathSecurity;
   workspaceUploadCleanup: typeof workspaceUploadCleanup;

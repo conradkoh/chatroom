@@ -2065,6 +2065,8 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
     watchCount: v.number(),
+    /** Lease deadline; daemon pushes only while the lease is valid. */
+    expiresAt: v.optional(v.number()),
     updatedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
