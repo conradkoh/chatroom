@@ -69,12 +69,29 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
     linkedSkillId: 'code-review',
   },
   {
+    term: 'defragmentation',
+    definition:
+      'Workflow for large or multi-surface revisions: study all relevant surfaces, establish a golden path, migrate every caller, then delete legacy implementations.',
+    linkedSkillId: 'defragmentation',
+  },
+  {
+    term: 'user-centricity',
+    definition:
+      'Design guidance for UI changes: translate user intent into complete flows with explicit loading, empty, error, and success states, stable layout, project patterns, keyboard behavior, feedback, affordances, and destructive-action safeguards.',
+    linkedSkillId: 'user-centricity',
+  },
+  {
+    term: 'data-design',
+    definition:
+      'Persistence and query design guidance: make write/read risks, hot and cold paths, projections, indexes, scan limits, timeouts, and invalidation scope explicit.',
+    linkedSkillId: 'data-design',
+  },
+  {
     term: 'structural-decisions',
     definition:
       'Meta-level architectural choices that persist in the codebase and influence consistency: ' +
       'folder structure, file naming, interface definitions, and key abstraction names/locations ' +
       '(e.g., Repository/Service layers).',
-    linkedSkillId: 'defragmentation',
   },
 ];
 

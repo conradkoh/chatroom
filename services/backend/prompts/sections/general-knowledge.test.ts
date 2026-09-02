@@ -8,6 +8,10 @@ describe('general knowledge sections', () => {
       .map((section) => section.content)
       .join('\n');
     expect(text).toContain('# Glossary');
+    expect(text).toContain('`defragmentation` (1 skill available)');
+    expect(text).toContain('`user-centricity` (1 skill available)');
+    expect(text).toContain('`data-design` (1 skill available)');
+    expect(text).not.toContain('`structural-decisions` (1 skill available)');
     expect(text).toContain('context read');
     expect(text).toContain('messages download');
     expect(text).toContain('truncated=true');

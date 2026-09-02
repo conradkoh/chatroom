@@ -72,6 +72,45 @@ describe('skills.activate', () => {
     expect(result.skill.prompt).toContain('Delete legacy');
   });
 
+  test('activates the user-centricity skill with UX checklist guidance', async () => {
+    const { sessionId } = await createTestSession('skills-activate-user-centricity-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'user-centricity',
+      role: 'planner',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.skill.skillId).toBe('user-centricity');
+    expect(result.skill.name).toBe('User-Centric Design');
+    expect(result.skill.prompt).toContain('UX quality checklist');
+    expect(result.skill.prompt).toContain('States');
+    expect(result.skill.prompt).toContain('Safeguards');
+  });
+
+  test('activates the data-design skill with persistence guidance', async () => {
+    const { sessionId } = await createTestSession('skills-activate-data-design-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'data-design',
+      role: 'planner',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.skill.skillId).toBe('data-design');
+    expect(result.skill.name).toBe('Data & Query Design');
+    expect(result.skill.prompt).toContain('Sources of concern');
+    expect(result.skill.prompt).toContain('Index design');
+    expect(result.skill.prompt).toContain('Query design');
+    expect(result.skill.prompt).toContain('Not Applicable.');
+  });
+
   test('throws ConvexError for an unknown skill', async () => {
     const { sessionId } = await createTestSession('skills-activate-unknown-1');
     const chatroomId = await createChatroom(sessionId);
@@ -163,6 +202,8 @@ describe('skills.list', () => {
     expect(skills.some((s) => s.skillId === 'backlog')).toBe(true);
     expect(skills.some((s) => s.skillId === 'code-review')).toBe(true);
     expect(skills.some((s) => s.skillId === 'defragmentation')).toBe(true);
+    expect(skills.some((s) => s.skillId === 'user-centricity')).toBe(true);
+    expect(skills.some((s) => s.skillId === 'data-design')).toBe(true);
     expect(skills.some((s) => s.skillId === 'software-engineering')).toBe(false);
     expect(skills.some((s) => s.skillId === 'development-workflow')).toBe(false);
   });

@@ -101,7 +101,16 @@ describe('Duo Team > Builder > System Prompt', () => {
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
-      - \`structural-decisions\` (1 skill available)
+      - \`defragmentation\` (1 skill available)
+          - Workflow for large or multi-surface revisions: study all relevant surfaces, establish a golden path, migrate every caller, then delete legacy implementations.
+
+      - \`user-centricity\` (1 skill available)
+          - Design guidance for UI changes: translate user intent into complete flows with explicit loading, empty, error, and success states, stable layout, project patterns, keyboard behavior, feedback, affordances, and destructive-action safeguards.
+
+      - \`data-design\` (1 skill available)
+          - Persistence and query design guidance: make write/read risks, hot and cold paths, projections, indexes, scan limits, timeouts, and invalidation scope explicit.
+
+      - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
 
       # Skills
@@ -114,6 +123,8 @@ describe('Duo Team > Builder > System Prompt', () => {
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **defragmentation**: Use for large or multi-surface system revisions: study surfaces, establish a golden path, migrate callers, and delete legacy implementations.
+      - **user-centricity**: Use when a request involves UI changes: turn user intent into complete, accessible flows with explicit states and project-consistent interaction details.
+      - **data-design**: Use when persistence or query patterns change: make schema, index, scan, timeout, and invalidation decisions explicit.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
 

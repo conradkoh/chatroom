@@ -8,7 +8,9 @@
 
 import { backlogSkill } from './modules/backlog/index';
 import { codeReviewSkill } from './modules/code-review/index';
+import { dataDesignSkill } from './modules/data-design/index';
 import { defragmentationSkill } from './modules/defragmentation/index';
+import { userCentricitySkill } from './modules/user-centricity/index';
 import type { SkillId } from '../../types/skills';
 
 export interface SkillModule {
@@ -22,4 +24,6 @@ export const SKILLS_REGISTRY: readonly SkillModule[] = [
   backlogSkill,
   codeReviewSkill,
   defragmentationSkill,
+  userCentricitySkill,
+  dataDesignSkill,
 ];

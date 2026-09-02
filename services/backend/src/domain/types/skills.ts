@@ -21,6 +21,8 @@ const SKILLS = {
   backlog: { customizationType: null },
   'code-review': { customizationType: null },
   defragmentation: { customizationType: null },
+  'user-centricity': { customizationType: null },
+  'data-design': { customizationType: null },
 } as const satisfies Record<string, { customizationType: string | null }>;
 
 // ─── Skill IDs ───────────────────────────────────────────────────────────
