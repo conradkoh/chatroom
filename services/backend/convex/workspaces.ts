@@ -11,6 +11,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { getSession, requireSession } from './auth/session';
+import { omitUndefined } from './lib/omitUndefined';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { str } from './utils/types';
@@ -27,8 +28,16 @@ import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase
  * undefined values would strip `recentCommits`, `diffStat`, etc. from the document.
  * Preserves `null` (valid stored value for some fields).
  */
-function omitUndefinedRecord<T extends Record<string, unknown>>(obj: T): T {
-  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined)) as T;
+type WithoutUndefined<T> = {
+  [K in keyof T as undefined extends T[K] ? never : K]: T[K];
+} & {
+  [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined>;
+};
+
+function omitUndefinedRecord<T extends Record<string, unknown>>(obj: T): WithoutUndefined<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined)
+  ) as WithoutUndefined<T>;
 }
 
 // ─── Workspace Registry (queries + mutations) ────────────────────────────────
@@ -546,7 +555,9 @@ export const upsertWorkspaceGitState = mutation({
     // whether the client sent `prNumber` (canonical) or the raw gh `number` field.
     // The schema accepts both for backward compat with old documents, but new
     // writes should use the canonical name.
-    const normalizePr = <T extends { prNumber?: number; number?: number }>(pr: T): T => ({
+    const normalizePr = <T extends { prNumber?: number | undefined; number?: number | undefined }>(
+      pr: T
+    ): T => ({
       ...pr,
       prNumber: pr.prNumber ?? pr.number,
     });
@@ -1442,14 +1453,14 @@ export const upsertFullDiffV2 = mutation({
 
     const now = Date.now();
 
-    const row = {
+    const row = omitUndefined({
       machineId: args.machineId,
       workingDir: args.workingDir,
       data: args.data,
       truncated: args.truncated,
       diffStat: args.diffStat,
       updatedAt: now,
-    };
+    });
 
     const existing = await ctx.db
       .query('chatroom_workspaceFullDiffV2')
@@ -1566,7 +1577,7 @@ export const upsertCommitDetailV2 = mutation({
     // Never overwrite a successfully resolved result
     if (existing?.status === 'available') return;
 
-    const row = {
+    const row = omitUndefined({
       machineId: args.machineId,
       workingDir: args.workingDir,
       sha: args.sha,
@@ -1580,7 +1591,7 @@ export const upsertCommitDetailV2 = mutation({
       date: args.date,
       errorMessage: args.errorMessage,
       updatedAt: now,
-    };
+    });
 
     if (existing) {
       await ctx.db.patch('chatroom_workspaceCommitDetailV2', existing._id, row);

@@ -25,9 +25,9 @@ export interface InviteSummary {
   inviteeName: string;
   inviteeEmail: string;
   createdAt: number;
-  expiresAt?: number;
+  expiresAt?: number | undefined;
   disabled: boolean;
-  usedAt?: number;
+  usedAt?: number | undefined;
   status: InviteStatus;
 }
 
@@ -37,7 +37,7 @@ export type ValidateInviteResult =
       valid: false;
       reason: 'invalid_code' | 'disabled' | 'expired' | 'used' | 'rate_limited';
       message: string;
-      retryAfter?: number;
+      retryAfter?: number | undefined;
     };
 
 function _normalizeCode(code: string): string {
@@ -167,7 +167,7 @@ async function _insertInviteWithUniqueCode(
     inviteeEmail: string;
     createdBy: Id<'users'>;
     createdAt: number;
-    expiresAt?: number;
+    expiresAt?: number | undefined;
   }
 ): Promise<Doc<'invites'>> {
   for (let attempt = 0; attempt < MAX_CODE_GENERATION_ATTEMPTS; attempt++) {
@@ -184,7 +184,7 @@ async function _insertInviteWithUniqueCode(
         inviteeEmail: input.inviteeEmail,
         createdBy: input.createdBy,
         createdAt: input.createdAt,
-        expiresAt: input.expiresAt,
+        ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {}),
         disabled: false,
       });
       const invite = await ctx.db.get('invites', inviteId);

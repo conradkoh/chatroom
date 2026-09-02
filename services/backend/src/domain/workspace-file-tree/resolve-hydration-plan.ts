@@ -35,7 +35,7 @@ export function resolveFileTreeHydrationPlan(input: {
   manifest: ShardedSnapshotManifestView | undefined;
   blobStatus: BlobHydrationStatus;
   shardedStatus: ShardedHydrationStatus;
-  shardsPayloadKey?: string;
+  shardsPayloadKey?: string | undefined;
 }): FileTreeHydrationPlan {
   const { checkpoint, manifest, blobStatus, shardedStatus, shardsPayloadKey } = input;
 

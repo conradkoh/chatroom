@@ -1,8 +1,8 @@
 import type { Writable } from 'node:stream';
 
 export interface AgentLogContext {
-  role?: string;
-  chatroomId?: string;
+  role?: string | undefined;
+  chatroomId?: string | undefined;
 }
 
 /** Bracket-open prefix: `[agent:role@suffix` — the kind segment supplies the closing `]`. */
@@ -70,7 +70,7 @@ export function extractBashCommandFromCursorToolCall(toolCall: unknown): string 
   if (!toolCall || typeof toolCall !== 'object') return null;
   for (const [key, value] of Object.entries(toolCall as Record<string, unknown>)) {
     if (!isBashLikeToolName(key) || !value || typeof value !== 'object') continue;
-    const args = (value as { args?: unknown }).args;
+    const args = (value as { args?: unknown | undefined }).args;
     if (args && typeof args === 'object' && 'command' in (args as object)) {
       return String((args as { command: unknown }).command);
     }
@@ -100,7 +100,7 @@ export interface AgentLogWriter {
 
 export function createAgentLogWriter(
   prefix: string,
-  options?: { emitLogLine?: (line: string) => void; target?: Writable; suppressConsole?: boolean }
+  options?: { emitLogLine?:( (line: string) => void) | undefined; target?: Writable | undefined; suppressConsole?: boolean | undefined }
 ): AgentLogWriter {
   const target: Writable | null =
     options?.suppressConsole || options?.emitLogLine ? null : (options?.target ?? process.stdout);

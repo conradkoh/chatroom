@@ -50,7 +50,7 @@ import type {
 } from '../remote-agent-service.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
-  sessionMetadataStore?: SessionMetadataStore;
+  sessionMetadataStore?: SessionMetadataStore | undefined;
 };
 
 const SERVE_STARTUP_TIMEOUT_MS = 10000;
@@ -66,7 +66,7 @@ interface DisabledToolsPromptBody {
   agent: string;
   system?: string;
   parts: [{ type: 'text'; text: string }];
-  model?: ReturnType<typeof parseModelId>;
+  model?: Exclude<ReturnType<typeof parseModelId>, undefined>;
   variant?: string;
   tools: {
     task: false;
@@ -84,7 +84,7 @@ interface DisabledToolsPromptBody {
 function buildDisabledToolsPromptBody(args: {
   agentName: string;
   prompt: string;
-  composedSystem?: string;
+  composedSystem?: string | undefined;
   model: string;
 }): DisabledToolsPromptBody {
   const model = requireHarnessModel(args.model, 'opencode-sdk prompt');
@@ -194,7 +194,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     context: SpawnContext;
     agentName: string;
     model: string | undefined;
-    deferredSystemPrompt?: string;
+    deferredSystemPrompt?: string | undefined;
     pid: number;
     baseUrl: string;
   }): SessionMetadata {
@@ -286,9 +286,9 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     model: string | undefined;
     workingDir: string;
     logLineCallbacks: ((line: string) => void)[];
-    assistantTextCallbacks?: ((text: string) => void)[];
-    deferredSystemPrompt?: string;
-    outputCallbacks?: (() => void)[];
+    assistantTextCallbacks?: ((text: string) => void)[] | undefined;
+    deferredSystemPrompt?: string | undefined;
+    outputCallbacks?: (() => void)[] | undefined;
     activityEmitter: HarnessActivityEmitter;
   }): SpawnResult {
     const {
@@ -469,7 +469,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   private tearDownFailedSpawn(args: {
     forwarder: SessionEventForwarderHandle | undefined;
     childProcess: ChildProcess;
-    sessionId?: string;
+    sessionId?: string | undefined;
   }): void {
     args.forwarder?.stop();
     args.childProcess.kill();
@@ -487,7 +487,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     agentName: string;
     model: string;
     prompt: string;
-    oldSessionId?: string;
+    oldSessionId?: string | undefined;
   }): Promise<void> {
     const model = requireHarnessModel(args.model, 'opencode-sdk resume fallback');
     const existingForwarder = this.forwarders.get(args.pid);

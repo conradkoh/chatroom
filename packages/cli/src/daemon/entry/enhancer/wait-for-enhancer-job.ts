@@ -11,14 +11,14 @@ export interface WaitForEnhancerJobParams {
   chatroomId: string;
   jobId: string;
   wsClient: ConvexClient;
-  log?: EnhancerLogWriter;
-  onAssistantText?: (cb: (text: string) => void) => void;
-  onAgentEnd?: (cb: () => void) => void;
+  log?: EnhancerLogWriter | undefined;
+  onAssistantText?:( (cb: (text: string) => void) => void) | undefined;
+  onAgentEnd?:( (cb: () => void) => void) | undefined;
   onExit: (cb: () => void) => void;
   onFailure: (error: string, forceTerminal?: boolean) => Promise<void>;
   /** Called with accumulated assistant text when agent_end fires without complete. Should call complete mutation. */
-  onSalvageComplete?: (content: string) => Promise<void>;
-  signal?: AbortSignal;
+  onSalvageComplete?:( (content: string) => Promise<void>) | undefined;
+  signal?: AbortSignal | undefined;
 }
 
 export async function waitForEnhancerJobResolution(

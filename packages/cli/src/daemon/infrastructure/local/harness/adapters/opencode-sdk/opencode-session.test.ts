@@ -303,7 +303,7 @@ describe('OpencodeSdkSession', () => {
     expect(events[0]!.type).toBe('session.updated');
 
     // Subscriber calls setTitle when the new title differs from the current one
-    const newTitle = (updatedEvent.payload as { info?: { title?: string } }).info?.title;
+    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined }).info?.title;
     if (newTitle && newTitle !== session.sessionTitle) {
       session.setTitle(newTitle);
     }
@@ -323,7 +323,7 @@ describe('OpencodeSdkSession', () => {
     session._emit(updatedEvent);
 
     // Guard: same title → no setTitle call
-    const newTitle = (updatedEvent.payload as { info?: { title?: string } }).info?.title;
+    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined }).info?.title;
     const before = session.sessionTitle;
     if (newTitle && newTitle !== session.sessionTitle) {
       session.setTitle(newTitle);
@@ -342,7 +342,7 @@ describe('OpencodeSdkSession', () => {
     };
     session._emit(updatedEvent);
 
-    const newTitle = (updatedEvent.payload as { info?: { title?: string } }).info?.title;
+    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined }).info?.title;
     if (newTitle && newTitle !== session.sessionTitle) {
       session.setTitle(newTitle);
     }

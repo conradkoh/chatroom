@@ -21,7 +21,7 @@ import { assert, cliRoot, type PublishPackageJson } from './publish-common.js';
 
 interface VerifyArgs {
   dir: string;
-  tarball?: string;
+  tarball?: string | undefined;
 }
 
 // fallow-ignore-next-line complexity

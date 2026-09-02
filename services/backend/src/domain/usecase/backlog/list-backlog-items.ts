@@ -13,10 +13,10 @@ export type BacklogFilter = 'unscored';
 
 export interface ListBacklogItemsArgs {
   chatroomId: Id<'chatroom_rooms'>;
-  statusFilter?: BacklogStatusFilter;
-  sort?: BacklogSortOrder; // default: 'date:desc'
-  filter?: BacklogFilter; // optional filter for items without priority
-  limit?: number;
+  statusFilter?: BacklogStatusFilter | undefined;
+  sort?: BacklogSortOrder | undefined; // default: 'date:desc'
+  filter?: BacklogFilter | undefined; // optional filter for items without priority
+  limit?: number | undefined;
 }
 
 export async function listBacklogItems(ctx: QueryCtx, args: ListBacklogItemsArgs) {

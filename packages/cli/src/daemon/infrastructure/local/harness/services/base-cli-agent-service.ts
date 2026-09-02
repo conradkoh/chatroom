@@ -32,10 +32,10 @@ import { buildAgentSpawnEnv } from '../../../../../infrastructure/convex/spawn-e
 // ─── Error Classification ─────────────────────────────────────────────────────
 
 interface ExecSyncError extends Error {
-  status?: number;
-  stderr?: Buffer | string;
-  stdout?: Buffer | string;
-  signal?: string;
+  status?: number | undefined;
+  stderr?: Buffer | string | undefined;
+  stdout?: Buffer | string | undefined;
+  signal?: string | undefined;
 }
 
 function isExecSyncError(error: unknown): error is ExecSyncError {
@@ -145,9 +145,9 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
   protected runCommandWithRetryEffect(
     command: string,
     options: {
-      stdio?: ExecSyncOptions['stdio'];
-      timeout?: number;
-      classifyNotInstalled?: (err: unknown) => boolean;
+      stdio?: ExecSyncOptions['stdio'] | undefined;
+      timeout?: number | undefined;
+      classifyNotInstalled?:( (err: unknown) => boolean) | undefined;
     } = {}
   ): Effect.Effect<CommandOutcome, never> {
     const {
@@ -258,7 +258,7 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
   protected async runListCommand(
     harnessName: string,
     command: string,
-    options?: { timeout?: number }
+    options?: { timeout?: number | undefined }
   ): Promise<string | null> {
     const outcome = await Effect.runPromise(
       this.runCommandWithRetryEffect(command, {

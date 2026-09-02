@@ -3,10 +3,10 @@ import { SearchableSelect } from '@/components/picker';
 type Props = {
   label: string;
   options: string[];
-  value?: string;
+  value?: string | undefined;
   onChange: (value: string | undefined) => void;
-  disabled?: boolean;
-  allLabel?: string;
+  disabled?: boolean | undefined;
+  allLabel?: string | undefined;
 };
 export function DimensionSelect({
   label,

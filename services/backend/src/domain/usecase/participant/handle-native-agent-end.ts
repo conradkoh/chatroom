@@ -38,7 +38,11 @@ async function patchParticipantNativeWaiting(
 // fallow-ignore-next-line complexity
 export async function handleNativeAgentEnd(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string; taskId?: Id<'chatroom_tasks'> }
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    taskId?: Id<'chatroom_tasks'> | undefined;
+  }
 ): Promise<HandleNativeAgentEndResult> {
   const role = args.role.toLowerCase();
   const now = Date.now();

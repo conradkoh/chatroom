@@ -5,7 +5,7 @@ import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
 vi.mock('../machine/assigned-tasks-core', () => ({ getParticipantForChatroomRole: vi.fn() }));
 const lookup = vi.mocked(getParticipantForChatroomRole);
-function ctx(config?: { desiredState?: string }): any {
+function ctx(config?: { desiredState?: string | undefined }): any {
   return {
     db: {
       patch: vi.fn(),

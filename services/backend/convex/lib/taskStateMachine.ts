@@ -32,10 +32,10 @@ export interface TransitionRule {
   from: TaskStatus;
   to: TaskStatus;
   trigger: string; // Mutation name that causes this transition
-  requiredFields?: (keyof Task)[]; // Fields that must be provided
-  setFields?: Partial<Record<keyof Task, 'NOW' | 'PROVIDED'>>; // Fields to auto-set
-  clearFields?: (keyof Task)[]; // Fields to clear (set to undefined)
-  validate?: (task: Task) => boolean; // Custom validation
+  requiredFields?: (keyof Task)[] | undefined; // Fields that must be provided
+  setFields?: Partial<Record<keyof Task, 'NOW' | 'PROVIDED'>> | undefined; // Fields to auto-set
+  clearFields?: (keyof Task)[] | undefined; // Fields to clear (set to undefined)
+  validate?: (task: Task) => boolean | undefined; // Custom validation
 }
 
 /**
@@ -57,7 +57,7 @@ export interface TaskTransitionError {
     missingField?: string;
     validationReason?: string;
   };
-  aiGuidance?: string;
+  aiGuidance?: string | undefined;
 }
 
 /**
@@ -285,7 +285,9 @@ export async function transitionTask(
         validTransitions: allValidTransitions.map((t) => ({
           to: t.to,
           trigger: t.trigger,
-          requiredFields: t.requiredFields as string[] | undefined,
+          ...(t.requiredFields !== undefined
+            ? { requiredFields: t.requiredFields as string[] }
+            : {}),
         })),
       },
       aiGuidance: `Valid transitions from ${currentStatus}: ${allValidTransitions.map((t) => `${t.to} (via ${t.trigger})`).join(', ')}`,
@@ -362,7 +364,7 @@ export async function transitionTask(
   // Apply clearFields rules
   if (rule.clearFields) {
     for (const field of rule.clearFields) {
-      patch[field] = undefined;
+      (patch as Record<string, unknown>)[field] = undefined;
     }
   }
 

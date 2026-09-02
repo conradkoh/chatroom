@@ -4,8 +4,8 @@ export function LogsPageHeader({
   title = 'Session logs',
   actions,
 }: {
-  title?: string;
-  actions?: ReactNode;
+  title?: string | undefined;
+  actions?: ReactNode | undefined;
 }) {
   return (
     <div className="flex items-center justify-between gap-4">

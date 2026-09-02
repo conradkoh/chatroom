@@ -8,9 +8,9 @@ export interface RecordTaskDeliveryArgs {
   taskId: Id<'chatroom_tasks'>;
   role: string;
   deliveryKind: DeliveryKind;
-  harnessSessionId?: string;
-  jobId?: Id<'chatroom_enhancerJobs'>;
-  startedAt?: number;
+  harnessSessionId?: string | undefined;
+  jobId?: Id<'chatroom_enhancerJobs'> | undefined;
+  startedAt?: number | undefined;
 }
 
 /**
@@ -41,10 +41,10 @@ export async function recordTaskDelivery(
     taskId: args.taskId,
     role: args.role,
     deliveryKind: args.deliveryKind,
-    harnessSessionId: args.harnessSessionId,
-    jobId: args.jobId,
+    ...(args.harnessSessionId !== undefined ? { harnessSessionId: args.harnessSessionId } : {}),
+    ...(args.jobId !== undefined ? { jobId: args.jobId } : {}),
     deliveredAt: now,
-    startedAt: args.startedAt,
+    ...(args.startedAt !== undefined ? { startedAt: args.startedAt } : {}),
   });
 }
 

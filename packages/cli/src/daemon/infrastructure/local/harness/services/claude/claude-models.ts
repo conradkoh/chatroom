@@ -9,7 +9,7 @@ import {
 
 export function decodeClaudeVariant(
   encoded: string | undefined
-): { model: string; effort?: EffortLevel } | undefined {
+): { model: string; effort?: EffortLevel | undefined } | undefined {
   if (encoded === undefined) return undefined;
   const stripped = stripProviderPrefix('anthropic', encoded);
   try {

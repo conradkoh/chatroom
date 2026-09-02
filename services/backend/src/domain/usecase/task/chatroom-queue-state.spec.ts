@@ -34,7 +34,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 async function seedTask(
   chatroomId: Id<'chatroom_rooms'>,
   status: 'pending' | 'acknowledged' | 'in_progress' | 'completed',
-  opts?: { assignedTo?: string }
+  opts?: { assignedTo?: string | undefined }
 ) {
   return await t.run(async (ctx) => {
     const now = Date.now();

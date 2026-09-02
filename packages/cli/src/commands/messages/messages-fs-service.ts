@@ -6,11 +6,11 @@ export interface MessagesFsServiceShape {
   writeFile: (path: string, data: string) => Effect.Effect<void, Error>;
   mkdir: (
     path: string,
-    options?: { recursive?: boolean }
+    options?: { recursive?: boolean | undefined }
   ) => Effect.Effect<string | undefined, Error>;
   rm: (
     path: string,
-    options?: { recursive?: boolean; force?: boolean }
+    options?: { recursive?: boolean | undefined; force?: boolean | undefined }
   ) => Effect.Effect<void, Error>;
 }
 
@@ -46,7 +46,7 @@ export function messageFilename(msg: {
   _id: string;
   _creationTime: number;
   senderRole: string;
-  targetRole?: string | null;
+  targetRole?: string | null | undefined;
 }): string {
   const sortPrefix = String(SORT_KEY_MAX - msg._creationTime).padStart(13, '0');
   const receiver = msg.targetRole ?? 'all';

@@ -72,11 +72,11 @@ type TaskReadMutationResult = {
   taskId: string;
   status: string;
   content: string;
-  context?: string | null;
-  attachedBacklogItems?: unknown[] | null;
-  attachedSnippets?: unknown[] | null;
-  attachedTasks?: unknown[] | null;
-  attachedMessages?: unknown[] | null;
+  context?: string | null | undefined;
+  attachedBacklogItems?: unknown[] | null | undefined;
+  attachedSnippets?: unknown[] | null | undefined;
+  attachedTasks?: unknown[] | null | undefined;
+  attachedMessages?: unknown[] | null | undefined;
 };
 
 // fallow-ignore-next-line complexity

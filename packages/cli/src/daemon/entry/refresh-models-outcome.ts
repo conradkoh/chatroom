@@ -9,7 +9,7 @@ export function capabilitiesOutcomeToStatus(
   outcome: RefreshModelsOutcome | RefreshMachineCapabilitiesOutcome
 ): {
   status: CapabilitiesRefreshStatus;
-  errorMessage?: string;
+  errorMessage?: string | undefined;
 } {
   switch (outcome.kind) {
     case 'pushed':

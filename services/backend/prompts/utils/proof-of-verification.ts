@@ -11,15 +11,15 @@
  */
 
 export interface ProofOfVerificationParams {
-  chatroomId?: string;
-  role?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
   /** CLI environment prefix for non-production environments (empty string for production) */
-  cliEnvPrefix?: string;
+  cliEnvPrefix?: string | undefined;
 }
 
 export interface ProofOfVerificationDownloadParams extends ProofOfVerificationParams {
-  sinceMessageId?: string;
-  limit?: number;
+  sinceMessageId?: string | undefined;
+  limit?: number | undefined;
 }
 
 /** Generate the `messages anchor` command string. */

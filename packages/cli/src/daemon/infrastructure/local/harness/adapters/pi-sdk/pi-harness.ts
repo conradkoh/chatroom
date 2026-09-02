@@ -179,7 +179,7 @@ export class PiSdkHarness implements BoundHarness {
   private async openAgentSession(args: {
     systemPrompt: string;
     sessionManager: PiSessionManager;
-    model?: string;
+    model?: string | undefined;
     requireModel: boolean;
   }): Promise<AgentSession> {
     const { createAgentSession, DefaultResourceLoader, getAgentDir } = await loadSdk();

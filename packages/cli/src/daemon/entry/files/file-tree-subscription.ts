@@ -174,7 +174,7 @@ async function processPendingFileTreeRequests(
   session: DaemonSessionServiceShape,
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
   ensureCoordinator: EnsureCoordinator,
-  requests: { workingDir: string; force?: boolean }[] | null | undefined,
+  requests: { workingDir: string; force?: boolean | undefined }[] | null | undefined,
   checkpointOutboxRegistry?: WorkspaceFileTreeCheckpointOutboxRegistry,
   deltaOutboxRegistry?: WorkspaceFileTreeDeltaOutboxRegistry
 ): Promise<void> {

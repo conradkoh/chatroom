@@ -9,8 +9,8 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
-import { TEST_MODEL_OPENCODE } from '../../../../tests/helpers/test-models';
 import { getInboxCommandsForMachine } from '../../../../tests/helpers/machine-command-inbox';
+import { TEST_MODEL_OPENCODE } from '../../../../tests/helpers/test-models';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -47,7 +47,7 @@ async function startAgent(
   machineId: string,
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
-  options?: { allowNewMachine?: boolean; wantResume?: boolean }
+  options?: { allowNewMachine?: boolean | undefined; wantResume?: boolean | undefined }
 ) {
   return await t.mutation(api.machines.sendCommand, {
     sessionId,

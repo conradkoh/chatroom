@@ -5,7 +5,7 @@ import {
 import { contextReadCommand } from '../context/read';
 
 export interface HistoryRetrievalGuidanceParams {
-  chatroomId?: string;
+  chatroomId?: string | undefined;
   role: string;
   cliEnvPrefix: string;
 }

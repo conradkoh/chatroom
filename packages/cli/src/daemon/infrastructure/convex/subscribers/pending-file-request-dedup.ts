@@ -1,7 +1,7 @@
 export type PendingConvexId = string | { toString(): string };
 
 export interface PendingRowWithId {
-  _id?: PendingConvexId | null;
+  _id?: PendingConvexId | null | undefined;
 }
 
 export function pendingConvexId(req: PendingRowWithId): string {

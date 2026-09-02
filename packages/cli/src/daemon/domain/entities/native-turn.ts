@@ -6,12 +6,12 @@
 export type TurnEndSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
 export interface TurnEndSlot {
-  recentLogLines?: string[];
-  harnessSessionId?: string;
-  state?: TurnEndSlotState;
-  pid?: number;
+  recentLogLines?: string[] | undefined;
+  harnessSessionId?: string | undefined;
+  state?: TurnEndSlotState | undefined;
+  pid?: number | undefined;
   /** Set when turn-end handler already emitted startFailed for a provider rate limit. */
-  terminalProviderFailureHandled?: boolean;
+  terminalProviderFailureHandled?: boolean | undefined;
 }
 
 export interface TurnEndInput {

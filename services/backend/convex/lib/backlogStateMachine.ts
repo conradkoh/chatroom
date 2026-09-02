@@ -25,10 +25,10 @@ export interface BacklogTransitionRule {
   from: BacklogItemStatus;
   to: BacklogItemStatus;
   trigger: string; // Mutation name that causes this transition
-  requiredFields?: (keyof BacklogItem)[]; // Fields that must be provided
-  setFields?: Partial<Record<keyof BacklogItem, 'NOW' | 'PROVIDED'>>; // Fields to auto-set
-  clearFields?: (keyof BacklogItem)[]; // Fields to clear (set to undefined)
-  validate?: (item: BacklogItem) => boolean; // Custom validation
+  requiredFields?: (keyof BacklogItem)[] | undefined; // Fields that must be provided
+  setFields?: Partial<Record<keyof BacklogItem, 'NOW' | 'PROVIDED'>> | undefined; // Fields to auto-set
+  clearFields?: (keyof BacklogItem)[] | undefined; // Fields to clear (set to undefined)
+  validate?: (item: BacklogItem) => boolean | undefined; // Custom validation
 }
 
 /**
@@ -51,7 +51,7 @@ export interface BacklogTransitionError {
     missingField?: string;
     validationReason?: string;
   };
-  aiGuidance?: string;
+  aiGuidance?: string | undefined;
 }
 
 /**
@@ -240,7 +240,9 @@ export async function transitionBacklogItem(
         validTransitions: allValidTransitions.map((t) => ({
           to: t.to,
           trigger: t.trigger,
-          requiredFields: t.requiredFields as string[] | undefined,
+          ...(t.requiredFields !== undefined
+            ? { requiredFields: t.requiredFields as string[] }
+            : {}),
         })),
       },
       aiGuidance: `Valid transitions from ${currentStatus}: ${allValidTransitions.map((t) => `${t.to} (via ${t.trigger})`).join(', ')}`,
@@ -316,7 +318,7 @@ export async function transitionBacklogItem(
   // Apply clearFields rules
   if (rule.clearFields) {
     for (const field of rule.clearFields) {
-      patch[field] = undefined;
+      (patch as Record<string, unknown>)[field] = undefined;
     }
   }
 

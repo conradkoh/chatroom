@@ -14,12 +14,13 @@ import {
 import { deriveRoleStopState } from './derive-agent-stop-state';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import {
   buildTeamRoleKey,
   filterTeamAgentConfigsForTeam,
 } from '../../../../convex/utils/teamRoleKey';
 
-type RebuildOptions = { pruneStale?: boolean };
+type RebuildOptions = { pruneStale?: boolean | undefined };
 
 function snapshot(config: Doc<'chatroom_teamAgentConfigs'>, teamId: string): RoleConfigSnapshot {
   return {
@@ -98,7 +99,7 @@ export async function writeOperationalSummary(
     operationalSummariesEqual(comparable, normalized)
   )
     return;
-  const fields = { ownerId: input.ownerId, ...normalized, projectedAt: Date.now() };
+  const fields = omitUndefined({ ownerId: input.ownerId, ...normalized, projectedAt: Date.now() });
   if (existing) await ctx.db.patch('chatroom_agentOperationalSummary', existing._id, fields);
   else
     await ctx.db.insert('chatroom_agentOperationalSummary', {
@@ -114,9 +115,9 @@ export async function projectAgentOperationalStatusForRole(
   role: string,
   revisionKey?: string,
   opts?: {
-    config?: Doc<'chatroom_teamAgentConfigs'>;
-    isNewConfig?: boolean;
-    lastStatus?: string | null;
+    config?: Doc<'chatroom_teamAgentConfigs'> | undefined;
+    isNewConfig?: boolean | undefined;
+    lastStatus?: string | null | undefined;
   }
 ): Promise<void> {
   const room = await ctx.db.get('chatroom_rooms', chatroomId);
@@ -151,7 +152,7 @@ export async function projectAgentOperationalStatusForRole(
     config.desiredState === 'running' &&
     config.circuitState !== 'open' &&
     !['pending', 'processing'].includes(stop.stopState ?? '');
-  const fields = {
+  const fields = omitUndefined({
     chatroomId,
     role: roleKey,
     teamId: room.teamId,
@@ -174,7 +175,7 @@ export async function projectAgentOperationalStatusForRole(
     projectedAt,
     revisionKey: key,
     ...stop,
-  };
+  });
   const existing = await ctx.db
     .query('chatroom_agentRoleOperationalStatus')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', roleKey))
@@ -277,7 +278,7 @@ export async function projectDaemonConnectivityForMachine(
     Id<'chatroom_rooms'>,
     {
       role: string;
-      machineId?: string;
+      machineId?: string | undefined;
       isAlive: boolean;
       isRunning: boolean;
       daemonConnected: boolean;

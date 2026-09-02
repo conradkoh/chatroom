@@ -7,7 +7,7 @@ import {
 export interface EnhancerHistoryRetrievalParams {
   chatroomId: string;
   cliEnvPrefix: string;
-  originUserMessageId?: string;
+  originUserMessageId?: string | undefined;
 }
 
 /**

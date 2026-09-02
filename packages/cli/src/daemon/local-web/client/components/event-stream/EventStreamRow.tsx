@@ -9,8 +9,8 @@ export function EventStreamRow({
   onSelect,
 }: {
   entry: EventStreamEntry;
-  selected?: boolean;
-  onSelect?: (entry: EventStreamEntry) => void;
+  selected?: boolean | undefined;
+  onSelect?:( (entry: EventStreamEntry) => void) | undefined;
 }) {
   return (
     <div

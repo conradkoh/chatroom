@@ -1,4 +1,4 @@
 export type LogDimensionsQuery = {
   chatroomId: string;
-  limit?: number;
+  limit?: number | undefined;
 };

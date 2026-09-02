@@ -12,9 +12,9 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 
 export interface PatchBacklogItemArgs {
   itemId: Id<'chatroom_backlog'>;
-  priority?: number;
-  complexity?: 'low' | 'medium' | 'high';
-  value?: 'low' | 'medium' | 'high';
+  priority?: number | undefined;
+  complexity?: 'low' | 'medium' | 'high' | undefined;
+  value?: 'low' | 'medium' | 'high' | undefined;
 }
 
 export async function patchBacklogItem(

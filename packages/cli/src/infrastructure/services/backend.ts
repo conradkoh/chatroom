@@ -40,7 +40,7 @@ export const BackendServiceLive = (ops: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query: (e: any, a: any) => Promise<any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  action?: (e: any, a: any) => Promise<any>;
+  action?:( (e: any, a: any) => Promise<any>) | undefined;
 }): Layer.Layer<BackendService> =>
   Layer.succeed(BackendService, {
     mutation: (endpoint, args) =>

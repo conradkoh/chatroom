@@ -6,20 +6,20 @@ export interface DecodeResult {
 
 export interface DecodeOptions {
   /** Expected parameter names; if set, unknown params are rejected. */
-  expectedParams?: string[];
+  expectedParams?: string[] | undefined;
 
   /** Required parameter names; errors if missing. */
-  requiredParams?: string[];
+  requiredParams?: string[] | undefined;
 
   /** Treats entire input as a single parameter with this name. */
-  singleParam?: string;
+  singleParam?: string | undefined;
 }
 
 export interface DecodeError {
   code: 'UNKNOWN_PARAM' | 'MISSING_PARAM' | 'DUPLICATE_PARAM' | 'INVALID_FORMAT' | 'COLLISION';
   message: string;
-  line?: number;
-  paramName?: string;
+  line?: number | undefined;
+  paramName?: string | undefined;
 }
 
 /** Trims and returns a single message string from raw stdin content. */

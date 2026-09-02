@@ -16,7 +16,7 @@ export interface BacklogFsServiceShape {
   readFile: (path: string, encoding: BufferEncoding) => Effect.Effect<string, Error>;
   mkdir: (
     path: string,
-    options?: { recursive?: boolean }
+    options?: { recursive?: boolean | undefined }
   ) => Effect.Effect<string | undefined, Error>;
 }
 

@@ -63,8 +63,8 @@ export interface StartAgentInput {
    * When true, resume-capable harnesses try to continue from the daemon's last
    * session. For user starts this is runtime-only and is not persisted.
    */
-  wantResume?: boolean;
-  lifecycleRevision?: number;
+  wantResume?: boolean | undefined;
+  lifecycleRevision?: number | undefined;
 }
 
 /** Successful result of a start-agent operation. */

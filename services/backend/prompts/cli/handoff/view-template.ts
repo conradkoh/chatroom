@@ -7,8 +7,8 @@ import { getHandoffTemplate } from '../handoff-templates';
 export function viewHandoffTemplate(params: {
   role: string;
   nextRole: string;
-  teamId?: string;
-  nativeIntegration?: boolean;
+  teamId?: string | undefined;
+  nativeIntegration?: boolean | undefined;
 }): string {
   const template = getHandoffTemplate({
     fromRole: params.role,

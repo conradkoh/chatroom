@@ -22,7 +22,7 @@ export interface AgentRequestStartEventPayload {
   reason: string;
   deadline: number;
   wantResume: boolean;
-  lifecycleRevision?: number;
+  lifecycleRevision?: number | undefined;
 }
 
 export const onRequestStartAgentEffect = (

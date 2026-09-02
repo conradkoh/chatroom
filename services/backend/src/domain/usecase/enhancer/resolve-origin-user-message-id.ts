@@ -8,7 +8,7 @@ export async function walkToUserMessageId(
   const msg = await ctx.db.get('chatroom_messages', messageId);
   if (!msg) return null;
   if (msg.senderRole.toLowerCase() === 'user') return msg._id;
-  if ((msg as { taskOriginMessageId?: Id<'chatroom_messages'> }).taskOriginMessageId) {
+  if ((msg as { taskOriginMessageId?: Id<'chatroom_messages'> | undefined }).taskOriginMessageId) {
     return walkToUserMessageId(
       ctx,
       (msg as { taskOriginMessageId: Id<'chatroom_messages'> }).taskOriginMessageId

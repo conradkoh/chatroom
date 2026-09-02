@@ -3,9 +3,9 @@
  */
 
 export interface RoleGuidanceCommandParams {
-  chatroomId?: string;
-  role?: string;
-  cliEnvPrefix?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  cliEnvPrefix?: string | undefined;
 }
 
 /** Generate the get-role-guidance command string. */

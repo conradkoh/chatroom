@@ -7,7 +7,7 @@ import type { Doc } from '../../../../convex/_generated/dataModel';
 
 /** Delivery prompt only — uses handoff validation for unified behavior. */
 export function resolveTaskPlannerEnhancerEnabled(args: {
-  taskPlannerEnhancerEnabled?: boolean;
+  taskPlannerEnhancerEnabled?: boolean | undefined;
   liveConfig: Doc<'chatroom_enhancerConfigs'> | null | undefined;
   role: string;
   team: EnhancerTeamLike;

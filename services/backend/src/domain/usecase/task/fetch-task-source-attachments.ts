@@ -11,16 +11,18 @@ import type { QueryCtx } from '../../../../convex/_generated/server';
 import { normalizeMarkdownContent } from '../../entities/markdown-content';
 
 export type TaskSourceAttachments = {
-  attachedTasks?: { _id: string; content: string; status: string }[];
-  attachedBacklogItems?: { id: string; content: string; status: string }[];
-  attachedMessages?: { _id: string; content: string; senderRole: string; _creationTime: number }[];
-  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+  attachedTasks?: { _id: string; content: string; status: string }[] | undefined;
+  attachedBacklogItems?: { id: string; content: string; status: string }[] | undefined;
+  attachedMessages?:
+    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
+  attachedSnippets?:
+    { reference: string; fileSource: string; selectedContent: string }[] | undefined;
 };
 
 // fallow-ignore-next-line complexity
 export async function fetchTaskSourceAttachments(
   ctx: Pick<QueryCtx, 'db'>,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
+  task: { sourceMessageId?: Id<'chatroom_messages'> | undefined }
 ): Promise<TaskSourceAttachments> {
   const [attachedBacklogItems, attachedSnippets, attachedTasks, attachedMessages] =
     await Promise.all([
@@ -40,7 +42,7 @@ export async function fetchTaskSourceAttachments(
 
 async function getSourceMessage(
   ctx: Pick<QueryCtx, 'db'>,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
+  task: { sourceMessageId?: Id<'chatroom_messages'> | undefined }
 ) {
   if (!task.sourceMessageId) return null;
   return ctx.db.get('chatroom_messages', task.sourceMessageId);
@@ -64,7 +66,7 @@ async function fetchAttachedDocs<TableName extends TableNames, TResult>(
 
 async function fetchAttachedBacklogItems(
   ctx: Pick<QueryCtx, 'db'>,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
+  task: { sourceMessageId?: Id<'chatroom_messages'> | undefined }
 ): Promise<{ id: string; content: string; status: string }[]> {
   const sourceMessage = await getSourceMessage(ctx, task);
   return fetchAttachedDocs(
@@ -81,7 +83,7 @@ async function fetchAttachedBacklogItems(
 
 async function fetchAttachedSnippets(
   ctx: Pick<QueryCtx, 'db'>,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
+  task: { sourceMessageId?: Id<'chatroom_messages'> | undefined }
 ): Promise<{ reference: string; fileSource: string; selectedContent: string }[]> {
   const sourceMessage = await getSourceMessage(ctx, task);
   return sourceMessage?.attachedSnippets ?? [];
@@ -89,7 +91,7 @@ async function fetchAttachedSnippets(
 
 async function fetchAttachedTasks(
   ctx: Pick<QueryCtx, 'db'>,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
+  task: { sourceMessageId?: Id<'chatroom_messages'> | undefined }
 ): Promise<{ _id: string; content: string; status: string }[]> {
   const sourceMessage = await getSourceMessage(ctx, task);
   return fetchAttachedDocs(ctx, 'chatroom_tasks', sourceMessage?.attachedTaskIds, (attached) => ({
@@ -101,7 +103,7 @@ async function fetchAttachedTasks(
 
 async function fetchAttachedMessages(
   ctx: Pick<QueryCtx, 'db'>,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
+  task: { sourceMessageId?: Id<'chatroom_messages'> | undefined }
 ): Promise<{ _id: string; content: string; senderRole: string; _creationTime: number }[]> {
   const sourceMessage = await getSourceMessage(ctx, task);
   return fetchAttachedDocs(

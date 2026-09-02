@@ -9,14 +9,17 @@ function createMockCtx({
   manifestV3,
   existingRequest,
 }: {
-  v2Tree?: { scannedAt: number } | null;
-  manifestV3?: { complete: boolean; scannedAt: number } | null;
-  existingRequest?: {
-    _id: string;
-    status: string;
-    force?: boolean;
-    updatedAt?: number;
-  } | null;
+  v2Tree?: { scannedAt: number } | null | undefined;
+  manifestV3?: { complete: boolean; scannedAt: number } | null | undefined;
+  existingRequest?:
+    | {
+        _id: string;
+        status: string;
+        force?: boolean | undefined;
+        updatedAt?: number | undefined;
+      }
+    | null
+    | undefined;
 } = {}) {
   const patch = vi.fn();
   const insert = vi.fn();

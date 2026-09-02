@@ -17,7 +17,7 @@ const FILE_TREE_STALENESS_MS = FILE_TREE_SNAPSHOT_STALENESS_MS;
 export type RequestWorkspaceFileTreeInput = {
   machineId: string;
   workingDir: string;
-  force?: boolean;
+  force?: boolean | undefined;
 };
 
 export type RequestWorkspaceFileTreeResult =

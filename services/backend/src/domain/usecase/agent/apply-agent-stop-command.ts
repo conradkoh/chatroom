@@ -23,9 +23,9 @@ export interface ApplyAgentStopCommandInput {
   chatroomId: Id<'chatroom_rooms'>;
   scope: AgentStopScope;
   reason: AgentStopReason;
-  requestedBy?: Id<'users'>;
+  requestedBy?: Id<'users'> | undefined;
   selectedConfigs: AgentStopSelectedConfig[];
-  postStopDesiredState?: AgentPostStopDesiredState;
+  postStopDesiredState?: AgentPostStopDesiredState | undefined;
 }
 export interface ApplyAgentStopCommandResult {
   stopCommandId: Id<'chatroom_agentStopCommands'>;
@@ -45,7 +45,7 @@ export async function applyAgentStopCommand(
     scope: input.scope,
     scopeKey,
     reason: input.reason,
-    requestedBy: input.requestedBy,
+    ...(input.requestedBy !== undefined ? { requestedBy: input.requestedBy } : {}),
     status: 'pending',
     deadlineAt: now + AGENT_STOP_REQUEST_DEADLINE_MS,
     createdAt: now,

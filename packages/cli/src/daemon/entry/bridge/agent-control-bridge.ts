@@ -129,7 +129,7 @@ export function createRecoverAgentStateDeps(
           sessionId: session.sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
         }) as Promise<{
-          configs: { machineId: string; workingDir?: string; role: string }[];
+          configs: { machineId: string; workingDir?: string | undefined; role: string }[];
         }>,
       registerWorkspace: async (args) =>
         session.backend.mutation(api.workspaces.registerWorkspace, {

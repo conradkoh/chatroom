@@ -17,7 +17,7 @@ import { isDaemonWorkerRole } from '../daemon/domain/entities/execution-kind.js'
 
 export function sendLifecycleHeartbeat(
   client: Pick<ConvexHttpClient, 'mutation'>,
-  opts: { sessionId: string; chatroomId: string; role: string; action?: string }
+  opts: { sessionId: string; chatroomId: string; role: string; action?: string | undefined }
 ): void {
   // Enhancer presence is registered by the backend when its job is claimed;
   // it does not use the long-lived CLI heartbeat path.

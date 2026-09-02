@@ -10,12 +10,12 @@ export interface StartAgentInput {
   reason: string;
   deadline: number;
   wantResume: boolean;
-  lifecycleRevision?: number;
+  lifecycleRevision?: number | undefined;
 }
 
 export interface EnsureRunningResult {
   success: boolean;
-  error?: string;
+  error?: string | undefined;
 }
 
 export interface AgentProcessManagerPort {
@@ -27,7 +27,7 @@ export interface AgentProcessManagerPort {
     workingDir: string;
     reason: string;
     wantResume: boolean;
-    lifecycleRevision?: number;
+    lifecycleRevision?: number | undefined;
   }): Promise<EnsureRunningResult>;
 }
 
@@ -46,8 +46,8 @@ export interface StartAgentSessionPort {
 export interface StartAgentDeps {
   agentProcessManager: AgentProcessManagerPort;
   session: StartAgentSessionPort;
-  now?: () => number;
-  log?: (message: string) => void;
+  now?:( () => number) | undefined;
+  log?:( (message: string) => void) | undefined;
 }
 
 export async function startAgent(deps: StartAgentDeps, input: StartAgentInput): Promise<void> {

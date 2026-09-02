@@ -148,7 +148,7 @@ export const claimTask = mutation({
 
     const normalizedRole = args.role.toLowerCase();
     const normalizedEntryPoint = (getTeamEntryPoint(chatroom) ?? 'builder').toLowerCase();
-    const isRelevantForRole = (task: { assignedTo?: string; createdBy: string }) => {
+    const isRelevantForRole = (task: { assignedTo?: string | undefined; createdBy: string }) => {
       if (task.assignedTo) {
         return task.assignedTo.toLowerCase() === normalizedRole;
       }
@@ -943,7 +943,7 @@ export const getPendingTasksForRole = query({
       const normalizedEntryPoint = entryPoint?.toLowerCase();
 
       // Helper to check if a task is relevant for this role
-      const isRelevantForRole = (task: { assignedTo?: string; createdBy: string }) => {
+      const isRelevantForRole = (task: { assignedTo?: string | undefined; createdBy: string }) => {
         if (task.assignedTo) {
           return task.assignedTo.toLowerCase() === normalizedRole;
         }

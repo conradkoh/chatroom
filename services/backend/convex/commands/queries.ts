@@ -129,7 +129,7 @@ export async function handleGetRunOutputV2(
   ctx: QueryCtx,
   args: {
     runId: CommandRunId;
-    loadFull?: boolean;
+    loadFull?: boolean | undefined;
   }
 ) {
   const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);

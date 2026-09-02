@@ -7,7 +7,7 @@ const EXPIRE_BATCH_SIZE = 50;
 
 function isExpiredStorageUpload(
   request: {
-    storageId?: string;
+    storageId?: string | undefined;
     requestedAt: number;
     status: string;
   },

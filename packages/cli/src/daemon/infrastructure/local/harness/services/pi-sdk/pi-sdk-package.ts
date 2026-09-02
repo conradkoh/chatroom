@@ -25,7 +25,7 @@ function resolveChatroomCliRoot(moduleRef: string = import.meta.url): string {
   while (dir !== dirname(dir)) {
     const packageJsonPath = join(dir, 'package.json');
     if (existsSync(packageJsonPath)) {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string };
+      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string | undefined };
       if (pkg.name === 'chatroom-cli') {
         return dir;
       }
@@ -40,7 +40,7 @@ function resolveChatroomCliRoot(moduleRef: string = import.meta.url): string {
 
 function readPinnedSdkVersion(chatroomCliRoot: string): string {
   const pkg = JSON.parse(readFileSync(join(chatroomCliRoot, 'package.json'), 'utf8')) as {
-    dependencies?: Record<string, string>;
+    dependencies?: Record<string, string> | undefined;
   };
   const specifier = pkg.dependencies?.[PI_CODING_AGENT_PKG];
   const pinned = specifier?.replace(/^[\^~>=<]+/, '').trim() ?? '';
@@ -82,7 +82,7 @@ function resolvePiSdkEntryPathFromNodeModules(chatroomCliRoot: string): string |
  */
 function resolvePiSdkEntryPath(chatroomCliRoot: string): string {
   const resolveMeta = (
-    import.meta as ImportMeta & { resolve?: (specifier: string, parent?: string) => string }
+    import.meta as ImportMeta & { resolve?:( (specifier: string, parent?: string) => string) | undefined }
   ).resolve;
 
   if (typeof resolveMeta === 'function') {

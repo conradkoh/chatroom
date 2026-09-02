@@ -101,22 +101,22 @@ function getSdkPackageVersion(): string {
 
 interface SdkSession {
   agent: SDKAgent;
-  run?: Run;
+  run?: Run | undefined;
   keeper: ChildProcess;
   aborted: boolean;
   agentClosed: boolean;
   preserveForResume: boolean;
   agentName: string;
-  model?: string;
+  model?: string | undefined;
   workingDir: string;
   /** System prompt prepended to the first injected turn when deferInitialTurn is set. */
-  storedSystemPrompt?: string;
+  storedSystemPrompt?: string | undefined;
   /** Resolves when resumeTurn delivers the next prompt. */
-  resumeResolve?: (prompt: string) => void;
+  resumeResolve?:( (prompt: string) => void) | undefined;
   /** Resolves when stop() aborts while waiting for resume. */
-  abortResolve?: () => void;
+  abortResolve?:( () => void) | undefined;
   /** Queued when resumeTurn runs before waitForResumeOrAbort registers a resolver. */
-  pendingResumePrompt?: string;
+  pendingResumePrompt?: string | undefined;
 }
 
 function buildAgentName(context: SpawnContext): string {
@@ -355,12 +355,12 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     agent: SDKAgent;
     context: SpawnContext;
     agentName: string;
-    model?: string;
+    model?: string | undefined;
     workingDir: string;
     initialPrompt: string;
     forceFirstTurn: boolean;
-    deferInitialTurn?: boolean;
-    storedSystemPrompt?: string;
+    deferInitialTurn?: boolean | undefined;
+    storedSystemPrompt?: string | undefined;
   }): SpawnResult {
     const {
       pid,
@@ -467,7 +467,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     logPrefix: string;
     initialPrompt: string;
     forceFirstTurn: boolean;
-    deferInitialTurn?: boolean;
+    deferInitialTurn?: boolean | undefined;
     finishExit: (code: number | null, signal: string | null) => void;
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];

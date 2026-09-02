@@ -9,12 +9,12 @@ export async function finalizeScopedStopExecution(args: {
   result: {
     targets: {
       target: { targetKey: string; role: string; pid: number };
-      outcome: { kind: string; termination?: string };
-      lifecycleWarning?: string;
+      outcome: { kind: string; termination?: string | undefined };
+      lifecycleWarning?: string | undefined;
     }[];
     failures: { target: { targetKey: string; role: string; pid: number }; error: unknown }[];
   };
-  executionError?: unknown;
+  executionError?: unknown | undefined;
 }): Promise<void> {
   for (const { target, outcome, lifecycleWarning } of args.result.targets) {
     await args.backend.mutation(api.agentStops.reportTargetOutcome, {

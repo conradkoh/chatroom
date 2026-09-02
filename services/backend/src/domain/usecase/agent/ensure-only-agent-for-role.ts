@@ -19,7 +19,7 @@ import { projectAssignedTaskSnapshotsForMachines } from '../machine/patch-team-a
 export interface EnsureOnlyAgentForRoleInput {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
-  excludeMachineId?: string;
+  excludeMachineId?: string | undefined;
 }
 
 // fallow-ignore-next-line complexity

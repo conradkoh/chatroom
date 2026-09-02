@@ -26,7 +26,7 @@ export interface SelectorContext {
    * Provides typed access to team roles, entry point, and display name
    * without needing to read individual teamId/teamRoles/teamEntryPoint fields.
    */
-  teamConfig?: Team;
+  teamConfig?: Team | undefined;
   /** Team roles as configured */
   teamRoles: string[];
   /** Whether this role is the team's entry point */
@@ -34,13 +34,13 @@ export interface SelectorContext {
   /** Convex URL for CLI command generation */
   convexUrl: string;
   /** Chatroom ID for CLI command generation */
-  chatroomId?: string;
+  chatroomId?: string | undefined;
   /** Agent type for register-agent command — 'unset' produces `<remote|custom>` placeholder */
   agentType: 'remote' | 'custom' | 'unset';
   /** True when harness uses native task injection (no listen loop) */
-  nativeIntegration?: boolean;
+  nativeIntegration?: boolean | undefined;
   /** When true, static planner guidance includes enhancer workflow references. */
-  plannerEnhancerActive?: boolean;
+  plannerEnhancerActive?: boolean | undefined;
 }
 
 /**

@@ -26,7 +26,7 @@ export interface FullCliOutputParams {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
-  teamId?: string;
+  teamId?: string | undefined;
 
   /** The task being delivered */
   task: {
@@ -48,16 +48,16 @@ export interface FullCliOutputParams {
   availableHandoffTargets: string[];
 
   /** When true, omit get-next-task language (native harness task injection). */
-  nativeIntegration?: boolean;
+  nativeIntegration?: boolean | undefined;
 
   /** Attachments from the task SOURCE message (primary delivery kinds only). */
-  sourceAttachments?: PrimaryDeliveryAttachments;
+  sourceAttachments?: PrimaryDeliveryAttachments | undefined;
   /** Standing instructions for this chatroom (null = none active). */
-  standingInstructions?: string | null;
+  standingInstructions?: string | null | undefined;
   /** When true, entry-point task delivery includes handoff-enhancer guidance. */
-  plannerEnhancerEnabled?: boolean;
-  entryPointRole?: string;
-  originUserMessageId?: string;
+  plannerEnhancerEnabled?: boolean | undefined;
+  entryPointRole?: string | undefined;
+  originUserMessageId?: string | undefined;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────

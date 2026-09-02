@@ -13,9 +13,9 @@ export interface RenderEnhancerSystemPromptParams {
   chatroomId: string;
   jobId: string;
   cliEnvPrefix: string;
-  originUserMessageId?: string;
-  convexUrl?: string;
-  entryPointRole?: string;
+  originUserMessageId?: string | undefined;
+  convexUrl?: string | undefined;
+  entryPointRole?: string | undefined;
 }
 
 export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptParams): string {

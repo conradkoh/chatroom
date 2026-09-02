@@ -16,7 +16,7 @@ export interface StopAgentTargetsResult {
   targets: {
     target: AgentStopTargetDescriptor;
     outcome: AgentStopOutcome;
-    lifecycleWarning?: string;
+    lifecycleWarning?: string | undefined;
   }[];
   failures: { target: AgentStopTargetDescriptor; error: unknown }[];
 }
@@ -32,7 +32,7 @@ export async function stopAgentTargets(
     chatroomId: string;
     scope: AgentStopScope;
     reason: AgentStopReason;
-    targets?: AgentStopTargetDescriptor[];
+    targets?: AgentStopTargetDescriptor[] | undefined;
   }
 ): Promise<StopAgentTargetsResult> {
   const release = await deps.barrier.acquire(args.chatroomId);

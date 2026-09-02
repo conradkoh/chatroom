@@ -33,8 +33,8 @@ type MutationResponse = Record<string, unknown>;
 
 /** Create a test BackendService with configurable responses. */
 function makeTestBackend(opts: {
-  queryResponses?: (QueryResponse | Error)[];
-  mutationResponse?: MutationResponse | Error;
+  queryResponses?: (QueryResponse | Error)[] | undefined;
+  mutationResponse?: MutationResponse | Error | undefined;
 }) {
   let queryCallCount = 0;
   const queryResponses = opts.queryResponses ?? [];
@@ -65,16 +65,16 @@ function makeTestBackend(opts: {
 }
 
 interface EnvServiceConfig {
-  isAuthenticated?: boolean;
-  authFilePath?: string;
-  sessionId?: string | null;
-  deviceName?: string;
-  cliVersion?: string;
-  saveAuthDataError?: Error;
+  isAuthenticated?: boolean | undefined;
+  authFilePath?: string | undefined;
+  sessionId?: string | null | undefined;
+  deviceName?: string | undefined;
+  cliVersion?: string | undefined;
+  saveAuthDataError?: Error | undefined;
   env?: Record<string, string | undefined>;
-  openBrowserFn?: (url: string) => void;
-  nowValue?: number;
-  delayFn?: () => void;
+  openBrowserFn?:( (url: string) => void) | undefined;
+  nowValue?: number | undefined;
+  delayFn?:( () => void) | undefined;
 }
 
 /** Create a test AuthLoginEnvService with configurable responses. */

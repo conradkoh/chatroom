@@ -21,7 +21,7 @@ async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'norole' | 'page') 
   });
   return t.run(async (ctx) => {
     const count = kind === 'page' ? 3 : 1;
-    const rows: { key: string; snapshot?: any }[] = [];
+    const rows: { key: string; snapshot?: any | undefined }[] = [];
     for (let i = 0; i < count; i++) {
       const updatedAt = now + i;
       const taskId = await ctx.db.insert('chatroom_tasks', {

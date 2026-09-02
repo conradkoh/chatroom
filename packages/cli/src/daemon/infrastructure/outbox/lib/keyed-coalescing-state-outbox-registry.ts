@@ -13,13 +13,13 @@ export type KeyedCoalescingStateOutboxRegistry<TState, TResult> = {
 
 export type KeyedCoalescingStateOutboxRegistryOptions<TState, TResult> = {
   createSend: (key: string) => CoalescingStateOutboxOptions<TState, TResult>['send'];
-  minIntervalMs?: number;
-  retryDelayMs?: number;
-  maxRetryDelayMs?: number;
-  onError?: (key: string, error: unknown) => void;
-  store?: DurableCoalescingStateStore;
-  serialize?: (state: TState) => string;
-  deserialize?: (json: string) => TState;
+  minIntervalMs?: number | undefined;
+  retryDelayMs?: number | undefined;
+  maxRetryDelayMs?: number | undefined;
+  onError?:( (key: string, error: unknown) => void) | undefined;
+  store?: DurableCoalescingStateStore | undefined;
+  serialize?:( (state: TState) => string) | undefined;
+  deserialize?:( (json: string) => TState) | undefined;
 };
 
 export function createKeyedCoalescingStateOutboxRegistry<TState, TResult>(

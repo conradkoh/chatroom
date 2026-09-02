@@ -6,7 +6,7 @@ import { api } from '../../../api.js';
 
 export function subscribeMachineAgentOperationalStatus(
   client: ConvexClient,
-  options: { sessionId: SessionId; machineId: string; signal?: AbortSignal },
+  options: { sessionId: SessionId; machineId: string; signal?: AbortSignal | undefined },
   onRows: (rows: MachineAgentOperationalRow[]) => void
 ): () => void {
   return client.onUpdate(

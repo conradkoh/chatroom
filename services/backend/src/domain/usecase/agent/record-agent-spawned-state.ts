@@ -60,9 +60,9 @@ export async function recordAgentSpawnedState(
     role: string;
     machineId: string;
     pid: number;
-    model?: string;
-    harnessSessionId?: string;
-    reason?: string;
+    model?: string | undefined;
+    harnessSessionId?: string | undefined;
+    reason?: string | undefined;
   }
 ): Promise<void> {
   const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);

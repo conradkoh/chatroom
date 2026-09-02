@@ -126,7 +126,7 @@ export const authStatusEffect = (): Effect.Effect<
     // Validate session with backend
     const backend = yield* BackendService;
     const validation = yield* backend
-      .query<{ valid: boolean; userName?: string; reason?: string }>(api.cliAuth.validateSession, {
+      .query<{ valid: boolean; userName?: string | undefined; reason?: string | undefined }>(api.cliAuth.validateSession, {
         sessionId: authData.sessionId,
       })
       .pipe(Effect.mapError((cause): AuthStatusError => ({ _tag: 'BackendError', cause })));

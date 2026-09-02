@@ -19,15 +19,16 @@ export async function sendAutomatedUserMessage(
   args: {
     chatroomId: Id<'chatroom_rooms'>;
     content: string;
-    sourcePlatform?: string;
-    scheduledPromptId?: Id<'chatroom_scheduledPrompts'>;
-    attachedTaskIds?: Id<'chatroom_tasks'>[];
-    attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
-    attachedMessageIds?: Id<'chatroom_messages'>[];
-    attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
-    userId?: Id<'users'>;
+    sourcePlatform?: string | undefined;
+    scheduledPromptId?: Id<'chatroom_scheduledPrompts'> | undefined;
+    attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
+    attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
+    attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
+    attachedSnippets?:
+      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+    userId?: Id<'users'> | undefined;
     startInNewSession: boolean | undefined;
-    enqueueAtFront?: boolean;
+    enqueueAtFront?: boolean | undefined;
   }
 ): Promise<SendAutomatedUserMessageResult> {
   const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -60,7 +61,7 @@ export async function sendAutomatedUserMessage(
     const queuedMessageId = await ctx.db.insert('chatroom_messageQueue', {
       chatroomId: args.chatroomId,
       senderRole: 'user',
-      targetRole,
+      ...(targetRole !== undefined ? { targetRole } : {}),
       content: trimmed,
       type: 'message' as const,
       queuePosition,
@@ -86,7 +87,7 @@ export async function sendAutomatedUserMessage(
     chatroomId: args.chatroomId,
     senderRole: 'user',
     content: trimmed,
-    targetRole,
+    ...(targetRole !== undefined ? { targetRole } : {}),
     type: 'message' as const,
     ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
     ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),

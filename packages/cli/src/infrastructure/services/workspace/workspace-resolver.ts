@@ -92,8 +92,8 @@ async function readPackageJson(
   try {
     const content = await readFile(join(dir, 'package.json'), 'utf-8');
     const pkg = JSON.parse(content) as {
-      name?: string;
-      scripts?: Record<string, string>;
+      name?: string | undefined;
+      scripts?: Record<string, string> | undefined;
     };
     return {
       name: pkg.name || basename(dir),
@@ -146,7 +146,7 @@ async function readPackageJsonWorkspacePatterns(rootDir: string): Promise<string
   try {
     const content = await readFile(join(rootDir, 'package.json'), 'utf-8');
     const pkg = JSON.parse(content) as {
-      workspaces?: string[] | { packages: string[] };
+      workspaces?: string[] | { packages: string[] } | undefined;
     };
     if (!pkg.workspaces) return [];
     if (Array.isArray(pkg.workspaces)) return pkg.workspaces;

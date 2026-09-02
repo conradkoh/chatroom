@@ -15,7 +15,7 @@ export function parseModelId(model: string): { providerID: string; modelID: stri
 // fallow-ignore-next-line complexity
 export function parseOpencodeSpawnModel(model: string): {
   model: string;
-  variant?: string;
+  variant?: string | undefined;
 } {
   if (!model.includes('[')) return { model };
 

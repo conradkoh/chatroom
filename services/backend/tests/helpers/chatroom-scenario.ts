@@ -25,16 +25,16 @@ export type ScenarioTeam = 'duo-planner';
 
 export interface ChatroomScenarioOptions {
   /** Unique session id prefix for test isolation */
-  sessionKey?: string;
-  team?: ScenarioTeam;
-  convexUrl?: string;
+  sessionKey?: string | undefined;
+  team?: ScenarioTeam | undefined;
+  convexUrl?: string | undefined;
 }
 
 export interface ConfigureRoleOptions {
   role: string;
-  harness?: string;
-  machineId?: string;
-  workingDir?: string;
+  harness?: string | undefined;
+  machineId?: string | undefined;
+  workingDir?: string | undefined;
 }
 
 export interface UserSaysResult {
@@ -154,7 +154,8 @@ export class ChatroomScenario {
     });
 
     const task = tasks.find(
-      (row: { sourceMessageId?: Id<'chatroom_messages'> }) => row.sourceMessageId === messageId
+      (row: { sourceMessageId?: Id<'chatroom_messages'> | undefined }) =>
+        row.sourceMessageId === messageId
     );
     if (!task) {
       throw new Error(`No task created for user message ${messageId}`);
@@ -232,7 +233,7 @@ export class ChatroomScenario {
       statusFilter: 'pending',
     });
 
-    const task = tasks.find((row: { assignedTo?: string }) => row.assignedTo === role);
+    const task = tasks.find((row: { assignedTo?: string | undefined }) => row.assignedTo === role);
     if (!task) {
       throw new Error(`No pending task for role ${role}`);
     }

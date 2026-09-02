@@ -132,7 +132,7 @@ interface DiagResult {
   signal: string | null;
   timeToFirstStdoutByteMs: number | null;
   totalDurationMs: number;
-  error?: string;
+  error?: string | undefined;
 }
 
 function runVariant(
@@ -141,7 +141,7 @@ function runVariant(
   args: string[],
   options: {
     stdio: ('pipe' | 'ignore')[];
-    stdinPayload?: string;
+    stdinPayload?: string | undefined;
   },
   timeoutMs: number
 ): Promise<DiagResult> {

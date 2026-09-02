@@ -8,7 +8,7 @@ import type { MutationCtx } from '../../_generated/server';
 export interface ApplyAgenticQueryCompleteParams {
   queryId: Id<'chatroom_agenticQueries'>;
   result: string;
-  runId?: Id<'chatroom_agenticQueryRuns'>;
+  runId?: Id<'chatroom_agenticQueryRuns'> | undefined;
 }
 
 export type ApplyAgenticQueryCompleteResult =

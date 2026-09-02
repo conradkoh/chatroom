@@ -49,8 +49,8 @@ export interface SessionRepository {
 export interface OutputChunk {
   readonly content: string;
   readonly timestamp: number;
-  readonly messageId?: string;
-  readonly partType?: 'text' | 'reasoning';
+  readonly messageId?: string | undefined;
+  readonly partType?: 'text' | 'reasoning' | undefined;
 }
 
 export interface OutputRepository {
@@ -73,8 +73,8 @@ export interface SessionJournal {
   record(chunk: {
     content: string;
     timestamp: number;
-    messageId?: string;
-    partType?: 'text' | 'reasoning';
+    messageId?: string | undefined;
+    partType?: 'text' | 'reasoning' | undefined;
   }): void;
   /** Drain any buffered chunks now. Resolves once all currently-buffered chunks are persisted. */
   flush(): Promise<void>;
@@ -93,7 +93,7 @@ export interface OpenSessionDeps {
   readonly spawnerProvider: SpawnerProvider;
   readonly journalFactory: JournalFactory;
   readonly chunkExtractor: (event: DirectHarnessSessionEvent) => ExtractedChunk | null;
-  readonly nowFn?: () => number;
+  readonly nowFn?:( () => number) | undefined;
 }
 
 // ─── Input / Result ───────────────────────────────────────────────────────────

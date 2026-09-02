@@ -68,7 +68,7 @@ export interface DaemonStateFile {
    * Last processed event stream event ID (string form of Convex `_id`).
    * Persisted so the daemon resumes from the correct cursor after restart.
    */
-  lastSeenEventId?: string;
+  lastSeenEventId?: string | undefined;
 }
 
 // ---------------------------------------------------------------------------

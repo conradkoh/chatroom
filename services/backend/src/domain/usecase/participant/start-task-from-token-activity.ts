@@ -15,9 +15,9 @@ import { startTaskFromReceipt as startFromReceipt } from '../task/start-task-fro
 import { transitionTask } from '../task/transition-task';
 
 type ParticipantSnapshot = {
-  lastStatus?: string | null;
-  lastSeenAction?: string | null;
-  lastInFlightTaskId?: Id<'chatroom_tasks'> | null;
+  lastStatus?: string | null | undefined;
+  lastSeenAction?: string | null | undefined;
+  lastInFlightTaskId?: Id<'chatroom_tasks'> | null | undefined;
 };
 
 function isStaleInFlightParticipantStatus(lastStatus?: string | null): boolean {

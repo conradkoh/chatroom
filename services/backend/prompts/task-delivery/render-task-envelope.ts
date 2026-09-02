@@ -15,11 +15,11 @@ export interface TaskEnvelopeParams {
   role: string;
   cliEnvPrefix: string;
   isEntryPoint: boolean;
-  sourceAttachments?: PrimaryDeliveryAttachments;
+  sourceAttachments?: PrimaryDeliveryAttachments | undefined;
   deliveryMode: 'cli' | 'native';
   /** CLI-only: token activity note rendered inside <task> */
-  intakeNote?: string;
-  standingInstructions?: string | null;
+  intakeNote?: string | undefined;
+  standingInstructions?: string | null | undefined;
 }
 
 function taskOpenTag(params: Pick<TaskEnvelopeParams, 'task' | 'message'>): string {

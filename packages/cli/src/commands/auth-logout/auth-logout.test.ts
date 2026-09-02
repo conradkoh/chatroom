@@ -14,9 +14,9 @@ import { authLogoutEffect, type AuthLogoutError } from './index.js';
 
 /** Create a test auth logout service with configurable responses */
 function makeTestAuthLogout(config: {
-  isAuthenticated?: boolean;
-  clearAuthData?: boolean;
-  authFilePath?: string;
+  isAuthenticated?: boolean | undefined;
+  clearAuthData?: boolean | undefined;
+  authFilePath?: string | undefined;
 }) {
   return Layer.succeed(AuthLogoutService, {
     isAuthenticated: vi.fn(() =>

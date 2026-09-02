@@ -9,7 +9,7 @@ import type { BackendOps, SessionOps } from '../deps/index.js';
 export type CommandServicesDeps = {
   backend: BackendOps & {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    action?: (endpoint: any, args: any) => Promise<any>;
+    action?:( (endpoint: any, args: any) => Promise<any>) | undefined;
   };
   session: SessionOps;
 };

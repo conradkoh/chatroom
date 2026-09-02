@@ -9,5 +9,5 @@ export interface HarnessSessionSnapshot extends HarnessSessionIdPair {
   harness: AgentHarness;
   agentName: string;
   workingDir: string;
-  model?: string;
+  model?: string | undefined;
 }

@@ -19,7 +19,7 @@ const DEFAULT_MAX_ENTRIES = 10_000;
 const DEFAULT_CANDIDATE_FILE_PATHS = 50_000;
 
 export type ScanOptions = {
-  maxEntries?: number;
+  maxEntries?: number | undefined;
 };
 
 /**

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { handleHealth, handleHarnessHistory } from './routes.js';
 import type { PersistenceStore } from '../../infrastructure/persistence/index.js';
 
-function mockResponse(): ServerResponse & { statusCode?: number; body?: string } {
+function mockResponse(): ServerResponse & { statusCode?: number | undefined; body?: string | undefined } {
   const res = {
     statusCode: undefined as number | undefined,
     body: undefined as string | undefined,
@@ -17,7 +17,7 @@ function mockResponse(): ServerResponse & { statusCode?: number; body?: string }
     },
     write: vi.fn(),
   };
-  return res as unknown as ServerResponse & { statusCode?: number; body?: string };
+  return res as unknown as ServerResponse & { statusCode?: number | undefined; body?: string | undefined };
 }
 
 describe('handleHealth', () => {

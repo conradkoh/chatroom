@@ -21,7 +21,7 @@ export interface TurnCompletedBackend {
     reason: ResumeStormReason;
     endCount: number;
     windowMs: number;
-    harnessSessionId?: string;
+    harnessSessionId?: string | undefined;
   }): Promise<void>;
   emitAgentStartFailed(args: { chatroomId: string; role: string; error: string }): Promise<void>;
 }

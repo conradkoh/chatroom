@@ -20,8 +20,8 @@ export function EventStreamViewer({
   isLoading: boolean;
   error: string | null;
   hasChatroom: boolean;
-  selectedEntry?: EventStreamEntry | null;
-  onSelectEntry?: (entry: EventStreamEntry) => void;
+  selectedEntry?: EventStreamEntry | null | undefined;
+  onSelectEntry?:( (entry: EventStreamEntry) => void) | undefined;
 }) {
   const { scrollRef, isPinned, hasUnseenBelow, scrollToEnd, handleScroll } = useStickToBottomScroll(
     entries.length

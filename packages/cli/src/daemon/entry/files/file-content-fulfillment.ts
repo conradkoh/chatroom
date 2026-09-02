@@ -26,7 +26,7 @@ function getErrorCause(error: unknown): unknown {
     typeof error === 'object' &&
     error !== null &&
     'cause' in error &&
-    (error as { cause?: unknown }).cause !== undefined
+    (error as { cause?: unknown | undefined }).cause !== undefined
   ) {
     return (error as { cause: unknown }).cause;
   }

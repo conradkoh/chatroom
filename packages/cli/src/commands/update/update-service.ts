@@ -9,7 +9,7 @@ import { Context, Effect, Layer } from 'effect';
 
 export interface ExecResult {
   stdout: string;
-  stderr?: string;
+  stderr?: string | undefined;
 }
 
 export interface UpdateServiceShape {

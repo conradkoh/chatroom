@@ -29,8 +29,8 @@ export const appendMessages = mutation({
         role: 'assistant',
         content: chunk.content,
         timestamp: chunk.timestamp,
-        messageId: chunk.messageId,
-        partType: chunk.partType,
+        ...(chunk.messageId !== undefined ? { messageId: chunk.messageId } : {}),
+        ...(chunk.partType !== undefined ? { partType: chunk.partType } : {}),
       });
     }
 

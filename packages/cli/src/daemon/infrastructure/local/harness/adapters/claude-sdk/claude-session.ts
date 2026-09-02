@@ -23,11 +23,11 @@ export interface ClaudeSdkSessionOptions {
   readonly query: QueryFn;
   readonly opencodeSessionId: string;
   readonly sessionTitle: string;
-  readonly defaultModel?: string;
-  readonly systemPrompt?: string;
-  readonly providerSessionId?: string;
-  readonly resumeOnFirstQuery?: boolean;
-  readonly onClose?: (sessionId: string) => void;
+  readonly defaultModel?: string | undefined;
+  readonly systemPrompt?: string | undefined;
+  readonly providerSessionId?: string | undefined;
+  readonly resumeOnFirstQuery?: boolean | undefined;
+  readonly onClose?:( (sessionId: string) => void) | undefined;
 }
 
 export class ClaudeSdkSession implements DirectHarnessSession {
@@ -41,15 +41,15 @@ export class ClaudeSdkSession implements DirectHarnessSession {
   private readonly cwd: string;
   private readonly executablePath: string;
   private readonly query: QueryFn;
-  private readonly defaultModel?: string;
-  private readonly storedSystemPrompt?: string;
-  private readonly onClose?: (sessionId: string) => void;
+  private readonly defaultModel?: string | undefined;
+  private readonly storedSystemPrompt?: string | undefined;
+  private readonly onClose?:( (sessionId: string) => void) | undefined;
   private readonly listeners = new Set<(event: DirectHarnessSessionEvent) => void>();
   private closed = false;
-  private providerSessionId?: string;
+  private providerSessionId?: string | undefined;
   private resumeOnFirstQuery: boolean;
   private isFirstQuery = true;
-  private activeQuery?: Query;
+  private activeQuery?: Query | undefined;
   private sawTextDelta = false;
   private sawThinkingDelta = false;
 

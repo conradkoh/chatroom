@@ -18,10 +18,10 @@ import { DaemonEventBus } from '../events/event-bus.js';
 // ---------------------------------------------------------------------------
 
 function makeSessionLayer(overrides?: {
-  sessionId?: string;
-  machineId?: string;
-  backendQuery?: ReturnType<typeof vi.fn>;
-  backendMutation?: ReturnType<typeof vi.fn>;
+  sessionId?: string | undefined;
+  machineId?: string | undefined;
+  backendQuery?: ReturnType<typeof vi.fn> | undefined;
+  backendMutation?: ReturnType<typeof vi.fn> | undefined;
 }): Layer.Layer<DaemonSessionService> {
   const defaultQuery = vi.fn().mockImplementation((_api: any, _args: any) => {
     return Promise.resolve({ configs: [] }); // getMachineAgentConfigs
@@ -48,8 +48,8 @@ function makeSessionLayer(overrides?: {
 }
 
 function makeApmLayer(overrides?: {
-  recover?: () => Effect.Effect<void>;
-  listActive?: () => { chatroomId: string; role: string; slot: any }[];
+  recover?:( () => Effect.Effect<void>) | undefined;
+  listActive?:( () => { chatroomId: string; role: string; slot: any }[]) | undefined;
 }): Layer.Layer<DaemonAgentProcessManagerService> {
   return Layer.succeed(DaemonAgentProcessManagerService, {
     recover: overrides?.recover ?? (() => Effect.succeed(undefined as void)),

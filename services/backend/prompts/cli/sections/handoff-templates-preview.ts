@@ -2,10 +2,10 @@ import { createSection, type PromptSection } from '../../types/sections';
 import { getHandoffTemplate } from '../handoff-templates';
 
 export function getHandoffTemplatesPreviewSection(params: {
-  teamId?: string;
+  teamId?: string | undefined;
   role: string;
   handoffTargets: string[];
-  nativeIntegration?: boolean;
+  nativeIntegration?: boolean | undefined;
 }): PromptSection {
   const { teamId, role, handoffTargets, nativeIntegration } = params;
   const blocks: string[] = [

@@ -8,13 +8,13 @@ import { SKILLS_REGISTRY } from '../../src/domain/usecase/skills/registry';
 
 export interface NativeInitContractOptions {
   /** Solo team */
-  soloTeam?: boolean;
+  soloTeam?: boolean | undefined;
   /** Disallow task read CLI patterns (entry-point solo/planner workflows) */
-  noTaskRead?: boolean;
+  noTaskRead?: boolean | undefined;
   /** Expected operating model heading for this role */
-  operatingModelHeading?: string;
+  operatingModelHeading?: string | undefined;
   /** When set, assert init prompt length stays below this budget */
-  maxLength?: number;
+  maxLength?: number | undefined;
 }
 
 /** Assert an init/system prompt matches the native slim contract. */

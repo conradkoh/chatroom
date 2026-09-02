@@ -32,10 +32,7 @@ export async function markChatroomUnread(
     if (existing.hasUnread && (!isHandoff || existing.hasUnreadHandoff)) {
       return; // Already marked as unread with correct handoff state
     }
-    const update: { hasUnread: boolean; hasUnreadHandoff?: boolean } = { hasUnread: true };
-    if (isHandoff) {
-      update.hasUnreadHandoff = true;
-    }
+    const update = { hasUnread: true, ...(isHandoff ? { hasUnreadHandoff: true } : {}) };
     await ctx.db.patch('chatroom_unreadStatus', existing._id, update);
   } else {
     await ctx.db.insert('chatroom_unreadStatus', {

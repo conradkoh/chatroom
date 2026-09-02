@@ -1,6 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function LogLoadingSkeleton({ rows = 8 }: { rows?: number }) {
+export function LogLoadingSkeleton({ rows = 8 }: { rows?: number | undefined }) {
   return (
     <div className="flex flex-col gap-1 p-3" aria-busy="true" aria-label="Loading logs">
       {Array.from({ length: rows }, (_, i) => (

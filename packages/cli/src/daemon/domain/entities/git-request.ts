@@ -22,11 +22,11 @@ export interface GitRequest {
   workingDir: string;
   requestType: GitRequestType;
   status: GitRequestStatus;
-  sha?: string;
-  offset?: number;
-  baseBranch?: string;
-  prAction?: GitPrAction;
-  prNumber?: number;
+  sha?: string | undefined;
+  offset?: number | undefined;
+  baseBranch?: string | undefined;
+  prAction?: GitPrAction | undefined;
+  prNumber?: number | undefined;
 }
 
 export function isGitRequestType(value: string): value is GitRequestType {

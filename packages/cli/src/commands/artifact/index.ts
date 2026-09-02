@@ -31,7 +31,7 @@ export interface ArtifactCreateOptions {
   role: string;
   fromFile: string;
   filename: string;
-  description?: string;
+  description?: string | undefined;
 }
 
 // fallow-ignore-next-line unused-type
@@ -80,7 +80,7 @@ export const createArtifactEffect = (
     role: string;
     fromFile: string;
     filename: string;
-    description?: string;
+    description?: string | undefined;
   }
 ): Effect.Effect<string | undefined, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
@@ -386,7 +386,7 @@ export async function createArtifact(
     role: string;
     fromFile: string;
     filename: string;
-    description?: string;
+    description?: string | undefined;
   },
   deps?: ArtifactDeps
 ): Promise<string | undefined> {

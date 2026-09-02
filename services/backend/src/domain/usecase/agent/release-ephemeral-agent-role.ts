@@ -66,9 +66,9 @@ async function listEphemeralRolesInChatroom(
   if (room?.teamId) {
     const structure = getTeamStructure({
       teamId: room.teamId,
-      teamName: room.teamName,
-      persistedRoles: room.teamRoles,
-      persistedEntryPoint: room.teamEntryPoint,
+      ...(room.teamName !== undefined ? { teamName: room.teamName } : {}),
+      ...(room.teamRoles !== undefined ? { persistedRoles: room.teamRoles } : {}),
+      ...(room.teamEntryPoint !== undefined ? { persistedEntryPoint: room.teamEntryPoint } : {}),
     });
     for (const { role, lifecycle } of structure.roles) {
       if (lifecycle === 'ephemeral') roles.add(normalizeAgentRole(role));

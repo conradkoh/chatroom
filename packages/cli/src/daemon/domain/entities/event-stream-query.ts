@@ -1,9 +1,9 @@
 export type EventStreamQuery = {
   chatroomId: string;
-  afterId?: number;
-  beforeId?: number;
-  type?: string;
-  fromTimestamp?: number;
-  toTimestamp?: number;
-  limit?: number;
+  afterId?: number | undefined;
+  beforeId?: number | undefined;
+  type?: string | undefined;
+  fromTimestamp?: number | undefined;
+  toTimestamp?: number | undefined;
+  limit?: number | undefined;
 };

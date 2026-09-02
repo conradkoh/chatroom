@@ -3,6 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
+import { omitUndefined } from './lib/omitUndefined';
 import { getAuthUser } from '../modules/auth/session';
 
 // Hardcoded attendance key
@@ -65,16 +66,23 @@ export const recordAttendance = mutation({
       existingRecords.map((record) => ctx.db.delete('attendanceRecords', record._id))
     );
     // Create a new record
-    return ctx.db.insert('attendanceRecords', {
-      attendanceKey,
-      userId: attendanceUserId,
-      name,
-      timestamp: Date.now(),
-      status: args.status,
-      reason: args.status === 'not_attending' ? args.reason : undefined,
-      remarks: args.status === 'attending' ? args.remarks : undefined,
-      isManuallyJoined,
-    });
+    return ctx.db.insert(
+      'attendanceRecords',
+      omitUndefined({
+        attendanceKey,
+        ...(attendanceUserId !== undefined ? { userId: attendanceUserId } : {}),
+        name,
+        timestamp: Date.now(),
+        status: args.status,
+        ...((args.status === 'not_attending' ? args.reason : undefined) !== undefined
+          ? { reason: args.status === 'not_attending' ? args.reason : undefined }
+          : {}),
+        ...((args.status === 'attending' ? args.remarks : undefined) !== undefined
+          ? { remarks: args.status === 'attending' ? args.remarks : undefined }
+          : {}),
+        isManuallyJoined,
+      })
+    );
   },
 });
 

@@ -39,7 +39,7 @@ export interface RegisterAgentOptions {
    * machine-bound (remote) config to custom. Required because the switch
    * clears the existing machine binding.
    */
-  allowTypeChange?: boolean;
+  allowTypeChange?: boolean | undefined;
 }
 
 // ─── Domain errors ─────────────────────────────────────────────────────────

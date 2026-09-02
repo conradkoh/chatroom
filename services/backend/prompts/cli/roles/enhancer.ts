@@ -3,7 +3,7 @@ import type { PlannerGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
 
 export function getEnhancerGuidance(
-  params: PlannerGuidanceParams & { entryPointRole?: string }
+  params: PlannerGuidanceParams & { entryPointRole?: string | undefined }
 ): string {
   const entryPoint =
     params.entryPointRole ??

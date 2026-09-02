@@ -114,8 +114,10 @@ export const create = mutation({
       name: args.name,
       content: args.content,
       isEnabled: true,
-      sourceChatroomId: args.sourceChatroomId,
-      sourceCustomizationId: args.sourceCustomizationId,
+      ...(args.sourceChatroomId !== undefined ? { sourceChatroomId: args.sourceChatroomId } : {}),
+      ...(args.sourceCustomizationId !== undefined
+        ? { sourceCustomizationId: args.sourceCustomizationId }
+        : {}),
       createdAt: now,
       updatedAt: now,
     });

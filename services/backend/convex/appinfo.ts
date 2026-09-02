@@ -16,9 +16,9 @@ export interface GoogleAuthDetails {
 
 // Internal types
 interface _GoogleAuthConfig {
-  clientId?: string;
-  clientSecret?: string;
-  enabled?: boolean;
+  clientId?: string | undefined;
+  clientSecret?: string | undefined;
+  enabled?: boolean | undefined;
 }
 
 /**

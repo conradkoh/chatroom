@@ -13,9 +13,9 @@ export interface GeneralKnowledgeParams {
   chatroomId: string;
   role: string;
   convexUrl: string;
-  compactSkills?: boolean;
-  nativeIntegration?: boolean;
-  activatedSkills?: ActivatedSkillSnapshot[];
+  compactSkills?: boolean | undefined;
+  nativeIntegration?: boolean | undefined;
+  activatedSkills?: ActivatedSkillSnapshot[] | undefined;
 }
 export function getGeneralCommandsReferenceContent(params: GeneralKnowledgeParams): string {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
@@ -43,7 +43,7 @@ export function getGeneralCommandsReferenceContent(params: GeneralKnowledgeParam
 }
 export function getGeneralKnowledgeSections(
   params: GeneralKnowledgeParams,
-  options: { includeHistory?: boolean } = {}
+  options: { includeHistory?: boolean | undefined } = {}
 ): PromptSection[] {
   const sections: PromptSection[] = [
     getGlossarySection({

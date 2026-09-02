@@ -71,7 +71,7 @@ function kickDrain(state: WorkspaceQueueState, key: QueueKey, debounceMs: number
 }
 
 export type EnqueueFileTreeSyncOptions = {
-  debounceMs?: number;
+  debounceMs?: number | undefined;
 };
 
 /**

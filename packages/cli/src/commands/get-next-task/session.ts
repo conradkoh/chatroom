@@ -472,7 +472,7 @@ export class GetNextTaskSession {
         chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
         role: this.role,
         taskId: task._id,
-        messageId: message?._id,
+        ...(message?._id !== undefined ? { messageId: message._id } : {}),
         convexUrl: getConvexUrl(),
       });
 

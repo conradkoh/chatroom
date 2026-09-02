@@ -19,6 +19,7 @@ import {
 } from '../src/domain/entities/participant';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
+import { touchAgentRoleStatusLastSeen } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
@@ -26,7 +27,6 @@ import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/doma
 import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
 import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
-import { touchAgentRoleStatusLastSeen } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
 
 async function getParticipantByChatroomRole(
   ctx: QueryCtx | MutationCtx,
@@ -69,9 +69,11 @@ export const join = mutation({
     const structuralRoles = chatroom.teamId
       ? getTeamStructure({
           teamId: chatroom.teamId,
-          teamName: chatroom.teamName,
+          ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
           persistedRoles: teamRoles,
-          persistedEntryPoint: chatroom.teamEntryPoint,
+          ...(chatroom.teamEntryPoint !== undefined
+            ? { persistedEntryPoint: chatroom.teamEntryPoint }
+            : {}),
         }).roles.map(({ role }) => role.toLowerCase())
       : [];
     if (teamRoles.length > 0) {
@@ -117,7 +119,7 @@ export const join = mutation({
           chatroomId: args.chatroomId,
           role: args.role,
           connectionId: existing.connectionId,
-          machineId: existing.machineId,
+          ...(existing.machineId !== undefined ? { machineId: existing.machineId } : {}),
           reason: 'superseded',
           createdAt: now,
           expiresAt: now + CONNECTION_CLOSE_REQUEST_TTL_MS,
@@ -151,7 +153,7 @@ export const join = mutation({
       participantId = await ctx.db.insert('chatroom_participants', {
         chatroomId: args.chatroomId,
         role: args.role,
-        connectionId: args.connectionId,
+        ...(args.connectionId !== undefined ? { connectionId: args.connectionId } : {}),
         lastSeenAt: now,
         ...(args.machineId ? { machineId: args.machineId } : {}),
         ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),

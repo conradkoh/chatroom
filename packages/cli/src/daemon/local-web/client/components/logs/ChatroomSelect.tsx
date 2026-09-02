@@ -3,11 +3,11 @@ import { SearchableSelect } from '@/components/picker';
 
 type Props = {
   chatrooms: ChatroomListItem[];
-  value?: string;
+  value?: string | undefined;
   onChange: (id: string) => void;
-  disabled?: boolean;
-  isLoading?: boolean;
-  isError?: boolean;
+  disabled?: boolean | undefined;
+  isLoading?: boolean | undefined;
+  isError?: boolean | undefined;
 };
 export function ChatroomSelect({
   chatrooms,
