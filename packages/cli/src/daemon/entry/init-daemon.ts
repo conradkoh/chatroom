@@ -53,6 +53,7 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
+import { initSessionMonitorRegistry } from '../infrastructure/local/harness/session-monitors/init-session-monitors.js';
 import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 
@@ -343,6 +344,7 @@ const connectOnceEffect = (
     const { machineId } = config;
 
     initHarnessRegistry();
+    initSessionMonitorRegistry();
     const agentServices = new Map<string, RemoteAgentService>(
       getAllHarnesses().map((s) => [s.id, s])
     );
