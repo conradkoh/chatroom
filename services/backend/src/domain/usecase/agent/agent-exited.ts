@@ -91,8 +91,8 @@ export async function agentExited(
   //    has been spawned.
   if (config && config.spawnedAgentPid === pid && config.machineId === machineId) {
     await patchTeamAgentConfig(ctx, config._id, {
-      ...{},
-      ...{},
+      spawnedAgentPid: undefined,
+      spawnedAt: undefined,
     });
   }
 

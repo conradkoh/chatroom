@@ -194,7 +194,7 @@ export const join = mutation({
         teamConfig._id,
         {
           circuitState: 'closed',
-          ...{},
+          circuitOpenedAt: undefined,
         },
         { projectScope: 'chatroom' }
       );

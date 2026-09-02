@@ -2,7 +2,6 @@ import { getTeamPreset } from '@workspace/shared/domain/team-presets';
 
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 
@@ -81,7 +80,7 @@ export async function migrateEnhancerConfigRow(
   await upsertTeamAgentConfigByTeamRoleKey(ctx, {
     teamRoleKey,
     createdAt: now,
-    fields: omitUndefined({
+    fields: {
       chatroomId: legacy.chatroomId,
       role: 'enhancer',
       type: 'remote',
@@ -93,6 +92,6 @@ export async function migrateEnhancerConfigRow(
       desiredState: 'stopped',
       lifecycleRevision: 0,
       updatedAt: now,
-    }),
+    },
   });
 }

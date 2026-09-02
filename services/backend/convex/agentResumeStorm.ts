@@ -56,8 +56,8 @@ export const emitResumeStormAborted = mutation({
           stormConfig._id,
           {
             desiredState: 'stopped',
-            ...{},
-            ...{},
+            spawnedAgentPid: undefined,
+            spawnedAt: undefined,
           },
           { projectScope: 'chatroom' }
         );

@@ -5,7 +5,6 @@ import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { AgentStartReasonEnum, type AgentType } from '../../entities/agent';
 import {
@@ -117,7 +116,7 @@ async function persistRestartAndEmit(
     await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey: buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role),
       createdAt: now,
-      fields: omitUndefined({
+      fields: {
         chatroomId: input.chatroomId,
         role: input.role,
         type: 'remote' as AgentType,
@@ -127,7 +126,7 @@ async function persistRestartAndEmit(
         desiredState: 'running' as const,
         circuitState: 'closed' as const,
         circuitOpenedAt: undefined,
-      }),
+      },
     });
   }
   const teamId = chatroom?.teamId;

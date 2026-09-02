@@ -1,6 +1,5 @@
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
-import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 
@@ -45,7 +44,7 @@ export async function syncEnhancerTeamAgentConfig(
   await upsertTeamAgentConfigByTeamRoleKey(ctx, {
     teamRoleKey,
     ...(existing?.createdAt !== undefined ? { createdAt: existing?.createdAt } : {}),
-    fields: omitUndefined({
+    fields: {
       chatroomId: args.chatroomId,
       role: 'enhancer',
       type: 'remote',
@@ -59,7 +58,7 @@ export async function syncEnhancerTeamAgentConfig(
       circuitState: existing?.circuitState ?? 'closed',
       lifecycleRevision: existing?.lifecycleRevision ?? 0,
       updatedAt: Date.now(),
-    }),
+    },
   });
 
   return ctx.db

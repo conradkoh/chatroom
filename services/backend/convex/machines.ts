@@ -9,7 +9,6 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
-import { omitUndefined } from './lib/omitUndefined';
 import { str } from './utils/types';
 import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
 import { validateWorkingDir } from './workspacePathSecurity';
@@ -1297,8 +1296,8 @@ export const updateSpawnedAgent = mutation({
 
     if (args.pid === undefined) {
       await patchTeamAgentConfig(ctx, config._id, {
-        ...{},
-        ...{},
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
       });
       return { success: true, accepted: true };
     }
@@ -1471,7 +1470,7 @@ async function runRecordCustomAgentRegistered(
   }
 
   const now = Date.now();
-  const nextConfig = omitUndefined({
+  const nextConfig = {
     chatroomId: args.chatroomId,
     role: args.role,
     type: 'custom' as const,
@@ -1481,7 +1480,7 @@ async function runRecordCustomAgentRegistered(
     workingDir: undefined,
     updatedAt: now,
     desiredState: 'running' as const,
-  });
+  };
 
   const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
     teamRoleKey,
@@ -1678,7 +1677,7 @@ export const saveTeamAgentConfig = mutation({
     const resolvedAgentHarness =
       args.type === 'remote' ? (args.agentHarness ?? existing?.agentHarness) : undefined;
 
-    const config = omitUndefined({
+    const config = {
       chatroomId: args.chatroomId,
       role: args.role,
       type: args.type,
@@ -1688,7 +1687,7 @@ export const saveTeamAgentConfig = mutation({
       workingDir: args.type === 'remote' ? args.workingDir : undefined,
       updatedAt: now,
       desiredState: 'running' as const,
-    });
+    };
 
     const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey,
@@ -2811,10 +2810,7 @@ export const clearAllSpawnedPids = mutation({
         await patchTeamAgentConfig(
           ctx,
           config._id,
-          {
-            ...{},
-            ...{},
-          },
+          { spawnedAgentPid: undefined, spawnedAt: undefined },
           { skipProject: true }
         );
 

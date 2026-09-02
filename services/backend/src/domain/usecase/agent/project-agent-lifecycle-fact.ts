@@ -71,7 +71,12 @@ export async function projectAgentLifecycleFact(
     let clearedCount = 0;
     for (const config of configs)
       if (config.spawnedAgentPid != null) {
-        await patchTeamAgentConfig(ctx, config._id, { ...{}, ...{} }, { skipProject: true });
+        await patchTeamAgentConfig(
+          ctx,
+          config._id,
+          { spawnedAgentPid: undefined, spawnedAt: undefined },
+          { skipProject: true }
+        );
         await transitionAgentStatus(ctx, config.chatroomId, config.role, 'agent.exited', undefined);
         clearedCount++;
       }
