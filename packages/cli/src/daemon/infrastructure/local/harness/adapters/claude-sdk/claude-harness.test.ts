@@ -109,7 +109,10 @@ describe('ClaudeSdkHarness', () => {
 
     session.onEvent((event) => {
       if (event.type === 'message.part.delta') {
-        const payload = event.payload as { delta?: string | undefined; partType?: string | undefined };
+        const payload = event.payload as {
+          delta?: string | undefined;
+          partType?: string | undefined;
+        };
         if (payload.partType === 'text' && payload.delta) {
           textDeltas.push(payload.delta);
         }
@@ -144,7 +147,10 @@ describe('ClaudeSdkHarness', () => {
 
     session.onEvent((event) => {
       if (event.type === 'message.part.delta') {
-        const payload = event.payload as { delta?: string | undefined; partType?: string | undefined };
+        const payload = event.payload as {
+          delta?: string | undefined;
+          partType?: string | undefined;
+        };
         if (payload.partType === 'text' && payload.delta) {
           textDeltas.push(payload.delta);
         }
@@ -196,7 +202,7 @@ describe('ClaudeSdkHarness', () => {
     const catalog = HARNESS_MODEL_CATALOG['claude-sdk'];
     expect(ids).toEqual(catalog.map((id) => stripProviderPrefix('anthropic', id)));
     const bases = ids.map((id) => decodeModelVariant(id).model);
-    expect(new Set(bases).size).toBe(4);
-    expect(bases).not.toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']));
+    expect(new Set(bases).size).toBe(8);
+    expect(bases).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku', 'claude-opus-5']));
   });
 });
