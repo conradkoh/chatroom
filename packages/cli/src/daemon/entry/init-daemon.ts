@@ -51,11 +51,13 @@ import {
 import { formatAuthLoginCommand } from '../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
+import type { HarnessSessionMonitor } from '../domain/entities/session-monitor.js';
 import { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
-import { initSessionMonitorRegistry } from '../infrastructure/local/harness/session-monitors/init-session-monitors.js';
 import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
+import { initSessionMonitorRegistry } from '../infrastructure/local/harness/session-monitors/init-session-monitors.js';
+import { getAllSessionMonitors } from '../infrastructure/local/harness/session-monitors/session-monitor-registry.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -330,6 +332,7 @@ type ConnectOnceResult = {
   config: MachineConfig;
   machineId: string;
   agentServices: Map<string, RemoteAgentService>;
+  sessionMonitors: Map<string, HarnessSessionMonitor>;
   cachedModels: Record<string, string[]>;
 };
 
@@ -348,12 +351,13 @@ const connectOnceEffect = (
     const agentServices = new Map<string, RemoteAgentService>(
       getAllHarnesses().map((s) => [s.id, s])
     );
+    const sessionMonitors = getAllSessionMonitors();
 
     yield* registerMachineEffect(client, typedSessionId, config);
     const cachedModels = yield* fetchCachedMachineModelsEffect(client, typedSessionId, machineId);
     yield* connectDaemonEffect(client, typedSessionId, machineId);
 
-    return { typedSessionId, config, machineId, agentServices, cachedModels };
+    return { typedSessionId, config, machineId, agentServices, sessionMonitors, cachedModels };
   });
 
 let activeLogSink: AgentLogSink | undefined;
@@ -366,6 +370,7 @@ function assembleDaemonSessionInit(args: {
   config: MachineConfig;
   convexUrl: string;
   agentServices: Map<string, RemoteAgentService>;
+  sessionMonitors: Map<string, HarnessSessionMonitor>;
   cachedModels: Record<string, string[]>;
   deps: DaemonDeps;
 }): DaemonSessionInit {
@@ -376,6 +381,7 @@ function assembleDaemonSessionInit(args: {
     config,
     convexUrl,
     agentServices,
+    sessionMonitors,
     cachedModels,
     deps,
   } = args;
@@ -391,6 +397,7 @@ function assembleDaemonSessionInit(args: {
     logEvent: activeLogEvent ?? (async () => undefined),
     logSink: activeLogSink,
     agentServices,
+    sessionMonitors,
     backend: deps.backend,
     sessionId: typedSessionId,
     machineId,
@@ -626,7 +633,7 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
       catch: (e) => e,
     });
 
-    const { typedSessionId, config, machineId, agentServices, cachedModels } =
+    const { typedSessionId, config, machineId, agentServices, sessionMonitors, cachedModels } =
       yield* connectWithRetryEffect(client, sessionId, convexUrl);
 
     const init = assembleDaemonSessionInit({
@@ -636,6 +643,7 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
       config,
       convexUrl,
       agentServices,
+      sessionMonitors,
       cachedModels,
       deps: createDefaultDeps(),
     });

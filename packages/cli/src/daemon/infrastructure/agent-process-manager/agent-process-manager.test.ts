@@ -26,6 +26,8 @@ import type {
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { DEFAULT_TRIGGER_PROMPT } from '../local/harness/services/spawn-prompt.js';
+import { initSessionMonitorRegistry } from '../local/harness/session-monitors/init-session-monitors.js';
+import { getAllSessionMonitors } from '../local/harness/session-monitors/session-monitor-registry.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
 
@@ -110,6 +112,7 @@ function mockBackendMutation(
 }
 
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
+  initSessionMonitorRegistry();
   const liveness = createLivenessAwareProcessKill();
   const mockService = createMockService();
   mockService.stop.mockImplementation(async (pid: number) => {
@@ -122,6 +125,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
   return {
     logEvent: vi.fn().mockResolvedValue(undefined),
     agentServices: new Map([['opencode', mockService]]),
+    sessionMonitors: getAllSessionMonitors(),
     backend: {
       query: vi.fn().mockResolvedValue({
         prompt: true,
@@ -1851,7 +1855,7 @@ describe('AgentProcessManager', () => {
       expect(slot!.pid).toBe(100);
     });
 
-    // cursor-sdk only: session-reopen retry loop on crash (not implemented for opencode-sdk / pi-sdk yet).
+    // cursor-sdk uses session monitor + unified recovery loop on session-level failure.
     test('cursor-sdk crash retries session reopen 6 times with event stream logging', async () => {
       const cursorSdkService = {
         ...createMockService(),
@@ -1880,6 +1884,11 @@ describe('AgentProcessManager', () => {
         createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
       );
 
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        '[cursor-sdk:builder@c1 run-error] run abc failed: no error detail from SDK',
+      ];
+
       (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
       let delayCalls = 0;
       deps.clock.delay = vi.fn().mockImplementation(async () => {
@@ -1897,7 +1906,7 @@ describe('AgentProcessManager', () => {
       await vi.waitFor(() => {
         const startFailed = getMutationCallsByArgs(
           deps,
-          (args) => typeof args.error === 'string' && args.error.includes('session reopen failed')
+          (args) => typeof args.error === 'string' && args.error.includes('session recovery failed')
         );
         expect(startFailed).toHaveLength(1);
       });

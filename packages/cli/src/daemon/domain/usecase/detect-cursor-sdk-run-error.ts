@@ -6,6 +6,7 @@
 
 import { classifyResumeStormReason } from './classify-resume-storm-reason.js';
 
+// fallow-ignore-next-line unused-export
 export function isCursorSdkRunErrorInLogs(logLines: readonly string[]): boolean {
   return logLines.some((line) => line.includes(' run-error]'));
 }

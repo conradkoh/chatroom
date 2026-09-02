@@ -28,6 +28,7 @@ export const cursorSdkSessionMonitor: HarnessSessionMonitor = {
     };
   },
 
+  // fallow-ignore-next-line complexity
   resolveWantResume(attempt, classification, ctx) {
     if (classification.hadSessionFailure && attempt <= CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS) {
       return true;

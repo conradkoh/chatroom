@@ -1,13 +1,14 @@
 import { AGENT_HARNESSES } from '@workspace/backend/src/domain/entities/agent.js';
 
-import { getAllHarnesses } from '../services/registry.js';
 import { cursorSdkSessionMonitor } from './cursor-sdk-session-monitor.js';
 import { noOpSessionMonitor } from './no-op-session-monitor.js';
 import { getSessionMonitor, registerSessionMonitor } from './session-monitor-registry.js';
+import { getAllHarnesses } from '../services/registry.js';
 
 let initialized = false;
 
 /** Populate session monitor registry. Safe to call multiple times (idempotent). */
+// fallow-ignore-next-line complexity
 export function initSessionMonitorRegistry(): void {
   if (initialized) return;
 
