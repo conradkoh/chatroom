@@ -4,6 +4,7 @@ import { EventTypeBadge } from './EventTypeBadge';
 
 import type { EventStreamEntry } from '@/api/types';
 import { Button } from '@/components/ui/button';
+import { formatLocalLogDateTime } from '@/lib/format-local-timestamp';
 
 export function EventStreamDetailPanel({
   entry,
@@ -30,7 +31,7 @@ export function EventStreamDetailPanel({
         <div className="flex flex-wrap items-center gap-2">
           <EventTypeBadge type={entry.type} />
           <span className="text-chatroom-text-muted">
-            {new Date(entry.timestamp).toISOString()}
+            {formatLocalLogDateTime(entry.timestamp)}
           </span>
         </div>
         <div className="space-y-1 text-chatroom-text-muted">
