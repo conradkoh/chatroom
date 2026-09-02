@@ -2,8 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { requestWorkspaceFileTree } from './request-workspace-file-tree';
-
-const FILE_TREE_STALENESS_MS = 10 * 1000;
+import { FILE_TREE_SNAPSHOT_STALENESS_MS } from '../../constants/workspace-file-tree-watch';
 
 function createMockCtx({
   v2Tree,
@@ -126,7 +125,7 @@ describe('requestWorkspaceFileTree', () => {
     const { ctx, insert } = createMockCtx({
       manifestV3: {
         complete: true,
-        scannedAt: Date.now() - FILE_TREE_STALENESS_MS - 1,
+        scannedAt: Date.now() - FILE_TREE_SNAPSHOT_STALENESS_MS - 1,
       },
     });
 
