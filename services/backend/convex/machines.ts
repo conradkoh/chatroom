@@ -2204,13 +2204,7 @@ export const getAgentOverviewForChatroom = query({
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.userId) return null;
 
-    const userMachines = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
-      .collect();
-    const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
-
-    const overview = await getChatroomAgentOverviewForRoom(ctx, chatroom, machineMap);
+    const overview = await getChatroomAgentOverviewForRoom(ctx, chatroom);
 
     return {
       chatroomId: args.chatroomId as string,
