@@ -20,6 +20,7 @@ import {
 } from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import type * as NativeTurnEndInboxModule from '../../entry/native-delivery/native-turn-end-inbox.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
 import type {
   RemoteAgentService,
@@ -37,11 +38,23 @@ vi.mock('../../entry/handlers/orphan-tracker.js', () => ({
 }));
 
 const mockNotifyNativeTurnIdle = vi.hoisted(() => vi.fn());
+const mockDecideNativeTurnEndFromInbox = vi.hoisted(() =>
+  vi.fn<() => 'needs-handoff-reminder' | 'handoff-completed' | 'unknown'>(() => 'unknown')
+);
 vi.mock('../../entry/native-delivery/native-task-delivery-coordinator.js', async () => {
   const actual = await vi.importActual<typeof NativeTaskDeliveryCoordinatorModule>(
     '../../entry/native-delivery/native-task-delivery-coordinator.js'
   );
-  return { ...actual, notifyNativeTurnIdle: mockNotifyNativeTurnIdle };
+  return {
+    ...actual,
+    notifyNativeTurnIdle: mockNotifyNativeTurnIdle,
+  };
+});
+vi.mock('../../entry/native-delivery/native-turn-end-inbox.js', async () => {
+  const actual = await vi.importActual<typeof NativeTurnEndInboxModule>(
+    '../../entry/native-delivery/native-turn-end-inbox.js'
+  );
+  return { ...actual, decideNativeTurnEndFromInbox: mockDecideNativeTurnEndFromInbox };
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -247,6 +260,7 @@ describe('AgentProcessManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDecideNativeTurnEndFromInbox.mockReturnValue('unknown');
     deps = createDeps();
     manager = new AgentProcessManager(deps);
   });
@@ -515,6 +529,55 @@ describe('AgentProcessManager', () => {
             ([fact]) => fact.kind === 'activity' && fact.action === 'native:waiting'
           );
         expect(nativeWaitingEnqueues).toHaveLength(0);
+      }
+    );
+
+    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
+      'turn-end for %s injects handoff reminder from inbox without backend mutation',
+      async (harness) => {
+        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
+        deps.agentServices = new Map([[harness, service]]);
+        manager = new AgentProcessManager(deps);
+        await manager.ensureRunning(
+          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
+        );
+        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-in-progress');
+        mockDecideNativeTurnEndFromInbox.mockReturnValue('needs-handoff-reminder');
+        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+        await triggerAgentEnd(manager, agentEndCb);
+
+        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
+        expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
+        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
+      }
+    );
+
+    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
+      'turn-end for %s accepts inbox-observed handoff without backend mutation',
+      async (harness) => {
+        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
+        deps.agentServices = new Map([[harness, service]]);
+        manager = new AgentProcessManager(deps);
+        await manager.ensureRunning(
+          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
+        );
+        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-completed');
+        mockDecideNativeTurnEndFromInbox.mockReturnValue('handoff-completed');
+        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+        await triggerAgentEnd(manager, agentEndCb);
+
+        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
+        expect(resumeTurn).not.toHaveBeenCalled();
+        expect(manager.getSlot(CHATROOM_ID, ROLE)?.lastInFlightTaskId).toBeUndefined();
+        expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).toBe('idle');
+        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+        });
       }
     );
 

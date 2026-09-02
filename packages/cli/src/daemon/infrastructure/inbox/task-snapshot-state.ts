@@ -15,10 +15,12 @@ function snapshotKey(taskId: string, role: string): string {
  */
 export class MachineTaskSnapshotState {
   private readonly snapshots = new Map<string, AssignedTaskSnapshotView>();
+  private initialized = false;
 
   replace(snapshots: readonly AssignedTaskSnapshotView[]): void {
     this.snapshots.clear();
     this.upsert(snapshots);
+    this.initialized = true;
   }
 
   applySignalPage(
@@ -51,6 +53,16 @@ export class MachineTaskSnapshotState {
       (snapshot) =>
         snapshot.chatroomId === chatroomId && snapshot.agentConfig.role.toLowerCase() === roleLower
     );
+  }
+
+  /** Whether the initial machine snapshot has been loaded successfully. */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  getForRole(chatroomId: string, role: string, taskId: string): AssignedTaskSnapshotView | null {
+    const snapshot = this.snapshots.get(snapshotKey(taskId, role));
+    return snapshot?.chatroomId === chatroomId ? snapshot : null;
   }
 
   listAll(): AssignedTaskSnapshotView[] {

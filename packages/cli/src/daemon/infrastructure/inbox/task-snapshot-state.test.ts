@@ -16,12 +16,22 @@ function row(taskId: string, role = 'builder') {
 }
 
 describe('MachineTaskSnapshotState', () => {
+  it('is uninitialized until the bootstrap snapshot is replaced', () => {
+    const state = new MachineTaskSnapshotState();
+
+    expect(state.isInitialized()).toBe(false);
+    state.replace([]);
+    expect(state.isInitialized()).toBe(true);
+  });
+
   it('replaces bootstrap state and filters by role', () => {
     const state = new MachineTaskSnapshotState();
     state.replace([row('task-1'), row('task-2', 'planner')]);
 
     expect(state.listForRole('room-1', 'BUILDER')).toHaveLength(1);
     expect(state.listForRole('room-1', 'planner')[0]?.taskId).toBe('task-2');
+    expect(state.getForRole('room-1', 'builder', 'task-1')?.taskId).toBe('task-1');
+    expect(state.getForRole('other-room', 'builder', 'task-1')).toBeNull();
   });
 
   it('removes tasks whose signal no longer has an active snapshot', () => {

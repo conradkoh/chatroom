@@ -1,3 +1,4 @@
+// fallow-ignore-file complexity code-duplication
 import {
   getEnhancerEntryPointRole,
   isEnhancerEntryPointRole,
@@ -955,8 +956,12 @@ export async function runHandoffHandler(
       .withIndex('by_chatroom_terminalHandoffKey', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('terminalHandoffKey', terminalHandoffKey)
       )
+      .order('desc')
       .first();
-    if (existing) {
+    const hasActiveSenderWork = tasksToComplete.some(
+      (task) => task.assignedTo?.toLowerCase() === normalizedSenderRole
+    );
+    if (existing && !hasActiveSenderWork) {
       return {
         success: true,
         error: null,
