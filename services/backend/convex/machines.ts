@@ -2311,31 +2311,6 @@ export const listMachineAgentOperationalStatus = query({
   },
 });
 
-/** Reactive operational status rows for this machine. */
-export const subscribeMachineAgentOperationalStatus = query({
-  args: { ...SessionIdArg, machineId: v.string() },
-  handler: async (ctx, args) => {
-    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) return null;
-    const rows = await ctx.db
-      .query('chatroom_agentRoleOperationalStatus')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .collect();
-    if (rows.length === 0) return null;
-    return rows.map((row) => ({
-      chatroomId: row.chatroomId,
-      role: row.role,
-      operationalState: row.operationalState,
-      isAlive: row.isAlive,
-      isRunning: row.isRunning,
-      daemonConnected: row.daemonConnected,
-      projectedAt: row.projectedAt,
-      revisionKey: row.revisionKey,
-      stopState: row.stopState,
-    }));
-  },
-});
-
 /**
  * Rebuild snapshot projection rows for this machine (daemon startup backfill).
  */
