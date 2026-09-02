@@ -23,6 +23,7 @@ import {
 } from '@/modules/chatroom/context/contextManagedDialogsController';
 import { fileTreeEntriesToFileEntries } from '@/modules/chatroom/workspace/files/fileTreeUtils';
 import {
+  EMPTY_FILE_TREE_ENTRIES,
   getWorkspaceFileTreeEntries,
   getWorkspaceFileTreeRevision,
   getWorkspaceFileTreeScannedAt,
@@ -81,7 +82,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     [workspaceKey]
   );
   const getStoreEntries = useCallback(
-    () => (workspaceKey ? getWorkspaceFileTreeEntries(workspaceKey) : []),
+    () => (workspaceKey ? getWorkspaceFileTreeEntries(workspaceKey) : EMPTY_FILE_TREE_ENTRIES),
     [workspaceKey]
   );
   const entries = useSyncExternalStore(subscribeStore, getStoreEntries, getStoreEntries);

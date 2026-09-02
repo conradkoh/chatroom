@@ -25,6 +25,7 @@ vi.mock('@/modules/chatroom/context/contextManagedDialogsController', () => ({
   },
 }));
 vi.mock('@/modules/chatroom/workspace/stores/workspaceFileTreeStore', () => ({
+  EMPTY_FILE_TREE_ENTRIES: [],
   getWorkspaceFileTreeEntries: () => storeEntries,
   getWorkspaceFileTreeRevision: () => storeRevision,
   getWorkspaceFileTreeScannedAt: () => storeScannedAt,
@@ -53,6 +54,17 @@ describe('useFileSelector', () => {
     expect(mockRequestFileTree).toHaveBeenCalledTimes(1);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isNeverSynced).toBe(true);
+  });
+
+  it('returns a stable empty snapshot when workspace is unset (no infinite loop)', () => {
+    const { result, rerender } = renderHook(() =>
+      useFileSelector({ chatroomId: 'room-1', machineId: null, workingDir: null })
+    );
+
+    expect(result.current.files).toEqual([]);
+    rerender();
+    rerender();
+    expect(result.current.files).toEqual([]);
   });
 
   it('requests a tree only once when Cmd+P opens on a stale snapshot', () => {
