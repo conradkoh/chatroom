@@ -1,3 +1,5 @@
+import { decodeHtmlEntities } from '@workspace/shared/utilities/markdown';
+
 let mermaidInitialized = false;
 
 // fallow-ignore-next-line complexity
@@ -31,7 +33,8 @@ export async function renderMermaidChartToSvg(chart: string): Promise<string> {
   }
 
   const id = `mermaid-export-${Math.random().toString(36).slice(2, 10)}`;
-  const { svg } = await mermaid.render(id, chart.trim());
+  const normalizedChart = decodeHtmlEntities(chart.trim());
+  const { svg } = await mermaid.render(id, normalizedChart);
 
   let cleanedSvg = svg;
   cleanedSvg = cleanedSvg.replace(
