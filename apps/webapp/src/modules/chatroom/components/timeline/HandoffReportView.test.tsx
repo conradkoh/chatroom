@@ -1,7 +1,14 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { HandoffReportView } from './HandoffReportView';
+import { renderMermaidChartToSvg } from '../../lib/mermaid/renderMermaidChartToSvg';
+
+vi.mock('../../lib/mermaid/renderMermaidChartToSvg', () => ({
+  renderMermaidChartToSvg: vi.fn().mockResolvedValue('<svg><path /></svg>'),
+}));
+
+const mockRenderMermaidChartToSvg = vi.mocked(renderMermaidChartToSvg);
 
 const SEVERITY_ACTION_CONTENT = `<handoff-overview>
 ## Summary
@@ -93,6 +100,34 @@ None
 ## Tech Debt Observed
 - [high] Critical
 </handoff-action>`;
+
+const CONTENT_WITH_ENCODED_SYSTEM_DESIGN = `<handoff-overview>
+## Summary
+Test
+</handoff-overview>
+
+<handoff-direction>
+## System Design
+<!-- Add a diagram showing the handoff flow. -->
+\`\`\`mermaid
+flowchart TD
+    A --&gt; B
+\`\`\`
+</handoff-direction>`;
+
+const CONTENT_WITH_SYSTEM_DESIGN_COMMENT = `<handoff-overview>
+## Summary
+Test
+</handoff-overview>
+
+<handoff-direction>
+## System Design
+<!-- Template guidance should not appear in the rendered section. -->
+\`\`\`mermaid
+flowchart TD
+    A --> B
+\`\`\`
+</handoff-direction>`;
 
 const CONTENT_WITH_NA_SYSTEM_DESIGN = `<handoff-overview>
 ## Summary
@@ -318,6 +353,31 @@ describe('HandoffReportView', () => {
       render(<HandoffReportView content={CONTENT_WITH_NA_SYSTEM_DESIGN} />);
       expect(screen.getByText('System Design (0)')).toBeInTheDocument();
       expect(screen.queryByText('flowchart')).not.toBeInTheDocument();
+    });
+
+    it('renders entity-encoded mermaid arrows in the open System Design section', async () => {
+      mockRenderMermaidChartToSvg.mockClear();
+      render(<HandoffReportView content={CONTENT_WITH_ENCODED_SYSTEM_DESIGN} />);
+
+      expect(screen.getByText('System Design (1)')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'System Design (1)' })).toHaveAttribute(
+        'aria-expanded',
+        'true'
+      );
+      await waitFor(() => expect(screen.getByTestId('mermaid-inline-scroll')).toBeInTheDocument());
+      expect(mockRenderMermaidChartToSvg).toHaveBeenCalledWith(expect.stringContaining('A --> B'));
+      expect(mockRenderMermaidChartToSvg).not.toHaveBeenCalledWith(
+        expect.stringContaining('A --&gt; B')
+      );
+    });
+
+    it('strips template comments immediately before a System Design mermaid fence', async () => {
+      mockRenderMermaidChartToSvg.mockClear();
+      render(<HandoffReportView content={CONTENT_WITH_SYSTEM_DESIGN_COMMENT} />);
+
+      await waitFor(() => expect(screen.getByTestId('mermaid-inline-scroll')).toBeInTheDocument());
+      expect(screen.queryByText('Template guidance should not appear')).not.toBeInTheDocument();
+      expect(mockRenderMermaidChartToSvg).toHaveBeenCalledWith(expect.stringContaining('A --> B'));
     });
   });
 
