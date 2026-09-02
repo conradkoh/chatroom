@@ -149,11 +149,11 @@ export interface RunDualChannelFeedOptions<TSignal, TRow, TArgs, TReconcileResul
   readonly fetchReconcile: () => Promise<TReconcileResult>;
   readonly extractReconcileRows: (result: TReconcileResult) => readonly TRow[];
   /** Omit to skip the reconcile poll (signal-only feeds, e.g. task-monitor + presence channel). */
-  readonly reconcileIntervalMs?: number;
+  readonly reconcileIntervalMs?: number | undefined;
   readonly isStopped: () => boolean;
   readonly onSignalRow: (row: TRow) => Effect.Effect<void, unknown, never>;
   readonly onReconcileRows: (rows: readonly TRow[]) => Effect.Effect<void, unknown, never>;
-  readonly onSubscribeError?: (err: unknown) => void;
+  readonly onSubscribeError?:( (err: unknown) => void) | undefined;
 }
 
 /** Hydrate, cursor seed, incremental subscribe, and reconcile poll over a working snapshot. */

@@ -40,10 +40,10 @@ export interface DeliveryTaskItem {
 }
 
 export interface DeliveryAttachmentsInput {
-  attachedBacklogItems?: DeliveryBacklogItem[];
-  attachedSnippets?: DeliverySnippet[];
-  attachedMessages?: DeliveryAttachedMessage[];
-  attachedTasks?: DeliveryTaskItem[];
+  attachedBacklogItems?: DeliveryBacklogItem[] | undefined;
+  attachedSnippets?: DeliverySnippet[] | undefined;
+  attachedMessages?: DeliveryAttachedMessage[] | undefined;
+  attachedTasks?: DeliveryTaskItem[] | undefined;
 }
 
 /**
@@ -82,5 +82,5 @@ export interface DeliveryAttachmentRenderContext {
   chatroomId: string;
   role: string;
   /** 'cli' | 'native' reserved for future format differences; unused in Phase 1 */
-  mode?: 'cli' | 'native' | 'task-read';
+  mode?: 'cli' | 'native' | 'task-read' | undefined;
 }

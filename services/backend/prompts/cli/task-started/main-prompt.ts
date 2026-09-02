@@ -14,7 +14,7 @@ export function getTaskStartedPrompt(ctx: {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
-  triggerMessageId?: string;
+  triggerMessageId?: string | undefined;
 }): string {
   const { chatroomId, role, cliEnvPrefix, triggerMessageId } = ctx;
 

@@ -26,7 +26,7 @@ function resolveChatroomCliRoot(moduleRef: string = import.meta.url): string {
   while (dir !== dirname(dir)) {
     const packageJsonPath = join(dir, 'package.json');
     if (existsSync(packageJsonPath)) {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string };
+      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string | undefined };
       if (pkg.name === 'chatroom-cli') {
         return dir;
       }
@@ -42,7 +42,7 @@ function resolveChatroomCliRoot(moduleRef: string = import.meta.url): string {
 // fallow-ignore-next-line complexity
 function readPinnedSdkVersion(chatroomCliRoot: string): string {
   const pkg = JSON.parse(readFileSync(join(chatroomCliRoot, 'package.json'), 'utf8')) as {
-    dependencies?: Record<string, string>;
+    dependencies?: Record<string, string> | undefined;
   };
   const specifier = pkg.dependencies?.['@cursor/sdk'];
   const pinned = specifier?.replace(/^[\^~>=<]+/, '').trim() ?? '';
@@ -121,7 +121,7 @@ export function getBundledCursorSdkVersion(moduleRef: string = import.meta.url):
 // fallow-ignore-next-line complexity
 export function formatCursorSdkError(err: unknown): string {
   if (err instanceof Error) {
-    const sdkErr = err as Error & { code?: string; name?: string };
+    const sdkErr = err as Error & { code?: string | undefined; name?: string | undefined };
     const code = sdkErr.code ? `[${sdkErr.code}] ` : '';
     const name = sdkErr.name && sdkErr.name !== 'Error' ? `${sdkErr.name}: ` : '';
     return `${name}${code}${err.message}`.trim();

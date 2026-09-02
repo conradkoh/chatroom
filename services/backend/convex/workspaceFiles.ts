@@ -13,6 +13,7 @@ import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
 import { compactFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
+import { omitUndefined } from './lib/omitUndefined';
 import * as blobSnapshots from './workspaceFileTree/repositories/blobSnapshotRepository';
 import * as shardedSnapshots from './workspaceFileTree/repositories/shardedSnapshotRepository';
 import { publishFileTreeCheckpoint as publishCheckpointService } from './workspaceFileTree/services/checkpointPublishService';
@@ -50,8 +51,8 @@ const MAX_PENDING_REQUESTS = 50;
 const CHAT_ATTACHMENT_RESERVED_PREFIX = '.chatroom/downloads/attachments/';
 
 function validateChatAttachmentWriteRequest(args: {
-  uploadKind?: 'chatAttachment';
-  storageId?: Id<'_storage'>;
+  uploadKind?: 'chatAttachment' | undefined;
+  storageId?: Id<'_storage'> | undefined;
   operation: string;
   filePath: string;
 }): void {
@@ -1251,7 +1252,7 @@ export const generateWorkspaceFileUploadUrl = mutation({
  */
 function shouldSupersedePendingRequest(
   _existingOperation: string,
-  args: { operation: string; storageId?: unknown }
+  args: { operation: string; storageId?: unknown | undefined }
 ): boolean {
   if (FAST_FILE_WRITE_OPERATIONS.has(args.operation)) return true;
   // Preserve existing storageId replace behavior for create/update uploads
@@ -1459,7 +1460,10 @@ export const requestFileWrite = mutation({
             ...requestPatch,
           };
 
-    const requestId = await ctx.db.insert('chatroom_workspaceFileWriteRequests', insertPayload);
+    const requestId = await ctx.db.insert(
+      'chatroom_workspaceFileWriteRequests',
+      omitUndefined(insertPayload)
+    );
 
     return { status: 'requested' as const, requestId };
   },

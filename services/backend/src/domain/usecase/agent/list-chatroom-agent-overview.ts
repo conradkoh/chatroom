@@ -26,7 +26,7 @@ export type OverviewMachineMap = Map<string, { machineId: string }>;
 /** Resolve one room from the materialized projection. */
 export async function getChatroomAgentOverviewForRoom(
   ctx: QueryCtx,
-  room: { _id: Id<'chatroom_rooms'>; teamId?: string | null },
+  room: { _id: Id<'chatroom_rooms'>; teamId?: string | null | undefined },
   machineMap: OverviewMachineMap
 ): Promise<ChatroomAgentOverview> {
   const summary = await ctx.db

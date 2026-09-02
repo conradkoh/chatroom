@@ -14,14 +14,14 @@
 
 export interface SseEventBufferOptions {
   /** Max events buffered before drop-oldest kicks in. Default: 1024. */
-  readonly capacity?: number;
+  readonly capacity?: number | undefined;
   /** Called when overflow drops events. Receives count of dropped events in this push. */
-  readonly onOverflow?: (dropped: number) => void;
+  readonly onOverflow?:( (dropped: number) => void) | undefined;
 }
 
 export class SseEventBuffer<T> implements AsyncIterable<T> {
   private readonly _capacity: number;
-  private readonly _onOverflow?: (dropped: number) => void;
+  private readonly _onOverflow?:( (dropped: number) => void) | undefined;
   private _queue: T[] = [];
   private _closed = false;
   private _iteratorTaken = false;

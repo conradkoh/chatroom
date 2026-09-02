@@ -68,7 +68,7 @@ export { getPerformancePolicy } from './policies/performance';
 
 export interface GeneralInstructionsInput {
   /** Chatroom-level custom instructions (future: user-configurable) */
-  chatroomInstructions?: string;
+  chatroomInstructions?: string | undefined;
 }
 
 /**
@@ -100,15 +100,15 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 export interface RolePromptContext {
   chatroomId: string;
   role: string;
-  teamId?: string;
+  teamId?: string | undefined;
   teamName: string;
   teamRoles: string[];
-  teamEntryPoint?: string;
+  teamEntryPoint?: string | undefined;
   availableHandoffRoles: string[];
   convexUrl: string; // Required Convex URL for env var prefix generation
   /** When true, static planner guidance includes enhancer workflow references. */
-  plannerEnhancerActive?: boolean;
-  activatedSkills?: ActivatedSkillSnapshot[];
+  plannerEnhancerActive?: boolean | undefined;
+  activatedSkills?: ActivatedSkillSnapshot[] | undefined;
 }
 
 /**
@@ -241,7 +241,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
 
 function isEnhancerRequestQueuedHandoff(params: {
   nextRole: string;
-  enhancerRequestQueued?: boolean;
+  enhancerRequestQueued?: boolean | undefined;
 }): boolean {
   return params.enhancerRequestQueued === true && params.nextRole.toLowerCase() === 'enhancer';
 }
@@ -270,10 +270,10 @@ export function generateHandoffOutput(params: {
   role: string;
   nextRole: string;
   chatroomId: string;
-  convexUrl?: string;
-  supportsNativeIntegration?: boolean;
+  convexUrl?: string | undefined;
+  supportsNativeIntegration?: boolean | undefined;
   /** When true, the entry point queued request-first enhancer analysis. */
-  enhancerRequestQueued?: boolean;
+  enhancerRequestQueued?: boolean | undefined;
 }): string {
   const {
     role,

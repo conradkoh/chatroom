@@ -514,7 +514,11 @@ export const getOrCreateRecoveryCode = action({
   handler: async (
     ctx,
     args
-  ): Promise<{ success: boolean; recoveryCode?: string; reason?: string }> => {
+  ): Promise<{
+    success: boolean;
+    recoveryCode?: string | undefined;
+    reason?: string | undefined;
+  }> => {
     // Check if login is disabled
     if (featureFlags.disableLogin) {
       return {
@@ -565,7 +569,11 @@ export const verifyRecoveryCode = action({
   handler: async (
     ctx,
     args
-  ): Promise<{ success: boolean; user?: Doc<'users'>; reason?: string }> => {
+  ): Promise<{
+    success: boolean;
+    user?: Doc<'users'> | undefined;
+    reason?: string | undefined;
+  }> => {
     // Check if login is disabled
     if (featureFlags.disableLogin) {
       return {
@@ -623,7 +631,11 @@ export const regenerateRecoveryCode = action({
   handler: async (
     ctx,
     args
-  ): Promise<{ success: boolean; recoveryCode?: string; reason?: string }> => {
+  ): Promise<{
+    success: boolean;
+    recoveryCode?: string | undefined;
+    reason?: string | undefined;
+  }> => {
     // Check if login is disabled
     if (featureFlags.disableLogin) {
       return {
@@ -730,7 +742,7 @@ export const createSession = internalMutation({
       sessionId: args.sessionId,
       userId: args.userId,
       createdAt: args.createdAt,
-      authMethod: args.authMethod,
+      ...(args.authMethod !== undefined ? { authMethod: args.authMethod } : {}),
     });
   },
 });

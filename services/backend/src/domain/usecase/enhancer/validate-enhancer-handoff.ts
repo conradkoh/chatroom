@@ -9,8 +9,8 @@ export type EnhancerHandoffValidation =
   | { allowed: false; code: 'ENHANCER_NOT_ENABLED' | 'ENHANCER_CONFIG_INCOMPLETE' };
 
 export function validateEnhancerHandoff(args: {
-  taskEnhancerEnabledAtEnqueue?: boolean;
-  taskPlannerEnhancerEnabled?: boolean;
+  taskEnhancerEnabledAtEnqueue?: boolean | undefined;
+  taskPlannerEnhancerEnabled?: boolean | undefined;
   config: Doc<'chatroom_teamAgentConfigs'> | null | undefined;
 }): EnhancerHandoffValidation {
   const snapshot = args.taskEnhancerEnabledAtEnqueue ?? args.taskPlannerEnhancerEnabled;

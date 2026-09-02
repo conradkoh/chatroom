@@ -78,9 +78,11 @@ export interface HarnessCapabilities {
   /** Lifecycle events this harness surfaces at the integration boundary. */
   lifecycle: HarnessLifecycleCapabilities;
   /** Per-harness crash recovery policy when session monitor detects session-level failure. */
-  crashRecovery?: {
-    onSessionFailure: HarnessCrashRecoveryPolicyConfig;
-  };
+  crashRecovery?:
+    | {
+        onSessionFailure: HarnessCrashRecoveryPolicyConfig;
+      }
+    | undefined;
   /**
    * Wire/protocol events this harness may emit before adaptation.
    * SDK harnesses must not list any `cliOnly` kinds (enforced in types.test.ts).

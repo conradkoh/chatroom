@@ -14,9 +14,9 @@ type Props = {
   isLoading: boolean;
   error: string | null;
   hasChatroom: boolean;
-  selectedLine?: LogLine | null;
-  onSelectLine?: (line: LogLine) => void;
-  getChatroomName?: (id: string) => string | undefined;
+  selectedLine?: LogLine | null | undefined;
+  onSelectLine?:( (line: LogLine) => void) | undefined;
+  getChatroomName?: ((id: string) => string | undefined) | undefined;
 };
 export function LogViewer({
   lines,

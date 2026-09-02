@@ -3,11 +3,11 @@ import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
 export interface RenderEnhancerTaskEnvelopeParams {
   jobId: string;
   chatroomId: string;
-  originUserMessageId?: string;
+  originUserMessageId?: string | undefined;
   outputTemplateContent: string;
   requestContent: string;
   cliCompleteCommand: string;
-  entryPointRole?: string;
+  entryPointRole?: string | undefined;
 }
 
 export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopeParams): string {

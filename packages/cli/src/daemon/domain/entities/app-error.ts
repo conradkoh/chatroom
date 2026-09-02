@@ -4,5 +4,5 @@ export type AppErrorCode = 'validation_error' | 'not_found' | 'internal_error' |
 export type AppError = {
   code: AppErrorCode;
   message: string;
-  details?: unknown;
+  details?: unknown | undefined;
 };

@@ -194,7 +194,7 @@ async function readRootPackageJson(
 ): Promise<{ commands: DiscoveredCommand[]; rootPackageName: string }> {
   let rootPackageName = basename(workingDir);
 
-  const pkg = await readJsonFile<{ name?: string; scripts?: Record<string, string> }>(
+  const pkg = await readJsonFile<{ name?: string | undefined; scripts?: Record<string, string> | undefined }>(
     join(workingDir, 'package.json'),
     'root package.json'
   );
@@ -218,7 +218,7 @@ async function readTurboJson(
   _rootSubWorkspace: SubWorkspaceInfo
 ): Promise<string[]> {
   const turboTaskNames: string[] = [];
-  const turbo = await readJsonFile<{ tasks?: Record<string, unknown> }>(
+  const turbo = await readJsonFile<{ tasks?: Record<string, unknown> | undefined }>(
     join(workingDir, 'turbo.json'),
     'turbo.json'
   );
@@ -235,7 +235,7 @@ async function readTurboJson(
 async function readDenoJson(workingDir: string): Promise<DiscoveredCommand[]> {
   const commands: DiscoveredCommand[] = [];
   for (const fileName of ['deno.json', 'deno.jsonc'] as const) {
-    const deno = await readJsonFile<{ name?: string; tasks?: Record<string, string> }>(
+    const deno = await readJsonFile<{ name?: string | undefined; tasks?: Record<string, string> | undefined }>(
       join(workingDir, fileName),
       fileName
     );

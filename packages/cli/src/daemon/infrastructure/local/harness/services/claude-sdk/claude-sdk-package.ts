@@ -27,7 +27,7 @@ function resolveChatroomCliRoot(moduleRef: string = import.meta.url): string {
   while (dir !== dirname(dir)) {
     const packageJsonPath = join(dir, 'package.json');
     if (existsSync(packageJsonPath)) {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string };
+      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string | undefined };
       if (pkg.name === 'chatroom-cli') {
         return dir;
       }
@@ -43,7 +43,7 @@ function resolveChatroomCliRoot(moduleRef: string = import.meta.url): string {
 // fallow-ignore-next-line complexity
 function readPinnedSdkVersion(chatroomCliRoot: string): string {
   const pkg = JSON.parse(readFileSync(join(chatroomCliRoot, 'package.json'), 'utf8')) as {
-    dependencies?: Record<string, string>;
+    dependencies?: Record<string, string> | undefined;
   };
   const specifier = pkg.dependencies?.[CLAUDE_AGENT_SDK_PKG];
   const pinned = specifier?.replace(/^[\^~>=<]+/, '').trim() ?? '';

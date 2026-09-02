@@ -10,10 +10,10 @@ export type FifoBatchedOutboxOptions<TItem, TResult> = {
   deliveryKey: string;
   serialize: (item: TItem) => string;
   deserialize: (json: string) => TItem;
-  retryDelayMs?: number;
-  maxRetryDelayMs?: number;
-  onError?: (error: unknown) => void;
-  classifyOutcome?: (result: TResult, item: TItem) => FifoSendOutcome<TResult, TItem>;
+  retryDelayMs?: number | undefined;
+  maxRetryDelayMs?: number | undefined;
+  onError?:( (error: unknown) => void) | undefined;
+  classifyOutcome?:( (result: TResult, item: TItem) => FifoSendOutcome<TResult, TItem>) | undefined;
 };
 export type FifoBatchedOutbox<TItem, TResult> = {
   enqueue(item: TItem): Promise<TResult>;

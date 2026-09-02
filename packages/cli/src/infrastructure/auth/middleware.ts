@@ -13,7 +13,7 @@ import { getConvexClient, getConvexUrl } from '../convex/client.js';
 export interface AuthContext {
   sessionId: SessionId;
   userId: string;
-  userName?: string;
+  userName?: string | undefined;
 }
 
 /**
@@ -32,13 +32,13 @@ export interface RequireAuthOptions {
    *
    * @default false — short-lived commands keep their fast-fail UX unchanged.
    */
-  retryOnNetworkError?: boolean;
+  retryOnNetworkError?: boolean | undefined;
 
   /**
    * Retry interval in ms when `retryOnNetworkError` is true.
    * @default 10_000
    */
-  retryIntervalMs?: number;
+  retryIntervalMs?: number | undefined;
 }
 
 /** Default retry interval (ms) when retryOnNetworkError is true. */
@@ -79,7 +79,7 @@ async function checkLocalAuth(): Promise<SessionId> {
 
 async function validateSessionWithBackend(
   sessionId: SessionId
-): Promise<{ userId: string; userName?: string; convexUrl: string }> {
+): Promise<{ userId: string; userName?: string | undefined; convexUrl: string }> {
   const convexUrl = getConvexUrl();
   const client = await getConvexClient();
   const validation = await client.query(api.cliAuth.validateSession, { sessionId });

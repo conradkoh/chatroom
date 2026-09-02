@@ -7,13 +7,13 @@ export interface SessionExitClassification {
   failureKind: SessionFailureKind;
   recoverable: boolean;
   /** When true, APM must clear in-flight task and await exit lifecycle before recovery attempts. */
-  requiresTaskReleaseBeforeRecovery?: boolean;
+  requiresTaskReleaseBeforeRecovery?: boolean | undefined;
 }
 
 export interface ExitMonitorContext {
   recentLogLines: readonly string[];
   harness: AgentHarness;
-  wantResume?: boolean;
+  wantResume?: boolean | undefined;
 }
 
 export interface HarnessSessionMonitor {

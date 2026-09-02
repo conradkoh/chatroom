@@ -153,7 +153,7 @@ export type GitStateDeps = {
   sessionId: SessionId;
   backend: BackendOps;
   lastPushedGitState: Map<string, string>;
-  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number } | undefined;
 };
 
 // ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────

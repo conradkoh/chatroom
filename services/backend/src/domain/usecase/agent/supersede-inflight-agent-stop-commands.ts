@@ -9,7 +9,10 @@ const INFLIGHT = ['pending', 'processing'] as const;
 
 export async function supersedeInflightAgentStopCommands(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; exceptStopCommandId?: Id<'chatroom_agentStopCommands'> }
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    exceptStopCommandId?: Id<'chatroom_agentStopCommands'> | undefined;
+  }
 ): Promise<Id<'chatroom_agentStopCommands'>[]> {
   const superseded: Id<'chatroom_agentStopCommands'>[] = [];
   for (const status of INFLIGHT) {

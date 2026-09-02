@@ -16,8 +16,8 @@ import { runNativeInjectionEffect } from '../daemon/entry/native-delivery/native
 export interface SimulateInjectionOptions {
   task: AssignedTaskView;
   deliveryOutput: string;
-  sessionId?: string;
-  convexUrl?: string;
+  sessionId?: string | undefined;
+  convexUrl?: string | undefined;
 }
 
 function makeBaseTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
@@ -74,7 +74,7 @@ export class NativeOrchestrationSimulator {
   readonly sessionId: string;
   readonly convexUrl: string;
 
-  constructor(options?: { sessionId?: string; convexUrl?: string; harnessSessionId?: string }) {
+  constructor(options?: { sessionId?: string | undefined; convexUrl?: string | undefined; harnessSessionId?: string | undefined }) {
     this.sessionId = options?.sessionId ?? 'test-session';
     this.convexUrl = options?.convexUrl ?? 'http://127.0.0.1:3210';
     this.harnessSessionId = options?.harnessSessionId ?? 'test-harness-session';

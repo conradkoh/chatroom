@@ -658,8 +658,8 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
 
 /** Thin wrapper — daemon-start/index.ts and tests still import this. */
 export type InitDaemonOptions = {
-  logSink?: AgentLogSink;
-  logEvent?: (event: Record<string, unknown>) => Promise<void>;
+  logSink?: AgentLogSink | undefined;
+  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
 };
 export function getActiveLogSink(): AgentLogSink | undefined {
   return activeLogSink;

@@ -8,9 +8,9 @@ export function NavTab({
   children,
   onClick,
 }: {
-  active?: boolean;
+  active?: boolean | undefined;
   children: ReactNode;
-  onClick?: () => void;
+  onClick?:( () => void) | undefined;
 }) {
   return (
     <span

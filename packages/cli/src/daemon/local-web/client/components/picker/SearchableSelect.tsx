@@ -17,19 +17,19 @@ import { cn } from '@/lib/utils';
 export type SearchableSelectOption = { value: string; label: string };
 export interface SearchableSelectProps {
   options: SearchableSelectOption[];
-  value?: string;
+  value?: string | undefined;
   onChange: (v: string | undefined) => void;
-  disabled?: boolean;
-  isLoading?: boolean;
-  isError?: boolean;
-  placeholder?: string;
-  allLabel?: string;
-  searchPlaceholder?: string;
-  emptyLabel?: string;
+  disabled?: boolean | undefined;
+  isLoading?: boolean | undefined;
+  isError?: boolean | undefined;
+  placeholder?: string | undefined;
+  allLabel?: string | undefined;
+  searchPlaceholder?: string | undefined;
+  emptyLabel?: string | undefined;
   ariaLabel: string;
-  triggerClassName?: string;
-  contentClassName?: string;
-  allowClear?: boolean;
+  triggerClassName?: string | undefined;
+  contentClassName?: string | undefined;
+  allowClear?: boolean | undefined;
 }
 export function SearchableSelect({
   options,

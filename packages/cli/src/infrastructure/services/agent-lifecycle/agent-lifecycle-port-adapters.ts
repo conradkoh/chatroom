@@ -25,7 +25,7 @@ export interface AgentLifecyclePortAdapterDeps {
     readonly shouldAllowSpawn: (
       chatroomId: string,
       reason: string
-    ) => { allowed: boolean; retryAfterMs?: number };
+    ) => { allowed: boolean; retryAfterMs?: number | undefined };
   };
   readonly agentServices: Map<string, RemoteAgentService>;
   readonly sessionId: string;

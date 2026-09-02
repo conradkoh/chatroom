@@ -31,7 +31,7 @@ export const enqueueHandoff = mutation({
       });
     }
 
-    const legacyJobId = (result as { enhancerJobId?: string | null }).enhancerJobId;
+    const legacyJobId = (result as { enhancerJobId?: string | null | undefined }).enhancerJobId;
     if (!legacyJobId) {
       throw new ConvexError({
         code: 'HANDOFF_FAILED',

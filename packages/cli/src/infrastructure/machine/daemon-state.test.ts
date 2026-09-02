@@ -24,7 +24,7 @@ import { loadEventCursor, persistEventCursor } from './daemon-state.js';
 
 const mockState: {
   content: Record<string, unknown>;
-  readError?: NodeJS.ErrnoException;
+  readError?: NodeJS.ErrnoException | undefined;
 } = {
   content: {},
 };
@@ -123,7 +123,7 @@ describe('persistEventCursor', () => {
       string,
       unknown,
     ];
-    const written = JSON.parse(content) as { lastSeenEventId?: string };
+    const written = JSON.parse(content) as { lastSeenEventId?: string | undefined };
     expect(written.lastSeenEventId).toBe('event-id-xyz');
   });
 
@@ -161,8 +161,8 @@ describe('persistEventCursor', () => {
       unknown,
     ];
     const written = JSON.parse(content) as {
-      lastSeenEventId?: string;
-      machineId?: string;
+      lastSeenEventId?: string | undefined;
+      machineId?: string | undefined;
     };
     expect(written.lastSeenEventId).toBe('event-id-new');
     expect(written.machineId).toBe('machine-abc');

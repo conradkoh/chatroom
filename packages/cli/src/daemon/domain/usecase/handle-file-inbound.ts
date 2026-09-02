@@ -9,7 +9,7 @@ export type FileInboundEvent = Extract<
 >;
 
 export type HandleFileInboundDeps = {
-  deliverInbound?: (event: FileInboundEvent) => Promise<void>;
+  deliverInbound?:( (event: FileInboundEvent) => Promise<void>) | undefined;
 };
 
 export async function handleFileInbound(

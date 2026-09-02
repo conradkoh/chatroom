@@ -82,14 +82,14 @@ function getSdkPackageVersion(): string {
 interface SdkSession {
   session: AgentSession;
   model: string;
-  unsubscribe?: () => void;
+  unsubscribe?:( () => void) | undefined;
   keeper: ChildProcess;
   aborted: boolean;
   /** System prompt prepended to the first injected turn when deferInitialTurn is set. */
-  storedSystemPrompt?: string;
-  resumeResolve?: (prompt: string) => void;
-  abortResolve?: () => void;
-  pendingResumePrompt?: string;
+  storedSystemPrompt?: string | undefined;
+  resumeResolve?:( (prompt: string) => void) | undefined;
+  abortResolve?:( () => void) | undefined;
+  pendingResumePrompt?: string | undefined;
 }
 
 function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
@@ -400,8 +400,8 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     workingDir: string;
     model: string;
     initialPrompt: string;
-    deferInitialTurn?: boolean;
-    storedSystemPrompt?: string;
+    deferInitialTurn?: boolean | undefined;
+    storedSystemPrompt?: string | undefined;
   }): SpawnResult {
     const {
       pid,
@@ -490,7 +490,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     entry: { lastOutputAt: number };
     logPrefix: string;
     initialPrompt: string;
-    deferInitialTurn?: boolean;
+    deferInitialTurn?: boolean | undefined;
     finishExit: (code: number | null, signal: string | null) => void;
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];

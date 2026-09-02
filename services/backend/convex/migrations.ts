@@ -1,4 +1,4 @@
-import { Migrations } from '@convex-dev/migrations';
+import { Migrations, type MigrationFunctionReference } from '@convex-dev/migrations';
 
 import { components, internal } from './_generated/api';
 import type { DataModel, Doc } from './_generated/dataModel';
@@ -40,6 +40,15 @@ type HarnessModelFavorite = { agentHarness: AgentHarness; model: string };
 export const migrations = new Migrations<DataModel>(components.migrations);
 
 /**
+ * Convex migrations use explicit `undefined` values to delete legacy fields.
+ * Keep that deletion contract at this API boundary while the application uses
+ * exact optional property types everywhere else.
+ */
+function migrationPatch<T>(patch: Record<string, unknown>): Partial<T> {
+  return patch as unknown as Partial<T>;
+}
+
+/**
  * General-purpose runner to execute any migration by name.
  * Usage: npx convex run migrations:run '{"fn": "migrations:myMigration"}'
  */
@@ -59,10 +68,10 @@ export const unsetSessionExpiration = migrations.define({
   table: 'sessions',
   migrateOne: async (_ctx, session) => {
     if (session.expiresAt !== undefined || session.expiresAtLabel !== undefined) {
-      return {
+      return migrationPatch<Doc<'sessions'>>({
         expiresAt: undefined,
         expiresAtLabel: undefined,
-      };
+      });
     }
   },
 });
@@ -281,7 +290,10 @@ export const dropEmbeddedRecentCommits = migrations.define({
   migrateOne: async (_ctx, row) => {
     const r = row as Record<string, unknown>;
     if (r.recentCommits !== undefined || r.hasMoreCommits !== undefined) {
-      return { recentCommits: undefined, hasMoreCommits: undefined };
+      return migrationPatch<Doc<'chatroom_workspaceGitState'>>({
+        recentCommits: undefined,
+        hasMoreCommits: undefined,
+      });
     }
   },
 });
@@ -292,7 +304,9 @@ export const dropEmbeddedRecentCommits = migrations.define({
  * Infer scope for rows created before the scope field existed.
  * Used only by backfillSavedCommandScope migration.
  */
-export function inferLegacySavedCommandScope(row: { chatroomId?: string }): 'user' | 'chatroom' {
+export function inferLegacySavedCommandScope(row: {
+  chatroomId?: string | undefined;
+}): 'user' | 'chatroom' {
   return row.chatroomId ? 'chatroom' : 'user';
 }
 
@@ -328,7 +342,7 @@ export const dropEmbeddedAvailableModels = migrations.define({
   migrateOne: async (_ctx, row) => {
     const r = row as Record<string, unknown>;
     if (r.availableModels !== undefined) {
-      return { availableModels: undefined };
+      return migrationPatch<Doc<'chatroom_machines'>>({ availableModels: undefined });
     }
   },
 });
@@ -354,10 +368,12 @@ export const setDuoBuilderWantResumeFalse = migrations.define({
 export const backfillTeamAgentConfigLifecycleDefaults = migrations.define({
   table: 'chatroom_teamAgentConfigs',
   migrateOne: async (_ctx, config) => {
-    const patch: { enabled?: boolean; lifecycleRevision?: number } = {};
+    const patch: Record<string, unknown> = {};
     if (config.enabled === undefined) patch.enabled = true;
     if (config.lifecycleRevision === undefined) patch.lifecycleRevision = 0;
-    return Object.keys(patch).length > 0 ? patch : undefined;
+    return Object.keys(patch).length > 0
+      ? migrationPatch<Doc<'chatroom_teamAgentConfigs'>>(patch)
+      : undefined;
   },
 });
 
@@ -390,7 +406,7 @@ export const migrateAddEnhancerToRoomTeamRoles = migrations.define({
   migrateOne: async (_ctx, room) => {
     const merged = mergeCanonicalEnhancerIntoTeamRoles(room.teamId, room.teamRoles ?? []);
     if (JSON.stringify(merged) === JSON.stringify(room.teamRoles ?? [])) return;
-    return { teamRoles: merged };
+    return migrationPatch<Doc<'chatroom_rooms'>>({ teamRoles: merged });
   },
 });
 
@@ -399,7 +415,7 @@ export const migrateAgentViewMetadataEnhancerRole = migrations.define({
   migrateOne: async (_ctx, row) => {
     const merged = mergeCanonicalEnhancerIntoTeamRoles(row.teamId, row.teamRoles);
     if (JSON.stringify(merged) === JSON.stringify(row.teamRoles)) return;
-    return { teamRoles: merged };
+    return migrationPatch<Doc<'chatroom_agentViewMetadata'>>({ teamRoles: merged });
   },
 });
 
@@ -636,9 +652,9 @@ export const compactWorkspaceFileTreeDeltaOperations = migrations.define({
   table: 'chatroom_workspaceFileTreeDelta',
   migrateOne: async (_ctx, row) => {
     if (!row.operations.some(isVerboseFileTreeDeltaOp)) return;
-    return {
+    return migrationPatch<Doc<'chatroom_workspaceFileTreeDelta'>>({
       operations: expandFileTreeDeltaOperations(row.operations).map(compactFileTreeDeltaOperation),
-    };
+    });
   },
 });
 
@@ -874,8 +890,8 @@ export const backfillAgentRoleStatusReadModel = migrations.define({
 export const migrateMachineTaskStatusSignals = migrations.define({
   table: 'chatroom_timelineTaskStatusSignals',
   migrateOne: async (ctx, row) => {
-    const targetMachineId = (row as { targetMachineId?: string }).targetMachineId;
-    const targetRole = (row as { targetRole?: string }).targetRole;
+    const targetMachineId = (row as { targetMachineId?: string | undefined }).targetMachineId;
+    const targetRole = (row as { targetRole?: string | undefined }).targetRole;
     if (!targetMachineId || !targetRole) return;
     const existing = await ctx.db
       .query('chatroom_machineTaskStatusSignals')
@@ -899,7 +915,7 @@ export const migrateMachineTaskStatusSignals = migrations.define({
 export const stripTimelineMachineSignalFields = migrations.define({
   table: 'chatroom_timelineTaskStatusSignals',
   migrateOne: async (_ctx, row) => {
-    const r = row as { targetMachineId?: string; targetRole?: string };
+    const r = row as { targetMachineId?: string | undefined; targetRole?: string | undefined };
     if (r.targetMachineId !== undefined || r.targetRole !== undefined) {
       return { targetMachineId: undefined, targetRole: undefined } as never;
     }
@@ -981,7 +997,7 @@ export const purgeDirectHarnessCommands = migrations.define({
  * Migrations are run sequentially. Each migration tracks its own progress —
  * if interrupted, it will resume from where it left off on the next run.
  */
-export const runAll = migrations.runner([
+const allMigrationReferences = [
   // Session & User
   internal.migrations.unsetSessionExpiration,
   internal.migrations.setUserAccessLevelDefault,
@@ -1041,4 +1057,6 @@ export const runAll = migrations.runner([
   internal.migrations.purgeHarnessSessionTurns,
   internal.migrations.purgeHarnessSessions,
   internal.migrations.purgeDirectHarnessCommands,
-]);
+] as unknown as MigrationFunctionReference[];
+
+export const runAll = migrations.runner(allMigrationReferences);

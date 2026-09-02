@@ -8,16 +8,16 @@ export interface RolePromptContext {
   teamRoles: string[];
   isEntryPoint: boolean;
   availableHandoffRoles: string[];
-  cliEnvPrefix?: string;
+  cliEnvPrefix?: string | undefined;
 }
 
 export interface InitPromptInput {
   chatroomId: string;
   role: string;
-  teamId?: string;
+  teamId?: string | undefined;
   teamName: string;
   teamRoles: string[];
-  teamEntryPoint?: string;
+  teamEntryPoint?: string | undefined;
 }
 
 export interface RoleTemplate {

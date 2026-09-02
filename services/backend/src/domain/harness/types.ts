@@ -6,9 +6,9 @@ import type { Id } from '../../../convex/_generated/dataModel';
 // fallow-ignore-next-line unused-type
 export interface HarnessConfig {
   agent: string;
-  model?: { providerID: string; modelID: string };
-  system?: string;
-  tools?: Record<string, boolean>;
+  model?: { providerID: string; modelID: string } | undefined;
+  system?: string | undefined;
+  tools?: Record<string, boolean> | undefined;
 }
 
 /** Wire shape returned by agentic-query turn endpoints. */
@@ -17,11 +17,11 @@ export interface HarnessTurnView {
   turnSeq: number;
   role: 'user' | 'assistant';
   status: 'pending' | 'streaming' | 'complete' | 'failed';
-  messageId?: string;
+  messageId?: string | undefined;
   textContent: string;
   reasoningContent: string;
   startedAt: number;
-  completedAt?: number;
+  completedAt?: number | undefined;
 }
 
 /** A streamed agentic-query output chunk. */
@@ -32,15 +32,15 @@ export interface HarnessMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
-  messageId?: string;
-  partType?: 'text' | 'reasoning';
+  messageId?: string | undefined;
+  partType?: 'text' | 'reasoning' | undefined;
 }
 
 export interface HarnessAgent {
   name: string;
   mode: 'subagent' | 'primary' | 'all';
-  model?: { providerID: string; modelID: string };
-  description?: string;
+  model?: { providerID: string; modelID: string } | undefined;
+  description?: string | undefined;
 }
 
 export interface HarnessProvider {
@@ -54,7 +54,7 @@ export interface HarnessCapability {
   displayName: string;
   agents: HarnessAgent[];
   providers: HarnessProvider[];
-  configSchema?: unknown;
+  configSchema?: unknown | undefined;
 }
 
 // fallow-ignore-next-line unused-type

@@ -16,7 +16,7 @@ const FILE_TREE_STALENESS_MS = 10 * 1000;
 export type RequestWorkspaceFileTreeInput = {
   machineId: string;
   workingDir: string;
-  force?: boolean;
+  force?: boolean | undefined;
 };
 
 export type RequestWorkspaceFileTreeResult =

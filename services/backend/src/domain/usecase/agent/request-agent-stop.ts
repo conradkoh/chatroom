@@ -20,7 +20,7 @@ export interface RequestAgentStopInput {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   reason: AgentStopReason;
-  selectedConfigs?: AgentStopSelectedConfig[];
+  selectedConfigs?: AgentStopSelectedConfig[] | undefined;
 }
 
 export interface RequestAgentStopResult {

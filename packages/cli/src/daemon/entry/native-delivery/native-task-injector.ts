@@ -40,15 +40,15 @@ export interface NativeInjectorAgentMgr {
 export interface NativeInjectorDeps {
   sessionId: string;
   machineId: string;
-  logEvent?: (event: Record<string, unknown>) => Promise<void>;
+  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
   };
   agentMgr: NativeInjectorAgentMgr;
-  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
-  convexUrl?: string;
-  onTaskDelivered?: (args: { chatroomId: string; role: string; taskId: string }) => void;
+  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
+  convexUrl?: string | undefined;
+  onTaskDelivered?:( (args: { chatroomId: string; role: string; taskId: string }) => void) | undefined;
 }
 
 async function emitTaskDeliveryFailed(
@@ -56,7 +56,7 @@ async function emitTaskDeliveryFailed(
   args: {
     chatroomId: string;
     role: string;
-    taskId?: string;
+    taskId?: string | undefined;
     error: string;
   }
 ): Promise<void> {

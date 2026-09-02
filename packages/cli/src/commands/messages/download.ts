@@ -27,11 +27,11 @@ const DEFAULT_LIMIT = 10;
 
 export interface DownloadMessagesOptions {
   role: string;
-  format?: 'linear';
-  outputDir?: string;
-  limit?: number;
+  format?: 'linear' | undefined;
+  outputDir?: string | undefined;
+  limit?: number | undefined;
   /** Anchor message id — download history from this message onward (ascending) instead of newest-N backward. */
-  sinceMessageId?: string;
+  sinceMessageId?: string | undefined;
 }
 
 type DownloadMessage = {
@@ -40,14 +40,14 @@ type DownloadMessage = {
   senderRole: string;
   type: string;
   content: string;
-  targetRole?: string | null;
-  taskStatus?: string | null;
-  taskId?: string | null;
-  taskContent?: string | null;
-  attachedTasks?: EnrichedMessageInput['attachedTasks'];
-  attachedBacklogItems?: EnrichedMessageInput['attachedBacklogItems'];
-  attachedMessages?: EnrichedMessageInput['attachedMessages'];
-  attachedSnippets?: EnrichedMessageInput['attachedSnippets'];
+  targetRole?: string | null | undefined;
+  taskStatus?: string | null | undefined;
+  taskId?: string | null | undefined;
+  taskContent?: string | null | undefined;
+  attachedTasks?: EnrichedMessageInput['attachedTasks'] | undefined;
+  attachedBacklogItems?: EnrichedMessageInput['attachedBacklogItems'] | undefined;
+  attachedMessages?: EnrichedMessageInput['attachedMessages'] | undefined;
+  attachedSnippets?: EnrichedMessageInput['attachedSnippets'] | undefined;
 };
 
 export type DownloadMessagesError =
@@ -222,7 +222,7 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
       file: string;
       createdAt: string;
       senderRole: string;
-      targetRole?: string | null;
+      targetRole?: string | null | undefined;
     }[] = [];
     for (const msg of messages) {
       const file = messageFilename(msg);

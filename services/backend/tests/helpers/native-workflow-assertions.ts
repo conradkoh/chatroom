@@ -71,7 +71,7 @@ export function assertNativeDeliveryScenario(
   scenario: NativeDeliveryScenario,
   options?: {
     /** When fewer roles are online than the matrix assumes (integration tests). */
-    alternateHandoffTargets?: string[];
+    alternateHandoffTargets?: string[] | undefined;
   }
 ): void {
   assertNativeDeliverySectionOrder(output);
@@ -91,7 +91,7 @@ export function assertNativeDeliveryScenario(
 /** Init prompt: templates are NOT eager — delivery inlines them per task. */
 export function assertNativeInitTemplateDisclosure(
   prompt: string,
-  options: { referencesDeliveryTemplates?: boolean } = {}
+  options: { referencesDeliveryTemplates?: boolean | undefined } = {}
 ): void {
   expect(prompt).not.toContain('Begin With the End in Mind');
   expect(prompt).not.toContain('handoff view-template');

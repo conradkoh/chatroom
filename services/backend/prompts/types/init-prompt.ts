@@ -10,16 +10,16 @@ export interface ActivatedSkillSnapshot {
 export interface InitPromptInput {
   chatroomId: string;
   role: string;
-  teamId?: string;
+  teamId?: string | undefined;
   teamName: string;
   teamRoles: string[];
-  teamEntryPoint?: string;
+  teamEntryPoint?: string | undefined;
   convexUrl: string;
   /** Agent type for register-agent command — 'unset' produces `<remote|custom>` placeholder */
-  agentType?: 'remote' | 'custom' | 'unset';
+  agentType?: 'remote' | 'custom' | 'unset' | undefined;
   /** Remote agent harness — determines native vs CLI init prompt sections */
-  agentHarness?: AgentHarness;
-  activatedSkills?: ActivatedSkillSnapshot[];
+  agentHarness?: AgentHarness | undefined;
+  activatedSkills?: ActivatedSkillSnapshot[] | undefined;
 }
 
 export interface ComposedInitPrompt {

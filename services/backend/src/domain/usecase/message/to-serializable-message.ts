@@ -5,16 +5,26 @@ export type EnrichedMessageInput = {
   _id: string;
   _creationTime: number;
   senderRole: string;
-  targetRole?: string | null;
+  targetRole?: string | null | undefined;
   type: string;
   content: string;
-  taskId?: string | null;
-  taskStatus?: string | null;
-  taskContent?: string | null;
-  attachedTasks?: { _id: string; content: string; status?: string; backlogStatus?: string }[];
-  attachedBacklogItems?: { _id?: string; id?: string; content: string; status: string }[];
-  attachedMessages?: { _id: string; content: string; senderRole: string }[];
-  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+  taskId?: string | null | undefined;
+  taskStatus?: string | null | undefined;
+  taskContent?: string | null | undefined;
+  attachedTasks?:
+    | {
+        _id: string;
+        content: string;
+        status?: string | undefined;
+        backlogStatus?: string | undefined;
+      }[]
+    | undefined;
+  attachedBacklogItems?:
+    | { _id?: string | undefined; id?: string | undefined; content: string; status: string }[]
+    | undefined;
+  attachedMessages?: { _id: string; content: string; senderRole: string }[] | undefined;
+  attachedSnippets?:
+    { reference: string; fileSource: string; selectedContent: string }[] | undefined;
 };
 
 function normalizeDeliveryAttachments(

@@ -7,19 +7,19 @@ export interface TelegramBotInfo {
   id: number;
   is_bot: boolean;
   first_name: string;
-  username?: string;
+  username?: string | undefined;
 }
 
 /** Telegram getMe API response. */
 export interface GetMeResponse {
   ok: boolean;
-  result?: TelegramBotInfo;
-  description?: string;
+  result?: TelegramBotInfo | undefined;
+  description?: string | undefined;
 }
 
 /** Telegram setWebhook / deleteWebhook API response. */
 export interface WebhookResponse {
   ok: boolean;
-  result?: boolean;
-  description?: string;
+  result?: boolean | undefined;
+  description?: string | undefined;
 }

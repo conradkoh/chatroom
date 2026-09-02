@@ -32,7 +32,7 @@ export interface TelegramSendMessageOptions {
   chatroomId: string;
   integrationId: string;
   message: string;
-  role?: string;
+  role?: string | undefined;
 }
 
 // ─── Domain errors ─────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export const sendMessageEffect = (
 
     // Send message via action
     const result = yield* backend
-      .action<{ success?: boolean }>(api.integrations.telegram.actions.sendMessage, {
+      .action<{ success?: boolean | undefined }>(api.integrations.telegram.actions.sendMessage, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         message,
@@ -166,7 +166,7 @@ function handleSendMessageError(err: SendMessageError): Effect.Effect<void> {
       console.error('\n❌ ERROR: Failed to send message to Telegram');
 
       if (err.cause instanceof ConvexError) {
-        const errorData = err.cause.data as { code?: string; message?: string };
+        const errorData = err.cause.data as { code?: string | undefined; message?: string | undefined };
         console.error(`\n${errorData.message || 'An unexpected error occurred'}`);
 
         if (process.env.CHATROOM_DEBUG === 'true') {

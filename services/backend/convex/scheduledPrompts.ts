@@ -6,6 +6,7 @@ import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { omitUndefined } from './lib/omitUndefined';
 import {
   computeNextRunAt,
   computeNextRunAtForEnable,
@@ -34,9 +35,9 @@ async function requireScheduledPromptAccess(
 
 function validateSchedule(args: {
   scheduleKind: 'interval' | 'daily';
-  intervalMinutes?: number;
-  hourUTC?: number;
-  minuteUTC?: number;
+  intervalMinutes?: number | undefined;
+  hourUTC?: number | undefined;
+  minuteUTC?: number | undefined;
 }) {
   if (args.scheduleKind === 'interval') {
     if (!args.intervalMinutes || args.intervalMinutes < MIN_INTERVAL_MINUTES) {
@@ -64,9 +65,9 @@ function validateSchedule(args: {
 
 function toScheduleRow(args: {
   scheduleKind: 'interval' | 'daily';
-  intervalMinutes?: number;
-  hourUTC?: number;
-  minuteUTC?: number;
+  intervalMinutes?: number | undefined;
+  hourUTC?: number | undefined;
+  minuteUTC?: number | undefined;
 }): ScheduledPromptSchedule {
   if (args.scheduleKind === 'interval') {
     return {
@@ -145,18 +146,23 @@ export const create = mutation({
     const now = Date.now();
     const schedule = toScheduleRow(args);
     const nextRunAt = computeNextRunAtForEnable(schedule, now);
-    return await ctx.db.insert('chatroom_scheduledPrompts', {
-      chatroomId: args.chatroomId,
-      name: args.name?.trim() || undefined,
-      prompt: trimmed,
-      ...schedule,
-      disabledReason: undefined,
-      isRunnable: true,
-      nextRunAt,
-      createdBy: session.userId,
-      createdAt: now,
-      updatedAt: now,
-    });
+    return await ctx.db.insert(
+      'chatroom_scheduledPrompts',
+      omitUndefined({
+        chatroomId: args.chatroomId,
+        ...((args.name?.trim() || undefined) !== undefined
+          ? { name: args.name?.trim() || undefined }
+          : {}),
+        prompt: trimmed,
+        ...schedule,
+        ...{},
+        isRunnable: true,
+        nextRunAt,
+        createdBy: session.userId,
+        createdAt: now,
+        updatedAt: now,
+      })
+    );
   },
 });
 
@@ -196,9 +202,9 @@ export const update = mutation({
     let scheduleChanged = false;
     const schedule: {
       scheduleKind: 'interval' | 'daily';
-      intervalMinutes?: number;
-      hourUTC?: number;
-      minuteUTC?: number;
+      intervalMinutes?: number | undefined;
+      hourUTC?: number | undefined;
+      minuteUTC?: number | undefined;
     } = { scheduleKind: row.scheduleKind };
     if (args.scheduleKind !== undefined) {
       schedule.scheduleKind = args.scheduleKind;

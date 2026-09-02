@@ -55,7 +55,7 @@ export interface DedupTracker {
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
-  workspaceListChangedIds?: Map<string, number>;
+  workspaceListChangedIds?: Map<string, number> | undefined;
 }
 
 /** Union of services required to dispatch any command event. */

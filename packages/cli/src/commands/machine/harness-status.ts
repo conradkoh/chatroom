@@ -25,7 +25,7 @@ interface HarnessStatusRow {
   id: string;
   displayName: string;
   status: 'installed' | 'not-installed' | 'error';
-  reason?: string;
+  reason?: string | undefined;
 }
 
 /**

@@ -84,7 +84,7 @@ export async function ingestChatroomEvent(
   await ensureConnected(s);
   const response = (await s.emitWithAck('eventStream.ingest', event)) as {
     ok: boolean;
-    error?: { message?: string };
+    error?: { message?: string | undefined } | undefined;
   };
   if (!response.ok) {
     throw new Error(response.error?.message ?? 'Failed to ingest chatroom event');

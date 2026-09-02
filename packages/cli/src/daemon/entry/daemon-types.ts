@@ -57,9 +57,9 @@ export interface StartAgentCommand {
     chatroomId: string;
     role: string;
     agentHarness: AgentHarness;
-    model?: string;
-    workingDir?: string;
-  };
+    model?: string | undefined;
+    workingDir?: string | undefined;
+  } | undefined;
 }
 
 /**
@@ -132,7 +132,7 @@ export interface DaemonSessionInit {
     workspaces: WorkspaceForSync[];
     updatedAt: number;
   };
-  logger?: Pick<Console, 'log' | 'warn'>;
+  logger?: Pick<Console, 'log' | 'warn'> | undefined;
 
   // ─── Mutable state (shared reference semantics) ───────────────────
   lastPushedGitState: Map<string, string>;

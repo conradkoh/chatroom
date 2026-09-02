@@ -5,11 +5,11 @@ import type { EventStreamFilterValues } from '@/lib/event-stream-filters-url';
 
 type Props = {
   chatrooms: ChatroomListItem[];
-  chatroomsLoading?: boolean;
-  chatroomsError?: boolean;
+  chatroomsLoading?: boolean | undefined;
+  chatroomsError?: boolean | undefined;
   values: EventStreamFilterValues;
   onChange: (v: EventStreamFilterValues) => void;
-  disabled?: boolean;
+  disabled?: boolean | undefined;
 };
 export function EventStreamFiltersBar({
   chatrooms,

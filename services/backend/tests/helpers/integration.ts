@@ -143,7 +143,7 @@ export async function setupRemoteAgentConfig(
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string,
   role: string,
-  options?: { agentHarness?: string; workingDir?: string }
+  options?: { agentHarness?: string | undefined; workingDir?: string | undefined }
 ): Promise<void> {
   // Start agent via sendCommand to create both team and machine agent configs
   await t.mutation(api.machines.sendCommand, {

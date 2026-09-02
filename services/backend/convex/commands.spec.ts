@@ -86,7 +86,7 @@ async function insertRunTail(
     byteLength: number;
     totalBytesWritten: number;
     updatedAt: number;
-    lineCount?: number;
+    lineCount?: number | undefined;
   }
 ) {
   await t.run(async (ctx) => {

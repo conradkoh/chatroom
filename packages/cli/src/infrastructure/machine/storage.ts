@@ -169,7 +169,7 @@ export type EnsureMachineRegisteredOptions = {
    * Only `machine start` (daemon bootstrap) should pass this — other callers must
    * require an existing registration so we never silently mint a new UUID mid-session.
    */
-  allowCreate?: boolean;
+  allowCreate?: boolean | undefined;
 };
 
 /**

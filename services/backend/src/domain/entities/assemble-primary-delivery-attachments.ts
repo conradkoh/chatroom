@@ -39,10 +39,10 @@ const PICK_PRIMARY_DELIVERY_FIELD = {
 } satisfies Record<PrimaryDeliveryAttachmentKind, PrimaryDeliveryPicker>;
 
 export interface SourceMessageForPrimaryDelivery {
-  attachedSnippets?: DeliverySnippet[];
-  attachedBacklogItemIds?: string[];
-  attachedTaskIds?: string[];
-  attachedMessageIds?: string[];
+  attachedSnippets?: DeliverySnippet[] | undefined;
+  attachedBacklogItemIds?: string[] | undefined;
+  attachedTaskIds?: string[] | undefined;
+  attachedMessageIds?: string[] | undefined;
 }
 
 export interface ResolvedBacklogItemRecord {

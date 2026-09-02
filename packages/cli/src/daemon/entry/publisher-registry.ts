@@ -11,12 +11,12 @@ import type { PersistenceStore } from '../infrastructure/persistence/index.js';
 import type { StreamHub } from '../local-web/server/stream-hub.js';
 
 export type PublisherRegistryDeps = {
-  persistence?: PersistenceStore;
-  streamHub?: StreamHub;
-  backend?: ConvexPublisherDeps['backend'];
-  sessionId?: string;
-  machineId?: string;
-  logEvent?: ConvexPublisherDeps['logEvent'];
+  persistence?: PersistenceStore | undefined;
+  streamHub?: StreamHub | undefined;
+  backend?: ConvexPublisherDeps['backend'] | undefined;
+  sessionId?: string | undefined;
+  machineId?: string | undefined;
+  logEvent?: ConvexPublisherDeps['logEvent'] | undefined;
 };
 
 export type PublisherRegistry = {

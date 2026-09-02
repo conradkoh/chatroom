@@ -8,6 +8,7 @@
 import { v } from 'convex/values';
 
 import { internalMutation } from '../../_generated/server';
+import { omitUndefined } from '../../lib/omitUndefined';
 
 // ─── Internal Mutations ───────────────────────────────────────────────────────
 
@@ -26,11 +27,11 @@ export const updateWebhookRegistration = internalMutation({
     if (!integration) return;
 
     await ctx.db.patch('chatroom_integrations', args.integrationId, {
-      config: {
+      config: omitUndefined({
         ...integration.config,
         webhookUrl: args.webhookUrl || undefined,
         webhookSecret: args.webhookSecret,
-      },
+      }),
       updatedAt: Date.now(),
     });
   },

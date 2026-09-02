@@ -28,6 +28,6 @@ export type OpenPendingHarnessSessionInput = {
   harnessName: string;
   lastUsedConfig: {
     agent: string;
-    model?: { providerID: string; modelID: string };
+    model?: { providerID: string; modelID: string } | undefined;
   };
 };

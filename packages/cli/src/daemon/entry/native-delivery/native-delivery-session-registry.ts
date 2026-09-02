@@ -16,9 +16,9 @@ export type NativeDeliverySessionContext = {
   agentMgr: DaemonAgentProcessManagerServiceShape;
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
-  taskSnapshotState?: MachineTaskSnapshotState;
-  agentOperationalReadModel?: AgentOperationalReadModel;
-  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
+  taskSnapshotState?: MachineTaskSnapshotState | undefined;
+  agentOperationalReadModel?: AgentOperationalReadModel | undefined;
+  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
 };
 
 let registered: NativeDeliverySessionContext | null = null;

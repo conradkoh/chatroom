@@ -6,7 +6,11 @@ export type RunId = Id<'chatroom_commandRunsV2'>;
 
 export function buildStatusUpdate(
   status: CommandRunStatus,
-  extras?: { pid?: number; exitCode?: number; terminationReason?: string }
+  extras?: {
+    pid?: number | undefined;
+    exitCode?: number | undefined;
+    terminationReason?: string | undefined;
+  }
 ): Record<string, unknown> {
   const update: Record<string, unknown> = { status };
   if (extras) {

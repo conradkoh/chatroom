@@ -9,7 +9,7 @@ interface PendingMessage {
 }
 
 interface PendingBatch {
-  messages?: PendingMessage[];
+  messages?: PendingMessage[] | undefined;
 }
 
 export function startAgenticQueryPromptSubscriber(

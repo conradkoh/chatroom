@@ -30,8 +30,8 @@ describe('OpenCodeAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           const err = new Error('Command failed: which opencode') as Error & {
-            status?: number;
-            stderr?: Buffer;
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
           };
           err.status = 1;
           err.stderr = Buffer.from('');

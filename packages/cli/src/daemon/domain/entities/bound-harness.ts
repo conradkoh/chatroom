@@ -90,12 +90,12 @@ export interface ResumeHarnessSessionOptions {
    * `chatroom_harnessSessions` document id when it differs from the opencode
    * SDK session id. Omit only when replication is off or ids are 1:1.
    */
-  readonly harnessSessionId?: HarnessSessionId;
+  readonly harnessSessionId?: HarnessSessionId | undefined;
   /**
    * Optional model override on resume, e.g. `opencode/big-pickle[thinking=xhigh]`.
    * When omitted, pi-sdk restores model/thinking from the session file.
    */
-  readonly model?: string;
+  readonly model?: string | undefined;
 }
 
 // ─── NewSessionConfig ─────────────────────────────────────────────────────────
@@ -107,22 +107,22 @@ export interface NewSessionConfig {
    * one (typically using a small model configured in the opencode app config).
    * The resolved title is always available on `session.sessionTitle`.
    */
-  readonly title?: string;
+  readonly title?: string | undefined;
   /**
    * Model identifier, e.g. 'openai/gpt-4'.
    * Use `models()` to discover available IDs.
    */
   readonly model: string;
   /** System prompt for the session. */
-  readonly systemPrompt?: string;
+  readonly systemPrompt?: string | undefined;
   /** Default agent for this session (e.g. 'builder', 'planner'). */
-  readonly agent?: string;
+  readonly agent?: string | undefined;
   /**
    * `chatroom_harnessSessions` document id for replication. Pass this when the
    * backend row exists before the harness session (typical daemon flow). If
    * omitted, the SDK session id is used as the replication key (tests / 1:1).
    */
-  readonly harnessSessionId?: HarnessSessionId;
+  readonly harnessSessionId?: HarnessSessionId | undefined;
 }
 
 // ─── startBoundHarness ────────────────────────────────────────────────────────

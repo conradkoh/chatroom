@@ -38,7 +38,7 @@ export interface NativeTaskDeliverySessionDeps {
   sessionId: string;
   convexUrl: string;
   machineId: string;
-  logEvent?: (event: Record<string, unknown>) => Promise<void>;
+  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -48,7 +48,7 @@ export interface NativeTaskDeliverySessionDeps {
 export interface NativeSessionLostParams {
   chatroomId: string;
   role: string;
-  harnessSessionId?: string;
+  harnessSessionId?: string | undefined;
 }
 
 // fallow-ignore-next-line unused-export

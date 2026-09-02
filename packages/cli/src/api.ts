@@ -35,15 +35,15 @@ export interface AuthRequestResult {
 
 export interface AuthRequestStatus {
   status: 'pending' | 'approved' | 'denied' | 'expired' | 'not_found';
-  sessionId?: string;
-  expiresAt?: number;
+  sessionId?: string | undefined;
+  expiresAt?: number | undefined;
 }
 
 export interface SessionValidation {
   valid: boolean;
-  userId?: string;
-  userName?: string;
-  reason?: string;
+  userId?: string | undefined;
+  userName?: string | undefined;
+  reason?: string | undefined;
 }
 
 // Response types from backend functions

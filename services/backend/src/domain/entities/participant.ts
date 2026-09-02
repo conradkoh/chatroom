@@ -32,7 +32,9 @@ export const NATIVE_HANDOFF_REMINDER =
  * Returns true if the participant is in an active (non-exited) state.
  * Use this to filter participant lists for routing, handoff, and queue promotion.
  */
-export function isActiveParticipant(participant: { lastSeenAction?: string | null }): boolean {
+export function isActiveParticipant(participant: {
+  lastSeenAction?: string | null | undefined;
+}): boolean {
   return participant.lastSeenAction !== PARTICIPANT_EXITED_ACTION;
 }
 
@@ -59,10 +61,10 @@ function isOnlineOrStartingStatus(status: string | null): boolean {
  * because it is offline (crashed/exited/never started) when the user sends a message.
  */
 export function isOfflineForUserMessageRestart(participant: {
-  lastStatus?: string | null;
-  lastDesiredState?: string | null;
-  lastSeenAction?: string | null;
-  isAlive?: boolean;
+  lastStatus?: string | null | undefined;
+  lastDesiredState?: string | null | undefined;
+  lastSeenAction?: string | null | undefined;
+  isAlive?: boolean | undefined;
 }): boolean {
   // Intentional stop — user chose to stop; do not auto-restart
   if (participant.lastDesiredState === 'stopped') return false;
@@ -96,10 +98,10 @@ export interface ParticipantPresence {
 /** Source fields a participant record contributes to its presence row. */
 export interface ParticipantPresenceSource {
   role: string;
-  lastSeenAt?: number | null;
-  lastSeenAction?: string | null;
-  lastStatus?: string | null;
-  lastDesiredState?: string | null;
+  lastSeenAt?: number | null | undefined;
+  lastSeenAction?: string | null | undefined;
+  lastStatus?: string | null | undefined;
+  lastDesiredState?: string | null | undefined;
 }
 
 /**

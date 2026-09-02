@@ -49,15 +49,15 @@ export type HandoffError =
   | {
       readonly _tag: 'HandoffFailed';
       readonly cause: Error;
-      readonly errorData?: { code?: string; message?: string };
+      readonly errorData?: { code?: string | undefined; message?: string | undefined } | undefined;
     }
   | {
       readonly _tag: 'HandoffRejected';
       readonly error: {
         message: string;
-        code?: string;
-        suggestedTarget?: string;
-        suggestedTargets?: string[];
+        code?: string | undefined;
+        suggestedTarget?: string | undefined;
+        suggestedTargets?: string[] | undefined;
       };
     };
 
@@ -100,13 +100,13 @@ export const handoffEffect = (
         success: boolean;
         error?: {
           message: string;
-          code?: string;
-          suggestedTarget?: string;
-          suggestedTargets?: string[];
-        };
-        supportsNativeIntegration?: boolean;
-        enhancerJobId?: string | null;
-        enhancerRequestQueued?: boolean;
+          code?: string | undefined;
+          suggestedTarget?: string | undefined;
+          suggestedTargets?: string[] | undefined;
+        } | undefined;
+        supportsNativeIntegration?: boolean | undefined;
+        enhancerJobId?: string | null | undefined;
+        enhancerRequestQueued?: boolean | undefined;
       }>(api.messages.handoff, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -116,9 +116,9 @@ export const handoffEffect = (
       })
       .pipe(
         Effect.mapError((cause): HandoffError => {
-          let errorData: { code?: string; message?: string } | undefined;
+          let errorData: { code?: string | undefined; message?: string | undefined } | undefined;
           if (cause instanceof ConvexError) {
-            errorData = cause.data as { code?: string; message?: string };
+            errorData = cause.data as { code?: string | undefined; message?: string | undefined };
           }
           return { _tag: 'HandoffFailed', cause, errorData };
         })

@@ -23,7 +23,7 @@ export function createWorkspaceFileTreeDeltaOutboxRegistry(
   createSend: (
     key: string
   ) => (unit: WorkspaceFileTreeDeltaDeliveryUnit) => Promise<DeltaPushResult>,
-  options?: { batchSize?: number; onError?: (key: string, e: unknown) => void }
+  options?: { batchSize?: number | undefined; onError?:( (key: string, e: unknown) => void) | undefined }
 ): WorkspaceFileTreeDeltaOutboxRegistry {
   const store = openDurableFifoQueueStore(resolveOutboxDbPath(machineId, 'file-tree-delta'));
   return createKeyedFifoBatchedOutboxRegistry({

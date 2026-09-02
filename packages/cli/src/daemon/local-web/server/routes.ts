@@ -60,7 +60,7 @@ export function handleHarnessStreamSse(
 export function routeRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  deps: { persistence?: PersistenceStore; streamHub: StreamHub }
+  deps: { persistence?: PersistenceStore | undefined; streamHub: StreamHub }
 ): void {
   const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
   if (req.method === 'GET' && pathname === '/health') return handleHealth(req, res);

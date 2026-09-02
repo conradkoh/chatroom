@@ -22,10 +22,10 @@ function createMockDeps(
 
 function createMockChildWithStreams(options: {
   pid: number;
-  stdout?: Readable | null;
-  stderr?: Readable | null;
-  killed?: boolean;
-  exitCode?: number | null;
+  stdout?: Readable | null | undefined;
+  stderr?: Readable | null | undefined;
+  killed?: boolean | undefined;
+  exitCode?: number | null | undefined;
 }) {
   const mockStdin = { write: vi.fn(), end: vi.fn() };
   const stdout = options.stdout === undefined ? new Readable({ read() {} }) : options.stdout;
@@ -62,8 +62,8 @@ describe('CommandCodeAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           const err = new Error('Command failed: which cmd') as Error & {
-            status?: number;
-            stderr?: Buffer;
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
           };
           err.status = 1;
           err.stderr = Buffer.from('');

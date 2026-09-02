@@ -17,7 +17,7 @@ export interface ResumeSessionDeps {
   readonly harness: BoundHarness;
   readonly journalFactory: JournalFactory;
   readonly chunkExtractor: (event: DirectHarnessSessionEvent) => ExtractedChunk | null;
-  readonly nowFn?: () => number;
+  readonly nowFn?:( () => number) | undefined;
 }
 
 // ─── Input / Result ───────────────────────────────────────────────────────────
@@ -25,9 +25,9 @@ export interface ResumeSessionDeps {
 export interface ResumeSessionInput {
   readonly harnessSessionId: string;
   readonly opencodeSessionId: string;
-  readonly workspaceId?: string;
+  readonly workspaceId?: string | undefined;
   readonly harnessName: string;
-  readonly model?: string;
+  readonly model?: string | undefined;
 }
 
 export type ResumeSessionResult = SessionHandle;

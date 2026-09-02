@@ -9,8 +9,11 @@ export async function deriveRoleStopState(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
-  opts: { isAlive: boolean; desiredState?: 'running' | 'stopped' }
-): Promise<{ stopState: RoleStopState; activeStopCommandId?: Id<'chatroom_agentStopCommands'> }> {
+  opts: { isAlive: boolean; desiredState?: 'running' | 'stopped' | undefined }
+): Promise<{
+  stopState: RoleStopState;
+  activeStopCommandId?: Id<'chatroom_agentStopCommands'> | undefined;
+}> {
   const roleKey = normalizeAgentStopRole(role);
   for (const status of ['pending', 'processing'] as const) {
     const cmd = await ctx.db

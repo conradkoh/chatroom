@@ -9,8 +9,8 @@ import type { OutboundEvent } from '../../domain/entities/outbound-event.js';
 export type PersistenceStore = {
   append(event: OutboundEvent): void;
   listHarnessStreamLines(opts?: {
-    harness?: string;
-    limit?: number;
+    harness?: string | undefined;
+    limit?: number | undefined;
   }): ReturnType<typeof listHarnessStreamLines>;
   listPendingOutbox(limit?: number): ReturnType<typeof listPendingOutbox>;
   close(): void;

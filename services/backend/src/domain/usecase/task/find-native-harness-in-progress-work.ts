@@ -42,7 +42,7 @@ export async function findNativeHarnessInProgressWork(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
-  opts?: { taskId?: Id<'chatroom_tasks'> }
+  opts?: { taskId?: Id<'chatroom_tasks'> | undefined }
 ): Promise<Id<'chatroom_tasks'> | null> {
   const activeTask = await resolveCorrelatedActiveTask(ctx, chatroomId, role, opts?.taskId);
   if (!isInProgressNativeTaskForRole(activeTask, chatroomId, role)) {

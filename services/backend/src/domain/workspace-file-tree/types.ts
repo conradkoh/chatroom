@@ -20,8 +20,8 @@ export interface WorkspaceFileTreeSyncState {
   activeStrategy: FileTreeSnapshotStrategyId | null;
   snapshot: FileTreeSnapshotRef | null;
   syncStatus: FileTreeSyncStatus;
-  requestedAt?: number;
-  force?: boolean;
+  requestedAt?: number | undefined;
+  force?: boolean | undefined;
 }
 
 export function snapshotKindToStrategyId(kind: 'v2' | 'v3'): FileTreeSnapshotStrategyId {

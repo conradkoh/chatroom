@@ -15,11 +15,11 @@ export type { WorkspaceForSync };
 
 /** Minimal flat deps required by getWorkspacesForMachine. */
 export type WorkspaceCacheDeps = {
-  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number } | undefined;
   sessionId: SessionId;
   machineId: string;
   backend: BackendOps;
-  forceRefresh?: boolean;
+  forceRefresh?: boolean | undefined;
 };
 
 /** Returns workspaces for this machine from the subscription store or a fallback query. */

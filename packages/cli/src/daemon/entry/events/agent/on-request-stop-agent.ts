@@ -13,7 +13,7 @@ export interface AgentRequestStopEventPayload {
   role: string;
   reason: string;
   deadline: number;
-  pid?: number;
+  pid?: number | undefined;
 }
 
 export const onRequestStopAgentEffect = (

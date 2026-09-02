@@ -22,7 +22,7 @@ export interface SpawnRateLimiterConfig {
 
 export interface TryConsumeResult {
   allowed: boolean;
-  retryAfterMs?: number;
+  retryAfterMs?: number | undefined;
 }
 
 export interface BucketStatus {

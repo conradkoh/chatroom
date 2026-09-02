@@ -9,15 +9,15 @@ import type { FileInboundEvent } from '../domain/usecase/handle-file-inbound.js'
 import type { WorkspaceGitInboundEvent } from '../domain/usecase/handle-workspace-git-inbound.js';
 
 const routerDeps = {
-  command: {} as { deliverInbound?: (event: CommandInboundEvent) => Promise<void> },
+  command: {} as { deliverInbound?:( (event: CommandInboundEvent) => Promise<void>) | undefined },
   workspaceGit: {} as {
-    deliverInbound?: (event: WorkspaceGitInboundEvent) => Promise<void>;
+    deliverInbound?:( (event: WorkspaceGitInboundEvent) => Promise<void>) | undefined;
   },
-  file: {} as { deliverInbound?: (event: FileInboundEvent) => Promise<void> },
+  file: {} as { deliverInbound?:( (event: FileInboundEvent) => Promise<void>) | undefined },
   agenticQuery: {} as {
-    deliverInbound?: (event: AgenticQueryInboundEvent) => Promise<void>;
+    deliverInbound?:( (event: AgenticQueryInboundEvent) => Promise<void>) | undefined;
   },
-  enhancer: {} as { deliverInbound?: (event: EnhancerInboundEvent) => Promise<void> },
+  enhancer: {} as { deliverInbound?:( (event: EnhancerInboundEvent) => Promise<void>) | undefined },
 };
 
 describe('routeInboundEvent', () => {

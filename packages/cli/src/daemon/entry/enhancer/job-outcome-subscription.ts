@@ -10,10 +10,10 @@ export interface EnhancerJobState {
   status: EnhancerJobStatus;
   attemptCount: number;
   maxAttempts: number;
-  lastError?: string;
-  runningSince?: number;
-  nextRetryAt?: number;
-  completedAt?: number;
+  lastError?: string | undefined;
+  runningSince?: number | undefined;
+  nextRetryAt?: number | undefined;
+  completedAt?: number | undefined;
 }
 
 export interface EnhancerJobOutcomeSubscription {

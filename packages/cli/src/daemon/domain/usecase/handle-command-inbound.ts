@@ -6,7 +6,7 @@ export type CommandInboundEvent = Extract<
 >;
 
 export type HandleCommandInboundDeps = {
-  deliverInbound?: (event: CommandInboundEvent) => Promise<void>;
+  deliverInbound?:( (event: CommandInboundEvent) => Promise<void>) | undefined;
 };
 
 export async function handleCommandInbound(

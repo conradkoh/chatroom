@@ -4,17 +4,17 @@ import { computeExponentialRetryDelayMs } from './outbox-retry-backoff.js';
 
 export interface CoalescingStateOutboxOptions<TState, TResult> {
   /** Minimum time between successful sends. The first send is immediate. */
-  minIntervalMs?: number;
+  minIntervalMs?: number | undefined;
   /** Delay before retrying a failed send. */
-  retryDelayMs?: number;
+  retryDelayMs?: number | undefined;
   /** Maximum retry delay after repeated failures. */
-  maxRetryDelayMs?: number;
+  maxRetryDelayMs?: number | undefined;
   send: (state: TState) => Promise<TResult>;
-  onError?: (error: unknown) => void;
-  store?: DurableCoalescingStateStore;
-  deliveryKey?: string;
-  serialize?: (state: TState) => string;
-  deserialize?: (json: string) => TState;
+  onError?:( (error: unknown) => void) | undefined;
+  store?: DurableCoalescingStateStore | undefined;
+  deliveryKey?: string | undefined;
+  serialize?:( (state: TState) => string) | undefined;
+  deserialize?:( (json: string) => TState) | undefined;
 }
 
 export interface CoalescingStateOutbox<TState, TResult> {

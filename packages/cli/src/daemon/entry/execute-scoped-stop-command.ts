@@ -9,7 +9,7 @@ import type { runExactTargetsStop as runExactTargetsStopType } from '../infrastr
 export interface ScopedStopExecutionSummary {
   stoppedCount: number;
   failedCount: number;
-  executionError?: unknown;
+  executionError?: unknown | undefined;
 }
 
 export async function executeScopedStopForCommand(args: {

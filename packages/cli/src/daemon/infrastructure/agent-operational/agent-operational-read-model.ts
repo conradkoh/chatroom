@@ -9,7 +9,7 @@ export type MachineAgentOperationalRow = {
   daemonConnected: boolean;
   projectedAt: number;
   revisionKey: string;
-  stopState?: RoleStopState;
+  stopState?: RoleStopState | undefined;
 };
 
 const roleKey = (chatroomId: string, role: string) => `${chatroomId}:${role.toLowerCase()}`;

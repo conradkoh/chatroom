@@ -144,7 +144,7 @@ async function listDeliverableSnapshots(
   const result = (await deps.session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
     sessionId: deps.session.sessionId,
     machineId: deps.session.machineId,
-  })) as { tasks?: unknown };
+  })) as { tasks?: unknown | undefined };
 
   const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
   return mapAssignedTaskSnapshotList(parseAssignedTaskSnapshotRows(result.tasks ?? []))

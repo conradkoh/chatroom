@@ -42,7 +42,7 @@ function isEmptyRepoHeadError(error: Error): boolean {
 export interface GitPorcelainEntry {
   xy: string;
   path: string;
-  fromPath?: string;
+  fromPath?: string | undefined;
 }
 
 export type GitHeadState = {
@@ -262,7 +262,7 @@ export function porcelainUntrackedDeletedEvents(args: {
   node: GitRepoNode;
   prev: readonly GitPorcelainEntry[];
   next: readonly GitPorcelainEntry[];
-  pathExists?: (absolutePath: string) => boolean;
+  pathExists?:( (absolutePath: string) => boolean) | undefined;
 }): WorkspaceFsEvent[] {
   const exists = args.pathExists ?? ((p: string) => existsSync(p));
   const left = porcelainPathsLeftSnapshot({

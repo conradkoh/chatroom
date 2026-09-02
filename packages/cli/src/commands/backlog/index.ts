@@ -41,9 +41,9 @@ type BacklogItemStatus = 'backlog' | 'pending_user_review' | 'closed';
 
 export interface ListBacklogOptions {
   role: string;
-  limit?: number;
-  sort?: 'date:desc' | 'priority:desc';
-  filter?: 'unscored';
+  limit?: number | undefined;
+  sort?: 'date:desc' | 'priority:desc' | undefined;
+  filter?: 'unscored' | undefined;
 }
 
 export interface AddBacklogOptions {
@@ -71,7 +71,7 @@ export interface DeleteBacklogOptions {
 export interface CompleteBacklogOptions {
   role: string;
   backlogItemId: string;
-  force?: boolean;
+  force?: boolean | undefined;
 }
 
 export interface ReopenBacklogOptions {
@@ -82,17 +82,17 @@ export interface ReopenBacklogOptions {
 export interface PatchBacklogOptions {
   role: string;
   backlogItemId: string;
-  complexity?: string;
-  value?: string;
-  priority?: string;
+  complexity?: string | undefined;
+  value?: string | undefined;
+  priority?: string | undefined;
 }
 
 export interface ScoreBacklogOptions {
   role: string;
   backlogItemId: string;
-  complexity?: string;
-  value?: string;
-  priority?: string;
+  complexity?: string | undefined;
+  value?: string | undefined;
+  priority?: string | undefined;
 }
 
 export interface MarkForReviewBacklogOptions {
@@ -102,19 +102,19 @@ export interface MarkForReviewBacklogOptions {
 
 export interface HistoryBacklogOptions {
   role: string;
-  from?: string; // ISO date string e.g. "2026-03-01"
-  to?: string; // ISO date string e.g. "2026-03-16"
-  limit?: number;
+  from?: string | undefined; // ISO date string e.g. "2026-03-01"
+  to?: string | undefined; // ISO date string e.g. "2026-03-16"
+  limit?: number | undefined;
 }
 
 export interface ExportBacklogOptions {
   role: string;
-  path?: string;
+  path?: string | undefined;
 }
 
 export interface ImportBacklogOptions {
   role: string;
-  path?: string;
+  path?: string | undefined;
 }
 
 /** Shape of a single item in the export JSON */
@@ -124,9 +124,9 @@ export interface BacklogExportItem {
   status: string;
   createdBy: string;
   createdAt: number;
-  complexity?: string;
-  value?: string;
-  priority?: number;
+  complexity?: string | undefined;
+  value?: string | undefined;
+  priority?: number | undefined;
 }
 
 /** Shape of the export JSON file */
@@ -744,7 +744,7 @@ export const historyBacklogEffect = (
         for (const task of tasks) {
           const statusEmoji = getStatusEmoji(task.status as TaskStatus | BacklogItemStatus);
           const completedTs =
-            (task as { completedAt?: number }).completedAt ?? (task.updatedAt as number);
+            (task as { completedAt?: number | undefined }).completedAt ?? (task.updatedAt as number);
           const date = new Date(completedTs).toLocaleString('en-US', {
             month: 'short',
             day: 'numeric',
@@ -949,13 +949,13 @@ export const exportBacklogEffect = (
       chatroomId,
       items: backlogItems.map(
         (item: {
-          content?: unknown;
-          status?: unknown;
-          createdBy?: unknown;
-          createdAt?: unknown;
-          complexity?: unknown;
-          value?: unknown;
-          priority?: unknown;
+          content?: unknown | undefined;
+          status?: unknown | undefined;
+          createdBy?: unknown | undefined;
+          createdAt?: unknown | undefined;
+          complexity?: unknown | undefined;
+          value?: unknown | undefined;
+          priority?: unknown | undefined;
         }) => {
           const content = String(item.content ?? '');
           const exportItem: BacklogExportItem = {

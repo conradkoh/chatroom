@@ -2,7 +2,7 @@ import { getClassificationStyle } from '@/domain/event-classification';
 import { resolveEventTypeMeta } from '@/domain/event-type-catalog';
 import { cn } from '@/lib/utils';
 
-export function EventTypeBadge({ type, className }: { type: string; className?: string }) {
+export function EventTypeBadge({ type, className }: { type: string; className?: string | undefined }) {
   const meta = resolveEventTypeMeta(type);
   return (
     <span

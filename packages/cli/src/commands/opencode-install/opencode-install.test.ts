@@ -30,11 +30,11 @@ const TOOL_PATH = '/home/user/.config/opencode/tool/chatroom.ts';
 const HANDOFF_PATH = '/home/user/.config/opencode/tool/chatroom-handoff.ts';
 
 function makeTestFsService(config: {
-  toolExists?: boolean;
-  handoffExists?: boolean;
-  chatroomInstalled?: boolean;
-  mkdirError?: Error;
-  writeFileError?: Error;
+  toolExists?: boolean | undefined;
+  handoffExists?: boolean | undefined;
+  chatroomInstalled?: boolean | undefined;
+  mkdirError?: Error | undefined;
+  writeFileError?: Error | undefined;
 }) {
   return Layer.succeed(OpenCodeInstallFsService, {
     access: vi.fn((p: string) => {

@@ -37,7 +37,7 @@ export type GetDeltasResult =
         revision: number;
         operations: ReturnType<typeof expandFileTreeDeltaOperations>;
       }[];
-      hasMore?: true;
+      hasMore?: true | undefined;
     };
 
 export type CompactDeltaOperations = CompactFileTreeDeltaOp[];

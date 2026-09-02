@@ -24,7 +24,7 @@ const ANCHOR_DOWNLOAD_DIR = '.chatroom/downloads/messages/linear/anchor';
 export interface AnchorMessagesOptions {
   role: string;
   /** How many prior user messages to include for terse follow-ups (default 3, max 5) */
-  priorLimit?: number;
+  priorLimit?: number | undefined;
 }
 
 type AnchorUserMessage = {
@@ -33,8 +33,8 @@ type AnchorUserMessage = {
   senderRole: string;
   type: string;
   content: string;
-  targetRole?: string | null;
-  taskStatus?: string | null;
+  targetRole?: string | null | undefined;
+  taskStatus?: string | null | undefined;
 };
 
 type LastUserMessageResult = {

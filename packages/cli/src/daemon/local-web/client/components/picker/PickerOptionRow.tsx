@@ -6,13 +6,13 @@ import { cn } from '@/lib/utils';
 
 export interface PickerOptionRowProps {
   children: React.ReactNode;
-  selected?: boolean;
+  selected?: boolean | undefined;
   onSelect: () => void;
-  disabled?: boolean;
-  className?: string;
-  endAdornment?: React.ReactNode;
-  trailingActions?: React.ReactNode;
-  multiline?: boolean;
+  disabled?: boolean | undefined;
+  className?: string | undefined;
+  endAdornment?: React.ReactNode | undefined;
+  trailingActions?: React.ReactNode | undefined;
+  multiline?: boolean | undefined;
 }
 
 // fallow-ignore-next-line complexity

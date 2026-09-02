@@ -1,7 +1,7 @@
 export type AssistantChunkRow = {
   _creationTime: number;
   content: string;
-  partType?: 'text' | 'reasoning' | string;
+  partType?: 'text' | 'reasoning' | string | undefined;
 };
 
 export function aggregateAssistantChunks(

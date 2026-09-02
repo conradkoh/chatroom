@@ -1,6 +1,6 @@
 export interface StandingInstructionsFields {
-  standingInstructions?: string;
-  standingInstructionsEnabled?: boolean;
+  standingInstructions?: string | undefined;
+  standingInstructionsEnabled?: boolean | undefined;
 }
 
 export function getActiveStandingInstructions(chatroom: StandingInstructionsFields): string | null {
@@ -37,7 +37,10 @@ const DISPLAY_TITLE_MAX = 60;
  * Primary display label for a standing instruction. Uses the title when set;
  * falls back to a truncated first line of content for legacy records.
  */
-export function standingInstructionDisplayTitle(item: { title?: string; content: string }): string {
+export function standingInstructionDisplayTitle(item: {
+  title?: string | undefined;
+  content: string;
+}): string {
   const trimmedTitle = item.title?.trim();
   if (trimmedTitle) return trimmedTitle;
   const firstLine = item.content.split('\n')[0]?.trim() ?? '';

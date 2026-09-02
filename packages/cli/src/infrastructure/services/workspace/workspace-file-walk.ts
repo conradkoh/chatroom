@@ -8,7 +8,7 @@ import {
 import { classifyDirectorySyncMode, isPathVisible } from './workspace-visibility-policy.js';
 
 export type WalkWorkspaceFilesOptions = {
-  maxFilePaths?: number;
+  maxFilePaths?: number | undefined;
 };
 
 export type WalkWorkspaceFilesResult = {

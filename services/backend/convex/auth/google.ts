@@ -37,8 +37,8 @@ interface _GoogleTokenResponse {
   access_token: string;
   expires_in: number;
   token_type: string;
-  scope?: string;
-  refresh_token?: string;
+  scope?: string | undefined;
+  refresh_token?: string | undefined;
 }
 
 // Internal constants
@@ -1035,7 +1035,9 @@ async function _convertAnonymousToFullUser(
       email: googleProfile.email,
       google: googleProfile,
       name: googleProfile.name,
-      recoveryCode: anonymousUser.recoveryCode,
+      ...(anonymousUser.recoveryCode !== undefined
+        ? { recoveryCode: anonymousUser.recoveryCode }
+        : {}),
       accessLevel: anonymousUser.accessLevel ?? 'user', // Ensure access level is set
     });
   } else {
@@ -1046,7 +1048,9 @@ async function _convertAnonymousToFullUser(
       email: googleProfile.email,
       google: googleProfile,
       name: googleProfile.name,
-      recoveryCode: anonymousUser.recoveryCode,
+      ...(anonymousUser.recoveryCode !== undefined
+        ? { recoveryCode: anonymousUser.recoveryCode }
+        : {}),
       accessLevel: anonymousUser.accessLevel ?? 'user', // Ensure access level is set
     });
   }
@@ -1089,8 +1093,8 @@ async function _isGoogleAuthEnabled(ctx: QueryCtx | MutationCtx): Promise<boolea
  */
 async function _isGoogleAuthEnabledForActions(ctx: ActionCtx): Promise<{
   enabled: boolean;
-  clientId?: string;
-  clientSecret?: string;
+  clientId?: string | undefined;
+  clientSecret?: string | undefined;
 }> {
   // Check if login is disabled globally
   if (featureFlags.disableLogin) {

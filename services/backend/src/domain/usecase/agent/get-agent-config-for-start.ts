@@ -25,10 +25,10 @@ export interface ConnectedMachineView {
 }
 
 export interface AgentStartDefaults {
-  machineId?: string;
-  agentHarness?: AgentHarness;
-  model?: string;
-  workingDir?: string;
+  machineId?: string | undefined;
+  agentHarness?: AgentHarness | undefined;
+  model?: string | undefined;
+  workingDir?: string | undefined;
 }
 
 export interface AgentStartFormData {

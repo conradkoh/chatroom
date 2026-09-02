@@ -87,31 +87,31 @@ export const readContextEffect = (
           _id: string;
           _creationTime: number;
           senderRole: string;
-          targetRole?: string;
+          targetRole?: string | undefined;
           type: string;
           content: string;
-          taskId?: string;
-          taskStatus?: string;
-          taskContent?: string;
+          taskId?: string | undefined;
+          taskStatus?: string | undefined;
+          taskContent?: string | undefined;
           attachedTasks?: {
             _id: string;
             content: string;
-            status?: string;
-            backlogStatus?: string;
-          }[];
-          attachedBacklogItems?: { _id?: string; id?: string; content: string; status: string }[];
-          attachedMessages?: { _id: string; content: string; senderRole: string }[];
-          attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+            status?: string | undefined;
+            backlogStatus?: string | undefined;
+          }[] | undefined;
+          attachedBacklogItems?: { _id?: string | undefined; id?: string | undefined; content: string; status: string }[] | undefined;
+          attachedMessages?: { _id: string; content: string; senderRole: string }[] | undefined;
+          attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[] | undefined;
         }[];
         currentContext?: {
           content: string;
           createdBy: string;
           createdAt: number;
-        };
+        } | undefined;
         originMessage?: {
           _id: string;
           _creationTime: number;
-        };
+        } | undefined;
         pendingTasksForRole: number;
       }>(api.messages.getContextForRole, {
         sessionId,
@@ -193,7 +193,7 @@ export const newContextEffect = (
   options: {
     role: string;
     content: string;
-    triggerMessageId?: string;
+    triggerMessageId?: string | undefined;
   }
 ): Effect.Effect<void, ContextError, BackendService | SessionService> =>
   Effect.gen(function* () {
@@ -241,7 +241,7 @@ export const listContextsEffect = (
   chatroomId: string,
   options: {
     role: string;
-    limit?: number;
+    limit?: number | undefined;
   }
 ): Effect.Effect<void, ContextError, BackendService | SessionService> =>
   Effect.gen(function* () {
@@ -456,7 +456,7 @@ export async function newContext(
   options: {
     role: string;
     content: string;
-    triggerMessageId?: string;
+    triggerMessageId?: string | undefined;
   },
   deps?: ContextDeps
 ): Promise<void> {
@@ -478,7 +478,7 @@ export async function listContexts(
   chatroomId: string,
   options: {
     role: string;
-    limit?: number;
+    limit?: number | undefined;
   },
   deps?: ContextDeps
 ): Promise<void> {

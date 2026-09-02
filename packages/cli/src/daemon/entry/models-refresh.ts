@@ -232,7 +232,7 @@ type PushModelsSnapshotOutcome =
 function logPushOutcome(
   modelDiff: ModelDiff,
   totalCount: number,
-  options?: { logPrefix?: string }
+  options?: { logPrefix?: string | undefined }
 ): void {
   if (options?.logPrefix) {
     console.log(
@@ -248,7 +248,7 @@ const pushModelsSnapshotMutationEffect = (
   modelDiff: ModelDiff,
   nextHarnessFingerprint: string,
   ctxConfig: MachineConfig,
-  options?: { logPrefix?: string }
+  options?: { logPrefix?: string | undefined }
 ): Effect.Effect<
   Extract<PushModelsSnapshotOutcome, { kind: 'pushed' }>,
   unknown,
@@ -284,7 +284,7 @@ const pushModelsSnapshotMutationEffect = (
 /** Push a model snapshot when it differs from the last pushed state. */
 const pushModelsSnapshotIfChangedEffect = (
   models: Record<string, string[]>,
-  options?: { logPrefix?: string }
+  options?: { logPrefix?: string | undefined }
 ): Effect.Effect<
   PushModelsSnapshotOutcome,
   never,

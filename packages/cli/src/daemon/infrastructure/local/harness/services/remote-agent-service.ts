@@ -26,7 +26,7 @@ export interface SpawnContext {
 export type AgentLogLine = {
   stream: 'stdout' | 'stderr';
   message: string;
-  level?: 'debug' | 'info' | 'warn' | 'error';
+  level?: 'debug' | 'info' | 'warn' | 'error' | undefined;
 };
 
 export interface SpawnOptions {
@@ -47,7 +47,7 @@ export interface SpawnOptions {
    * (e.g. OpenCode prepends it to stdin input).
    */
   systemPrompt: string;
-  model?: string;
+  model?: string | undefined;
   context: SpawnContext;
   /**
    * Daemon-resolved Convex URL — used to sanitize child env (backlog #2).
@@ -55,13 +55,13 @@ export interface SpawnOptions {
    */
   resolvedConvexUrl: string;
   /** When true, harness creates session but waits for resumeTurn before first user turn. */
-  deferInitialTurn?: boolean;
+  deferInitialTurn?: boolean | undefined;
 }
 
 /** Harness-specific metadata needed to reconnect after stop (daemon memory only). */
 export interface HarnessReconnectMetadata {
   agentName: string;
-  model?: string;
+  model?: string | undefined;
 }
 
 /** Daemon-memory session context for stop→start resume (same daemon process). */
@@ -69,7 +69,7 @@ export interface DaemonHarnessSessionContext {
   harnessSessionId: string;
   agentName: string;
   workingDir: string;
-  model?: string;
+  model?: string | undefined;
 }
 
 /** When the harness learns or rotates its provider-native session ID. */
@@ -77,7 +77,7 @@ export interface HarnessSessionIdUpdatedInfo {
   /** Immutable correlation ID returned at spawn (UUID for deferred-start harnesses). */
   correlationId: string;
   /** Previous resumable ID, if any. */
-  previousResumableId?: string;
+  previousResumableId?: string | undefined;
   /** Latest provider-native session ID for daemon-memory resume. */
   resumableId: string;
   source: 'provider_allocated' | 'provider_rotated';
@@ -101,12 +101,12 @@ export interface SpawnResult {
    * Does not replace onAgentEnd. When present, wireTokenActivityReporting subscribes to
    * first typed progress per turn instead of throttled raw onOutput.
    */
-  activityEmitter?: HarnessActivityEmitter;
+  activityEmitter?: HarnessActivityEmitter | undefined;
   /**
    * Human-readable log lines for resume-storm reason classification.
    * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §3.5).
    */
-  onLogLine?: (cb: (line: string) => void) => void;
+  onLogLine?:( (cb: (line: string) => void) => void) | undefined;
   /**
    * `lifecycle.turn.completed` — one agent turn finished.
    *
@@ -121,15 +121,15 @@ export interface SpawnResult {
    * forwarder). Sticky once-per-process latches that block later turns are a bug.
    * AgentProcessManager owns post-end lifecycle (nativeTurnPhase → delivery).
    */
-  onAgentEnd?: (cb: () => void) => void;
+  onAgentEnd?:( (cb: () => void) => void) | undefined;
   /** Raw assistant text deltas for missed-handoff delivery on native turn-end. */
-  onAssistantText?: (cb: (text: string) => void) => void;
+  onAssistantText?:( (cb: (text: string) => void) => void) | undefined;
   /** Harness session ID for daemon-memory reconnect metadata. Undefined if not applicable. */
-  harnessSessionId?: string;
+  harnessSessionId?: string | undefined;
   /** Fired when the provider-native resumable session ID is allocated or changes. */
-  onHarnessSessionIdUpdated?: (cb: (info: HarnessSessionIdUpdatedInfo) => void) => void;
+  onHarnessSessionIdUpdated?:( (cb: (info: HarnessSessionIdUpdatedInfo) => void) => void) | undefined;
   /** Extra fields for daemon-memory resume (e.g. opencode-sdk agent name). */
-  harnessReconnect?: HarnessReconnectMetadata;
+  harnessReconnect?: HarnessReconnectMetadata | undefined;
 }
 
 export interface ProcessInfo {
@@ -141,7 +141,7 @@ export interface ProcessInfo {
 /** Optional flags for harness-specific stop behavior (e.g. resume-friendly user stop). */
 export interface AgentStopOptions {
   /** When true, preserve session state for a later stop→start daemon-memory resume instead of aborting. */
-  preserveForResume?: boolean;
+  preserveForResume?: boolean | undefined;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────

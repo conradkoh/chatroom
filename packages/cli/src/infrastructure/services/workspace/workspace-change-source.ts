@@ -9,10 +9,10 @@ import {
 import type { WorkspacePathType } from './workspace-sync-state.js';
 
 export type WorkspaceChangeSourceOptions = WorkspaceFsWatcherOptions & {
-  pollIntervalMs?: number;
-  onNeedsReconcile?: () => void | Promise<void>;
-  onPersistentFailure?: () => void | Promise<void>;
-  getKnownPaths?: () => Readonly<Record<string, WorkspacePathType>>;
+  pollIntervalMs?: number | undefined;
+  onNeedsReconcile?:( () => void | Promise<void>) | undefined;
+  onPersistentFailure?:( () => void | Promise<void>) | undefined;
+  getKnownPaths?:( () => Readonly<Record<string, WorkspacePathType>>) | undefined;
 };
 
 export type WorkspaceChangeSource = WorkspaceFsWatcherHandle;
@@ -22,7 +22,7 @@ export type WorkspaceChangeSourceMode = 'git' | 'fs';
 export interface WorkspaceChangeSourceResult {
   mode: WorkspaceChangeSourceMode;
   source: WorkspaceChangeSource;
-  gitRepoCount?: number;
+  gitRepoCount?: number | undefined;
 }
 
 function countGitRepoNodes(root: GitRepoNode): number {

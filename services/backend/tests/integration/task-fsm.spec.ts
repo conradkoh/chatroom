@@ -298,7 +298,7 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
         statusFilter: 'in_progress',
       });
       const task = inProgress.find((t: { _id: unknown }) => t._id === taskId) as
-        { assignedTo?: string } | undefined;
+        { assignedTo?: string | undefined } | undefined;
       expect(task?.assignedTo).toBe('planner');
     });
   });

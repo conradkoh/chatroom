@@ -109,7 +109,7 @@ export async function openPendingHarnessSession(
         );
       }
       if (isOpenCodeSessionEventType(event.type) && event.type === 'session.updated') {
-        const info = (event.payload as { info?: { title?: string } }).info;
+        const info = (event.payload as { info?: { title?: string | undefined } | undefined }).info;
         if (info?.title) {
           deps.sessionRepository
             .updateSessionTitle(rowId, info.title)
@@ -117,7 +117,7 @@ export async function openPendingHarnessSession(
         }
       }
       if (handleProviderIdEvents && event.type === 'session.provider_id') {
-        const sessionId = (event.payload as { sessionId?: string }).sessionId;
+        const sessionId = (event.payload as { sessionId?: string | undefined }).sessionId;
         if (sessionId && sessionId !== handle.opencodeSessionId) {
           deps.sessionRepository
             .associateOpenCodeSessionId(rowId, sessionId, liveSession.sessionTitle ?? '')

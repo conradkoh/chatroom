@@ -180,7 +180,7 @@ describe('Native task delivery prompt (integration)', () => {
 
     const tasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId });
     const taskId = tasks.find(
-      (task: { sourceMessageId?: string }) => task.sourceMessageId === messageId
+      (task: { sourceMessageId?: string | undefined }) => task.sourceMessageId === messageId
     )?._id;
     expect(taskId).toBeDefined();
 

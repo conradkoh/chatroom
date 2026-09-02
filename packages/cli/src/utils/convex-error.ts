@@ -26,9 +26,9 @@ const SERVER_ERROR_HINT =
  * - Non-Error values: returns String(value)
  */
 function formatConvexErrorObject(data: {
-  code?: string;
-  message?: string;
-  fields?: string[];
+  code?: string | undefined;
+  message?: string | undefined;
+  fields?: string[] | undefined;
 }): string {
   const base = data.message ?? data.code ?? JSON.stringify(data);
   if (Array.isArray(data.fields) && data.fields.length > 0) {
@@ -42,7 +42,7 @@ function formatConvexErrorData(error: ConvexError<Value>): string {
 
   if (error.data !== null && typeof error.data === 'object') {
     return formatConvexErrorObject(
-      error.data as { code?: string; message?: string; fields?: string[] }
+      error.data as { code?: string | undefined; message?: string | undefined; fields?: string[] | undefined }
     );
   }
   return String(error.data);

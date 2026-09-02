@@ -8,11 +8,11 @@ import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/st
 
 interface AgentConfig {
   role: string;
-  agentHarness?: string;
-  model?: string;
-  workingDir?: string;
-  machineId?: string;
-  desiredState?: string;
+  agentHarness?: string | undefined;
+  model?: string | undefined;
+  workingDir?: string | undefined;
+  machineId?: string | undefined;
+  desiredState?: string | undefined;
 }
 
 async function createDefaultDeps(): Promise<AgentDeps> {
@@ -42,7 +42,7 @@ async function requireMachineId(deps: AgentDeps): Promise<string> {
 function configuredWorkingDir(
   config: Awaited<ReturnType<AgentDeps['machine']['loadMachineConfig']>>
 ): string | undefined {
-  return (config as (typeof config & { workingDir?: string }) | null)?.workingDir;
+  return (config as (typeof config & { workingDir?: string | undefined }) | null)?.workingDir;
 }
 
 async function getConfigs(
@@ -82,7 +82,7 @@ export async function setAgentConfig(
     role: string;
     harness: string;
     model: string;
-    workingDir?: string;
+    workingDir?: string | undefined;
   },
   deps?: AgentDeps
 ): Promise<void> {
@@ -113,9 +113,9 @@ export async function startAgent(
   chatroomId: string,
   options: {
     role: string;
-    harness?: string;
-    model?: string;
-    workingDir?: string;
+    harness?: string | undefined;
+    model?: string | undefined;
+    workingDir?: string | undefined;
   },
   deps?: AgentDeps
 ): Promise<void> {

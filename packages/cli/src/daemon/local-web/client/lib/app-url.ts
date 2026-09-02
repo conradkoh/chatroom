@@ -10,7 +10,7 @@ export function readChatroomIdFromSearch(search: string): string | undefined {
   return sp.get('chatroomId') ?? undefined;
 }
 
-export function replaceAppUrlParams(updates: { tab?: AppTab; chatroomId?: string | null }): void {
+export function replaceAppUrlParams(updates: { tab?: AppTab | undefined; chatroomId?: string | null | undefined }): void {
   const sp = new URLSearchParams(window.location.search);
   if (updates.tab !== undefined) {
     if (updates.tab === 'event-stream') sp.set('tab', 'event-stream');

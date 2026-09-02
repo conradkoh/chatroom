@@ -9,7 +9,7 @@ export type PiThinkingLevel = (typeof PI_THINKING_LEVELS)[number];
 // fallow-ignore-next-line complexity
 export function parsePiSpawnModel(model: string): {
   model: string;
-  thinking?: string;
+  thinking?: string | undefined;
 } {
   if (!model.includes('[')) return { model };
 

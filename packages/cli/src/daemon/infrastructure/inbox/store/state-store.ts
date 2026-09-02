@@ -14,11 +14,11 @@ export interface InboxStateRecord<TState = unknown> extends InboxStateKey {
 }
 
 export interface InboxStateQuery {
-  inboxType?: string;
-  scopeKey?: string;
-  scopePrefix?: string;
-  updatedAfter?: number;
-  limit?: number;
+  inboxType?: string | undefined;
+  scopeKey?: string | undefined;
+  scopePrefix?: string | undefined;
+  updatedAfter?: number | undefined;
+  limit?: number | undefined;
 }
 
 type InboxStateRow = {

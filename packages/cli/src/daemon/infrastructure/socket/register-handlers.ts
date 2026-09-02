@@ -33,11 +33,11 @@ export type RegisterSocketHandlersDeps = {
   port: number;
   harnessStreamRepo: HarnessStreamRepository;
   streamHub: StreamHub;
-  logRepo?: LogRepository;
-  logStreamHub?: LogStreamHub;
-  eventStreamHub?: EventStreamHub;
-  backend?: BackendOps;
-  sessionId?: string;
+  logRepo?: LogRepository | undefined;
+  logStreamHub?: LogStreamHub | undefined;
+  eventStreamHub?: EventStreamHub | undefined;
+  backend?: BackendOps | undefined;
+  sessionId?: string | undefined;
 };
 
 type AckFn = (response: SocketAck<unknown>) => void;
@@ -185,7 +185,7 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
         if (!deps.backend || !deps.sessionId) throw new Error('backend session not configured');
         const chatrooms = (await deps.backend.query(api.chatrooms.listByUser, {
           sessionId: asConvexSessionId(deps.sessionId),
-        })) as { _id: string; name?: string; teamName?: string }[];
+        })) as { _id: string; name?: string | undefined; teamName?: string | undefined }[];
         callAck(ack, {
           ok: true,
           data: {

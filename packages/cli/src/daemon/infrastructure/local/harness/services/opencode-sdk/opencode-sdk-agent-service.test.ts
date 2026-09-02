@@ -13,6 +13,7 @@ import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
 import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
+import type { SpawnContext } from '../remote-agent-service.js';
 
 // ---------------------------------------------------------------------------
 // Spawn lifecycle helpers
@@ -100,7 +101,7 @@ function makeFakeChild(pid = 4321) {
 
 function stubSdkClient(
   overrides?: Partial<{
-    sessionCreateResult: { data?: { id?: string } };
+    sessionCreateResult: { data?: { id?: string | undefined } | undefined };
     sessionCreateThrows: Error;
     promptAsyncThrows: Error;
     subscribeStream: AsyncGenerator<unknown>;
@@ -143,18 +144,18 @@ function stubSdkClient(
   };
 }
 
-function stubSdkClientForStop(overrides?: { abortThrows?: Error }) {
+function stubSdkClientForStop(overrides?: { abortThrows?: Error | undefined }) {
   sharedAbortFn.mockImplementation(
     overrides?.abortThrows ? () => Promise.reject(overrides.abortThrows) : () => Promise.resolve({})
   );
   return { abort: sharedAbortFn };
 }
 
-const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
+const SPAWN_CONTEXT: SpawnContext = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
 
 function spawnOptions(
-  overrides?: { model?: string; systemPrompt?: string; prompt?: string },
-  contextOverride?: { role?: string }
+  overrides?: { model?: string | undefined; systemPrompt?: string | undefined; prompt?: string | undefined },
+  contextOverride?: Partial<SpawnContext>
 ) {
   return {
     workingDir: '/tmp/test',
@@ -188,8 +189,8 @@ describe('OpenCodeSdkAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           const err = new Error('Command failed: which opencode') as Error & {
-            status?: number;
-            stderr?: Buffer;
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
           };
           err.status = 1;
           err.stderr = Buffer.from('');

@@ -11,9 +11,9 @@ export interface AgentExitedPayload {
   code: number | null;
   signal: string | null;
   stopReason: StopReason;
-  agentHarness?: string;
-  model?: string;
-  workingDir?: string;
+  agentHarness?: string | undefined;
+  model?: string | undefined;
+  workingDir?: string | undefined;
 }
 
 export const onAgentExitedEffect = (

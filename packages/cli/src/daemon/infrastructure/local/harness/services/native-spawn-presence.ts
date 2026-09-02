@@ -19,16 +19,16 @@ export interface NativeSpawnPresenceContext {
   sessionId: string;
   chatroomId: string;
   role: string;
-  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
+  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
 }
 
 export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceContext {
   spawnResult: Pick<SpawnResult, 'onOutput'>;
   /** Defaults to Date.now — APM passes clock.now for testability */
-  now?: () => number;
-  throttleMs?: number;
+  now?:( () => number) | undefined;
+  throttleMs?: number | undefined;
   /** Optional typed activity emitter. When present, uses one unthrottled subscription instead of raw onOutput. */
-  activityEmitter?: HarnessActivityEmitter;
+  activityEmitter?: HarnessActivityEmitter | undefined;
 }
 
 /**
@@ -38,7 +38,7 @@ export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceConte
 export async function emitNativeWaitingAfterSpawn(
   ctx: NativeSpawnPresenceContext,
   harness: AgentHarness | string,
-  opts?: { onError?: (err: Error) => void }
+  opts?: { onError?:( (err: Error) => void) | undefined }
 ): Promise<boolean> {
   if (!isTeamAgentRole(ctx.role)) return false;
   if (!getHarnessCapabilities(harness as AgentHarness).supportsNativeIntegration) {

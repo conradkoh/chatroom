@@ -5,10 +5,10 @@ import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 export type SubscriberHandle = { stop(): Promise<void> };
 
 interface PendingFileRequest {
-  _id?: string | { toString(): string } | null;
-  workingDir?: string;
-  force?: boolean;
-  updatedAt?: number;
+  _id?: string | { toString(): string } | null | undefined;
+  workingDir?: string | undefined;
+  force?: boolean | undefined;
+  updatedAt?: number | undefined;
 }
 
 function requestId(req: PendingFileRequest): string {

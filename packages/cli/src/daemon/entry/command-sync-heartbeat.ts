@@ -28,7 +28,7 @@ export type CommandSyncDeps = {
   sessionId: SessionId;
   backend: BackendOps;
   lastPushedGitState: Map<string, string>;
-  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number } | undefined;
 };
 
 // ── Effect twins ──────────────────────────────────────────────────────────────

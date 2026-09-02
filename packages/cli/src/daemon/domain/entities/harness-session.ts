@@ -10,7 +10,7 @@ export type OpenCodeSessionId = string & { readonly __brand: 'OpenCodeSessionId'
 export interface HarnessSession {
   readonly harnessSessionId: HarnessSessionId;
   readonly workspaceId: WorkspaceId;
-  readonly opencodeSessionId?: OpenCodeSessionId;
+  readonly opencodeSessionId?: OpenCodeSessionId | undefined;
   readonly agent: string;
   readonly status: HarnessSessionStatus;
   readonly lastActiveAt: number;

@@ -21,7 +21,7 @@ export interface WorkspaceForChatroomView {
   workingDir: string;
   hostname: string;
   /** Machine alias set by the user (if any). Prefer displaying this over hostname. */
-  machineAlias?: string;
+  machineAlias?: string | undefined;
   registeredAt: number;
   registeredBy: string;
 }

@@ -11,7 +11,7 @@ import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 
 export interface HandoffReportTemplateBodyOptions {
   /** Entry-point handoffs (planner/solo → user) must verify the user's full request before delivery. */
-  includeProofOfVerification?: boolean;
+  includeProofOfVerification?: boolean | undefined;
 }
 
 export function getHandoffReportTemplateBody(

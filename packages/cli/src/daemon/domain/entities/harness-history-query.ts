@@ -1,4 +1,4 @@
 export type HarnessHistoryQuery = {
-  harness?: string;
-  limit?: number;
+  harness?: string | undefined;
+  limit?: number | undefined;
 };

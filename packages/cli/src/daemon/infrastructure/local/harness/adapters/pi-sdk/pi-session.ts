@@ -16,7 +16,7 @@ export interface PiSdkSessionOptions {
   readonly session: AgentSession;
   readonly opencodeSessionId: string;
   readonly sessionTitle: string;
-  readonly onClose?: (sessionId: string) => void;
+  readonly onClose?:( (sessionId: string) => void) | undefined;
 }
 
 export class PiSdkSession implements DirectHarnessSession {
@@ -27,10 +27,10 @@ export class PiSdkSession implements DirectHarnessSession {
   }
 
   private readonly session: AgentSession;
-  private readonly onClose?: (sessionId: string) => void;
+  private readonly onClose?:( (sessionId: string) => void) | undefined;
   private readonly listeners = new Set<(event: DirectHarnessSessionEvent) => void>();
   private closed = false;
-  private unsubscribe?: () => void;
+  private unsubscribe?:( () => void) | undefined;
 
   constructor(options: PiSdkSessionOptions) {
     this.session = options.session;

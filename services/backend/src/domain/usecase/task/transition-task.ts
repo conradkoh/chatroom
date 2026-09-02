@@ -56,7 +56,7 @@ export interface TransitionTaskOptions {
    * this case would mislead the UI — the agent will update its own status naturally
    * when it calls get-next-task again or when it crashes and exits.
    */
-  skipAgentStatusUpdate?: boolean;
+  skipAgentStatusUpdate?: boolean | undefined;
 
   /**
    * When true, skips automatic queue promotion after terminal transitions.
@@ -68,7 +68,7 @@ export interface TransitionTaskOptions {
    * completing a task, which can conflict with the caller's own promotion
    * or task creation logic.
    */
-  skipAutoPromotion?: boolean;
+  skipAutoPromotion?: boolean | undefined;
 }
 
 // ============================================================================

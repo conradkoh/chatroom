@@ -43,7 +43,7 @@ export function buildAgentRestartPhaseEvent(
     role: string;
     correlationId: string;
     phase: AgentRestartPhase;
-    detail?: string;
+    detail?: string | undefined;
   },
   now: number
 ) {
@@ -65,7 +65,7 @@ export function buildAgentRestartCompletedEvent(
     machineId: string;
     role: string;
     correlationId: string;
-    deliveredTaskIds?: string[];
+    deliveredTaskIds?: string[] | undefined;
   },
   now: number
 ) {

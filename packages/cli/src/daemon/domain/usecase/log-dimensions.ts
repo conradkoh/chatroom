@@ -4,7 +4,7 @@ import type { LogDimensionsQuery } from '../entities/log-dimensions-query.js';
 
 export function createLogDimensionsUseCase(deps: {
   reader: LogHistoryReader & {
-    listDimensions?: (chatroomId: string, limit?: number) => LogDimensions;
+    listDimensions?:( (chatroomId: string, limit?: number) => LogDimensions) | undefined;
   };
 }) {
   return (input: LogDimensionsQuery) =>
