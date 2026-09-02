@@ -1,6 +1,6 @@
 {
   "name": "@workspace/shared",
-  "version": "1.103.2",
+  "version": "1.104.0",
   "private": true,
   "type": "module",
   "exports": {
