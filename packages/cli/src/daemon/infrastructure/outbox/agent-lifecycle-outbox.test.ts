@@ -49,6 +49,7 @@ describe('agent lifecycle outbox', () => {
   });
 
   it('retries failed sends', async () => {
+    vi.useFakeTimers();
     let attempts = 0;
     const registry = createAgentLifecycleOutboxRegistry(
       `test-${Date.now()}-${Math.random()}`,
@@ -59,10 +60,12 @@ describe('agent lifecycle outbox', () => {
       }
     );
     const result = registry.enqueue('machine:room:builder', fact('builder'));
-    await new Promise((resolve) => setTimeout(resolve, 650));
-    expect(attempts).toBeGreaterThanOrEqual(2);
-    await result;
+    await vi.runOnlyPendingTimersAsync();
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(result).resolves.toEqual({ success: true });
+    expect(attempts).toBe(2);
     await registry.stopAll();
+    vi.useRealTimers();
   });
 
   it('strips legacy audit fields when replaying persisted exited facts', async () => {
