@@ -9,7 +9,7 @@ export type MaybePromoteNextQueuedTaskResult =
 
 export type MaybePromoteNextQueuedTaskOptions = {
   /** When set, promotion runs only if this role is the team entry point. */
-  entryPointRole?: string;
+  entryPointRole?: string | undefined;
 };
 
 // fallow-ignore-next-line complexity

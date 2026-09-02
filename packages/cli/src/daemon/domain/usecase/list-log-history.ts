@@ -56,7 +56,7 @@ export function listLogHistory(reader: LogHistoryReader, input: LogHistoryQuery)
 }
 export function listLogDimensions(
   reader: LogHistoryReader & {
-    listDimensions?: (chatroomId: string, limit?: number) => LogDimensions;
+    listDimensions?:( (chatroomId: string, limit?: number) => LogDimensions) | undefined;
   },
   chatroomId: string,
   limit = 100

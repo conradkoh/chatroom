@@ -27,7 +27,7 @@ import {
 } from './git-reader.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
 
-type QueuedResponse = { stdout: string; stderr: string } | { error: Error & { code?: number } };
+type QueuedResponse = { stdout: string; stderr: string } | { error: Error & { code?: number | undefined } };
 
 const responseQueue: QueuedResponse[] = [];
 
@@ -42,7 +42,7 @@ const mockRunGit =
     (
       args: string[],
       cwd: string,
-      options?: { successExitCodes?: number[] }
+      options?: { successExitCodes?: number[] | undefined }
     ) => Promise<{ stdout: string; stderr: string } | { error: Error }>
   >();
 
@@ -52,7 +52,7 @@ const mockRunGh =
   >();
 
 vi.mock('./run-command.js', () => ({
-  runGit: (args: string[], cwd: string, options?: { successExitCodes?: number[] }) =>
+  runGit: (args: string[], cwd: string, options?: { successExitCodes?: number[] | undefined }) =>
     mockRunGit(args, cwd, options),
   runGh: (args: string[], cwd: string) => mockRunGh(args, cwd),
 }));

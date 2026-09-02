@@ -1,6 +1,6 @@
 export type AgenticLastUsedConfig = {
   agent: string;
-  model?: { providerID: string; modelID: string };
+  model?: { providerID: string; modelID: string } | undefined;
 };
 
 export type AgenticPendingOpenSession = {

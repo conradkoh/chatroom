@@ -1,5 +1,5 @@
 export type LogTimePreset = '1h' | '3h' | '1d' | 'custom';
-export type LogTimeFilterValues = { timeRange?: LogTimePreset; fromMs?: number; toMs?: number };
+export type LogTimeFilterValues = { timeRange?: LogTimePreset | undefined; fromMs?: number | undefined; toMs?: number | undefined };
 export const DEFAULT_LOG_TIME_PRESET = '1h' as const;
 export const LOG_TIME_PRESET_LABELS = {
   '1h': 'Last 1 hour',

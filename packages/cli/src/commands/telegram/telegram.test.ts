@@ -20,7 +20,7 @@ import { BackendService, SessionService } from '../../infrastructure/services/in
 // ─── Test Helpers ──────────────────────────────────────────────────────────
 
 /** Create a test backend service with configurable action responses */
-function makeTestBackend(config: { actionResponse?: unknown | Error }) {
+function makeTestBackend(config: { actionResponse?: unknown | Error | undefined }) {
   return Layer.succeed(BackendService, {
     query: vi.fn(),
     mutation: vi.fn(),
@@ -35,9 +35,9 @@ function makeTestBackend(config: { actionResponse?: unknown | Error }) {
 
 /** Create a test session service with configurable responses */
 function makeTestSession(config: {
-  sessionId?: string | null;
-  convexUrl?: string;
-  otherUrls?: string[];
+  sessionId?: string | null | undefined;
+  convexUrl?: string | undefined;
+  otherUrls?: string[] | undefined;
 }) {
   return Layer.succeed(SessionService, {
     getSessionId: () =>

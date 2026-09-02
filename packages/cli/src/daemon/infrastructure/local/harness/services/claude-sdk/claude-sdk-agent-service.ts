@@ -49,7 +49,7 @@ const DEFAULT_MAX_TURNS = 200;
 const DEFAULT_EFFORT: EffortLevel = 'medium';
 const TURN_TIMEOUT_MS = 3_600_000;
 
-function decodeClaudeSdkModel(model: string): { model?: string; effort?: EffortLevel } {
+function decodeClaudeSdkModel(model: string): { model?: string | undefined; effort?: EffortLevel | undefined } {
   const variant = decodeClaudeVariant(requireHarnessModel(model, 'claude-sdk'));
   return { model: variant?.model, effort: variant?.effort };
 }
@@ -88,13 +88,13 @@ function getSdkPackageVersion(): string {
 interface SdkSession {
   keeper: ChildProcess;
   aborted: boolean;
-  activeQuery?: Query;
-  sessionId?: string;
-  resumeOnFirstQuery?: boolean;
-  storedSystemPrompt?: string;
-  resumeResolve?: (prompt: string) => void;
-  abortResolve?: () => void;
-  pendingResumePrompt?: string;
+  activeQuery?: Query | undefined;
+  sessionId?: string | undefined;
+  resumeOnFirstQuery?: boolean | undefined;
+  storedSystemPrompt?: string | undefined;
+  resumeResolve?:( (prompt: string) => void) | undefined;
+  abortResolve?:( () => void) | undefined;
+  pendingResumePrompt?: string | undefined;
 }
 
 function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
@@ -270,13 +270,13 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     keeper: ChildProcess;
     context: SpawnContext;
     workingDir: string;
-    model?: string;
-    effort?: EffortLevel;
+    model?: string | undefined;
+    effort?: EffortLevel | undefined;
     initialPrompt: string;
-    deferInitialTurn?: boolean;
-    storedSystemPrompt?: string;
+    deferInitialTurn?: boolean | undefined;
+    storedSystemPrompt?: string | undefined;
     executablePath: string;
-    resumedProviderSessionId?: string;
+    resumedProviderSessionId?: string | undefined;
   }): SpawnResult {
     const {
       pid,
@@ -396,11 +396,11 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     entry: { lastOutputAt: number };
     logPrefix: string;
     workingDir: string;
-    model?: string;
-    effort?: EffortLevel;
+    model?: string | undefined;
+    effort?: EffortLevel | undefined;
     executablePath: string;
     initialPrompt: string;
-    deferInitialTurn?: boolean;
+    deferInitialTurn?: boolean | undefined;
     finishExit: (code: number | null, signal: string | null) => void;
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
@@ -472,8 +472,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[];
     logPrefix: string;
     workingDir: string;
-    model?: string;
-    effort?: EffortLevel;
+    model?: string | undefined;
+    effort?: EffortLevel | undefined;
     executablePath: string;
     initialPrompt: string;
     deferInitialTurn: boolean;
@@ -553,11 +553,14 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
               maxTurns: DEFAULT_MAX_TURNS,
               pathToClaudeCodeExecutable: executablePath,
               includePartialMessages: true,
-              systemPrompt:
-                isFirstQuery && !sdkSession.resumeOnFirstQuery
-                  ? sdkSession.storedSystemPrompt
-                  : undefined,
-              resume: useResume ? sdkSession.sessionId : undefined,
+              ...(isFirstQuery &&
+              !sdkSession.resumeOnFirstQuery &&
+              sdkSession.storedSystemPrompt !== undefined
+                ? { systemPrompt: sdkSession.storedSystemPrompt }
+                : {}),
+              ...(useResume && sdkSession.sessionId !== undefined
+                ? { resume: sdkSession.sessionId }
+                : {}),
               settingSources: [],
               permissionMode: 'bypassPermissions',
               allowDangerouslySkipPermissions: true,

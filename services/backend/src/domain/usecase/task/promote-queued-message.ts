@@ -4,8 +4,8 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
-import { markAgentViewHasHistory } from '../chatroom/project-agent-view-metadata';
 import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agents-on-user-message';
+import { markAgentViewHasHistory } from '../chatroom/project-agent-view-metadata';
 import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 
 /**
@@ -38,7 +38,7 @@ export async function promoteQueuedMessage(
   const messageId = await insertChatroomMessage(ctx, {
     chatroomId: queueRecord.chatroomId,
     senderRole: queueRecord.senderRole,
-    targetRole: queueRecord.targetRole,
+    ...(queueRecord.targetRole !== undefined ? { targetRole: queueRecord.targetRole } : {}),
     content: queueRecord.content,
     type: queueRecord.type,
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),

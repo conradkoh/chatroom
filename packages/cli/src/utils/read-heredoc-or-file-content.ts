@@ -1,7 +1,7 @@
 import { readStdin } from './stdin.js';
 
 export async function readHeredocOrFileContent(
-  options: { contentFile?: string },
+  options: { contentFile?: string | undefined },
   params: {
     delimiter: string;
     fieldLabel: string;

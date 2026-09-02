@@ -41,7 +41,7 @@ export const create = mutation({
       teamId: args.teamId,
       teamName: args.teamName,
       teamRoles: args.teamRoles,
-      teamEntryPoint: args.teamEntryPoint,
+      ...(args.teamEntryPoint !== undefined ? { teamEntryPoint: args.teamEntryPoint } : {}),
     });
     await insertEmptyOperationalSummaryForRoom(ctx, {
       chatroomId,
@@ -85,9 +85,11 @@ export const getTeamStructureForChatroom = query({
     if (!chatroom.teamId) return null;
     return getTeamStructure({
       teamId: chatroom.teamId,
-      teamName: chatroom.teamName,
-      persistedRoles: chatroom.teamRoles,
-      persistedEntryPoint: chatroom.teamEntryPoint,
+      ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
+      ...(chatroom.teamRoles !== undefined ? { persistedRoles: chatroom.teamRoles } : {}),
+      ...(chatroom.teamEntryPoint !== undefined
+        ? { persistedEntryPoint: chatroom.teamEntryPoint }
+        : {}),
     });
   },
 });
@@ -645,7 +647,7 @@ export const recordChatroomObservation = mutation({
         return;
       }
 
-      const patch: { lastObservedAt: number; lastRefreshedAt?: number } = {
+      const patch: { lastObservedAt: number; lastRefreshedAt?: number | undefined } = {
         lastObservedAt: now,
       };
       if (isRefresh) {
@@ -662,7 +664,7 @@ export const recordChatroomObservation = mutation({
       await ctx.db.insert('chatroom_observation', {
         chatroomId: args.chatroomId,
         lastObservedAt: now,
-        lastRefreshedAt: args.refresh ? now : undefined,
+        ...(args.refresh ? { lastRefreshedAt: now } : {}),
       });
       await scheduleObservationExpiryNudge(ctx, {
         chatroomId: args.chatroomId,

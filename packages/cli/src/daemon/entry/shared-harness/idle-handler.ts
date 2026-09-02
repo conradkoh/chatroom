@@ -19,7 +19,7 @@ import type {
 
 export interface IdleHandlerConfig {
   agent: string;
-  model?: { providerID: string; modelID: string };
+  model?: { providerID: string; modelID: string } | undefined;
 }
 
 /** Effect twin — canonical implementation. */

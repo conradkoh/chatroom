@@ -38,10 +38,10 @@ export type PendingFileWriteRequest = {
   workingDir: string;
   filePath: string;
   operation: 'create' | 'update' | 'delete' | 'rename' | 'mkdir';
-  targetFilePath?: string;
-  data?: { compression: 'gzip'; content: string };
-  storageId?: string;
-  uploadKind?: 'chatAttachment';
+  targetFilePath?: string | undefined;
+  data?: { compression: 'gzip'; content: string } | undefined;
+  storageId?: string | undefined;
+  uploadKind?: 'chatAttachment' | undefined;
 };
 
 /** Errors that will not succeed on retry — complete request as terminal error. */
@@ -67,9 +67,9 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
 }
 
 function getChatAttachmentValidationError(request: {
-  uploadKind?: 'chatAttachment';
+  uploadKind?: 'chatAttachment' | undefined;
   filePath: string;
-  storageId?: string;
+  storageId?: string | undefined;
 }): string | null {
   if (request.uploadKind === 'chatAttachment') {
     return getInvalidChatAttachmentUploadPathReason(request.filePath);
@@ -104,10 +104,10 @@ type ClaimedFileWriteRequest = {
   workingDir: string;
   filePath: string;
   operation: PendingFileWriteRequest['operation'];
-  targetFilePath?: string;
-  data?: { compression: 'gzip'; content: string };
-  storageId?: string;
-  uploadKind?: 'chatAttachment';
+  targetFilePath?: string | undefined;
+  data?: { compression: 'gzip'; content: string } | undefined;
+  storageId?: string | undefined;
+  uploadKind?: 'chatAttachment' | undefined;
 };
 
 async function claimWriteRequest(

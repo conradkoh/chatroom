@@ -3,7 +3,7 @@ import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
 export interface AgenticQueryTurnContext {
   seq: number;
   userMessage: string;
-  assistantResponse?: string;
+  assistantResponse?: string | undefined;
 }
 
 export interface RenderAgenticQueryEnvelopeParams {
@@ -16,7 +16,7 @@ export interface RenderAgenticQueryEnvelopeParams {
     hostname: string;
   };
   userMessage: string;
-  priorTurns?: AgenticQueryTurnContext[];
+  priorTurns?: AgenticQueryTurnContext[] | undefined;
   cliCompleteCommand: string;
 }
 

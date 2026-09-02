@@ -10,9 +10,9 @@ export interface InferPrimaryHandoffTargetParams {
   role: string;
   availableHandoffTargets: string[];
   /** True when this role is the team entry point (e.g. duo planner). */
-  isEntryPoint?: boolean;
+  isEntryPoint?: boolean | undefined;
   /** When true, entry-point tasks from user must check in with enhancer first. */
-  plannerEnhancerEnabled?: boolean;
+  plannerEnhancerEnabled?: boolean | undefined;
 }
 
 // fallow-ignore-next-line complexity

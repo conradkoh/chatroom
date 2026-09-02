@@ -5,9 +5,9 @@ import type { SerializableMessage } from '../../entities/serializable-message';
 export type MessageSerializationProfile = 'linear' | 'context-xml' | 'task-origin';
 export interface SerializeMessageOptions {
   profile: MessageSerializationProfile;
-  chatroomId?: string;
-  role?: string;
-  indent?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  indent?: string | undefined;
 }
 
 function attachmentContext(options: SerializeMessageOptions) {

@@ -14,26 +14,26 @@ export interface DecodeOptions {
    * Expected parameter names (for validation)
    * If provided, will error on unknown parameters
    */
-  expectedParams?: string[];
+  expectedParams?: string[] | undefined;
 
   /**
    * Required parameter names
    * Will error if these are missing
    */
-  requiredParams?: string[];
+  requiredParams?: string[] | undefined;
 
   /**
    * Single parameter mode - treat entire input as one parameter
    * Parameter name to use for the content
    */
-  singleParam?: string;
+  singleParam?: string | undefined;
 }
 
 export interface DecodeError {
   code: 'UNKNOWN_PARAM' | 'MISSING_PARAM' | 'DUPLICATE_PARAM' | 'INVALID_FORMAT' | 'COLLISION';
   message: string;
-  line?: number;
-  paramName?: string;
+  line?: number | undefined;
+  paramName?: string | undefined;
 }
 
 /**

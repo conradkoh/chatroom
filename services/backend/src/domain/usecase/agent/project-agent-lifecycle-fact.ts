@@ -1,39 +1,47 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
-import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
-import { reconcileOrphanedStopCommandsForMachine } from './reconcile-orphaned-stop-commands-for-machine';
-import { transitionAgentStatus } from './transition-agent-status';
 import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
-import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
+import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { reconcileOrphanedStopCommandsForMachine } from './reconcile-orphaned-stop-commands-for-machine';
+import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
+import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
+import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =
-  | { kind: 'activity'; chatroomId: Id<'chatroom_rooms'>; role: string; action: string; taskId?: Id<'chatroom_tasks'>; revisionKey: string; emittedAt: number }
+  | {
+      kind: 'activity';
+      chatroomId: Id<'chatroom_rooms'>;
+      role: string;
+      action: string;
+      taskId?: Id<'chatroom_tasks'> | undefined;
+      revisionKey: string;
+      emittedAt: number;
+    }
   | {
       kind: 'spawned';
       chatroomId: Id<'chatroom_rooms'>;
       role: string;
       pid: number;
-      model?: string;
-      reason?: string;
-      harnessSessionId?: string;
+      model?: string | undefined;
+      reason?: string | undefined;
+      harnessSessionId?: string | undefined;
       revisionKey: string;
       emittedAt: number;
-      lifecycleRevision?: number;
+      lifecycleRevision?: number | undefined;
     }
   | {
       kind: 'exited';
       chatroomId: Id<'chatroom_rooms'>;
       role: string;
       pid: number;
-      stopReason?: string;
-      stopSignal?: string;
-      exitCode?: number;
-      signal?: string;
-      agentHarness?: string;
+      stopReason?: string | undefined;
+      stopSignal?: string | undefined;
+      exitCode?: number | undefined;
+      signal?: string | undefined;
+      agentHarness?: string | undefined;
       revisionKey: string;
       emittedAt: number;
     }
@@ -44,10 +52,10 @@ export async function projectAgentLifecycleFact(
   args: { machineId: string; fact: AgentLifecycleFactInput }
 ): Promise<{
   success: true;
-  skipped?: boolean;
-  clearedCount?: number;
-  reconciledExecutionCount?: number;
-  rejectionReason?: string;
+  skipped?: boolean | undefined;
+  clearedCount?: number | undefined;
+  reconciledExecutionCount?: number | undefined;
+  rejectionReason?: string | undefined;
 }> {
   const { machineId, fact } = args;
   if (fact.kind === 'activity') {
@@ -81,7 +89,10 @@ export async function projectAgentLifecycleFact(
         { config }
       );
     }
-    const { reconciledExecutionCount } = await reconcileOrphanedStopCommandsForMachine(ctx, machineId);
+    const { reconciledExecutionCount } = await reconcileOrphanedStopCommandsForMachine(
+      ctx,
+      machineId
+    );
     return { success: true, clearedCount, reconciledExecutionCount };
   }
   if (fact.kind === 'exited') {

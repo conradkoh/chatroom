@@ -25,9 +25,9 @@ export interface IncrementalFeedDef<TItem, _TArgs = unknown> {
   /** Stable identity for dedupe + FIFO ordering. */
   readonly itemKey: (item: TItem) => StreamKey;
   /** Optional: extract cursor from item when highKey not provided by backend. */
-  readonly itemToKey?: (item: TItem) => StreamKey;
+  readonly itemToKey?:( (item: TItem) => StreamKey) | undefined;
   /** Optional: validate and parse raw wire items before enqueue. */
-  readonly parseItem?: (raw: unknown) => TItem;
+  readonly parseItem?:( (raw: unknown) => TItem) | undefined;
 }
 
 export interface SubscribeQueryTarget<TItem, TArgs> {
@@ -44,9 +44,9 @@ export interface BufferConfig {
   /** Max items retained; oldest unacked dropped when exceeded. */
   readonly maxSize: number;
   /** Drop duplicate itemKey while still in buffer or recently acked (default: true). */
-  readonly dedupe?: boolean;
+  readonly dedupe?: boolean | undefined;
   /** How long to suppress re-delivery after ack (ms). 0 = until removed from buffer only. */
-  readonly dedupeTtlMs?: number;
+  readonly dedupeTtlMs?: number | undefined;
 }
 
 export interface SubscribeLoopConfig {
@@ -58,7 +58,7 @@ export interface FeedHandlerContext<TItem> {
   readonly feedName: string;
   /** Call when side effects are durably applied (removes from in-flight set). */
   readonly ack: () => void;
-  readonly nack: (opts?: { requeue?: boolean }) => void;
+  readonly nack: (opts?: { requeue?: boolean | undefined }) => void;
 }
 
 export type FeedItemHandler<TItem, R = void> = (
@@ -72,9 +72,9 @@ export interface RunSubscribeFeedOptions<TItem, TArgs> {
   readonly args: TArgs;
   readonly buffer: BufferConfig;
   readonly subscribe: SubscribeLoopConfig;
-  readonly initialAfterKey?: StreamKey | null;
+  readonly initialAfterKey?: StreamKey | null | undefined;
   readonly onItem: FeedItemHandler<TItem>;
-  readonly onError?: (err: unknown) => void;
+  readonly onError?:( (err: unknown) => void) | undefined;
 }
 
 export interface FeedHandle<TItem> {
@@ -88,7 +88,7 @@ export interface ReconcilePollOptions<TResult, TArgs> {
   readonly args: TArgs;
   readonly intervalMs: number;
   readonly onResult: (result: TResult) => Effect.Effect<void, unknown, never>;
-  readonly backoff?: { readonly initialMs: number; readonly maxMs: number };
+  readonly backoff?: { readonly initialMs: number; readonly maxMs: number } | undefined;
 }
 
 export interface ReconcilePollHandle {

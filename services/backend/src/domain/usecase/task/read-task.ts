@@ -44,33 +44,43 @@ export interface ReadTaskResult {
   taskId: Id<'chatroom_tasks'>;
   content: string;
   status: 'in_progress';
-  context?: {
-    content: string;
-    triggerMessageContent?: string;
-    triggerMessageSenderRole?: string;
-    elapsedHours: number;
-  };
-  attachedBacklogItems?: {
-    id: string;
-    content: string;
-    status: string;
-  }[];
-  attachedSnippets?: {
-    reference: string;
-    fileSource: string;
-    selectedContent: string;
-  }[];
-  attachedTasks?: {
-    _id: string;
-    content: string;
-    status: string;
-  }[];
-  attachedMessages?: {
-    _id: string;
-    content: string;
-    senderRole: string;
-    _creationTime: number;
-  }[];
+  context?:
+    | {
+        content: string;
+        triggerMessageContent?: string | undefined;
+        triggerMessageSenderRole?: string | undefined;
+        elapsedHours: number;
+      }
+    | undefined;
+  attachedBacklogItems?:
+    | {
+        id: string;
+        content: string;
+        status: string;
+      }[]
+    | undefined;
+  attachedSnippets?:
+    | {
+        reference: string;
+        fileSource: string;
+        selectedContent: string;
+      }[]
+    | undefined;
+  attachedTasks?:
+    | {
+        _id: string;
+        content: string;
+        status: string;
+      }[]
+    | undefined;
+  attachedMessages?:
+    | {
+        _id: string;
+        content: string;
+        senderRole: string;
+        _creationTime: number;
+      }[]
+    | undefined;
 }
 
 // ============================================================================
@@ -151,7 +161,7 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
 async function buildReadTaskResult(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
-  task: { content: string; sourceMessageId?: Id<'chatroom_messages'> },
+  task: { content: string; sourceMessageId?: Id<'chatroom_messages'> | undefined },
   taskId: Id<'chatroom_tasks'>
 ): Promise<ReadTaskResult> {
   const context = await fetchCurrentContext(ctx, chatroomId);

@@ -5,10 +5,10 @@ import { cn } from '@/lib/utils';
 export interface PickerSearchProps {
   value: string;
   onChange: (value: string) => void;
-  placeholder?: string;
+  placeholder?: string | undefined;
   /** When undefined, focuses on desktop only. Explicit true/false overrides on any platform. */
-  autoFocus?: boolean;
-  className?: string;
+  autoFocus?: boolean | undefined;
+  className?: string | undefined;
 }
 
 export function PickerSearch({

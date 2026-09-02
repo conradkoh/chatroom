@@ -11,11 +11,11 @@ export interface BacklogFsOps {
   /** Read content from a file */
   readFile: (path: string, encoding: BufferEncoding) => Promise<string>;
   /** Create a directory, optionally recursive */
-  mkdir: (path: string, options?: { recursive?: boolean }) => Promise<string | undefined>;
+  mkdir: (path: string, options?: { recursive?: boolean | undefined }) => Promise<string | undefined>;
 }
 
 export interface BacklogDeps {
   backend: BackendOps;
   session: SessionOps;
-  fs?: BacklogFsOps;
+  fs?: BacklogFsOps | undefined;
 }

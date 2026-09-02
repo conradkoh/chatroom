@@ -9,7 +9,7 @@ export interface SendMessageDeps {
 }
 
 interface ChatroomEntryPoint {
-  teamEntryPoint?: string;
+  teamEntryPoint?: string | undefined;
 }
 
 async function createDefaultDeps(): Promise<SendMessageDeps> {
@@ -32,7 +32,7 @@ async function requireSession(deps: SendMessageDeps): Promise<string> {
 // fallow-ignore-next-line complexity
 export async function sendUserMessage(
   chatroomId: string,
-  options: { content: string; targetRole?: string },
+  options: { content: string; targetRole?: string | undefined },
   deps?: SendMessageDeps
 ): Promise<void> {
   if (!options.content.trim()) throw new Error('Message content cannot be empty');

@@ -51,7 +51,7 @@ async function createAndPinContext(
     chatroomId: Id<'chatroom_rooms'>;
     content: string;
     role: string;
-    triggerMessageId?: Id<'chatroom_messages'>;
+    triggerMessageId?: Id<'chatroom_messages'> | undefined;
   }
 ): Promise<Id<'chatroom_contexts'>> {
   const contextId = await ctx.db.insert('chatroom_contexts', {
@@ -59,7 +59,7 @@ async function createAndPinContext(
     content: args.content,
     createdBy: args.role,
     createdAt: Date.now(),
-    triggerMessageId: args.triggerMessageId,
+    ...(args.triggerMessageId !== undefined ? { triggerMessageId: args.triggerMessageId } : {}),
     messageCountAtCreation: 0,
   });
 

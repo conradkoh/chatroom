@@ -3,7 +3,7 @@ export type AppErrorCode = 'validation_error' | 'not_found' | 'internal_error' |
 export type AppError = {
   code: AppErrorCode;
   message: string;
-  details?: unknown;
+  details?: unknown | undefined;
 };
 
 export type SocketAckSuccess<T> = { ok: true; data: T };
@@ -18,26 +18,26 @@ export type LocalWebHealth = {
 
 export type HealthGetAck = SocketAck<LocalWebHealth>;
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type LogMetadata = { chatroomId?: string; role?: string; pid?: number; harness?: string };
+export type LogMetadata = { chatroomId?: string | undefined; role?: string | undefined; pid?: number | undefined; harness?: string | undefined };
 export type LogLine = {
-  id?: number;
+  id?: number | undefined;
   timestamp: number;
   level: LogLevel;
   source: string;
-  stream?: 'stdout' | 'stderr';
+  stream?: 'stdout' | 'stderr' | undefined;
   message: string;
-  metadata?: LogMetadata;
+  metadata?: LogMetadata | undefined;
 };
 export type LogHistoryInput = {
   chatroomId: string;
-  afterId?: number;
-  beforeId?: number;
-  source?: string;
-  role?: string;
-  harness?: string;
-  fromTimestamp?: number;
-  toTimestamp?: number;
-  limit?: number;
+  afterId?: number | undefined;
+  beforeId?: number | undefined;
+  source?: string | undefined;
+  role?: string | undefined;
+  harness?: string | undefined;
+  fromTimestamp?: number | undefined;
+  toTimestamp?: number | undefined;
+  limit?: number | undefined;
 };
 export type ChatroomListItem = { id: string; displayName: string };
 export type ChatroomsListResult = { chatrooms: ChatroomListItem[] };
@@ -56,12 +56,12 @@ export type EventStreamEntry = {
 };
 export type EventStreamHistoryInput = {
   chatroomId: string;
-  afterId?: number;
-  beforeId?: number;
-  type?: string;
-  fromTimestamp?: number;
-  toTimestamp?: number;
-  limit?: number;
+  afterId?: number | undefined;
+  beforeId?: number | undefined;
+  type?: string | undefined;
+  fromTimestamp?: number | undefined;
+  toTimestamp?: number | undefined;
+  limit?: number | undefined;
 };
 export type EventStreamHistoryResult = { entries: EventStreamEntry[] };
 export type EventStreamHistoryAck = SocketAck<EventStreamHistoryResult>;

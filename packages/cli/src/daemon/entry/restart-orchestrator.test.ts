@@ -16,7 +16,7 @@ vi.mock('../../api.js', () => ({
   },
 }));
 
-function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?: string | null }) {
+function createMockDeps(overrides?: { spawnSuccess?: boolean | undefined; harnessSessionId?: string | null | undefined }) {
   const auditLog: Record<string, unknown>[] = [];
   const logEvent = vi.fn(async (event: Record<string, unknown>) => {
     auditLog.push(event);

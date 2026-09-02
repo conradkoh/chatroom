@@ -91,12 +91,13 @@ interface TaskDeliveryPromptResponse {
 async function enrichMessageAttachments(
   ctx: QueryCtx,
   msg: {
-    attachedTaskIds?: Id<'chatroom_tasks'>[];
-    attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
-    attachedMessageIds?: Id<'chatroom_messages'>[];
-    attachedArtifactIds?: Id<'chatroom_artifacts'>[];
-    attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
-    startInNewSession?: boolean;
+    attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
+    attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
+    attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
+    attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
+    attachedSnippets?:
+      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+    startInNewSession?: boolean | undefined;
   }
 ) {
   // Resolve attached tasks
@@ -140,7 +141,13 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
+    | {
+        _id: string;
+        filename: string;
+        description?: string | undefined;
+        mimeType?: string | undefined;
+      }[]
+    | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -172,10 +179,11 @@ async function enrichMessageAttachments(
 export async function resolveSourceAttachmentsForDelivery(
   ctx: QueryCtx,
   message: {
-    attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
-    attachedTaskIds?: Id<'chatroom_tasks'>[];
-    attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
-    attachedMessageIds?: Id<'chatroom_messages'>[];
+    attachedSnippets?:
+      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+    attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
+    attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
+    attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
   } | null
 ): Promise<PrimaryDeliveryAttachments | undefined> {
   if (!message) return undefined;
@@ -317,13 +325,14 @@ async function _sendMessageHandler(
     chatroomId: Id<'chatroom_rooms'>;
     senderRole: string;
     content: string;
-    targetRole?: string;
+    targetRole?: string | undefined;
     type: 'message' | 'handoff';
-    attachedTaskIds?: Id<'chatroom_tasks'>[];
-    attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
-    attachedMessageIds?: Id<'chatroom_messages'>[];
-    attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
-    startInNewSession?: boolean;
+    attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
+    attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
+    attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
+    attachedSnippets?:
+      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+    startInNewSession?: boolean | undefined;
   }
 ) {
   const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -483,7 +492,7 @@ async function _sendMessageHandler(
     chatroomId: args.chatroomId,
     senderRole: args.senderRole,
     content: args.content,
-    targetRole,
+    ...(targetRole !== undefined ? { targetRole } : {}),
     type: args.type,
     ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
     ...(args.attachedBacklogItemIds?.length && {
@@ -593,9 +602,9 @@ export async function runHandoffHandler(
     senderRole: string;
     content: string;
     targetRole: string;
-    attachedArtifactIds?: Id<'chatroom_artifacts'>[];
-    enhancerJobId?: Id<'chatroom_enhancerJobs'>;
-    visibleInAllTabOnly?: boolean;
+    attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
+    enhancerJobId?: Id<'chatroom_enhancerJobs'> | undefined;
+    visibleInAllTabOnly?: boolean | undefined;
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -627,9 +636,11 @@ export async function runHandoffHandler(
   const normalizedStructuralRoles = chatroom.teamId
     ? getTeamStructure({
         teamId: chatroom.teamId,
-        teamName: chatroom.teamName,
+        ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
         persistedRoles: teamRoles,
-        persistedEntryPoint: chatroom.teamEntryPoint,
+        ...(chatroom.teamEntryPoint !== undefined
+          ? { persistedEntryPoint: chatroom.teamEntryPoint }
+          : {}),
       }).roles.map(({ role }) => role.toLowerCase())
     : normalizedTeamRoles;
   const enhancerEntryPointRole = getEnhancerEntryPointRole(chatroom);
@@ -1190,7 +1201,7 @@ export async function performHandoffFromEnhancer(
     senderRole: string;
     targetRole: string;
     content: string;
-    attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+    attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
     jobId: Id<'chatroom_enhancerJobs'>;
   }
 ) {
@@ -1270,8 +1281,8 @@ const userMessageOrTaskIdArgs = {
 type UserMessageOrTaskMutationArgs = {
   sessionId: string;
   type: 'task' | 'message';
-  taskId?: Id<'chatroom_tasks'>;
-  messageId?: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'>;
+  taskId?: Id<'chatroom_tasks'> | undefined;
+  messageId?: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> | undefined;
 };
 
 async function authorizeTaskTarget(
@@ -1536,7 +1547,7 @@ export const claimMessage = mutation({
     }
 
     // Claim the message and set acknowledgedAt (if not already set)
-    const updates: { claimedByRole: string; acknowledgedAt?: number } = {
+    const updates: { claimedByRole: string; acknowledgedAt?: number | undefined } = {
       claimedByRole: args.role,
     };
     if (!message.acknowledgedAt) {
@@ -1875,10 +1886,10 @@ export const getTaskDeliveryPrompt = query({
 // =============================================================================
 
 /** Enriches a message with its task status when a task is linked. */
-async function withTaskStatus<T extends { taskId?: Id<'chatroom_tasks'> | null }>(
+async function withTaskStatus<T extends { taskId?: Id<'chatroom_tasks'> | null | undefined }>(
   ctx: QueryCtx,
   message: T
-): Promise<T & { taskStatus?: TaskStatus }> {
+): Promise<T & { taskStatus?: TaskStatus | undefined }> {
   let taskStatus: TaskStatus | undefined;
   if (message.taskId) {
     const task = await ctx.db.get('chatroom_tasks', message.taskId);

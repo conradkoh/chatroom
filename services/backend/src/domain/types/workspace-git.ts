@@ -17,7 +17,7 @@ export interface DiffStat {
 /** An open GitHub pull request for the current branch. */
 export interface GitPullRequest {
   /** PR number (e.g. 42). Canonical app field; CLI maps from GitHub `number`. */
-  prNumber?: number;
+  prNumber?: number | undefined;
   /** PR title. */
   title: string;
   /** Full URL to the PR on GitHub. */
@@ -25,21 +25,21 @@ export interface GitPullRequest {
   /** The head branch name that the PR was opened from. */
   headRefName: string;
   /** The base branch name the PR targets (e.g. 'main'). */
-  baseRefName?: string;
+  baseRefName?: string | undefined;
   /** PR state (e.g. 'OPEN', 'CLOSED', 'MERGED'). */
   state: string;
   /** Author login name. */
-  author?: string;
+  author?: string | undefined;
   /** ISO timestamp when the PR was created. */
-  createdAt?: string;
+  createdAt?: string | undefined;
   /** ISO timestamp when the PR was last updated. */
-  updatedAt?: string;
+  updatedAt?: string | undefined;
   /** ISO timestamp when the PR was merged (null if not merged). */
-  mergedAt?: string | null;
+  mergedAt?: string | null | undefined;
   /** ISO timestamp when the PR was closed (null if not closed). */
-  closedAt?: string | null;
+  closedAt?: string | null | undefined;
   /** Whether the PR is a draft. */
-  isDraft?: boolean;
+  isDraft?: boolean | undefined;
 }
 
 /** A single commit entry from the git log. */
@@ -51,7 +51,7 @@ export interface GitCommit {
   /** First line of the commit message. */
   message: string;
   /** Rest of the commit message after the subject line, trimmed. Empty/omitted when there is no body. */
-  body?: string;
+  body?: string | undefined;
   /** Author display name. */
   author: string;
   /** ISO 8601 date string. */
@@ -86,11 +86,11 @@ export type WorkspaceGitState =
       /** Number of commits on upstream not in HEAD (unpulled). 0 if no upstream. */
       commitsBehind: number;
       /** Default branch name (e.g. 'main', 'master'). Null if gh unavailable. */
-      defaultBranch?: string | null;
+      defaultBranch?: string | null | undefined;
       /** CI/CD status checks for the current branch head commit. */
-      headCommitStatus?: CommitStatusSummary | null;
+      headCommitStatus?: CommitStatusSummary | null | undefined;
       /** CI/CD status checks for the latest default branch commit. */
-      defaultBranchStatus?: CommitStatusSummary | null;
+      defaultBranchStatus?: CommitStatusSummary | null | undefined;
       /** Unix timestamp (ms) when this state was last pushed by the daemon. */
       updatedAt: number;
     }

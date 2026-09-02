@@ -64,7 +64,7 @@ import { onAgentExited } from '../src/events/agent/on-agent-exited';
  * once bound, switching machines requires explicit `allowNewMachine: true`.
  */
 function resolveAllowNewMachineForStart(
-  payload: { allowNewMachine?: boolean } | undefined,
+  payload: { allowNewMachine?: boolean | undefined } | undefined,
   existingConfig: Doc<'chatroom_teamAgentConfigs'> | null
 ): boolean {
   if (payload?.allowNewMachine !== undefined) return payload.allowNewMachine;
@@ -228,8 +228,8 @@ export const register = mutation({
       hostname: args.hostname,
       os: args.os,
       availableHarnesses: args.availableHarnesses,
-      harnessVersions: args.harnessVersions,
-      availableModels: args.availableModels,
+      ...(args.harnessVersions !== undefined ? { harnessVersions: args.harnessVersions } : {}),
+      ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
       registeredAt: now,
       lastSeenAt: now,
       daemonConnected: false,
@@ -1431,7 +1431,7 @@ async function runRecordCustomAgentRegistered(
     sessionId: string;
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    allowTypeChange?: boolean;
+    allowTypeChange?: boolean | undefined;
   }
 ): Promise<{ success: true }> {
   const auth = await getSession(ctx, args.sessionId);
@@ -2810,10 +2810,7 @@ export const clearAllSpawnedPids = mutation({
         await patchTeamAgentConfig(
           ctx,
           config._id,
-          {
-            spawnedAgentPid: undefined,
-            spawnedAt: undefined,
-          },
+          { spawnedAgentPid: undefined, spawnedAt: undefined },
           { skipProject: true }
         );
 

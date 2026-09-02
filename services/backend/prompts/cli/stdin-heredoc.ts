@@ -45,7 +45,7 @@ const RESERVED_STRUCTURED_PARAM_MARKERS = [
 
 export interface StdinHeredocOptions {
   /** Optional marker line immediately after the heredoc opener (stripped by CLI decode). */
-  messageMarker?: string;
+  messageMarker?: string | undefined;
 }
 
 /**

@@ -34,8 +34,8 @@ export interface AgentRequestStartCommandEvent extends CommandEventBase {
   model: string;
   workingDir: string;
   reason: string;
-  wantResume?: boolean;
-  lifecycleRevision?: number;
+  wantResume?: boolean | undefined;
+  lifecycleRevision?: number | undefined;
 }
 
 export interface AgentRequestRestartCommandEvent extends CommandEventBase {
@@ -43,7 +43,7 @@ export interface AgentRequestRestartCommandEvent extends CommandEventBase {
   chatroomId: string;
   role: string;
   reason: string;
-  lifecycleRevision?: number;
+  lifecycleRevision?: number | undefined;
 }
 
 export interface AgentRequestStopCommandEvent extends CommandEventBase {
@@ -72,7 +72,7 @@ export interface DaemonGitRefreshCommandEvent extends CommandEventBase {
 export interface DaemonLocalActionCommandEvent extends CommandEventBase {
   type: 'daemon.localAction';
   action: string;
-  payload?: Record<string, unknown>;
+  payload?: Record<string, unknown> | undefined;
 }
 
 export interface DaemonPickFolderCommandEvent extends CommandEventBase {
@@ -98,6 +98,6 @@ export function isCommandEvent(value: unknown): value is CommandEvent {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
-  const type = (value as { type?: unknown }).type;
+  const type = (value as { type?: unknown | undefined }).type;
   return typeof type === 'string' && isDaemonCommandEventType(type);
 }

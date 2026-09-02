@@ -53,8 +53,8 @@ export function createOpencodeSdkChunkExtractor(): (
     if (event.type === 'message.part.updated') {
       const payload = event.payload as
         | {
-            part?: { id?: string; messageID?: string; type?: string };
-            delta?: string;
+            part?: { id?: string | undefined; messageID?: string | undefined; type?: string | undefined } | undefined;
+            delta?: string | undefined;
           }
         | undefined;
 
@@ -78,9 +78,9 @@ export function createOpencodeSdkChunkExtractor(): (
     if (event.type === 'message.part.delta') {
       const payload = event.payload as
         | {
-            partID?: string;
-            messageID?: string;
-            delta?: string;
+            partID?: string | undefined;
+            messageID?: string | undefined;
+            delta?: string | undefined;
           }
         | undefined;
 

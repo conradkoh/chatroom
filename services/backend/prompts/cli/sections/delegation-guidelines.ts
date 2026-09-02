@@ -91,10 +91,10 @@ ${plannerEnhancerActive ? `**When enhancement is enabled:** See \`<handoff-enhan
 export function getDelegationGuidelinesSection(
   config: Pick<TeamCompositionConfig, 'hasBuilder'>,
   options?: {
-    cliEnvPrefix?: string;
-    chatroomId?: string;
-    role?: string;
-    plannerEnhancerActive?: boolean;
+    cliEnvPrefix?: string | undefined;
+    chatroomId?: string | undefined;
+    role?: string | undefined;
+    plannerEnhancerActive?: boolean | undefined;
   }
 ): string {
   const feedingNote = config.hasBuilder

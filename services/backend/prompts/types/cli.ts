@@ -28,11 +28,11 @@ export interface CommandContext {
 // ============================================================================
 
 export interface HandoffParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
-  nextRole?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  nextRole?: string | undefined;
   /** Placeholder text inside the heredoc body (default: [Your message here]). */
-  messagePlaceholder?: string;
+  messagePlaceholder?: string | undefined;
 }
 
 // ============================================================================
@@ -40,8 +40,8 @@ export interface HandoffParams extends CommandContext {
 // ============================================================================
 
 export interface GetNextTaskParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
 }
 
 /** @deprecated Use GetNextTaskParams instead */
@@ -59,13 +59,13 @@ export interface BuilderGuidanceParams extends BasePromptParams {
   teamRoles: string[];
   isEntryPoint: boolean;
   /** Override the default question/simple-task handoff target (default: 'user') */
-  questionTarget?: string;
+  questionTarget?: string | undefined;
   /**
    * Override the handoff target after code changes (default: 'planner').
    */
-  codeChangesTarget?: string;
+  codeChangesTarget?: string | undefined;
   /** True when harness uses native task injection instead of get-next-task */
-  nativeIntegration?: boolean;
+  nativeIntegration?: boolean | undefined;
 }
 
 /**
@@ -76,11 +76,11 @@ export interface PlannerGuidanceParams extends BasePromptParams {
   teamRoles: string[];
   isEntryPoint: boolean;
   /** Chatroom ID for generating exact CLI commands */
-  chatroomId?: string;
+  chatroomId?: string | undefined;
   /** True when harness uses native task injection instead of get-next-task */
-  nativeIntegration?: boolean;
+  nativeIntegration?: boolean | undefined;
   /** When true, static planner guidance includes enhancer workflow references. */
-  plannerEnhancerActive?: boolean;
+  plannerEnhancerActive?: boolean | undefined;
 }
 
 /**

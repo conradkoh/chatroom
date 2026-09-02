@@ -53,9 +53,9 @@ export type StoredFileTreeDeltaOp =
   | {
       operation: 'add';
       path: string;
-      entryType?: 'file' | 'directory';
-      size?: number;
-      modifiedAt?: number;
+      entryType?: 'file' | 'directory' | undefined;
+      size?: number | undefined;
+      modifiedAt?: number | undefined;
     }
   | { operation: 'remove'; path: string }
   | { operation: 'type-change'; path: string; entryType: 'file' | 'directory' };
@@ -65,8 +65,8 @@ export type VerboseFileTreeDeltaOp =
       operation: 'add';
       path: string;
       entryType: 'file' | 'directory';
-      size?: number;
-      modifiedAt?: number;
+      size?: number | undefined;
+      modifiedAt?: number | undefined;
     }
   | { operation: 'remove'; path: string }
   | { operation: 'type-change'; path: string; entryType: 'file' | 'directory' };

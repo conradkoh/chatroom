@@ -4,8 +4,8 @@
  * `node:net`, etc. Use instead of `NodeJS.ErrnoException`.
  */
 export type NodeError = Error & {
-  code?: string;
-  errno?: number;
-  syscall?: string;
-  path?: string;
+  code?: string | undefined;
+  errno?: number | undefined;
+  syscall?: string | undefined;
+  path?: string | undefined;
 };

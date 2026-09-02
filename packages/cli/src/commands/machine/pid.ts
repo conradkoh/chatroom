@@ -149,12 +149,12 @@ const STOP_EXISTING_WAIT_MS = 8_000;
 const STOP_EXISTING_POLL_MS = 100;
 
 export type StopExistingDaemonsOptions = {
-  listMatchingDaemonPids?: () => number[];
-  isRunning?: (pid: number) => boolean;
-  signal?: (pid: number, signal: NodeJS.Signals | 0) => void;
-  sleep?: (ms: number) => Promise<void>;
-  log?: (message: string) => void;
-  waitMs?: number;
+  listMatchingDaemonPids?:( () => number[]) | undefined;
+  isRunning?:( (pid: number) => boolean) | undefined;
+  signal?:( (pid: number, signal: NodeJS.Signals | 0) => void) | undefined;
+  sleep?:( (ms: number) => Promise<void>) | undefined;
+  log?:( (message: string) => void) | undefined;
+  waitMs?: number | undefined;
 };
 
 function defaultSignal(pid: number, signal: NodeJS.Signals | 0): void {
@@ -279,12 +279,12 @@ async function waitForLockOrTimeout(
  */
 // fallow-ignore-next-line complexity
 export async function acquireLockWithRetry(options?: {
-  intervalMs?: number;
-  maxWaitMs?: number;
-  sleep?: (ms: number) => Promise<void>;
-  listMatchingDaemonPids?: () => number[];
-  isRunning?: (pid: number) => boolean;
-  signal?: (pid: number, signal: NodeJS.Signals | 0) => void;
+  intervalMs?: number | undefined;
+  maxWaitMs?: number | undefined;
+  sleep?:( (ms: number) => Promise<void>) | undefined;
+  listMatchingDaemonPids?:( () => number[]) | undefined;
+  isRunning?:( (pid: number) => boolean) | undefined;
+  signal?:( (pid: number, signal: NodeJS.Signals | 0) => void) | undefined;
 }): Promise<boolean> {
   const intervalMs = options?.intervalMs ?? LOCK_RETRY_INTERVAL_MS;
   const maxWaitMs = options?.maxWaitMs ?? LOCK_RETRY_MAX_WAIT_MS;

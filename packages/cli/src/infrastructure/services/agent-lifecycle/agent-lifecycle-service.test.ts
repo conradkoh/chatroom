@@ -9,7 +9,7 @@ import type { SpawnPrompt } from '../../../daemon/infrastructure/local/harness/s
 
 interface MockSpawnPortState {
   allowSpawn: boolean;
-  retryAfterMs?: number;
+  retryAfterMs?: number | undefined;
 }
 
 function createMockSpawnPort(state: MockSpawnPortState): SpawnPort {
@@ -40,9 +40,9 @@ function createMockHarnessPort(): HarnessSpawnPort {
     chatroomId: string;
     role: string;
     workingDir: string;
-    model?: string;
+    model?: string | undefined;
     prompt: SpawnPrompt;
-    systemPrompt?: string;
+    systemPrompt?: string | undefined;
   }) =>
     Effect.succeed({
       pid: 100,
@@ -52,7 +52,7 @@ function createMockHarnessPort(): HarnessSpawnPort {
       },
       onLogLine: undefined,
     });
-  const stop = (_pid: number, _opts?: { preserveForResume?: boolean }) => Effect.void;
+  const stop = (_pid: number, _opts?: { preserveForResume?: boolean | undefined }) => Effect.void;
   const isAlive = (_pid: number) => Effect.succeed(true);
   return { spawn, stop, isAlive };
 }

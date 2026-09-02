@@ -42,7 +42,7 @@ export function requirePermissionForUser(user: UserForPermissions, permission: P
 export function requireAuthenticatedPermission<T extends UserForPermissions>(
   user: T | null | undefined,
   permission: Permission,
-  options?: { unauthorizedMessage?: string }
+  options?: { unauthorizedMessage?: string | undefined }
 ): asserts user is T {
   if (!user) {
     throw new ConvexError({
@@ -59,7 +59,7 @@ export function requireAuthenticatedPermission<T extends UserForPermissions>(
  */
 export function requireSystemAdminAccess<T extends UserForPermissions>(
   user: T | null | undefined,
-  options?: { unauthorizedMessage?: string }
+  options?: { unauthorizedMessage?: string | undefined }
 ): asserts user is T {
   requireAuthenticatedPermission(user, SYSTEM_ADMIN_ACCESS_PERMISSION, options);
 }

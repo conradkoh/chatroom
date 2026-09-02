@@ -40,8 +40,8 @@ export function createOperationalReadModel(
 }
 export function registerTestNativeDeliverySession(
   ctx: Omit<NativeDeliverySessionContext, 'agentOperationalReadModel' | 'taskSnapshotState'> & {
-    operationalRows?: MachineAgentOperationalRow[];
-    taskSnapshotState?: MachineTaskSnapshotState;
+    operationalRows?: MachineAgentOperationalRow[] | undefined;
+    taskSnapshotState?: MachineTaskSnapshotState | undefined;
   }
 ): void {
   registerNativeDeliverySession({

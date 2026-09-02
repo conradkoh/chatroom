@@ -46,7 +46,7 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 type QueryResponse = Record<string, unknown> | null | unknown[];
 
 function makeTestBackend(opts: {
-  queryResponses?: (QueryResponse | Error)[];
+  queryResponses?: (QueryResponse | Error)[] | undefined;
   mutationResponse?: Record<string, unknown> | string | undefined | Error;
 }) {
   let queryCallCount = 0;
@@ -69,9 +69,9 @@ function makeTestBackend(opts: {
 }
 
 function makeTestSessionService(opts: {
-  sessionId?: SessionId | null;
-  convexUrl?: string;
-  otherUrls?: string[];
+  sessionId?: SessionId | null | undefined;
+  convexUrl?: string | undefined;
+  otherUrls?: string[] | undefined;
 }) {
   return Layer.succeed(SessionService, {
     getSessionId: () => Effect.succeed(opts.sessionId ?? null),
@@ -81,9 +81,9 @@ function makeTestSessionService(opts: {
 }
 
 function makeTestFsService(opts: {
-  readFileResponse?: string | Error;
-  writeFileError?: Error;
-  mkdirError?: Error;
+  readFileResponse?: string | Error | undefined;
+  writeFileError?: Error | undefined;
+  mkdirError?: Error | undefined;
 }) {
   return Layer.succeed(BacklogFsService, {
     readFile: (_path: string, _enc: unknown) => {

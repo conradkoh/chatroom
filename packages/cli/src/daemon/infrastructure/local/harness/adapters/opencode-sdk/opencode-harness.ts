@@ -389,7 +389,7 @@ export class OpencodeSdkHarness implements BoundHarness {
       return null;
     }
 
-    const result = subscribed.result as { stream?: AsyncIterable<unknown> } | null | undefined;
+    const result = subscribed.result as { stream?: AsyncIterable<unknown> | undefined } | null | undefined;
     if (!result?.stream) {
       await this._sseSleepIfActive(100, state);
       return null;

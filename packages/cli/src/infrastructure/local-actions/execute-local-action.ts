@@ -23,7 +23,7 @@ import {
 
 /** Re-export from the canonical backend config definition. */
 export type { LocalActionType };
-export type LocalActionOptions = { chatroomId?: string };
+export type LocalActionOptions = { chatroomId?: string | undefined };
 
 /** Result of executing a local action. */
 export type LocalActionResult =

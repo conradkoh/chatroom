@@ -39,12 +39,12 @@ export interface TaskInboxOptions {
   readonly sessionId: SessionId;
   readonly machineId: string;
   /** Defaults to the time the iterator is created. */
-  readonly serviceStartedAt?: number;
+  readonly serviceStartedAt?: number | undefined;
   /** Overrides the initial timeline signal cursor. */
-  readonly initialAfterSignalKey?: string;
-  readonly signalPageLimit?: number;
-  readonly taskPageLimit?: number;
-  readonly signal?: AbortSignal;
+  readonly initialAfterSignalKey?: string | undefined;
+  readonly signalPageLimit?: number | undefined;
+  readonly taskPageLimit?: number | undefined;
+  readonly signal?: AbortSignal | undefined;
 }
 
 export type TaskInboxHandler = (update: TaskInboxUpdate) => Promise<void>;
@@ -112,8 +112,8 @@ function waitForTaskSignalPage(
         if (!result || typeof result !== 'object') return;
 
         const page = result as {
-          items?: readonly TaskStatusSignal[];
-          highKey?: string | null;
+          items?: readonly TaskStatusSignal[] | undefined;
+          highKey?: string | null | undefined;
         };
         const items = page.items;
         const highKey = page.highKey;

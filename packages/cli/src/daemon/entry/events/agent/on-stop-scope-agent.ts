@@ -4,9 +4,10 @@ import type { AgentStopScopeCommandEvent } from '../../../domain/entities/comman
 import { DaemonAgentProcessManagerService } from '../../daemon-services.js';
 
 export const onStopScopeAgentEffect = (
-  event: AgentStopScopeCommandEvent & { commandId?: string; _id?: string }
+  event: AgentStopScopeCommandEvent & { commandId?: string | undefined; _id?: string | undefined }
 ): Effect.Effect<void, never, DaemonAgentProcessManagerService> =>
   Effect.gen(function* () {
     const agentMgr = yield* DaemonAgentProcessManagerService;
-    if (agentMgr.runInboxScopedStop) yield* agentMgr.runInboxScopedStop(event);
+    const stop = agentMgr.runInboxScopedStop;
+    if (stop) yield* stop(event);
   });

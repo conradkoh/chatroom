@@ -21,7 +21,7 @@ import { attachLineReader } from '../line-stream-reader.js';
 
 export interface CursorCliEventMetadata {
   readonly type: string;
-  readonly subtype?: string;
+  readonly subtype?: string | undefined;
   readonly isError: boolean;
 }
 

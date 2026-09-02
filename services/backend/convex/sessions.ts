@@ -8,10 +8,10 @@ import { internalMutation, mutation, query } from './_generated/server';
  * Device info for session tracking.
  */
 export interface DeviceInfo {
-  userAgent?: string;
-  browser?: string;
-  os?: string;
-  device?: string;
+  userAgent?: string | undefined;
+  browser?: string | undefined;
+  os?: string | undefined;
+  device?: string | undefined;
 }
 
 /**
@@ -20,9 +20,9 @@ export interface DeviceInfo {
 export interface SessionInfo {
   _id: Id<'sessions'>;
   createdAt: number;
-  lastActivityAt?: number;
-  authMethod?: string;
-  deviceInfo?: DeviceInfo;
+  lastActivityAt?: number | undefined;
+  authMethod?: string | undefined;
+  deviceInfo?: DeviceInfo | undefined;
   isCurrent: boolean;
 }
 
@@ -36,7 +36,11 @@ export const listMySessions = query({
   handler: async (
     ctx,
     args
-  ): Promise<{ success: boolean; sessions?: SessionInfo[]; reason?: string }> => {
+  ): Promise<{
+    success: boolean;
+    sessions?: SessionInfo[] | undefined;
+    reason?: string | undefined;
+  }> => {
     // Get the current session and user
     const currentSession = await ctx.db
       .query('sessions')
@@ -85,7 +89,7 @@ export const revokeSession = mutation({
     sessionIdToRevoke: v.id('sessions'),
     ...SessionIdArg,
   },
-  handler: async (ctx, args): Promise<{ success: boolean; reason?: string }> => {
+  handler: async (ctx, args): Promise<{ success: boolean; reason?: string | undefined }> => {
     // Get the current session and user
     const currentSession = await ctx.db
       .query('sessions')
@@ -130,7 +134,11 @@ export const revokeAllOtherSessions = mutation({
   handler: async (
     ctx,
     args
-  ): Promise<{ success: boolean; revokedCount?: number; reason?: string }> => {
+  ): Promise<{
+    success: boolean;
+    revokedCount?: number | undefined;
+    reason?: string | undefined;
+  }> => {
     // Get the current session and user
     const currentSession = await ctx.db
       .query('sessions')

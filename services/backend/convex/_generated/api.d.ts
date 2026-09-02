@@ -92,6 +92,7 @@ import type * as lib_chatroomUtils from "../lib/chatroomUtils.js";
 import type * as lib_fileTreeDeltaOps from "../lib/fileTreeDeltaOps.js";
 import type * as lib_handoffRoles from "../lib/handoffRoles.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
+import type * as lib_omitUndefined from "../lib/omitUndefined.js";
 import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
 import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
@@ -151,6 +152,7 @@ import type * as workspaceFileTree_services_deltaApplyService from "../workspace
 import type * as workspaceFileTree_services_deltaQueryService from "../workspaceFileTree/services/deltaQueryService.js";
 import type * as workspaceFileTree_types from "../workspaceFileTree/types.js";
 import type * as workspaceFileTree_validation from "../workspaceFileTree/validation.js";
+import type * as workspaceFileTreeWatchCron from "../workspaceFileTreeWatchCron.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspacePathSecurity from "../workspacePathSecurity.js";
 import type * as workspaceUploadCleanup from "../workspaceUploadCleanup.js";
@@ -247,6 +249,7 @@ declare const fullApi: ApiFromModules<{
   "lib/fileTreeDeltaOps": typeof lib_fileTreeDeltaOps;
   "lib/handoffRoles": typeof lib_handoffRoles;
   "lib/hierarchy": typeof lib_hierarchy;
+  "lib/omitUndefined": typeof lib_omitUndefined;
   "lib/promoteNextTaskDeps": typeof lib_promoteNextTaskDeps;
   "lib/stdinDecoder": typeof lib_stdinDecoder;
   "lib/taskStateMachine": typeof lib_taskStateMachine;
@@ -306,6 +309,7 @@ declare const fullApi: ApiFromModules<{
   "workspaceFileTree/services/deltaQueryService": typeof workspaceFileTree_services_deltaQueryService;
   "workspaceFileTree/types": typeof workspaceFileTree_types;
   "workspaceFileTree/validation": typeof workspaceFileTree_validation;
+  workspaceFileTreeWatchCron: typeof workspaceFileTreeWatchCron;
   workspaceFiles: typeof workspaceFiles;
   workspacePathSecurity: typeof workspacePathSecurity;
   workspaceUploadCleanup: typeof workspaceUploadCleanup;

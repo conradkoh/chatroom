@@ -32,7 +32,7 @@ const MOCK_MESSAGE = {
 };
 
 /** Create a test backend service with configurable query responses */
-function makeTestBackend(config: { queryResponse?: unknown | Error }) {
+function makeTestBackend(config: { queryResponse?: unknown | Error | undefined }) {
   return Layer.succeed(BackendService, {
     query: vi.fn((_endpoint: any, _args: unknown) => {
       if (config.queryResponse instanceof Error) {
@@ -47,9 +47,9 @@ function makeTestBackend(config: { queryResponse?: unknown | Error }) {
 
 /** Create a test session service with configurable responses */
 function makeTestSession(config: {
-  sessionId?: string | null;
-  convexUrl?: string;
-  otherUrls?: string[];
+  sessionId?: string | null | undefined;
+  convexUrl?: string | undefined;
+  otherUrls?: string[] | undefined;
 }) {
   return Layer.succeed(SessionService, {
     getSessionId: () =>

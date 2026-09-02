@@ -24,11 +24,11 @@ export interface PromptInput {
   /** The agent sending the prompt (e.g. 'builder', 'planner'). Required. */
   readonly agent: string;
   /** Optional model override to pass to the SDK. */
-  readonly model?: { readonly providerID: string; readonly modelID: string };
+  readonly model?: { readonly providerID: string; readonly modelID: string } | undefined;
   /** Optional system prompt override. */
-  readonly system?: string;
+  readonly system?: string | undefined;
   /** Optional tool enable/disable map. */
-  readonly tools?: Record<string, boolean>;
+  readonly tools?: Record<string, boolean> | undefined;
   readonly parts: readonly PromptPart[];
 }
 

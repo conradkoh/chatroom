@@ -5,6 +5,9 @@ import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
 const EMPTY_ENTRIES: FileTreeEntry[] = [];
 
+/** Stable empty snapshot for useSyncExternalStore when no workspace key is bound. */
+export const EMPTY_FILE_TREE_ENTRIES: FileTreeEntry[] = EMPTY_ENTRIES;
+
 export function toWorkspaceFileTreeKey(machineId: string, workingDir: string): string {
   return `${machineId}::${normalizeWorkspaceWorkingDir(workingDir)}`;
 }

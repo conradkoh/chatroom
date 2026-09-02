@@ -331,7 +331,7 @@ describe('GetNextTaskSession', () => {
       // Verify get-next-task:stopped is emitted before exit (markListeningStopped)
       const stoppedCalls = params.client.mutation.mock.calls.filter(
         (call: unknown[]) =>
-          (call[1] as { action?: string } | undefined)?.action === 'get-next-task:stopped'
+          (call[1] as { action?: string | undefined } | undefined)?.action === 'get-next-task:stopped'
       );
       expect(stoppedCalls.length).toBeGreaterThanOrEqual(1);
 

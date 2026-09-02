@@ -35,7 +35,7 @@ async function submitAgenticMessage(
     queryId: Id<'chatroom_agenticQueries'>;
     message: string;
     harnessName: string;
-    model?: { providerID: string; modelID: string };
+    model?: { providerID: string; modelID: string } | undefined;
   },
   allowStatuses: ('draft' | 'complete' | 'failed')[]
 ) {
@@ -86,7 +86,7 @@ async function submitAgenticMessage(
       .map((t) => ({
         seq: t.seq,
         userMessage: t.userMessage,
-        assistantResponse: t.assistantResponse,
+        ...(t.assistantResponse !== undefined ? { assistantResponse: t.assistantResponse } : {}),
       })),
     harness: {
       harnessName,

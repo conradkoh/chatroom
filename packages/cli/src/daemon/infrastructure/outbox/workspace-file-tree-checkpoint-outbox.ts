@@ -28,7 +28,7 @@ export function createWorkspaceFileTreeCheckpointOutboxRegistry(
   createSend: (
     normalizedWorkingDir: string
   ) => (state: WorkspaceFileTreeCheckpointState) => Promise<WorkspaceFileTreeCheckpointSendResult>,
-  options?: { onError?: (normalizedWorkingDir: string, error: unknown) => void }
+  options?: { onError?:( (normalizedWorkingDir: string, error: unknown) => void) | undefined }
 ): WorkspaceFileTreeCheckpointOutboxRegistry {
   return createKeyedCoalescingStateOutboxRegistry({
     store: openDurableCoalescingStateStore(resolveOutboxDbPath(machineId, 'file-tree-checkpoint')),

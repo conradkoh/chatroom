@@ -9,7 +9,7 @@ export interface RestartAgentInput {
   correlationId: string;
   deadline: number;
   wantResume: boolean;
-  lifecycleRevision?: number;
+  lifecycleRevision?: number | undefined;
 }
 
 export interface RestartOrchestratorPort {
@@ -18,8 +18,8 @@ export interface RestartOrchestratorPort {
 
 export interface RestartAgentDeps {
   restartOrchestrator: RestartOrchestratorPort;
-  now?: () => number;
-  log?: (message: string) => void;
+  now?:( () => number) | undefined;
+  log?:( (message: string) => void) | undefined;
 }
 
 export async function restartAgent(

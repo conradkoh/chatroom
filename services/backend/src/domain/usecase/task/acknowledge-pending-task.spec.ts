@@ -32,7 +32,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 
 async function seedPendingTask(
   chatroomId: Id<'chatroom_rooms'>,
-  opts?: { sourceMessageId?: Id<'chatroom_messages'> }
+  opts?: { sourceMessageId?: Id<'chatroom_messages'> | undefined }
 ): Promise<Doc<'chatroom_tasks'>> {
   return await t.run(async (ctx) => {
     const now = Date.now();
@@ -52,7 +52,7 @@ async function seedPendingTask(
 
 async function seedMessage(
   chatroomId: Id<'chatroom_rooms'>,
-  opts?: { acknowledgedAt?: number }
+  opts?: { acknowledgedAt?: number | undefined }
 ): Promise<Id<'chatroom_messages'>> {
   return await t.run(async (ctx) => {
     return await ctx.db.insert('chatroom_messages', {

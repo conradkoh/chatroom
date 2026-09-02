@@ -19,18 +19,18 @@ import { registerSocketHandlers } from '../../infrastructure/socket/register-han
 
 export type LocalWebServerConfig = {
   host: '127.0.0.1';
-  port?: number;
+  port?: number | undefined;
 };
 
 export type LocalWebServerDeps = {
-  persistence?: PersistenceStore;
-  streamHub?: StreamHub;
-  logRepo?: LogRepository;
-  logStreamHub?: LogStreamHub;
-  eventStreamHub?: EventStreamHub;
-  backend?: BackendOps;
-  sessionId?: string;
-  clientDistDir?: string;
+  persistence?: PersistenceStore | undefined;
+  streamHub?: StreamHub | undefined;
+  logRepo?: LogRepository | undefined;
+  logStreamHub?: LogStreamHub | undefined;
+  eventStreamHub?: EventStreamHub | undefined;
+  backend?: BackendOps | undefined;
+  sessionId?: string | undefined;
+  clientDistDir?: string | undefined;
 };
 
 export type LocalWebServerHandle = {

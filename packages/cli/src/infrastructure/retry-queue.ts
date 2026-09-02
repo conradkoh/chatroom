@@ -6,12 +6,12 @@
  */
 
 export interface RetryOptions {
-  maxRetries?: number;
-  baseDelayMs?: number;
-  maxDelayMs?: number;
+  maxRetries?: number | undefined;
+  baseDelayMs?: number | undefined;
+  maxDelayMs?: number | undefined;
 }
 
-const DEFAULTS: Required<RetryOptions> = {
+const DEFAULTS = {
   maxRetries: 3,
   baseDelayMs: 500,
   maxDelayMs: 5_000,
@@ -25,7 +25,9 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   opts?: RetryOptions
 ): Promise<T | undefined> {
-  const { maxRetries, baseDelayMs, maxDelayMs } = { ...DEFAULTS, ...opts };
+  const maxRetries = opts?.maxRetries ?? DEFAULTS.maxRetries;
+  const baseDelayMs = opts?.baseDelayMs ?? DEFAULTS.baseDelayMs;
+  const maxDelayMs = opts?.maxDelayMs ?? DEFAULTS.maxDelayMs;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {

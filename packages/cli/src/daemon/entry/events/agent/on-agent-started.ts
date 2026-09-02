@@ -8,7 +8,7 @@ export interface AgentStartedPayload {
   role: string;
   pid: number;
   harness: string;
-  model?: string;
+  model?: string | undefined;
 }
 
 /**

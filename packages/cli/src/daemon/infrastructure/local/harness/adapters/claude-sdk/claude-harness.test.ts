@@ -65,7 +65,7 @@ describe('ClaudeSdkHarness', () => {
 
     const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
     const session = await harness.newSession({ model: 'anthropic/sonnet' });
-    const events: { type: string; payload?: unknown }[] = [];
+    const events: { type: string; payload?: unknown | undefined }[] = [];
 
     session.onEvent((event) => {
       events.push({ type: event.type, payload: event.payload });
@@ -109,7 +109,7 @@ describe('ClaudeSdkHarness', () => {
 
     session.onEvent((event) => {
       if (event.type === 'message.part.delta') {
-        const payload = event.payload as { delta?: string; partType?: string };
+        const payload = event.payload as { delta?: string | undefined; partType?: string | undefined };
         if (payload.partType === 'text' && payload.delta) {
           textDeltas.push(payload.delta);
         }
@@ -144,7 +144,7 @@ describe('ClaudeSdkHarness', () => {
 
     session.onEvent((event) => {
       if (event.type === 'message.part.delta') {
-        const payload = event.payload as { delta?: string; partType?: string };
+        const payload = event.payload as { delta?: string | undefined; partType?: string | undefined };
         if (payload.partType === 'text' && payload.delta) {
           textDeltas.push(payload.delta);
         }

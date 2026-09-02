@@ -13,7 +13,7 @@ export function normalizeError(err: unknown): AppError {
   }
   if (err instanceof Error) {
     const code =
-      'code' in err && typeof (err as { code?: string }).code === 'string'
+      'code' in err && typeof (err as { code?: string | undefined }).code === 'string'
         ? ((err as { code: string }).code as AppError['code'])
         : 'internal_error';
     if (code === 'not_found' || code === 'validation_error' || code === 'unauthorized') {

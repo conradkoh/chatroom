@@ -9,8 +9,8 @@ interface CommandRunRow {
 }
 
 interface ActionableCommandRuns {
-  pendingRuns?: CommandRunRow[];
-  stopRequestedRuns?: CommandRunRow[];
+  pendingRuns?: CommandRunRow[] | undefined;
+  stopRequestedRuns?: CommandRunRow[] | undefined;
 }
 
 function runId(run: CommandRunRow): string {

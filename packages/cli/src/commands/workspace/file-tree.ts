@@ -29,7 +29,7 @@ async function requireSession(deps: WorkspaceFileTreeDeps): Promise<string> {
 export async function requestWorkspaceFileTreeFromCli(
   machineId: string,
   workingDir: string,
-  options: { force?: boolean },
+  options: { force?: boolean | undefined },
   deps?: WorkspaceFileTreeDeps
 ): Promise<{ status: string }> {
   const d = deps ?? (await createDefaultDeps());

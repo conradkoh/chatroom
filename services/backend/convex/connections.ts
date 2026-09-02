@@ -36,7 +36,7 @@ export const requestConnectionClose = mutation({
       chatroomId: args.chatroomId,
       role: args.role,
       connectionId: args.connectionId,
-      machineId: args.machineId,
+      ...(args.machineId !== undefined ? { machineId: args.machineId } : {}),
       reason: args.reason ?? 'requested',
       createdAt: now,
       expiresAt: now + CONNECTION_CLOSE_REQUEST_TTL_MS,

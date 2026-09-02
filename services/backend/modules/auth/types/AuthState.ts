@@ -19,7 +19,8 @@ export type AuthState =
       accessLevel: AccessLevel;
       /** Effective permissions from application/auth role resolution. */
       permissions: Permission[];
-      authMethod?: 'google' | 'login_code' | 'recovery_code' | 'anonymous' | 'username_password';
+      authMethod?:
+        'google' | 'login_code' | 'recovery_code' | 'anonymous' | 'username_password' | undefined;
     };
 
 /**
@@ -29,7 +30,7 @@ export type AuthState =
 export type GoogleUserProfile = {
   name: string;
   email: string;
-  picture?: string;
+  picture?: string | undefined;
   googleProfile: {
     id: string;
     email: string;

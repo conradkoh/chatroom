@@ -44,7 +44,10 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 async function createQueueRecord(
   chatroomId: Id<'chatroom_rooms'>,
   content = 'queued message content',
-  extra?: { sourcePlatform?: string; scheduledPromptId?: Id<'chatroom_scheduledPrompts'> }
+  extra?: {
+    sourcePlatform?: string | undefined;
+    scheduledPromptId?: Id<'chatroom_scheduledPrompts'> | undefined;
+  }
 ): Promise<Id<'chatroom_messageQueue'>> {
   return await t.run(async (ctx) => {
     return await ctx.db.insert('chatroom_messageQueue', {

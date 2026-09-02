@@ -11,12 +11,12 @@ export interface AssignedTaskAgentConfig {
   role: string;
   machineId: string;
   agentHarness: string;
-  model?: string;
-  workingDir?: string;
-  spawnedAgentPid?: number;
-  desiredState?: AgentDesiredState;
-  circuitState?: AgentCircuitState;
-  configLifecycleRevision?: number;
+  model?: string | undefined;
+  workingDir?: string | undefined;
+  spawnedAgentPid?: number | undefined;
+  desiredState?: AgentDesiredState | undefined;
+  circuitState?: AgentCircuitState | undefined;
+  configLifecycleRevision?: number | undefined;
 }
 
 export interface AssignedTaskParticipant {
@@ -34,7 +34,7 @@ export interface AssignedTask {
   updatedAt: number;
   createdAt: number;
   agentConfig: AssignedTaskAgentConfig;
-  participant?: AssignedTaskParticipant;
+  participant?: AssignedTaskParticipant | undefined;
 }
 
 export function isDeliverableTaskStatus(status: ActiveTaskStatus): boolean {
@@ -51,5 +51,5 @@ export type AssignedTaskSnapshotView = AssignedTask;
 /** Full task view including content — for one-shot action fetches. */
 export interface AssignedTaskWithContent extends AssignedTask {
   taskContent: string;
-  startInNewSession?: boolean;
+  startInNewSession?: boolean | undefined;
 }

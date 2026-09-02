@@ -3,6 +3,7 @@ import type { ChatroomAgentActivityStatusValue } from '@workspace/shared/domain/
 
 import type { Id, Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-for-role';
 
@@ -10,9 +11,9 @@ export type AgentRoleStatusReadModelStatus = ChatroomAgentActivityStatusValue;
 
 type StatusEvent = {
   status: AgentRoleStatusReadModelStatus;
-  errorSource?: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop';
-  errorCode?: string;
-  errorMessage?: string;
+  errorSource?: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop' | undefined;
+  errorCode?: string | undefined;
+  errorMessage?: string | undefined;
 };
 
 export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
@@ -57,9 +58,9 @@ export async function projectAgentRoleStatusReadModel(
   args: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    event?: StatusEvent;
-    config?: Doc<'chatroom_teamAgentConfigs'>;
-    lastSeenAt?: number;
+    event?: StatusEvent | undefined;
+    config?: Doc<'chatroom_teamAgentConfigs'> | undefined;
+    lastSeenAt?: number | undefined;
   }
 ): Promise<void> {
   const role = args.role.trim().toLowerCase();
@@ -96,7 +97,7 @@ export async function projectAgentRoleStatusReadModel(
           occurredAt: now,
         }
       : undefined;
-  const fields = {
+  const fields = omitUndefined({
     chatroomId: args.chatroomId,
     role,
     roleKind: isEphemeralAgentRole(role) ? ('ephemeral' as const) : ('persistent' as const),
@@ -110,14 +111,14 @@ export async function projectAgentRoleStatusReadModel(
     activeWork: activeTask ? { kind: 'task' as const, id: activeTask._id } : undefined,
     error,
     projectedAt: now,
-  };
+  });
   if (existing) await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, fields);
   else await ctx.db.insert('chatroom_agentRoleStatusReadModel', fields);
 }
 
 export async function touchAgentRoleStatusLastSeen(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string; lastSeenAt?: number }
+  args: { chatroomId: Id<'chatroom_rooms'>; role: string; lastSeenAt?: number | undefined }
 ): Promise<void> {
   const role = args.role.trim().toLowerCase();
   const existing = await ctx.db

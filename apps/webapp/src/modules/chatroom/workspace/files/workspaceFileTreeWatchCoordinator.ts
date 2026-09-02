@@ -13,6 +13,8 @@ type AdjustWatch = (args: {
   delta: 1 | -1;
 }) => void | Promise<unknown>;
 
+type RenewLease = (args: { machineId: string; workingDir: string }) => void | Promise<unknown>;
+
 function fireAdjustWatch(
   adjustWatch: AdjustWatch,
   args: {
@@ -93,4 +95,18 @@ export function releaseFileTreeWatch(
     localRefCounts.set(key, next);
     notify();
   }
+}
+
+/** Fire-and-forget lease renewal; a later interval retries transient failures. */
+export function renewFileTreeWatchLease(
+  machineId: string,
+  workingDir: string,
+  renew: RenewLease
+): void {
+  void Promise.resolve(
+    renew({
+      machineId,
+      workingDir: normalizeWorkspaceWorkingDir(workingDir),
+    })
+  ).catch(() => {});
 }

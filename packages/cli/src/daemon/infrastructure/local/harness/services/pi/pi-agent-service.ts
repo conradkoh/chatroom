@@ -149,8 +149,8 @@ export class PiAgentService extends BaseCLIAgentService {
   private spawnPiRpcProcess(args: {
     workingDir: string;
     systemPrompt: string;
-    model?: string;
-    thinking?: string;
+    model?: string | undefined;
+    thinking?: string | undefined;
     resolvedConvexUrl: string;
   }): ChildProcess {
     const rpcArgs: string[] = ['--mode', 'rpc', '--session-dir', getPiSessionDir(args.workingDir)];
@@ -213,7 +213,7 @@ export class PiAgentService extends BaseCLIAgentService {
     childProcess: ChildProcess;
     context: SpawnOptions['context'];
     harnessSessionId: string;
-    reader?: PiRpcReader;
+    reader?: PiRpcReader | undefined;
     activityEmitter: HarnessActivityEmitter;
   }): SpawnResult {
     const { childProcess, context, harnessSessionId, activityEmitter } = args;

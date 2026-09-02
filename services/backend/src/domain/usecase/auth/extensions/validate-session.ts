@@ -11,7 +11,7 @@
 export interface CliSessionRecord {
   userId: string;
   isActive: boolean;
-  expiresAt?: number;
+  expiresAt?: number | undefined;
 }
 
 /** Minimal web session shape needed for validation. */
@@ -22,7 +22,7 @@ export interface WebSessionRecord {
 /** Minimal user shape needed for validation. */
 export interface UserRecord {
   id: string;
-  name?: string;
+  name?: string | undefined;
 }
 
 /** Database access for session validation. */
@@ -37,7 +37,7 @@ export interface SessionCheckSuccess {
   ok: true;
   sessionId: string;
   userId: string;
-  userName?: string;
+  userName?: string | undefined;
   sessionType: 'cli' | 'web';
 }
 

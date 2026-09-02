@@ -2,22 +2,24 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { requestWorkspaceFileTree } from './request-workspace-file-tree';
-
-const FILE_TREE_STALENESS_MS = 10 * 1000;
+import { FILE_TREE_SNAPSHOT_STALENESS_MS } from '../../constants/workspace-file-tree-watch';
 
 function createMockCtx({
   v2Tree,
   manifestV3,
   existingRequest,
 }: {
-  v2Tree?: { scannedAt: number } | null;
-  manifestV3?: { complete: boolean; scannedAt: number } | null;
-  existingRequest?: {
-    _id: string;
-    status: string;
-    force?: boolean;
-    updatedAt?: number;
-  } | null;
+  v2Tree?: { scannedAt: number } | null | undefined;
+  manifestV3?: { complete: boolean; scannedAt: number } | null | undefined;
+  existingRequest?:
+    | {
+        _id: string;
+        status: string;
+        force?: boolean | undefined;
+        updatedAt?: number | undefined;
+      }
+    | null
+    | undefined;
 } = {}) {
   const patch = vi.fn();
   const insert = vi.fn();
@@ -126,7 +128,7 @@ describe('requestWorkspaceFileTree', () => {
     const { ctx, insert } = createMockCtx({
       manifestV3: {
         complete: true,
-        scannedAt: Date.now() - FILE_TREE_STALENESS_MS - 1,
+        scannedAt: Date.now() - FILE_TREE_SNAPSHOT_STALENESS_MS - 1,
       },
     });
 

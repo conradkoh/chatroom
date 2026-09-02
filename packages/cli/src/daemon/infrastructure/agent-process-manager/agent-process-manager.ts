@@ -152,49 +152,49 @@ interface ExitContext {
 /** APM's internal slot — mirrors AgentLifecycleSlot with imperative-compatible fields. */
 export interface AgentSlot {
   state: AgentSlotState;
-  pid?: number;
-  harness?: AgentHarness;
+  pid?: number | undefined;
+  harness?: AgentHarness | undefined;
   /** Immutable spawn correlation ID for native delivery gating and ledger. */
-  harnessSessionId?: string;
+  harnessSessionId?: string | undefined;
   /** Latest provider-native session ID for daemon-memory resume. */
-  resumableHarnessSessionId?: string;
-  model?: string;
-  workingDir?: string;
-  startedAt?: number;
+  resumableHarnessSessionId?: string | undefined;
+  model?: string | undefined;
+  workingDir?: string | undefined;
+  startedAt?: number | undefined;
   /** Promise that resolves when a pending spawn or stop completes */
-  pendingOperation?: Promise<OperationResult>;
+  pendingOperation?: Promise<OperationResult> | undefined;
   /** Recent harness log lines for resume-storm reason classification. */
-  recentLogLines?: string[];
+  recentLogLines?: string[] | undefined;
   /** User's persisted reconnect-on-start preference for this run. */
-  wantResume?: boolean;
-  authorizedLifecycleRevision?: number;
+  wantResume?: boolean | undefined;
+  authorizedLifecycleRevision?: number | undefined;
   /** Turn-end already emitted startFailed for a terminal provider error. */
-  terminalProviderFailureHandled?: boolean;
+  terminalProviderFailureHandled?: boolean | undefined;
   /** Provider-unavailable event already emitted for this spawn. */
-  providerUnavailableEmitted?: boolean;
-  lastOutputAt?: number;
+  providerUnavailableEmitted?: boolean | undefined;
+  lastOutputAt?: number | undefined;
   /** Task last delivered to this native harness slot — sent on agent_end. */
-  lastInFlightTaskId?: string;
+  lastInFlightTaskId?: string | undefined;
   /** Native harness turn lifecycle — delivery control plane (not UI participant state). */
-  nativeTurnPhase?: NativeTurnPhase;
+  nativeTurnPhase?: NativeTurnPhase | undefined;
   /** When the slot entered stopping — used to detect hung stop. */
-  stoppingSince?: number;
+  stoppingSince?: number | undefined;
   /** Monotonic token for the current stop attempt — bumped on stop claim and force-clear. */
-  stopGeneration?: number;
+  stopGeneration?: number | undefined;
   /** Stop intent remains set after the process is gone until an explicit start clears it. */
-  stopRequested?: boolean;
+  stopRequested?: boolean | undefined;
   /** Expected process exit metadata for distinguishing intentional termination. */
-  expectedStopReason?: string;
-  expectedStopPid?: number;
+  expectedStopReason?: string | undefined;
+  expectedStopPid?: number | undefined;
   /** Backend stop command/target currently responsible for this stopping slot. */
-  stopCommandId?: string;
-  stopTargetKey?: string;
+  stopCommandId?: string | undefined;
+  stopTargetKey?: string | undefined;
 }
 
 export interface AgentProcessManagerDeps {
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult> };
   logEvent: (event: Record<string, unknown>) => Promise<void>;
-  logSink?: AgentLogSink;
+  logSink?: AgentLogSink | undefined;
   agentServices: Map<string, RemoteAgentService>;
   sessionMonitors: Map<string, HarnessSessionMonitor>;
   /**
@@ -232,11 +232,11 @@ export interface AgentProcessManagerDeps {
     shouldAllowSpawn: (
       chatroomId: string,
       reason: string
-    ) => { allowed: boolean; retryAfterMs?: number };
+    ) => { allowed: boolean; retryAfterMs?: number | undefined };
   };
   crashLoop: CrashLoopTracker;
   convexUrl: string;
-  resumeStormTracker?: ResumeStormTracker;
+  resumeStormTracker?: ResumeStormTracker | undefined;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1653,7 +1653,7 @@ export class AgentProcessManager {
     role: string;
     agentHarness: AgentHarness;
     workingDir: string;
-    model?: string;
+    model?: string | undefined;
     initPrompt: string;
     systemPrompt: string;
     service: RemoteAgentService;

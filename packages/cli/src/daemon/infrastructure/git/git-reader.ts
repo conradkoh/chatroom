@@ -22,7 +22,7 @@ import { FULL_DIFF_MAX_BYTES } from './types.js';
 function runGit(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; maxBuffer?: number; successExitCodes?: number[] }
+  options?: { timeout?: number | undefined; maxBuffer?: number | undefined; successExitCodes?: number[] | undefined }
 ): Promise<CommandResult> {
   return runGitCommand(cwd ? args : args, cwd, { ...options, readOnly: true });
 }
@@ -150,7 +150,7 @@ type TrackedHeadDiffResolution =
 async function runTrackedHeadDiff(
   workingDir: string,
   args: string[],
-  options?: { maxBuffer?: number }
+  options?: { maxBuffer?: number | undefined }
 ): Promise<TrackedHeadDiffResolution> {
   const result = await runGit(args, workingDir, options);
   if ('error' in result) {
@@ -434,7 +434,7 @@ export async function getCommitDetail(
 export async function getCommitMetadata(
   workingDir: string,
   sha: string
-): Promise<{ message: string; body?: string; author: string; date: string } | null> {
+): Promise<{ message: string; body?: string | undefined; author: string; date: string } | null> {
   // Use US (\x1f) as field separator. %b may contain newlines but not \x1f.
   const format = '%s%x1f%b%x1f%an%x1f%aI';
   const result = await runGit(['log', '-1', `--format=${format}`, sha], workingDir);
@@ -557,7 +557,7 @@ export async function getOpenPRsForBranch(cwd: string, branch: string): Promise<
           url: string;
           headRefName: string;
           state: string;
-          headRepositoryOwner?: { login?: string };
+          headRepositoryOwner?: { login?: string | undefined } | undefined;
         } =>
           typeof item === 'object' &&
           item !== null &&
@@ -590,16 +590,16 @@ export async function getOpenPRsForBranch(cwd: string, branch: string): Promise<
 interface GHPRItem {
   number: number;
   title: string;
-  url?: string;
-  headRefName?: string;
-  baseRefName?: string;
-  state?: string;
-  author?: unknown;
-  createdAt?: string;
-  updatedAt?: string;
-  mergedAt?: string | null;
-  closedAt?: string | null;
-  isDraft?: boolean;
+  url?: string | undefined;
+  headRefName?: string | undefined;
+  baseRefName?: string | undefined;
+  state?: string | undefined;
+  author?: unknown | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
+  mergedAt?: string | null | undefined;
+  closedAt?: string | null | undefined;
+  isDraft?: boolean | undefined;
 }
 
 function isGHPRItem(item: unknown): item is GHPRItem {
@@ -647,7 +647,7 @@ export async function getAllPRs(cwd: string): Promise<GitPullRequest[]> {
     return parsed.filter(isGHPRItem).map((item): GitPullRequest => {
       const author =
         typeof item.author === 'object' && item.author !== null
-          ? (item.author as { login?: string }).login
+          ? (item.author as { login?: string | undefined }).login
           : undefined;
       return {
         prNumber: item.number,

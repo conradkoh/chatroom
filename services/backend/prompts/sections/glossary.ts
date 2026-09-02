@@ -13,10 +13,10 @@ import { getCliEnvPrefix } from '../utils/index';
 
 export interface GlossarySectionParams {
   convexUrl: string;
-  chatroomId?: string;
-  role?: string;
-  nativeIntegration?: boolean;
-  compactSkills?: boolean;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  nativeIntegration?: boolean | undefined;
+  compactSkills?: boolean | undefined;
 }
 
 export interface GlossaryTerm {
@@ -25,7 +25,7 @@ export interface GlossaryTerm {
   /** Short, system-specific definition (~2 lines) */
   definition: string;
   /** If set, the ID of the skill the agent can activate for this term */
-  linkedSkillId?: string;
+  linkedSkillId?: string | undefined;
 }
 
 export const GLOSSARY_TERMS: GlossaryTerm[] = [

@@ -10,11 +10,11 @@ export interface SessionMetadata {
   /** OpenCode agent name used for session.promptAsync (required for resumeTurn). */
   agentName: string;
   /** Model id string passed at spawn, if any (e.g. provider/model). */
-  model?: string;
+  model?: string | undefined;
   /** Composed system prompt deferred until first resumeTurn (idle native spawn). */
-  deferredSystemPrompt?: string;
+  deferredSystemPrompt?: string | undefined;
   /** Display title synced from the harness (e.g. opencode session title). */
-  title?: string;
+  title?: string | undefined;
   pid: number;
   createdAt: string;
   baseUrl: string;

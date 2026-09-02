@@ -41,7 +41,7 @@ const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 const PRODUCTION_WEBAPP_URL = 'https://chatroom.duskfare.com';
 
 interface AuthLoginOptions {
-  force?: boolean;
+  force?: boolean | undefined;
 }
 
 /**
@@ -203,7 +203,7 @@ export const authLoginEffect = (
 
         // Validate session against backend; trust local file on network failure
         const keepAuthenticated = yield* backend
-          .query<{ valid: boolean; reason?: string }>(api.cliAuth.validateSession, { sessionId })
+          .query<{ valid: boolean; reason?: string | undefined }>(api.cliAuth.validateSession, { sessionId })
           .pipe(
             Effect.match({
               onFailure: (_e) => {
@@ -317,7 +317,7 @@ export const authLoginEffect = (
     while (!pollingDone) {
       pollCount++;
 
-      type StatusResponse = { status: string; sessionId?: string };
+      type StatusResponse = { status: string; sessionId?: string | undefined };
 
       const statusResult = yield* backend
         .query<StatusResponse>(api.cliAuth.getAuthRequestStatus, { requestId })

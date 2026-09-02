@@ -7,7 +7,7 @@ export type AgentViewMetadataInput = {
   teamId: string;
   teamName: string;
   teamRoles: string[];
-  hasHistory?: boolean;
+  hasHistory?: boolean | undefined;
 };
 
 export async function upsertAgentViewMetadata(

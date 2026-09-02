@@ -431,7 +431,7 @@ describe('Task Workflow - Cancel Actions', () => {
     // Find the auto-created task with this sourceMessageId
     const allTasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId });
     const task = allTasks.find(
-      (t: { sourceMessageId?: unknown }) => t.sourceMessageId === messageId
+      (t: { sourceMessageId?: unknown | undefined }) => t.sourceMessageId === messageId
     );
     expect(task).toBeDefined();
 

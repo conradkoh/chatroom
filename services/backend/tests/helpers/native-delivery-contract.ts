@@ -6,9 +6,9 @@ import { expect } from 'vitest';
 
 export interface NativeDeliveryContractOptions {
   /** Task body expected in the delivery prompt */
-  taskContent?: string;
+  taskContent?: string | undefined;
   /** Expected handoff target role */
-  handoffTarget?: string;
+  handoffTarget?: string | undefined;
 }
 
 /** Assert a native task delivery prompt matches the slim contract. */
@@ -45,7 +45,7 @@ export function assertNativeDeliveryContract(
 /** Assert native task delivery includes per-task task intake only (role guidance is in init). */
 export function assertNativeDeliveryTaskIntake(
   output: string,
-  options: { entryPoint?: boolean; role: string; teamId?: string }
+  options: { entryPoint?: boolean | undefined; role: string; teamId?: string | undefined }
 ): void {
   expect(output).not.toContain('<role-guidance>');
   expect(output).toContain('<task-intake>');

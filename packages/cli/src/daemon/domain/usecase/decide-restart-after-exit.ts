@@ -17,12 +17,12 @@ export type RestartOutcome =
 
 export interface RestartDecisionInput {
   readonly stopReason: StopReason;
-  readonly harness?: string;
-  readonly workingDir?: string;
+  readonly harness?: string | undefined;
+  readonly workingDir?: string | undefined;
   readonly wantResume: boolean;
   readonly isPermanentFailure: boolean;
-  readonly permanentFailureMessage?: string;
-  readonly backoffWaitMs?: number; // from CrashLoopTracker when blocked
+  readonly permanentFailureMessage?: string | undefined;
+  readonly backoffWaitMs?: number | undefined; // from CrashLoopTracker when blocked
 }
 
 export function decideRestartAfterExit(input: RestartDecisionInput): RestartOutcome {

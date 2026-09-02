@@ -7,7 +7,7 @@ export function appendEnhancerRoleTaskDeliveryGuidance(
     role: string;
     cliEnvPrefix: string;
     entryPointRole: string;
-    originUserMessageId?: string;
+    originUserMessageId?: string | undefined;
   }
 ): void {
   lines.push(

@@ -18,7 +18,7 @@ const HANDOFF_DIR = 'tmp/chatroom';
  */
 export function generateFilename(
   prefix: string,
-  options: { type?: string } = {}
+  options: { type?: string | undefined } = {}
 ): { varName: string; filePath: string } {
   const extension = options.type || 'md';
   const varName = `${prefix.toUpperCase()}_FILE`;

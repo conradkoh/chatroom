@@ -27,7 +27,7 @@ export interface UpdateTeamInput {
   teamId: string;
   teamName: string;
   teamRoles: string[];
-  teamEntryPoint?: string;
+  teamEntryPoint?: string | undefined;
   userId: Id<'users'>;
 }
 

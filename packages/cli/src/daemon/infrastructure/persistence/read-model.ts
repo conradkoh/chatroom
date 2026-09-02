@@ -6,7 +6,7 @@ export type HarnessStreamLine = Extract<OutboundEvent, { type: 'harness.stream' 
 
 export function listHarnessStreamLines(
   db: DatabaseSync,
-  opts: { harness?: string; limit?: number } = {}
+  opts: { harness?: string | undefined; limit?: number | undefined } = {}
 ): HarnessStreamLine[] {
   const limit = opts.limit ?? 500;
   const rows = db

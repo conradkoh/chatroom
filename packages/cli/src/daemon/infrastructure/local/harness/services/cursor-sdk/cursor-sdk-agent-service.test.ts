@@ -34,7 +34,7 @@ vi.mock('./cursor-sdk-package.js', () => ({
   getBundledCursorSdkVersion: vi.fn(() => '1.0.28'),
   formatCursorSdkError: (err: unknown) => {
     if (err instanceof Error) {
-      const sdkErr = err as Error & { code?: string; name?: string };
+      const sdkErr = err as Error & { code?: string | undefined; name?: string | undefined };
       const code = sdkErr.code ? `[${sdkErr.code}] ` : '';
       const name = sdkErr.name && sdkErr.name !== 'Error' ? `${sdkErr.name}: ` : '';
       return `${name}${code}${err.message}`.trim();
@@ -264,7 +264,7 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
       const sendOptions = sharedAgentSendFn.mock.calls[0][1] as {
-        onDelta?: (args: { update: { type: string; text?: string } }) => void;
+        onDelta?:( (args: { update: { type: string; text?: string | undefined } }) => void) | undefined;
       };
       expect(typeof sendOptions.onDelta).toBe('function');
 

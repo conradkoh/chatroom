@@ -47,13 +47,13 @@ export type DeltaPushResult =
 export interface WorkspaceFileTreeCoordinatorOptions {
   machineId: string;
   workingDir: string;
-  reconcileIntervalMs?: number;
-  checkpointEveryRevisions?: number;
-  changeSourcePollIntervalMs?: number;
+  reconcileIntervalMs?: number | undefined;
+  checkpointEveryRevisions?: number | undefined;
+  changeSourcePollIntervalMs?: number | undefined;
   onDelta: (delta: WorkspacePendingDelta, baseRevision: number) => Promise<DeltaPushResult>;
   onCheckpoint: (tree: FileTree, revision: number) => Promise<{ revision: number }>;
-  onError?: (error: unknown) => void;
-  onReconciled?: (correctedPathCount: number) => void;
+  onError?:( (error: unknown) => void) | undefined;
+  onReconciled?:( (correctedPathCount: number) => void) | undefined;
 }
 
 export interface WorkspaceFileTreeCoordinator {

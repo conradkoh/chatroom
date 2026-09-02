@@ -9,10 +9,10 @@ export const IN_FLIGHT_START_STATUSES = new Set([
 export type RoleConfigSnapshot = {
   role: string;
   teamId: string;
-  machineId?: string;
-  desiredState?: 'running' | 'stopped';
-  circuitState?: 'closed' | 'open' | 'half-open';
-  spawnedAgentPid?: number | null;
+  machineId?: string | undefined;
+  desiredState?: 'running' | 'stopped' | undefined;
+  circuitState?: 'closed' | 'open' | 'half-open' | undefined;
+  spawnedAgentPid?: number | null | undefined;
 };
 export type RoleOperationalProjection = RoleConfigSnapshot & {
   operationalState: OperationalState;
@@ -39,7 +39,7 @@ export type ChatroomOperationalSummary = {
   aliveRoles: string[];
   runningAgents: { role: string; machineId: string }[];
   remoteConfigCount: number;
-  stoppingRoles?: string[];
+  stoppingRoles?: string[] | undefined;
 };
 
 export type NormalizedOperationalSummary = ChatroomOperationalSummary;
@@ -113,7 +113,7 @@ export function recomputeAgentStatus(
 export function applyRoleToSummary(
   summary: ChatroomOperationalSummary,
   projection: RoleOperationalProjection,
-  options?: { isNewConfig?: boolean }
+  options?: { isNewConfig?: boolean | undefined }
 ): ChatroomOperationalSummary {
   const role = projection.role.toLowerCase();
   const withoutRole = stripRoleFromSummaryArrays(summary, role);

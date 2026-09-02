@@ -7,12 +7,12 @@ import { getContextViewTemplate } from './context-template';
 import { contextViewTemplateCommand } from './view-template';
 
 export interface ContextNewParams {
-  chatroomId?: string;
-  role?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
   /** CLI environment prefix for non-production environments (empty string for production) */
   cliEnvPrefix: string;
   /** When known (e.g. task delivery), pre-fill the user message ID that triggered this work. */
-  triggerMessageId?: string;
+  triggerMessageId?: string | undefined;
 }
 
 /**

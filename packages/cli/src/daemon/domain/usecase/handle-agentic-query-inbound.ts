@@ -6,7 +6,7 @@ export type AgenticQueryInboundEvent = Extract<
 >;
 
 export type HandleAgenticQueryInboundDeps = {
-  deliverInbound?: (event: AgenticQueryInboundEvent) => Promise<void>;
+  deliverInbound?:( (event: AgenticQueryInboundEvent) => Promise<void>) | undefined;
 };
 
 export async function handleAgenticQueryInbound(

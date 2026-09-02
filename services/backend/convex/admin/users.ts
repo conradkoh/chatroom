@@ -31,7 +31,7 @@ export type EffectiveRole = 'standard_user' | 'admin' | 'system_admin';
 export interface UserSummary {
   _id: Id<'users'>;
   name: string;
-  email?: string;
+  email?: string | undefined;
   type: 'full' | 'anonymous';
   accessLevel: 'user' | 'system_admin';
   roleNames: string[];
@@ -39,8 +39,8 @@ export interface UserSummary {
 }
 
 function toEffectiveRole(user: {
-  accessLevel?: 'user' | 'system_admin';
-  roleNames?: string[];
+  accessLevel?: 'user' | 'system_admin' | undefined;
+  roleNames?: string[] | undefined;
 }): EffectiveRole {
   if (user.accessLevel === 'system_admin') return 'system_admin';
   if (user.roleNames?.includes('admin')) return 'admin';
@@ -49,7 +49,7 @@ function toEffectiveRole(user: {
 
 function presetToStorage(effectiveRole: EffectiveRole): {
   accessLevel: 'user' | 'system_admin';
-  roleNames?: string[];
+  roleNames?: string[] | undefined;
 } {
   switch (effectiveRole) {
     case 'system_admin':

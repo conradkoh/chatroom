@@ -34,12 +34,12 @@ export type { OpenCodeInstallDeps } from './deps.js';
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export interface ToolInstallOptions {
-  checkExisting?: boolean;
+  checkExisting?: boolean | undefined;
 }
 
 export interface ToolInstallResult {
   success: boolean;
-  toolPath?: string;
+  toolPath?: string | undefined;
   message: string;
 }
 

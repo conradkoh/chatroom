@@ -514,7 +514,6 @@ describe('ClaudeSdkAgentService', () => {
         prompt: 'resume hello',
         options: expect.objectContaining({
           resume: PROVIDER_SESSION_ID,
-          systemPrompt: undefined,
         }),
       });
       expect(deps.spawn).toHaveBeenCalledWith(

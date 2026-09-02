@@ -116,23 +116,23 @@ export const DaemonSpawningServiceLive = (ops: SpawningOps): Layer.Layer<DaemonS
 
 /** Effect service wrapping AgentProcessManager — precise types from the class. */
 export interface DaemonAgentProcessManagerServiceShape {
-  executeScopedStopForCommand?: (args: {
+  executeScopedStopForCommand?: ((args: {
     stopCommandId: string;
     chatroomId: string;
     scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
     reason: AgentStopReason;
     inboxCommandId: string;
-  }) => Effect.Effect<ScopedStopExecutionSummary>;
-  runInboxRoleScopedStop?: (event: AgentRequestStopEventPayload) => Effect.Effect<void>;
-  runInboxScopedStop?: (event: {
-    commandId?: string;
-    _id?: string;
+  }) => Effect.Effect<ScopedStopExecutionSummary>) | undefined;
+  runInboxRoleScopedStop?:( (event: AgentRequestStopEventPayload) => Effect.Effect<void>) | undefined;
+  runInboxScopedStop?: ((event: {
+    commandId?: string | undefined;
+    _id?: string | undefined;
     stopCommandId: string;
     chatroomId: string;
     scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
     reason: string;
     deadline: number;
-  }) => Effect.Effect<void>;
+  }) => Effect.Effect<void>) | undefined;
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
@@ -154,7 +154,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     role: string,
     taskId: string
   ) => Effect.Effect<void>;
-  reconcileNativeTurnPhaseIdle?: (chatroomId: string, role: string) => Effect.Effect<void>;
+  reconcileNativeTurnPhaseIdle?:( (chatroomId: string, role: string) => Effect.Effect<void>) | undefined;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -269,10 +269,10 @@ export interface DaemonSessionServiceShape {
   agentServices: Map<string, RemoteAgentService>;
   events: DaemonEventBus;
   /** Populated by workspace-list-subscription; consumed by heartbeats. Mutable reference. */
-  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
-  logger?: Pick<Console, 'log' | 'warn'>;
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number } | undefined;
+  logger?: Pick<Console, 'log' | 'warn'> | undefined;
   /** Runtime for Effect execution — provided by `startGitRequestSubscriptionEffect` via `Effect.runtime()`. */
-  runtime?: Runtime.Runtime<DaemonSessionService>;
+  runtime?: Runtime.Runtime<DaemonSessionService> | undefined;
 
   // ─── Mutable state (shared reference semantics) ───────────────────
   /** Change-detection cache for git state, keyed by `machineId::workingDir`. */
@@ -314,7 +314,7 @@ export function DaemonMutableStateServiceLive(init: {
   lastPushedGitState: Map<string, string>;
   lastPushedModels: Record<string, string[]> | null;
   lastPushedHarnessFingerprint: string | null;
-  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number } | undefined;
 }) {
   return Layer.effect(
     DaemonMutableStateService,

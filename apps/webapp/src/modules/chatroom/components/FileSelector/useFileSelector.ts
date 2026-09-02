@@ -3,7 +3,8 @@
 import type { Observable } from '@legendapp/state';
 import { useSelector } from '@legendapp/state/react';
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { FILE_TREE_SNAPSHOT_STALENESS_MS } from '@workspace/backend/src/domain/constants/workspace-file-tree-watch';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -21,12 +22,11 @@ import {
   subscribeActiveContextManagedDialog,
 } from '@/modules/chatroom/context/contextManagedDialogsController';
 import { fileTreeEntriesToFileEntries } from '@/modules/chatroom/workspace/files/fileTreeUtils';
-import { useAcquireFileTreeWatch } from '@/modules/chatroom/workspace/files/useFileTreeWatch';
-import { useWorkspaceFileTree } from '@/modules/chatroom/workspace/files/useWorkspaceFileTree';
-import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 import {
+  EMPTY_FILE_TREE_ENTRIES,
   getWorkspaceFileTreeEntries,
   getWorkspaceFileTreeRevision,
+  getWorkspaceFileTreeScannedAt,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
 } from '@/modules/chatroom/workspace/stores/workspaceFileTreeStore';
@@ -70,51 +70,62 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     getFileSelectorOpen,
     () => false
   );
-  const syncEnabled = hasWorkspace && fileSelectorOpen;
-  useAcquireFileTreeWatch(machineId, workingDir, syncEnabled);
-
-  const tree = useWorkspaceFileTree({
-    machineId: machineId ?? '',
-    workingDir: workingDir ?? '',
-    enabled: syncEnabled,
-  });
-  const treeIsLoading = tree.isLoading;
-  const pendingRequestsRaw = useSessionQuery(
-    api.workspaceFiles.getPendingFileTreeRequests,
-    syncEnabled && machineId ? { machineId } : 'skip'
+  const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+  const normalizedWorkingDir = workingDir ? normalizeWorkspaceWorkingDir(workingDir) : '';
+  const workspaceKey =
+    machineId && normalizedWorkingDir
+      ? toWorkspaceFileTreeKey(machineId, normalizedWorkingDir)
+      : '';
+  const subscribeStore = useCallback(
+    (listener: () => void) =>
+      workspaceKey ? subscribeWorkspaceFileTree(workspaceKey, listener) : () => {},
+    [workspaceKey]
   );
-  const hasPendingSync = useMemo(() => {
-    if (!syncEnabled || !workingDir) return false;
-    const normalized = normalizeWorkspaceWorkingDir(workingDir);
-    return !!pendingRequestsRaw?.some(
-      (request) => normalizeWorkspaceWorkingDir(request.workingDir) === normalized
-    );
-  }, [pendingRequestsRaw, syncEnabled, workingDir]);
-
-  const {
-    entries,
-    refresh: refreshEntries,
-    hasTree: entriesHasTree,
-  } = useWorkspaceFileTreeEntries({
-    machineId: machineId ?? '',
-    workingDir: workingDir ?? '',
-    enabled: syncEnabled,
-    includeDirectories: false,
-  });
-
-  const refreshTree = tree.refresh;
+  const getStoreEntries = useCallback(
+    () => (workspaceKey ? getWorkspaceFileTreeEntries(workspaceKey) : EMPTY_FILE_TREE_ENTRIES),
+    [workspaceKey]
+  );
+  const entries = useSyncExternalStore(subscribeStore, getStoreEntries, getStoreEntries);
+  const revision = workspaceKey ? getWorkspaceFileTreeRevision(workspaceKey) : null;
   const refresh = useCallback(
+    // fallow-ignore-next-line complexity
     (options?: { force?: boolean }) => {
-      refreshTree(options);
-      refreshEntries(options);
+      if (!machineId || !normalizedWorkingDir) return;
+      void requestMutation({
+        machineId,
+        workingDir: normalizedWorkingDir,
+        ...(options?.force ? { force: true } : {}),
+      }).catch(() => {});
     },
-    [refreshTree, refreshEntries]
+    [machineId, normalizedWorkingDir, requestMutation]
   );
 
-  const refreshRef = useRef(refresh);
-  refreshRef.current = refresh;
-  const treeIsLoadingRef = useRef(treeIsLoading);
-  treeIsLoadingRef.current = treeIsLoading;
+  const wasOpenRef = useRef(false);
+  // fallow-ignore-next-line complexity
+  useEffect(() => {
+    if (!fileSelectorOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (wasOpenRef.current || !machineId || !normalizedWorkingDir || !workspaceKey) return;
+    wasOpenRef.current = true;
+
+    const scannedAt = getWorkspaceFileTreeScannedAt(workspaceKey);
+    const stale =
+      entries.length === 0 ||
+      scannedAt === null ||
+      Date.now() - scannedAt > FILE_TREE_SNAPSHOT_STALENESS_MS;
+    if (stale) {
+      void requestMutation({ machineId, workingDir: normalizedWorkingDir }).catch(() => {});
+    }
+  }, [
+    entries.length,
+    fileSelectorOpen,
+    machineId,
+    normalizedWorkingDir,
+    requestMutation,
+    workspaceKey,
+  ]);
 
   const [partitionState$, setPartitionState$] =
     useState<Observable<FileSelectorPartitionState> | null>(null);
@@ -145,7 +156,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     const tryCommitOrSettleEmpty = () => {
       if (tryCommit()) return;
       // Hydration settled with no store data — commit empty so partition reaches 'ready'.
-      if (!treeIsLoadingRef.current) commitFileSelectorPreload(state$, generation, []);
+      commitFileSelectorPreload(state$, generation, []);
     };
 
     const unsubscribe = subscribeWorkspaceFileTree(workspaceKey, tryCommitOrSettleEmpty);
@@ -154,13 +165,11 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
       typeof requestIdleCallback !== 'undefined'
         ? requestIdleCallback(
             () => {
-              if (fileSelectorOpen) refreshRef.current();
               tryCommitOrSettleEmpty();
             },
             { timeout: 2000 }
           )
         : setTimeout(() => {
-            if (fileSelectorOpen) refreshRef.current();
             tryCommitOrSettleEmpty();
           }, 0);
 
@@ -176,24 +185,6 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     };
   }, [chatroomId, machineId, workingDir, hasWorkspace, fileSelectorOpen]);
 
-  // Settle empty partition when hydration completes without re-acquiring partition state.
-  // fallow-ignore-next-line complexity
-  useEffect(() => {
-    if (treeIsLoading || !partitionState$ || !machineId || !workingDir) return;
-
-    const workspaceKey = toWorkspaceFileTreeKey(
-      machineId,
-      normalizeWorkspaceWorkingDir(workingDir)
-    );
-    const revision = getWorkspaceFileTreeRevision(workspaceKey);
-    if (revision !== null) return;
-    const storeEntries = getWorkspaceFileTreeEntries(workspaceKey);
-    if (storeEntries.length > 0) return;
-    if (partitionState$.status.get() !== 'loading') return;
-
-    commitFileSelectorPreload(partitionState$, partitionState$.generation.get(), []);
-  }, [treeIsLoading, partitionState$, machineId, workingDir]);
-
   const { preloadFiles, partitionStatus } = useSelector(() => {
     if (!partitionState$) {
       return { preloadFiles: [] as FileEntry[], partitionStatus: 'idle' as const };
@@ -206,13 +197,15 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     };
   });
 
-  const hasTree = entriesHasTree || tree.hasTree;
-  const loadError = hasWorkspace ? tree.loadError : null;
-  const isNeverSynced =
-    hasWorkspace && !hasTree && !treeIsLoading && !loadError && tree.isNeverSynced;
-  const isSyncing = hasWorkspace && !hasTree && !treeIsLoading && !loadError && hasPendingSync;
+  const hasTree = revision !== null || entries.length > 0;
+  const loadError = null;
+  const isNeverSynced = hasWorkspace && !hasTree;
+  const isSyncing = false;
 
-  const liveFiles = useMemo(() => entries.filter((entry) => entry.type === 'file'), [entries]);
+  const liveFiles = useMemo(
+    () => fileTreeEntriesToFileEntries(entries).filter((entry) => entry.type === 'file'),
+    [entries]
+  );
 
   const files = useMemo(() => {
     if (hasTree) return liveFiles;
@@ -220,7 +213,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     return liveFiles;
   }, [hasTree, liveFiles, partitionStatus, preloadFiles]);
 
-  const isLoading = hasWorkspace && treeIsLoading;
+  const isLoading = false;
 
   const recentFilesStorageKey = getRecentFilesStorageKey(chatroomId);
 

@@ -7,7 +7,7 @@ export function LogDimensionBadges({
   chatroomName,
 }: {
   line: LogLine;
-  chatroomName?: string;
+  chatroomName?: string | undefined;
 }) {
   const c = getLogChatroomId(line);
   const r = getLogRole(line);

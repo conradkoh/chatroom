@@ -46,8 +46,8 @@ export function startSubscribeLoop<TItem, TArgs>(opts: {
   buffer: MessageBuffer<TItem>;
   def: IncrementalFeedDef<TItem, TArgs>;
   config: SubscribeLoopConfig;
-  initialAfterKey?: StreamKey | null;
-  onError?: (err: unknown) => void;
+  initialAfterKey?: StreamKey | null | undefined;
+  onError?:( (err: unknown) => void) | undefined;
 }): SubscribeLoopHandle {
   let afterKey: StreamKey | null = opts.initialAfterKey ?? null;
   let stopped = false;

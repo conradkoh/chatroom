@@ -3,10 +3,10 @@
  */
 
 export interface ContextReadParams {
-  chatroomId?: string;
-  role?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
   /** CLI environment prefix for non-production environments (empty string for production) */
-  cliEnvPrefix?: string;
+  cliEnvPrefix?: string | undefined;
 }
 
 /** Generate the context read command string. */

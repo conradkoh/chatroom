@@ -11,7 +11,7 @@ export function getNativeTaskStartedPrompt(ctx: {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
-  triggerMessageId?: string;
+  triggerMessageId?: string | undefined;
 }): string {
   const contextNewCmd = contextNewCommand({
     chatroomId: ctx.chatroomId,

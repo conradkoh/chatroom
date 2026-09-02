@@ -19,17 +19,17 @@ function enqueueGit<T>(cwd: string, task: () => Promise<T>): Promise<T> {
 }
 
 export type CommandResult =
-  { stdout: string; stderr: string } | { error: Error & { code?: number } };
+  { stdout: string; stderr: string } | { error: Error & { code?: number | undefined } };
 
 function runCommandSpawn(
   command: string,
   args: string[],
   cwd: string,
   options?: {
-    timeout?: number;
-    maxBuffer?: number;
-    env?: NodeJS.ProcessEnv;
-    successExitCodes?: number[];
+    timeout?: number | undefined;
+    maxBuffer?: number | undefined;
+    env?: NodeJS.ProcessEnv | undefined;
+    successExitCodes?: number[] | undefined;
   }
 ): Promise<CommandResult> {
   const successExitCodes = options?.successExitCodes ?? [0];
@@ -84,10 +84,10 @@ export function runGit(
   args: string[],
   cwd: string,
   options?: {
-    timeout?: number;
-    maxBuffer?: number;
-    successExitCodes?: number[];
-    readOnly?: boolean;
+    timeout?: number | undefined;
+    maxBuffer?: number | undefined;
+    successExitCodes?: number[] | undefined;
+    readOnly?: boolean | undefined;
   }
 ): Promise<CommandResult> {
   return enqueueGit(cwd, () =>
@@ -103,7 +103,7 @@ export function runGit(
 export function runGh(
   args: string[],
   cwd: string,
-  options?: { timeout?: number }
+  options?: { timeout?: number | undefined }
 ): Promise<CommandResult> {
   return runCommandSpawn('gh', args, cwd, {
     timeout: options?.timeout,

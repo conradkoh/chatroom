@@ -79,8 +79,8 @@ async function seedPendingTask(
   opts: {
     assignedTo: string;
     queuePosition: number;
-    content?: string;
-    sourceMessageId?: Id<'chatroom_messages'>;
+    content?: string | undefined;
+    sourceMessageId?: Id<'chatroom_messages'> | undefined;
   }
 ) {
   return await t.run(async (ctx) => {

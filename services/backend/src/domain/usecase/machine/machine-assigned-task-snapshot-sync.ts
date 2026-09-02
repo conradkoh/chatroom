@@ -11,6 +11,7 @@ import {
 import type { AssignedTaskSignal } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
+import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import { getTeamEntryPoint } from '../../entities/team';
 import { resolveSessionAugmentationForTask } from '../../handoff/parse-session-augmentation';
@@ -47,7 +48,9 @@ function configsForRole(configs: RemoteAgentConfig[], role: string): RemoteAgent
 function resolveResponsibleConfigs(
   task: Doc<'chatroom_tasks'>,
   configsForChatroom: RemoteAgentConfig[],
-  chatroom: { teamEntryPoint?: string | null; teamRoles?: string[] | null } | undefined
+  chatroom:
+    | { teamEntryPoint?: string | null | undefined; teamRoles?: string[] | null | undefined }
+    | undefined
 ): RemoteAgentConfig[] {
   const assignedRole =
     task.assignedTo && task.assignedTo.toLowerCase() !== 'user'
@@ -61,7 +64,7 @@ function resolveResponsibleConfigs(
 
 // fallow-ignore-next-line unused-export
 export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
-  return {
+  return omitUndefined({
     taskId: doc.taskId,
     chatroomId: doc.chatroomId,
     role: doc.role,
@@ -74,7 +77,7 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     workingDir: doc.workingDir,
     assignedTo: doc.taskAssignedTo,
     createdAt: doc.taskCreatedAt,
-  };
+  });
 }
 
 interface SnapshotRowInput {
@@ -82,7 +85,7 @@ interface SnapshotRowInput {
   task: Doc<'chatroom_tasks'>;
   config: RemoteAgentConfig;
   now: number;
-  existing?: SnapshotDoc | null;
+  existing?: SnapshotDoc | null | undefined;
 }
 
 // fallow-ignore-next-line complexity
@@ -109,7 +112,7 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
       ? existing.signalUpdatedAt
       : Math.max(taskUpdatedAt, configUpdatedAt, now);
 
-  return {
+  return omitUndefined({
     machineId,
     taskId: task._id,
     chatroomId: task.chatroomId,
@@ -131,7 +134,7 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     revisionKey,
     signalUpdatedAt,
     configLifecycleRevision: config.lifecycleRevision ?? 0,
-  };
+  });
 }
 
 async function findSnapshotDoc(

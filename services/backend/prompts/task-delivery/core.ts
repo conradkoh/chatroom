@@ -23,22 +23,22 @@ export interface TaskDeliveryParams {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
-  teamId?: string;
+  teamId?: string | undefined;
   task: { _id: string; content: string };
   message: { _id: string; senderRole: string } | null;
   availableHandoffTargets: string[];
-  isEntryPoint?: boolean;
-  sourceAttachments?: PrimaryDeliveryAttachments;
-  standingInstructions?: string | null;
+  isEntryPoint?: boolean | undefined;
+  sourceAttachments?: PrimaryDeliveryAttachments | undefined;
+  standingInstructions?: string | null | undefined;
   /** When true, entry-point task delivery includes handoff-enhancer guidance. */
-  plannerEnhancerEnabled?: boolean;
-  originUserMessageId?: string;
-  entryPointRole?: string;
+  plannerEnhancerEnabled?: boolean | undefined;
+  originUserMessageId?: string | undefined;
+  entryPointRole?: string | undefined;
 }
 
 function appendPlannerEnhancerGuidanceForMessage(
   lines: string[],
-  message: { senderRole: string; content?: string } | null | undefined,
+  message: { senderRole: string; content?: string | undefined } | null | undefined,
   ctx: Pick<TaskDeliveryParams, 'chatroomId' | 'role' | 'cliEnvPrefix'>,
   taskContent?: string
 ): void {
@@ -112,7 +112,7 @@ function appendPrimaryHandoffInstructions(
     role: string;
     cliEnvPrefix: string;
     primaryTarget: string;
-    senderRole?: string;
+    senderRole?: string | undefined;
     requestFirstEnhancerHandoff: boolean;
   }
 ): void {

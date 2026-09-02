@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type Props = { isLoading: boolean; isError: boolean; port?: number; service?: string };
+type Props = { isLoading: boolean; isError: boolean; port?: number | undefined; service?: string | undefined };
 export function ConnectionStatus({ isLoading, isError, port, service }: Props) {
   if (isLoading)
     return (

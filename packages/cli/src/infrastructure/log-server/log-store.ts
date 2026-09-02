@@ -7,9 +7,9 @@ type LogEntryRow = {
   timestamp: number | bigint;
   level: string;
   source: string;
-  stream?: string | null;
+  stream?: string | null | undefined;
   message: string;
-  metadata_json?: string | null;
+  metadata_json?: string | null | undefined;
 };
 type StringValueRow = { v: string | null };
 type SourceRow = { source: string };
@@ -24,21 +24,21 @@ export type LogEntry = {
   timestamp: number;
   level: 'debug' | 'info' | 'warn' | 'error';
   source: string;
-  stream?: 'stdout' | 'stderr';
+  stream?: 'stdout' | 'stderr' | undefined;
   message: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | undefined;
 };
 export type StoredLogEntry = LogEntry & { id: number };
 export type LogQuery = {
-  afterId?: number;
-  beforeId?: number;
-  source?: string;
-  chatroomId?: string;
-  role?: string;
-  harness?: string;
-  fromTimestamp?: number;
-  toTimestamp?: number;
-  limit?: number;
+  afterId?: number | undefined;
+  beforeId?: number | undefined;
+  source?: string | undefined;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  harness?: string | undefined;
+  fromTimestamp?: number | undefined;
+  toTimestamp?: number | undefined;
+  limit?: number | undefined;
 };
 export type LogDimensions = { roles: string[]; harnesses: string[] };
 export type ChatroomEventRecord = Record<string, unknown> & {

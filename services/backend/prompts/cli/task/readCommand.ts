@@ -7,9 +7,9 @@
 import type { CommandContext } from '../../types/cli';
 
 export interface TaskReadParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
-  taskId?: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  taskId?: string | undefined;
 }
 
 /**

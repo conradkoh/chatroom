@@ -16,8 +16,8 @@ export interface CliTaskSectionParams {
   isEntryPoint: boolean;
   task: { _id: string; content: string };
   message: { _id: string; senderRole: string } | null;
-  sourceAttachments?: PrimaryDeliveryAttachments;
-  standingInstructions?: string | null;
+  sourceAttachments?: PrimaryDeliveryAttachments | undefined;
+  standingInstructions?: string | null | undefined;
 }
 
 export function appendCliTaskSection(lines: string[], params: CliTaskSectionParams): void {

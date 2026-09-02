@@ -24,7 +24,7 @@ export interface StopAgentConfirmedDeps {
   harnessStop: HarnessStopPort;
   liveness: ProcessLivenessPort;
   lifecycle: LifecycleDeliveryPort;
-  forceKill?: { forceKill(target: AgentStopTargetDescriptor): Promise<void> };
+  forceKill?: { forceKill(target: AgentStopTargetDescriptor): Promise<void> } | undefined;
 }
 export async function stopAgentConfirmed(
   deps: StopAgentConfirmedDeps,
@@ -32,8 +32,8 @@ export async function stopAgentConfirmed(
     target: AgentStopTargetDescriptor;
     reason: AgentStopReason;
     revisionKey: string;
-    preserveForResume?: boolean;
-    timeoutMs?: number;
+    preserveForResume?: boolean | undefined;
+    timeoutMs?: number | undefined;
   }
 ): Promise<AgentStopOutcome> {
   const { target, reason, revisionKey } = args;

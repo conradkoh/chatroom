@@ -36,7 +36,7 @@ async function getParticipantStatus(chatroomId: Id<'chatroom_rooms'>, role: stri
 async function setParticipantState(
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
-  patch: { lastStatus?: string; lastSeenAction?: string }
+  patch: { lastStatus?: string | undefined; lastSeenAction?: string | undefined }
 ) {
   await t.run(async (ctx) => {
     const participant = await ctx.db

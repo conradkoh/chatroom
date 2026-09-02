@@ -10,9 +10,9 @@ export async function updateRunStatus(
     machineId: string;
     runId: RunId;
     status: 'running' | 'completed' | 'failed' | 'stopped' | 'killed';
-    pid?: number;
-    exitCode?: number;
-    terminationReason?: string;
+    pid?: number | undefined;
+    exitCode?: number | undefined;
+    terminationReason?: string | undefined;
   }
 ) {
   const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);

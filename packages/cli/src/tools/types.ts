@@ -6,7 +6,7 @@
 export interface ToolResult {
   success: boolean;
   /** Path to the output file (if any). */
-  outputPath?: string;
+  outputPath?: string | undefined;
   /** Human-readable message for the agent. */
   message: string;
 }

@@ -17,12 +17,12 @@ import { getCliEnvPrefix } from '../utils/env';
 export interface PromptContext {
   chatroomId: string;
   role: string;
-  teamId?: string;
+  teamId?: string | undefined;
   teamName: string;
   teamRoles: string[];
-  teamEntryPoint?: string;
+  teamEntryPoint?: string | undefined;
   /** The Convex URL being used. If non-production, CLI commands will include env var override. */
-  convexUrl?: string;
+  convexUrl?: string | undefined;
 }
 
 /**

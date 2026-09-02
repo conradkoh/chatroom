@@ -5,7 +5,7 @@ export type Platform = 'telegram' | 'slack' | 'whatsapp';
 export interface PlatformAuthor {
   id: string;
   name: string;
-  username?: string;
+  username?: string | undefined;
 }
 
 /** Base message structure from external platforms */

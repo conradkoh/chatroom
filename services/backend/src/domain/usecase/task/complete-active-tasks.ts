@@ -3,13 +3,13 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
 export interface CompleteActiveTasksOptions {
-  skipAutoPromotion?: boolean;
+  skipAutoPromotion?: boolean | undefined;
 }
 
 export async function collectActiveTasks(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
-  filter?: { assignedTo?: string }
+  filter?: { assignedTo?: string | undefined }
 ): Promise<Doc<'chatroom_tasks'>[]> {
   const [inProgress, acknowledged] = await Promise.all([
     ctx.db

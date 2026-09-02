@@ -14,17 +14,17 @@ import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log
 export interface SessionEventForwarderOptions {
   sessionId: string;
   role: string;
-  target?: Writable;
-  errorTarget?: Writable;
-  now?: () => string;
+  target?: Writable | undefined;
+  errorTarget?: Writable | undefined;
+  now?:( () => string) | undefined;
   /** Human-readable log lines for resume-storm reason classification. */
-  onLogLine?: (line: string) => void;
+  onLogLine?:( (line: string) => void) | undefined;
   /** Raw assistant text deltas for missed-handoff delivery. */
-  onAssistantText?: (text: string) => void;
+  onAssistantText?:( (text: string) => void) | undefined;
   /** Typed harness activity signals for observability and first-progress presence. */
-  onActivity?: (event: HarnessActivityEvent) => void;
+  onActivity?:( (event: HarnessActivityEvent) => void) | undefined;
   /** Max wait while OpenCode reports session.status retry before ending the turn. */
-  sessionRetryIdleTimeoutMs?: number;
+  sessionRetryIdleTimeoutMs?: number | undefined;
 }
 
 export interface SessionEventForwarderHandle {
@@ -50,7 +50,7 @@ export interface SessionEventForwarderHandle {
 
 interface OpenCodeEvent {
   type: string;
-  properties?: Record<string, unknown>;
+  properties?: Record<string, unknown> | undefined;
 }
 
 /**
@@ -95,7 +95,7 @@ function sessionIdFromDirect(p: Record<string, unknown>): string | undefined {
 
 function sessionIdFromPart(p: Record<string, unknown>): string | undefined {
   if ('part' in p && p.part && typeof p.part === 'object') {
-    return (p.part as { sessionID?: string }).sessionID;
+    return (p.part as { sessionID?: string | undefined }).sessionID;
   }
   return undefined;
 }
@@ -238,8 +238,8 @@ export function startSessionEventForwarder(
   }
 
   function resolveToolState(
-    props: { state?: string },
-    part: { state?: { status?: string } }
+    props: { state?: string | undefined },
+    part: { state?: { status?: string | undefined } | undefined }
   ): string {
     if (typeof props?.state === 'string') return props.state;
     if (typeof part.state?.status === 'string') return part.state.status;
@@ -247,7 +247,7 @@ export function startSessionEventForwarder(
   }
 
   function formatCompletedToolPayload(
-    part: { state?: { input?: unknown; time?: { start?: number; end?: number } }; tool?: string },
+    part: { state?: { input?: unknown | undefined; time?: { start?: number | undefined; end?: number | undefined } | undefined } | undefined; tool?: string | undefined },
     state: string
   ): string {
     const start = part.state?.time?.start;
@@ -260,8 +260,8 @@ export function startSessionEventForwarder(
   }
 
   async function handleTextPartUpdate(
-    props: { delta?: string },
-    part: { text?: string }
+    props: { delta?: string | undefined },
+    part: { text?: string | undefined }
   ): Promise<void> {
     const chunk = resolvePartContent(props?.delta, part.text);
     if (chunk) {
@@ -271,8 +271,8 @@ export function startSessionEventForwarder(
   }
 
   async function handleReasoningPartUpdate(
-    props: { delta?: string },
-    part: { text?: string }
+    props: { delta?: string | undefined },
+    part: { text?: string | undefined }
   ): Promise<void> {
     const chunk = resolvePartContent(props?.delta, part.text);
     if (chunk) logLine(target, 'thinking', chunk);
@@ -280,15 +280,15 @@ export function startSessionEventForwarder(
 
   async function handlePartUpdated(props: {
     part?: {
-      type?: string;
-      tool?: string;
-      text?: string;
-      sessionID?: string;
-      state?: { status?: string; input?: unknown; time?: { start?: number; end?: number } };
-      callID?: string;
-    };
-    delta?: string;
-    state?: string;
+      type?: string | undefined;
+      tool?: string | undefined;
+      text?: string | undefined;
+      sessionID?: string | undefined;
+      state?: { status?: string | undefined; input?: unknown | undefined; time?: { start?: number | undefined; end?: number | undefined } | undefined } | undefined;
+      callID?: string | undefined;
+    } | undefined;
+    delta?: string | undefined;
+    state?: string | undefined;
   }): Promise<void> {
     const part = props.part;
     const partType = part?.type;
@@ -304,12 +304,12 @@ export function startSessionEventForwarder(
 
   async function handleToolPart(
     part: {
-      type?: string;
-      tool?: string;
-      state?: { status?: string; input?: unknown; time?: { start?: number; end?: number } };
-      callID?: string;
+      type?: string | undefined;
+      tool?: string | undefined;
+      state?: { status?: string | undefined; input?: unknown | undefined; time?: { start?: number | undefined; end?: number | undefined } | undefined } | undefined;
+      callID?: string | undefined;
     },
-    props: { state?: string },
+    props: { state?: string | undefined },
     toolStates: Map<string, string>
   ): Promise<void> {
     const state = resolveToolState(props, part);
@@ -328,7 +328,7 @@ export function startSessionEventForwarder(
   }
 
   function buildToolPayload(
-    part: { state?: { input?: unknown; time?: { start?: number; end?: number } }; tool?: string },
+    part: { state?: { input?: unknown | undefined; time?: { start?: number | undefined; end?: number | undefined } | undefined } | undefined; tool?: string | undefined },
     state: string
   ): string {
     const basePayload = formatCompletedToolPayload(part, state);
@@ -337,9 +337,9 @@ export function startSessionEventForwarder(
   }
 
   function formatFilePayload(props: {
-    file?: string;
-    action?: string;
-    kind?: string;
+    file?: string | undefined;
+    action?: string | undefined;
+    kind?: string | undefined;
   }): string | undefined {
     const { file, action, kind } = props;
     const label = action ?? kind;
@@ -348,9 +348,9 @@ export function startSessionEventForwarder(
   }
 
   async function handleFileEdited(props: {
-    file?: string;
-    action?: string;
-    kind?: string;
+    file?: string | undefined;
+    action?: string | undefined;
+    kind?: string | undefined;
   }): Promise<void> {
     logLine(target, 'file', formatFilePayload(props));
   }
@@ -365,7 +365,7 @@ export function startSessionEventForwarder(
     logLine(target, 'compacted');
   }
 
-  async function handleSessionStatus(props: { status?: { type?: string } }): Promise<void> {
+  async function handleSessionStatus(props: { status?: { type?: string | undefined } | undefined }): Promise<void> {
     const raw = props?.status?.type;
     const parsed = parseOpenCodeSessionStatus(raw);
 
@@ -411,9 +411,9 @@ export function startSessionEventForwarder(
   }
 
   async function handleSessionError(props: {
-    error?: { name?: string; data?: { message?: string } };
-    tool?: string;
-    command?: string;
+    error?: { name?: string | undefined; data?: { message?: string | undefined } | undefined } | undefined;
+    tool?: string | undefined;
+    command?: string | undefined;
   }): Promise<void> {
     emitActivity('failure', 'opencode.session.error');
     const err = props?.error;
@@ -427,14 +427,14 @@ export function startSessionEventForwarder(
   }
 
   function formatErrorName(
-    err: { name?: string; data?: { message?: string } } | undefined
+    err: { name?: string | undefined; data?: { message?: string | undefined } | undefined } | undefined
   ): string {
     if (!err?.name) return String(err ?? 'unknown');
     const detail = err?.data?.message;
     return detail ? `${err.name}: ${detail}` : err.name;
   }
 
-  function formatErrorContext(props: { tool?: string; command?: string }): string | undefined {
+  function formatErrorContext(props: { tool?: string | undefined; command?: string | undefined }): string | undefined {
     if (props?.tool) return `[tool: ${props.tool}]`;
     if (props?.command) return `[command: ${props.command}]`;
     return undefined;

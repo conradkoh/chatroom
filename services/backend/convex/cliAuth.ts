@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
+import { omitUndefined } from './lib/omitUndefined';
 
 // Auth request expires after 5 minutes
 const AUTH_REQUEST_EXPIRY_MS = 5 * 60 * 1000;
@@ -44,8 +45,8 @@ export const createAuthRequest = mutation({
     await ctx.db.insert('cliAuthRequests', {
       requestId,
       status: 'pending',
-      deviceName: args.deviceName,
-      cliVersion: args.cliVersion,
+      ...(args.deviceName !== undefined ? { deviceName: args.deviceName } : {}),
+      ...(args.cliVersion !== undefined ? { cliVersion: args.cliVersion } : {}),
       createdAt: now,
       expiresAt,
     });
@@ -108,10 +109,10 @@ export const getAuthRequestStatus = query({
       return { status: 'expired' as const };
     }
 
-    return {
+    return omitUndefined({
       status: 'pending' as const,
       expiresAt: request.expiresAt,
-    };
+    });
   },
 });
 
@@ -147,8 +148,8 @@ export const getAuthRequestDetails = query({
     return {
       found: true as const,
       status: request.status,
-      deviceName: request.deviceName,
-      cliVersion: request.cliVersion,
+      ...(request.deviceName !== undefined ? { deviceName: request.deviceName } : {}),
+      ...(request.cliVersion !== undefined ? { cliVersion: request.cliVersion } : {}),
       createdAt: request.createdAt,
       expiresAt: request.expiresAt,
       isExpired: Date.now() > request.expiresAt,
@@ -215,8 +216,8 @@ export const approveAuthRequest = mutation({
       sessionId: cliSessionId,
       userId: session.userId,
       isActive: true,
-      deviceName: request.deviceName,
-      cliVersion: request.cliVersion,
+      ...(request.deviceName !== undefined ? { deviceName: request.deviceName } : {}),
+      ...(request.cliVersion !== undefined ? { cliVersion: request.cliVersion } : {}),
       createdAt: now,
       lastUsedAt: now,
       expiresAt: now + CLI_SESSION_EXPIRY_MS,
@@ -446,13 +447,15 @@ export const listUserSessions = query({
       .withIndex('by_userId', (q) => q.eq('userId', userId))
       .collect();
 
-    return sessions.map((s) => ({
-      sessionId: s.sessionId,
-      deviceName: s.deviceName,
-      cliVersion: s.cliVersion,
-      createdAt: s.createdAt,
-      lastUsedAt: s.lastUsedAt,
-      isActive: s.isActive,
-    }));
+    return sessions.map((s) =>
+      omitUndefined({
+        sessionId: s.sessionId,
+        deviceName: s.deviceName,
+        cliVersion: s.cliVersion,
+        createdAt: s.createdAt,
+        lastUsedAt: s.lastUsedAt,
+        isActive: s.isActive,
+      })
+    );
   },
 });

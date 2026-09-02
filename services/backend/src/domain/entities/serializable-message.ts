@@ -5,9 +5,9 @@ export interface SerializableMessage {
   _id: string;
   _creationTime: number;
   senderRole: string;
-  targetRole?: string | null;
+  targetRole?: string | null | undefined;
   type: string;
   content: string;
-  attachments?: DeliveryAttachmentsInput;
-  task?: { _id: string; status: string; content: string };
+  attachments?: DeliveryAttachmentsInput | undefined;
+  task?: { _id: string; status: string; content: string } | undefined;
 }

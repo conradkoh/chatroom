@@ -43,7 +43,7 @@ export async function syncEnhancerTeamAgentConfig(
 
   await upsertTeamAgentConfigByTeamRoleKey(ctx, {
     teamRoleKey,
-    createdAt: existing?.createdAt,
+    ...(existing?.createdAt !== undefined ? { createdAt: existing?.createdAt } : {}),
     fields: {
       chatroomId: args.chatroomId,
       role: 'enhancer',
