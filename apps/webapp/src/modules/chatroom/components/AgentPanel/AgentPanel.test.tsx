@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { AgentConfig } from '../../types/machine';
 import { AgentPanel } from '../AgentPanel';
 
 const mockUseAgentStatuses = vi.fn();
@@ -100,5 +101,24 @@ describe('AgentPanel', () => {
     );
 
     expect(screen.queryByText(/Ephemeral/)).not.toBeInTheDocument();
+  });
+
+  it('renders normalized effort suffix from agent config model variant', () => {
+    const plannerConfig: AgentConfig = {
+      machineId: 'machine-1',
+      hostname: 'test-host',
+      role: 'planner',
+      agentType: 'cursor-sdk',
+      workingDir: '/Users/alice/chatroom',
+      model: 'gpt-5.6-terra[reasoning=high]',
+      availableHarnesses: ['cursor-sdk'],
+      updatedAt: Date.now(),
+    };
+
+    render(
+      <AgentPanel {...panelProps} teamStructure={duoStructure} agentConfigs={[plannerConfig]} />
+    );
+
+    expect(screen.getByText('gpt-5.6-terra [high]')).toBeInTheDocument();
   });
 });

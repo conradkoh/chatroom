@@ -11,7 +11,7 @@ import type { AgentRoleStatusReadModel } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
-import { getCompactModelId, type AgentConfig } from '../types/machine';
+import { getCompactModelLabel, type AgentConfig } from '../types/machine';
 import type { TeamLifecycle } from '../types/readiness';
 import {
   getIndicatorClass,
@@ -88,7 +88,7 @@ const AgentSidebarInfo = memo(function AgentSidebarInfo({
       </div>
       {agentConfig?.model && (
         <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted truncate">
-          {getCompactModelId(agentConfig.model)}
+          {getCompactModelLabel(agentConfig.model)}
         </div>
       )}
     </div>
