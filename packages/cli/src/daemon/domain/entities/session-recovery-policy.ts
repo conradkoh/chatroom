@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file — consumed by unified APM recovery loop (stack PR slice 2)
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 
 import type { SessionExitClassification } from './session-monitor.js';
