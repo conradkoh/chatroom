@@ -1,4 +1,7 @@
+import type { ChatroomRole } from '@workspace/shared/domain/chatroom-role';
+
 import { getNativeDeliverySession } from './native-delivery-session-registry.js';
+import type { ActiveTaskStatus } from '../../domain/entities/assigned-task.js';
 
 export type NativeTurnEndInboxDecision = 'needs-handoff-reminder' | 'handoff-completed' | 'unknown';
 
@@ -6,7 +9,7 @@ const ACTIVE_TASK_DECISIONS = {
   pending: 'unknown',
   acknowledged: 'unknown',
   in_progress: 'needs-handoff-reminder',
-} as const satisfies Record<string, NativeTurnEndInboxDecision>;
+} as const satisfies Record<ActiveTaskStatus, NativeTurnEndInboxDecision>;
 
 /**
  * Resolves turn-end handling from the inbox-owned active-task read model.
@@ -18,11 +21,14 @@ const ACTIVE_TASK_DECISIONS = {
 // fallow-ignore-next-line complexity
 export function decideNativeTurnEndFromInbox(params: {
   chatroomId: string;
-  role: string;
-  taskId?: string | undefined;
+  role: ChatroomRole;
+  taskId: string | undefined;
 }): NativeTurnEndInboxDecision {
-  const taskSnapshotState = getNativeDeliverySession()?.taskSnapshotState;
-  if (!params.taskId || !taskSnapshotState?.isInitialized()) return 'unknown';
+  const session = getNativeDeliverySession();
+  if (!params.taskId || !session) return 'unknown';
+
+  const { taskSnapshotState } = session;
+  if (!taskSnapshotState.isInitialized()) return 'unknown';
 
   const task = taskSnapshotState.getForRole(params.chatroomId, params.role, params.taskId);
   return task ? ACTIVE_TASK_DECISIONS[task.status] : 'handoff-completed';

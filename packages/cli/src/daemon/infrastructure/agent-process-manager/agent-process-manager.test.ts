@@ -20,7 +20,10 @@ import {
 } from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
-import type * as NativeTurnEndInboxModule from '../../entry/native-delivery/native-turn-end-inbox.js';
+import type {
+  decideNativeTurnEndFromInbox,
+  NativeTurnEndInboxDecision,
+} from '../../entry/native-delivery/native-turn-end-inbox.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
 import type {
   RemoteAgentService,
@@ -39,7 +42,9 @@ vi.mock('../../entry/handlers/orphan-tracker.js', () => ({
 
 const mockNotifyNativeTurnIdle = vi.hoisted(() => vi.fn());
 const mockDecideNativeTurnEndFromInbox = vi.hoisted(() =>
-  vi.fn<() => 'needs-handoff-reminder' | 'handoff-completed' | 'unknown'>(() => 'unknown')
+  vi.fn<(params: Parameters<typeof decideNativeTurnEndFromInbox>[0]) => NativeTurnEndInboxDecision>(
+    () => 'unknown'
+  )
 );
 vi.mock('../../entry/native-delivery/native-task-delivery-coordinator.js', async () => {
   const actual = await vi.importActual<typeof NativeTaskDeliveryCoordinatorModule>(
@@ -51,9 +56,9 @@ vi.mock('../../entry/native-delivery/native-task-delivery-coordinator.js', async
   };
 });
 vi.mock('../../entry/native-delivery/native-turn-end-inbox.js', async () => {
-  const actual = await vi.importActual<typeof NativeTurnEndInboxModule>(
-    '../../entry/native-delivery/native-turn-end-inbox.js'
-  );
+  const actual = await vi.importActual<{
+    decideNativeTurnEndFromInbox: typeof decideNativeTurnEndFromInbox;
+  }>('../../entry/native-delivery/native-turn-end-inbox.js');
   return { ...actual, decideNativeTurnEndFromInbox: mockDecideNativeTurnEndFromInbox };
 });
 

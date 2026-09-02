@@ -1,4 +1,6 @@
 // fallow-ignore-file unused-class-member
+import type { ChatroomRole } from '@workspace/shared/domain/chatroom-role';
+
 import type { TaskStatusSignal } from './task.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 
@@ -47,7 +49,7 @@ export class MachineTaskSnapshotState {
     }
   }
 
-  listForRole(chatroomId: string, role: string): AssignedTaskSnapshotView[] {
+  listForRole(chatroomId: string, role: ChatroomRole): AssignedTaskSnapshotView[] {
     const roleLower = role.toLowerCase();
     return [...this.snapshots.values()].filter(
       (snapshot) =>
@@ -60,7 +62,11 @@ export class MachineTaskSnapshotState {
     return this.initialized;
   }
 
-  getForRole(chatroomId: string, role: string, taskId: string): AssignedTaskSnapshotView | null {
+  getForRole(
+    chatroomId: string,
+    role: ChatroomRole,
+    taskId: string
+  ): AssignedTaskSnapshotView | null {
     const snapshot = this.snapshots.get(snapshotKey(taskId, role));
     return snapshot?.chatroomId === chatroomId ? snapshot : null;
   }
