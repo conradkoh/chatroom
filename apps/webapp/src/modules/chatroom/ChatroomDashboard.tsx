@@ -111,10 +111,12 @@ import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile, shouldOpenInEditableExplorerPane } from './workspace/file-renderers';
 import { useMultiWorkspaceFileSync } from './workspace/files';
+import { useFileTreeWatchLease } from './workspace/files/useFileTreeWatchLease';
+import { useWorkspaceFileTree } from './workspace/files/useWorkspaceFileTree';
 import {
-  useMultiWorkspaceFileTreeWatch,
-  useAutocompleteWorkspaceFileTreeSync,
-} from './workspace/files/useFileTreeWatch';
+  getFileTreeAutocompleteVisible,
+  subscribeFileTreeAutocompleteVisible,
+} from './workspace/files/workspaceFileTreeAutocompleteVisible';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
 import { useExplorerTabCloseShortcut } from './workspace/hooks/useExplorerTabCloseShortcut';
@@ -1143,11 +1145,31 @@ export function ChatroomDashboard({
     workingDir: activeWorkspace?.workingDir ?? null,
   });
 
-  // Multi-workspace file tree: producer sync + store-backed autocomplete
+  const autocompleteVisible = useSyncExternalStore(
+    subscribeFileTreeAutocompleteVisible,
+    getFileTreeAutocompleteVisible,
+    () => false
+  );
+  useFileTreeWatchLease(
+    activeWorkspace?.machineId,
+    activeWorkspace?.workingDir,
+    activeView === 'explorer' && !!activeWorkspace
+  );
+  useFileTreeWatchLease(
+    activeWorkspace?.machineId,
+    activeWorkspace?.workingDir,
+    autocompleteVisible && !!activeWorkspace
+  );
+
+  // Store-backed autocomplete reads all cached workspace entries; only the active
+  // workspace is hydrated while the autocomplete surface is visible.
   const { files: autocompleteFiles, refreshAll: refreshAutocompleteFiles } =
     useMultiWorkspaceFileSync(chatroomWorkspaces);
-  useMultiWorkspaceFileTreeWatch(chatroomWorkspaces);
-  useAutocompleteWorkspaceFileTreeSync(chatroomWorkspaces);
+  useWorkspaceFileTree({
+    machineId: activeWorkspace?.machineId ?? '',
+    workingDir: activeWorkspace?.workingDir ?? '',
+    enabled: autocompleteVisible && !!activeWorkspace,
+  });
   const handleAtTriggerActivate = useCallback(() => {
     refreshAutocompleteFiles();
   }, [refreshAutocompleteFiles]);

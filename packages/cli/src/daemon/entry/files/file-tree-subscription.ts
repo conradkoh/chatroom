@@ -8,6 +8,7 @@
 import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
+import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
 import { normalizeWorkingDirForLookup } from '../../../infrastructure/services/workspace/normalize-working-dir.js';
 import {
   startWorkspaceFileTreeCoordinator,
@@ -41,20 +42,36 @@ type EnsureCoordinator = (
   forceReconcile: boolean
 ) => Promise<WorkspaceFileTreeCoordinator>;
 
+async function runOneShotFileTreeSync(
+  session: DaemonSessionServiceShape,
+  workingDir: string
+): Promise<void> {
+  const normalized = normalizeWorkingDirForLookup(workingDir);
+  const tree = await scanFileTree(normalized);
+  const send = createWorkspaceFileTreeCheckpointSend(session, normalized);
+  await send({ tree, revision: 0 });
+  await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+    workingDir: normalized,
+  });
+}
+
 async function stopCoordinatorForWorkingDir(
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
-  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry,
-  deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry,
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry | undefined,
+  deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry | undefined,
   normalized: string
 ): Promise<void> {
   const coordinatorPromise = coordinators.get(normalized);
   if (!coordinatorPromise) return;
   coordinators.delete(normalized);
   await coordinatorPromise.then((coordinator) => coordinator.stop()).catch(() => undefined);
-  await checkpointOutboxRegistry.stop(normalized);
-  await deltaOutboxRegistry.stop(normalized);
+  await checkpointOutboxRegistry?.stop(normalized);
+  await deltaOutboxRegistry?.stop(normalized);
 }
 
+// fallow-ignore-next-line complexity
 async function drainPendingFileTreeReleaseRequests(
   session: DaemonSessionServiceShape,
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
@@ -99,11 +116,67 @@ async function drainPendingFileTreeReleaseRequests(
 }
 
 // fallow-ignore-next-line complexity
+async function processOnePendingFileTreeRequest(
+  session: DaemonSessionServiceShape,
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  ensureCoordinator: EnsureCoordinator,
+  normalized: string,
+  force: boolean,
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry | undefined,
+  deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry | undefined
+): Promise<void> {
+  const start = Date.now();
+  const lease = await session.backend.query(api.workspaceFiles.getFileTreeWatchLease, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+    workingDir: normalized,
+  });
+  if (!lease?.leaseActive) {
+    await stopCoordinatorForWorkingDir(
+      coordinators,
+      checkpointOutboxRegistry,
+      deltaOutboxRegistry,
+      normalized
+    );
+    await runOneShotFileTreeSync(session, normalized);
+    console.log(
+      `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms, one-shot)`
+    );
+    return;
+  }
+
+  await ensureCoordinator(normalized, force);
+  await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+    workingDir: normalized,
+  });
+  const leaseAfterFulfill = await session.backend.query(api.workspaceFiles.getFileTreeWatchLease, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+    workingDir: normalized,
+  });
+  if (!leaseAfterFulfill?.leaseActive) {
+    await stopCoordinatorForWorkingDir(
+      coordinators,
+      checkpointOutboxRegistry,
+      deltaOutboxRegistry,
+      normalized
+    );
+  }
+  console.log(
+    `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms${force ? ', reconciled' : ', cached'})`
+  );
+}
+
+// fallow-ignore-next-line complexity
 async function processPendingFileTreeRequests(
   session: DaemonSessionServiceShape,
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
   ensureCoordinator: EnsureCoordinator,
-  requests: { workingDir: string; force?: boolean | undefined }[] | null | undefined
+  requests: { workingDir: string; force?: boolean | undefined }[] | null | undefined,
+  checkpointOutboxRegistry?: WorkspaceFileTreeCheckpointOutboxRegistry,
+  deltaOutboxRegistry?: WorkspaceFileTreeDeltaOutboxRegistry
 ): Promise<void> {
   if (!requests?.length) return;
 
@@ -115,23 +188,19 @@ async function processPendingFileTreeRequests(
 
   for (const [normalized, force] of requestsByDir) {
     await enqueueFileTreeSync(session.machineId, normalized, async () => {
-      const start = Date.now();
-      await ensureCoordinator(normalized, force)
-        .then(() =>
-          session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
-            sessionId: session.sessionId,
-            machineId: session.machineId,
-            workingDir: normalized,
-          })
-        )
-        .then(() => {
-          console.log(
-            `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms${force ? ', reconciled' : ', cached'})`
-          );
-        })
-        .catch((err: unknown) => {
-          logSubscriptionWarn(`File tree failed for ${normalized}`, err);
-        });
+      try {
+        await processOnePendingFileTreeRequest(
+          session,
+          coordinators,
+          ensureCoordinator,
+          normalized,
+          force,
+          checkpointOutboxRegistry,
+          deltaOutboxRegistry
+        );
+      } catch (err: unknown) {
+        logSubscriptionWarn(`File tree failed for ${normalized}`, err);
+      }
     });
   }
 }
@@ -140,13 +209,22 @@ async function processPendingFileTreeRequests(
 export async function drainPendingFileTreeRequests(
   session: DaemonSessionServiceShape,
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
-  ensureCoordinator: EnsureCoordinator
+  ensureCoordinator: EnsureCoordinator,
+  checkpointOutboxRegistry?: WorkspaceFileTreeCheckpointOutboxRegistry,
+  deltaOutboxRegistry?: WorkspaceFileTreeDeltaOutboxRegistry
 ): Promise<void> {
   const requests = await session.backend.query(api.workspaceFiles.getPendingFileTreeRequests, {
     sessionId: session.sessionId,
     machineId: session.machineId,
   });
-  await processPendingFileTreeRequests(session, coordinators, ensureCoordinator, requests);
+  await processPendingFileTreeRequests(
+    session,
+    coordinators,
+    ensureCoordinator,
+    requests,
+    checkpointOutboxRegistry,
+    deltaOutboxRegistry
+  );
 }
 
 export const startFileTreeSubscriptionEffect = (): Effect.Effect<
@@ -222,7 +300,13 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
 
     return {
       drainPendingFileTreeRequests: () =>
-        drainPendingFileTreeRequests(session, coordinators, ensureCoordinator),
+        drainPendingFileTreeRequests(
+          session,
+          coordinators,
+          ensureCoordinator,
+          checkpointOutboxRegistry,
+          deltaOutboxRegistry
+        ),
       drainPendingFileTreeReleaseRequests: () =>
         drainPendingFileTreeReleaseRequests(
           session,

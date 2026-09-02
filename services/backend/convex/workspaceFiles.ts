@@ -29,6 +29,7 @@ import {
 } from './workspacePathSecurity';
 import { requireAccess } from '../modules/auth/accessCheck';
 import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constants/chat-attachment-upload-path';
+import { FILE_TREE_WATCH_LEASE_MS } from '../src/domain/constants/workspace-file-tree-watch';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
 import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
 import { requestWorkspaceFileTree as requestWorkspaceFileTreeUseCase } from '../src/domain/usecase/workspace/request-workspace-file-tree';
@@ -494,7 +495,7 @@ export const fulfillFileTreeRequest = mutation({
 
 // ─── File Tree Watch Lifecycle ──────────────────────────────────────────────
 
-async function upsertPendingFileTreeReleaseRequest(
+export async function upsertPendingFileTreeReleaseRequest(
   ctx: MutationCtx,
   machineId: string,
   workingDir: string
@@ -525,6 +526,15 @@ async function upsertPendingFileTreeReleaseRequest(
     requestedAt: now,
     updatedAt: now,
   });
+}
+
+/** A watch can push updates only while its UI-held lease is still valid. */
+export function isFileTreeWatchLeaseActive(
+  row: { watchCount: number; expiresAt?: number | undefined } | null,
+  now = Date.now()
+): boolean {
+  if (!row || row.watchCount <= 0) return false;
+  return row.expiresAt !== undefined && row.expiresAt > now;
 }
 
 async function clearPendingFileTreeReleaseRequest(
@@ -578,6 +588,7 @@ export const adjustFileTreeWatch = mutation({
     if (row) {
       await ctx.db.patch('chatroom_workspaceFileTreeWatches', row._id, {
         watchCount: nextCount,
+        expiresAt: nextCount > 0 ? now + FILE_TREE_WATCH_LEASE_MS : undefined,
         updatedAt: now,
       });
     } else if (nextCount > 0) {
@@ -585,6 +596,7 @@ export const adjustFileTreeWatch = mutation({
         machineId: args.machineId,
         workingDir,
         watchCount: nextCount,
+        expiresAt: now + FILE_TREE_WATCH_LEASE_MS,
         updatedAt: now,
       });
     }
@@ -596,6 +608,73 @@ export const adjustFileTreeWatch = mutation({
     }
 
     return { watchCount: nextCount };
+  },
+});
+
+/** Renews an existing UI watch lease without changing its reference count. */
+export const renewFileTreeWatchLease = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    const now = Date.now();
+    const row = await ctx.db
+      .query('chatroom_workspaceFileTreeWatches')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+
+    if (!row || row.watchCount <= 0) return { watchCount: 0, expiresAt: null };
+
+    const expiresAt = now + FILE_TREE_WATCH_LEASE_MS;
+    await ctx.db.patch('chatroom_workspaceFileTreeWatches', row._id, {
+      expiresAt,
+      updatedAt: now,
+    });
+    await clearPendingFileTreeReleaseRequest(ctx, args.machineId, workingDir);
+    return { watchCount: row.watchCount, expiresAt };
+  },
+});
+
+/** Returns the current daemon-push lease state for a workspace. */
+export const getFileTreeWatchLease = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    const row = await ctx.db
+      .query('chatroom_workspaceFileTreeWatches')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+
+    if (!row) return { watchCount: 0, expiresAt: null, leaseActive: false };
+    return {
+      watchCount: row.watchCount,
+      expiresAt: row.expiresAt ?? null,
+      leaseActive: isFileTreeWatchLeaseActive(row),
+    };
   },
 });
 
