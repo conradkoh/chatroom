@@ -15,11 +15,6 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "cache": true
     },
-    "typecheck:strict": {
-      "dependsOn": ["^typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "cache": true
-    },
     "codegen": {
       "inputs": ["convex/**", "!convex/_generated/**", "package.json"],
       "outputs": ["convex/_generated/**"],
@@ -51,12 +46,6 @@
     // Package-specific tasks REPLACE the global task — they do not merge.
     // Always re-declare dependsOn and outputs from the global task when overriding.
     "@workspace/backend#typecheck": {
-      "dependsOn": ["^typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**"],
-      "cache": true
-    },
-    "@workspace/backend#typecheck:strict": {
       "dependsOn": ["^typecheck"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**"],
