@@ -27,7 +27,7 @@ import { attachLineReader } from '../line-stream-reader.js';
 
 export interface ClaudeCliEventMetadata {
   readonly type: string;
-  readonly subtype?: string;
+  readonly subtype?: string | undefined;
   readonly isError: boolean;
 }
 
@@ -38,20 +38,20 @@ type ToolCallCallback = (name: string, input: unknown) => void;
 type AnyEventCallback = (event: ClaudeCliEventMetadata) => void;
 
 type ParsedEvent = {
-  type?: string;
-  subtype?: string;
-  is_error?: boolean;
-  error?: string;
+  type?: string | undefined;
+  subtype?: string | undefined;
+  is_error?: boolean | undefined;
+  error?: string | undefined;
   message?: {
-    error?: string;
+    error?: string | undefined;
     content: {
       type: string;
-      text?: string;
-      thinking?: string;
-      name?: string;
-      input?: unknown;
+      text?: string | undefined;
+      thinking?: string | undefined;
+      name?: string | undefined;
+      input?: unknown | undefined;
     }[];
-  };
+  } | undefined;
 };
 
 // ─── Stream parser ─────────────────────────────────────────────────────────
@@ -139,10 +139,10 @@ export class ClaudeStreamReader {
 
   private _handleAssistantBlock(block: {
     type: string;
-    text?: string;
-    thinking?: string;
-    name?: string;
-    input?: unknown;
+    text?: string | undefined;
+    thinking?: string | undefined;
+    name?: string | undefined;
+    input?: unknown | undefined;
   }): void {
     if (block.type === 'text') {
       this._fireTextIfPresent(block.text);

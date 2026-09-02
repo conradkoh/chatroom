@@ -9,9 +9,9 @@ import {
 } from './pending-file-request-dedup.js';
 
 interface PendingFileRequest extends PendingRowWithId {
-  workingDir?: string;
-  filePath?: string;
-  updatedAt?: number;
+  workingDir?: string | undefined;
+  filePath?: string | undefined;
+  updatedAt?: number | undefined;
 }
 
 function contentRequestSnapshot(req: PendingFileRequest): string {

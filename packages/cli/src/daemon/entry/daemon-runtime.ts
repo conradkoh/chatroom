@@ -67,7 +67,7 @@ export type DaemonRuntimeHandle = {
 };
 
 export type DaemonRuntimeDeps = {
-  agentLifecycleOutbox?: AgentLifecycleOutboxRegistry;
+  agentLifecycleOutbox?: AgentLifecycleOutboxRegistry | undefined;
   wsClient: ConvexClient;
   layers: Layer.Layer<
     DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService

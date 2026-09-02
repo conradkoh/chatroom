@@ -53,8 +53,8 @@ function makeRequest(
 }
 
 type FulfillmentRequest = ReturnType<typeof makeRequest> & {
-  storageId?: string;
-  uploadKind?: 'chatAttachment';
+  storageId?: string | undefined;
+  uploadKind?: 'chatAttachment' | undefined;
 };
 
 function createClaimAwareMutation(requests: FulfillmentRequest[]) {
@@ -164,7 +164,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
         updatedAt: Date.now(),
       },
       backend: {
-        mutation: vi.fn(async (apiRef: string, args: { requestId?: string; status?: string }) => {
+        mutation: vi.fn(async (apiRef: string, args: { requestId?: string | undefined; status?: string | undefined }) => {
           if ('expectedRevision' in args) {
             const request = pendingRequests.find((candidate) => candidate._id === args.requestId);
             if (!request) return { status: 'stale' };

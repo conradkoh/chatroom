@@ -25,7 +25,7 @@ export type AgenticQueryCompleteError =
   | {
       readonly _tag: 'CompleteFailed';
       readonly cause: Error;
-      readonly errorData?: { code?: string; message?: string };
+      readonly errorData?: { code?: string | undefined; message?: string | undefined } | undefined;
     };
 
 async function createDefaultDeps() {
@@ -70,9 +70,9 @@ const agenticQueryCompleteEffect = (
       })
       .pipe(
         Effect.mapError((cause): AgenticQueryCompleteError => {
-          let errorData: { code?: string; message?: string } | undefined;
+          let errorData: { code?: string | undefined; message?: string | undefined } | undefined;
           if (cause instanceof ConvexError) {
-            errorData = cause.data as { code?: string; message?: string };
+            errorData = cause.data as { code?: string | undefined; message?: string | undefined };
           }
           return { _tag: 'CompleteFailed', cause, errorData };
         })

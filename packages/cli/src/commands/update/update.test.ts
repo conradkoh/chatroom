@@ -16,10 +16,10 @@ import { UpdateService } from './update-service.js';
 
 /** Create a test update service with configurable responses */
 function makeTestUpdateService(config: {
-  version?: string;
-  npmVersionResponse?: { stdout: string } | Error;
-  latestVersionResponse?: { stdout: string } | Error;
-  installResponse?: { stdout: string } | Error;
+  version?: string | undefined;
+  npmVersionResponse?: { stdout: string } | Error | undefined;
+  latestVersionResponse?: { stdout: string } | Error | undefined;
+  installResponse?: { stdout: string } | Error | undefined;
 }) {
   return Layer.succeed(UpdateService, {
     getVersion: () => Effect.succeed(config.version ?? '1.0.0'),

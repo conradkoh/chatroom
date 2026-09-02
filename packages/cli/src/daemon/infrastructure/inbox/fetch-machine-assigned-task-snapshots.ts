@@ -14,7 +14,7 @@ export async function fetchMachineAssignedTaskSnapshots(
     machineId,
   });
   return mapAssignedTaskSnapshotList(
-    parseAssignedTaskSnapshotRows((result as { tasks?: unknown })?.tasks ?? [])
+    parseAssignedTaskSnapshotRows((result as { tasks?: unknown | undefined })?.tasks ?? [])
   );
 }
 

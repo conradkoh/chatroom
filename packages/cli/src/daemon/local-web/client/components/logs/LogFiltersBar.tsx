@@ -6,22 +6,22 @@ import type { ChatroomListItem } from '@/api/types';
 import type { LogTimePreset } from '@/lib/log-time-range';
 
 export type LogFilterValues = {
-  chatroomId?: string;
-  role?: string;
-  harness?: string;
-  timeRange?: LogTimePreset;
-  fromMs?: number;
-  toMs?: number;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  harness?: string | undefined;
+  timeRange?: LogTimePreset | undefined;
+  fromMs?: number | undefined;
+  toMs?: number | undefined;
 };
 type Props = {
   chatrooms: ChatroomListItem[];
-  chatroomsLoading?: boolean;
-  chatroomsError?: boolean;
+  chatroomsLoading?: boolean | undefined;
+  chatroomsError?: boolean | undefined;
   roles: string[];
   harnesses: string[];
   values: LogFilterValues;
   onChange: (v: LogFilterValues) => void;
-  disabled?: boolean;
+  disabled?: boolean | undefined;
 };
 export function LogFiltersBar({
   chatrooms,

@@ -22,9 +22,9 @@ interface AuthData {
   // When the session was created
   createdAt: string;
   // The device name used during auth
-  deviceName?: string;
+  deviceName?: string | undefined;
   // The CLI version used during auth
-  cliVersion?: string;
+  cliVersion?: string | undefined;
 }
 
 /**
@@ -44,7 +44,7 @@ interface MultiEnvAuthData {
  * Legacy auth storage (version 1 or unversioned)
  */
 interface LegacyAuthData extends AuthData {
-  version?: never; // Legacy doesn't have version
+  version?: never | undefined; // Legacy doesn't have version
 }
 
 /**
@@ -264,7 +264,7 @@ export async function getSessionId(): Promise<SessionId | null> {
  * Get all available sessions (for debugging/error messages)
  */
 export async function getAllSessions(): Promise<
-  { url: string; sessionId: string; createdAt?: string }[]
+  { url: string; sessionId: string; createdAt?: string | undefined }[]
 > {
   const rawData = await loadRawAuthData();
   if (!rawData) {

@@ -1011,7 +1011,7 @@ describe('AgentProcessManager', () => {
             correlationId: string;
             resumableId: string;
             source: 'provider_allocated' | 'provider_rotated';
-            previousResumableId?: string;
+            previousResumableId?: string | undefined;
           }) => void)
         | undefined;
       const claudeSdkService = {
@@ -1028,7 +1028,7 @@ describe('AgentProcessManager', () => {
               correlationId: string;
               resumableId: string;
               source: 'provider_allocated' | 'provider_rotated';
-              previousResumableId?: string;
+              previousResumableId?: string | undefined;
             }) => void
           ) => {
             sessionIdUpdatedCb = cb;

@@ -24,9 +24,9 @@ import type {
 export interface BufferedJournalFactoryOptions {
   readonly outputRepository: OutputRepository;
   /** Flush interval in milliseconds. Default 500ms. */
-  readonly flushIntervalMs?: number;
+  readonly flushIntervalMs?: number | undefined;
   /** Optional logger for warnings (flush failures). */
-  readonly logger?: Pick<Console, 'warn'>;
+  readonly logger?: Pick<Console, 'warn'> | undefined;
 }
 
 export class BufferedJournalFactory implements JournalFactory {
@@ -77,8 +77,8 @@ export class BufferedJournalFactory implements JournalFactory {
       record(chunk: {
         content: string;
         timestamp: number;
-        messageId?: string;
-        partType?: 'text' | 'reasoning';
+        messageId?: string | undefined;
+        partType?: 'text' | 'reasoning' | undefined;
       }): void {
         buffer.push({
           content: chunk.content,

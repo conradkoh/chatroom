@@ -27,7 +27,7 @@ export class ConvexAgenticQueryRunRepository implements SessionRepository {
     const result = (await backend.query(api.daemon.agenticQuery.runs.getRun, {
       sessionId,
       runId: harnessSessionId,
-    })) as { opencode?: { opencodeSessionId?: string } } | null;
+    })) as { opencode?: { opencodeSessionId?: string | undefined } | undefined } | null;
     return result?.opencode?.opencodeSessionId as OpenCodeSessionId | undefined;
   }
 

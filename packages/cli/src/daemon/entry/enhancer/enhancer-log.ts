@@ -6,7 +6,7 @@ export const ENHANCER_LOG_PREFIX = '[enhancer]';
 export type EnhancerLogContext = {
   chatroomId: string;
   harness: string;
-  pid?: number;
+  pid?: number | undefined;
 };
 
 export type EnhancerLogWriter = {

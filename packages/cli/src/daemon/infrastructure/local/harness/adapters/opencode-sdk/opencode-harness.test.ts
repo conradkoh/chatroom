@@ -96,10 +96,10 @@ function makeProcess(overrides?: Partial<MockProcess>): MockProcess & EventEmitt
 }
 
 function createHarness(overrides?: {
-  baseUrl?: string;
-  cwd?: string;
-  client?: Record<string, unknown>;
-  process?: MockProcess & EventEmitter;
+  baseUrl?: string | undefined;
+  cwd?: string | undefined;
+  client?: Record<string, unknown> | undefined;
+  process?: MockProcess & EventEmitter | undefined;
 }) {
   const proc = overrides?.process ?? makeProcess();
   return new OpencodeSdkHarness({
@@ -393,7 +393,7 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
 
     // Simulate routing (as the fiber's consume loop does)
     const sessionListeners = (harness as any).sessionListeners as Map<string, any>;
-    const dispatchEvent = (raw: { type: string; properties?: Record<string, unknown> }) => {
+    const dispatchEvent = (raw: { type: string; properties?: Record<string, unknown> | undefined }) => {
       const p = raw.properties;
       const sid = p && 'sessionID' in p ? p['sessionID'] : undefined;
       if (typeof sid === 'string') sessionListeners.get(sid)?._receiveEvent(raw);

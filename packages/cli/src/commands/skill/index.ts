@@ -131,7 +131,7 @@ export const activateSkillEffect = (
     // Activate skill
     const result = yield* backend
       .mutation<{
-        skill: { skillId: string; prompt?: string };
+        skill: { skillId: string; prompt?: string | undefined };
       }>(api.skills.activate, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,

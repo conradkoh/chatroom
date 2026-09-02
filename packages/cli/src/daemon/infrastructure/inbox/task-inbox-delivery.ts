@@ -18,7 +18,7 @@ export type TaskInboxDeliveryDeps = {
   agentMgr: DaemonAgentProcessManagerServiceShape;
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
-  taskSnapshotState?: MachineTaskSnapshotState;
+  taskSnapshotState?: MachineTaskSnapshotState | undefined;
 };
 
 export async function handleTaskInboxUpdate(

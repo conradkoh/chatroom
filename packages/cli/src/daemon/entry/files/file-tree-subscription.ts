@@ -103,7 +103,7 @@ async function processPendingFileTreeRequests(
   session: DaemonSessionServiceShape,
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
   ensureCoordinator: EnsureCoordinator,
-  requests: { workingDir: string; force?: boolean }[] | null | undefined
+  requests: { workingDir: string; force?: boolean | undefined }[] | null | undefined
 ): Promise<void> {
   if (!requests?.length) return;
 

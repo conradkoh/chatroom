@@ -72,8 +72,8 @@ describe('PiAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           const err = new Error('Command failed: which pi') as Error & {
-            status?: number;
-            stderr?: Buffer;
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
           };
           err.status = 1;
           err.stderr = Buffer.from('');
@@ -241,7 +241,7 @@ describe('PiAgentService', () => {
   });
 
   describe('spawn', () => {
-    function makeChildProcess(pid: number, options?: { wireGetState?: boolean }) {
+    function makeChildProcess(pid: number, options?: { wireGetState?: boolean | undefined }) {
       const mockStdin = {
         write: vi.fn((_data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
           resolveWriteCallback(encodingOrCb, maybeCb)?.(null);

@@ -13,9 +13,9 @@ export function createStandardSdkChunkExtractor(): (
     if (event.type !== 'message.part.delta') return null;
 
     const payload = event.payload as {
-      messageID?: string;
-      delta?: string;
-      partType?: 'text' | 'reasoning';
+      messageID?: string | undefined;
+      delta?: string | undefined;
+      partType?: 'text' | 'reasoning' | undefined;
     };
 
     const delta = payload?.delta;

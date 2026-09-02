@@ -17,7 +17,7 @@ import type { MachineConfig } from '../../infrastructure/machine/types.js';
 export interface AuthData {
   sessionId: string;
   createdAt: string;
-  deviceName?: string;
+  deviceName?: string | undefined;
 }
 
 /**

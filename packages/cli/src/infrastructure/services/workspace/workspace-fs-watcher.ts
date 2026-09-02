@@ -23,9 +23,9 @@ export interface WorkspaceFsEvent {
 export interface WorkspaceFsWatcherOptions {
   workingDir: string;
   onEvents: (events: WorkspaceFsEvent[]) => void | Promise<void>;
-  shouldIgnore?: (relativePath: string) => boolean;
-  onError?: (error: unknown) => void;
-  debounceMs?: number;
+  shouldIgnore?:( (relativePath: string) => boolean) | undefined;
+  onError?:( (error: unknown) => void) | undefined;
+  debounceMs?: number | undefined;
 }
 
 export interface WorkspaceFsWatcherHandle {

@@ -44,7 +44,7 @@ const NATIVE_BOOTSTRAP_PROMPT =
  */
 export function createSpawnPrompt(
   raw: string | undefined | null,
-  opts?: { nativeBootstrap?: boolean }
+  opts?: { nativeBootstrap?: boolean | undefined }
 ): SpawnPrompt {
   if (opts?.nativeBootstrap) {
     return NATIVE_BOOTSTRAP_PROMPT as SpawnPrompt;

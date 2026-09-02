@@ -34,11 +34,11 @@ function makeTestBackend(queryResponse: unknown | Error) {
 
 /** Create a test auth session service with configurable responses */
 function makeTestAuthSession(config: {
-  isAuthenticated?: boolean | Error;
-  authData?: AuthData | null | Error;
-  authFilePath?: string;
-  version?: string;
-  machineConfig?: MachineConfig | null;
+  isAuthenticated?: boolean | Error | undefined;
+  authData?: AuthData | null | Error | undefined;
+  authFilePath?: string | undefined;
+  version?: string | undefined;
+  machineConfig?: MachineConfig | null | undefined;
 }) {
   return Layer.succeed(AuthSessionService, {
     loadAuthData: () =>

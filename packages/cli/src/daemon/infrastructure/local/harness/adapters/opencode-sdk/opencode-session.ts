@@ -23,7 +23,7 @@ export interface OpencodeSdkSessionOptions {
    * Called when the session is closed so the parent harness can unregister
    * the session from its SSE fan-out map.
    */
-  readonly onClose?: (opencodeSessionId: string) => void;
+  readonly onClose?:( (opencodeSessionId: string) => void) | undefined;
 }
 
 export class OpencodeSdkSession implements DirectHarnessSession {

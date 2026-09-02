@@ -5,8 +5,8 @@ export type HarnessSessionStatus = 'pending' | 'spawning' | 'active' | 'idle' | 
 export interface HarnessAgent {
   name: string;
   mode: 'subagent' | 'primary' | 'all';
-  model?: { providerID: string; modelID: string };
-  description?: string;
+  model?: { providerID: string; modelID: string } | undefined;
+  description?: string | undefined;
 }
 
 export interface HarnessProvider {
@@ -20,7 +20,7 @@ export interface HarnessCapability {
   displayName: string;
   agents: HarnessAgent[];
   providers: HarnessProvider[];
-  configSchema?: unknown;
+  configSchema?: unknown | undefined;
 }
 
 /** Known agent harness identifiers used by the daemon. */

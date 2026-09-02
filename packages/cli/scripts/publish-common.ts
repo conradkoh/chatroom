@@ -41,10 +41,10 @@ export const cliRoot = join(import.meta.dir, '..');
 export interface PublishPackageJson {
   name: string;
   version: string;
-  dependencies?: Record<string, string>;
-  bundledDependencies?: string[];
-  scripts?: Record<string, string>;
-  devDependencies?: Record<string, string>;
+  dependencies?: Record<string, string> | undefined;
+  bundledDependencies?: string[] | undefined;
+  scripts?: Record<string, string> | undefined;
+  devDependencies?: Record<string, string> | undefined;
 }
 
 export function assert(condition: unknown, message: string): asserts condition {

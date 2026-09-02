@@ -4,5 +4,5 @@ export type ConvexPublisherDeps = {
   backend: BackendOps;
   sessionId: string;
   machineId: string;
-  logEvent?: (event: Record<string, unknown>) => Promise<void>;
+  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
 };

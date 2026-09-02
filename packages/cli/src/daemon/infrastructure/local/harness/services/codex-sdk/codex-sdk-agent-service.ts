@@ -108,15 +108,15 @@ interface SdkSession {
   codex: Codex;
   thread: Thread;
   aborted: boolean;
-  threadId?: string;
-  model?: string;
+  threadId?: string | undefined;
+  model?: string | undefined;
   agentName: string;
   /** System prompt prepended to the first injected turn when deferInitialTurn is set. */
-  storedSystemPrompt?: string;
-  abortController?: AbortController;
-  resumeResolve?: (prompt: string) => void;
-  abortResolve?: () => void;
-  pendingResumePrompt?: string;
+  storedSystemPrompt?: string | undefined;
+  abortController?: AbortController | undefined;
+  resumeResolve?:( (prompt: string) => void) | undefined;
+  abortResolve?:( () => void) | undefined;
+  pendingResumePrompt?: string | undefined;
 }
 
 function buildAgentName(context: SpawnContext): string {
@@ -357,11 +357,11 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     thread: Thread;
     context: SpawnContext;
     workingDir: string;
-    model?: string;
+    model?: string | undefined;
     initialPrompt: string;
-    deferInitialTurn?: boolean;
-    storedSystemPrompt?: string;
-    resumedThreadId?: string;
+    deferInitialTurn?: boolean | undefined;
+    storedSystemPrompt?: string | undefined;
+    resumedThreadId?: string | undefined;
   }): SpawnResult {
     const {
       pid,
@@ -483,7 +483,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
   private buildSpawnResult(args: {
     pid: number;
     harnessSessionId: string;
-    resumedThreadId?: string;
+    resumedThreadId?: string | undefined;
     exitCallbacks: ((info: {
       code: number | null;
       signal: string | null;
@@ -549,7 +549,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     entry: { lastOutputAt: number };
     logPrefix: string;
     initialPrompt: string;
-    deferInitialTurn?: boolean;
+    deferInitialTurn?: boolean | undefined;
     finishExit: (code: number | null, signal: string | null) => void;
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];

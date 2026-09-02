@@ -6,7 +6,7 @@ export type WorkspaceGitInboundEvent = Extract<
 >;
 
 export type HandleWorkspaceGitInboundDeps = {
-  deliverInbound?: (event: WorkspaceGitInboundEvent) => Promise<void>;
+  deliverInbound?:( (event: WorkspaceGitInboundEvent) => Promise<void>) | undefined;
 };
 
 export async function handleWorkspaceGitInbound(

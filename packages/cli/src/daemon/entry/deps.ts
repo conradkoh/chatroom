@@ -5,18 +5,18 @@ import { createStreamHub, type StreamHub } from '../local-web/server/stream-hub.
 
 export type DaemonDeps = {
   publishers: PublisherRegistry;
-  persistence?: PersistenceStore;
+  persistence?: PersistenceStore | undefined;
   streamHub: StreamHub;
 };
 
 export function createDaemonDeps(
   opts: {
-    persistence?: PersistenceStore;
-    streamHub?: StreamHub;
-    backend?: BackendOps;
-    sessionId?: string;
-    machineId?: string;
-    logEvent?: (event: Record<string, unknown>) => Promise<void>;
+    persistence?: PersistenceStore | undefined;
+    streamHub?: StreamHub | undefined;
+    backend?: BackendOps | undefined;
+    sessionId?: string | undefined;
+    machineId?: string | undefined;
+    logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
   } = {}
 ): DaemonDeps {
   const streamHub = opts.streamHub ?? createStreamHub();

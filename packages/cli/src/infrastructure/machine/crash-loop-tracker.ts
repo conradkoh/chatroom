@@ -45,9 +45,9 @@ export interface CrashLoopCheckResult {
   /** The window duration used for the check. */
   windowMs: number;
   /** When the next restart is allowed (ms since epoch). Undefined if allowed immediately. */
-  nextAllowedAt?: number;
+  nextAllowedAt?: number | undefined;
   /** How long to wait before retrying (0 if immediate). Undefined if allowed immediately. */
-  waitMs?: number;
+  waitMs?: number | undefined;
 }
 
 /**

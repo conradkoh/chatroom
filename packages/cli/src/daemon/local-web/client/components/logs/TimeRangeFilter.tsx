@@ -23,7 +23,7 @@ const PRESETS: Exclude<LogTimePreset, 'custom'>[] = ['1h', '3h', '1d'];
 type Props = {
   value: LogTimeFilterValues;
   onChange: (v: LogTimeFilterValues) => void;
-  disabled?: boolean;
+  disabled?: boolean | undefined;
 };
 export function TimeRangeFilter({ value, onChange, disabled }: Props) {
   const [open, setOpen] = useState(false);

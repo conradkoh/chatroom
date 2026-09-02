@@ -22,15 +22,15 @@ export interface RenderTaskPromptInput {
   role: string;
   context?: {
     content: string;
-    triggerMessageContent?: string;
-    triggerMessageSenderRole?: string;
+    triggerMessageContent?: string | undefined;
+    triggerMessageSenderRole?: string | undefined;
     elapsedHours: number;
-  };
-  attachedBacklogItems?: { _id: string; content: string; status: string }[];
+  } | undefined;
+  attachedBacklogItems?: { _id: string; content: string; status: string }[] | undefined;
   // fallow-ignore-next-line code-duplication
-  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
-  attachedTasks?: { _id: string; content: string; status: string }[];
-  attachedMessages?: { _id: string; content: string; senderRole: string }[];
+  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+  attachedTasks?: { _id: string; content: string; status: string }[] | undefined;
+  attachedMessages?: { _id: string; content: string; senderRole: string }[] | undefined;
 }
 
 /**

@@ -56,7 +56,7 @@ export interface GitSubscriptionHandle {
  * DaemonSessionServiceShape structurally satisfies this type.
  */
 export type GitSubscriptionDeps = GitStateDeps & {
-  logger?: Pick<Console, 'log' | 'warn'>;
+  logger?: Pick<Console, 'log' | 'warn'> | undefined;
   runtime: Runtime.Runtime<DaemonSessionService>;
 };
 

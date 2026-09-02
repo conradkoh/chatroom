@@ -8,10 +8,10 @@ import type { AgentHarness } from '../daemon-types.js';
 export interface NativeHarnessSessionExitContext {
   chatroomId: string;
   role: string;
-  harness?: AgentHarness;
-  harnessSessionId?: string;
+  harness?: AgentHarness | undefined;
+  harnessSessionId?: string | undefined;
   stopReason: StopReason;
-  recentLogLines?: string[];
+  recentLogLines?: string[] | undefined;
   supportsDaemonMemoryResume: boolean;
 }
 

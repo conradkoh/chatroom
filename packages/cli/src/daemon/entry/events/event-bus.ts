@@ -25,7 +25,7 @@ export interface DaemonEventMap {
     role: string;
     pid: number;
     harness: string;
-    model?: string;
+    model?: string | undefined;
   };
 
   /**
@@ -41,9 +41,9 @@ export interface DaemonEventMap {
     code: number | null;
     signal: string | null;
     stopReason: StopReason;
-    agentHarness?: string;
-    model?: string;
-    workingDir?: string;
+    agentHarness?: string | undefined;
+    model?: string | undefined;
+    workingDir?: string | undefined;
   };
 
   /**

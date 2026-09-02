@@ -17,9 +17,9 @@ import { BackendService, SessionService } from '../../infrastructure/services/in
 
 /** Create a test backend service with configurable query/mutation responses */
 function makeTestBackend(config: {
-  queryResponse?: unknown | Error;
-  mutationResponse?: unknown | Error;
-  queryResponses?: (unknown | Error)[];
+  queryResponse?: unknown | Error | undefined;
+  mutationResponse?: unknown | Error | undefined;
+  queryResponses?: (unknown | Error)[] | undefined;
 }) {
   let queryCallCount = 0;
   return Layer.succeed(BackendService, {
@@ -49,9 +49,9 @@ function makeTestBackend(config: {
 
 /** Create a test session service with configurable responses */
 function makeTestSession(config: {
-  sessionId?: string | null;
-  convexUrl?: string;
-  otherUrls?: string[];
+  sessionId?: string | null | undefined;
+  convexUrl?: string | undefined;
+  otherUrls?: string[] | undefined;
 }) {
   return Layer.succeed(SessionService, {
     getSessionId: () =>

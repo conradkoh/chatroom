@@ -43,7 +43,7 @@ type TaskInboxDependencies = {
   cooldown: RecoveryCooldown;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   machineId: string;
-  taskSnapshotState?: MachineTaskSnapshotState;
+  taskSnapshotState?: MachineTaskSnapshotState | undefined;
 };
 
 // fallow-ignore-next-line unused-export

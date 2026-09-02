@@ -12,7 +12,7 @@ export function LogDetailPanel({
   onClose,
 }: {
   line: LogLine;
-  chatroomName?: string;
+  chatroomName?: string | undefined;
   onClose: () => void;
 }) {
   return (

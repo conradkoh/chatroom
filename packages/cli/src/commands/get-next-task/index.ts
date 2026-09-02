@@ -41,7 +41,7 @@ export { GetNextTaskSessionService } from './get-next-task-session-service.js';
 
 interface GetNextTaskOptions {
   role: string;
-  silent?: boolean;
+  silent?: boolean | undefined;
 }
 
 // ─── Domain errors ─────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ export const getNextTaskEffect = (
     }
 
     // 10. Fetch init prompt from backend (non-critical — swallow errors)
-    type InitPromptResult = { prompt?: string; hasSystemPromptControl?: boolean } | null;
+    type InitPromptResult = { prompt?: string | undefined; hasSystemPromptControl?: boolean | undefined } | null;
     const initPromptResult = yield* backend
       .query<InitPromptResult>(api.messages.getInitPrompt, {
         sessionId,

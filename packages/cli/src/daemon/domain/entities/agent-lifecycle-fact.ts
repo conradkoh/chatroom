@@ -5,7 +5,7 @@ export type AgentLifecycleFact =
       chatroomId: string;
       role: string;
       action: string;
-      taskId?: string;
+      taskId?: string | undefined;
       revisionKey: string;
       emittedAt: number;
     }
@@ -14,23 +14,23 @@ export type AgentLifecycleFact =
       chatroomId: string;
       role: string;
       pid: number;
-      model?: string;
-      reason?: string;
-      harnessSessionId?: string;
+      model?: string | undefined;
+      reason?: string | undefined;
+      harnessSessionId?: string | undefined;
       revisionKey: string;
       emittedAt: number;
-      lifecycleRevision?: number;
+      lifecycleRevision?: number | undefined;
     }
   | {
       kind: 'exited';
       chatroomId: string;
       role: string;
       pid: number;
-      stopReason?: string;
-      stopSignal?: string;
-      exitCode?: number;
-      signal?: string;
-      agentHarness?: string;
+      stopReason?: string | undefined;
+      stopSignal?: string | undefined;
+      exitCode?: number | undefined;
+      signal?: string | undefined;
+      agentHarness?: string | undefined;
       revisionKey: string;
       emittedAt: number;
     }
@@ -43,11 +43,11 @@ export type AgentExitAuditArgs = {
   chatroomId: string;
   role: string;
   pid: number;
-  stopReason?: string;
-  stopSignal?: string;
-  exitCode?: number;
-  signal?: string;
-  agentHarness?: string;
+  stopReason?: string | undefined;
+  stopSignal?: string | undefined;
+  exitCode?: number | undefined;
+  signal?: string | undefined;
+  agentHarness?: string | undefined;
 };
 
 export type ExitedLifecycleFact = Extract<AgentLifecycleFact, { kind: 'exited' }>;
@@ -93,7 +93,7 @@ export function normalizeAgentLifecycleFact(raw: unknown): AgentLifecycleFact {
 }
 
 export function buildActivityLifecycleFact(params: {
-  chatroomId: string; role: string; action: string; taskId?: string; emittedAt?: number;
+  chatroomId: string; role: string; action: string; taskId?: string | undefined; emittedAt?: number | undefined;
 }): Extract<AgentLifecycleFact, { kind: 'activity' }> {
   const emittedAt = params.emittedAt ?? Date.now();
   return { kind: 'activity', chatroomId: params.chatroomId, role: params.role, action: params.action,

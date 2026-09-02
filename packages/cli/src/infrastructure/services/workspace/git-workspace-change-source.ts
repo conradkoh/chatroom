@@ -22,8 +22,8 @@ const PERSISTENT_FAILURE_THRESHOLD = 3;
 
 export type GitWorkspaceChangeSourceOptions = WorkspaceChangeSourceOptions & {
   hierarchy: GitWorkspaceHierarchy;
-  pollIntervalMs?: number;
-  onNeedsReconcile?: () => void | Promise<void>;
+  pollIntervalMs?: number | undefined;
+  onNeedsReconcile?:( () => void | Promise<void>) | undefined;
 };
 
 function flattenGitRepoNodes(root: GitRepoNode): GitRepoNode[] {

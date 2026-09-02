@@ -30,7 +30,7 @@ export interface CursorSdkSessionOptions {
   readonly agent: SDKAgent;
   readonly opencodeSessionId: string;
   readonly sessionTitle: string;
-  readonly onClose?: (sessionId: string) => void;
+  readonly onClose?:( (sessionId: string) => void) | undefined;
 }
 
 export class CursorSdkSession implements DirectHarnessSession {
@@ -41,7 +41,7 @@ export class CursorSdkSession implements DirectHarnessSession {
   }
 
   private readonly agent: SDKAgent;
-  private readonly onClose?: (sessionId: string) => void;
+  private readonly onClose?:( (sessionId: string) => void) | undefined;
   private readonly listeners = new Set<(event: DirectHarnessSessionEvent) => void>();
   private closed = false;
   private turnCount = 0;

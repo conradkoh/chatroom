@@ -61,7 +61,7 @@ class TestAgentService extends BaseCLIAgentService {
   public async testRunListCommand(
     harnessName: string,
     command: string,
-    options?: { timeout?: number }
+    options?: { timeout?: number | undefined }
   ) {
     return this.runListCommand(harnessName, command, options);
   }
@@ -102,8 +102,8 @@ describe('BaseCLIAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           const err = new Error('Command failed: which myapp') as Error & {
-            status?: number;
-            stderr?: Buffer;
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
           };
           err.status = 1;
           err.stderr = Buffer.from('');
@@ -469,8 +469,8 @@ describe('BaseCLIAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           const err = new Error('Command failed: which mytool') as Error & {
-            status?: number;
-            stderr?: Buffer;
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
           };
           err.status = 1;
           err.stderr = Buffer.from('');
@@ -488,8 +488,8 @@ describe('BaseCLIAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           const err = new Error('Command failed: which mytool') as Error & {
-            status?: number;
-            stderr?: Buffer;
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
           };
           err.status = 127;
           err.stderr = Buffer.from('some error');
@@ -517,8 +517,8 @@ describe('BaseCLIAgentService', () => {
           callCount++;
           if (callCount === 1) {
             const err = new Error('Transient error') as Error & {
-              status?: number;
-              stderr?: Buffer;
+              status?: number | undefined;
+              stderr?: Buffer | undefined;
             };
             err.status = 127;
             err.stderr = Buffer.from('error');
@@ -544,16 +544,16 @@ describe('BaseCLIAgentService', () => {
           callCount++;
           if (callCount === 1) {
             const err = new Error('Transient error') as Error & {
-              status?: number;
-              stderr?: Buffer;
+              status?: number | undefined;
+              stderr?: Buffer | undefined;
             };
             err.status = 127;
             err.stderr = Buffer.from('error');
             throw err;
           }
           const err = new Error('Command failed: which mytool') as Error & {
-            status?: number;
-            stderr?: Buffer;
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
           };
           err.status = 1;
           err.stderr = Buffer.from('');
@@ -606,7 +606,7 @@ describe('BaseCLIAgentService', () => {
       // NotInstalled
       const depsNotInstalled = createMockDeps({
         execSync: vi.fn(() => {
-          const err = new Error('not found') as Error & { status?: number; stderr?: Buffer };
+          const err = new Error('not found') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
           err.status = 1;
           err.stderr = Buffer.from('');
           throw err;
@@ -638,7 +638,7 @@ describe('BaseCLIAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           callTimes.push(Date.now() - startTime);
-          const err = new Error('transient') as Error & { status?: number; stderr?: Buffer };
+          const err = new Error('transient') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
           err.status = 127;
           err.stderr = Buffer.from('error');
           throw err;
@@ -677,13 +677,13 @@ describe('BaseCLIAgentService', () => {
             }
             if (i < 8) {
               // NotInstalled
-              const err = new Error('not found') as Error & { status?: number; stderr?: Buffer };
+              const err = new Error('not found') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
               err.status = 1;
               err.stderr = Buffer.from('');
               throw err;
             } else {
               // DetectionError
-              const err = new Error('transient') as Error & { status?: number; stderr?: Buffer };
+              const err = new Error('transient') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
               err.status = 127;
               err.stderr = Buffer.from('error');
               throw err;

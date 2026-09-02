@@ -75,7 +75,7 @@ If you suspect compaction (context starts with "Summary of:", or you're unsure o
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export interface InitOptions {
-  dir?: string;
+  dir?: string | undefined;
 }
 
 export interface InitResult {

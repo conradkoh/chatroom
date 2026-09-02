@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   line: LogLine;
-  chatroomName?: string;
-  selected?: boolean;
-  onSelect?: (line: LogLine) => void;
+  chatroomName?: string | undefined;
+  selected?: boolean | undefined;
+  onSelect?:( (line: LogLine) => void) | undefined;
 };
 export function LogLineRow({ line, chatroomName, selected, onSelect }: Props) {
   const time = new Date(line.timestamp).toISOString().slice(11, 19);

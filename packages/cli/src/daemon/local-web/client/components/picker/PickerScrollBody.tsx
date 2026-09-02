@@ -4,8 +4,8 @@ import { cn } from '@/lib/utils';
 
 export interface PickerScrollBodyProps {
   children: React.ReactNode;
-  className?: string;
-  maxHeightClassName?: string;
+  className?: string | undefined;
+  maxHeightClassName?: string | undefined;
 }
 
 export function PickerScrollBody({

@@ -27,15 +27,15 @@ export type { MessagesDeps } from './deps.js';
 export interface ListBySenderRoleOptions {
   role: string;
   senderRole: string;
-  limit?: number;
-  full?: boolean;
+  limit?: number | undefined;
+  full?: boolean | undefined;
 }
 
 export interface ListSinceMessageOptions {
   role: string;
   sinceMessageId: string;
-  limit?: number;
-  full?: boolean;
+  limit?: number | undefined;
+  full?: boolean | undefined;
 }
 
 /** Shared shape for messages returned from the backend */

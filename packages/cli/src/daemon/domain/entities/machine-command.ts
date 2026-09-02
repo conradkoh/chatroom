@@ -10,8 +10,8 @@ export interface StartAgentCommand {
     chatroomId: string;
     role: string;
     agentHarness: AgentHarness;
-    model?: string;
-    workingDir?: string;
+    model?: string | undefined;
+    workingDir?: string | undefined;
   };
 }
 

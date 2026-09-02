@@ -49,7 +49,7 @@ authCommand
   .command('login')
   .description('Authenticate the CLI via browser')
   .option('-f, --force', 'Re-authenticate even if already logged in')
-  .action(async (options: { force?: boolean }) => {
+  .action(async (options: { force?: boolean | undefined }) => {
     const { authLogin } = await import('./commands/auth-login/index.js');
     await authLogin(options);
   });
@@ -90,7 +90,7 @@ program
   .command('init')
   .description('Initialize chatroom integration in your project')
   .option('--dir <path>', 'Directory to initialize (default: current directory)')
-  .action(async (options: { dir?: string }) => {
+  .action(async (options: { dir?: string | undefined }) => {
     const { init } = await import('./commands/init/index.js');
     await init({ dir: options.dir });
   });
@@ -132,7 +132,7 @@ program
       chatroomId: string;
       role: string;
       type: string;
-      allowTypeChange?: boolean;
+      allowTypeChange?: boolean | undefined;
     }) => {
       await maybeRequireAuth();
 
@@ -208,7 +208,7 @@ agentConfigCommand
       role: string;
       harness: string;
       model: string;
-      workingDir?: string;
+      workingDir?: string | undefined;
     }) => {
       await maybeRequireAuth();
       const { setAgentConfig } = await import('./commands/agent/index.js');
@@ -228,9 +228,9 @@ agentCommand
     async (options: {
       chatroomId: string;
       role: string;
-      harness?: string;
-      model?: string;
-      workingDir?: string;
+      harness?: string | undefined;
+      model?: string | undefined;
+      workingDir?: string | undefined;
     }) => {
       await maybeRequireAuth();
       const { startAgent } = await import('./commands/agent/index.js');
@@ -265,7 +265,7 @@ handoffCommandGroup
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--next-role <nextRole>', 'Target role for the handoff')
   .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
-  .action(async (options: { role: string; nextRole: string; teamId?: string }) => {
+  .action(async (options: { role: string; nextRole: string; teamId?: string | undefined }) => {
     const { printHandoffViewTemplate } = await import('./commands/handoff/view-template.js');
     try {
       printHandoffViewTemplate(options);
@@ -371,9 +371,9 @@ backlogCommand
     async (options: {
       chatroomId: string;
       role: string;
-      limit?: string;
-      sort?: string;
-      filter?: string;
+      limit?: string | undefined;
+      sort?: string | undefined;
+      filter?: string | undefined;
     }) => {
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog/index.js');
@@ -392,7 +392,7 @@ backlogCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (creator)')
   .option('--content-file <path>', 'Path to file containing task content (or use stdin/heredoc)')
-  .action(async (options: { chatroomId: string; role: string; contentFile?: string }) => {
+  .action(async (options: { chatroomId: string; role: string; contentFile?: string | undefined }) => {
     await maybeRequireAuth();
 
     let content: string;
@@ -426,7 +426,7 @@ backlogCommand
       chatroomId: string;
       role: string;
       backlogItemId: string;
-      contentFile?: string;
+      contentFile?: string | undefined;
     }) => {
       await maybeRequireAuth();
 
@@ -466,7 +466,7 @@ backlogCommand
       chatroomId: string;
       role: string;
       backlogItemId: string;
-      force?: boolean;
+      force?: boolean | undefined;
     }) => {
       await maybeRequireAuth();
       const { completeBacklog } = await import('./commands/backlog/index.js');
@@ -500,9 +500,9 @@ backlogCommand
       chatroomId: string;
       role: string;
       backlogItemId: string;
-      complexity?: string;
-      value?: string;
-      priority?: string;
+      complexity?: string | undefined;
+      value?: string | undefined;
+      priority?: string | undefined;
     }) => {
       await maybeRequireAuth();
       const { scoreBacklog } = await import('./commands/backlog/index.js');
@@ -534,9 +534,9 @@ backlogCommand
     async (options: {
       chatroomId: string;
       role: string;
-      from?: string;
-      to?: string;
-      limit?: string;
+      from?: string | undefined;
+      to?: string | undefined;
+      limit?: string | undefined;
     }) => {
       await maybeRequireAuth();
       const { historyBacklog } = await import('./commands/backlog/index.js');
@@ -587,7 +587,7 @@ backlogCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--path <path>', 'Directory path to export to (default: .chatroom/exports/)')
-  .action(async (options: { chatroomId: string; role: string; path?: string }) => {
+  .action(async (options: { chatroomId: string; role: string; path?: string | undefined }) => {
     await maybeRequireAuth();
     const { exportBacklog } = await import('./commands/backlog/index.js');
     await exportBacklog(options.chatroomId, { role: options.role, path: options.path });
@@ -599,7 +599,7 @@ backlogCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--path <path>', 'Directory path to import from (default: .chatroom/exports/)')
-  .action(async (options: { chatroomId: string; role: string; path?: string }) => {
+  .action(async (options: { chatroomId: string; role: string; path?: string | undefined }) => {
     await maybeRequireAuth();
     const { importBacklog } = await import('./commands/backlog/index.js');
     await importBacklog(options.chatroomId, { role: options.role, path: options.path });
@@ -669,7 +669,7 @@ workspaceFileTreeCommand
   .requiredOption('--machine-id <id>', 'Machine identifier')
   .requiredOption('--working-dir <path>', 'Workspace working directory')
   .option('--force', 'Force reconciliation walk (explicit recovery)')
-  .action(async (options: { machineId: string; workingDir: string; force?: boolean }) => {
+  .action(async (options: { machineId: string; workingDir: string; force?: boolean | undefined }) => {
     await maybeRequireAuth();
     const { requestWorkspaceFileTreeFromCli } = await import('./commands/workspace/index.js');
     const result = await requestWorkspaceFileTreeFromCli(options.machineId, options.workingDir, {
@@ -706,7 +706,7 @@ messageCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--content <text>', 'Message content')
   .option('--target-role <role>', 'Target role (defaults to team entry point)')
-  .action(async (options: { chatroomId: string; content: string; targetRole?: string }) => {
+  .action(async (options: { chatroomId: string; content: string; targetRole?: string | undefined }) => {
     await maybeRequireAuth();
     const { sendUserMessage } = await import('./commands/messages/send.js');
     await sendUserMessage(options.chatroomId, options);
@@ -726,10 +726,10 @@ messagesCommand
     async (options: {
       chatroomId: string;
       role: string;
-      senderRole?: string;
-      sinceMessageId?: string;
-      limit?: string;
-      full?: boolean;
+      senderRole?: string | undefined;
+      sinceMessageId?: string | undefined;
+      limit?: string | undefined;
+      full?: boolean | undefined;
     }) => {
       // Validate: must specify either --sender-role or --since-message-id
       if (!options.senderRole && !options.sinceMessageId) {
@@ -791,7 +791,7 @@ messagesCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--content <text>', 'Message content')
   .option('--target-role <role>', 'Target role (defaults to team entry point)')
-  .action(async (options: { chatroomId: string; content: string; targetRole?: string }) => {
+  .action(async (options: { chatroomId: string; content: string; targetRole?: string | undefined }) => {
     await maybeRequireAuth();
     const { sendUserMessage } = await import('./commands/messages/send.js');
     await sendUserMessage(options.chatroomId, options);
@@ -816,10 +816,10 @@ messagesCommand
     async (options: {
       chatroomId: string;
       role: string;
-      format?: string;
-      outputDir?: string;
-      limit?: string;
-      sinceMessageId?: string;
+      format?: string | undefined;
+      outputDir?: string | undefined;
+      limit?: string | undefined;
+      sinceMessageId?: string | undefined;
     }) => {
       await maybeRequireAuth();
       if (options.format && options.format !== 'linear') {
@@ -881,8 +881,8 @@ contextCommand
     async (options: {
       chatroomId: string;
       role: string;
-      content?: string;
-      triggerMessageId?: string;
+      content?: string | undefined;
+      triggerMessageId?: string | undefined;
     }) => {
       await maybeRequireAuth();
 
@@ -924,7 +924,7 @@ contextCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--limit <n>', 'Maximum number of contexts to show (default: 10)')
-  .action(async (options: { chatroomId: string; role: string; limit?: string }) => {
+  .action(async (options: { chatroomId: string; role: string; limit?: string | undefined }) => {
     await maybeRequireAuth();
     const { listContexts } = await import('./commands/context/index.js');
     await listContexts(options.chatroomId, {
@@ -1002,7 +1002,7 @@ artifactCommand
       role: string;
       fromFile: string;
       filename: string;
-      description?: string;
+      description?: string | undefined;
     }) => {
       await maybeRequireAuth();
       const { createArtifact } = await import('./commands/artifact/index.js');
@@ -1033,7 +1033,7 @@ artifactCommand
     collectMultiValueOption,
     []
   )
-  .action(async (options: { chatroomId: string; role: string; artifact?: string[] }) => {
+  .action(async (options: { chatroomId: string; role: string; artifact?: string[] | undefined }) => {
     await maybeRequireAuth();
     const { viewManyArtifacts } = await import('./commands/artifact/index.js');
     await viewManyArtifacts(options.chatroomId, {
@@ -1084,7 +1084,7 @@ telegramCommand
       chatroomId: string;
       integrationId: string;
       message: string;
-      role?: string;
+      role?: string | undefined;
     }) => {
       await maybeRequireAuth();
       const { sendMessage } = await import('./commands/telegram/index.js');
@@ -1151,7 +1151,7 @@ opencodeCommand
   .command('install')
   .description('Install chatroom as an OpenCode harness')
   .option('--force', 'Overwrite existing harness installation')
-  .action(async (options: { force?: boolean }) => {
+  .action(async (options: { force?: boolean | undefined }) => {
     const { installTool } = await import('./commands/opencode-install/index.js');
     await installTool({ checkExisting: !options.force });
   });

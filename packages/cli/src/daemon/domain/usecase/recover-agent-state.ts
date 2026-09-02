@@ -10,7 +10,7 @@ export interface RecoverAgentProcessManagerPort {
 
 export interface RecoverAgentBackendPort {
   getMachineAgentConfigs(chatroomId: string): Promise<{
-    configs: { machineId: string; workingDir?: string; role: string }[];
+    configs: { machineId: string; workingDir?: string | undefined; role: string }[];
   }>;
   registerWorkspace(args: {
     chatroomId: string;
@@ -29,8 +29,8 @@ export interface RecoverAgentStateDeps {
   agentProcessManager: RecoverAgentProcessManagerPort;
   backend: RecoverAgentBackendPort;
   session: RecoverAgentSessionPort;
-  log?: (message: string) => void;
-  warn?: (message: string) => void;
+  log?:( (message: string) => void) | undefined;
+  warn?:( (message: string) => void) | undefined;
 }
 
 export async function recoverAgentState(deps: RecoverAgentStateDeps): Promise<void> {

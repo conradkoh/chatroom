@@ -11,16 +11,16 @@ export type OutboundEvent =
       harnessSessionId: string;
       content: string;
       timestamp: number;
-      messageId?: string;
-      partType?: string;
+      messageId?: string | undefined;
+      partType?: string | undefined;
     }
   | { type: 'turn.completed'; harnessSessionId: string; turnId: string }
   | {
       type: 'session.lifecycle';
       harnessSessionId: string;
       action: 'opened' | 'resumed' | 'closed' | 'idle' | 'failed';
-      opencodeSessionId?: string;
-      sessionTitle?: string;
+      opencodeSessionId?: string | undefined;
+      sessionTitle?: string | undefined;
     }
   | {
       type: 'task.status';
@@ -28,7 +28,7 @@ export type OutboundEvent =
       role: string;
       chatroomId: string;
       outcome: 'delivered' | 'delivery_failed';
-      error?: string;
+      error?: string | undefined;
     }
   | {
       type: 'git.state';
@@ -53,14 +53,14 @@ export type OutboundEvent =
       type: 'command.result.folder-picker';
       requestId: string;
       status: 'completed' | 'cancelled' | 'failed';
-      selectedPath?: string;
-      errorMessage?: string;
+      selectedPath?: string | undefined;
+      errorMessage?: string | undefined;
     }
   | {
       type: 'command.result.capabilities-refresh';
       batchId: string;
       status: 'completed' | 'skipped_no_changes' | 'failed';
-      errorMessage?: string;
+      errorMessage?: string | undefined;
     }
   | { type: 'heartbeat'; machineId: string }
   | { type: 'workspace.commands'; workingDir: string; commands: unknown[] }

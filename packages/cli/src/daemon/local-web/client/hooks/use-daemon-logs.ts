@@ -6,12 +6,12 @@ import { resolveTimeRange } from '../lib/log-time-range';
 import { fetchLogDimensions, fetchLogHistory, subscribeLogStream } from '../lib/socket';
 
 export type LogFilters = {
-  chatroomId?: string;
-  role?: string;
-  harness?: string;
-  timeRange?: '1h' | '3h' | '1d' | 'custom';
-  fromMs?: number;
-  toMs?: number;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  harness?: string | undefined;
+  timeRange?: '1h' | '3h' | '1d' | 'custom' | undefined;
+  fromMs?: number | undefined;
+  toMs?: number | undefined;
 };
 function matches(line: LogLine, f: LogFilters) {
   const range = resolveTimeRange(f);

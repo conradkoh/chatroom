@@ -20,7 +20,7 @@ import type { DirectHarnessSession } from '../entities/direct-harness-session.js
 export interface CloseSessionDeps {
   readonly session: DirectHarnessSession;
   readonly journal: SessionJournal;
-  readonly sessionRepository?: SessionRepository;
+  readonly sessionRepository?: SessionRepository | undefined;
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────

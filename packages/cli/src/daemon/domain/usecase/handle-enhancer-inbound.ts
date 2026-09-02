@@ -3,7 +3,7 @@ import type { InboundEvent } from '../entities/inbound-event.js';
 export type EnhancerInboundEvent = Extract<InboundEvent, { type: 'enhancer.job-assigned' }>;
 
 export type HandleEnhancerInboundDeps = {
-  deliverInbound?: (event: EnhancerInboundEvent) => Promise<void>;
+  deliverInbound?:( (event: EnhancerInboundEvent) => Promise<void>) | undefined;
 };
 
 export async function handleEnhancerInbound(

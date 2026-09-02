@@ -6,9 +6,9 @@ import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 export type SubscriberHandle = { stop(): Promise<void> };
 
 interface PendingReleaseRequest {
-  _id?: string | { toString(): string } | null;
-  workingDir?: string;
-  updatedAt?: number;
+  _id?: string | { toString(): string } | null | undefined;
+  workingDir?: string | undefined;
+  updatedAt?: number | undefined;
 }
 
 function requestId(req: PendingReleaseRequest): string {

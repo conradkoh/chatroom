@@ -36,7 +36,7 @@ type QueryResponse = Record<string, unknown> | null | unknown[];
 
 /** Create a test BackendService with configurable per-call responses. */
 function makeTestBackend(opts: {
-  queryResponses?: (QueryResponse | Error)[];
+  queryResponses?: (QueryResponse | Error)[] | undefined;
   mutationResponse?: Record<string, unknown> | undefined | Error;
 }) {
   let queryCallCount = 0;
@@ -66,9 +66,9 @@ function makeTestBackend(opts: {
 
 /** Create a test SessionService with configurable auth state. */
 function makeTestSessionService(opts: {
-  sessionId?: SessionId | null;
-  convexUrl?: string;
-  otherUrls?: string[];
+  sessionId?: SessionId | null | undefined;
+  convexUrl?: string | undefined;
+  otherUrls?: string[] | undefined;
 }) {
   return Layer.succeed(SessionService, {
     getSessionId: () => Effect.succeed(opts.sessionId ?? null),
@@ -78,7 +78,7 @@ function makeTestSessionService(opts: {
 }
 
 /** Create a test GetNextTaskSessionService with a controllable start() mock. */
-function makeTestSessionFactory(opts: { startFn?: () => Promise<void> } = {}) {
+function makeTestSessionFactory(opts: { startFn?:( () => Promise<void>) | undefined } = {}) {
   const mockStart = vi.fn().mockImplementation(opts.startFn ?? (() => Promise.resolve(undefined)));
   const mockCreateSession = vi.fn().mockReturnValue({ start: mockStart });
   const layer = Layer.succeed(GetNextTaskSessionService, {
