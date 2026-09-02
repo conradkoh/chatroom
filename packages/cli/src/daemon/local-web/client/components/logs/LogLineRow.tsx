@@ -2,6 +2,7 @@ import { LogDimensionBadges } from './LogDimensionBadges';
 import { LogLevelBadge } from './LogLevelBadge';
 
 import type { LogLine } from '@/api/types';
+import { formatLocalLogTime } from '@/lib/format-local-timestamp';
 import { getLogHarness } from '@/lib/log-line';
 import { cn } from '@/lib/utils';
 
@@ -9,10 +10,10 @@ type Props = {
   line: LogLine;
   chatroomName?: string | undefined;
   selected?: boolean | undefined;
-  onSelect?:( (line: LogLine) => void) | undefined;
+  onSelect?: ((line: LogLine) => void) | undefined;
 };
 export function LogLineRow({ line, chatroomName, selected, onSelect }: Props) {
-  const time = new Date(line.timestamp).toISOString().slice(11, 19);
+  const time = formatLocalLogTime(line.timestamp);
   const harness = getLogHarness(line);
   const showSource = !harness || !line.source.startsWith('harness:');
   const activate = () => onSelect?.(line);
