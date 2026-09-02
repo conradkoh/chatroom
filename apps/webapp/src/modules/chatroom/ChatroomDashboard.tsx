@@ -1,5 +1,5 @@
 'use client';
-/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-adjust-state-on-prop-change, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-initialize-state, @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-initialize-state, @typescript-eslint/no-explicit-any */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
@@ -1082,7 +1082,7 @@ export function ChatroomDashboard({
   }, [chatroom, chatroomId, markAsRead]);
 
   // Agent panel data (for Start All Remote Agents command)
-  const agentPanelData = useAgentPanelData(chatroomId, { loadConfigs: true });
+  const agentPanelData = useAgentPanelData();
   const { requestChatroomStop } = useAgentStop();
   const [isRequestingStop, setIsRequestingStop] = useState(false);
   const projectedStopActive = agentPanelData.agents.some((a) =>

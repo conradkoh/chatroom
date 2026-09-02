@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ChatroomDashboard } from '@/modules/chatroom';
 import { ChatroomSidebar } from '@/modules/chatroom/components/ChatroomSidebar';
+import { AgentPanelDataProvider } from '@/modules/chatroom/context/AgentPanelDataContext';
 import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
 import { useObserveChatroom } from '@/modules/chatroom/hooks/useObserveChatroom';
 import { isListingSidebarVisible } from '@/modules/chatroom/utils/focusMode';
@@ -92,13 +93,15 @@ export function ChatroomPageClient() {
       </div>
 
       <div className="flex-1 min-w-0">
-        <ChatroomDashboard
-          key={chatroomId}
-          chatroomId={chatroomId}
-          onBack={handleBack}
-          focusModeEnabled={focusModeEnabled}
-          onSetFocusModeEnabled={setFocusModeEnabled}
-        />
+        <AgentPanelDataProvider chatroomId={chatroomId}>
+          <ChatroomDashboard
+            key={chatroomId}
+            chatroomId={chatroomId}
+            onBack={handleBack}
+            focusModeEnabled={focusModeEnabled}
+            onSetFocusModeEnabled={setFocusModeEnabled}
+          />
+        </AgentPanelDataProvider>
       </div>
     </div>
   );

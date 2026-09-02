@@ -541,7 +541,7 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
  * Deletion is disabled for workspaces that have active remote agents.
  */
 const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chatroomId: string }) {
-  const { machineConfigs } = useAgentPanelData(chatroomId, { loadConfigs: true });
+  const { machineConfigs } = useAgentPanelData();
 
   // Pass agentViews so workspaces are enriched with their agent roles
   const agentViews = useMemo(

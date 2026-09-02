@@ -42,7 +42,7 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
-  const { teamId, teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
+  const { teamId, teamRoles, isLoading: teamRolesLoading } = useAgentPanelData();
   const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamId, teamRoles);
 
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);

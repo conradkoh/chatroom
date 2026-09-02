@@ -56,7 +56,8 @@ export type AgentRoleStatusReadModel = Pick<
   | 'projectedAt'
 >;
 
-export function useAgentPanelData(
+// fallow-ignore-next-line complexity
+export function useAgentPanelDataSubscriptions(
   chatroomId: string,
   options?: { loadConfigs?: boolean }
 ): AgentPanelData {
@@ -140,3 +141,5 @@ export function useAgentPanelData(
     statusReadModel: statusReadModelResult,
   };
 }
+
+export { useAgentPanelData } from '../context/AgentPanelDataContext';
