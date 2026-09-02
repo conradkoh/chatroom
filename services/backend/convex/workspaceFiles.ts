@@ -1122,6 +1122,20 @@ export const fulfillFileContentV2 = mutation({
 
     const now = Date.now();
 
+    const request = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_workingDir_path', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    if (!request) {
+      return;
+    }
+
     // Upsert file content
     const existing = await ctx.db
       .query('chatroom_workspaceFileContentV2')
@@ -1149,23 +1163,10 @@ export const fulfillFileContentV2 = mutation({
       await ctx.db.insert('chatroom_workspaceFileContentV2', row);
     }
 
-    // Mark request as done (requests table is shared, not v2-specific)
-    const request = await ctx.db
-      .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_workingDir_path', (q) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
-      )
-      .first();
-
-    if (request) {
-      await ctx.db.patch('chatroom_workspaceFileContentRequests', request._id, {
-        status: 'done' as const,
-        updatedAt: now,
-      });
-    }
+    await ctx.db.patch('chatroom_workspaceFileContentRequests', request._id, {
+      status: 'done' as const,
+      updatedAt: now,
+    });
   },
 });
 
@@ -1954,6 +1955,58 @@ export const purgeFileContentV2 = mutation({
       .collect();
     for (const req of requests)
       await ctx.db.delete('chatroom_workspaceFileContentRequests', req._id);
+  },
+});
+
+/**
+ * Purges a single file's content cache and request rows (v1 + v2).
+ * Works without a registered workspace so users can dismiss registration errors.
+ */
+export const purgeFileContentEntryV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    validateFilePath(args.filePath);
+
+    const contentsV2 = await ctx.db
+      .query('chatroom_workspaceFileContentV2')
+      .withIndex('by_machine_workingDir_path', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
+      )
+      .collect();
+    for (const row of contentsV2) {
+      await ctx.db.delete('chatroom_workspaceFileContentV2', row._id);
+    }
+
+    const contentsV1 = await ctx.db
+      .query('chatroom_workspaceFileContent')
+      .withIndex('by_machine_workingDir_path', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
+      )
+      .collect();
+    for (const row of contentsV1) {
+      await ctx.db.delete('chatroom_workspaceFileContent', row._id);
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileContentRequests')
+      .withIndex('by_machine_workingDir_path', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
+      )
+      .collect();
+    for (const row of requests) {
+      await ctx.db.delete('chatroom_workspaceFileContentRequests', row._id);
+    }
   },
 });
 
