@@ -6,6 +6,7 @@ import {
   getHarnessDisplayName,
   getModelDisplayLabel,
   getCompactModelId,
+  getCompactModelLabel,
   harnessSupportsNativeIntegration,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
@@ -143,5 +144,43 @@ describe('getCompactModelId', () => {
 
   it('returns the last segment for multi-segment paths', () => {
     expect(getCompactModelId('provider/subprovider/model-name')).toBe('model-name');
+  });
+});
+
+describe('getCompactModelLabel', () => {
+  it('returns compact model id for plain provider/model paths', () => {
+    expect(getCompactModelLabel('github-copilot/gpt-4o')).toBe('gpt-4o');
+  });
+
+  it('appends normalized reasoning level', () => {
+    expect(getCompactModelLabel('gpt-5.6-terra[reasoning=high]')).toBe('gpt-5.6-terra [high]');
+  });
+
+  it('appends normalized effort level', () => {
+    expect(getCompactModelLabel('claude-opus-4-8[effort=high]')).toBe('claude-opus-4-8 [high]');
+  });
+
+  it('prefers effort over thinking when both are present', () => {
+    expect(getCompactModelLabel('claude-opus-4-8[effort=high,thinking=enabled]')).toBe(
+      'claude-opus-4-8 [high]'
+    );
+  });
+
+  it('renders boolean thinking marker as thinking', () => {
+    expect(getCompactModelLabel('claude-opus-4-8[thinking=enabled]')).toBe(
+      'claude-opus-4-8 [thinking]'
+    );
+  });
+
+  it('returns plain compact model id when no variant level exists', () => {
+    expect(getCompactModelLabel('composer-2.5')).toBe('composer-2.5');
+  });
+
+  it('renders future non-boolean thinking values', () => {
+    expect(getCompactModelLabel('gpt-5.6[thinking=high]')).toBe('gpt-5.6 [high]');
+  });
+
+  it('falls back to compact model id for malformed variants', () => {
+    expect(getCompactModelLabel('gpt-5.6[reasoning]')).toBe('gpt-5.6[reasoning]');
   });
 });

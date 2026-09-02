@@ -28,6 +28,7 @@ import { type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 
 import { PiRpcReader } from './pi-rpc-reader.js';
+import { parsePiSpawnModel } from './pure.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
 import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
@@ -47,8 +48,8 @@ export type PiAgentServiceDeps = CLIAgentServiceDeps;
 
 const PI_COMMAND = 'pi';
 const GET_STATE_TIMEOUT_MS = 5_000;
-const SPAWN_READY_DELAY_MS = 500;
 
+// fallow-ignore-next-line complexity
 function isExplicitToolError(result: unknown): boolean {
   if (result === null || typeof result !== 'object') return false;
   const obj = result as Record<string, unknown>;
@@ -81,6 +82,7 @@ export class PiAgentService extends BaseCLIAgentService {
     return this.checkVersion(PI_COMMAND);
   }
 
+  // fallow-ignore-next-line complexity
   async listModels(): Promise<string[]> {
     // Use shell redirect `2>&1` to merge stderr into stdout so CLIs that
     // write output to stderr (e.g. Pi) are also captured.
@@ -107,20 +109,23 @@ export class PiAgentService extends BaseCLIAgentService {
     return models;
   }
 
+  // fallow-ignore-next-line complexity
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
     // at the use-case layer (`agent-process-manager`). See
     // `daemon/infrastructure/local/harness/services/spawn-prompt.ts`.
     const { prompt, systemPrompt, model, context, workingDir } = options;
 
+    const parsed = model ? parsePiSpawnModel(model) : undefined;
     const childProcess = this.spawnPiRpcProcess({
       workingDir,
       systemPrompt,
-      model,
+      model: parsed?.model,
+      thinking: parsed?.thinking,
       resolvedConvexUrl: options.resolvedConvexUrl,
     });
 
-    await this.waitForSpawnReady(childProcess);
+    await this.assertChildProcessStarted(childProcess);
 
     if (!childProcess.stdout) {
       throw new Error('Pi RPC process has no stdout');
@@ -145,12 +150,17 @@ export class PiAgentService extends BaseCLIAgentService {
     workingDir: string;
     systemPrompt: string;
     model?: string;
+    thinking?: string;
     resolvedConvexUrl: string;
   }): ChildProcess {
     const rpcArgs: string[] = ['--mode', 'rpc', '--session-dir', getPiSessionDir(args.workingDir)];
 
     if (args.model) {
       rpcArgs.push('--model', args.model);
+    }
+
+    if (args.thinking) {
+      rpcArgs.push('--thinking', args.thinking);
     }
 
     if (args.systemPrompt) {
@@ -166,18 +176,6 @@ export class PiAgentService extends BaseCLIAgentService {
     });
 
     return childProcess;
-  }
-
-  private async waitForSpawnReady(childProcess: ChildProcess): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, SPAWN_READY_DELAY_MS));
-
-    if (childProcess.killed || childProcess.exitCode !== null) {
-      throw new Error(`Agent process exited immediately (exit code: ${childProcess.exitCode})`);
-    }
-
-    if (!childProcess.pid) {
-      throw new Error('Agent process started but has no PID');
-    }
   }
 
   private writePrompt(child: ChildProcess, prompt: string): Promise<void> {

@@ -17,10 +17,11 @@ import type { ChildProcess } from 'node:child_process';
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
 import { withTimeout } from '../with-timeout.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
-import { isInfoLine, parseModelId } from './pure.js';
+import { isInfoLine, parseModelId, parseOpencodeSpawnModel } from './pure.js';
 import { selectAgent } from './select-agent.js';
 import {
   startSessionEventForwarder,
@@ -66,6 +67,7 @@ interface DisabledToolsPromptBody {
   system?: string;
   parts: [{ type: 'text'; text: string }];
   model?: ReturnType<typeof parseModelId>;
+  variant?: string;
   tools: {
     task: false;
     question: false;
@@ -73,18 +75,27 @@ interface DisabledToolsPromptBody {
   };
 }
 
+/**
+ * Builds prompt body for v1 createOpencodeClient session.promptAsync.
+ * Variant is passed on the body at runtime; v1 SDK types omit it but the server accepts it
+ * (v2 API types document variant on promptAsync).
+ */
+// fallow-ignore-next-line complexity
 function buildDisabledToolsPromptBody(args: {
   agentName: string;
   prompt: string;
   composedSystem?: string;
-  model?: string;
+  model: string;
 }): DisabledToolsPromptBody {
-  const modelParts = args.model ? parseModelId(args.model) : undefined;
+  const model = requireHarnessModel(args.model, 'opencode-sdk prompt');
+  const parsed = parseOpencodeSpawnModel(model);
+  const modelParts = parseModelId(parsed.model);
   return {
     agent: args.agentName,
     ...(args.composedSystem ? { system: args.composedSystem } : {}),
     parts: [{ type: 'text', text: args.prompt }],
     ...(modelParts ? { model: modelParts } : {}),
+    ...(parsed.variant ? { variant: parsed.variant } : {}),
     tools: {
       task: false,
       question: false,
@@ -474,10 +485,11 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     baseUrl: string;
     context: SpawnContext;
     agentName: string;
-    model?: string;
+    model: string;
     prompt: string;
     oldSessionId?: string;
   }): Promise<void> {
+    const model = requireHarnessModel(args.model, 'opencode-sdk resume fallback');
     const existingForwarder = this.forwarders.get(args.pid);
     existingForwarder?.stop();
     this.forwarders.delete(args.pid);
@@ -545,7 +557,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       buildDisabledToolsPromptBody({
         agentName: args.agentName,
         prompt: args.prompt,
-        model: args.model,
+        model,
       })
     );
   }
@@ -557,7 +569,11 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     const { prompt, systemPrompt, model, context } = options;
     const sessionId = session.harnessSessionId;
     const agentName = session.agentName;
-    const modelForSession = model ?? session.model;
+    const modelForSession = resolveHarnessResumeModel(
+      model,
+      session.model,
+      'opencode-sdk resumeFromDaemonMemory'
+    );
     const workingDir = session.workingDir;
 
     const { childProcess, pid, baseUrl, client } = await this.startServeAndClient(
@@ -632,7 +648,8 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { prompt, systemPrompt, model, context } = options;
+    const { prompt, systemPrompt, context } = options;
+    const model = requireHarnessModel(options.model, 'opencode-sdk spawn');
     const deferInitialTurn = options.deferInitialTurn ?? false;
 
     const { childProcess, pid, baseUrl, client } = await this.startServeAndClient(
@@ -754,6 +771,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     activityEmitter?.beginTurn();
 
     const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+    const model = requireHarnessModel(meta.model, 'opencode-sdk resumeTurn');
     const deferredSystem = meta.deferredSystemPrompt;
     const context: SpawnContext = {
       machineId: meta.machineId,
@@ -769,7 +787,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
           agentName: meta.agentName,
           prompt,
           composedSystem: deferredSystem,
-          model: meta.model,
+          model,
         })
       );
       if (deferredSystem) {
@@ -782,7 +800,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         baseUrl: meta.baseUrl,
         context,
         agentName: meta.agentName,
-        model: meta.model,
+        model,
         prompt,
         oldSessionId: meta.sessionId,
       });

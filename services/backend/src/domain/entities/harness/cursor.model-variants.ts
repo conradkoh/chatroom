@@ -12,11 +12,41 @@ export function cursorLegacySlugToVariant(flatSlug: string) {
   }
   const effort = base.match(/-(low|medium|high|xhigh|max)$/)?.[1];
   if (effort) {
-    params.effort = effort === 'max' ? 'xhigh' : effort;
+    // Opus "max" in Cursor UI maps to xhigh effort; GPT 5.6 models use literal "max".
+    params.effort = effort === 'max' && base.includes('opus') ? 'xhigh' : effort;
     base = base.slice(0, -(effort.length + 1));
   }
   if (Object.keys(params).length === 0) return undefined;
   return { base, params };
+}
+
+/**
+ * SDK catalog uses `reasoning`; legacy CLI slugs use `effort` suffixes.
+ * Maps SDK-only params to CLI-slug params. SDK-only keys (e.g. context) are dropped.
+ * Does NOT mutate the original params object.
+ */
+// fallow-ignore-next-line complexity
+export function normalizeCursorParamsForCliSlug(
+  params: Record<string, string>
+): Record<string, string> {
+  const out: Record<string, string> = {};
+
+  const effort =
+    params.effort ??
+    (params.reasoning && params.reasoning !== 'none' ? params.reasoning : undefined);
+  if (effort && effort !== 'none') {
+    out.effort = effort;
+  }
+
+  if (params.fast === 'enabled' || params.fast === 'true') {
+    out.fast = 'enabled';
+  }
+
+  if (params.thinking === 'enabled' || params.thinking === 'true') {
+    out.thinking = 'enabled';
+  }
+
+  return out;
 }
 
 export function cursorVariantToCliSlug(base: string, params: Record<string, string>): string {

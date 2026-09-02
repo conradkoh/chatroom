@@ -6,6 +6,7 @@ import type { OpencodeClient } from '@opencode-ai/sdk';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkHarness, startOpencodeSdkHarness } from './opencode-harness.js';
+import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
 import { waitForListeningUrl } from '../../services/opencode-sdk/parse-listening-url.js';
 
@@ -159,7 +160,7 @@ describe('OpencodeSdkHarness', () => {
     mockGet.mockResolvedValue({ data: { title: 'My Session' } });
 
     const harness = createHarness();
-    const session = await harness.newSession({ title: 'My Session' });
+    const session = await harness.newSession({ title: 'My Session', model: TEST_MODEL_OPENCODE });
 
     expect(mockCreate).toHaveBeenCalledWith({
       body: { title: 'My Session' },
@@ -178,7 +179,7 @@ describe('OpencodeSdkHarness', () => {
     mockGet.mockResolvedValue({ data: { title: 'Auto-generated' } });
 
     const harness = createHarness();
-    const session = await harness.newSession({});
+    const session = await harness.newSession({ model: TEST_MODEL_OPENCODE });
 
     expect(mockCreate).toHaveBeenCalledWith({
       body: {},
@@ -194,7 +195,7 @@ describe('OpencodeSdkHarness', () => {
     mockGet.mockRejectedValue(new Error('not found'));
 
     const harness = createHarness();
-    const session = await harness.newSession({});
+    const session = await harness.newSession({ model: TEST_MODEL_OPENCODE });
 
     expect(session.sessionTitle).toBe('');
   });
@@ -203,13 +204,17 @@ describe('OpencodeSdkHarness', () => {
     mockCreate.mockResolvedValue({ data: {} });
 
     const harness = createHarness();
-    await expect(harness.newSession({})).rejects.toThrow('no session ID returned');
+    await expect(harness.newSession({ model: TEST_MODEL_OPENCODE })).rejects.toThrow(
+      'no session ID returned'
+    );
   });
 
   it('throws when creating session on closed harness', async () => {
     const harness = createHarness();
     await harness.close();
-    await expect(harness.newSession({})).rejects.toThrow('Harness is closed');
+    await expect(harness.newSession({ model: TEST_MODEL_OPENCODE })).rejects.toThrow(
+      'Harness is closed'
+    );
   });
 
   // ── resumeSession() ─────────────────────────────────────────────────────────

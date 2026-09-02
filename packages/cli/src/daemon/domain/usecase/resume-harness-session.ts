@@ -27,6 +27,7 @@ export interface ResumeSessionInput {
   readonly opencodeSessionId: string;
   readonly workspaceId?: string;
   readonly harnessName: string;
+  readonly model?: string;
 }
 
 export type ResumeSessionResult = SessionHandle;
@@ -43,6 +44,7 @@ export async function resumeSession(
   // 1. Reconnect to the harness session
   const session = await harness.resumeSession(opencodeSessionId as OpenCodeSessionId, {
     harnessSessionId: harnessSessionId as HarnessSessionId,
+    ...(input.model ? { model: input.model } : {}),
   });
 
   // 2. Create a journal to record output chunks

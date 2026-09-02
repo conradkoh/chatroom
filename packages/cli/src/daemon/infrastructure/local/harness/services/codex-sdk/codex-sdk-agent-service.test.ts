@@ -7,6 +7,7 @@ import {
   resetCodexSdkModuleCacheForTests,
   type CodexSdkAgentServiceDeps,
 } from './codex-sdk-agent-service.js';
+import { TEST_MODEL_CODEX } from '../../../../../../testing/test-models.js';
 import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
@@ -173,6 +174,7 @@ describe('CodexSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CODEX,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -193,6 +195,7 @@ describe('CodexSdkAgentService', () => {
         skipGitRepoCheck: true,
         sandboxMode: 'danger-full-access',
         networkAccessEnabled: true,
+        model: TEST_MODEL_CODEX,
       });
       expect(mockCodex).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -242,6 +245,7 @@ describe('CodexSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CODEX,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -294,6 +298,7 @@ describe('CodexSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CODEX,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -328,6 +333,7 @@ describe('CodexSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('bootstrap'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CODEX,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
@@ -366,6 +372,7 @@ describe('CodexSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CODEX,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -405,6 +412,33 @@ describe('CodexSdkAgentService', () => {
         networkAccessEnabled: true,
         model: 'gpt-5.6-sol',
         modelReasoningEffort: 'high',
+      });
+    });
+
+    it('decodes reasoning=max variant into model + SDK reasoning option', async () => {
+      stubStream(completedTurnEvents());
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        model: 'gpt-5.6-sol[reasoning=max]',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      await vi.waitFor(() => expect(mockStartThread).toHaveBeenCalled());
+      expect(mockStartThread).toHaveBeenCalledWith({
+        workingDirectory: '/tmp/work',
+        skipGitRepoCheck: true,
+        sandboxMode: 'danger-full-access',
+        networkAccessEnabled: true,
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'max',
       });
     });
 
@@ -511,6 +545,7 @@ describe('CodexSdkAgentService', () => {
           workingDir: '/tmp/resume-wd',
           prompt: createSpawnPrompt('resume hello'),
           systemPrompt: 'sys',
+          model: TEST_MODEL_CODEX,
           context: SPAWN_CONTEXT,
           resolvedConvexUrl: 'http://test:3210',
         },
@@ -590,6 +625,7 @@ describe('CodexSdkAgentService', () => {
           workingDir: '/tmp/resume-wd',
           prompt: createSpawnPrompt('resume hello'),
           systemPrompt: 'sys',
+          model: TEST_MODEL_CODEX,
           context: SPAWN_CONTEXT,
           resolvedConvexUrl: 'http://test:3210',
         },
@@ -617,6 +653,7 @@ describe('CodexSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
+        model: TEST_MODEL_CODEX,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });

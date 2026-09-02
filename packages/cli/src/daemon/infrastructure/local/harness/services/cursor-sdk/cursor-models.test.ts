@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeCursorVariant,
   resolveCursorSdkModel,
-  resolveCursorSdkSpawnModelId,
   resolveCursorSdkSpawnModelSelection,
 } from './cursor-models.js';
 
@@ -34,6 +33,34 @@ describe('decodeCursorVariant', () => {
   it('rejects malformed variants', () => {
     expect(() => decodeCursorVariant('gpt-5.4[effort')).toThrow();
   });
+
+  it('maps SDK reasoning param to CLI slug', () => {
+    expect(decodeCursorVariant('gpt-5.6-luna[reasoning=max]')).toEqual({
+      cliSlug: 'gpt-5.6-luna-max',
+      params: { reasoning: 'max' },
+    });
+  });
+
+  it('maps SDK catalog entry with extra params to CLI slug', () => {
+    expect(decodeCursorVariant('gpt-5.6-luna[reasoning=max,context=272k,fast=false]')).toEqual({
+      cliSlug: 'gpt-5.6-luna-max',
+      params: { reasoning: 'max', context: '272k', fast: 'false' },
+    });
+  });
+
+  it('reasoning=none yields plain slug', () => {
+    expect(decodeCursorVariant('gpt-5.6-luna[reasoning=none]')).toEqual({
+      cliSlug: 'gpt-5.6-luna',
+      params: { reasoning: 'none' },
+    });
+  });
+
+  it('effort param still takes precedence over reasoning', () => {
+    expect(decodeCursorVariant('gpt-5.4[effort=high,reasoning=max]')).toEqual({
+      cliSlug: 'gpt-5.4-high',
+      params: { effort: 'high', reasoning: 'max' },
+    });
+  });
 });
 
 describe('resolveCursorSdkModel', () => {
@@ -51,13 +78,6 @@ describe('resolveCursorSdkModel', () => {
   });
 });
 
-describe('resolveCursorSdkSpawnModelId', () => {
-  it('decodes variants and prefixes', () => {
-    expect(resolveCursorSdkSpawnModelId('gpt-5.4[effort=high]')).toBe('gpt-5.4-high');
-    expect(resolveCursorSdkSpawnModelId('cursor/default')).toBe('auto');
-  });
-});
-
 describe('resolveCursorSdkSpawnModelSelection', () => {
   it('decodes bracket variants to ModelSelection', () => {
     expect(resolveCursorSdkSpawnModelSelection('gpt-5.4[effort=high]')).toEqual({
@@ -68,10 +88,32 @@ describe('resolveCursorSdkSpawnModelSelection', () => {
       id: 'gpt-5.6-terra',
       params: [{ id: 'effort', value: 'high' }],
     });
+    expect(resolveCursorSdkSpawnModelSelection('gpt-5.6-luna[effort=max]')).toEqual({
+      id: 'gpt-5.6-luna',
+      params: [{ id: 'effort', value: 'max' }],
+    });
+  });
+
+  it('round-trips gpt-5.6-luna max effort via bracket and legacy slug', () => {
+    expect(decodeCursorVariant('gpt-5.6-luna[effort=max]')).toEqual({
+      cliSlug: 'gpt-5.6-luna-max',
+      params: { effort: 'max' },
+    });
+    expect(decodeCursorVariant('gpt-5.6-luna-max')).toEqual({
+      cliSlug: 'gpt-5.6-luna-max',
+      params: { effort: 'max' },
+    });
   });
 
   it('maps auto to default', () => {
     expect(resolveCursorSdkSpawnModelSelection('cursor/default')).toEqual({ id: 'default' });
     expect(resolveCursorSdkSpawnModelSelection('auto')).toEqual({ id: 'default' });
+  });
+
+  it('cursor-sdk spawn still passes reasoning param verbatim', () => {
+    expect(resolveCursorSdkSpawnModelSelection('gpt-5.6-luna[reasoning=max]')).toEqual({
+      id: 'gpt-5.6-luna',
+      params: [{ id: 'reasoning', value: 'max' }],
+    });
   });
 });

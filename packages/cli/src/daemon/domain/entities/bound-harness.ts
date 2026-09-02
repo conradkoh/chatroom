@@ -91,6 +91,11 @@ export interface ResumeHarnessSessionOptions {
    * SDK session id. Omit only when replication is off or ids are 1:1.
    */
   readonly harnessSessionId?: HarnessSessionId;
+  /**
+   * Optional model override on resume, e.g. `opencode/big-pickle[thinking=xhigh]`.
+   * When omitted, pi-sdk restores model/thinking from the session file.
+   */
+  readonly model?: string;
 }
 
 // ─── NewSessionConfig ─────────────────────────────────────────────────────────
@@ -107,7 +112,7 @@ export interface NewSessionConfig {
    * Model identifier, e.g. 'openai/gpt-4'.
    * Use `models()` to discover available IDs.
    */
-  readonly model?: string;
+  readonly model: string;
   /** System prompt for the session. */
   readonly systemPrompt?: string;
   /** Default agent for this session (e.g. 'builder', 'planner'). */
