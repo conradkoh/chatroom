@@ -28,10 +28,7 @@ import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/asse
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
-import {
-  getChatroomAgentOverviewForRoom,
-  listChatroomAgentOverview,
-} from '../src/domain/usecase/agent/list-chatroom-agent-overview';
+import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
 import {
   projectDaemonConnectivityForMachine,
@@ -2188,30 +2185,6 @@ export const listAgentOverview = query({
     return listChatroomAgentOverview(ctx, {
       userId: auth.userId,
     });
-  },
-});
-
-/** Returns agent overview for a single chatroom. Per-chatroom subscription reduces blast radius. */
-export const getAgentOverviewForChatroom = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return null;
-
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom || chatroom.ownerId !== auth.userId) return null;
-
-    const overview = await getChatroomAgentOverviewForRoom(ctx, chatroom);
-
-    return {
-      chatroomId: args.chatroomId as string,
-      agentStatus: overview.agentStatus,
-      runningRoles: overview.runningRoles,
-      runningAgents: overview.runningAgents,
-    };
   },
 });
 

@@ -21,38 +21,6 @@ export interface ChatroomAgentOverview {
 export interface ListChatroomAgentOverviewInput {
   userId: Id<'users'>;
 }
-/** Resolve one room from the materialized projection. */
-export async function getChatroomAgentOverviewForRoom(
-  ctx: QueryCtx,
-  room: { _id: Id<'chatroom_rooms'>; teamId?: string | null | undefined }
-): Promise<{
-  chatroomId: Id<'chatroom_rooms'>;
-  agentStatus: 'running' | 'stopped' | 'none';
-  runningRoles: string[];
-  runningAgents: RunningAgentInfo[];
-}> {
-  const summary = await ctx.db
-    .query('chatroom_agentOperationalSummary')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-    .first();
-  if (summary) {
-    const runningAgents = summary.runningAgents;
-    const runningRoles = runningAgents.map((agent) => agent.role);
-    const agentStatus =
-      summary.remoteConfigCount === 0
-        ? ('none' as const)
-        : runningRoles.length > 0
-          ? ('running' as const)
-          : ('stopped' as const);
-    return { chatroomId: room._id, agentStatus, runningRoles, runningAgents };
-  }
-  return {
-    chatroomId: room._id,
-    agentStatus: 'none',
-    runningRoles: [],
-    runningAgents: [],
-  };
-}
 
 export async function listChatroomAgentOverview(
   ctx: QueryCtx,
