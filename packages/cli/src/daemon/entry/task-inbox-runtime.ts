@@ -23,6 +23,7 @@ import {
 } from './native-delivery/task-delivery-processor.js';
 import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
+import { ackMachineOperationalSignals } from '../infrastructure/agent-operational/ack-machine-operational-signals.js';
 import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { enrichSnapshotsWithOperational } from '../infrastructure/agent-operational/enrich-snapshot-with-operational.js';
 import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
@@ -219,6 +220,13 @@ export const startTaskInboxEffect = (
         return Effect.void;
       })
     );
+    if (persistedOperational?.state.afterSignalKey) {
+      void ackMachineOperationalSignals(
+        sessionDeps,
+        session.machineId,
+        persistedOperational.state.afterSignalKey
+      ).catch((error) => console.warn('[OperationalInbox] startup signal cleanup failed:', error));
+    }
     yield* Effect.tryPromise(() =>
       bootstrapMachineAssignedTaskSnapshots({
         sessionDeps,
@@ -267,6 +275,15 @@ export const startTaskInboxEffect = (
           { inboxType: 'operational', scopeKey: session.machineId },
           { afterSignalKey: update.throughSignalKey }
         );
+        try {
+          await ackMachineOperationalSignals(
+            sessionDeps,
+            session.machineId,
+            update.throughSignalKey
+          );
+        } catch (error) {
+          console.warn('[OperationalInbox] signal cleanup failed:', error);
+        }
       } finally {
         inboxUpdateInFlight = false;
       }
