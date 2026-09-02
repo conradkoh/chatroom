@@ -5,7 +5,7 @@ import {
   getNativeDeliverySession,
   registerNativeDeliverySession,
   unregisterNativeDeliverySession,
-  type NativeDeliverySessionContext,
+  type NativeDeliverySessionRegistration,
 } from './native-delivery-session-registry.js';
 
 describe('native-delivery-session-registry', () => {
@@ -15,9 +15,9 @@ describe('native-delivery-session-registry', () => {
   });
 
   test('register and get round-trip', () => {
-    const ctx: NativeDeliverySessionContext = {
-      runtime: Runtime.defaultRuntime as NativeDeliverySessionContext['runtime'],
-      effectContext: Context.empty() as NativeDeliverySessionContext['effectContext'],
+    const ctx: NativeDeliverySessionRegistration = {
+      runtime: Runtime.defaultRuntime as NativeDeliverySessionRegistration['runtime'],
+      effectContext: Context.empty() as NativeDeliverySessionRegistration['effectContext'],
       agentMgr: { getSlot: vi.fn() } as never,
       sessionDeps: {
         sessionId: 's',
