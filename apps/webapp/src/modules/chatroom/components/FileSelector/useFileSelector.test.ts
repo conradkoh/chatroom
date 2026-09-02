@@ -1,204 +1,83 @@
 import { renderHook } from '@testing-library/react';
+import type { FileTreeEntry } from '@workspace/backend/src/domain/entities/workspace-files';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useFileSelector } from './useFileSelector';
 
-const mockUseWorkspaceFileTree = vi.fn();
-const mockUseWorkspaceFileTreeEntries = vi.fn();
-const mockUseAcquireFileTreeWatch = vi.fn();
+const mockRequestFileTree = vi.fn(() => Promise.resolve({ status: 'requested' }));
 const mockGetFileSelectorOpen = vi.fn(() => true);
+let storeEntries: FileTreeEntry[] = [];
+let storeScannedAt: number | null = null;
+let storeRevision: number | null = null;
+const storeListeners = new Set<() => void>();
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: () => undefined,
+  useSessionMutation: () => mockRequestFileTree,
 }));
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
-  api: {
-    workspaceFiles: {
-      getPendingFileTreeRequests: { name: 'getPendingFileTreeRequests' },
-    },
-  },
-}));
-
-vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTree', () => ({
-  useWorkspaceFileTree: (...args: unknown[]) => mockUseWorkspaceFileTree(...args),
-}));
-vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
-  useWorkspaceFileTreeEntries: (...args: unknown[]) => mockUseWorkspaceFileTreeEntries(...args),
-}));
-vi.mock('@/modules/chatroom/workspace/files/useFileTreeWatch', () => ({
-  useAcquireFileTreeWatch: (...args: unknown[]) => mockUseAcquireFileTreeWatch(...args),
-  useFileTreeWatchEnabled: () => true,
+  api: { workspaceFiles: { requestFileTree: { name: 'requestFileTree' } } },
 }));
 vi.mock('@/modules/chatroom/context/contextManagedDialogsController', () => ({
   getFileSelectorOpen: () => mockGetFileSelectorOpen(),
-  subscribeActiveContextManagedDialog: (cb: () => void) => {
-    cb();
+  subscribeActiveContextManagedDialog: (callback: () => void) => {
+    callback();
     return () => {};
   },
+}));
+vi.mock('@/modules/chatroom/workspace/stores/workspaceFileTreeStore', () => ({
+  getWorkspaceFileTreeEntries: () => storeEntries,
+  getWorkspaceFileTreeRevision: () => storeRevision,
+  getWorkspaceFileTreeScannedAt: () => storeScannedAt,
+  subscribeWorkspaceFileTree: (_key: string, callback: () => void) => {
+    storeListeners.add(callback);
+    return () => storeListeners.delete(callback);
+  },
+  toWorkspaceFileTreeKey: (machineId: string, workingDir: string) => `${machineId}:${workingDir}`,
 }));
 
 describe('useFileSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseWorkspaceFileTree.mockReturnValue({
-      hasTree: false,
-      isLoading: false,
-      loadError: null,
-      isNeverSynced: false,
-      refresh: vi.fn(),
-    });
-    mockUseWorkspaceFileTreeEntries.mockReturnValue({
-      entries: [],
-      hasTree: false,
-      refresh: vi.fn(),
-    });
+    mockGetFileSelectorOpen.mockReturnValue(true);
+    storeEntries = [];
+    storeScannedAt = null;
+    storeRevision = null;
+    storeListeners.clear();
   });
 
-  it('enables workspace file tree hydration when file selector is open', () => {
-    renderHook(() =>
-      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
-    );
-
-    expect(mockUseWorkspaceFileTree).toHaveBeenCalledWith({
-      machineId: 'm1',
-      workingDir: '/repo',
-      enabled: true,
-    });
-    expect(mockUseWorkspaceFileTreeEntries).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: true, machineId: 'm1', workingDir: '/repo' })
-    );
-  });
-
-  it('is not loading when hydration reports hasTree', () => {
-    mockUseWorkspaceFileTree.mockReturnValue({
-      hasTree: true,
-      isLoading: false,
-      refresh: vi.fn(),
-    });
-
+  it('does not acquire a watch or subscribe to a producer', () => {
     const { result } = renderHook(() =>
       useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
     );
 
+    expect(mockRequestFileTree).toHaveBeenCalledTimes(1);
     expect(result.current.isLoading).toBe(false);
-  });
-
-  it('is not loading when tree hydration settled without store data', () => {
-    mockUseWorkspaceFileTree.mockReturnValue({
-      hasTree: false,
-      isLoading: false,
-      refresh: vi.fn(),
-    });
-    mockUseWorkspaceFileTreeEntries.mockReturnValue({
-      entries: [],
-      hasTree: false,
-      refresh: vi.fn(),
-    });
-
-    const { result } = renderHook(() =>
-      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
-    );
-
-    expect(result.current.isLoading).toBe(false);
-  });
-
-  it('is loading while tree hydration is in progress', () => {
-    mockUseWorkspaceFileTree.mockReturnValue({
-      hasTree: false,
-      isLoading: true,
-      refresh: vi.fn(),
-    });
-
-    const { result } = renderHook(() =>
-      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
-    );
-
-    expect(result.current.isLoading).toBe(true);
-  });
-
-  it('exposes loadError from tree', () => {
-    mockUseWorkspaceFileTree.mockReturnValue({
-      hasTree: false,
-      isLoading: false,
-      loadError: 'File tree sync timed out',
-      isNeverSynced: false,
-      refresh: vi.fn(),
-    });
-
-    const { result } = renderHook(() =>
-      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
-    );
-
-    expect(result.current.loadError).toMatch(/timed out/i);
-  });
-
-  it('reports isNeverSynced when tree never synced and no files', () => {
-    mockUseWorkspaceFileTree.mockReturnValue({
-      hasTree: false,
-      isLoading: false,
-      loadError: null,
-      isNeverSynced: true,
-      refresh: vi.fn(),
-    });
-
-    const { result } = renderHook(() =>
-      useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
-    );
-
     expect(result.current.isNeverSynced).toBe(true);
   });
 
-  it('does not infinite-loop when tree reference is unstable across rerenders', () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    mockUseWorkspaceFileTree.mockImplementation(() => ({
-      hasTree: false,
-      isLoading: false,
-      loadError: null,
-      isNeverSynced: false,
-      refresh: vi.fn(),
-    }));
-
+  it('requests a tree only once when Cmd+P opens on a stale snapshot', () => {
     const { rerender } = renderHook(() =>
       useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
     );
 
-    for (let i = 0; i < 20; i++) {
-      rerender();
-    }
-
-    const depthErrors = consoleError.mock.calls.filter((args) =>
-      String(args[0]).includes('Maximum update depth')
-    );
-    expect(depthErrors).toHaveLength(0);
-
-    consoleError.mockRestore();
+    rerender();
+    expect(mockRequestFileTree).toHaveBeenCalledTimes(1);
+    expect(mockRequestFileTree).toHaveBeenCalledWith({
+      machineId: 'm1',
+      workingDir: '/repo',
+    });
   });
 
-  it('settles empty partition when tree hydration completes', () => {
-    mockUseWorkspaceFileTree.mockReturnValue({
-      hasTree: false,
-      isLoading: true,
-      loadError: null,
-      isNeverSynced: false,
-      refresh: vi.fn(),
-    });
+  it('does not request when the cached snapshot is fresh', () => {
+    storeEntries = [{ path: 'src/index.ts', type: 'file' }];
+    storeRevision = 3;
+    storeScannedAt = Date.now();
 
-    const { result, rerender } = renderHook(() =>
+    const { result } = renderHook(() =>
       useFileSelector({ chatroomId: 'room-1', machineId: 'm1', workingDir: '/repo' })
     );
 
-    expect(result.current.isLoading).toBe(true);
-
-    mockUseWorkspaceFileTree.mockReturnValue({
-      hasTree: false,
-      isLoading: false,
-      loadError: null,
-      isNeverSynced: false,
-      refresh: vi.fn(),
-    });
-    rerender();
-
-    expect(result.current.isLoading).toBe(false);
+    expect(mockRequestFileTree).not.toHaveBeenCalled();
+    expect(result.current.files).toEqual([{ path: 'src/index.ts', type: 'file' }]);
   });
 });

@@ -13,6 +13,7 @@ vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
       getPendingFileTreeRequests: 'pending',
+      getFileTreeWatchLease: 'lease',
       getFileTreeCheckpoint: 'checkpoint',
       applyFileTreeDeltaBatch: 'delta',
       publishFileTreeCheckpoint: 'publish',
@@ -37,6 +38,11 @@ const coordinatorHandle = {
 const startCoordinator = vi.fn(
   async (_options: WorkspaceFileTreeCoordinatorOptions) => coordinatorHandle
 );
+const ACTIVE_LEASE = {
+  watchCount: 1,
+  expiresAt: Date.now() + 10 * 60 * 1000,
+  leaseActive: true,
+};
 
 vi.mock('../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js', () => ({
   startWorkspaceFileTreeCoordinator: (options: WorkspaceFileTreeCoordinatorOptions) =>
@@ -46,6 +52,14 @@ vi.mock('../../../infrastructure/services/workspace/workspace-file-tree-coordina
 vi.mock('../../../infrastructure/services/workspace/workspace-sync-queue.js', () => ({
   enqueueFileTreeSync: (_machineId: string, _workingDir: string, task: () => Promise<void>) =>
     task(),
+}));
+
+vi.mock('../../../infrastructure/services/workspace/file-tree-scanner.js', () => ({
+  scanFileTree: vi.fn(async (rootDir: string) => ({
+    entries: [{ path: 'src/index.ts', type: 'file' as const }],
+    rootDir,
+    scannedAt: 1,
+  })),
 }));
 
 function makeSessionLayer(
@@ -83,6 +97,7 @@ describe('startFileTreeSubscriptionEffect', () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'lease') return Promise.resolve(ACTIVE_LEASE);
       if (endpoint === 'pending') {
         return Promise.resolve([
           { _id: 'one', workingDir: '/workspace/' },
@@ -119,6 +134,7 @@ describe('startFileTreeSubscriptionEffect', () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'lease') return Promise.resolve(ACTIVE_LEASE);
       if (endpoint === 'pending') {
         return Promise.resolve([{ _id: 'force', workingDir: '/workspace', force: true }]);
       }
@@ -136,10 +152,46 @@ describe('startFileTreeSubscriptionEffect', () => {
     await vi.waitFor(() => expect(coordinatorHandle.reconcile).toHaveBeenCalledTimes(1));
   });
 
+  it('runs a one-shot sync without starting a coordinator when the lease is inactive', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'cold', workingDir: '/workspace' }]);
+      }
+      if (endpoint === 'lease') {
+        return Promise.resolve({ watchCount: 0, expiresAt: null, leaseActive: false });
+      }
+      return Promise.resolve(null);
+    });
+    vi.mocked(deps.backend.mutation).mockResolvedValue({
+      status: 'published',
+      revision: 0,
+      prunedDeltaCount: 0,
+      pruneComplete: true,
+    });
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
+
+    await handle.drainPendingFileTreeRequests();
+
+    expect(startCoordinator).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      'publish',
+      expect.objectContaining({ workingDir: '/workspace', revision: 0 })
+    );
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      'fulfill',
+      expect.objectContaining({ workingDir: '/workspace' })
+    );
+  });
+
   it('maps cached path changes to revisioned backend operations', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'lease') return Promise.resolve(ACTIVE_LEASE);
       if (endpoint === 'pending') {
         return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
       }
@@ -187,6 +239,7 @@ describe('startFileTreeSubscriptionEffect', () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'lease') return Promise.resolve(ACTIVE_LEASE);
       if (endpoint === 'pending') {
         return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
       }
@@ -228,6 +281,7 @@ describe('startFileTreeSubscriptionEffect', () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'lease') return Promise.resolve(ACTIVE_LEASE);
       if (endpoint === 'pending') {
         return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
       }
@@ -252,6 +306,7 @@ describe('startFileTreeSubscriptionEffect', () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'lease') return Promise.resolve(ACTIVE_LEASE);
       if (endpoint === 'pending') {
         return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
       }
