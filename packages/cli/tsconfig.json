@@ -6,7 +6,6 @@
     "baseUrl": ".",
     "lib": ["ESNext", "DOM"],
     "strict": true,
-    "exactOptionalPropertyTypes": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

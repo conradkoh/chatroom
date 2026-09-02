@@ -10,6 +10,7 @@
     "build": "bun run typecheck && bun run build:local-web && bun run build.config.ts",
     "build:local-web": "vite build --config src/daemon/local-web/vite.config.ts",
     "typecheck": "tsc -b --force",
+    "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
     "test:integration": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run --config vitest.integration.config.ts",
     "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest",
