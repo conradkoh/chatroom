@@ -4,17 +4,16 @@ import {
   formatCursorSdkRunErrorMessage,
   hasCursorSdkSessionReopenTrigger,
   isCursorSdkAuthErrorInLogs,
-  isCursorSdkRunErrorInLogs,
 } from './detect-cursor-sdk-run-error.js';
 
 describe('cursor-sdk-run-error', () => {
-  test('detects run-error log lines', () => {
+  test('detects run-error log lines via session reopen trigger', () => {
     expect(
-      isCursorSdkRunErrorInLogs([
+      hasCursorSdkSessionReopenTrigger([
         '[cursor-sdk:planner@c1 run-error] run abc failed: no error detail from SDK',
       ])
     ).toBe(true);
-    expect(isCursorSdkRunErrorInLogs(['[cursor-sdk:planner@c1 text] hello'])).toBe(false);
+    expect(hasCursorSdkSessionReopenTrigger(['[cursor-sdk:planner@c1 text] hello'])).toBe(false);
   });
 
   test('formats latest run-error line', () => {
