@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
+import { FilePlus, ListCollapse, MoreHorizontal, RefreshCw, Search } from 'lucide-react';
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -93,11 +93,13 @@ function ExplorerPanelHeader({
   onToggleSync,
   onRefresh,
   onNewFile,
+  onCollapseAll,
 }: {
   explorerSyncEnabled?: boolean;
   onToggleSync?: (enabled: boolean) => void;
   onRefresh?: () => void;
   onNewFile?: () => void;
+  onCollapseAll?: () => void;
 }) {
   const showActions = onToggleSync != null && onRefresh != null;
 
@@ -135,6 +137,17 @@ function ExplorerPanelHeader({
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {onCollapseAll && (
+            <button
+              type="button"
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+              onClick={onCollapseAll}
+              title="Collapse all folders"
+              aria-label="Collapse all folders"
+            >
+              <ListCollapse size={13} />
+            </button>
+          )}
           <button
             className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
             onClick={onRefresh}
@@ -173,6 +186,7 @@ export const FileExplorerPanel = memo(
       ref
     ) {
       const [refreshSignal, setRefreshSignal] = useState(0);
+      const [collapseAllSignal, setCollapseAllSignal] = useState(0);
       const [filterQuery, setFilterQuery] = useState('');
       const [newFileOpen, setNewFileOpen] = useState(false);
       const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
@@ -350,6 +364,7 @@ export const FileExplorerPanel = memo(
             onToggleSync={onToggleSync}
             onRefresh={refreshExplorer}
             onNewFile={() => openNewFileDialog('')}
+            onCollapseAll={() => setCollapseAllSignal((signal) => signal + 1)}
           />
 
           <NewFileDialog
@@ -493,6 +508,7 @@ export const FileExplorerPanel = memo(
           >
             <WorkspaceFileExplorer
               refreshSignal={refreshSignal}
+              collapseAllSignal={collapseAllSignal}
               chatroomId={chatroomId}
               machineId={machineId}
               workingDir={workingDir}
