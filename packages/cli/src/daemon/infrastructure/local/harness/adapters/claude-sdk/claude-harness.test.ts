@@ -203,6 +203,8 @@ describe('ClaudeSdkHarness', () => {
     expect(ids).toEqual(catalog.map((id) => stripProviderPrefix('anthropic', id)));
     const bases = ids.map((id) => decodeModelVariant(id).model);
     expect(new Set(bases).size).toBe(9);
-    expect(bases).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku', 'claude-opus-5']));
+    expect(bases).toEqual(
+      expect.arrayContaining(['opus', 'sonnet', 'haiku', 'claude-opus-5', 'claude-sonnet-5'])
+    );
   });
 });

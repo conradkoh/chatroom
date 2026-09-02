@@ -240,6 +240,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
       expect(baseIds).toContain('anthropic/haiku');
       // Versioned ids are present.
       expect(baseIds).toContain('anthropic/claude-opus-5');
+      expect(baseIds).toContain('anthropic/claude-sonnet-5');
       expect(baseIds).toContain('anthropic/claude-sonnet-4-6');
       expect(baseIds).toContain('anthropic/claude-haiku-4-5');
     }
