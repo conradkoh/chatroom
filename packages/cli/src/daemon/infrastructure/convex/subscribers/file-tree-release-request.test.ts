@@ -51,18 +51,14 @@ describe('file-tree release subscriber', () => {
     ]);
   });
 
-  it('emits a startup event when pending rows exist', async () => {
+  it('does not query pending release rows on startup', async () => {
     const events: InboundEvent[] = [];
     const mock = createMockWsClient();
-    vi.mocked(mock.wsClient.query).mockResolvedValue([
-      { workingDir: '/workspace', updatedAt: 1 },
-    ] as never);
     const handle = startSubscriber(mock.wsClient, events);
 
-    await vi.waitFor(() =>
-      expect(events).toContainEqual({ type: 'file-tree.release', requestId: 'startup' })
-    );
     await handle.stop();
+
+    expect(mock.wsClient.query).not.toHaveBeenCalled();
   });
 
   it('resets the revision after the head disappears', async () => {

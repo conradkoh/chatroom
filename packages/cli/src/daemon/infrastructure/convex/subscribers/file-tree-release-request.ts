@@ -19,7 +19,7 @@ export function startFileTreeReleaseRequestSubscriber(
   const unsub = deps.wsClient.onUpdate(
     api.workspaceFiles.subscribeMachineFileTreeReleaseHead,
     { sessionId: deps.sessionId, machineId: deps.machineId },
-    (head: { revision: number } | null) => {
+    (head) => {
       if (!head) {
         lastRevision = null;
         return;
@@ -32,21 +32,6 @@ export function startFileTreeReleaseRequestSubscriber(
       );
     }
   );
-
-  // Drain rows queued before the wake-up head existed (for example, before deployment).
-  void deps.wsClient
-    .query(api.workspaceFiles.getPendingFileTreeReleaseRequests, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-    })
-    .then((requests) => {
-      if (requests?.length) onEvent({ type: 'file-tree.release', requestId: 'startup' });
-    })
-    .catch((err: unknown) => {
-      console.warn(
-        `[daemon] file-tree-release startup drain check failed: ${err instanceof Error ? err.message : String(err)}`
-      );
-    });
 
   return {
     async stop() {

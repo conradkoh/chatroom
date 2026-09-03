@@ -78,40 +78,45 @@ async function drainPendingFileTreeReleaseRequests(
   checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry,
   deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry
 ): Promise<void> {
-  const releases = await session.backend.query(
-    api.workspaceFiles.getPendingFileTreeReleaseRequests,
-    {
-      sessionId: session.sessionId,
-      machineId: session.machineId,
+  // Backend returns at most 50 pending rows per query; drain until empty.
+  while (true) {
+    const releases = await session.backend.query(
+      api.workspaceFiles.getPendingFileTreeReleaseRequests,
+      {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      }
+    );
+    if (!releases?.length) return;
+
+    const releasesByDir = new Set<string>();
+    for (const release of releases) {
+      releasesByDir.add(normalizeWorkingDirForLookup(release.workingDir));
     }
-  );
-  if (!releases?.length) return;
 
-  const releasesByDir = new Set<string>();
-  for (const release of releases) {
-    releasesByDir.add(normalizeWorkingDirForLookup(release.workingDir));
-  }
-
-  for (const normalized of releasesByDir) {
-    await stopCoordinatorForWorkingDir(
-      coordinators,
-      checkpointOutboxRegistry,
-      deltaOutboxRegistry,
-      normalized
-    )
-      .then(() =>
-        session.backend.mutation(api.workspaceFiles.fulfillFileTreeReleaseRequest, {
+    let successCount = 0;
+    for (const normalized of releasesByDir) {
+      try {
+        await stopCoordinatorForWorkingDir(
+          coordinators,
+          checkpointOutboxRegistry,
+          deltaOutboxRegistry,
+          normalized
+        );
+        await session.backend.mutation(api.workspaceFiles.fulfillFileTreeReleaseRequest, {
           sessionId: session.sessionId,
           machineId: session.machineId,
           workingDir: normalized,
-        })
-      )
-      .then(() => {
+        });
         console.log(`[${formatTimestamp()}] 🌳 File tree coordinator stopped: ${normalized}`);
-      })
-      .catch((err: unknown) => {
+        successCount++;
+      } catch (err: unknown) {
         logSubscriptionWarn(`File tree release failed for ${normalized}`, err);
-      });
+      }
+    }
+
+    // Avoid infinite retry when every fulfill in a non-empty batch fails.
+    if (successCount === 0) return;
   }
 }
 

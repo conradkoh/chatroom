@@ -242,6 +242,12 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       }
     });
 
+    void fileTreeHandle.drainPendingFileTreeReleaseRequests().catch((err: unknown) => {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Startup file-tree release drain failed: ${getErrorMessage(err)}`
+      );
+    });
+
     workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect();
 
     registerWorkspaceGitInboundHandler(async (event) => {
