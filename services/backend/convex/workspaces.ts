@@ -106,6 +106,24 @@ export const removeWorkspace = mutation({
 });
 
 /**
+ * Enables or disables future file-tree synchronization for a workspace.
+ * Cached file-tree data is intentionally retained when sync is disabled.
+ */
+export const setFileTreeSyncEnabled = mutation({
+  args: {
+    ...SessionIdArg,
+    workspaceId: v.id('chatroom_workspaces'),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
+    await ctx.db.patch('chatroom_workspaces', args.workspaceId, {
+      fileTreeSyncEnabled: args.enabled,
+    });
+  },
+});
+
+/**
  * Observation-first workspace list for a machine (daemon subscription target).
  * Only returns workspaces whose chatroom was observed within the fixed observation TTL.
  * Returns workingDir strings only (not full workspace objects).
@@ -209,7 +227,10 @@ export const getWorkspaceById = query({
     });
     if (!hasAccess) return null;
 
-    return workspace;
+    return {
+      ...workspace,
+      fileTreeSyncEnabled: workspace.fileTreeSyncEnabled ?? true,
+    };
   },
 });
 

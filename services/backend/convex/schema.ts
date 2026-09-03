@@ -1956,6 +1956,8 @@ export default defineSchema({
     registeredAt: v.number(),
     registeredBy: v.string(), // role that first registered this workspace
     removedAt: v.optional(v.number()), // soft delete timestamp
+    /** New registrations opt out; absent legacy rows remain enabled for compatibility. */
+    fileTreeSyncEnabled: v.optional(v.boolean()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])
