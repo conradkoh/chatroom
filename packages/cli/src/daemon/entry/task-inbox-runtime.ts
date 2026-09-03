@@ -1,4 +1,4 @@
-// fallow-ignore-file code-duplication
+// fallow-ignore-file code-duplication complexity
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
@@ -166,6 +166,9 @@ export const startTaskInboxEffect = (
       scopeKey: session.machineId,
     });
     const serviceStartedAt = Date.now();
+    const persistedOperationalKey = persistedOperational?.state.afterSignalKey;
+    const initialOperationalKey =
+      persistedOperationalKey ?? operationalSignalCursorAt(serviceStartedAt);
     const abort = new AbortController();
     let stopped = false;
     const taskSnapshotState = new MachineTaskSnapshotState();
@@ -211,21 +214,40 @@ export const startTaskInboxEffect = (
         inboxUpdateInFlight = false;
       }
     };
-    yield* Effect.tryPromise(async () => {
+    const bootstrapSucceeded = yield* Effect.tryPromise(async () => {
       const rows = await fetchMachineAgentOperationalStatus(sessionDeps, session.machineId);
       agentOperationalReadModel.replace(rows);
+      return true;
     }).pipe(
       Effect.catchAll((error) => {
         console.warn('[OperationalInbox] bootstrap failed:', error);
-        return Effect.void;
+        return Effect.succeed(false);
       })
     );
-    if (persistedOperational?.state.afterSignalKey) {
+
+    if (persistedOperationalKey) {
       void ackMachineOperationalSignals(
         sessionDeps,
         session.machineId,
-        persistedOperational.state.afterSignalKey
+        persistedOperationalKey
       ).catch((error) => console.warn('[OperationalInbox] startup signal cleanup failed:', error));
+    } else if (bootstrapSucceeded) {
+      // Persist the baseline before acking historical signals skipped by this daemon.
+      try {
+        inboxStore.save(
+          { inboxType: 'operational', scopeKey: session.machineId },
+          { afterSignalKey: initialOperationalKey }
+        );
+        void ackMachineOperationalSignals(
+          sessionDeps,
+          session.machineId,
+          initialOperationalKey
+        ).catch((error) =>
+          console.warn('[OperationalInbox] startup signal cleanup failed:', error)
+        );
+      } catch (error) {
+        console.warn('[OperationalInbox] failed to persist bootstrap baseline:', error);
+      }
     }
     yield* Effect.tryPromise(() =>
       bootstrapMachineAssignedTaskSnapshots({
@@ -248,8 +270,7 @@ export const startTaskInboxEffect = (
       sessionId: session.sessionId as SessionId,
       machineId: session.machineId,
       serviceStartedAt,
-      initialAfterSignalKey:
-        persistedOperational?.state.afterSignalKey ?? operationalSignalCursorAt(serviceStartedAt),
+      initialAfterSignalKey: initialOperationalKey,
       signal: abort.signal,
     };
     const operationalInboxHandler: Parameters<typeof runOperationalInbox>[1] = async (update) => {
