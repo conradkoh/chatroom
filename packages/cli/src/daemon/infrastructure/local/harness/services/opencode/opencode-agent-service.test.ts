@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { OpenCodeAgentService, type OpenCodeAgentServiceDeps } from './opencode-agent-service.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
 import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import * as opencodeCatalog from '../opencode-sdk/opencode-model-catalog.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 function createMockDeps(overrides?: Partial<OpenCodeAgentServiceDeps>): OpenCodeAgentServiceDeps {
@@ -80,7 +81,16 @@ describe('OpenCodeAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('returns parsed model list', async () => {
+    it('returns provider catalog when fetch succeeds', async () => {
+      vi.spyOn(opencodeCatalog, 'fetchOpencodeProviderModelCatalog').mockResolvedValue([
+        'opencode-go/gpt-5.6-luna[variant=max]',
+      ]);
+      const service = new OpenCodeAgentService(createMockDeps());
+      expect(await service.listModels()).toEqual(['opencode-go/gpt-5.6-luna[variant=max]']);
+    });
+
+    it('returns parsed model list when provider fetch is empty', async () => {
+      vi.spyOn(opencodeCatalog, 'fetchOpencodeProviderModelCatalog').mockResolvedValue([]);
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from(`${TEST_MODEL_OPENCODE}\nopenai/gpt-4o\n`)),
       });
@@ -90,6 +100,7 @@ describe('OpenCodeAgentService', () => {
     });
 
     it('returns empty array when output is empty', async () => {
+      vi.spyOn(opencodeCatalog, 'fetchOpencodeProviderModelCatalog').mockResolvedValue([]);
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from('')),
       });
@@ -98,6 +109,7 @@ describe('OpenCodeAgentService', () => {
     });
 
     it('returns empty array and warns when command fails', async () => {
+      vi.spyOn(opencodeCatalog, 'fetchOpencodeProviderModelCatalog').mockResolvedValue([]);
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const deps = createMockDeps({
         execSync: vi.fn(() => {
