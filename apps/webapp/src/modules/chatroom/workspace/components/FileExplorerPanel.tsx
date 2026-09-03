@@ -6,7 +6,6 @@ import {
   ChevronRight,
   FilePlus,
   FolderPlus,
-  ListCollapse,
   MoreHorizontal,
   RefreshCw,
   Search,
@@ -20,6 +19,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { VscCollapseAll } from 'react-icons/vsc';
 import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
@@ -229,7 +229,7 @@ function ExplorerRootFolderHeader({
           title="Collapse all folders"
           aria-label="Collapse all folders"
         >
-          <ListCollapse size={13} />
+          <VscCollapseAll size={13} />
         </button>
       </div>
     </div>
