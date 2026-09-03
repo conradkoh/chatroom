@@ -28,6 +28,7 @@ import type { SettingsTab } from './CommandPalette/types';
 import { CopyButton } from './CopyButton';
 import { IntegrationsTab } from './IntegrationsTab';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
+import { MachineRepositoryRootField } from './MachineRepositoryRootField';
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
 import { SkillsTab } from './SkillsTab';
 import { ChatroomDestructiveTextButton } from './ui/ChatroomDestructiveTextButton';
@@ -331,6 +332,8 @@ const TeamConfigContent = memo(function TeamConfigContent({
  */
 const MachineRow = memo(function MachineRow({
   machine,
+  repositoryRoot,
+  repositoryRootsLoading,
 }: {
   machine: {
     machineId: string;
@@ -339,6 +342,8 @@ const MachineRow = memo(function MachineRow({
     os: string;
     registeredAt: number;
   };
+  repositoryRoot?: string;
+  repositoryRootsLoading: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [aliasValue, setAliasValue] = useState(machine.alias || '');
@@ -457,6 +462,12 @@ const MachineRow = memo(function MachineRow({
           {machine.alias ? `${machine.hostname} · ` : ''}
           {daemonConnected ? 'online' : 'offline'} · {machine.os}
         </div>
+        <MachineRepositoryRootField
+          machineId={machine.machineId}
+          daemonConnected={daemonConnected}
+          repositoryRoot={repositoryRoot}
+          isLoading={repositoryRootsLoading}
+        />
       </div>
       {lastSeenAt ? (
         <div className="text-[10px] text-chatroom-text-muted flex-shrink-0">
@@ -472,6 +483,7 @@ const MachineRow = memo(function MachineRow({
  */
 const MachineContent = memo(function MachineContent(_props: { chatroomId: string }) {
   const machinesResult = useSessionQuery(api.machines.listMachines, {});
+  const repositoryRoots = useSessionQuery(api.machines.listMachineRepositoryRoots, {});
   const machines = machinesResult?.machines;
 
   // Daemon start command
@@ -504,7 +516,12 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
         ) : (
           <div className="space-y-1">
             {machines.map((machine) => (
-              <MachineRow key={machine.machineId} machine={machine} />
+              <MachineRow
+                key={machine.machineId}
+                machine={machine}
+                repositoryRoot={repositoryRoots?.[machine.machineId]}
+                repositoryRootsLoading={repositoryRoots === undefined}
+              />
             ))}
           </div>
         )}
