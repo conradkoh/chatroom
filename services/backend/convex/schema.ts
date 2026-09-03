@@ -2108,6 +2108,13 @@ export default defineSchema({
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir', ['machineId', 'workingDir']),
 
+  /** Monotonic wake-up revision for machine file-tree release queue changes. */
+  chatroom_machineFileTreeReleaseHeads: defineTable({
+    machineId: v.string(),
+    revision: v.number(),
+    updatedAt: v.number(),
+  }).index('by_machineId', ['machineId']),
+
   // ─── Structured Workflows (DEPRECATED) ─────────────────────────────────────
   // DAG workflow feature removed. Tables retained for deployment/data compatibility.
   // Do not write new rows; drop after a one-time data cleanup migration.

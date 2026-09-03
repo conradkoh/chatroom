@@ -84,4 +84,53 @@ describe('workspace file-tree watch leases', () => {
     );
     expect(watch?.watchCount).toBe(1);
   });
+
+  test('watch count falling to zero bumps the release wake-up head', async () => {
+    const { sessionId, machineId } = await setup(
+      'test-file-tree-watch-lease-head',
+      'machine-file-tree-watch-lease-head'
+    );
+
+    await t.mutation(api.workspaceFiles.adjustFileTreeWatch, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      delta: 1,
+    });
+    const first = await t.mutation(api.workspaceFiles.adjustFileTreeWatch, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      delta: -1,
+    });
+    expect(first).toEqual({ watchCount: 0 });
+
+    const head = await t.query(api.workspaceFiles.subscribeMachineFileTreeReleaseHead, {
+      sessionId,
+      machineId,
+    });
+    expect(head).toEqual({ revision: 1 });
+
+    await t.mutation(api.workspaceFiles.fulfillFileTreeReleaseRequest, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+    });
+    await t.mutation(api.workspaceFiles.adjustFileTreeWatch, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      delta: 1,
+    });
+    await t.mutation(api.workspaceFiles.adjustFileTreeWatch, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      delta: -1,
+    });
+
+    await expect(
+      t.query(api.workspaceFiles.subscribeMachineFileTreeReleaseHead, { sessionId, machineId })
+    ).resolves.toEqual({ revision: 2 });
+  });
 });
