@@ -108,6 +108,23 @@ export function opencodeModelDisplayName(
   return tag ? `${model.name} (${tag})` : model.name;
 }
 
+/** Map provider models into published provider options with variant expansion. */
+export function mapOpencodeProviderModelOptions(
+  models: Record<string, OpencodeCatalogModel>
+): { modelID: string; name: string }[] {
+  const options: { modelID: string; name: string }[] = [];
+  for (const [modelKey, model] of Object.entries(models)) {
+    const baseId = model.id ?? modelKey;
+    for (const expandedId of expandOpencodeModelVariants(baseId, model.variants)) {
+      options.push({
+        modelID: expandedId,
+        name: opencodeModelDisplayName(model, expandedId),
+      });
+    }
+  }
+  return options;
+}
+
 /** Stop a temporary serve process, escalating from SIGTERM to SIGKILL. */
 async function stopServeProcess(deps: Pick<CLIAgentServiceDeps, 'kill'>, child: ChildProcess) {
   const pid = child.pid;
