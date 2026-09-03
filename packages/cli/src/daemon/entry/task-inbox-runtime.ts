@@ -1,4 +1,4 @@
-// fallow-ignore-file code-duplication
+// fallow-ignore-file code-duplication complexity
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
@@ -23,6 +23,7 @@ import {
 } from './native-delivery/task-delivery-processor.js';
 import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
+import { ackMachineOperationalSignals } from '../infrastructure/agent-operational/ack-machine-operational-signals.js';
 import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { enrichSnapshotsWithOperational } from '../infrastructure/agent-operational/enrich-snapshot-with-operational.js';
 import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
@@ -165,6 +166,9 @@ export const startTaskInboxEffect = (
       scopeKey: session.machineId,
     });
     const serviceStartedAt = Date.now();
+    const persistedOperationalKey = persistedOperational?.state.afterSignalKey;
+    const initialOperationalKey =
+      persistedOperationalKey ?? operationalSignalCursorAt(serviceStartedAt);
     const abort = new AbortController();
     let stopped = false;
     const taskSnapshotState = new MachineTaskSnapshotState();
@@ -210,15 +214,41 @@ export const startTaskInboxEffect = (
         inboxUpdateInFlight = false;
       }
     };
-    yield* Effect.tryPromise(async () => {
+    const bootstrapSucceeded = yield* Effect.tryPromise(async () => {
       const rows = await fetchMachineAgentOperationalStatus(sessionDeps, session.machineId);
       agentOperationalReadModel.replace(rows);
+      return true;
     }).pipe(
       Effect.catchAll((error) => {
         console.warn('[OperationalInbox] bootstrap failed:', error);
-        return Effect.void;
+        return Effect.succeed(false);
       })
     );
+
+    if (persistedOperationalKey) {
+      void ackMachineOperationalSignals(
+        sessionDeps,
+        session.machineId,
+        persistedOperationalKey
+      ).catch((error) => console.warn('[OperationalInbox] startup signal cleanup failed:', error));
+    } else if (bootstrapSucceeded) {
+      // Persist the baseline before acking historical signals skipped by this daemon.
+      try {
+        inboxStore.save(
+          { inboxType: 'operational', scopeKey: session.machineId },
+          { afterSignalKey: initialOperationalKey }
+        );
+        void ackMachineOperationalSignals(
+          sessionDeps,
+          session.machineId,
+          initialOperationalKey
+        ).catch((error) =>
+          console.warn('[OperationalInbox] startup signal cleanup failed:', error)
+        );
+      } catch (error) {
+        console.warn('[OperationalInbox] failed to persist bootstrap baseline:', error);
+      }
+    }
     yield* Effect.tryPromise(() =>
       bootstrapMachineAssignedTaskSnapshots({
         sessionDeps,
@@ -240,8 +270,7 @@ export const startTaskInboxEffect = (
       sessionId: session.sessionId as SessionId,
       machineId: session.machineId,
       serviceStartedAt,
-      initialAfterSignalKey:
-        persistedOperational?.state.afterSignalKey ?? operationalSignalCursorAt(serviceStartedAt),
+      initialAfterSignalKey: initialOperationalKey,
       signal: abort.signal,
     };
     const operationalInboxHandler: Parameters<typeof runOperationalInbox>[1] = async (update) => {
@@ -267,6 +296,15 @@ export const startTaskInboxEffect = (
           { inboxType: 'operational', scopeKey: session.machineId },
           { afterSignalKey: update.throughSignalKey }
         );
+        try {
+          await ackMachineOperationalSignals(
+            sessionDeps,
+            session.machineId,
+            update.throughSignalKey
+          );
+        } catch (error) {
+          console.warn('[OperationalInbox] signal cleanup failed:', error);
+        }
       } finally {
         inboxUpdateInFlight = false;
       }
