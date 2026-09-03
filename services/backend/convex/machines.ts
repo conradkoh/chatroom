@@ -46,6 +46,7 @@ import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-mac
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAgentOperationalStatus as listMachineAgentOperationalStatusUseCase } from '../src/domain/usecase/machine/list-machine-agent-operational-status';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
+import { listMachineRepositoryRoots as listMachineRepositoryRootsUseCase } from '../src/domain/usecase/machine/list-machine-repository-roots';
 import {
   listOperationalStatusForMachineSignalRange as listOperationalStatusForMachineSignalRangeUseCase,
   type ListOperationalStatusForMachineSignalRangeResult,
@@ -57,6 +58,7 @@ import {
   upsertTeamAgentConfigByTeamRoleKey,
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { setMachineRepositoryRoot as setMachineRepositoryRootUseCase } from '../src/domain/usecase/machine/set-machine-repository-root';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -274,6 +276,30 @@ export const setMachineAlias = mutation({
 
     await ctx.db.patch('chatroom_machines', machine._id, {
       alias: normalizedAlias,
+    });
+
+    return { success: true };
+  },
+});
+
+/** Sets or clears the per-user repository root directory for a machine. */
+export const setMachineRepositoryRoot = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    repositoryRoot: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    await setMachineRepositoryRootUseCase(ctx, {
+      userId: auth.userId,
+      machineId: args.machineId,
+      repositoryRoot: args.repositoryRoot,
     });
 
     return { success: true };
@@ -607,6 +633,18 @@ export const listMachines = query({
         registeredAt: m.registeredAt,
       })),
     };
+  },
+});
+
+/** List per-user repository root preferences keyed by machine ID. */
+export const listMachineRepositoryRoots = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return {};
+    return listMachineRepositoryRootsUseCase(ctx, auth.userId);
   },
 });
 

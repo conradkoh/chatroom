@@ -1503,6 +1503,20 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
   }).index('by_userId_created', ['userId', 'createdAt']),
 
+  /**
+   * Per-user repository root directory for a machine.
+   * Parent folder where GitHub repos are cloned when creating chatrooms from a URL.
+   * Kept separate from chatroom_machines to avoid listMachines subscription churn.
+   */
+  chatroom_machineRepositoryRoots: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    repositoryRoot: v.string(),
+    updatedAt: v.number(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_userId_machineId', ['userId', 'machineId']),
+
   // ============================================================================
   // EVENT STREAM TABLE
   // Append-only log of all significant events in the chatroom system.
