@@ -23,12 +23,14 @@ vi.mock('../hooks/useFileContent', () => ({
 }));
 
 let lastRefreshSignal = 0;
+let lastCollapseAllSignal = 0;
 let lastExplorerProps: Record<string, unknown> = {};
 
 vi.mock('./WorkspaceFileExplorer', () => ({
   WorkspaceFileExplorer: (props: Record<string, unknown>) => {
     lastExplorerProps = props;
     lastRefreshSignal = (props.refreshSignal as number | undefined) ?? 0;
+    lastCollapseAllSignal = (props.collapseAllSignal as number | undefined) ?? 0;
     return <div data-testid="file-explorer" />;
   },
 }));
@@ -160,6 +162,17 @@ describe('FileExplorerPanel refresh', () => {
     });
 
     expect(lastRefreshSignal).toBe(1);
+  });
+});
+
+describe('FileExplorerPanel collapse all', () => {
+  it('increments collapseAllSignal when collapse-all button is clicked', () => {
+    lastCollapseAllSignal = 0;
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.click(screen.getByTitle('Collapse all folders'));
+
+    expect(lastCollapseAllSignal).toBe(1);
   });
 });
 

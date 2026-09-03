@@ -136,4 +136,22 @@ describe('WorkspaceFileExplorer integration', () => {
       { timeout: 1000 }
     );
   });
+
+  it('collapseAllSignal collapses all expanded folders', async () => {
+    const { rerender } = render(<WorkspaceFileExplorer {...defaultProps} collapseAllSignal={0} />);
+
+    fireEvent.click(screen.getByTitle('src'));
+    await waitFor(() => {
+      expect(screen.getByTitle('src/index.ts')).toBeInTheDocument();
+    });
+
+    rerender(<WorkspaceFileExplorer {...defaultProps} collapseAllSignal={1} />);
+
+    await waitFor(() => {
+      expect(screen.queryByTitle('src/index.ts')).not.toBeInTheDocument();
+    });
+
+    const storageKey = 'fileExplorer:expandedPaths:global:/workspace';
+    expect(JSON.parse(localStorage.getItem(storageKey) ?? '[]')).toEqual([]);
+  });
 });
