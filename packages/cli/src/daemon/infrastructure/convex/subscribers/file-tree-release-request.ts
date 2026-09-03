@@ -1,59 +1,52 @@
-// fallow-ignore-file code-duplication complexity
 import { api } from '../../../../api.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 
 export type SubscriberHandle = { stop(): Promise<void> };
 
-interface PendingReleaseRequest {
-  _id?: string | { toString(): string } | null | undefined;
-  workingDir?: string | undefined;
-  updatedAt?: number | undefined;
-}
-
-function requestId(req: PendingReleaseRequest): string {
-  if (req._id == null) return 'unknown';
-  return typeof req._id === 'string' ? req._id : req._id.toString();
-}
-
-function pendingReleasesSnapshot(requests: PendingReleaseRequest[]): string {
-  return requests
-    .filter((req) => req != null && typeof req === 'object')
-    .map((req) => `${requestId(req)}:${req.workingDir ?? ''}:${req.updatedAt ?? 0}`)
-    .sort()
-    .join('|');
-}
-
 export function startFileTreeReleaseRequestSubscriber(
   deps: ConvexSubscriberDeps,
   onEvent: (event: InboundEvent) => void
 ): SubscriberHandle {
-  let lastSnapshot = '';
+  let lastRevision: number | null = null;
+
+  const maybeWake = (revision: number, requestId: string): void => {
+    if (lastRevision === revision) return;
+    lastRevision = revision;
+    onEvent({ type: 'file-tree.release', requestId });
+  };
 
   const unsub = deps.wsClient.onUpdate(
-    api.workspaceFiles.getPendingFileTreeReleaseRequests,
+    api.workspaceFiles.subscribeMachineFileTreeReleaseHead,
     { sessionId: deps.sessionId, machineId: deps.machineId },
-    (requests: PendingReleaseRequest[] | null) => {
-      if (!requests?.length) {
-        lastSnapshot = '';
+    (head: { revision: number } | null) => {
+      if (!head) {
+        lastRevision = null;
         return;
       }
-
-      const snapshot = pendingReleasesSnapshot(requests);
-      if (!snapshot || snapshot === lastSnapshot) return;
-      lastSnapshot = snapshot;
-
-      const first = requests.find((req) => req != null && typeof req === 'object');
-      if (!first) return;
-
-      onEvent({ type: 'file-tree.release', requestId: requestId(first) });
+      maybeWake(head.revision, `rev-${head.revision}`);
     },
     (err: unknown) => {
       console.warn(
-        `[daemon] file-tree-release subscriber error: ${err instanceof Error ? err.message : String(err)}`
+        `[daemon] file-tree-release head subscriber error: ${err instanceof Error ? err.message : String(err)}`
       );
     }
   );
+
+  // Drain rows queued before the wake-up head existed (for example, before deployment).
+  void deps.wsClient
+    .query(api.workspaceFiles.getPendingFileTreeReleaseRequests, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
+    })
+    .then((requests) => {
+      if (requests?.length) onEvent({ type: 'file-tree.release', requestId: 'startup' });
+    })
+    .catch((err: unknown) => {
+      console.warn(
+        `[daemon] file-tree-release startup drain check failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    });
 
   return {
     async stop() {
