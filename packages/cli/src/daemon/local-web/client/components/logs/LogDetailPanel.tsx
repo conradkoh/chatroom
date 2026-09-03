@@ -5,6 +5,7 @@ import { LogLevelBadge } from './LogLevelBadge';
 
 import type { LogLine } from '@/api/types';
 import { Button } from '@/components/ui/button';
+import { formatLocalLogDateTime } from '@/lib/format-local-timestamp';
 
 export function LogDetailPanel({
   line,
@@ -31,7 +32,7 @@ export function LogDetailPanel({
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4 text-xs">
         <div className="flex flex-wrap items-center gap-2">
           <LogLevelBadge level={line.level} />
-          <span className="text-chatroom-text-muted">{new Date(line.timestamp).toISOString()}</span>
+          <span className="text-chatroom-text-muted">{formatLocalLogDateTime(line.timestamp)}</span>
         </div>
         <LogDimensionBadges line={line} chatroomName={chatroomName} />
         <div className="text-chatroom-text-muted">

@@ -224,14 +224,22 @@ describe('HARNESS_MODEL_CATALOG', () => {
     ]);
   });
 
-  test('claude catalog lists canonical base ids only (no spawn aliases)', () => {
+  test('claude catalog lists all base ids including unversioned aliases', () => {
     for (const harness of ['claude', 'claude-sdk'] as const) {
       const catalog = HARNESS_MODEL_CATALOG[harness];
       const baseIds = catalog.map((entry) => decodeModelVariant(entry).model);
-      expect(new Set(baseIds).size).toBe(4);
+      // 3 unversioned aliases + 5 versioned ids = 8 unique base ids.
+      expect(new Set(baseIds).size).toBe(8);
+      // CLAUDE_SPAWN_ALIASES is now empty — all aliases are catalog-backed.
       for (const alias of CLAUDE_SPAWN_ALIASES) {
         expect(baseIds).not.toContain(alias);
       }
+      // Unversioned aliases are present (resolved by claude CLI at spawn time).
+      expect(baseIds).toContain('anthropic/opus');
+      expect(baseIds).toContain('anthropic/sonnet');
+      expect(baseIds).toContain('anthropic/haiku');
+      // Versioned ids are present.
+      expect(baseIds).toContain('anthropic/claude-opus-5');
       expect(baseIds).toContain('anthropic/claude-sonnet-4-6');
       expect(baseIds).toContain('anthropic/claude-haiku-4-5');
     }
