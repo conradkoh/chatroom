@@ -85,8 +85,8 @@ vi.mock('@/contexts/PromptsContext', () => ({
   PromptsContext: React.createContext({ getAgentPrompt: () => '' }),
 }));
 
-vi.mock('@/modules/chatroom/hooks/useAgentPanelData', () => ({
-  useAgentPanelData: () => ({
+vi.mock('@/modules/chatroom/hooks/useAgentPanelData', () => {
+  const agentPanelData = {
     agents: [
       {
         role: 'planner',
@@ -120,8 +120,13 @@ vi.mock('@/modules/chatroom/hooks/useAgentPanelData', () => ({
     sendCommand: vi.fn().mockResolvedValue(undefined),
     isLoading: false,
     teamId: 'duo',
-  }),
-}));
+  };
+
+  return {
+    useAgentPanelData: () => agentPanelData,
+    useAgentPanelDataSubscriptions: () => agentPanelData,
+  };
+});
 
 vi.mock('@/modules/chatroom/hooks/useAgentStatuses', () => ({
   useAgentStatuses: () => ({

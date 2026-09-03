@@ -21,47 +21,6 @@ export interface ChatroomAgentOverview {
 export interface ListChatroomAgentOverviewInput {
   userId: Id<'users'>;
 }
-export type OverviewMachineMap = Map<string, { machineId: string }>;
-
-/** Resolve one room from the materialized projection. */
-export async function getChatroomAgentOverviewForRoom(
-  ctx: QueryCtx,
-  room: { _id: Id<'chatroom_rooms'>; teamId?: string | null | undefined },
-  machineMap: OverviewMachineMap
-): Promise<ChatroomAgentOverview> {
-  const summary = await ctx.db
-    .query('chatroom_agentOperationalSummary')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-    .first();
-  if (summary) {
-    const runningAgents = summary.runningAgents.filter((agent) => machineMap.has(agent.machineId));
-    const runningRoles = runningAgents.map((agent) => agent.role);
-    const aliveRoles: string[] = [];
-    for (const role of summary.aliveRoles) {
-      const row = await ctx.db
-        .query('chatroom_agentRoleOperationalStatus')
-        .withIndex('by_chatroom_role', (q) =>
-          q.eq('chatroomId', room._id).eq('role', role.toLowerCase())
-        )
-        .first();
-      if (row?.machineId && machineMap.has(row.machineId)) aliveRoles.push(role);
-    }
-    const agentStatus =
-      summary.remoteConfigCount === 0
-        ? ('none' as const)
-        : runningRoles.length > 0
-          ? ('running' as const)
-          : ('stopped' as const);
-    return { chatroomId: room._id, agentStatus, runningRoles, aliveRoles, runningAgents };
-  }
-  return {
-    chatroomId: room._id,
-    agentStatus: 'none',
-    runningRoles: [],
-    aliveRoles: [],
-    runningAgents: [],
-  };
-}
 
 export async function listChatroomAgentOverview(
   ctx: QueryCtx,

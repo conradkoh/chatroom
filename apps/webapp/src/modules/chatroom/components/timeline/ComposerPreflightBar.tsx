@@ -11,7 +11,7 @@ import { StandingInstructionsBar } from '../StandingInstructionsBar';
 
 export function ComposerPreflightBar({ chatroomId }: { chatroomId: Id<'chatroom_rooms'> }) {
   const { activeWorkspace } = useChatroomLifecycle(chatroomId);
-  const { teamId, teamRoles, isLoading } = useAgentPanelData(chatroomId);
+  const { teamId, teamRoles, isLoading } = useAgentPanelData();
 
   const teamSupportState = isLoading
     ? 'loading'
