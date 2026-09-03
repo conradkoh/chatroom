@@ -23,12 +23,18 @@ vi.mock('../hooks/useFileContent', () => ({
 }));
 
 let lastRefreshSignal = 0;
+let lastCollapseAllSignal = 0;
 let lastExplorerProps: Record<string, unknown> = {};
+let lastNewFolderProps: { open: boolean; defaultDir: string } = {
+  open: false,
+  defaultDir: '',
+};
 
 vi.mock('./WorkspaceFileExplorer', () => ({
   WorkspaceFileExplorer: (props: Record<string, unknown>) => {
     lastExplorerProps = props;
     lastRefreshSignal = (props.refreshSignal as number | undefined) ?? 0;
+    lastCollapseAllSignal = (props.collapseAllSignal as number | undefined) ?? 0;
     return <div data-testid="file-explorer" />;
   },
 }));
@@ -38,7 +44,10 @@ vi.mock('./NewFileDialog', () => ({
 }));
 
 vi.mock('./NewFolderDialog', () => ({
-  NewFolderDialog: () => null,
+  NewFolderDialog: (props: { open: boolean; defaultDir: string }) => {
+    lastNewFolderProps = props;
+    return null;
+  },
 }));
 
 vi.mock('./RenameDialog', () => ({
@@ -140,6 +149,11 @@ const defaultProps = {
   onToggleSync: vi.fn(),
 };
 
+beforeEach(() => {
+  localStorage.clear();
+  lastNewFolderProps = { open: false, defaultDir: '' };
+});
+
 describe('FileExplorerPanel refresh', () => {
   it('increments refreshSignal when the refresh button is clicked', () => {
     lastRefreshSignal = 0;
@@ -160,6 +174,53 @@ describe('FileExplorerPanel refresh', () => {
     });
 
     expect(lastRefreshSignal).toBe(1);
+  });
+});
+
+describe('FileExplorerPanel collapse all', () => {
+  it('increments collapseAllSignal when collapse-all button is clicked', () => {
+    lastCollapseAllSignal = 0;
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.click(screen.getByTitle('Collapse all folders'));
+
+    expect(lastCollapseAllSignal).toBe(1);
+  });
+});
+
+describe('FileExplorerPanel workspace root', () => {
+  it('shows the workspace basename in the root folder row', () => {
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    expect(screen.getByText('project')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Collapse workspace folder project' })
+    ).toBeInTheDocument();
+  });
+
+  it('hides and restores the tree when the root folder is collapsed while keeping filter visible', () => {
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse workspace folder project' }));
+
+    expect(screen.queryByTestId('file-explorer')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Filter files…')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Expand workspace folder project' })
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand workspace folder project' }));
+
+    expect(screen.getByTestId('file-explorer')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Filter files…')).toBeInTheDocument();
+  });
+
+  it('opens the new-folder flow from the root action row', () => {
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    fireEvent.click(screen.getByTitle('New folder'));
+
+    expect(lastNewFolderProps).toEqual(expect.objectContaining({ open: true, defaultDir: '' }));
   });
 });
 

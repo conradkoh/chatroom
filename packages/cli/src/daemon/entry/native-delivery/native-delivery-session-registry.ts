@@ -10,7 +10,7 @@ import type {
   DaemonSessionService,
 } from '../daemon-services.js';
 
-export type NativeDeliverySessionContext = {
+export type NativeDeliverySessionRegistration = {
   runtime: Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
   effectContext: Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
   agentMgr: DaemonAgentProcessManagerServiceShape;
@@ -21,9 +21,17 @@ export type NativeDeliverySessionContext = {
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
 };
 
+export type NativeDeliverySessionContext = Omit<
+  NativeDeliverySessionRegistration,
+  'taskSnapshotState' | 'agentOperationalReadModel'
+> & {
+  taskSnapshotState: MachineTaskSnapshotState;
+  agentOperationalReadModel: AgentOperationalReadModel;
+};
+
 let registered: NativeDeliverySessionContext | null = null;
 
-export function registerNativeDeliverySession(ctx: NativeDeliverySessionContext): void {
+export function registerNativeDeliverySession(ctx: NativeDeliverySessionRegistration): void {
   registered = {
     ...ctx,
     taskSnapshotState: ctx.taskSnapshotState ?? new MachineTaskSnapshotState(),

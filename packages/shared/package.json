@@ -1,6 +1,6 @@
 {
   "name": "@workspace/shared",
-  "version": "1.103.3",
+  "version": "1.104.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -9,6 +9,7 @@
     "./domain/enhancer-team-capability": "./src/domain/enhancer-team-capability.ts",
     "./domain/agent-stop-command": "./src/domain/agent-stop-command.ts",
     "./domain/agent-role": "./src/domain/agent-role.ts",
+    "./domain/chatroom-role": "./src/domain/chatroom-role.ts",
     "./domain/team-presets": "./src/domain/team-presets.ts",
     "./domain/chatroom-status": "./src/domain/chatroom-status.ts",
     "./domain/chatroom-agent-activity-status": "./src/domain/chatroom-agent-activity-status.ts",

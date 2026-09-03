@@ -1,8 +1,25 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
-import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  FilePlus,
+  FolderPlus,
+  MoreHorizontal,
+  RefreshCw,
+  Search,
+} from 'lucide-react';
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from 'react';
+import { VscCollapseAll } from 'react-icons/vsc';
 import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
@@ -35,6 +52,7 @@ import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 import { useWorkspaceUploadJobs } from '../hooks/useWorkspaceUploadJobs';
+import { basename } from '../utils/diff-parser';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -91,59 +109,129 @@ interface FileExplorerPanelProps {
 function ExplorerPanelHeader({
   explorerSyncEnabled,
   onToggleSync,
-  onRefresh,
-  onNewFile,
 }: {
   explorerSyncEnabled?: boolean;
   onToggleSync?: (enabled: boolean) => void;
-  onRefresh?: () => void;
-  onNewFile?: () => void;
 }) {
-  const showActions = onToggleSync != null && onRefresh != null;
+  const showMenu = onToggleSync != null;
 
   return (
-    <div className="px-3 py-2 border-b-2 border-chatroom-border-strong flex items-center justify-between shrink-0">
+    <div className="px-3 py-2 border-b border-chatroom-border-strong flex items-center justify-between shrink-0">
       <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
         Explorer
       </span>
-      {showActions ? (
-        <div className="flex items-center gap-1">
-          {onNewFile && (
-            <button
-              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
-              onClick={onNewFile}
-              title="New file"
-              aria-label="New file"
-            >
-              <FilePlus size={13} />
-            </button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              type="button"
-              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-none p-0.5"
-              aria-label="Explorer options"
-            >
-              <MoreHorizontal size={13} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[180px]">
-              <DropdownMenuCheckboxItem
-                checked={explorerSyncEnabled}
-                onCheckedChange={onToggleSync}
-              >
-                Sync with active editor
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <button
-            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
-            onClick={onRefresh}
-            title="Refresh files"
+      {showMenu ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            type="button"
+            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-none p-0.5"
+            aria-label="Explorer options"
           >
-            <RefreshCw size={13} />
-          </button>
-        </div>
+            <MoreHorizontal size={13} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[180px]">
+            <DropdownMenuCheckboxItem checked={explorerSyncEnabled} onCheckedChange={onToggleSync}>
+              Sync with active editor
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
+    </div>
+  );
+}
+
+function getRootExpandedStorageKey(chatroomId?: string, workingDir?: string) {
+  return `fileExplorer:rootExpanded:${chatroomId ?? 'global'}:${workingDir ?? ''}`;
+}
+
+function readRootExpanded(storageKey: string): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw === null) return true;
+    return raw === 'true';
+  } catch {
+    return true;
+  }
+}
+
+function writeRootExpanded(storageKey: string, expanded: boolean) {
+  try {
+    localStorage.setItem(storageKey, String(expanded));
+  } catch {}
+}
+
+function ExplorerRootFolderHeader({
+  workingDir,
+  rootExpanded,
+  onToggleRoot,
+  onNewFile,
+  onNewFolder,
+  onRefresh,
+  onCollapseAll,
+}: {
+  workingDir: string;
+  rootExpanded: boolean;
+  onToggleRoot: () => void;
+  onNewFile: () => void;
+  onNewFolder: () => void;
+  onRefresh: () => void;
+  onCollapseAll: () => void;
+}) {
+  const rootLabel = basename(workingDir.replace(/\/$/, '')) || workingDir;
+
+  return (
+    <div className="px-2 py-1 border-b border-chatroom-border-strong flex items-center gap-1 shrink-0 min-w-0">
+      <button
+        type="button"
+        className="flex items-center gap-1 min-w-0 flex-1 text-left text-sm text-chatroom-text-secondary hover:text-chatroom-text-primary transition-colors cursor-pointer select-none"
+        onClick={onToggleRoot}
+        aria-expanded={rootExpanded}
+        aria-label={`${rootExpanded ? 'Collapse' : 'Expand'} workspace folder ${rootLabel}`}
+      >
+        <span className="w-4 h-4 flex items-center justify-center shrink-0">
+          {rootExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+        <span className="truncate font-medium">{rootLabel}</span>
+      </button>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+          onClick={onNewFile}
+          title="New file"
+          aria-label="New file"
+        >
+          <FilePlus size={13} />
+        </button>
+        <button
+          type="button"
+          className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+          onClick={onNewFolder}
+          title="New folder"
+          aria-label="New folder"
+        >
+          <FolderPlus size={13} />
+        </button>
+        <button
+          type="button"
+          className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+          onClick={onRefresh}
+          title="Refresh files"
+          aria-label="Refresh files"
+        >
+          <RefreshCw size={13} />
+        </button>
+        <button
+          type="button"
+          className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+          onClick={onCollapseAll}
+          title="Collapse all folders"
+          aria-label="Collapse all folders"
+        >
+          <VscCollapseAll size={13} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -173,7 +261,12 @@ export const FileExplorerPanel = memo(
       ref
     ) {
       const [refreshSignal, setRefreshSignal] = useState(0);
+      const [collapseAllSignal, setCollapseAllSignal] = useState(0);
       const [filterQuery, setFilterQuery] = useState('');
+      const rootExpandedStorageKey = getRootExpandedStorageKey(chatroomId, workingDir ?? undefined);
+      const [rootExpanded, setRootExpanded] = useState(() =>
+        readRootExpanded(rootExpandedStorageKey)
+      );
       const [newFileOpen, setNewFileOpen] = useState(false);
       const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
       const [newFolderOpen, setNewFolderOpen] = useState(false);
@@ -218,6 +311,18 @@ export const FileExplorerPanel = memo(
         setNewFolderDefaultDir(defaultDir);
         setNewFolderOpen(true);
       }, []);
+
+      useEffect(() => {
+        setRootExpanded(readRootExpanded(rootExpandedStorageKey));
+      }, [rootExpandedStorageKey]);
+
+      const toggleRootExpanded = useCallback(() => {
+        setRootExpanded((prev) => {
+          const next = !prev;
+          writeRootExpanded(rootExpandedStorageKey, next);
+          return next;
+        });
+      }, [rootExpandedStorageKey]);
 
       const openRenameDialog = useCallback((path: string, type: 'file' | 'directory') => {
         setRenameTarget({ path, type });
@@ -348,8 +453,6 @@ export const FileExplorerPanel = memo(
           <ExplorerPanelHeader
             explorerSyncEnabled={explorerSyncEnabled}
             onToggleSync={onToggleSync}
-            onRefresh={refreshExplorer}
-            onNewFile={() => openNewFileDialog('')}
           />
 
           <NewFileDialog
@@ -491,31 +594,44 @@ export const FileExplorerPanel = memo(
               if (props) openContextMenuAtPointer(event, props);
             }}
           >
-            <WorkspaceFileExplorer
-              refreshSignal={refreshSignal}
-              chatroomId={chatroomId}
-              machineId={machineId}
+            <ExplorerRootFolderHeader
               workingDir={workingDir}
-              onFileSelect={onFileSelect}
-              onFileDoubleClick={onFileDoubleClick}
-              revealPath={effectiveRevealPath}
-              selectedPath={effectiveSelectedPath}
-              filterQuery={filterQuery}
-              dropHighlightPath={dropHighlightPath}
-              onNodeContextMenu={(node, event) => {
-                const target: ExplorerContextTarget = {
-                  kind: 'node',
-                  path: node.path,
-                  type: node.type,
-                };
-                const props = buildFileMenuProps(target);
-                if (props) openContextMenuAtPointer(event, props);
-              }}
-              onEmptyAreaContextMenu={(event) => {
-                const props = buildFileMenuProps({ kind: 'root' });
-                if (props) openContextMenuAtPointer(event, props);
-              }}
+              rootExpanded={rootExpanded}
+              onToggleRoot={toggleRootExpanded}
+              onNewFile={() => openNewFileDialog('')}
+              onNewFolder={() => openNewFolderDialog('')}
+              onRefresh={refreshExplorer}
+              onCollapseAll={() => setCollapseAllSignal((signal) => signal + 1)}
             />
+
+            {rootExpanded ? (
+              <WorkspaceFileExplorer
+                refreshSignal={refreshSignal}
+                collapseAllSignal={collapseAllSignal}
+                chatroomId={chatroomId}
+                machineId={machineId}
+                workingDir={workingDir}
+                onFileSelect={onFileSelect}
+                onFileDoubleClick={onFileDoubleClick}
+                revealPath={effectiveRevealPath}
+                selectedPath={effectiveSelectedPath}
+                filterQuery={filterQuery}
+                dropHighlightPath={dropHighlightPath}
+                onNodeContextMenu={(node, event) => {
+                  const target: ExplorerContextTarget = {
+                    kind: 'node',
+                    path: node.path,
+                    type: node.type,
+                  };
+                  const props = buildFileMenuProps(target);
+                  if (props) openContextMenuAtPointer(event, props);
+                }}
+                onEmptyAreaContextMenu={(event) => {
+                  const props = buildFileMenuProps({ kind: 'root' });
+                  if (props) openContextMenuAtPointer(event, props);
+                }}
+              />
+            ) : null}
           </div>
 
           {jobs.length > 0 ? <WorkspaceUploadProgressList jobs={jobs} /> : null}

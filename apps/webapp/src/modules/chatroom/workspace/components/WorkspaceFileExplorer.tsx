@@ -21,6 +21,8 @@ interface WorkspaceFileExplorerProps {
   workingDir: string;
   /** Increment to refetch directory listings (parent-owned refresh signal). */
   refreshSignal?: number;
+  /** Increment to collapse all user-expanded folders. */
+  collapseAllSignal?: number;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
   /** When set, auto-expand tree to reveal this file path */
@@ -63,6 +65,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   machineId,
   workingDir,
   refreshSignal = 0,
+  collapseAllSignal = 0,
   onFileSelect,
   onFileDoubleClick,
   revealPath,
@@ -147,6 +150,13 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   useEffect(() => {
     setExpandedPaths(readExpandedPaths(expandedPathsStorageKey));
   }, [expandedPathsStorageKey]);
+
+  useEffect(() => {
+    if (collapseAllSignal === 0) return;
+    const empty = new Set<string>();
+    setExpandedPaths(empty);
+    writeExpandedPaths(expandedPathsStorageKey, empty);
+  }, [collapseAllSignal, expandedPathsStorageKey]);
 
   if (isLoading || explorerEmptyState === 'syncing') {
     return (
