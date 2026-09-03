@@ -78,13 +78,13 @@ describe('startAgent use case — desiredState', () => {
     const machineId = 'start-machine-1';
 
     await registerMachine(sessionId, machineId);
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
+    await startAgent(sessionId, machineId, chatroomId, 'planner');
 
     const teamConfig = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first();
     });
@@ -103,19 +103,19 @@ describe('startAgent use case — desiredState', () => {
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
       type: 'remote',
       machineId,
       agentHarness: 'opencode',
     });
 
     // Mark it as stopped (no spawned PID on this config — patch intent directly)
-    await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' });
+    await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'planner' });
     await t.run(async (ctx) => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
@@ -126,21 +126,21 @@ describe('startAgent use case — desiredState', () => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first();
     });
     expect(stopped?.desiredState).toBe('stopped');
 
     // Now start it again
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
+    await startAgent(sessionId, machineId, chatroomId, 'planner');
 
     // Verify desiredState is now 'running'
     const running = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first();
     });
@@ -157,11 +157,11 @@ describe('startAgent use case — desiredState', () => {
     // Seed a team config with circuit breaker OPEN
     await t.run(async (ctx) => {
       const now = Date.now();
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'planner');
       await ctx.db.insert('chatroom_teamAgentConfigs', {
         teamRoleKey,
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         type: 'remote',
         machineId,
         agentHarness: 'opencode',
@@ -176,14 +176,14 @@ describe('startAgent use case — desiredState', () => {
     });
 
     // Manually start the agent (should reset circuit)
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
+    await startAgent(sessionId, machineId, chatroomId, 'planner');
 
     // Verify circuit breaker was reset
     const config = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first();
     });
@@ -201,15 +201,15 @@ describe('startAgent use case — desiredState', () => {
 
     await registerMachine(sessionId, machineA);
     await registerMachine(sessionId, machineB);
-    await startAgent(sessionId, machineA, chatroomId, 'builder');
+    await startAgent(sessionId, machineA, chatroomId, 'planner');
 
-    await startAgent(sessionId, machineB, chatroomId, 'builder', { allowNewMachine: true });
+    await startAgent(sessionId, machineB, chatroomId, 'planner', { allowNewMachine: true });
 
     const config = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first()
     );
@@ -222,8 +222,8 @@ describe('startAgent use case — desiredState', () => {
     const machineId = 'start-switch-same';
 
     await registerMachine(sessionId, machineId);
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
+    await startAgent(sessionId, machineId, chatroomId, 'planner');
+    await startAgent(sessionId, machineId, chatroomId, 'planner');
 
     expect(true).toBe(true);
   });
@@ -236,10 +236,10 @@ describe('startAgent use case — desiredState', () => {
 
     await registerMachine(sessionId, machineA);
     await registerMachine(sessionId, machineB);
-    await startAgent(sessionId, machineA, chatroomId, 'builder');
+    await startAgent(sessionId, machineA, chatroomId, 'planner');
 
     await expect(
-      startAgent(sessionId, machineB, chatroomId, 'builder', { allowNewMachine: false })
+      startAgent(sessionId, machineB, chatroomId, 'planner', { allowNewMachine: false })
     ).rejects.toThrow(/allowNewMachine: true/);
   });
 
@@ -252,11 +252,11 @@ describe('startAgent use case — desiredState', () => {
     await registerMachine(sessionId, machineA);
     await registerMachine(sessionId, machineB);
     // First start binds the role to machineA (initial binding is permitted by default policy).
-    await startAgent(sessionId, machineA, chatroomId, 'builder');
+    await startAgent(sessionId, machineA, chatroomId, 'planner');
 
     // Second start on machineB without an explicit allowNewMachine flag must be rejected —
     // once bound, switching machines requires explicit opt-in.
-    await expect(startAgent(sessionId, machineB, chatroomId, 'builder')).rejects.toThrow(
+    await expect(startAgent(sessionId, machineB, chatroomId, 'planner')).rejects.toThrow(
       /allowNewMachine: true/
     );
 
@@ -282,9 +282,9 @@ describe('startAgent use case — wantResume runtime behavior', () => {
     const machineId = 'start-machine-resume-false';
 
     await registerMachine(sessionId, machineId);
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
+    await startAgent(sessionId, machineId, chatroomId, 'planner');
 
-    const config = await readTeamConfig(chatroomId, 'builder');
+    const config = await readTeamConfig(chatroomId, 'planner');
     expect(config?.wantResume).toBeUndefined();
 
     const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
@@ -301,9 +301,9 @@ describe('startAgent use case — wantResume runtime behavior', () => {
     const machineId = 'start-machine-resume-true';
 
     await registerMachine(sessionId, machineId);
-    await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: true });
+    await startAgent(sessionId, machineId, chatroomId, 'planner', { wantResume: true });
 
-    const config = await readTeamConfig(chatroomId, 'builder');
+    const config = await readTeamConfig(chatroomId, 'planner');
     expect(config?.wantResume).toBeUndefined();
 
     const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');

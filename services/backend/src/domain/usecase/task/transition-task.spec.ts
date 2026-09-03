@@ -467,17 +467,6 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     const taskId = claimResult.taskId;
     await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
 
-    // Get the builder's lastStatus before force-complete
-    const statusBefore = await t.run(async (ctx) => {
-      const participant = await ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
-        )
-        .unique();
-      return participant?.lastStatus ?? null;
-    });
-
     // Force-complete
     await t.mutation(api.tasks.completeTaskById, {
       sessionId,
@@ -498,8 +487,9 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
 
     // lastStatus should not have been updated to 'task.completed'
     expect(statusAfter).not.toBe('task.completed');
-    // It should be the same as before force-complete (or whatever startTask set it to)
-    expect(statusAfter).toBe(statusBefore);
+    // Force-completing the terminal task releases the ephemeral builder, so its
+    // participant transitions to 'agent.exited' rather than staying in-progress.
+    expect(statusAfter).toBe('agent.exited');
   });
 
   test('normal completion: task.completed event emitted WITHOUT skipAgentStatusUpdate flag', async () => {

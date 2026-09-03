@@ -25,7 +25,7 @@ async function setup(id: string) {
   await t.mutation(api.machines.saveTeamAgentConfig, {
     sessionId: id as any,
     chatroomId,
-    role: 'builder',
+    role: 'planner',
     type: 'remote',
     machineId,
     agentHarness: 'opencode',
@@ -34,7 +34,7 @@ async function setup(id: string) {
     ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
       )
       .first()
   );
@@ -47,7 +47,7 @@ describe('registerSpawnedAgentIfAuthorized', () => {
     const result = await t.run((ctx) =>
       registerSpawnedAgentIfAuthorized(ctx, {
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         machineId,
         pid: 12345,
         lifecycleRevision: 0,
@@ -58,7 +58,7 @@ describe('registerSpawnedAgentIfAuthorized', () => {
       ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first()
     );
@@ -71,7 +71,7 @@ describe('registerSpawnedAgentIfAuthorized', () => {
     const result = await t.run((ctx) =>
       registerSpawnedAgentIfAuthorized(ctx, {
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         machineId,
         pid: 999,
         lifecycleRevision: 0,

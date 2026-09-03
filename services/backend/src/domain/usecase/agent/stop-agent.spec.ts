@@ -227,7 +227,7 @@ describe('stopAgent use case — deferred physical stop', () => {
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
       type: 'remote',
       machineId,
       agentHarness: 'opencode',
@@ -237,14 +237,14 @@ describe('stopAgent use case — deferred physical stop', () => {
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
     });
 
     await t.run(async (ctx) => {
       await stopAgent(ctx, {
         machineId,
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         userId,
         reason: 'user.stop',
       });
@@ -254,7 +254,7 @@ describe('stopAgent use case — deferred physical stop', () => {
       return ctx.db
         .query('chatroom_participants')
         .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+          q.eq('chatroomId', chatroomId).eq('role', 'planner')
         )
         .unique();
     });
