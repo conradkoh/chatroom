@@ -12,7 +12,6 @@ const row = (revisionKey: string, operationalState: 'running' | 'stopped' = 'run
   isAlive: true,
   isRunning: true,
   daemonConnected: true,
-  projectedAt: 1,
   revisionKey,
 });
 
@@ -29,5 +28,20 @@ describe('AgentOperationalReadModel', () => {
     expect(isOperationalDesiredRunning(row('one', 'running'))).toBe(true);
     expect(isOperationalDesiredRunning(row('one', 'stopped'))).toBe(false);
     expect(isOperationalDesiredRunning(undefined)).toBe(false);
+  });
+
+  it('applies hydrated signal rows and removals incrementally', () => {
+    const model = new AgentOperationalReadModel();
+    model.replace([row('one')]);
+
+    expect(model.applySignalPage([row('two')], [])).toEqual([
+      { chatroomId: 'room-1', role: 'Builder' },
+    ]);
+    expect(model.get('room-1', 'builder')?.revisionKey).toBe('two');
+
+    expect(model.applySignalPage([], [{ chatroomId: 'room-1', role: 'builder' }])).toEqual([
+      { chatroomId: 'room-1', role: 'builder' },
+    ]);
+    expect(model.get('room-1', 'builder')).toBeUndefined();
   });
 });

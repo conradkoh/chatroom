@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication unused-export complexity
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 import {
@@ -12,6 +13,7 @@ import {
   type ChatroomOperationalSummary,
 } from './derive-agent-operational-state';
 import { deriveRoleStopState } from './derive-agent-stop-state';
+import { writeMachineOperationalSignal } from './write-machine-operational-signal';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
@@ -195,6 +197,15 @@ export async function projectAgentOperationalStatusForRole(
   ) {
     if (existing) await ctx.db.patch('chatroom_agentRoleOperationalStatus', existing._id, fields);
     else await ctx.db.insert('chatroom_agentRoleOperationalStatus', fields);
+    if (fields.machineId) {
+      await writeMachineOperationalSignal(ctx, {
+        machineId: fields.machineId,
+        chatroomId,
+        role: roleKey,
+        revisionKey: fields.revisionKey,
+        projectedAt,
+      });
+    }
   }
   const summary = await summaryFor(ctx, chatroomId);
   const base = summary ?? {
@@ -238,7 +249,22 @@ export async function projectAgentStopStateForRole(
     isAlive: config.spawnedAgentPid != null,
     desiredState: config.desiredState,
   });
-  await ctx.db.patch('chatroom_agentRoleOperationalStatus', row._id, stop);
+  const projectedAt = Date.now();
+  const revisionKey = `operational:${chatroomId}:${projectedAt}`;
+  await ctx.db.patch('chatroom_agentRoleOperationalStatus', row._id, {
+    ...stop,
+    projectedAt,
+    revisionKey,
+  });
+  if (row.machineId) {
+    await writeMachineOperationalSignal(ctx, {
+      machineId: row.machineId,
+      chatroomId,
+      role: row.role,
+      revisionKey,
+      projectedAt,
+    });
+  }
 }
 
 /** HOT PATH: remove one role and update its summary without scanning configs. */
@@ -253,6 +279,17 @@ export async function projectAgentOperationalStatusForRoleRemoved(
       q.eq('chatroomId', chatroomId).eq('role', role.toLowerCase())
     )
     .first();
+  if (row?.machineId) {
+    const projectedAt = Date.now();
+    await writeMachineOperationalSignal(ctx, {
+      machineId: row.machineId,
+      chatroomId,
+      role,
+      revisionKey: `operational:${chatroomId}:${projectedAt}:removed`,
+      projectedAt,
+      removed: true,
+    });
+  }
   if (row) await ctx.db.delete('chatroom_agentRoleOperationalStatus', row._id);
   const summary = await summaryFor(ctx, chatroomId);
   const room = await ctx.db.get('chatroom_rooms', chatroomId);
@@ -310,12 +347,24 @@ export async function projectDaemonConnectivityForMachine(
         row.isRunning !== (row.isAlive && daemonConnected) ||
         row.viewState !== viewState)
     ) {
+      const projectedAt = Date.now();
+      const revisionKey = `operational:${config.chatroomId}:${projectedAt}`;
       await ctx.db.patch('chatroom_agentRoleOperationalStatus', row._id, {
         daemonConnected,
         isRunning: row.isAlive && daemonConnected,
         viewState,
-        projectedAt: Date.now(),
+        projectedAt,
+        revisionKey,
       });
+      if (row.machineId) {
+        await writeMachineOperationalSignal(ctx, {
+          machineId: row.machineId,
+          chatroomId: config.chatroomId,
+          role: row.role,
+          revisionKey,
+          projectedAt,
+        });
+      }
       const projections = changed.get(config.chatroomId) ?? [];
       projections.push({
         role: row.role,

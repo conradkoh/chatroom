@@ -43,7 +43,12 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
+import { listMachineAgentOperationalStatus as listMachineAgentOperationalStatusUseCase } from '../src/domain/usecase/machine/list-machine-agent-operational-status';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
+import {
+  listOperationalStatusForMachineSignalRange as listOperationalStatusForMachineSignalRangeUseCase,
+  type ListOperationalStatusForMachineSignalRangeResult,
+} from '../src/domain/usecase/machine/list-operational-status-for-machine-signal-range';
 import {
   patchTeamAgentConfig,
   projectAfterTeamConfigRegistration,
@@ -670,6 +675,8 @@ export const getDaemonStatus = query({
 });
 
 const MAX_DAEMON_STATUS_BATCH = 10;
+const DEFAULT_OPERATIONAL_SIGNALS_LIMIT = 100;
+const MAX_OPERATIONAL_SIGNALS_LIMIT = 500;
 
 /** Batch daemon connectivity for multiple machines in one subscription. */
 export const getDaemonStatusesBatch = query({
@@ -2212,28 +2219,95 @@ export const listMachineAssignedTaskSnapshots = query({
   },
 });
 
-/** Reactive operational status rows for this machine. */
-export const subscribeMachineAgentOperationalStatus = query({
-  args: { ...SessionIdArg, machineId: v.string() },
+/**
+ * Reactive cursor-pinned operational-status signals for this machine.
+ * Returns null while idle so the subscription carries no full operational row array.
+ */
+export const subscribeMachineOperationalSignalsSince = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterKey: v.string(),
+    limit: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return null;
-    const rows = await ctx.db
-      .query('chatroom_agentRoleOperationalStatus')
+
+    const limit = Math.min(
+      Math.max(args.limit ?? DEFAULT_OPERATIONAL_SIGNALS_LIMIT, 1),
+      MAX_OPERATIONAL_SIGNALS_LIMIT
+    );
+    const head = await ctx.db
+      .query('chatroom_machineOperationalSignalHeads')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .collect();
-    if (rows.length === 0) return null;
-    return rows.map((row) => ({
+      .first();
+    if (head) {
+      if (head.latestSignal.signalKey <= args.afterKey) return null;
+      if (head.previousSignalKey === undefined || args.afterKey >= head.previousSignalKey) {
+        const item = head.latestSignal;
+        return { items: [item], highKey: item.signalKey, hasMore: false };
+      }
+    }
+    const page = await ctx.db
+      .query('chatroom_machineOperationalSignals')
+      .withIndex('by_machineId_signalKey', (q) =>
+        q.eq('machineId', args.machineId).gt('signalKey', args.afterKey)
+      )
+      .order('asc')
+      .take(limit + 1);
+    const hasMore = page.length > limit;
+    const items = page.slice(0, limit).map((row) => ({
       chatroomId: row.chatroomId,
       role: row.role,
-      operationalState: row.operationalState,
-      isAlive: row.isAlive,
-      isRunning: row.isRunning,
-      daemonConnected: row.daemonConnected,
-      projectedAt: row.projectedAt,
       revisionKey: row.revisionKey,
-      stopState: row.stopState,
+      signalKey: row.signalKey,
+      projectedAt: row.projectedAt,
+      ...(row.removed ? { removed: true } : {}),
     }));
+    const lastItem = items.at(-1);
+    if (!lastItem) return null;
+    return { items, highKey: lastItem.signalKey, hasMore };
+  },
+});
+
+/** Hydrate operational rows for a cursor range after signal delivery. */
+export const listOperationalStatusForMachineSignalRange = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterSignalKey: v.string(),
+    throughSignalKey: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<ListOperationalStatusForMachineSignalRangeResult> => {
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+
+    const limit = Math.min(
+      Math.max(args.limit ?? MAX_OPERATIONAL_SIGNALS_LIMIT, 1),
+      MAX_OPERATIONAL_SIGNALS_LIMIT
+    );
+    return listOperationalStatusForMachineSignalRangeUseCase(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterSignalKey: args.afterSignalKey,
+      throughSignalKey: args.throughSignalKey,
+      limit,
+    });
+  },
+});
+
+/** One-shot operational-status bootstrap for this machine. */
+export const listMachineAgentOperationalStatus = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) return [];
+    return listMachineAgentOperationalStatusUseCase(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+    });
   },
 });
 

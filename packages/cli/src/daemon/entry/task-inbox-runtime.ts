@@ -9,7 +9,6 @@ import {
   type DaemonAgentProcessManagerServiceShape,
 } from './daemon-services.js';
 import { AgentLifecycleOutboxService } from './daemon-services.js';
-import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { api } from '../../api.js';
 import {
@@ -23,9 +22,14 @@ import {
   type TaskDeliveryRuntime,
 } from './native-delivery/task-delivery-processor.js';
 import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
+import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { enrichSnapshotsWithOperational } from '../infrastructure/agent-operational/enrich-snapshot-with-operational.js';
-import { subscribeMachineAgentOperationalStatus } from '../infrastructure/agent-operational/subscribe-machine-agent-operational-status.js';
+import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
+import {
+  operationalSignalCursorAt,
+  runOperationalInbox,
+} from '../infrastructure/agent-operational/operational-inbox.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
@@ -97,6 +101,26 @@ export async function runInboxLoopWithRestart(
   }
 }
 
+// fallow-ignore-next-line complexity
+async function runOperationalInboxLoopWithRestart(
+  options: Parameters<typeof runOperationalInbox>[0],
+  onUpdate: Parameters<typeof runOperationalInbox>[1],
+  isStopped: () => boolean
+): Promise<void> {
+  let backoffMs = INBOX_RESTART_INITIAL_MS;
+  while (!isStopped()) {
+    try {
+      await runOperationalInbox(options, onUpdate);
+      return;
+    } catch (error) {
+      if (isStopped() || isAbortError(error)) return;
+      console.warn(`[OperationalInbox] loop error, restarting in ${backoffMs}ms:`, error);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      backoffMs = Math.min(backoffMs * 2, INBOX_RESTART_MAX_MS);
+    }
+  }
+}
+
 // fallow-ignore-next-line code-duplication
 // fallow-ignore-next-line complexity
 export const startTaskInboxEffect = (
@@ -104,14 +128,16 @@ export const startTaskInboxEffect = (
 ): Effect.Effect<
   { stop: () => void },
   never,
-  DaemonSessionService | DaemonAgentProcessManagerService
-    | AgentLifecycleOutboxService
+  DaemonSessionService | DaemonAgentProcessManagerService | AgentLifecycleOutboxService
 > =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const agentMgr = yield* DaemonAgentProcessManagerService;
     const lifecycleOutboxService = yield* AgentLifecycleOutboxService;
-    const lifecycleOutbox = { enqueue: (fact: AgentLifecycleFact) => Effect.runPromise(lifecycleOutboxService.enqueue(fact)) };
+    const lifecycleOutbox = {
+      enqueue: (fact: AgentLifecycleFact) =>
+        Effect.runPromise(lifecycleOutboxService.enqueue(fact)),
+    };
     const effectContext = yield* Effect.context<
       DaemonSessionService | DaemonAgentProcessManagerService
     >();
@@ -134,6 +160,11 @@ export const startTaskInboxEffect = (
       inboxType: 'task',
       scopeKey: session.machineId,
     });
+    const persistedOperational = inboxStore.get<{ afterSignalKey: string }>({
+      inboxType: 'operational',
+      scopeKey: session.machineId,
+    });
+    const serviceStartedAt = Date.now();
     const abort = new AbortController();
     let stopped = false;
     const taskSnapshotState = new MachineTaskSnapshotState();
@@ -155,7 +186,7 @@ export const startTaskInboxEffect = (
       client: wsClient,
       sessionId: session.sessionId as SessionId,
       machineId: session.machineId,
-      serviceStartedAt: Date.now(),
+      serviceStartedAt,
       initialAfterSignalKey: persisted?.state.afterSignalKey,
       signal: abort.signal,
     };
@@ -179,6 +210,15 @@ export const startTaskInboxEffect = (
         inboxUpdateInFlight = false;
       }
     };
+    yield* Effect.tryPromise(async () => {
+      const rows = await fetchMachineAgentOperationalStatus(sessionDeps, session.machineId);
+      agentOperationalReadModel.replace(rows);
+    }).pipe(
+      Effect.catchAll((error) => {
+        console.warn('[OperationalInbox] bootstrap failed:', error);
+        return Effect.void;
+      })
+    );
     yield* Effect.tryPromise(() =>
       bootstrapMachineAssignedTaskSnapshots({
         sessionDeps,
@@ -195,22 +235,24 @@ export const startTaskInboxEffect = (
         return Effect.void;
       })
     );
-    const unsubscribeOperational =
-      subscribeMachineAgentOperationalStatus(
-        wsClient,
-        {
-          sessionId: session.sessionId as SessionId,
-          machineId: session.machineId,
-          signal: abort.signal,
-        },
-        (rows) => {
-          if (stopped) return;
-          const changed = agentOperationalReadModel.replace(rows);
-          const snapshots = changed.flatMap(({ chatroomId, role }) =>
-            taskSnapshotState.listForRole(chatroomId, role)
-          );
-          if (snapshots.length === 0) return;
-          void processTasksUpdate(
+    const operationalInboxOptions: Parameters<typeof runOperationalInbox>[0] = {
+      client: wsClient,
+      sessionId: session.sessionId as SessionId,
+      machineId: session.machineId,
+      serviceStartedAt,
+      initialAfterSignalKey:
+        persistedOperational?.state.afterSignalKey ?? operationalSignalCursorAt(serviceStartedAt),
+      signal: abort.signal,
+    };
+    const operationalInboxHandler: Parameters<typeof runOperationalInbox>[1] = async (update) => {
+      inboxUpdateInFlight = true;
+      try {
+        const changed = agentOperationalReadModel.applySignalPage(update.rows, update.removed);
+        const snapshots = changed.flatMap(({ chatroomId, role }) =>
+          taskSnapshotState.listForRole(chatroomId, role)
+        );
+        if (snapshots.length > 0) {
+          await processTasksUpdate(
             runtime,
             effectContext,
             cooldown,
@@ -219,12 +261,17 @@ export const startTaskInboxEffect = (
             session.machineId,
             'operational-status',
             { snapshots: enrichSnapshotsWithOperational(snapshots) }
-          ).catch((error) =>
-            console.warn('[TaskInbox] operational-status reconcile failed:', error)
           );
         }
-      ) ?? (() => {});
-    /** Fallback reliability reconcile — primary delivery is reactive via inbox signals + operational subscription. */
+        inboxStore.save(
+          { inboxType: 'operational', scopeKey: session.machineId },
+          { afterSignalKey: update.throughSignalKey }
+        );
+      } finally {
+        inboxUpdateInFlight = false;
+      }
+    };
+    /** Fallback reliability reconcile — primary delivery is reactive via inbox signals. */
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdateInFlight || reconcileInFlight) return;
       reconcileInFlight = true;
@@ -246,10 +293,14 @@ export const startTaskInboxEffect = (
         });
     }, NATIVE_DELIVERY_RECONCILE_MS);
     void runInboxLoopWithRestart(inboxOptions, inboxHandler, () => stopped);
+    void runOperationalInboxLoopWithRestart(
+      operationalInboxOptions,
+      operationalInboxHandler,
+      () => stopped
+    );
     return {
       stop() {
         stopped = true;
-        unsubscribeOperational();
         abort.abort();
         clearInterval(reconcileTimer);
         unregisterNativeDeliverySession();
