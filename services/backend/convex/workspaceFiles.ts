@@ -32,6 +32,7 @@ import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constant
 import { FILE_TREE_WATCH_LEASE_MS } from '../src/domain/constants/workspace-file-tree-watch';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
 import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
+import { bumpMachineFileTreeReleaseHead } from '../src/domain/usecase/workspace/bump-machine-file-tree-release-head';
 import { requestWorkspaceFileTree as requestWorkspaceFileTreeUseCase } from '../src/domain/usecase/workspace/request-workspace-file-tree';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -515,6 +516,7 @@ export async function upsertPendingFileTreeReleaseRequest(
         requestedAt: now,
         updatedAt: now,
       });
+      await bumpMachineFileTreeReleaseHead(ctx, machineId);
     }
     return;
   }
@@ -526,6 +528,7 @@ export async function upsertPendingFileTreeReleaseRequest(
     requestedAt: now,
     updatedAt: now,
   });
+  await bumpMachineFileTreeReleaseHead(ctx, machineId);
 }
 
 /** A watch can push updates only while its UI-held lease is still valid. */
@@ -680,7 +683,7 @@ export const getFileTreeWatchLease = query({
 
 /**
  * Returns pending file-tree coordinator release requests for a machine.
- * Daemon subscribes to this reactively.
+ * Imperative drain only; daemon watches `subscribeMachineFileTreeReleaseHead` for wake-ups.
  */
 export const getPendingFileTreeReleaseRequests = query({
   args: {
@@ -711,6 +714,29 @@ export const getPendingFileTreeReleaseRequests = query({
       workingDir: r.workingDir,
       updatedAt: r.updatedAt,
     }));
+  },
+});
+
+/**
+ * Bandwidth-light wake-up for file-tree release queue changes.
+ * Returns null when no release work has ever been queued for this machine.
+ */
+export const subscribeMachineFileTreeReleaseHead = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+    const head = await ctx.db
+      .query('chatroom_machineFileTreeReleaseHeads')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!head) return null;
+    return { revision: head.revision };
   },
 });
 
