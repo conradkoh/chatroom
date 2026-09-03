@@ -135,5 +135,26 @@ describe('ackMachineOperationalSignals', () => {
         .collect()
     );
     expect(remaining).toHaveLength(1);
+
+    const continuation = await t.run((ctx) =>
+      ackMachineOperationalSignals(ctx, {
+        machineId,
+        throughSignalKey: key(200, String(chatroomId), 'role-100'),
+      })
+    );
+    expect(continuation).toEqual({ deletedCount: 1, hasMore: false });
+
+    const finalState = await t.run(async (ctx) => ({
+      signals: await ctx.db
+        .query('chatroom_machineOperationalSignals')
+        .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machineId))
+        .collect(),
+      head: await ctx.db
+        .query('chatroom_machineOperationalSignalHeads')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first(),
+    }));
+    expect(finalState.signals).toHaveLength(0);
+    expect(finalState.head).toBeNull();
   });
 });

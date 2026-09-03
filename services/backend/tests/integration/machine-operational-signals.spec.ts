@@ -69,4 +69,40 @@ describe('machine operational signals', () => {
     );
     expect(remaining).toHaveLength(0);
   });
+
+  test('rejects ack from non-owner and preserves signal rows', async () => {
+    const { sessionId: ownerSessionId } = await createTestSession(
+      'machine-operational-signals-owner'
+    );
+    const machineId = 'machine-operational-signals-owner';
+    await registerMachineWithDaemon(ownerSessionId, machineId);
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId: ownerSessionId,
+      teamId: 'duo',
+      teamName: 'Duo',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+    await setupRemoteAgentConfig(ownerSessionId, chatroomId, machineId, 'builder');
+    await updateSpawnedAgentInTest(ownerSessionId, machineId, chatroomId, 'builder', 62002);
+
+    const { sessionId: otherSessionId } = await createTestSession(
+      'machine-operational-signals-other'
+    );
+    await expect(
+      t.mutation(api.machines.ackMachineOperationalSignals, {
+        sessionId: otherSessionId,
+        machineId,
+        throughSignalKey: 'z',
+      })
+    ).rejects.toThrow();
+
+    const signals = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_machineOperationalSignals')
+        .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machineId))
+        .collect()
+    );
+    expect(signals.length).toBeGreaterThan(0);
+  });
 });

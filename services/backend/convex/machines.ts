@@ -2320,8 +2320,7 @@ export const ackMachineOperationalSignals = mutation({
     throughSignalKey: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
     return ackMachineOperationalSignalsUseCase(ctx, {
       machineId: args.machineId,
       throughSignalKey: args.throughSignalKey,
