@@ -1517,6 +1517,25 @@ export default defineSchema({
     .index('by_userId', ['userId'])
     .index('by_userId_machineId', ['userId', 'machineId']),
 
+  /**
+   * Repository clone requests initiated from Create Chatroom (GitHub URL flow).
+   * Daemon clones into the user's configured repository root when needed.
+   */
+  chatroom_repositoryCloneRequests: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    githubUrl: v.string(),
+    cloneUrl: v.string(),
+    repoName: v.string(),
+    targetWorkingDir: v.string(),
+    status: v.union(v.literal('pending'), v.literal('completed'), v.literal('failed')),
+    workingDir: v.optional(v.string()),
+    cloned: v.optional(v.boolean()),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index('by_userId_created', ['userId', 'createdAt']),
+
   // ============================================================================
   // EVENT STREAM TABLE
   // Append-only log of all significant events in the chatroom system.

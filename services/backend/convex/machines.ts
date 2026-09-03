@@ -58,6 +58,7 @@ import {
   upsertTeamAgentConfigByTeamRoleKey,
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { requestRepositoryClone as requestRepositoryCloneUseCase } from '../src/domain/usecase/machine/request-repository-clone';
 import { setMachineRepositoryRoot as setMachineRepositoryRootUseCase } from '../src/domain/usecase/machine/set-machine-repository-root';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
@@ -1124,6 +1125,90 @@ export const reportFolderPickerResult = mutation({
     await ctx.db.patch('chatroom_folderPickerRequests', args.requestId, {
       status: args.status,
       selectedPath: args.selectedPath,
+      errorMessage: args.errorMessage,
+      completedAt: Date.now(),
+    });
+
+    return { ok: true as const };
+  },
+});
+
+/** Request a repository clone (or existing-repository reuse) on a machine. */
+export const requestRepositoryClone = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    githubUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    const { requestId, cloneUrl, targetWorkingDir } = await requestRepositoryCloneUseCase(ctx, {
+      userId: auth.userId,
+      machineId: args.machineId,
+      githubUrl: args.githubUrl,
+    });
+
+    await enqueueMachineCommand(ctx, {
+      machineId: args.machineId,
+      command: {
+        type: 'daemon.cloneRepository',
+        requestId,
+        cloneUrl,
+        targetWorkingDir,
+      },
+    });
+
+    return { requestId };
+  },
+});
+
+/** Poll repository clone request status from the webapp. */
+export const getRepositoryCloneRequest = query({
+  args: {
+    ...SessionIdArg,
+    requestId: v.id('chatroom_repositoryCloneRequests'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    const request = await ctx.db.get('chatroom_repositoryCloneRequests', args.requestId);
+    if (!request || request.userId !== auth.userId) return null;
+    return request;
+  },
+});
+
+/** Called by the CLI daemon after handling `daemon.cloneRepository`. */
+export const reportRepositoryCloneResult = mutation({
+  args: {
+    ...SessionIdArg,
+    requestId: v.id('chatroom_repositoryCloneRequests'),
+    machineId: v.string(),
+    status: v.union(v.literal('completed'), v.literal('failed')),
+    workingDir: v.optional(v.string()),
+    cloned: v.optional(v.boolean()),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    const machine = await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    const request = await ctx.db.get('chatroom_repositoryCloneRequests', args.requestId);
+    if (!request) throw new Error('Repository clone request not found');
+    if (request.machineId !== machine.machineId) {
+      throw new Error('Repository clone request does not belong to this machine');
+    }
+    if (request.status !== 'pending') return { ok: true as const, duplicate: true as const };
+
+    if (args.workingDir) validateWorkingDir(args.workingDir);
+
+    await ctx.db.patch('chatroom_repositoryCloneRequests', args.requestId, {
+      status: args.status,
+      workingDir: args.workingDir,
+      cloned: args.cloned,
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
     });

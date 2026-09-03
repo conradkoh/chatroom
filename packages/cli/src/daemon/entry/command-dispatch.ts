@@ -1,6 +1,7 @@
 /**
  * Command event dispatch — handles daemon command events from v2 inbound nudges.
  */
+// fallow-ignore-file code-duplication
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
@@ -10,7 +11,10 @@ import {
 import type { MachineCommandPayload } from '@workspace/backend/src/domain/entities/machine-command.js';
 import { Effect, Layer, Ref, type Context } from 'effect';
 
-import { pushSingleWorkspaceGitStateEffect, pushGitStateEffect } from './workspace-git/git-heartbeat.js';
+import {
+  pushSingleWorkspaceGitStateEffect,
+  pushGitStateEffect,
+} from './workspace-git/git-heartbeat.js';
 import { reconcileWorkspaceList } from './workspace-git/workspace-list-subscription.js';
 import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
@@ -36,6 +40,7 @@ import { executeLocalAction } from '../../infrastructure/local-actions/index.js'
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
+import { cloneRepositoryIfNeeded } from '../infrastructure/git/clone-repository.js';
 import { makeGitStateKey } from '../infrastructure/git/types.js';
 
 /** Event shape delivered from the machine command inbox (formerly machines.getCommandEvents). */
@@ -55,6 +60,7 @@ export interface DedupTracker {
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
+  cloneRepositoryIds: Map<string, number>;
   workspaceListChangedIds?: Map<string, number> | undefined;
 }
 
@@ -76,7 +82,9 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
-  if (tracker.workspaceListChangedIds) evictStaleEntries(tracker.workspaceListChangedIds, evictBefore);
+  evictStaleEntries(tracker.cloneRepositoryIds, evictBefore);
+  if (tracker.workspaceListChangedIds)
+    evictStaleEntries(tracker.workspaceListChangedIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 
@@ -88,6 +96,7 @@ export function createDedupTracker(): DedupTracker {
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
+    cloneRepositoryIds: new Map<string, number>(),
     workspaceListChangedIds: new Map<string, number>(),
   };
 }
@@ -255,6 +264,51 @@ function handlePickFolderCommandEffect(
   });
 }
 
+// The command lifecycle has separate dedup, execution, and report outcomes.
+// fallow-ignore-next-line complexity
+function handleCloneRepositoryCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.cloneRepositoryIds.has(eventId)) return;
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.cloneRepository' }>;
+    console.log(`[${formatTimestamp()}] 📦 Repository clone requested`);
+    const result = yield* Effect.promise(() =>
+      cloneRepositoryIfNeeded(typedEvent.cloneUrl, typedEvent.targetWorkingDir)
+    );
+    const session = yield* DaemonSessionService;
+    // fallow-ignore-next-line complexity
+    yield* Effect.tryPromise({
+      // fallow-ignore-next-line complexity
+      try: () =>
+        session.backend.mutation(api.machines.reportRepositoryCloneResult, {
+          sessionId: session.sessionId,
+          requestId: typedEvent.requestId,
+          machineId: session.machineId,
+          status: result.success ? 'completed' : 'failed',
+          workingDir: result.success ? result.workingDir : undefined,
+          cloned: result.success ? result.cloned : undefined,
+          errorMessage: result.success ? undefined : result.error,
+        }),
+      catch: (error) => error,
+    }).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️  Repository clone report failed: ${getErrorMessage(error)}`
+          );
+        })
+      )
+    );
+    if (!result.success) {
+      console.warn(`[${formatTimestamp()}] ⚠️  Repository clone failed: ${result.error}`);
+    }
+    tracker.cloneRepositoryIds.set(eventId, Date.now());
+  });
+}
+
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -317,6 +371,7 @@ const commandEventHandlers: {
   'daemon.workspaceListChanged': handleWorkspaceListChangedCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,
   'daemon.pickFolder': handlePickFolderCommandEffect,
+  'daemon.cloneRepository': handleCloneRepositoryCommandEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
 };
 

@@ -9,6 +9,7 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'daemon.workspaceListChanged',
   'daemon.localAction',
   'daemon.pickFolder',
+  'daemon.cloneRepository',
   'daemon.refreshCapabilities',
 ] as const;
 
