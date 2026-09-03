@@ -6,6 +6,8 @@
  * with unavailable harnesses are skipped so the switch still completes.
  */
 
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
@@ -41,6 +43,11 @@ export async function startTargetTeamAgentsOnSwitch(
   const machineCache = new Map<string, Doc<'chatroom_machines'>>();
 
   for (const role of teamRoles) {
+    // Ephemeral agents are armed on demand via planner handoff, not started on
+    // team switch. Persisting a started/stopped state here would conflict with
+    // their release lifecycle.
+    if (isEphemeralAgentRole(role)) continue;
+
     const teamRoleKey = buildTeamRoleKey(chatroomId, teamId, role);
     // fallow-ignore-next-line code-duplication
     const config = await ctx.db
