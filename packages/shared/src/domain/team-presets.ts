@@ -28,7 +28,7 @@ export const TEAM_PRESETS: Record<TeamPresetId, TeamPreset> = {
   duo: {
     name: 'Duo',
     description:
-      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral enhancer',
+      'A planner and builder working as a pair — planner is the persistent coordinator; builder runs on demand when delegated work arrives. Optional ephemeral enhancer.',
     roles: ['planner', 'enhancer', 'builder'],
     entryPoint: 'planner',
   },

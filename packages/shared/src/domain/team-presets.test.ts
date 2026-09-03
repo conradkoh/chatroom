@@ -31,7 +31,7 @@ describe('team presets', () => {
   });
 
   test('permanent roles exclude enhancer', () => {
-    expect(getPermanentRolesForPreset('duo')).toEqual(['planner', 'builder']);
+    expect(getPermanentRolesForPreset('duo')).toEqual(['planner']);
     expect(getPermanentRolesForPreset('solo')).toEqual(['solo']);
   });
 
@@ -49,7 +49,7 @@ describe('team presets', () => {
       roles: [
         { role: 'planner', lifecycle: 'permanent', optional: false },
         { role: 'enhancer', lifecycle: 'ephemeral', optional: true },
-        { role: 'builder', lifecycle: 'permanent', optional: false },
+        { role: 'builder', lifecycle: 'ephemeral', optional: true },
       ],
     });
   });
