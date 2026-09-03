@@ -228,8 +228,8 @@ describe('HARNESS_MODEL_CATALOG', () => {
     for (const harness of ['claude', 'claude-sdk'] as const) {
       const catalog = HARNESS_MODEL_CATALOG[harness];
       const baseIds = catalog.map((entry) => decodeModelVariant(entry).model);
-      // 3 unversioned aliases + 5 versioned ids = 8 unique base ids.
-      expect(new Set(baseIds).size).toBe(8);
+      // 3 unversioned aliases + 6 versioned ids = 9 unique base ids.
+      expect(new Set(baseIds).size).toBe(9);
       // CLAUDE_SPAWN_ALIASES is now empty — all aliases are catalog-backed.
       for (const alias of CLAUDE_SPAWN_ALIASES) {
         expect(baseIds).not.toContain(alias);
