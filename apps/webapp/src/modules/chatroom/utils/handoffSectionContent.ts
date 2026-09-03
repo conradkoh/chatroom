@@ -1,6 +1,6 @@
 const NOT_APPLICABLE_RE = /^not applicable\.?$/i;
 
-function stripComments(text: string): string {
+export function stripHandoffSectionComments(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, '').trim();
 }
 
@@ -10,7 +10,7 @@ function isNotApplicableLine(line: string): boolean {
 }
 
 export function isNotApplicableContent(text: string): boolean {
-  const stripped = stripComments(text);
+  const stripped = stripHandoffSectionComments(text);
   if (!stripped) return true;
   const lines = stripped
     .split('\n')

@@ -9,6 +9,7 @@ import {
   extractH2Section,
   isHandoffSectionBodyEmpty,
 } from '../../utils/handoffSectionContent';
+import { normalizeChatroomMarkdownContent } from '../../utils/normalizeChatroomMarkdownContent';
 import { parseHandoffReport } from '../../utils/parseHandoffReport';
 import type { HandoffReportParseResult } from '../../utils/parseHandoffReport';
 
@@ -247,7 +248,10 @@ export const HandoffReportView = memo(function HandoffReportView({
   variant = 'timeline',
   targetRole,
 }: HandoffReportViewProps) {
-  const parsed = useMemo(() => parseHandoffReport(content), [content]);
+  const parsed = useMemo(
+    () => parseHandoffReport(normalizeChatroomMarkdownContent(content)),
+    [content]
+  );
   const [showRaw, setShowRaw] = useState(false);
 
   if (showRaw) {

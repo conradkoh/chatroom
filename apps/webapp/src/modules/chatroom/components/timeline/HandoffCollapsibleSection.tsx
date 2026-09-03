@@ -5,6 +5,7 @@ import { memo } from 'react';
 
 import { HandoffActionMarkdownBody } from './HandoffActionMarkdownBody';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
+import { prepareHandoffSectionMarkdown } from '../../utils/prepareHandoffSectionMarkdown';
 
 import { cn } from '@/lib/utils';
 
@@ -31,6 +32,7 @@ export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection
   isEmpty,
 }: HandoffCollapsibleSectionProps) {
   const displayLabel = subsectionCount !== undefined ? `${label} (${subsectionCount})` : label;
+  const preparedBody = prepareHandoffSectionMarkdown(body);
   return (
     <div
       className={cn(
@@ -61,9 +63,9 @@ export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection
       {isOpen && (
         <div className="px-3 py-2 border-t border-chatroom-border">
           {useActionMarkdown ? (
-            <HandoffActionMarkdownBody content={body} />
+            <HandoffActionMarkdownBody content={preparedBody} />
           ) : (
-            <TimelineMarkdownBody content={body} />
+            <TimelineMarkdownBody content={preparedBody} />
           )}
         </div>
       )}
