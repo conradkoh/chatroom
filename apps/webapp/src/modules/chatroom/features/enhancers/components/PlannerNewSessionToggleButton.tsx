@@ -18,8 +18,8 @@ export function PlannerNewSessionToggleButton({
       onClick={onToggle}
       title={
         isActive
-          ? 'New session enabled — click to disable'
-          : 'New session disabled — click to enable'
+          ? 'New session enabled — click to disable (Alt+N)'
+          : 'New session disabled — click to enable (Alt+N)'
       }
       className={cn(
         'shrink-0 w-[3.75rem] px-0 py-2 sm:w-full sm:px-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',

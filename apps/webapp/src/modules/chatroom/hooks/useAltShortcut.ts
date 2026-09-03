@@ -1,11 +1,9 @@
 'use client';
 
-// fallow-ignore-file unused-file
-
 import { useEffect } from 'react';
 
 /** True when only Alt is held and the key matches case-insensitively. */
-// fallow-ignore-next-line complexity
+// fallow-ignore-next-line unused-export complexity
 export function isAltShortcut(event: KeyboardEvent, key: string): boolean {
   if (!event.altKey) return false;
   if (event.metaKey || event.ctrlKey || event.shiftKey) return false;
