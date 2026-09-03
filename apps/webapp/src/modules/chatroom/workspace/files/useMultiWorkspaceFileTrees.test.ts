@@ -21,6 +21,7 @@ function makeWorkspace(machineId: string | null, workingDir: string): Workspace 
     hostname: 'host',
     workingDir,
     agentRoles: [],
+    fileTreeSyncEnabled: true,
   };
 }
 

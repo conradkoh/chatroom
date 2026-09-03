@@ -76,6 +76,7 @@ export function useChatroomWorkspaces(chatroomId: string, options?: UseChatroomW
           agentRoles,
           registeredAt: ws.registeredAt,
           _registryId: ws._id,
+          fileTreeSyncEnabled: ws.fileTreeSyncEnabled,
         };
       });
     return dedupeWorkspacesById(mapped);

@@ -21,14 +21,16 @@ import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ChatroomActiveWorkspace {
-  /** Convex registry ID for the workspace (null when not yet registered). */
-  workspaceId: string | null; // registry key from Workspace.id (not a Convex _id)
+  /** Convex registry document ID (`chatroom_workspaces._id`). */
+  workspaceId: string | null;
   /** machineId of the connected daemon. */
   machineId: string | null;
   /** Absolute working-directory path. */
   workingDir: string | null;
   /** Display hostname (alias if set, otherwise hostname). */
   hostname: string | null;
+  /** Whether this workspace syncs file-tree data to Chatroom. */
+  fileTreeSyncEnabled: boolean;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -65,6 +67,7 @@ export function useChatroomActiveWorkspace(
             machineId: selected.machineId,
             workingDir: selected.workingDir || null,
             hostname: selected.machineAlias ?? selected.hostname ?? null,
+            fileTreeSyncEnabled: selected.fileTreeSyncEnabled,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- primitive values only; object identity not needed
@@ -74,6 +77,7 @@ export function useChatroomActiveWorkspace(
       selected?.workingDir,
       selected?.machineAlias,
       selected?.hostname,
+      selected?.fileTreeSyncEnabled,
     ]
   );
 
