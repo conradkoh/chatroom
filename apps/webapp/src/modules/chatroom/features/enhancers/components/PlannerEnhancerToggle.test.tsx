@@ -157,4 +157,31 @@ describe('PlannerEnhancerToggle', () => {
     expect(mockOpenDialog).not.toHaveBeenCalled();
     expect(mockToastMessage).not.toHaveBeenCalled();
   });
+
+  it('Alt+E enables from saved config without opening dialog', async () => {
+    mockConfig = SAVED_CONFIG;
+    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', altKey: true, bubbles: true }));
+
+    await waitFor(() =>
+      expect(mockSaveConfig).toHaveBeenCalledWith({ ...SAVED_CONFIG, enabled: true })
+    );
+    expect(mockOpenDialog).not.toHaveBeenCalled();
+  });
+
+  it('Alt+E shows the unsupported-team toast', async () => {
+    render(
+      <PlannerEnhancerToggle
+        chatroomId="room-1"
+        machineId="machine-1"
+        teamSupportState="unsupported"
+      />
+    );
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', altKey: true, bubbles: true }));
+
+    await waitFor(() => expect(mockToastMessage).toHaveBeenCalled());
+    expect(mockOpenDialog).not.toHaveBeenCalled();
+  });
 });
