@@ -6,8 +6,8 @@ import {
   buildAgentStopRevisionKey,
   buildAgentStopTargetKey,
 } from '../../src/domain/entities/agent-stop-command';
-import { t } from '../../test.setup';
 import { authorizeAgentStart } from '../../src/domain/usecase/agent/authorize-agent-start';
+import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
   createTestSession,
@@ -31,7 +31,7 @@ async function projectionFor(chatroomId: any) {
   return t.run(async (ctx) => ({
     role: await ctx.db
       .query('chatroom_agentRoleOperationalStatus')
-      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'planner'))
       .first(),
     summary: await ctx.db
       .query('chatroom_agentOperationalSummary')
@@ -46,27 +46,27 @@ describe('projectAgentLifecycleFact', () => {
     const machineId = 'lifecycle-machine-spawn';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await t.mutation(api.machines.projectAgentLifecycleFact, {
       sessionId: sessionId as any,
       machineId,
       fact: {
         kind: 'spawned',
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid: 42424,
         lifecycleRevision: 1,
         revisionKey: 'spawn:1',
         emittedAt: Date.now(),
       },
     });
-    expect((await configFor(chatroomId, 'builder'))!.spawnedAgentPid).toBe(42424);
+    expect((await configFor(chatroomId, 'planner'))!.spawnedAgentPid).toBe(42424);
     const projection = await projectionFor(chatroomId);
     expect(projection.role?.operationalState).toBe('running');
     expect(projection.role?.isAlive).toBe(true);
     expect(projection.role?.isRunning).toBe(true);
     expect(projection.summary?.agentStatus).toBe('running');
-    expect(projection.summary?.runningRoles).toContain('builder');
+    expect(projection.summary?.runningRoles).toContain('planner');
   });
 
   test('daemon disconnect clears isRunning while retaining isAlive', async () => {
@@ -74,14 +74,14 @@ describe('projectAgentLifecycleFact', () => {
     const machineId = 'lifecycle-machine-disconnect';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await t.mutation(api.machines.projectAgentLifecycleFact, {
       sessionId: sessionId as any,
       machineId,
       fact: {
         kind: 'spawned',
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid: 42428,
         lifecycleRevision: 1,
         revisionKey: 'spawn:disconnect',
@@ -97,7 +97,7 @@ describe('projectAgentLifecycleFact', () => {
     expect(projection.role?.isAlive).toBe(true);
     expect(projection.role?.isRunning).toBe(false);
     expect(projection.summary?.agentStatus).toBe('stopped');
-    expect(projection.summary?.aliveRoles).toContain('builder');
+    expect(projection.summary?.aliveRoles).toContain('planner');
     expect(projection.summary?.runningRoles).toEqual([]);
   });
   test('spawned is idempotent for the same PID', async () => {
@@ -105,11 +105,11 @@ describe('projectAgentLifecycleFact', () => {
     const machineId = 'lifecycle-machine-idem';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     const fact = {
       kind: 'spawned' as const,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
       pid: 42425,
       lifecycleRevision: 1,
       revisionKey: 'spawn:idem',
@@ -132,14 +132,14 @@ describe('projectAgentLifecycleFact', () => {
     const machineId = 'lifecycle-machine-exit';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     const base = {
       sessionId: sessionId as any,
       machineId,
       fact: {
         kind: 'spawned' as const,
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid: 42426,
         lifecycleRevision: 1,
         revisionKey: 'spawn:exit',
@@ -153,20 +153,20 @@ describe('projectAgentLifecycleFact', () => {
       fact: {
         kind: 'exited',
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid: 42426,
         revisionKey: 'exited:1',
         emittedAt: Date.now(),
       },
     });
-    expect((await configFor(chatroomId, 'builder'))!.spawnedAgentPid).toBeUndefined();
+    expect((await configFor(chatroomId, 'planner'))!.spawnedAgentPid).toBeUndefined();
   });
   test('stop-command revision clears a matching PID', async () => {
     const { sessionId } = await createTestSession('lifecycle-stop-revision');
     const machineId = 'lifecycle-machine-stop-revision';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     const pid = 42430;
     await t.mutation(api.machines.projectAgentLifecycleFact, {
       sessionId: sessionId as any,
@@ -174,7 +174,7 @@ describe('projectAgentLifecycleFact', () => {
       fact: {
         kind: 'spawned',
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid,
         lifecycleRevision: 1,
         revisionKey: 'spawn:stop',
@@ -184,21 +184,21 @@ describe('projectAgentLifecycleFact', () => {
     const stopCommandId = await t.run(async (ctx) =>
       ctx.db.insert('chatroom_agentStopCommands', {
         chatroomId,
-        scope: { kind: 'agent', role: 'builder' },
+        scope: { kind: 'agent', role: 'planner' },
         scopeKey: 'agent:builder',
         reason: 'user.stop',
         status: 'processing',
         createdAt: Date.now(),
       })
     );
-    const targetKey = buildAgentStopTargetKey({ machineId, role: 'builder', pid });
+    const targetKey = buildAgentStopTargetKey({ machineId, role: 'planner', pid });
     const revisionKey = buildAgentStopRevisionKey({ stopCommandId, targetKey });
     await t.run(async (ctx) =>
       ctx.db.insert('chatroom_agentStopTargets', {
         stopCommandId,
         chatroomId,
         machineId,
-        role: 'builder',
+        role: 'planner',
         pid,
         targetKey,
         revisionKey,
@@ -211,20 +211,20 @@ describe('projectAgentLifecycleFact', () => {
       fact: {
         kind: 'exited',
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid,
         revisionKey,
         emittedAt: Date.now(),
       },
     });
-    expect((await configFor(chatroomId, 'builder'))!.spawnedAgentPid).toBeUndefined();
+    expect((await configFor(chatroomId, 'planner'))!.spawnedAgentPid).toBeUndefined();
   });
   test('stale stop-command revision does not clear a newer PID', async () => {
     const { sessionId } = await createTestSession('lifecycle-stale-stop-revision');
     const machineId = 'lifecycle-machine-stale-stop-revision';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     const oldPid = 42431;
     const newPid = 42432;
     await t.mutation(api.machines.projectAgentLifecycleFact, {
@@ -233,7 +233,7 @@ describe('projectAgentLifecycleFact', () => {
       fact: {
         kind: 'spawned',
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid: oldPid,
         lifecycleRevision: 1,
         revisionKey: 'spawn:old',
@@ -244,7 +244,7 @@ describe('projectAgentLifecycleFact', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { spawnedAgentPid: newPid });
@@ -252,21 +252,21 @@ describe('projectAgentLifecycleFact', () => {
     const stopCommandId = await t.run(async (ctx) =>
       ctx.db.insert('chatroom_agentStopCommands', {
         chatroomId,
-        scope: { kind: 'agent', role: 'builder' },
+        scope: { kind: 'agent', role: 'planner' },
         scopeKey: 'agent:builder',
         reason: 'user.stop',
         status: 'processing',
         createdAt: Date.now(),
       })
     );
-    const targetKey = buildAgentStopTargetKey({ machineId, role: 'builder', pid: oldPid });
+    const targetKey = buildAgentStopTargetKey({ machineId, role: 'planner', pid: oldPid });
     const revisionKey = buildAgentStopRevisionKey({ stopCommandId, targetKey });
     await t.run(async (ctx) =>
       ctx.db.insert('chatroom_agentStopTargets', {
         stopCommandId,
         chatroomId,
         machineId,
-        role: 'builder',
+        role: 'planner',
         pid: oldPid,
         targetKey,
         revisionKey,
@@ -279,27 +279,27 @@ describe('projectAgentLifecycleFact', () => {
       fact: {
         kind: 'exited',
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid: oldPid,
         revisionKey,
         emittedAt: Date.now(),
       },
     });
-    expect((await configFor(chatroomId, 'builder'))!.spawnedAgentPid).toBe(newPid);
+    expect((await configFor(chatroomId, 'planner'))!.spawnedAgentPid).toBe(newPid);
   });
   test('cleared_all_pids clears machine configs', async () => {
     const { sessionId } = await createTestSession('lifecycle-clear');
     const machineId = 'lifecycle-machine-clear';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await t.mutation(api.machines.projectAgentLifecycleFact, {
       sessionId: sessionId as any,
       machineId,
       fact: {
         kind: 'spawned',
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         pid: 42427,
         lifecycleRevision: 1,
         revisionKey: 'spawn:clear',
@@ -312,7 +312,7 @@ describe('projectAgentLifecycleFact', () => {
       fact: { kind: 'cleared_all_pids', revisionKey: 'clear:1', emittedAt: Date.now() },
     });
     expect(result.clearedCount).toBeGreaterThanOrEqual(1);
-    expect((await configFor(chatroomId, 'builder'))!.spawnedAgentPid).toBeUndefined();
+    expect((await configFor(chatroomId, 'planner'))!.spawnedAgentPid).toBeUndefined();
   });
 
   test('cleared_all_pids reconciles orphaned inflight stop commands for machine', async () => {
@@ -320,11 +320,11 @@ describe('projectAgentLifecycleFact', () => {
     const machineId = 'lifecycle-machine-clear-stop';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     const stopCommandId = await t.run(async (ctx) => {
       const commandId = await ctx.db.insert('chatroom_agentStopCommands', {
         chatroomId,
-        scope: { kind: 'agent', role: 'builder' },
+        scope: { kind: 'agent', role: 'planner' },
         scopeKey: 'agent:builder',
         reason: 'daemon.shutdown',
         status: 'processing',
@@ -334,7 +334,7 @@ describe('projectAgentLifecycleFact', () => {
         stopCommandId: commandId,
         chatroomId,
         machineId,
-        role: 'builder',
+        role: 'planner',
         pid: 99,
         targetKey: 'orphan-target',
         revisionKey: 'orphan-revision',
@@ -358,7 +358,7 @@ describe('projectAgentLifecycleFact', () => {
     const command = await t.run((ctx) => ctx.db.get('chatroom_agentStopCommands', stopCommandId));
     expect(command?.status).toBe('completed');
     const authorization = await t.run((ctx) =>
-      authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })
+      authorizeAgentStart(ctx, { chatroomId, role: 'planner', machineId })
     );
     expect(authorization.allowed).toBe(true);
   });

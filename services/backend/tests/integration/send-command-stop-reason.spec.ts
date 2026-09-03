@@ -17,9 +17,9 @@ describe('agent stop request reason', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'stop-reason-default-machine';
     await registerMachineWithDaemon(sessionId, machineId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
-    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 50101);
-    await t.mutation(api.agentStops.request, { sessionId, chatroomId, machineId, role: 'builder' });
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'planner', 50101);
+    await t.mutation(api.agentStops.request, { sessionId, chatroomId, machineId, role: 'planner' });
     const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
     const row = inbox.find((item) => item.command.type === 'agent.stopScope');
     expect(row).toBeDefined();
@@ -35,13 +35,13 @@ describe('agent stop request reason', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'stop-reason-explicit-machine';
     await registerMachineWithDaemon(sessionId, machineId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
-    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 50102);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'planner', 50102);
     await t.mutation(api.agentStops.request, {
       sessionId,
       chatroomId,
       machineId,
-      role: 'builder',
+      role: 'planner',
       reason: 'platform.dedup',
     });
     const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');

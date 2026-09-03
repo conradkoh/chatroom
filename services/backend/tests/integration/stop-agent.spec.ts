@@ -24,15 +24,15 @@ describe('stopAgent', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-1';
     await registerMachineWithDaemon(sessionId, machineId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
-    await seedRunningAgentPid(sessionId, chatroomId, machineId, 'builder', 91001);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+    await seedRunningAgentPid(sessionId, chatroomId, machineId, 'planner', 91001);
 
     await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
       return stopAgent(ctx, {
         machineId,
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         userId: user!._id,
         reason: 'test',
       });
@@ -52,7 +52,7 @@ describe('stopAgent', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-2';
     await registerMachineWithDaemon(sessionId, machineId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
 
     const result = await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
@@ -74,9 +74,9 @@ describe('stopAgent', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-3';
     await registerMachineWithDaemon(sessionId, machineId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
-    await seedRunningAgentPid(sessionId, chatroomId, machineId, 'builder', 91002);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+    await seedRunningAgentPid(sessionId, chatroomId, machineId, 'planner', 91002);
     await seedRunningAgentPid(sessionId, chatroomId, machineId, 'planner', 91003);
 
     await t.run(async (ctx) => {
@@ -84,7 +84,7 @@ describe('stopAgent', () => {
       await stopAgent(ctx, {
         machineId,
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         userId: user!._id,
         reason: 'test',
       });

@@ -32,7 +32,7 @@ describe('getAgentConfig', () => {
 
     // ===== ACTION =====
     const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
+      return getAgentConfig(ctx, { chatroomId, role: 'planner' });
     });
 
     // ===== VERIFY =====
@@ -52,7 +52,7 @@ describe('getAgentConfig', () => {
 
     // ===== ACTION =====
     const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
+      return getAgentConfig(ctx, { chatroomId, role: 'planner' });
     });
 
     // ===== VERIFY =====
@@ -73,7 +73,7 @@ describe('getAgentConfig', () => {
       type: 'start-agent',
       payload: {
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         model: TEST_MODEL_OPENCODE,
         agentHarness: 'opencode',
         workingDir: '/test/workspace',
@@ -82,7 +82,7 @@ describe('getAgentConfig', () => {
 
     // ===== ACTION =====
     const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
+      return getAgentConfig(ctx, { chatroomId, role: 'planner' });
     });
 
     // ===== VERIFY =====
@@ -111,7 +111,7 @@ describe('getAgentConfig', () => {
       type: 'start-agent',
       payload: {
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         model: TEST_MODEL_OPENCODE,
         agentHarness: 'opencode',
         workingDir: '/test/workspace',
@@ -120,7 +120,7 @@ describe('getAgentConfig', () => {
 
     // Directly clear the model on the team config
     await t.run(async (ctx) => {
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'planner');
       const teamConfig = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
@@ -134,7 +134,7 @@ describe('getAgentConfig', () => {
 
     // ===== ACTION =====
     const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
+      return getAgentConfig(ctx, { chatroomId, role: 'planner' });
     });
 
     // ===== VERIFY =====
@@ -156,7 +156,7 @@ describe('getAgentConfig', () => {
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
       type: 'remote',
       machineId,
       agentHarness: 'opencode',
@@ -169,7 +169,7 @@ describe('getAgentConfig', () => {
 
     // ===== ACTION =====
     const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
+      return getAgentConfig(ctx, { chatroomId, role: 'planner' });
     });
 
     // ===== VERIFY =====
@@ -189,13 +189,13 @@ describe('getAgentConfig', () => {
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
       type: 'custom',
     });
 
     // ===== ACTION =====
     const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
+      return getAgentConfig(ctx, { chatroomId, role: 'planner' });
     });
 
     // ===== VERIFY =====
@@ -213,14 +213,14 @@ describe('getAgentConfig', () => {
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-gac-7';
     await registerMachineWithDaemon(sessionId, machineId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
 
     // Simulate daemon spawning agent (sets PID in machine config)
-    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 12345);
+    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'planner', 12345);
 
     // ===== ACTION =====
     const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
+      return getAgentConfig(ctx, { chatroomId, role: 'planner' });
     });
 
     // ===== VERIFY =====

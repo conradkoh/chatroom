@@ -74,9 +74,7 @@ describe('updateTeam — stop events', () => {
     const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await seedRunningAgentPid(sessionId as any, chatroomId, machineId, 'planner', 50101);
-    await seedRunningAgentPid(sessionId as any, chatroomId, machineId, 'builder', 50102);
 
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
@@ -107,7 +105,7 @@ describe('updateTeam — stop events', () => {
               .collect()
           ).length
       );
-      expect(targetCount).toBeGreaterThanOrEqual(2);
+      expect(targetCount).toBeGreaterThanOrEqual(1);
     }
   });
 });
@@ -122,7 +120,6 @@ describe('updateTeam — start events', () => {
     const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
@@ -138,10 +135,11 @@ describe('updateTeam — start events', () => {
       (row) =>
         row.command.type === 'agent.requestStart' && row.command.reason === 'platform.team_switch'
     );
-    expect(teamSwitchStarts.length).toBeGreaterThanOrEqual(2);
+    // Only the permanent planner is started on switch — the ephemeral builder is
+    // skipped (armed on demand via planner handoff instead).
+    expect(teamSwitchStarts.length).toBeGreaterThanOrEqual(1);
 
     const duoPlannerKey = `chatroom_${chatroomId}#team_duo#role_planner`;
-    const duoBuilderKey = `chatroom_${chatroomId}#team_duo#role_builder`;
     const configs = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_teamAgentConfigs')
@@ -150,9 +148,7 @@ describe('updateTeam — start events', () => {
     });
 
     const duoPlanner = configs.find((c) => c.teamRoleKey === duoPlannerKey);
-    const duoBuilder = configs.find((c) => c.teamRoleKey === duoBuilderKey);
     expect(duoPlanner?.desiredState).toBe('running');
-    expect(duoBuilder?.desiredState).toBe('running');
   });
 });
 

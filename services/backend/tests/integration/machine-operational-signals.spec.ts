@@ -21,8 +21,8 @@ describe('machine operational signals', () => {
       teamRoles: ['planner', 'builder'],
       teamEntryPoint: 'planner',
     });
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
-    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 62001);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'planner', 62001);
 
     const subscription = await t.query(api.machines.subscribeMachineOperationalSignalsSince, {
       sessionId,
@@ -83,8 +83,8 @@ describe('machine operational signals', () => {
       teamRoles: ['planner', 'builder'],
       teamEntryPoint: 'planner',
     });
-    await setupRemoteAgentConfig(ownerSessionId, chatroomId, machineId, 'builder');
-    await updateSpawnedAgentInTest(ownerSessionId, machineId, chatroomId, 'builder', 62002);
+    await setupRemoteAgentConfig(ownerSessionId, chatroomId, machineId, 'planner');
+    await updateSpawnedAgentInTest(ownerSessionId, machineId, chatroomId, 'planner', 62002);
 
     const { sessionId: otherSessionId } = await createTestSession(
       'machine-operational-signals-other'
