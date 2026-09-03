@@ -454,15 +454,6 @@ export const FileExplorerPanel = memo(
             explorerSyncEnabled={explorerSyncEnabled}
             onToggleSync={onToggleSync}
           />
-          <ExplorerRootFolderHeader
-            workingDir={workingDir}
-            rootExpanded={rootExpanded}
-            onToggleRoot={toggleRootExpanded}
-            onNewFile={() => openNewFileDialog('')}
-            onNewFolder={() => openNewFolderDialog('')}
-            onRefresh={refreshExplorer}
-            onCollapseAll={() => setCollapseAllSignal((signal) => signal + 1)}
-          />
 
           <NewFileDialog
             open={newFileOpen}
@@ -574,66 +565,74 @@ export const FileExplorerPanel = memo(
             </AlertDialogContent>
           </AlertDialog>
 
-          {rootExpanded ? (
-            <>
-              {/* Filename filter */}
-              <div className="px-2 py-1.5 border-b border-chatroom-border-strong shrink-0">
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-chatroom-bg-secondary border border-chatroom-border rounded-none">
-                  <Search size={12} className="text-chatroom-text-muted shrink-0" />
-                  <input
-                    type="search"
-                    value={filterQuery}
-                    onChange={(e) => setFilterQuery(e.target.value)}
-                    placeholder="Filter files…"
-                    aria-label="Filter files in explorer"
-                    className="w-full bg-transparent text-[12px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none"
-                  />
-                </div>
-              </div>
+          {/* Filename filter */}
+          <div className="px-2 py-1.5 border-b border-chatroom-border-strong shrink-0">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-chatroom-bg-secondary border border-chatroom-border rounded-none">
+              <Search size={12} className="text-chatroom-text-muted shrink-0" />
+              <input
+                type="search"
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                placeholder="Filter files…"
+                aria-label="Filter files in explorer"
+                className="w-full bg-transparent text-[12px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none"
+              />
+            </div>
+          </div>
 
-              {/* Tree content */}
-              <div
-                className={`flex flex-1 flex-col min-h-0 overflow-hidden ${
-                  dropHighlightPath === '' ? 'ring-2 ring-inset ring-chatroom-accent/40' : ''
-                }`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onContextMenu={(event) => {
-                  if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
+          {/* Tree content */}
+          <div
+            className={`flex flex-1 flex-col min-h-0 overflow-hidden ${
+              dropHighlightPath === '' ? 'ring-2 ring-inset ring-chatroom-accent/40' : ''
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onContextMenu={(event) => {
+              if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
+              const props = buildFileMenuProps({ kind: 'root' });
+              if (props) openContextMenuAtPointer(event, props);
+            }}
+          >
+            <ExplorerRootFolderHeader
+              workingDir={workingDir}
+              rootExpanded={rootExpanded}
+              onToggleRoot={toggleRootExpanded}
+              onNewFile={() => openNewFileDialog('')}
+              onNewFolder={() => openNewFolderDialog('')}
+              onRefresh={refreshExplorer}
+              onCollapseAll={() => setCollapseAllSignal((signal) => signal + 1)}
+            />
+
+            {rootExpanded ? (
+              <WorkspaceFileExplorer
+                refreshSignal={refreshSignal}
+                collapseAllSignal={collapseAllSignal}
+                chatroomId={chatroomId}
+                machineId={machineId}
+                workingDir={workingDir}
+                onFileSelect={onFileSelect}
+                onFileDoubleClick={onFileDoubleClick}
+                revealPath={effectiveRevealPath}
+                selectedPath={effectiveSelectedPath}
+                filterQuery={filterQuery}
+                dropHighlightPath={dropHighlightPath}
+                onNodeContextMenu={(node, event) => {
+                  const target: ExplorerContextTarget = {
+                    kind: 'node',
+                    path: node.path,
+                    type: node.type,
+                  };
+                  const props = buildFileMenuProps(target);
+                  if (props) openContextMenuAtPointer(event, props);
+                }}
+                onEmptyAreaContextMenu={(event) => {
                   const props = buildFileMenuProps({ kind: 'root' });
                   if (props) openContextMenuAtPointer(event, props);
                 }}
-              >
-                <WorkspaceFileExplorer
-                  refreshSignal={refreshSignal}
-                  collapseAllSignal={collapseAllSignal}
-                  chatroomId={chatroomId}
-                  machineId={machineId}
-                  workingDir={workingDir}
-                  onFileSelect={onFileSelect}
-                  onFileDoubleClick={onFileDoubleClick}
-                  revealPath={effectiveRevealPath}
-                  selectedPath={effectiveSelectedPath}
-                  filterQuery={filterQuery}
-                  dropHighlightPath={dropHighlightPath}
-                  onNodeContextMenu={(node, event) => {
-                    const target: ExplorerContextTarget = {
-                      kind: 'node',
-                      path: node.path,
-                      type: node.type,
-                    };
-                    const props = buildFileMenuProps(target);
-                    if (props) openContextMenuAtPointer(event, props);
-                  }}
-                  onEmptyAreaContextMenu={(event) => {
-                    const props = buildFileMenuProps({ kind: 'root' });
-                    if (props) openContextMenuAtPointer(event, props);
-                  }}
-                />
-              </div>
-            </>
-          ) : null}
+              />
+            ) : null}
+          </div>
 
           {jobs.length > 0 ? <WorkspaceUploadProgressList jobs={jobs} /> : null}
 

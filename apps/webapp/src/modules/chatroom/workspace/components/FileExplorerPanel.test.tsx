@@ -198,13 +198,13 @@ describe('FileExplorerPanel workspace root', () => {
     ).toBeInTheDocument();
   });
 
-  it('hides and restores the filter and tree when the root folder is collapsed', () => {
+  it('hides and restores the tree when the root folder is collapsed while keeping filter visible', () => {
     render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse workspace folder project' }));
 
     expect(screen.queryByTestId('file-explorer')).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Filter files…')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Filter files…')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Expand workspace folder project' })
     ).toBeInTheDocument();
