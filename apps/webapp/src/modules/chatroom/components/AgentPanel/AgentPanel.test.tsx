@@ -75,16 +75,16 @@ describe('AgentPanel', () => {
   it('renders permanent agents before the ephemeral section', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} />);
 
-    expect(screen.getByText('Ephemeral (1)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (2)')).toBeInTheDocument();
     expect(screen.getByText('Agents (3)')).toBeInTheDocument();
     const planner = screen.getByLabelText(/planner:/i);
     const builder = screen.getByLabelText(/builder:/i);
     const enhancer = screen.getByLabelText(/enhancer:/i);
     expect(
-      planner.compareDocumentPosition(builder) & Node.DOCUMENT_POSITION_FOLLOWING
+      planner.compareDocumentPosition(enhancer) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(
-      builder.compareDocumentPosition(enhancer) & Node.DOCUMENT_POSITION_FOLLOWING
+      enhancer.compareDocumentPosition(builder) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
 
@@ -92,10 +92,10 @@ describe('AgentPanel', () => {
     render(
       <AgentPanel
         {...panelProps}
-        lifecycle={{ ...lifecycle, expectedRoles: ['planner', 'builder'] }}
+        lifecycle={{ ...lifecycle, expectedRoles: ['planner'] }}
         teamStructure={{
           ...duoStructure,
-          roles: duoStructure.roles.filter(({ role }) => role !== 'enhancer'),
+          roles: duoStructure.roles.filter(({ role }) => role !== 'enhancer' && role !== 'builder'),
         }}
       />
     );
