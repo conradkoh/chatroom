@@ -1,4 +1,6 @@
 // fallow-ignore-file unused-class-member
+import type { ChatroomRole } from '@workspace/shared/domain/chatroom-role';
+
 import type { TaskStatusSignal } from './task.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 
@@ -15,10 +17,12 @@ function snapshotKey(taskId: string, role: string): string {
  */
 export class MachineTaskSnapshotState {
   private readonly snapshots = new Map<string, AssignedTaskSnapshotView>();
+  private initialized = false;
 
   replace(snapshots: readonly AssignedTaskSnapshotView[]): void {
     this.snapshots.clear();
     this.upsert(snapshots);
+    this.initialized = true;
   }
 
   applySignalPage(
@@ -45,12 +49,26 @@ export class MachineTaskSnapshotState {
     }
   }
 
-  listForRole(chatroomId: string, role: string): AssignedTaskSnapshotView[] {
+  listForRole(chatroomId: string, role: ChatroomRole): AssignedTaskSnapshotView[] {
     const roleLower = role.toLowerCase();
     return [...this.snapshots.values()].filter(
       (snapshot) =>
         snapshot.chatroomId === chatroomId && snapshot.agentConfig.role.toLowerCase() === roleLower
     );
+  }
+
+  /** Whether the initial machine snapshot has been loaded successfully. */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  getForRole(
+    chatroomId: string,
+    role: ChatroomRole,
+    taskId: string
+  ): AssignedTaskSnapshotView | null {
+    const snapshot = this.snapshots.get(snapshotKey(taskId, role));
+    return snapshot?.chatroomId === chatroomId ? snapshot : null;
   }
 
   listAll(): AssignedTaskSnapshotView[] {

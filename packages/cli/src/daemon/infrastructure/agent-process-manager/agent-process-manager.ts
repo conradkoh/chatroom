@@ -102,6 +102,7 @@ import {
   notifyNativeSessionLost,
   notifyNativeTurnIdle,
 } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import { decideNativeTurnEndFromInbox } from '../../entry/native-delivery/native-turn-end-inbox.js';
 import {
   defaultNativeTurnPhase,
   setNativeTurnPhase,
@@ -771,6 +772,26 @@ export class AgentProcessManager {
       )
     ) {
       console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
+      return;
+    }
+
+    const inboxDecision = decideNativeTurnEndFromInbox({
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      taskId: slot?.lastInFlightTaskId,
+    });
+    if (inboxDecision === 'needs-handoff-reminder') {
+      await this.injectHarnessReminder(opts.chatroomId, opts.role, NATIVE_HANDOFF_REMINDER);
+      console.log(`[AgentProcessManager] ⏩ Handoff reminder injected for ${opts.role} (inbox)`);
+      return;
+    }
+    if (inboxDecision === 'handoff-completed') {
+      if (slot) {
+        setNativeTurnPhase(slot, defaultNativeTurnPhase());
+        this.clearLastInFlightTask(opts.chatroomId, opts.role);
+      }
+      notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
+      console.log(`[AgentProcessManager] ✅ Native agent_end handled for ${opts.role} (inbox)`);
       return;
     }
 

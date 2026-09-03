@@ -1,13 +1,14 @@
+import { vi } from 'vitest';
+
 import {
   AgentOperationalReadModel,
   type MachineAgentOperationalRow,
 } from './agent-operational-read-model.js';
 import {
   registerNativeDeliverySession,
-  type NativeDeliverySessionContext,
+  type NativeDeliverySessionRegistration,
 } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import { MachineTaskSnapshotState } from '../inbox/task-snapshot-state.js';
-import { vi } from 'vitest';
 
 export function mockLifecycleOutbox() {
   return { enqueue: vi.fn().mockResolvedValue({ success: true }) };
@@ -39,7 +40,10 @@ export function createOperationalReadModel(
   return model;
 }
 export function registerTestNativeDeliverySession(
-  ctx: Omit<NativeDeliverySessionContext, 'agentOperationalReadModel' | 'taskSnapshotState'> & {
+  ctx: Omit<
+    NativeDeliverySessionRegistration,
+    'agentOperationalReadModel' | 'taskSnapshotState'
+  > & {
     operationalRows?: MachineAgentOperationalRow[] | undefined;
     taskSnapshotState?: MachineTaskSnapshotState | undefined;
   }

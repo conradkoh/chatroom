@@ -167,4 +167,68 @@ describe('Terminal handoff idempotency', () => {
       true
     );
   });
+
+  test('later active work for the same origin creates a new terminal handoff', async () => {
+    const { sessionId } = await createTestSession('terminal-handoff-later-active-work');
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    const userMessageId = await createUserOriginPlannerTask(chatroomId, 'Build and review X');
+    const first = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'user',
+      content: 'Initial result.',
+    });
+    expect(first.success).toBe(true);
+
+    const laterTaskId = await t.run(async (ctx) => {
+      const sourceMessageId = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'builder',
+        targetRole: 'planner',
+        type: 'handoff',
+        content: 'Follow-up review for planner.',
+        taskOriginMessageId: userMessageId,
+      });
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'builder',
+        content: 'Review follow-up.',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        sourceMessageId,
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 2,
+      });
+    });
+
+    const second = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'user',
+      content: 'Follow-up review complete.',
+    });
+
+    expect(second.success).toBe(true);
+    expect(second.messageId).not.toBe(first.messageId);
+    expect(second.completedTaskIds).toContain(laterTaskId);
+    expect((await t.run((ctx) => ctx.db.get('chatroom_tasks', laterTaskId)))?.status).toBe(
+      'completed'
+    );
+
+    const retry = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'user',
+      content: 'Follow-up review complete.',
+    });
+    expect(retry.messageId).toBe(second.messageId);
+    expect(retry.completedTaskIds).toEqual([]);
+  });
 });
