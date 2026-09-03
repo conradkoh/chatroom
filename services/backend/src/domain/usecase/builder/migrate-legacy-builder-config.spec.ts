@@ -4,6 +4,7 @@ import { migrateLegacyBuilderConfigRow } from './migrate-legacy-builder-config';
 import { api } from '../../../../convex/_generated/api';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
+import { createTestSession } from '../../../../tests/helpers/integration';
 
 async function setupBuilderChatroom(sessionId: string) {
   await t.mutation(api.auth.loginAnon, { sessionId: sessionId as any });
@@ -161,5 +162,64 @@ describe('builder ephemeral migration', () => {
     const config = await configFor(chatroomId, 'planner');
     expect(config?.desiredState).toBe('running');
     expect(config?.spawnedAgentPid).toBe(9999);
+  });
+
+  test('does not touch a running builder config outside the Duo team', async () => {
+    const sessionId = 'builder-migration-custom-team';
+    await createTestSession(sessionId);
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'custom-team',
+      teamName: 'Custom Team',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+    const now = Date.now();
+    const id = await t.run((ctx) =>
+      ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'custom-team', 'builder'),
+        chatroomId,
+        role: 'builder',
+        type: 'remote',
+        machineId: 'machine-x',
+        agentHarness: 'opencode',
+        model: 'test-model',
+        workingDir: '/workspace',
+        enabled: true,
+        desiredState: 'running',
+        spawnedAgentPid: 1234,
+        spawnedAt: now,
+        lifecycleRevision: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    );
+
+    await t.run((ctx) =>
+      migrateLegacyBuilderConfigRow(ctx, {
+        ...(undefined as never),
+        _id: id,
+        _creationTime: 0,
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'custom-team', 'builder'),
+        chatroomId,
+        role: 'builder',
+        type: 'remote',
+        machineId: 'machine-x',
+        agentHarness: 'opencode',
+        model: 'test-model',
+        workingDir: '/workspace',
+        enabled: true,
+        desiredState: 'running',
+        spawnedAgentPid: 1234,
+        spawnedAt: now,
+        lifecycleRevision: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      })
+    );
+
+    const config = await t.run((ctx) => ctx.db.get('chatroom_teamAgentConfigs', id));
+    expect(config?.desiredState).toBe('running');
+    expect(config?.spawnedAgentPid).toBe(1234);
   });
 });

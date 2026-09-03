@@ -402,8 +402,11 @@ export const migrateEnhancerConfigToTeamAgentConfig = migrations.define({
   },
 });
 
-// Builder ephemeral transition: retire legacy builder configs left running.
-export const migrateLegacyBuilderAgentConfigs = migrations.define({
+// Builder ephemeral transition: retire legacy Duo builder configs left running.
+// Run via:
+//   cd services/backend && npx convex run migrations:run '{"fn":"migrations:migrateLegacyBuilderToEphemeral"}'
+// Idempotent: stopped configs without a PID are skipped.
+export const migrateLegacyBuilderToEphemeral = migrations.define({
   table: 'chatroom_teamAgentConfigs',
   migrateOne: async (ctx, row) => {
     await migrateLegacyBuilderConfigRow(ctx, row);

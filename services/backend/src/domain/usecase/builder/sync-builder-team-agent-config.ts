@@ -13,8 +13,8 @@ type CompleteRemoteConfig = Doc<'chatroom_teamAgentConfigs'> & {
   workingDir: string;
 };
 
-// fallow-ignore-next-line complexity
-function isCompleteRemoteTeamAgentConfig(
+// fallow-ignore-next-line complexity unused-export
+export function isCompleteRemoteTeamAgentConfig(
   config: Doc<'chatroom_teamAgentConfigs'> | null | undefined
 ): config is CompleteRemoteConfig {
   if (config?.type !== 'remote') return false;

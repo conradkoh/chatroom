@@ -30,9 +30,11 @@ export async function migrateLegacyBuilderConfigRow(
   });
 }
 
+// fallow-ignore-next-line complexity
 function isActiveLegacyBuilder(row: Doc<'chatroom_teamAgentConfigs'>): boolean {
   if (!isEphemeralAgentRole('builder')) return false;
   if (normalizeAgentRole(row.role) !== 'builder') return false;
+  if (!row.teamRoleKey.includes('#team_duo#')) return false;
   return row.desiredState === 'running' || row.spawnedAgentPid !== undefined;
 }
 
