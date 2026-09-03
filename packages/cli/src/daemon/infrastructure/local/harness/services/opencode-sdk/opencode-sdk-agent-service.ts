@@ -20,6 +20,7 @@ import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
 import { withTimeout } from '../with-timeout.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
+import { fetchOpencodeProviderModelCatalog } from './opencode-model-catalog.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
 import { isInfoLine, parseModelId, parseOpencodeSpawnModel } from './pure.js';
 import { selectAgent } from './select-agent.js';
@@ -134,6 +135,8 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   }
 
   override async listModels(): Promise<string[]> {
+    const fromProvider = await fetchOpencodeProviderModelCatalog(this.deps, process.cwd());
+    if (fromProvider.length > 0) return fromProvider;
     return super.listModels();
   }
 

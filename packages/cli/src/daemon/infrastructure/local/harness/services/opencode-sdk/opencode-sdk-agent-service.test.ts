@@ -4,6 +4,7 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 
 import { CHATROOM_PROMPT_SEPARATOR } from './compose-system-prompt.js';
+import * as opencodeCatalog from './opencode-model-catalog.js';
 import {
   OpenCodeSdkAgentService,
   type OpenCodeSdkAgentServiceDeps,
@@ -12,8 +13,8 @@ import { startSessionEventForwarder as realStartForwarder } from './session-even
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
 import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
-import { createSpawnPrompt } from '../spawn-prompt.js';
 import type { SpawnContext } from '../remote-agent-service.js';
+import { createSpawnPrompt } from '../spawn-prompt.js';
 
 // ---------------------------------------------------------------------------
 // Spawn lifecycle helpers
@@ -154,7 +155,11 @@ function stubSdkClientForStop(overrides?: { abortThrows?: Error | undefined }) {
 const SPAWN_CONTEXT: SpawnContext = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
 
 function spawnOptions(
-  overrides?: { model?: string | undefined; systemPrompt?: string | undefined; prompt?: string | undefined },
+  overrides?: {
+    model?: string | undefined;
+    systemPrompt?: string | undefined;
+    prompt?: string | undefined;
+  },
   contextOverride?: Partial<SpawnContext>
 ) {
   return {
@@ -229,7 +234,16 @@ describe('OpenCodeSdkAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('falls back to CLI when SDK fails', async () => {
+    it('returns provider catalog when fetch succeeds', async () => {
+      vi.spyOn(opencodeCatalog, 'fetchOpencodeProviderModelCatalog').mockResolvedValue([
+        'opencode-go/gpt-5.6-luna[variant=max]',
+      ]);
+      const service = new OpenCodeSdkAgentService(createMockDeps());
+      expect(await service.listModels()).toEqual(['opencode-go/gpt-5.6-luna[variant=max]']);
+    });
+
+    it('falls back to CLI when provider fetch is empty', async () => {
+      vi.spyOn(opencodeCatalog, 'fetchOpencodeProviderModelCatalog').mockResolvedValue([]);
       const deps = createMockDeps({
         execSync: vi.fn().mockReturnValue(Buffer.from(`${TEST_MODEL_OPENCODE}\nopenai/gpt-4o\n`)),
       });
@@ -239,6 +253,7 @@ describe('OpenCodeSdkAgentService', () => {
     });
 
     it('returns empty array and warns when CLI also fails', async () => {
+      vi.spyOn(opencodeCatalog, 'fetchOpencodeProviderModelCatalog').mockResolvedValue([]);
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const deps = createMockDeps({
         execSync: vi.fn(() => {

@@ -99,7 +99,7 @@ function createHarness(overrides?: {
   baseUrl?: string | undefined;
   cwd?: string | undefined;
   client?: Record<string, unknown> | undefined;
-  process?: MockProcess & EventEmitter | undefined;
+  process?: (MockProcess & EventEmitter) | undefined;
 }) {
   const proc = overrides?.process ?? makeProcess();
   return new OpencodeSdkHarness({
@@ -129,6 +129,7 @@ describe('OpencodeSdkHarness', () => {
             models: { 'big-pickle': { id: 'big-pickle', name: 'Big Pickle' } },
           },
         ],
+        connected: ['openai', 'opencode'],
       },
     });
   });
@@ -147,10 +148,47 @@ describe('OpencodeSdkHarness', () => {
   });
 
   it('returns empty array when no providers', async () => {
-    mockProviderList.mockResolvedValue({ data: { all: [] } });
+    mockProviderList.mockResolvedValue({ data: { all: [], connected: [] } });
     const harness = createHarness();
     const models = await harness.models();
     expect(models).toEqual([]);
+  });
+
+  // ── listProviders() ─────────────────────────────────────────────────────────
+
+  it('expands variant tags in listProviders', async () => {
+    mockProviderList.mockResolvedValue({
+      data: {
+        connected: ['opencode-go'],
+        all: [
+          {
+            id: 'opencode-go',
+            name: 'OpenCode Go',
+            models: {
+              'gpt-5.6-luna': {
+                id: 'gpt-5.6-luna',
+                name: 'GPT 5.6 Luna',
+                variants: { max: {}, default: {} },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const harness = createHarness();
+    const providers = await harness.listProviders();
+
+    expect(providers).toEqual([
+      {
+        providerID: 'opencode-go',
+        name: 'OpenCode Go',
+        models: [
+          { modelID: 'gpt-5.6-luna', name: 'GPT 5.6 Luna' },
+          { modelID: 'gpt-5.6-luna[variant=max]', name: 'GPT 5.6 Luna (max)' },
+        ],
+      },
+    ]);
   });
 
   // ── newSession() ────────────────────────────────────────────────────────────
@@ -393,7 +431,10 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
 
     // Simulate routing (as the fiber's consume loop does)
     const sessionListeners = (harness as any).sessionListeners as Map<string, any>;
-    const dispatchEvent = (raw: { type: string; properties?: Record<string, unknown> | undefined }) => {
+    const dispatchEvent = (raw: {
+      type: string;
+      properties?: Record<string, unknown> | undefined;
+    }) => {
       const p = raw.properties;
       const sid = p && 'sessionID' in p ? p['sessionID'] : undefined;
       if (typeof sid === 'string') sessionListeners.get(sid)?._receiveEvent(raw);
