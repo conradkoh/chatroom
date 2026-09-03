@@ -18,11 +18,8 @@ export function useInlineAgentList(chatroomId: string) {
     sendCommand,
     teamId,
     statusReadModel,
-  } = useAgentPanelData(chatroomId, { loadConfigs: true });
-  const { agents: agentStatusList } = useAgentStatuses(
-    teamRoles,
-    statusReadModel
-  );
+  } = useAgentPanelData();
+  const { agents: agentStatusList } = useAgentStatuses(teamRoles, statusReadModel);
   const promptsContext = useContext(PromptsContext);
   const generatePrompt = useCallback(
     (role: string): string => promptsContext?.getAgentPrompt(role) ?? '',

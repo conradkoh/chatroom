@@ -6,6 +6,7 @@ const registerFileInboundHandler = vi.fn();
 const unregisterFileInboundHandler = vi.fn();
 const registerWorkspaceGitInboundHandler = vi.fn();
 const unregisterWorkspaceGitInboundHandler = vi.fn();
+const drainPendingFileTreeReleaseRequests = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('./command-inbound-registry.js', () => ({
   registerCommandInboundHandler,
@@ -34,7 +35,7 @@ vi.mock('./files/file-tree-subscription.js', async () => {
       Effect.succeed({
         stop: vi.fn(),
         drainPendingFileTreeRequests: vi.fn(),
-        drainPendingFileTreeReleaseRequests: vi.fn(),
+        drainPendingFileTreeReleaseRequests,
       }),
   };
 });
@@ -102,6 +103,8 @@ describe('createDaemonRuntime', () => {
     expect(registerCommandInboundHandler).toHaveBeenCalled();
     expect(registerFileInboundHandler).toHaveBeenCalled();
     expect(registerWorkspaceGitInboundHandler).toHaveBeenCalled();
+    expect(registerFileInboundHandler).toHaveBeenCalledBefore(drainPendingFileTreeReleaseRequests);
+    expect(drainPendingFileTreeReleaseRequests).toHaveBeenCalledTimes(1);
 
     await runtime.shutdown();
     await runPromise;

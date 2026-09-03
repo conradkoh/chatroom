@@ -1,3 +1,4 @@
+// fallow-ignore-file complexity unused-class-member
 export type RoleStopState = 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
 
 export type MachineAgentOperationalRow = {
@@ -7,7 +8,6 @@ export type MachineAgentOperationalRow = {
   isAlive: boolean;
   isRunning: boolean;
   daemonConnected: boolean;
-  projectedAt: number;
   revisionKey: string;
   stopState?: RoleStopState | undefined;
 };
@@ -44,6 +44,26 @@ export class AgentOperationalReadModel {
         changed.push({ chatroomId: prev.chatroomId, role: prev.role });
         this.rows.delete(key);
       }
+    }
+    return changed;
+  }
+  applySignalPage(
+    rows: readonly MachineAgentOperationalRow[],
+    removed: readonly { chatroomId: string; role: string }[]
+  ): { chatroomId: string; role: string }[] {
+    const changed: { chatroomId: string; role: string }[] = [];
+    for (const row of rows) {
+      const key = roleKey(row.chatroomId, row.role);
+      const prev = this.rows.get(key);
+      if (!prev || prev.revisionKey !== row.revisionKey) {
+        changed.push({ chatroomId: row.chatroomId, role: row.role });
+      }
+      this.rows.set(key, row);
+    }
+    for (const item of removed) {
+      const key = roleKey(item.chatroomId, item.role);
+      if (this.rows.has(key)) changed.push(item);
+      this.rows.delete(key);
     }
     return changed;
   }

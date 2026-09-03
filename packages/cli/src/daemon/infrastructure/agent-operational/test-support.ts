@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file
 import { vi } from 'vitest';
 
 import {
@@ -27,7 +28,6 @@ export function operationalRow(
     isAlive: operationalState !== 'stopped',
     isRunning: operationalState === 'running',
     daemonConnected: true,
-    projectedAt: Date.now(),
     revisionKey: `test:${chatroomId}:${role}:${operationalState}`,
     stopState,
   };

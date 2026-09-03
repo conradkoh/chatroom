@@ -305,6 +305,7 @@ describe('startFileTreeSubscriptionEffect', () => {
   it('stops coordinator when a release request is drained', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
+    let releaseQueryCount = 0;
     vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
       if (endpoint === 'lease') return Promise.resolve(ACTIVE_LEASE);
       if (endpoint === 'pending') {
@@ -314,7 +315,10 @@ describe('startFileTreeSubscriptionEffect', () => {
         return Promise.resolve({ revision: 0 });
       }
       if (endpoint === 'pending-release') {
-        return Promise.resolve([{ _id: 'release-1', workingDir: '/workspace' }]);
+        releaseQueryCount++;
+        return Promise.resolve(
+          releaseQueryCount === 1 ? [{ _id: 'release-1', workingDir: '/workspace' }] : []
+        );
       }
       return Promise.resolve(null);
     });
@@ -333,5 +337,65 @@ describe('startFileTreeSubscriptionEffect', () => {
     vi.mocked(startCoordinator).mockClear();
     await handle.drainPendingFileTreeRequests();
     await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalledTimes(1));
+  });
+
+  it('drains all bounded batches until the release queue is empty', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    let releaseQueryCount = 0;
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint !== 'pending-release') return Promise.resolve(null);
+      releaseQueryCount++;
+      if (releaseQueryCount === 1) {
+        return Promise.resolve(
+          Array.from({ length: 50 }, (_, index) => ({
+            _id: `release-${index}`,
+            workingDir: `/workspace/${index}`,
+          }))
+        );
+      }
+      if (releaseQueryCount === 2) {
+        return Promise.resolve([{ _id: 'release-last', workingDir: '/workspace/last' }]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
+
+    await handle.drainPendingFileTreeReleaseRequests();
+
+    expect(releaseQueryCount).toBe(3);
+    expect(
+      vi
+        .mocked(deps.backend.mutation)
+        .mock.calls.filter(([endpoint]) => endpoint === 'fulfill-release')
+    ).toHaveLength(51);
+  });
+
+  it('stops draining when no release can be fulfilled', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    let releaseQueryCount = 0;
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending-release') {
+        releaseQueryCount++;
+        return Promise.resolve([{ _id: 'release-failing', workingDir: '/workspace' }]);
+      }
+      return Promise.resolve(null);
+    });
+    vi.mocked(deps.backend.mutation).mockImplementation((endpoint: string) => {
+      if (endpoint === 'fulfill-release') return Promise.reject(new Error('fulfill failed'));
+      return Promise.resolve(undefined);
+    });
+
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
+
+    await handle.drainPendingFileTreeReleaseRequests();
+
+    expect(releaseQueryCount).toBe(1);
   });
 });

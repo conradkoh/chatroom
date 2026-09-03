@@ -88,12 +88,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   // Active entry-point→enhancer job (job-only hook; disabling enhancement is separate)
   const { isEnhancing, cancelJob, isCancelling } = useActiveEnhancerJob(chatroomId as string);
 
-  const {
-    teamId,
-    teamRoles,
-    statusReadModel,
-    isLoading: teamRolesLoading,
-  } = useAgentPanelData(chatroomId);
+  const { teamId, teamRoles, statusReadModel, isLoading: teamRolesLoading } = useAgentPanelData();
   const nonUserRoles = useMemo(
     () => (teamRoles ?? []).filter((role) => role.toLowerCase() !== 'user'),
     [teamRoles]
