@@ -753,6 +753,31 @@ export function ChatroomDashboard({
     chatroomId as Id<'chatroom_rooms'>
   );
   const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
+  const setFileTreeSyncEnabledMutation = useSessionMutation(api.workspaces.setFileTreeSyncEnabled);
+  const [fileTreeSyncPending, setFileTreeSyncPending] = useState(false);
+
+  const handleFileTreeSyncChange = useCallback(
+    async (enabled: boolean) => {
+      const workspaceId = activeWorkspace?.workspaceId;
+      if (!workspaceId || fileTreeSyncPending) return;
+      setFileTreeSyncPending(true);
+      try {
+        await setFileTreeSyncEnabledMutation({
+          workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+          enabled,
+        });
+      } catch {
+        toast.error(
+          enabled
+            ? 'Failed to enable workspace file tree sync'
+            : 'Failed to disable workspace file tree sync'
+        );
+      } finally {
+        setFileTreeSyncPending(false);
+      }
+    },
+    [activeWorkspace?.workspaceId, fileTreeSyncPending, setFileTreeSyncEnabledMutation]
+  );
 
   const [agenticFocusToken, setAgenticFocusToken] = useState(0);
   const requestAgenticFocus = useCallback(() => setAgenticFocusToken((n) => n + 1), []);
@@ -1150,15 +1175,16 @@ export function ChatroomDashboard({
     getFileTreeAutocompleteVisible,
     () => false
   );
+  const fileTreeSyncEnabled = activeWorkspace?.fileTreeSyncEnabled ?? true;
   useFileTreeWatchLease(
     activeWorkspace?.machineId,
     activeWorkspace?.workingDir,
-    activeView === 'explorer' && !!activeWorkspace
+    activeView === 'explorer' && !!activeWorkspace && fileTreeSyncEnabled
   );
   useFileTreeWatchLease(
     activeWorkspace?.machineId,
     activeWorkspace?.workingDir,
-    autocompleteVisible && !!activeWorkspace
+    autocompleteVisible && !!activeWorkspace && fileTreeSyncEnabled
   );
 
   // Store-backed autocomplete reads all cached workspace entries; only the active
@@ -1168,7 +1194,7 @@ export function ChatroomDashboard({
   useWorkspaceFileTree({
     machineId: activeWorkspace?.machineId ?? '',
     workingDir: activeWorkspace?.workingDir ?? '',
-    enabled: autocompleteVisible && !!activeWorkspace,
+    enabled: autocompleteVisible && !!activeWorkspace && fileTreeSyncEnabled,
   });
   const handleAtTriggerActivate = useCallback(() => {
     refreshAutocompleteFiles();
@@ -1863,8 +1889,12 @@ export function ChatroomDashboard({
                         <FileExplorerPanel
                           ref={fileExplorerPanelRef}
                           chatroomId={chatroomId}
+                          workspaceId={activeWorkspace.workspaceId}
                           machineId={activeWorkspace.machineId}
                           workingDir={activeWorkspace.workingDir}
+                          fileTreeSyncEnabled={fileTreeSyncEnabled}
+                          fileTreeSyncPending={fileTreeSyncPending}
+                          onFileTreeSyncChange={handleFileTreeSyncChange}
                           fileTabs={fileTabs}
                           onFileSelect={handleFileSelect}
                           onFileDoubleClick={handleFileDoubleClick}

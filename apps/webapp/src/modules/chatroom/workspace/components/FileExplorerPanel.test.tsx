@@ -145,6 +145,9 @@ const defaultProps = {
   workingDir: '/test',
   fileTabs,
   activeTabPath: null,
+  fileTreeSyncEnabled: true,
+  fileTreeSyncPending: false,
+  onFileTreeSyncChange: vi.fn(),
   explorerSyncEnabled: false,
   onToggleSync: vi.fn(),
 };
@@ -221,6 +224,47 @@ describe('FileExplorerPanel workspace root', () => {
     fireEvent.click(screen.getByTitle('New folder'));
 
     expect(lastNewFolderProps).toEqual(expect.objectContaining({ open: true, defaultDir: '' }));
+  });
+});
+
+describe('FileExplorerPanel file-tree sync setting', () => {
+  it('shows a disabled state without mounting the file explorer', () => {
+    render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled={false} />);
+
+    expect(screen.getByText('Workspace file tree syncing is disabled')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enable file tree sync' })).toBeInTheDocument();
+    expect(screen.queryByTestId('file-explorer')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Filter files…')).not.toBeInTheDocument();
+  });
+
+  it('enables file-tree sync from the disabled-state CTA', () => {
+    const onFileTreeSyncChange = vi.fn();
+    render(
+      <FileExplorerPanel
+        {...defaultProps}
+        fileTreeSyncEnabled={false}
+        onFileTreeSyncChange={onFileTreeSyncChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enable file tree sync' }));
+
+    expect(onFileTreeSyncChange).toHaveBeenCalledWith(true);
+  });
+
+  it('shows workspace file-tree sync as unchecked in Explorer options', () => {
+    render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled={false} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Explorer options' }));
+
+    const item = screen.getByRole('menuitemcheckbox', { name: 'Workspace file tree sync' });
+    expect(item).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('renders the existing explorer when file-tree sync is enabled', () => {
+    render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled />);
+
+    expect(screen.getByTestId('file-explorer')).toBeInTheDocument();
   });
 });
 
