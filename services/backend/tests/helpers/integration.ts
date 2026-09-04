@@ -133,6 +133,29 @@ export async function registerMachineWithDaemon(
   return { machineId };
 }
 
+/** Register a workspace and explicitly opt it into file-tree synchronization. */
+export async function registerWorkspaceWithFileTreeSync(
+  sessionId: SessionId,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+    sessionId,
+    chatroomId,
+    machineId,
+    workingDir,
+    hostname: 'test-host',
+    registeredBy: 'test',
+  });
+  await t.mutation(api.workspaces.setFileTreeSyncEnabled, {
+    sessionId,
+    workspaceId,
+    enabled: true,
+  });
+  return workspaceId;
+}
+
 /**
  * Set up a remote agent config so auto-restart knows this is a remote agent.
  * Sends a start-agent command and immediately acks it so no pending commands remain.

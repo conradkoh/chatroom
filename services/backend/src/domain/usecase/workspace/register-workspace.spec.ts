@@ -123,7 +123,7 @@ describe('registerWorkspace path validation', () => {
     expect(row?.removedAt).toBeUndefined();
   });
 
-  test('legacy workspace without a setting resolves enabled in list and get projections', async () => {
+  test('legacy workspace without a setting resolves disabled in list and get projections', async () => {
     const { sessionId } = await createSession('register-ws-sync-legacy');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'machine-sync-legacy';
@@ -142,11 +142,11 @@ describe('registerWorkspace path validation', () => {
 
     const listed = await t.run((ctx) => listWorkspacesForChatroom(ctx, { chatroomId }));
     expect(listed.find((workspace) => workspace._id === workspaceId)?.fileTreeSyncEnabled).toBe(
-      true
+      false
     );
 
     const fetched = await t.query(api.workspaces.getWorkspaceById, { sessionId, workspaceId });
-    expect(fetched?.fileTreeSyncEnabled).toBe(true);
+    expect(fetched?.fileTreeSyncEnabled).toBe(false);
   });
 
   test('owner can toggle file-tree synchronization', async () => {
@@ -179,6 +179,80 @@ describe('registerWorkspace path validation', () => {
     });
     row = await t.run(async (ctx) => ctx.db.get('chatroom_workspaces', workspaceId));
     expect(row?.fileTreeSyncEnabled).toBe(false);
+  });
+
+  test('disabling file-tree sync atomically stops watch lease and pending request', async () => {
+    const { sessionId } = await createSession('register-ws-sync-disable-lifecycle');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-sync-disable-lifecycle';
+    const workingDir = '/tmp/sync-disable-lifecycle-workspace';
+    await registerMachine(sessionId, machineId);
+
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'user',
+    });
+    await t.mutation(api.workspaces.setFileTreeSyncEnabled, {
+      sessionId,
+      workspaceId,
+      enabled: true,
+    });
+
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceFileTreeWatches', {
+        machineId,
+        workingDir,
+        watchCount: 2,
+        expiresAt: now + 60_000,
+        updatedAt: now,
+      });
+      await ctx.db.insert('chatroom_workspaceFileTreeRequests', {
+        machineId,
+        workingDir,
+        status: 'pending',
+        force: false,
+        requestedAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await t.mutation(api.workspaces.setFileTreeSyncEnabled, {
+      sessionId,
+      workspaceId,
+      enabled: false,
+    });
+
+    const lifecycle = await t.run(async (ctx) => {
+      const watch = await ctx.db
+        .query('chatroom_workspaceFileTreeWatches')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', machineId).eq('workingDir', workingDir)
+        )
+        .first();
+      const request = await ctx.db
+        .query('chatroom_workspaceFileTreeRequests')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', machineId).eq('workingDir', workingDir)
+        )
+        .first();
+      const release = await ctx.db
+        .query('chatroom_workspaceFileTreeReleaseRequests')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', machineId).eq('workingDir', workingDir)
+        )
+        .first();
+      return { watch, request, release };
+    });
+
+    expect(lifecycle.watch).toMatchObject({ watchCount: 0, updatedAt: expect.any(Number) });
+    expect(lifecycle.watch?.expiresAt).toBeUndefined();
+    expect(lifecycle.request).toMatchObject({ status: 'done', updatedAt: expect.any(Number) });
+    expect(lifecycle.release).toMatchObject({ status: 'pending', workingDir });
   });
 
   test('different user cannot toggle file-tree synchronization', async () => {
