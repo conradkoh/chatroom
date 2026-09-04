@@ -462,6 +462,40 @@ export const getPendingRequests = query({
 });
 
 /**
+ * Returns all pending diff/commit requests for a single workspace
+ * (machineId + workingDir) on a machine.
+ *
+ * Called by the daemon's per-workspace reactive subscriber. Scoping to one
+ * workspace keeps Convex invalidation local to that workspace's request
+ * queue instead of the whole machine. The machine-wide getPendingRequests
+ * query remains an imperative recovery drain and is not a WS subscription.
+ */
+export const getPendingRequestsForWorkspace = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+    const accessResult = await checkAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+    if (!accessResult.ok) return [];
+
+    return await ctx.db
+      .query('chatroom_workspaceDiffRequests')
+      .withIndex('by_machine_workingDir_status', (q) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'pending')
+      )
+      .collect();
+  },
+});
+
+/**
  * Resets any orphaned 'processing' requests back to 'pending' for the given machine.
  *
  * Called by the CLI daemon on startup to recover requests that were interrupted

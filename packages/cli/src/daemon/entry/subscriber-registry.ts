@@ -25,11 +25,15 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   };
 
   const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
+  const gitRequest = startGitRequestSubscriber(deps, onEvent);
 
   const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
-    // Workspace membership nudges keep the per-room enhancer watches in sync
-    // (e.g. a newly registered workspace enables enhancer jobs in that room).
-    if (claimed.type === 'daemon.workspaceListChanged') void enhancerJob.refreshChatrooms();
+    // Workspace membership nudges keep the per-room enhancer and per-workspace
+    // git watches in sync (e.g. a newly registered workspace enables both).
+    if (claimed.type === 'daemon.workspaceListChanged') {
+      void enhancerJob.refreshChatrooms();
+      void gitRequest.refreshWorkspaces();
+    }
     await dispatchCommandInboundEvent({
       type: 'command.received',
       commandId: claimed.commandId,
@@ -37,7 +41,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     });
   });
   const commandRun = startCommandRunSubscriber(deps, onEvent);
-  const gitRequest = startGitRequestSubscriber(deps, onEvent);
   const fileTree = startFileTreeRequestSubscriber(deps, onEvent);
   const fileTreeRelease = startFileTreeReleaseRequestSubscriber(deps, onEvent);
   const fileContent = startFileContentRequestSubscriber(deps, onEvent);
