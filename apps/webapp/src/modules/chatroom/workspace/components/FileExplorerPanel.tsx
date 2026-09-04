@@ -87,12 +87,8 @@ interface FileExplorerPanelProps {
   workspaceId?: string | null;
   machineId: string | null;
   workingDir: string | null;
-  /** Whether file-tree data synchronization is enabled for this workspace. */
+  /** Whether file-tree data synchronization is enabled for this workspace. When false the panel shows a read-only disabled state pointing to Settings. */
   fileTreeSyncEnabled?: boolean;
-  /** Whether a file-tree synchronization toggle mutation is pending. */
-  fileTreeSyncPending?: boolean;
-  /** Changes the persisted file-tree synchronization setting. */
-  onFileTreeSyncChange?: (enabled: boolean) => void;
   fileTabs: UseFileTabsReturn;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
@@ -115,19 +111,13 @@ interface FileExplorerPanelProps {
 }
 
 function ExplorerPanelHeader({
-  fileTreeSyncEnabled = true,
-  fileTreeSyncPending = false,
-  onFileTreeSyncChange,
   explorerSyncEnabled,
   onToggleSync,
 }: {
-  fileTreeSyncEnabled?: boolean;
-  fileTreeSyncPending?: boolean;
-  onFileTreeSyncChange?: (enabled: boolean) => void;
   explorerSyncEnabled?: boolean;
   onToggleSync?: (enabled: boolean) => void;
 }) {
-  const showMenu = onFileTreeSyncChange != null || onToggleSync != null;
+  const showMenu = onToggleSync != null;
 
   return (
     <div className="px-3 py-2 border-b border-chatroom-border-strong flex items-center justify-between shrink-0">
@@ -144,19 +134,9 @@ function ExplorerPanelHeader({
             <MoreHorizontal size={13} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[180px]">
-            {onFileTreeSyncChange ? (
-              <DropdownMenuCheckboxItem
-                checked={fileTreeSyncEnabled}
-                disabled={fileTreeSyncPending}
-                onCheckedChange={onFileTreeSyncChange}
-              >
-                Workspace file tree sync
-              </DropdownMenuCheckboxItem>
-            ) : null}
             {onToggleSync ? (
               <DropdownMenuCheckboxItem
                 checked={explorerSyncEnabled}
-                disabled={!fileTreeSyncEnabled}
                 onCheckedChange={onToggleSync}
               >
                 Sync with active editor
@@ -275,9 +255,7 @@ export const FileExplorerPanel = memo(
         chatroomId,
         machineId,
         workingDir,
-        fileTreeSyncEnabled = true,
-        fileTreeSyncPending = false,
-        onFileTreeSyncChange,
+        fileTreeSyncEnabled = false,
         fileTabs,
         onFileSelect,
         onFileDoubleClick,
@@ -473,9 +451,6 @@ export const FileExplorerPanel = memo(
         return (
           <div className="h-full flex flex-col min-w-0">
             <ExplorerPanelHeader
-              fileTreeSyncEnabled={fileTreeSyncEnabled}
-              fileTreeSyncPending={fileTreeSyncPending}
-              onFileTreeSyncChange={onFileTreeSyncChange}
               explorerSyncEnabled={explorerSyncEnabled}
               onToggleSync={onToggleSync}
             />
@@ -490,9 +465,6 @@ export const FileExplorerPanel = memo(
         return (
           <div className="h-full flex flex-col min-w-0">
             <ExplorerPanelHeader
-              fileTreeSyncEnabled={fileTreeSyncEnabled}
-              fileTreeSyncPending={fileTreeSyncPending}
-              onFileTreeSyncChange={onFileTreeSyncChange}
               explorerSyncEnabled={explorerSyncEnabled}
               onToggleSync={onToggleSync}
             />
@@ -502,16 +474,9 @@ export const FileExplorerPanel = memo(
                 Workspace file tree syncing is disabled
               </p>
               <p className="max-w-64 text-xs text-chatroom-text-muted">
-                Enable syncing to browse this workspace&apos;s files in Chatroom.
+                Enable file tree sync in Settings → Workspaces to browse this workspace&apos;s
+                files.
               </p>
-              <button
-                type="button"
-                className="px-3 py-1.5 text-xs font-medium bg-chatroom-accent text-chatroom-accent-foreground hover:opacity-90 disabled:opacity-50 cursor-pointer"
-                disabled={fileTreeSyncPending}
-                onClick={() => onFileTreeSyncChange?.(true)}
-              >
-                {fileTreeSyncPending ? 'Enabling…' : 'Enable file tree sync'}
-              </button>
             </div>
           </div>
         );
@@ -520,9 +485,6 @@ export const FileExplorerPanel = memo(
       return (
         <div className="h-full flex flex-col min-w-0">
           <ExplorerPanelHeader
-            fileTreeSyncEnabled={fileTreeSyncEnabled}
-            fileTreeSyncPending={fileTreeSyncPending}
-            onFileTreeSyncChange={onFileTreeSyncChange}
             explorerSyncEnabled={explorerSyncEnabled}
             onToggleSync={onToggleSync}
           />

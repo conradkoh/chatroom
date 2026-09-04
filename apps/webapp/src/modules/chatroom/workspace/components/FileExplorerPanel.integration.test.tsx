@@ -184,6 +184,7 @@ const defaultProps = {
   workingDir: '/workspace',
   fileTabs,
   activeTabPath: null,
+  fileTreeSyncEnabled: true,
   explorerSyncEnabled: false,
   onToggleSync: vi.fn(),
 };

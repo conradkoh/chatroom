@@ -146,8 +146,6 @@ const defaultProps = {
   fileTabs,
   activeTabPath: null,
   fileTreeSyncEnabled: true,
-  fileTreeSyncPending: false,
-  onFileTreeSyncChange: vi.fn(),
   explorerSyncEnabled: false,
   onToggleSync: vi.fn(),
 };
@@ -228,37 +226,29 @@ describe('FileExplorerPanel workspace root', () => {
 });
 
 describe('FileExplorerPanel file-tree sync setting', () => {
-  it('shows a disabled state without mounting the file explorer', () => {
+  it('shows a read-only disabled state without mounting the file explorer', () => {
     render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled={false} />);
 
     expect(screen.getByText('Workspace file tree syncing is disabled')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Enable file tree sync' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Enable file tree sync in Settings → Workspaces to browse/)
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enable file tree sync' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('file-explorer')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Filter files…')).not.toBeInTheDocument();
   });
 
-  it('enables file-tree sync from the disabled-state CTA', () => {
-    const onFileTreeSyncChange = vi.fn();
-    render(
-      <FileExplorerPanel
-        {...defaultProps}
-        fileTreeSyncEnabled={false}
-        onFileTreeSyncChange={onFileTreeSyncChange}
-      />
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Enable file tree sync' }));
-
-    expect(onFileTreeSyncChange).toHaveBeenCalledWith(true);
-  });
-
-  it('shows workspace file-tree sync as unchecked in Explorer options', () => {
+  it('does not expose a Workspace file tree sync item in Explorer options when disabled', () => {
     render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled={false} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Explorer options' }));
 
-    const item = screen.getByRole('menuitemcheckbox', { name: 'Workspace file tree sync' });
-    expect(item).toHaveAttribute('aria-checked', 'false');
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'Workspace file tree sync' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Sync with active editor' })
+    ).toBeInTheDocument();
   });
 
   it('renders the existing explorer when file-tree sync is enabled', () => {
