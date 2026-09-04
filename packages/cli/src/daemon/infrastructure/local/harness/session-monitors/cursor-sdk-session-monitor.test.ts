@@ -33,6 +33,24 @@ describe('cursorSdkSessionMonitor', () => {
     });
   });
 
+  test('classifies Cursor status auth failure followed by run-error', () => {
+    expect(
+      cursorSdkSessionMonitor.classifyExitFailure({
+        ...baseCtx,
+        recentLogLines: [
+          '[cursor-sdk:planner@7z81x2 status] RUNNING',
+          '[cursor-sdk:planner@7z81x2 status] ERROR: Authentication error If you are logged in, try logging out and back in.',
+          '[cursor-sdk:planner@7z81x2 run-error] run run-24d02306 failed: no error detail from SDK',
+        ],
+      })
+    ).toEqual({
+      hadSessionFailure: true,
+      failureKind: 'auth_error',
+      recoverable: true,
+      requiresTaskReleaseBeforeRecovery: true,
+    });
+  });
+
   test('auth spawn-error triggers auth_error and requires task release', () => {
     expect(
       cursorSdkSessionMonitor.classifyExitFailure({
@@ -65,10 +83,16 @@ describe('cursorSdkSessionMonitor', () => {
       recoverable: true,
     };
     expect(
-      cursorSdkSessionMonitor.resolveWantResume!(1, classification, { ...baseCtx, wantResume: false })
+      cursorSdkSessionMonitor.resolveWantResume!(1, classification, {
+        ...baseCtx,
+        wantResume: false,
+      })
     ).toBe(false);
     expect(
-      cursorSdkSessionMonitor.resolveWantResume!(1, classification, { ...baseCtx, wantResume: true })
+      cursorSdkSessionMonitor.resolveWantResume!(1, classification, {
+        ...baseCtx,
+        wantResume: true,
+      })
     ).toBe(true);
   });
 

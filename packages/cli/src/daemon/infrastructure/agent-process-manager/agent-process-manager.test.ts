@@ -2177,6 +2177,134 @@ describe('AgentProcessManager', () => {
       ensureRunningSpy.mockRestore();
     });
 
+    test('cursor-sdk run-error onLogLine triggers proactive recovery while process is still running', async () => {
+      let onLogLineHandler!: (line: string) => void;
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockImplementationOnce(async () => ({
+          pid: PID,
+          harnessSessionId: 'cursor-agent-1',
+          harnessReconnect: { agentName: 'planner@c1', model: 'composer-2.5' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+          onLogLine: (cb: (line: string) => void) => {
+            onLogLineHandler = cb;
+          },
+        })),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.nativeTurnPhase = 'turn_in_flight';
+      const kill = deps.processes.kill as ReturnType<typeof vi.fn>;
+      kill.mockClear();
+
+      onLogLineHandler(
+        '[cursor-sdk:builder@c1 run-error] run abc failed: no error detail from SDK'
+      );
+
+      expect(kill).toHaveBeenCalledWith(PID, 'SIGTERM');
+      expect(slot.nativeTurnPhase).toBe('idle');
+
+      // A second terminal line from the same process must not issue another kill.
+      onLogLineHandler(
+        '[cursor-sdk:builder@c1 run-error] run def failed: no error detail from SDK'
+      );
+      expect(kill).toHaveBeenCalledTimes(1);
+    });
+
+    test('cursor-sdk auth failure releases task before proactive recovery', async () => {
+      let onLogLineHandler!: (line: string) => void;
+      let onExitHandler!: Parameters<SpawnResult['onExit']>[0];
+      const resumeFromDaemonMemory = vi.fn().mockRejectedValue(new Error('resume failed'));
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi
+          .fn()
+          .mockImplementationOnce(async () => ({
+            pid: PID,
+            harnessSessionId: 'cursor-agent-1',
+            harnessReconnect: { agentName: 'planner@c1', model: 'composer-2.5' },
+            onExit: (cb: Parameters<SpawnResult['onExit']>[0]) => {
+              onExitHandler = cb;
+            },
+            onOutput: vi.fn(),
+            onAgentEnd: vi.fn(),
+            onLogLine: (cb: (line: string) => void) => {
+              onLogLineHandler = cb;
+            },
+          }))
+          .mockRejectedValue(new Error('reopen failed')),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'planner@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.nativeTurnPhase = 'turn_in_flight';
+      manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-1');
+      const clearTaskSpy = vi.spyOn(manager, 'clearLastInFlightTask');
+      const kill = deps.processes.kill as ReturnType<typeof vi.fn>;
+      kill.mockClear();
+
+      onLogLineHandler('[cursor-sdk:planner@7z81x2 status] RUNNING');
+      onLogLineHandler(
+        '[cursor-sdk:planner@7z81x2 status] ERROR: Authentication error If you are logged in, try logging out and back in.'
+      );
+      onLogLineHandler(
+        '[cursor-sdk:planner@7z81x2 run-error] run run-24d02306 failed: no error detail from SDK'
+      );
+
+      expect(clearTaskSpy).toHaveBeenCalledWith(CHATROOM_ID, ROLE);
+      expect(slot.lastInFlightTaskId).toBeUndefined();
+      expect(slot.nativeTurnPhase).toBe('idle');
+      expect(kill).toHaveBeenCalledWith(PID, 'SIGTERM');
+      expect(clearTaskSpy.mock.invocationCallOrder[0]).toBeLessThan(
+        kill.mock.invocationCallOrder[0]
+      );
+
+      onExitHandler({
+        code: 1,
+        signal: null,
+        context: { machineId: 'test-machine', chatroomId: CHATROOM_ID, role: ROLE },
+      });
+
+      await vi.waitFor(() => {
+        const startFailed = getMutationCallsByArgs(
+          deps,
+          (args) => typeof args.error === 'string' && args.error.includes('session recovery failed')
+        );
+        expect(startFailed).toHaveLength(1);
+      });
+
+      const reopenRetryCalls = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.attempt !== undefined && args.maxAttempts === CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS
+      );
+      expect(reopenRetryCalls).toHaveLength(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS);
+      expect(resumeFromDaemonMemory).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'continue' }),
+        expect.anything()
+      );
+      clearTaskSpy.mockRestore();
+    });
+
     test('cursor-sdk Authentication error retries instead of permanent startFailed', async () => {
       const cursorSdkService = {
         ...createMockService(),
