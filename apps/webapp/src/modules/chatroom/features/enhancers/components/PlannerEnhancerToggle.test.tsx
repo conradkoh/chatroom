@@ -48,9 +48,17 @@ const SAVED_CONFIG: EnhancerConfig = {
   machineId: 'machine-1',
 };
 
+function mockPlatform(platform: string) {
+  Object.defineProperty(navigator, 'platform', {
+    configurable: true,
+    value: platform,
+  });
+}
+
 describe('PlannerEnhancerToggle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPlatform('MacIntel');
     mockConfig = null;
     mockIsActive = false;
     mockIsEnhancing = false;
@@ -158,11 +166,13 @@ describe('PlannerEnhancerToggle', () => {
     expect(mockToastMessage).not.toHaveBeenCalled();
   });
 
-  it('Alt+E enables from saved config without opening dialog', async () => {
+  it('Ctrl+E enables from saved config without opening dialog', async () => {
     mockConfig = SAVED_CONFIG;
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', altKey: true, bubbles: true }));
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', ctrlKey: true, bubbles: true })
+    );
 
     await waitFor(() =>
       expect(mockSaveConfig).toHaveBeenCalledWith({ ...SAVED_CONFIG, enabled: true })
@@ -170,7 +180,7 @@ describe('PlannerEnhancerToggle', () => {
     expect(mockOpenDialog).not.toHaveBeenCalled();
   });
 
-  it('Alt+E shows the unsupported-team toast', async () => {
+  it('Ctrl+E shows the unsupported-team toast', async () => {
     render(
       <PlannerEnhancerToggle
         chatroomId="room-1"
@@ -179,7 +189,9 @@ describe('PlannerEnhancerToggle', () => {
       />
     );
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', altKey: true, bubbles: true }));
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', ctrlKey: true, bubbles: true })
+    );
 
     await waitFor(() => expect(mockToastMessage).toHaveBeenCalled());
     expect(mockOpenDialog).not.toHaveBeenCalled();

@@ -2,7 +2,7 @@
 import { useCallback } from 'react';
 
 import { PlannerNewSessionToggleButton } from './PlannerNewSessionToggleButton';
-import { useAltShortcut } from '../../../hooks/useAltShortcut';
+import { useComposerPreflightShortcut } from '../../../hooks/useComposerPreflightShortcut';
 import { useStartInNewSessionPreference } from '../../../hooks/useStartInNewSessionPreference';
 
 export function PlannerNewSessionToggle() {
@@ -11,7 +11,7 @@ export function PlannerNewSessionToggle() {
     () => setStartInNewSession(!startInNewSession),
     [startInNewSession, setStartInNewSession]
   );
-  useAltShortcut({ key: 'n', onTrigger: onToggle });
+  useComposerPreflightShortcut({ code: 'KeyN', onTrigger: onToggle });
 
   return <PlannerNewSessionToggleButton isActive={startInNewSession} onToggle={onToggle} />;
 }

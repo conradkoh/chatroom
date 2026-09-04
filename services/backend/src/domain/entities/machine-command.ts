@@ -78,12 +78,6 @@ export const machineCommandPayloadValidator = v.union(
   v.object({
     type: v.literal('daemon.pickFolder'),
     requestId: v.id('chatroom_folderPickerRequests'),
-  }),
-  v.object({
-    type: v.literal('daemon.cloneRepository'),
-    requestId: v.id('chatroom_repositoryCloneRequests'),
-    cloneUrl: v.string(),
-    targetWorkingDir: v.string(),
   })
 );
 export type MachineCommandPayload = typeof machineCommandPayloadValidator.type;
@@ -99,5 +93,4 @@ export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
   'daemon.refreshCapabilities': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.localAction': MACHINE_COMMAND_LOCAL_ACTION_TTL_MS,
   'daemon.pickFolder': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
-  'daemon.cloneRepository': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
 };

@@ -1,11 +1,22 @@
 import { act, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { PlannerNewSessionToggle } from './PlannerNewSessionToggle';
 import { StartInNewSessionPreferenceProvider } from '../../../hooks/useStartInNewSessionPreference';
 
+function mockPlatform(platform: string) {
+  Object.defineProperty(navigator, 'platform', {
+    configurable: true,
+    value: platform,
+  });
+}
+
 describe('PlannerNewSessionToggle', () => {
-  it('toggles state with Alt+N', () => {
+  beforeEach(() => {
+    mockPlatform('MacIntel');
+  });
+
+  it('toggles state with Ctrl+N on macOS', () => {
     render(
       <StartInNewSessionPreferenceProvider>
         <PlannerNewSessionToggle />
@@ -16,7 +27,9 @@ describe('PlannerNewSessionToggle', () => {
     expect(button).toHaveAttribute('aria-pressed', 'false');
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', altKey: true, bubbles: true }));
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyN', key: 'n', ctrlKey: true, bubbles: true })
+      );
     });
 
     expect(button).toHaveAttribute('aria-pressed', 'true');

@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 import { PlannerEnhancerToggleButton, type TeamSupportState } from './PlannerEnhancerToggleButton';
-import { useAltShortcut } from '../../../hooks/useAltShortcut';
+import { useComposerPreflightShortcut } from '../../../hooks/useComposerPreflightShortcut';
 import { useActiveEnhancerJob } from '../hooks/useActiveEnhancerJob';
 import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
 import { hasEnhancerConfigFields, type EnhancerConfig } from '../types/enhancer';
@@ -72,7 +72,7 @@ export function PlannerEnhancerToggle({
     void handleToggle();
   }, [teamSupportState, isDisabling, handleUnsupportedClick, handleToggle]);
 
-  useAltShortcut({ key: 'e', onTrigger: handleShortcut });
+  useComposerPreflightShortcut({ code: 'KeyE', onTrigger: handleShortcut });
 
   if (teamSupportState !== 'supported') {
     return (

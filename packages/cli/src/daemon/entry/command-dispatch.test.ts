@@ -40,7 +40,6 @@ vi.mock('../../api.js', () => ({
       daemonHeartbeat: 'mock-daemonHeartbeat',
       refreshCapabilities: 'mock-refreshCapabilities',
       reportFolderPickerResult: 'mock-reportFolderPickerResult',
-      reportRepositoryCloneResult: 'mock-reportRepositoryCloneResult',
     },
     workspaces: {
       upsertWorkspaceGitState: 'mock-upsertWorkspaceGitState',
@@ -77,14 +76,6 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
 
 vi.mock('../../infrastructure/local-actions/pick-folder.js', () => ({
   pickFolderDialog: vi.fn(() => ({ success: true, path: '/tmp/picked-folder' })),
-}));
-
-vi.mock('../infrastructure/git/clone-repository.js', () => ({
-  cloneRepositoryIfNeeded: vi.fn().mockResolvedValue({
-    success: true,
-    workingDir: '/tmp/repos/widget',
-    cloned: true,
-  }),
 }));
 
 vi.mock('../infrastructure/git/git-reader.js', () => ({
@@ -263,7 +254,6 @@ function createDedupTracker() {
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
-    cloneRepositoryIds: new Map<string, number>(),
   };
 }
 
@@ -430,62 +420,6 @@ describe('dispatchCommandEventEffect', () => {
     expect(pickFolderDialog).not.toHaveBeenCalled();
     expect(deps.backend.mutation).not.toHaveBeenCalledWith(
       'mock-reportFolderPickerResult',
-      expect.anything()
-    );
-  });
-
-  it('processes daemon.cloneRepository and reports the result to backend', async () => {
-    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
-    const { cloneRepositoryIfNeeded } = await import('../infrastructure/git/clone-repository.js');
-    const deps = createMockDaemonDeps();
-    const event = {
-      _id: 'evt-d5-clone-repository-1',
-      type: 'daemon.cloneRepository',
-      requestId: 'req-clone-repository-1',
-      cloneUrl: 'https://github.com/acme/widget.git',
-      targetWorkingDir: '/tmp/repos/widget',
-    } as any;
-    const tracker = createDedupTracker();
-
-    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps));
-
-    expect(cloneRepositoryIfNeeded).toHaveBeenCalledWith(
-      'https://github.com/acme/widget.git',
-      '/tmp/repos/widget'
-    );
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'mock-reportRepositoryCloneResult',
-      expect.objectContaining({
-        sessionId: 'test-session-id',
-        machineId: 'test-machine-id',
-        requestId: 'req-clone-repository-1',
-        status: 'completed',
-        workingDir: '/tmp/repos/widget',
-        cloned: true,
-      })
-    );
-    expect(tracker.cloneRepositoryIds.has('evt-d5-clone-repository-1')).toBe(true);
-  });
-
-  it('deduplicates daemon.cloneRepository events by event id', async () => {
-    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
-    const { cloneRepositoryIfNeeded } = await import('../infrastructure/git/clone-repository.js');
-    const deps = createMockDaemonDeps();
-    const event = {
-      _id: 'evt-d5-clone-repository-dup',
-      type: 'daemon.cloneRepository',
-      requestId: 'req-clone-repository-dup',
-      cloneUrl: 'https://github.com/acme/widget.git',
-      targetWorkingDir: '/tmp/repos/widget',
-    } as any;
-    const tracker = createDedupTracker();
-    tracker.cloneRepositoryIds.set('evt-d5-clone-repository-dup', Date.now());
-
-    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps));
-
-    expect(cloneRepositoryIfNeeded).not.toHaveBeenCalled();
-    expect(deps.backend.mutation).not.toHaveBeenCalledWith(
-      'mock-reportRepositoryCloneResult',
       expect.anything()
     );
   });
