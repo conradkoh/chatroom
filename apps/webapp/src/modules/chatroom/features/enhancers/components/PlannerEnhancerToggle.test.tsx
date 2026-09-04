@@ -6,7 +6,6 @@ import type { EnhancerConfig } from '../types/enhancer';
 
 const mockSaveConfig = vi.fn();
 const mockDisable = vi.fn();
-const mockCancelJob = vi.fn();
 const mockOpenDialog = vi.fn();
 const mockToastMessage = vi.fn();
 
@@ -16,7 +15,6 @@ vi.mock('sonner', () => ({
 
 let mockConfig: EnhancerConfig | null = null;
 let mockIsActive = false;
-let mockIsEnhancing = false;
 
 vi.mock('../hooks/useEnhancerConfigDialogHost', () => ({
   useEnhancerConfigDialogHost: () => ({
@@ -29,14 +27,6 @@ vi.mock('../hooks/useEnhancerConfigDialogHost', () => ({
     moveFavorite: vi.fn(),
     openDialog: mockOpenDialog,
     dialog: null,
-  }),
-}));
-
-vi.mock('../hooks/useActiveEnhancerJob', () => ({
-  useActiveEnhancerJob: () => ({
-    isEnhancing: mockIsEnhancing,
-    cancelJob: mockCancelJob,
-    isCancelling: false,
   }),
 }));
 
@@ -61,7 +51,6 @@ describe('PlannerEnhancerToggle', () => {
     mockPlatform('MacIntel');
     mockConfig = null;
     mockIsActive = false;
-    mockIsEnhancing = false;
   });
 
   it('renders toggle button always', () => {
@@ -122,24 +111,13 @@ describe('PlannerEnhancerToggle', () => {
     expect(screen.getByTestId('planner-enhancer-toggle')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('disables when active and not enhancing', async () => {
+  it('disables when active without cancelling an enhancer job', async () => {
     mockConfig = { ...SAVED_CONFIG, enabled: true };
     mockIsActive = true;
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
     await waitFor(() => expect(mockDisable).toHaveBeenCalled());
-  });
-
-  it('disables without cancelling when enhancing', async () => {
-    mockConfig = { ...SAVED_CONFIG, enabled: true };
-    mockIsActive = true;
-    mockIsEnhancing = true;
-    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
-
-    fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
-    await waitFor(() => expect(mockDisable).toHaveBeenCalled());
-    expect(mockCancelJob).not.toHaveBeenCalled();
   });
 
   it('unsupported click calls toast message', async () => {
