@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 const cliPackageRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 
 const V2_SUBSCRIBED_QUERIES = [
-  'api.workspaces.getPendingRequests',
+  'api.workspaces.getPendingRequestsForWorkspace',
   'api.workspaceFiles.getPendingFileTreeRequests',
   'api.workspaceFiles.getPendingFileContentRequests',
   'api.workspaceFiles.getPendingFileWriteRequests',
@@ -55,6 +55,11 @@ describe('subscriber-registry duplicate guard (G4)', () => {
     expect(registrySource).toContain('startAgenticQuerySessionSubscriber');
     expect(registrySource).toContain('startAgenticQueryPromptSubscriber');
     expect(registrySource).toContain('startEnhancerJobSubscriber');
+  });
+
+  it('git-request v2 subscriber does not WS-subscribe the machine-wide query', () => {
+    const source = readRepoFile('src/daemon/infrastructure/convex/subscribers/git-request.ts');
+    expect(source).not.toMatch(/onUpdate\([\s\S]*api\.workspaces\.getPendingRequests[,)\]]/);
   });
 
   it('legacy daemon-start does not onUpdate migrated Convex queries', () => {

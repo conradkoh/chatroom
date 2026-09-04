@@ -24,7 +24,12 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     void routeInboundEvent(deps.router, event);
   };
 
+  const gitRequest = startGitRequestSubscriber(deps, onEvent);
+
   const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
+    // Workspace membership nudges keep the per-workspace git watches in sync
+    // (e.g. a newly registered workspace enables git request processing there).
+    if (claimed.type === 'daemon.workspaceListChanged') void gitRequest.refreshWorkspaces();
     await dispatchCommandInboundEvent({
       type: 'command.received',
       commandId: claimed.commandId,
@@ -32,7 +37,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     });
   });
   const commandRun = startCommandRunSubscriber(deps, onEvent);
-  const gitRequest = startGitRequestSubscriber(deps, onEvent);
   const fileTree = startFileTreeRequestSubscriber(deps, onEvent);
   const fileTreeRelease = startFileTreeReleaseRequestSubscriber(deps, onEvent);
   const fileContent = startFileContentRequestSubscriber(deps, onEvent);
