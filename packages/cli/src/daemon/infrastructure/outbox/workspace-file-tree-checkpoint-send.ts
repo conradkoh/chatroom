@@ -15,6 +15,7 @@ import {
   publishBlobSnapshot,
 } from '../../../infrastructure/services/workspace/transport/blob-snapshot-publish.js';
 import { publishShardedSnapshot } from '../../../infrastructure/services/workspace/transport/sharded-snapshot-publish.js';
+import { isFileTreeSyncDisabledError } from '../../../utils/convex-error.js';
 import type { DaemonSessionServiceShape } from '../../entry/daemon-services.js';
 
 type FileTreeCheckpointSnapshot = { strategyId: 'blob' | 'sharded'; snapshotId: string };
@@ -78,22 +79,30 @@ async function publishCheckpointUntilPruned(
 
 export function createWorkspaceFileTreeCheckpointSend(
   session: DaemonSessionServiceShape,
-  normalizedWorkingDir: string
+  normalizedWorkingDir: string,
+  options?: { onSyncDisabled?: () => void | Promise<void> }
 ): (state: WorkspaceFileTreeCheckpointState) => Promise<WorkspaceFileTreeCheckpointSendResult> {
+  // fallow-ignore-next-line complexity code-duplication
   return async (state) => {
-    const snapshot = await syncScannedFileTree(
-      session,
-      normalizedWorkingDir,
-      state.tree,
-      computeFileTreeDataHash(state.tree),
-      randomUUID()
-    );
-    const revision = await publishCheckpointUntilPruned(
-      session,
-      normalizedWorkingDir,
-      snapshot,
-      state.revision
-    );
-    return { revision };
+    try {
+      const snapshot = await syncScannedFileTree(
+        session,
+        normalizedWorkingDir,
+        state.tree,
+        computeFileTreeDataHash(state.tree),
+        randomUUID()
+      );
+      const revision = await publishCheckpointUntilPruned(
+        session,
+        normalizedWorkingDir,
+        snapshot,
+        state.revision
+      );
+      return { revision };
+    } catch (error: unknown) {
+      if (!isFileTreeSyncDisabledError(error)) throw error;
+      void (async () => options?.onSyncDisabled?.())().catch(() => undefined);
+      return { revision: state.revision };
+    }
   };
 }

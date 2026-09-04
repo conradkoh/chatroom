@@ -54,8 +54,15 @@ function useSlotStoreFiles(
 export function useMultiWorkspaceFileSync(
   workspaces: Workspace[]
 ): UseMultiWorkspaceFileSyncResult {
-  const workspaceSlotsKey = multiWorkspaceSlotsKey(workspaces);
-  const slots = useMemo(() => prepareMultiWorkspaceSlots(workspaces), [workspaceSlotsKey]);
+  const syncEnabledWorkspaces = useMemo(
+    () => workspaces.filter((ws) => ws.fileTreeSyncEnabled),
+    [workspaces]
+  );
+  const workspaceSlotsKey = multiWorkspaceSlotsKey(syncEnabledWorkspaces);
+  const slots = useMemo(
+    () => prepareMultiWorkspaceSlots(syncEnabledWorkspaces),
+    [workspaceSlotsKey, syncEnabledWorkspaces]
+  );
 
   const slot0 = slots[0];
   const slot1 = slots[1];

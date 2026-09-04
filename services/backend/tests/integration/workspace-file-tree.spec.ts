@@ -8,7 +8,11 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
+import {
+  createTestSession,
+  registerMachineWithDaemon,
+  registerWorkspaceWithFileTreeSync,
+} from '../helpers/integration';
 
 describe('workspace file tree requests', () => {
   test('requestFileTree returns cached when V2 tree is fresh', async () => {
@@ -16,6 +20,7 @@ describe('workspace file tree requests', () => {
     const machineId = 'machine-wft-cached';
     const workingDir = '/tmp/workspace';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceFileTreeV2', {
@@ -44,6 +49,7 @@ describe('workspace file tree requests', () => {
     const machineId = 'machine-wft-force';
     const workingDir = '/tmp/workspace';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceFileTreeV2', {
@@ -73,6 +79,7 @@ describe('workspace file tree requests', () => {
     const machineId = 'machine-wft-slash';
     const workingDir = '/tmp/workspace';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceFileTreeV2', {
@@ -101,6 +108,7 @@ describe('workspace file tree requests', () => {
     const machineId = 'machine-wft-get-slash';
     const workingDir = '/tmp/workspace';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceFileTreeV2', {
@@ -130,6 +138,7 @@ describe('workspace file tree requests', () => {
     const machineId = 'machine-wft-v3-cached';
     const workingDir = '/tmp/workspace';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceFileTreeManifestV3', {

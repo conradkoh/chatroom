@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createWorkspaceFileTreeCheckpointSend } from './workspace-file-tree-checkpoint-send.js';
@@ -44,5 +45,25 @@ describe('createWorkspaceFileTreeCheckpointSend', () => {
 
     await expect(send({ tree, revision: 7 })).resolves.toEqual({ revision: 7 });
     expect(publishCalls).toBe(2);
+  });
+
+  it('acknowledges a disabled sync error and invokes the shutdown callback', async () => {
+    const mutation = vi.fn(async (endpoint: string) => {
+      if (endpoint === 'sync-v2') return undefined;
+      throw new ConvexError({ code: 'FILE_TREE_SYNC_DISABLED', message: 'disabled' });
+    });
+    const onSyncDisabled = vi.fn();
+    const send = createWorkspaceFileTreeCheckpointSend(createSession(mutation), '/workspace', {
+      onSyncDisabled,
+    });
+
+    const tree = {
+      entries: [{ path: 'src/index.ts', type: 'file' as const }],
+      rootDir: '/workspace',
+      scannedAt: 1,
+    };
+
+    await expect(send({ tree, revision: 7 })).resolves.toEqual({ revision: 7 });
+    expect(onSyncDisabled).toHaveBeenCalledOnce();
   });
 });

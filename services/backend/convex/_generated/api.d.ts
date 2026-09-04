@@ -142,6 +142,7 @@ import type * as web_enhancer_mutations from "../web/enhancer/mutations.js";
 import type * as web_enhancer_queries from "../web/enhancer/queries.js";
 import type * as web_harnessCapabilities_capabilities from "../web/harnessCapabilities/capabilities.js";
 import type * as web_harnessCapabilities_commands from "../web/harnessCapabilities/commands.js";
+import type * as workspaceFileTree_access from "../workspaceFileTree/access.js";
 import type * as workspaceFileTree_repositories_blobSnapshotRepository from "../workspaceFileTree/repositories/blobSnapshotRepository.js";
 import type * as workspaceFileTree_repositories_checkpointRepository from "../workspaceFileTree/repositories/checkpointRepository.js";
 import type * as workspaceFileTree_repositories_deltaRepository from "../workspaceFileTree/repositories/deltaRepository.js";
@@ -299,6 +300,7 @@ declare const fullApi: ApiFromModules<{
   "web/enhancer/queries": typeof web_enhancer_queries;
   "web/harnessCapabilities/capabilities": typeof web_harnessCapabilities_capabilities;
   "web/harnessCapabilities/commands": typeof web_harnessCapabilities_commands;
+  "workspaceFileTree/access": typeof workspaceFileTree_access;
   "workspaceFileTree/repositories/blobSnapshotRepository": typeof workspaceFileTree_repositories_blobSnapshotRepository;
   "workspaceFileTree/repositories/checkpointRepository": typeof workspaceFileTree_repositories_checkpointRepository;
   "workspaceFileTree/repositories/deltaRepository": typeof workspaceFileTree_repositories_deltaRepository;

@@ -67,6 +67,7 @@ const workspaces: Workspace[] = [
     hostname: 'host',
     workingDir: WORKING_DIR,
     agentRoles: [],
+    fileTreeSyncEnabled: true,
   },
 ];
 
