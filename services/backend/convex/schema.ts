@@ -1771,6 +1771,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_status', ['machineId', 'workingDir', 'status'])
     .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType'])
     // Tight index for idempotency checks that only need (machine, workingDir, type, status).
     // Covers requestAllPullRequests and requestRecentCommits without a filter scan.
