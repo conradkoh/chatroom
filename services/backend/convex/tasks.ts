@@ -13,6 +13,7 @@ import { getMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
+import { machineOperationalSignalScopeValidator } from '../src/domain/entities/machine-operational-signal';
 import {
   normalizeMarkdownContent,
   withMarkdownContent,
@@ -1100,7 +1101,7 @@ export const getTasksByIds = query({
 export const listTasksForMachineSignalRange = query({
   args: {
     ...SessionIdArg,
-    machineId: v.string(),
+    ...machineOperationalSignalScopeValidator,
     afterSignalKey: v.string(),
     throughSignalKey: v.string(),
     limit: v.optional(v.number()),
@@ -1116,6 +1117,7 @@ export const listTasksForMachineSignalRange = query({
 
     return listTasksForMachineSignalRangeUsecase(ctx, {
       machineId: args.machineId,
+      chatroomId: args.chatroomId,
       userId: auth.userId,
       afterSignalKey: args.afterSignalKey,
       throughSignalKey: args.throughSignalKey,

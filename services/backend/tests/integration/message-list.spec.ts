@@ -329,13 +329,14 @@ describe('listMessagesBefore', () => {
 describe('subscribeTaskStatusSignalsSince', () => {
   test('returns null when no signals after cursor', async () => {
     const { sessionId } = await createTestSession('ml-signals-null-1');
-    await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'ml-signals-null-machine-1';
     await registerMachineWithDaemon(sessionId, machineId);
 
     const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId: sessionId as any,
       machineId,
+      chatroomId,
       afterKey: 'zzz',
     });
 
@@ -362,6 +363,7 @@ describe('subscribeTaskStatusSignalsSince', () => {
     const nullResult = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId: sessionId as any,
       machineId,
+      chatroomId,
       afterKey: seedKey,
     });
     expect(nullResult).toBeNull();
@@ -389,6 +391,7 @@ describe('subscribeTaskStatusSignalsSince', () => {
     const afterTransition = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId: sessionId as any,
       machineId,
+      chatroomId,
       afterKey: seedKey,
     });
     expect(afterTransition).not.toBeNull();
@@ -401,6 +404,7 @@ describe('subscribeTaskStatusSignalsSince', () => {
     const afterHighKey = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId: sessionId as any,
       machineId,
+      chatroomId,
       afterKey: afterTransition!.highKey,
     });
     expect(afterHighKey).toBeNull();

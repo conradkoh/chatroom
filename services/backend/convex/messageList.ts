@@ -17,6 +17,7 @@ import { query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getMachineOwner } from './auth/cli/machineAccess';
 import { enrichMessages } from './messages';
+import { machineOperationalSignalScopeValidator } from '../src/domain/entities/machine-operational-signal';
 import { isMessageReadModelComplete } from '../src/domain/usecase/message/message-read-model';
 
 /** Max rows for initial latest-window and load-older page requests. */
@@ -176,15 +177,16 @@ export const subscribeNewMessages = query({
 const DEFAULT_TASK_STATUS_SIGNALS_LIMIT = 100;
 
 /**
- * Reactive cursor-pinned subscription: task-status signals strictly after
- * `afterKey`. Returns a paginated page with `highKey` for cursor advancement.
+ * Reactive cursor-pinned subscription: task-status signals for one machine and chatroom
+ * strictly after `afterKey`. Returns null when idle to suppress subscription bandwidth.
  *
- * Returns null when idle (no new signals) to suppress subscription bandwidth.
+ * Scoped per chatroom (not machine-wide) so task transitions in one room do not
+ * invalidate other rooms' subscriptions on the same machine.
  */
 export const subscribeTaskStatusSignalsSince = query({
   args: {
     ...SessionIdArg,
-    machineId: v.string(),
+    ...machineOperationalSignalScopeValidator,
     afterKey: v.string(),
     limit: v.optional(v.number()),
   },
@@ -196,21 +198,13 @@ export const subscribeTaskStatusSignalsSince = query({
       Math.max(args.limit ?? DEFAULT_TASK_STATUS_SIGNALS_LIMIT, 1),
       MAX_TASK_STATUS_SIGNALS_LIMIT
     );
-    const head = await ctx.db
-      .query('chatroom_machineTaskStatusSignalHeads')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (head) {
-      if (head.latestSignal.signalKey <= args.afterKey) return null;
-      if (head.previousSignalKey === undefined || args.afterKey >= head.previousSignalKey) {
-        const item = head.latestSignal;
-        return { items: [item], highKey: item.signalKey, hasMore: false };
-      }
-    }
     const page = await ctx.db
       .query('chatroom_machineTaskStatusSignals')
-      .withIndex('by_machineId_signalKey', (q) =>
-        q.eq('machineId', args.machineId).gt('signalKey', args.afterKey)
+      .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('chatroomId', args.chatroomId)
+          .gt('signalKey', args.afterKey)
       )
       .order('asc')
       .take(limit + 1);
@@ -225,18 +219,9 @@ export const subscribeTaskStatusSignalsSince = query({
       signalKey: row.signalKey,
       taskUpdatedAt: row.taskUpdatedAt,
     }));
-    if (items.length === 0) {
-      return null;
-    }
     const lastItem = items.at(-1);
-    if (!lastItem) {
-      return null;
-    }
-    return {
-      items,
-      highKey: lastItem.signalKey,
-      hasMore,
-    };
+    if (!lastItem) return null;
+    return { items, highKey: lastItem.signalKey, hasMore };
   },
 });
 
