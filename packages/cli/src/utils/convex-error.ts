@@ -80,7 +80,6 @@ export function getConvexErrorCode(error: unknown): string | undefined {
 }
 
 /** Identifies the terminal backend response that disables local file-tree sync. */
-// fallow-ignore-next-line unused-export
 export function isFileTreeSyncDisabledError(error: unknown): boolean {
   return getConvexErrorCode(error) === FILE_TREE_SYNC_DISABLED_CODE;
 }
