@@ -5,6 +5,8 @@ import {
   runInboxLoopWithRestart,
   startTaskInboxEffect,
 } from './task-inbox-runtime.js';
+import { type AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
+import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
 
 const processTasksUpdate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -45,6 +47,53 @@ vi.mock('../infrastructure/inbox/index.js', () => ({
   resolveInboxDbPath,
 }));
 
+const COMPOSITE_SCOPE_KEY = (machineId: string, chatroomId: string) =>
+  JSON.stringify([machineId, chatroomId]);
+
+function opRow(chatroomId: string): MachineAgentOperationalRow {
+  return {
+    chatroomId,
+    role: 'builder',
+    operationalState: 'running',
+    isAlive: true,
+    isRunning: true,
+    daemonConnected: true,
+    revisionKey: `revision-${chatroomId}`,
+  };
+}
+
+/** A changed revision of a room's operational row — drives a signal-page change vs bootstrap. */
+function updatedOpRow(chatroomId: string): MachineAgentOperationalRow {
+  return { ...opRow(chatroomId), revisionKey: 'revision-changed' };
+}
+
+function taskSnapshot(taskId: string, chatroomId: string): AssignedTaskSnapshotView {
+  return {
+    taskId,
+    chatroomId,
+    status: 'pending',
+    assignedTo: 'builder',
+    updatedAt: 100,
+    createdAt: 100,
+    agentConfig: {
+      role: 'builder',
+      machineId: 'machine-1',
+      agentHarness: 'cursor-sdk',
+      workingDir: '/tmp',
+    },
+  } as AssignedTaskSnapshotView;
+}
+
+const OPERATIONAL_SCOPE_ROOM_1 = {
+  inboxType: 'operational',
+  scopeKey: COMPOSITE_SCOPE_KEY('machine-1', 'room-1'),
+};
+const OPERATIONAL_SCOPE_ROOM_2 = {
+  inboxType: 'operational',
+  scopeKey: COMPOSITE_SCOPE_KEY('machine-1', 'room-2'),
+};
+const BASELINE = '0000000000001234:';
+
 beforeEach(() => {
   vi.mocked(runTaskInbox).mockReset().mockResolvedValue(undefined);
   runOperationalInbox.mockReset().mockResolvedValue(undefined);
@@ -55,17 +104,18 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-function makeInboxStore(persistedOperational: { afterSignalKey: string } | null = null): {
+function makeInboxStore(persistedRooms: Record<string, { afterSignalKey: string }> = {}): {
   get: ReturnType<typeof vi.fn>;
   save: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
 } {
   const store = {
-    get: vi.fn((key: { inboxType: string }) =>
-      key.inboxType === 'operational' && persistedOperational
-        ? { state: persistedOperational }
-        : null
-    ),
+    get: vi.fn((key: { inboxType: string; scopeKey: string }) => {
+      if (key.inboxType === 'operational' && persistedRooms[key.scopeKey]) {
+        return { state: persistedRooms[key.scopeKey] };
+      }
+      return null;
+    }),
     save: vi.fn(),
     close: vi.fn(),
     query: vi.fn().mockReturnValue([]),
@@ -75,7 +125,20 @@ function makeInboxStore(persistedOperational: { afterSignalKey: string } | null 
   return store;
 }
 
-async function startTaskInboxForTest(tasks: unknown[] = []) {
+type StartTaskInboxOptions = {
+  tasks?: unknown[];
+  bootstrapRows?: MachineAgentOperationalRow[];
+  operationalInboxImpl?: (
+    options: Parameters<typeof runOperationalInbox>[0],
+    onUpdate: Parameters<typeof runOperationalInbox>[1]
+  ) => Promise<void>;
+};
+
+async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promise<{
+  handle: { stop: () => void };
+  operationalHandlers: () => ((update: never) => Promise<void>)[];
+  taskInboxHandler: () => ((update: never) => Promise<void>) | undefined;
+}> {
   const { Effect, Layer } = await import('effect');
   const { AgentLifecycleOutboxService, DaemonAgentProcessManagerService, DaemonSessionService } =
     await import('./daemon-services.js');
@@ -85,7 +148,7 @@ async function startTaskInboxForTest(tasks: unknown[] = []) {
     convexUrl: 'https://example.com',
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue({ tasks }),
+      query: vi.fn().mockResolvedValue({ tasks: options.tasks ?? [] }),
     },
     agentServices: new Map(),
   };
@@ -97,14 +160,26 @@ async function startTaskInboxForTest(tasks: unknown[] = []) {
       stopAll: () => Effect.void,
     })
   );
-  let operationalHandler: ((update: never) => Promise<void>) | undefined;
-  runOperationalInbox.mockImplementation(async (_options, handler) => {
-    operationalHandler = handler;
+  fetchMachineAgentOperationalStatus.mockResolvedValue(options.bootstrapRows ?? []);
+  const operationalHandlers: ((update: never) => Promise<void>)[] = [];
+  let taskInboxHandler: ((update: never) => Promise<void>) | undefined;
+  runOperationalInbox.mockImplementation(
+    options.operationalInboxImpl ??
+      (async (_options, handler) => {
+        operationalHandlers.push(handler);
+      })
+  );
+  vi.mocked(runTaskInbox).mockImplementation(async (_options, handler) => {
+    taskInboxHandler = handler;
   });
   const handle = await Effect.runPromise(
     startTaskInboxEffect({} as never).pipe(Effect.provide(layers))
   );
-  return { handle, operationalHandler: () => operationalHandler! };
+  return {
+    handle,
+    operationalHandlers: () => operationalHandlers,
+    taskInboxHandler: () => taskInboxHandler,
+  };
 }
 
 describe('bootstrapMachineAssignedTaskSnapshots', () => {
@@ -158,6 +233,51 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     expect(mutation).toHaveBeenCalledTimes(2);
     expect(query).toHaveBeenCalledOnce();
   });
+
+  it('invokes the discovery callback with task chatroom ids before delivery', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const query = vi.fn().mockResolvedValue({
+      tasks: [
+        {
+          taskId: 'task-1',
+          chatroomId: 'room-1',
+          status: 'pending',
+          assignedTo: 'builder',
+          updatedAt: 100,
+          createdAt: 100,
+          agentConfig: { chatroomId: 0, role: 'builder', machineId: 'machine-1' },
+        },
+        {
+          taskId: 'task-2',
+          chatroomId: 'room-1',
+          status: 'pending',
+          assignedTo: 'builder',
+          updatedAt: 100,
+          createdAt: 100,
+          agentConfig: { chatroomId: 0, role: 'builder', machineId: 'machine-1' },
+        },
+      ],
+    });
+    const onDiscoveredChatrooms = vi.fn().mockResolvedValue(undefined);
+    const order: string[] = [];
+    onDiscoveredChatrooms.mockImplementation(async () => {
+      order.push('discover');
+    });
+    processTasksUpdate.mockImplementation(async () => {
+      order.push('deliver');
+    });
+    await bootstrapMachineAssignedTaskSnapshots({
+      sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
+      runtime: {} as never,
+      effectContext: {} as never,
+      cooldown: {} as never,
+      agentMgr: {} as never,
+      machineId: 'machine-1',
+      onDiscoveredChatrooms,
+    });
+    expect(onDiscoveredChatrooms).toHaveBeenCalledWith(['room-1']);
+    expect(order).toEqual(['discover', 'deliver']);
+  });
 });
 
 describe('runInboxLoopWithRestart', () => {
@@ -184,85 +304,159 @@ describe('runInboxLoopWithRestart', () => {
   });
 });
 
-describe('startTaskInboxEffect operational bootstrap', () => {
-  const baseline = '0000000000001234:';
-
-  it('persists and acknowledges the fresh bootstrap baseline', async () => {
+describe('startTaskInboxEffect operational room supervisor', () => {
+  it('saves a fresh baseline per discovered room and acks with matching room ids', async () => {
     const store = makeInboxStore();
     vi.spyOn(Date, 'now').mockReturnValue(1234);
 
-    const { handle } = await startTaskInboxForTest();
-    await vi.waitFor(() => expect(ackMachineOperationalSignals).toHaveBeenCalledOnce());
+    const { handle } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1'), opRow('room-2')],
+    });
+    await vi.waitFor(() => expect(ackMachineOperationalSignals).toHaveBeenCalledTimes(2));
 
-    expect(store.save).toHaveBeenCalledWith(
-      { inboxType: 'operational', scopeKey: 'machine-1' },
-      { afterSignalKey: baseline }
+    expect(store.save).toHaveBeenCalledTimes(2);
+    expect(store.save).toHaveBeenCalledWith(OPERATIONAL_SCOPE_ROOM_1, {
+      afterSignalKey: BASELINE,
+    });
+    expect(store.save).toHaveBeenCalledWith(OPERATIONAL_SCOPE_ROOM_2, {
+      afterSignalKey: BASELINE,
+    });
+    expect(ackMachineOperationalSignals).toHaveBeenCalledWith(
+      expect.anything(),
+      'machine-1',
+      'room-1',
+      BASELINE
     );
     expect(ackMachineOperationalSignals).toHaveBeenCalledWith(
       expect.anything(),
       'machine-1',
-      baseline
+      'room-2',
+      BASELINE
     );
+    expect(runOperationalInbox.mock.calls.map((call) => call[0].chatroomId)).toEqual([
+      'room-1',
+      'room-2',
+    ]);
     expect(runOperationalInbox.mock.calls[0]?.[0]).toMatchObject({
-      initialAfterSignalKey: baseline,
+      initialAfterSignalKey: BASELINE,
+    });
+    expect(runOperationalInbox.mock.calls[1]?.[0]).toMatchObject({
+      initialAfterSignalKey: BASELINE,
     });
     handle.stop();
+    vi.restoreAllMocks();
   });
 
-  it('does not persist or acknowledge when fresh bootstrap fails', async () => {
-    const store = makeInboxStore();
-    fetchMachineAgentOperationalStatus.mockRejectedValueOnce(new Error('bootstrap failed'));
-    vi.spyOn(Date, 'now').mockReturnValue(1234);
-
-    const { handle } = await startTaskInboxForTest();
-
-    expect(store.save).not.toHaveBeenCalled();
-    expect(ackMachineOperationalSignals).not.toHaveBeenCalled();
-    expect(runOperationalInbox.mock.calls[0]?.[0]).toMatchObject({
-      initialAfterSignalKey: baseline,
-    });
-    handle.stop();
-  });
-
-  it('acknowledges a persisted cursor even when bootstrap fails', async () => {
+  it('reads and acks a persisted room cursor without touching the legacy machine key', async () => {
     const persistedKey = '0000000000000099:room:builder';
-    const store = makeInboxStore({ afterSignalKey: persistedKey });
-    fetchMachineAgentOperationalStatus.mockRejectedValueOnce(new Error('bootstrap failed'));
+    const store = makeInboxStore({
+      [COMPOSITE_SCOPE_KEY('machine-1', 'room-1')]: { afterSignalKey: persistedKey },
+    });
 
-    const { handle } = await startTaskInboxForTest();
+    const { handle } = await startTaskInboxForTest({ bootstrapRows: [opRow('room-1')] });
     await vi.waitFor(() => expect(ackMachineOperationalSignals).toHaveBeenCalledOnce());
 
     expect(store.save).not.toHaveBeenCalled();
     expect(ackMachineOperationalSignals).toHaveBeenCalledWith(
       expect.anything(),
       'machine-1',
+      'room-1',
       persistedKey
     );
     expect(runOperationalInbox.mock.calls[0]?.[0]).toMatchObject({
+      chatroomId: 'room-1',
       initialAfterSignalKey: persistedKey,
     });
+    const legacyReads = store.get.mock.calls.filter(
+      ([key]) => key.inboxType === 'operational' && key.scopeKey === 'machine-1'
+    );
+    expect(legacyReads).toHaveLength(0);
+    const legacyWrites = store.save.mock.calls.filter(
+      ([key]) => key.inboxType === 'operational' && key.scopeKey === 'machine-1'
+    );
+    expect(legacyWrites).toHaveLength(0);
     handle.stop();
   });
 
-  it('orders live processing, cursor persistence, and acknowledgement', async () => {
-    const store = makeInboxStore();
-    fetchMachineAssignedTaskSnapshots.mockResolvedValueOnce([
-      {
-        taskId: 'task-1',
-        chatroomId: 'room-1',
-        status: 'pending',
-        assignedTo: 'builder',
-        updatedAt: 1,
-        createdAt: 1,
-        agentConfig: {
-          role: 'builder',
-          machineId: 'machine-1',
-          agentHarness: 'cursor-sdk',
-          workingDir: '/tmp',
+  it('does not save or ack fresh baselines when bootstrap fails but still acks persisted cursors', async () => {
+    const persistedKey = '0000000000000099:room:builder';
+    const store = makeInboxStore({
+      [COMPOSITE_SCOPE_KEY('machine-1', 'room-1')]: { afterSignalKey: persistedKey },
+    });
+    fetchMachineAgentOperationalStatus.mockRejectedValueOnce(new Error('bootstrap failed'));
+    vi.spyOn(Date, 'now').mockReturnValue(1234);
+
+    const { handle } = await startTaskInboxForTest({
+      tasks: [taskSnapshot('task-1', 'room-1')],
+      bootstrapRows: [],
+    });
+    await vi.waitFor(() => expect(ackMachineOperationalSignals).toHaveBeenCalledOnce());
+
+    expect(fetchMachineAgentOperationalStatus).toHaveBeenCalledTimes(2);
+    expect(store.save).not.toHaveBeenCalled();
+    expect(ackMachineOperationalSignals).toHaveBeenCalledWith(
+      expect.anything(),
+      'machine-1',
+      'room-1',
+      persistedKey
+    );
+    expect(runOperationalInbox.mock.calls[0]?.[0]).toMatchObject({
+      chatroomId: 'room-1',
+      initialAfterSignalKey: persistedKey,
+    });
+    handle.stop();
+    vi.restoreAllMocks();
+  });
+
+  it('starts independent watchers per room and deduplicates repeated discovery', async () => {
+    const persistedRooms = {
+      [COMPOSITE_SCOPE_KEY('machine-1', 'room-1')]: { afterSignalKey: 'cursor-1' },
+      [COMPOSITE_SCOPE_KEY('machine-1', 'room-2')]: { afterSignalKey: 'cursor-2' },
+    };
+    makeInboxStore(persistedRooms);
+
+    const { handle, taskInboxHandler } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1'), opRow('room-2')],
+    });
+    await vi.waitFor(() => expect(runOperationalInbox).toHaveBeenCalledTimes(2));
+
+    const calls = runOperationalInbox.mock.calls;
+    expect(calls.map((call) => call[0].chatroomId).sort()).toEqual(['room-1', 'room-2']);
+    expect(calls.find((call) => call[0].chatroomId === 'room-1')?.[0]).toMatchObject({
+      initialAfterSignalKey: 'cursor-1',
+    });
+    expect(calls.find((call) => call[0].chatroomId === 'room-2')?.[0]).toMatchObject({
+      initialAfterSignalKey: 'cursor-2',
+    });
+
+    const handler = taskInboxHandler();
+    expect(handler).toBeDefined();
+    await handler?.({
+      signals: [
+        {
+          chatroomId: 'room-1',
+          taskId: 'task-1',
+          targetRole: 'builder',
+          taskStatus: 'pending',
+          signalKey: 'k1',
+          taskUpdatedAt: 100,
         },
-      },
-    ]);
-    const { handle, operationalHandler } = await startTaskInboxForTest();
+      ],
+      snapshots: [],
+      afterSignalKey: '',
+      throughSignalKey: 'k1',
+    } as never);
+
+    expect(runOperationalInbox).toHaveBeenCalledTimes(2);
+    handle.stop();
+  });
+
+  it('keeps process -> save -> ack ordering with the room-scoped cursor', async () => {
+    const store = makeInboxStore();
+    const { handle, operationalHandlers } = await startTaskInboxForTest({
+      tasks: [taskSnapshot('task-1', 'room-1')],
+      bootstrapRows: [opRow('room-1')],
+    });
     await vi.waitFor(() => expect(runOperationalInbox).toHaveBeenCalledOnce());
     processTasksUpdate.mockClear();
     ackMachineOperationalSignals.mockClear();
@@ -279,65 +473,44 @@ describe('startTaskInboxEffect operational bootstrap', () => {
       order.push('ack');
     });
 
-    await operationalHandler()({
-      rows: [
-        {
-          chatroomId: 'room-1',
-          role: 'builder',
-          operationalState: 'running',
-          isAlive: true,
-          isRunning: true,
-          daemonConnected: true,
-          revisionKey: 'revision-1',
-        },
-      ],
+    await operationalHandlers()[0]({
+      chatroomId: 'room-1',
+      rows: [updatedOpRow('room-1')],
       removed: [],
-      throughSignalKey: '0000000000000001:room-1:builder',
+      throughSignalKey: 'key-1',
     } as never);
 
     expect(order).toEqual(['process', 'save', 'ack']);
+    expect(store.save).toHaveBeenCalledWith(OPERATIONAL_SCOPE_ROOM_1, {
+      afterSignalKey: 'key-1',
+    });
+    expect(ackMachineOperationalSignals).toHaveBeenCalledWith(
+      expect.anything(),
+      'machine-1',
+      'room-1',
+      'key-1'
+    );
     handle.stop();
   });
 
-  it('does not acknowledge when live processing fails', async () => {
+  it('does not save or ack a room when its processing fails', async () => {
     const store = makeInboxStore();
-    fetchMachineAssignedTaskSnapshots.mockResolvedValueOnce([
-      {
-        taskId: 'task-1',
-        chatroomId: 'room-1',
-        status: 'pending',
-        assignedTo: 'builder',
-        updatedAt: 1,
-        createdAt: 1,
-        agentConfig: {
-          role: 'builder',
-          machineId: 'machine-1',
-          agentHarness: 'cursor-sdk',
-          workingDir: '/tmp',
-        },
-      },
-    ]);
-    const { handle, operationalHandler } = await startTaskInboxForTest();
+    const { handle, operationalHandlers } = await startTaskInboxForTest({
+      tasks: [taskSnapshot('task-1', 'room-1')],
+      bootstrapRows: [opRow('room-1')],
+    });
+    await vi.waitFor(() => expect(runOperationalInbox).toHaveBeenCalledOnce());
     processTasksUpdate.mockClear();
     ackMachineOperationalSignals.mockClear();
     store.save.mockClear();
     processTasksUpdate.mockRejectedValueOnce(new Error('processing failed'));
 
     await expect(
-      operationalHandler()({
-        rows: [
-          {
-            chatroomId: 'room-1',
-            role: 'builder',
-            operationalState: 'running',
-            isAlive: true,
-            isRunning: true,
-            daemonConnected: true,
-            revisionKey: 'revision-1',
-          },
-        ],
+      operationalHandlers()[0]({
+        chatroomId: 'room-1',
+        rows: [updatedOpRow('room-1')],
         removed: [],
-        throughSignalKey: 'key',
+        throughSignalKey: 'key-1',
       } as never)
     ).rejects.toThrow('processing failed');
     expect(store.save).not.toHaveBeenCalled();
@@ -345,25 +518,12 @@ describe('startTaskInboxEffect operational bootstrap', () => {
     handle.stop();
   });
 
-  it('completes live processing when acknowledgement fails', async () => {
+  it('keeps the cursor saved and logs cleanup failure when ack fails', async () => {
     const store = makeInboxStore();
-    fetchMachineAssignedTaskSnapshots.mockResolvedValueOnce([
-      {
-        taskId: 'task-1',
-        chatroomId: 'room-1',
-        status: 'pending',
-        assignedTo: 'builder',
-        updatedAt: 1,
-        createdAt: 1,
-        agentConfig: {
-          role: 'builder',
-          machineId: 'machine-1',
-          agentHarness: 'cursor-sdk',
-          workingDir: '/tmp',
-        },
-      },
-    ]);
-    const { handle, operationalHandler } = await startTaskInboxForTest();
+    const { handle, operationalHandlers } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1')],
+    });
+    await vi.waitFor(() => expect(runOperationalInbox).toHaveBeenCalledOnce());
     processTasksUpdate.mockClear();
     ackMachineOperationalSignals.mockClear();
     store.save.mockClear();
@@ -371,28 +531,155 @@ describe('startTaskInboxEffect operational bootstrap', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     await expect(
-      operationalHandler()({
-        rows: [
-          {
-            chatroomId: 'room-1',
-            role: 'builder',
-            operationalState: 'running',
-            isAlive: true,
-            isRunning: true,
-            daemonConnected: true,
-            revisionKey: 'revision-1',
-          },
-        ],
+      operationalHandlers()[0]({
+        chatroomId: 'room-1',
+        rows: [opRow('room-1')],
         removed: [],
-        throughSignalKey: 'key',
+        throughSignalKey: 'key-1',
       } as never)
     ).resolves.toBeUndefined();
-    expect(store.save).toHaveBeenCalled();
+    expect(store.save).toHaveBeenCalledWith(OPERATIONAL_SCOPE_ROOM_1, {
+      afterSignalKey: 'key-1',
+    });
     expect(warn).toHaveBeenCalledWith(
-      '[OperationalInbox] signal cleanup failed:',
+      '[OperationalInbox room=room-1] signal cleanup failed:',
       expect.any(Error)
     );
     warn.mockRestore();
     handle.stop();
+  });
+
+  it('hydrates and watches a room discovered through a task-inbox update before first delivery', async () => {
+    makeInboxStore();
+    const { handle, taskInboxHandler } = await startTaskInboxForTest({ tasks: [] });
+    const order: string[] = [];
+    fetchMachineAgentOperationalStatus.mockImplementation(async () => {
+      order.push('hydrate');
+      return [];
+    });
+    processTasksUpdate.mockImplementation(async () => {
+      order.push('process');
+    });
+
+    const handler = taskInboxHandler();
+    expect(handler).toBeDefined();
+    await handler?.({
+      signals: [
+        {
+          chatroomId: 'room-new',
+          taskId: 'task-1',
+          targetRole: 'builder',
+          taskStatus: 'pending',
+          signalKey: 'k1',
+          taskUpdatedAt: 100,
+        },
+      ],
+      snapshots: [taskSnapshot('task-1', 'room-new')],
+      afterSignalKey: '',
+      throughSignalKey: 'k1',
+    } as never);
+
+    expect(order).toEqual(['hydrate', 'process']);
+    expect(runOperationalInbox).toHaveBeenCalledTimes(1);
+    expect(runOperationalInbox.mock.calls[0]?.[0]).toMatchObject({
+      chatroomId: 'room-new',
+    });
+
+    // A later update for the same room must not start a second watcher.
+    await handler?.({
+      signals: [
+        {
+          chatroomId: 'room-new',
+          taskId: 'task-2',
+          targetRole: 'builder',
+          taskStatus: 'in_progress',
+          signalKey: 'k2',
+          taskUpdatedAt: 101,
+        },
+      ],
+      snapshots: [taskSnapshot('task-2', 'room-new')],
+      afterSignalKey: 'k1',
+      throughSignalKey: 'k2',
+    } as never);
+    expect(runOperationalInbox).toHaveBeenCalledTimes(1);
+    handle.stop();
+  });
+
+  it('isolates one room restart from another and aborts all watchers on shutdown', async () => {
+    makeInboxStore();
+    vi.useFakeTimers();
+    const calls: { chatroomId: string; signal: AbortSignal }[] = [];
+    const reconnectableInboxImpl = async (
+      options: Parameters<typeof runOperationalInbox>[0]
+    ): Promise<void> => {
+      calls.push({ chatroomId: options.chatroomId, signal: options.signal! });
+      const roomCalls = calls.filter((call) => call.chatroomId === options.chatroomId).length;
+      if (options.chatroomId === 'room-1' && roomCalls === 1) {
+        throw new Error('transient room error');
+      }
+      return new Promise<void>(() => {});
+    };
+    runOperationalInbox.mockImplementation(reconnectableInboxImpl);
+
+    const { handle } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1'), opRow('room-2')],
+      operationalInboxImpl: reconnectableInboxImpl,
+    });
+
+    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(1);
+    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(1);
+    expect(calls.find((call) => call.chatroomId === 'room-2')?.signal.aborted).toBe(false);
+
+    // Room-1 restarts after the backoff; room-2 is untouched.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(2);
+    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(1);
+
+    handle.stop();
+    expect(calls.every((call) => call.signal.aborted)).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('keeps periodic reconcile quiet while any room handler is active', async () => {
+    makeInboxStore();
+    vi.useFakeTimers();
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const { handle, operationalHandlers } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1'), opRow('room-2')],
+      tasks: [taskSnapshot('task-1', 'room-1'), taskSnapshot('task-2', 'room-2')],
+    });
+    processTasksUpdate.mockImplementation(() => gate);
+    const [handler1, handler2] = operationalHandlers();
+    const first = handler1({
+      chatroomId: 'room-1',
+      rows: [updatedOpRow('room-1')],
+      removed: [],
+      throughSignalKey: 'k1',
+    } as never);
+    const second = handler2({
+      chatroomId: 'room-2',
+      rows: [updatedOpRow('room-2')],
+      removed: [],
+      throughSignalKey: 'k2',
+    } as never);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(processTasksUpdate.mock.calls.some((call) => call[6] === 'periodic-reconcile')).toBe(
+      false
+    );
+
+    release?.();
+    await Promise.all([first, second]);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(processTasksUpdate.mock.calls.some((call) => call[6] === 'periodic-reconcile')).toBe(
+      true
+    );
+
+    handle.stop();
+    vi.useRealTimers();
   });
 });

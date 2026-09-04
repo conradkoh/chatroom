@@ -1,17 +1,18 @@
 // fallow-ignore-file code-duplication complexity unused-export
 /**
- * Machine-scoped operational inbox primitives.
+ * Chatroom-scoped operational inbox primitives.
  *
- * The reactive subscription contains only slim change signals. Operational
- * rows are hydrated imperatively after each signal page so the daemon never
- * subscribes to the complete machine projection.
+ * Each inbox instance represents exactly one chatroom for one machine. The
+ * reactive subscription contains only slim change signals for that chatroom.
+ * Operational rows are hydrated imperatively after each signal page so the
+ * daemon never subscribes to the complete machine projection.
  */
 
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
-import type { Doc } from '../../../api.js';
+import type { Doc, Id } from '../../../api.js';
 import { api } from '../../../api.js';
 
 const DEFAULT_SIGNAL_PAGE_LIMIT = 100;
@@ -29,6 +30,7 @@ export interface OperationalSignalPage {
 }
 
 export interface OperationalInboxUpdate {
+  readonly chatroomId: string;
   readonly signals: readonly OperationalStatusSignal[];
   readonly rows: readonly MachineAgentOperationalRow[];
   readonly removed: readonly { chatroomId: string; role: string }[];
@@ -40,6 +42,7 @@ export interface OperationalInboxOptions {
   readonly client: ConvexClient;
   readonly sessionId: SessionId;
   readonly machineId: string;
+  readonly chatroomId: string;
   /** Defaults to the time the iterator is created. */
   readonly serviceStartedAt?: number | undefined;
   /** Overrides the initial operational signal cursor. */
@@ -104,6 +107,7 @@ function waitForOperationalSignalPage(
       {
         sessionId: options.sessionId,
         machineId: options.machineId,
+        chatroomId: options.chatroomId as Id<'chatroom_rooms'>,
         afterKey: afterSignalKey,
         limit: options.signalPageLimit ?? DEFAULT_SIGNAL_PAGE_LIMIT,
       },
@@ -163,6 +167,7 @@ async function fetchRowsForSignalPage(
       {
         sessionId: options.sessionId,
         machineId: options.machineId,
+        chatroomId: options.chatroomId as Id<'chatroom_rooms'>,
         afterSignalKey,
         throughSignalKey: page.highSignalKey,
         limit: options.operationalPageLimit ?? DEFAULT_OPERATIONAL_PAGE_LIMIT,
@@ -183,6 +188,7 @@ export async function runOperationalInbox(
   for await (const page of createOperationalSignalIterator(options)) {
     const hydrated = await fetchRowsForSignalPage(options, page);
     await onUpdate({
+      chatroomId: options.chatroomId,
       signals: page.items,
       rows: hydrated.rows,
       removed: hydrated.removed,
