@@ -2896,7 +2896,8 @@ export default defineSchema({
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_status_nextRetryAt', ['status', 'nextRetryAt'])
     .index('by_chatroom_originUserMessageId', ['chatroomId', 'originUserMessageId'])
-    .index('by_userId_status', ['userId', 'status']),
+    .index('by_userId_status', ['userId', 'status'])
+    .index('by_machine_chatroom_status', ['machineId', 'chatroomId', 'status']),
 
   chatroom_taskDeliveryReceipts: defineTable({
     chatroomId: v.id('chatroom_rooms'),

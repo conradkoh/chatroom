@@ -26,6 +26,20 @@ describe('daemon.enhancer.index unauthorized access', () => {
     expect(pending).toEqual([]);
   });
 
+  test('pendingForChatroom returns empty for caller without machine owner access', async () => {
+    const { chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-auth-pending-room');
+    const { sessionId: otherSession } = await createTestSession('enh-auth-pending-room-other');
+
+    const pending = await t.query(api.daemon.enhancer.index.pendingForChatroom, {
+      sessionId: otherSession,
+      machineId,
+      chatroomId,
+    });
+
+    expect(pending).toEqual([]);
+  });
+
   test('claimForSpawn rejects caller without machine owner access', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-auth-claim');
