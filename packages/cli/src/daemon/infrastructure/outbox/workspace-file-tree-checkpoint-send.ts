@@ -82,6 +82,7 @@ export function createWorkspaceFileTreeCheckpointSend(
   normalizedWorkingDir: string,
   options?: { onSyncDisabled?: () => void | Promise<void> }
 ): (state: WorkspaceFileTreeCheckpointState) => Promise<WorkspaceFileTreeCheckpointSendResult> {
+  // fallow-ignore-next-line complexity code-duplication
   return async (state) => {
     try {
       const snapshot = await syncScannedFileTree(
@@ -100,7 +101,8 @@ export function createWorkspaceFileTreeCheckpointSend(
       return { revision };
     } catch (error: unknown) {
       if (!isFileTreeSyncDisabledError(error)) throw error;
-      await options?.onSyncDisabled?.();
+      if (!options?.onSyncDisabled) throw error;
+      void (async () => options?.onSyncDisabled?.())().catch(() => undefined);
       return { revision: state.revision };
     }
   };

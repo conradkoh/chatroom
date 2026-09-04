@@ -15,7 +15,7 @@ import {
   type WorkspaceFileTreeCoordinator,
 } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
 import { enqueueFileTreeSync } from '../../../infrastructure/services/workspace/workspace-sync-queue.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
+import { getErrorMessage, isFileTreeSyncDisabledError } from '../../../utils/convex-error.js';
 import {
   createWorkspaceFileTreeCheckpointOutboxRegistry,
   createWorkspaceFileTreeDeltaOutboxRegistry,
@@ -44,17 +44,30 @@ type EnsureCoordinator = (
 
 async function runOneShotFileTreeSync(
   session: DaemonSessionServiceShape,
-  workingDir: string
+  workingDir: string,
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry | undefined,
+  deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry | undefined
 ): Promise<void> {
   const normalized = normalizeWorkingDirForLookup(workingDir);
-  const tree = await scanFileTree(normalized);
-  const send = createWorkspaceFileTreeCheckpointSend(session, normalized);
-  await send({ tree, revision: 0 });
-  await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    workingDir: normalized,
-  });
+  try {
+    const tree = await scanFileTree(normalized);
+    const send = createWorkspaceFileTreeCheckpointSend(session, normalized);
+    await send({ tree, revision: 0 });
+    await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+      workingDir: normalized,
+    });
+  } catch (error: unknown) {
+    if (!isFileTreeSyncDisabledError(error)) throw error;
+    await stopFileTreeSyncForDir(
+      coordinators,
+      checkpointOutboxRegistry,
+      deltaOutboxRegistry,
+      normalized
+    );
+  }
 }
 
 async function stopCoordinatorForWorkingDir(
@@ -64,11 +77,27 @@ async function stopCoordinatorForWorkingDir(
   normalized: string
 ): Promise<void> {
   const coordinatorPromise = coordinators.get(normalized);
-  if (!coordinatorPromise) return;
-  coordinators.delete(normalized);
-  await coordinatorPromise.then((coordinator) => coordinator.stop()).catch(() => undefined);
+  if (coordinatorPromise) {
+    coordinators.delete(normalized);
+    await coordinatorPromise.then((coordinator) => coordinator.stop()).catch(() => undefined);
+  }
   await checkpointOutboxRegistry?.stop(normalized);
   await deltaOutboxRegistry?.stop(normalized);
+}
+
+async function stopFileTreeSyncForDir(
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry | undefined,
+  deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry | undefined,
+  normalized: string
+): Promise<void> {
+  await stopCoordinatorForWorkingDir(
+    coordinators,
+    checkpointOutboxRegistry,
+    deltaOutboxRegistry,
+    normalized
+  );
+  console.log(`[${formatTimestamp()}] 🌳 File tree sync disabled: ${normalized}`);
 }
 
 // fallow-ignore-next-line complexity
@@ -143,7 +172,13 @@ async function processOnePendingFileTreeRequest(
       deltaOutboxRegistry,
       normalized
     );
-    await runOneShotFileTreeSync(session, normalized);
+    await runOneShotFileTreeSync(
+      session,
+      normalized,
+      coordinators,
+      checkpointOutboxRegistry,
+      deltaOutboxRegistry
+    );
     console.log(
       `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms, one-shot)`
     );
@@ -204,6 +239,15 @@ async function processPendingFileTreeRequests(
           deltaOutboxRegistry
         );
       } catch (err: unknown) {
+        if (isFileTreeSyncDisabledError(err)) {
+          await stopFileTreeSyncForDir(
+            coordinators,
+            checkpointOutboxRegistry,
+            deltaOutboxRegistry,
+            normalized
+          );
+          return;
+        }
         logSubscriptionWarn(`File tree failed for ${normalized}`, err);
       }
     });
@@ -243,7 +287,16 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
     const checkpointOutboxRegistry = createWorkspaceFileTreeCheckpointOutboxRegistry(
       session.machineId,
       (normalized) => {
-        const send = createWorkspaceFileTreeCheckpointSend(session, normalized);
+        const onSyncDisabled = () =>
+          stopFileTreeSyncForDir(
+            coordinators,
+            checkpointOutboxRegistry,
+            deltaOutboxRegistry,
+            normalized
+          );
+        const send = createWorkspaceFileTreeCheckpointSend(session, normalized, {
+          onSyncDisabled,
+        });
         return async (state) => {
           const result = await send(state);
           console.log(
@@ -253,13 +306,46 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
         };
       },
       {
-        onError: (normalized, error) =>
-          logSubscriptionWarn(`File tree checkpoint outbox failed for ${normalized}`, error),
+        onError: (normalized, error) => {
+          if (isFileTreeSyncDisabledError(error)) {
+            void stopFileTreeSyncForDir(
+              coordinators,
+              checkpointOutboxRegistry,
+              deltaOutboxRegistry,
+              normalized
+            ).catch(() => undefined);
+            return;
+          }
+          logSubscriptionWarn(`File tree checkpoint outbox failed for ${normalized}`, error);
+        },
       }
     );
     const deltaOutboxRegistry = createWorkspaceFileTreeDeltaOutboxRegistry(
       session.machineId,
-      (normalized) => createWorkspaceFileTreeDeltaSend(session, normalized)
+      (normalized) => {
+        const onSyncDisabled = () =>
+          stopFileTreeSyncForDir(
+            coordinators,
+            checkpointOutboxRegistry,
+            deltaOutboxRegistry,
+            normalized
+          );
+        return createWorkspaceFileTreeDeltaSend(session, normalized, { onSyncDisabled });
+      },
+      {
+        onError: (normalized, error) => {
+          if (isFileTreeSyncDisabledError(error)) {
+            void stopFileTreeSyncForDir(
+              coordinators,
+              checkpointOutboxRegistry,
+              deltaOutboxRegistry,
+              normalized
+            ).catch(() => undefined);
+            return;
+          }
+          logSubscriptionWarn(`File tree delta outbox failed for ${normalized}`, error);
+        },
+      }
     );
 
     const ensureCoordinator = (

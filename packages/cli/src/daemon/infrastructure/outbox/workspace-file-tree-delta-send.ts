@@ -30,7 +30,7 @@ export function createWorkspaceFileTreeDeltaSend(
   normalizedWorkingDir: string,
   options?: { onSyncDisabled?: () => void | Promise<void> }
 ): (unit: WorkspaceFileTreeDeltaDeliveryUnit) => Promise<DeltaPushResult> {
-  // fallow-ignore-next-line complexity
+  // fallow-ignore-next-line complexity code-duplication
   return async (unit) => {
     try {
       const result = await session.backend.mutation(api.workspaceFiles.applyFileTreeDeltaBatch, {
@@ -47,7 +47,8 @@ export function createWorkspaceFileTreeDeltaSend(
       return result;
     } catch (error: unknown) {
       if (!isFileTreeSyncDisabledError(error)) throw error;
-      await options?.onSyncDisabled?.();
+      if (!options?.onSyncDisabled) throw error;
+      void (async () => options?.onSyncDisabled?.())().catch(() => undefined);
       return { status: 'applied', revision: unit.baseRevision };
     }
   };
