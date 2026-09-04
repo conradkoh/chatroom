@@ -84,6 +84,7 @@ ${getHandoffNotApplicableSectionComment('List tradeoffs')}
 
 ## System Design
 ${getHandoffNotApplicableSectionComment('Include a mermaid diagram when the change has non-trivial structure')}
+<!-- Mermaid formatting: wrap the diagram in a fenced code block that begins with \`\`\`mermaid and ends with \`\`\`. Never write a bare "mermaid" line — it will not render. -->
 
 \`\`\`mermaid
 flowchart TD
