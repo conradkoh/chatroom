@@ -34,8 +34,9 @@ export const TEAM_PRESETS: Record<TeamPresetId, TeamPreset> = {
   },
   solo: {
     name: 'Solo',
-    description: 'A single agent working independently, with optional ephemeral enhancer',
-    roles: ['solo', 'enhancer'],
+    description:
+      'A single agent working independently, with optional ephemeral enhancer and on-demand builder',
+    roles: ['solo', 'enhancer', 'builder'],
     entryPoint: 'solo',
   },
 };

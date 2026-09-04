@@ -18,7 +18,7 @@ describe('team presets', () => {
     });
     expect(TEAM_PRESETS.solo).toMatchObject({
       name: 'Solo',
-      roles: ['solo', 'enhancer'],
+      roles: ['solo', 'enhancer', 'builder'],
       entryPoint: 'solo',
     });
     expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');
@@ -48,6 +48,25 @@ describe('team presets', () => {
       entryPoint: 'planner',
       roles: [
         { role: 'planner', lifecycle: 'permanent', optional: false },
+        { role: 'enhancer', lifecycle: 'ephemeral', optional: true },
+        { role: 'builder', lifecycle: 'ephemeral', optional: true },
+      ],
+    });
+  });
+
+  test('resolves canonical solo structure with ephemeral builder', () => {
+    expect(
+      getTeamStructure({
+        teamId: 'solo',
+        teamName: 'Solo',
+        persistedRoles: ['solo'],
+      })
+    ).toEqual({
+      teamId: 'solo',
+      teamName: 'Solo',
+      entryPoint: 'solo',
+      roles: [
+        { role: 'solo', lifecycle: 'permanent', optional: false },
         { role: 'enhancer', lifecycle: 'ephemeral', optional: true },
         { role: 'builder', lifecycle: 'ephemeral', optional: true },
       ],
