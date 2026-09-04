@@ -14,6 +14,10 @@ import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
 import { compactFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
 import { omitUndefined } from './lib/omitUndefined';
+import {
+  isFileTreeSyncEnabled,
+  requireFileTreeSyncEnabledForWorkspace,
+} from './workspaceFileTree/access';
 import * as blobSnapshots from './workspaceFileTree/repositories/blobSnapshotRepository';
 import * as shardedSnapshots from './workspaceFileTree/repositories/shardedSnapshotRepository';
 import { publishFileTreeCheckpoint as publishCheckpointService } from './workspaceFileTree/services/checkpointPublishService';
@@ -448,12 +452,27 @@ export const getPendingFileTreeRequests = query({
       )
       .take(MAX_PENDING_REQUESTS);
 
-    return requests.map((r) => ({
-      _id: r._id,
-      workingDir: r.workingDir,
-      force: r.force === true,
-      updatedAt: r.updatedAt,
-    }));
+    const enabledRequests = [];
+    for (const request of requests) {
+      try {
+        const workspace = await requireFileTreeSyncEnabledForWorkspace(
+          ctx,
+          args.machineId,
+          request.workingDir
+        );
+        if (!isFileTreeSyncEnabled(workspace)) continue;
+      } catch {
+        continue;
+      }
+      enabledRequests.push({
+        _id: request._id,
+        workingDir: request.workingDir,
+        force: request.force === true,
+        updatedAt: request.updatedAt,
+      });
+    }
+
+    return enabledRequests;
   },
 });
 
@@ -576,6 +595,9 @@ export const adjustFileTreeWatch = mutation({
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     const workingDir = normalizeWorkingDir(args.workingDir);
+    if (args.delta === 1) {
+      await requireFileTreeSyncEnabledForWorkspace(ctx, args.machineId, workingDir);
+    }
     const now = Date.now();
 
     const row = await ctx.db
@@ -627,6 +649,7 @@ export const renewFileTreeWatchLease = mutation({
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     const workingDir = normalizeWorkingDir(args.workingDir);
+    await requireFileTreeSyncEnabledForWorkspace(ctx, args.machineId, workingDir);
     const now = Date.now();
     const row = await ctx.db
       .query('chatroom_workspaceFileTreeWatches')
@@ -895,6 +918,7 @@ export const syncFileTreeV2 = mutation({
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     const workingDir = normalizeWorkingDir(args.workingDir);
+    await requireFileTreeSyncEnabledForWorkspace(ctx, args.machineId, workingDir);
 
     // Validate size
     const sizeBytes = new TextEncoder().encode(args.data.content).length;
@@ -973,6 +997,8 @@ export const syncFileTreeShardV3Batch = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    await requireFileTreeSyncEnabledForWorkspace(ctx, args.machineId, workingDir);
 
     if (args.items.length > MAX_SHARD_BATCH_SIZE) {
       throw new Error(`Batch size exceeds max ${MAX_SHARD_BATCH_SIZE}`);
@@ -981,7 +1007,7 @@ export const syncFileTreeShardV3Batch = mutation({
     return await shardedSnapshots.upsertShardBatch(
       ctx,
       args.machineId,
-      args.workingDir,
+      workingDir,
       args.syncGeneration,
       args.items
     );
@@ -1004,9 +1030,11 @@ export const syncFileTreeManifestV3 = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    await requireFileTreeSyncEnabledForWorkspace(ctx, args.machineId, workingDir);
     await shardedSnapshots.upsertManifest(ctx, {
       machineId: args.machineId,
-      workingDir: args.workingDir,
+      workingDir,
       syncGeneration: args.syncGeneration,
       shardIds: args.shardIds,
       totalEntryCount: args.totalEntryCount,
@@ -1101,6 +1129,7 @@ export const applyFileTreeDeltaBatch = mutation({
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     const workingDir = normalizeWorkingDir(args.workingDir);
+    await requireFileTreeSyncEnabledForWorkspace(ctx, args.machineId, workingDir);
 
     return await applyDeltaService(ctx, {
       machineId: args.machineId,
@@ -1176,6 +1205,7 @@ export const publishFileTreeCheckpoint = mutation({
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     const workingDir = normalizeWorkingDir(args.workingDir);
+    await requireFileTreeSyncEnabledForWorkspace(ctx, args.machineId, workingDir);
     validateFileTreeRevision(args.revision, 'revision');
     if (!args.snapshotId) throw new Error('snapshotId is required');
 
