@@ -1150,15 +1150,16 @@ export function ChatroomDashboard({
     () => false
   );
   const fileTreeSyncEnabled = activeWorkspace?.fileTreeSyncEnabled ?? false;
+  const fileTreeProducerActive = !!activeWorkspace && fileTreeSyncEnabled;
   useFileTreeWatchLease(
     activeWorkspace?.machineId,
     activeWorkspace?.workingDir,
-    activeView === 'explorer' && !!activeWorkspace && fileTreeSyncEnabled
+    activeView === 'explorer' && fileTreeProducerActive
   );
   useFileTreeWatchLease(
     activeWorkspace?.machineId,
     activeWorkspace?.workingDir,
-    autocompleteVisible && !!activeWorkspace && fileTreeSyncEnabled
+    autocompleteVisible && fileTreeProducerActive
   );
 
   // Store-backed autocomplete reads all cached workspace entries; only the active
@@ -1168,7 +1169,7 @@ export function ChatroomDashboard({
   useWorkspaceFileTree({
     machineId: activeWorkspace?.machineId ?? '',
     workingDir: activeWorkspace?.workingDir ?? '',
-    enabled: autocompleteVisible && !!activeWorkspace && fileTreeSyncEnabled,
+    enabled: autocompleteVisible && fileTreeProducerActive,
   });
   const handleAtTriggerActivate = useCallback(() => {
     refreshAutocompleteFiles();
