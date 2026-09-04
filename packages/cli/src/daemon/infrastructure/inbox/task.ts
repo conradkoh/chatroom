@@ -1,15 +1,16 @@
 /**
  * Task inbox primitives.
  *
- * The inbox deliberately subscribes only to timeline task-status signals. Full
- * task rows are hydrated imperatively after a signal arrives, which keeps task
- * content out of the reactive subscription payload.
+ * The inbox deliberately subscribes only to timeline task-status signals for one
+ * machine AND one chatroom (mirrors operational-inbox). Full task rows are
+ * hydrated imperatively after a signal arrives, which keeps task content out of
+ * the reactive subscription payload.
  */
 
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import type { Doc } from '../../../api.js';
+import type { Doc, Id } from '../../../api.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 
@@ -38,6 +39,7 @@ export interface TaskInboxOptions {
   readonly client: ConvexClient;
   readonly sessionId: SessionId;
   readonly machineId: string;
+  readonly chatroomId: string;
   /** Defaults to the time the iterator is created. */
   readonly serviceStartedAt?: number | undefined;
   /** Overrides the initial timeline signal cursor. */
@@ -105,6 +107,7 @@ function waitForTaskSignalPage(
       {
         sessionId: options.sessionId,
         machineId: options.machineId,
+        chatroomId: options.chatroomId as Id<'chatroom_rooms'>,
         afterKey: afterSignalKey,
         limit: options.signalPageLimit ?? DEFAULT_SIGNAL_PAGE_LIMIT,
       },
@@ -163,6 +166,7 @@ async function fetchSnapshotsForSignalPage(
     const result = await options.client.query(api.tasks.listTasksForMachineSignalRange, {
       sessionId: options.sessionId,
       machineId: options.machineId,
+      chatroomId: options.chatroomId as Id<'chatroom_rooms'>,
       afterSignalKey,
       throughSignalKey: page.highSignalKey,
       limit: options.taskPageLimit ?? DEFAULT_TASK_PAGE_LIMIT,

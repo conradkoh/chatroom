@@ -340,4 +340,62 @@ describe('daemon.enhancer.index', () => {
     expect(ids).toContain(noRetryJobId);
     expect(ids).not.toContain(futureRetryJobId);
   });
+
+  test('pendingForChatroom returns only the requested room and eligible jobs for the machine', async () => {
+    const { sessionId } = await createTestSession('enh-room-isolation');
+    const roomA = await createDuoTeamChatroom(sessionId);
+    const roomB = await createDuoTeamChatroom(sessionId);
+    const machineId = 'test-machine-room';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const userId = await t.run(async (ctx) => (await ctx.db.get(roomA))!.ownerId);
+
+    const eligibleA = await insertEnhancerJob({ chatroomId: roomA, userId, machineId });
+    await insertEnhancerJob({
+      chatroomId: roomA,
+      userId,
+      machineId,
+      draftContent: 'Retrying later',
+    }).then(async ({ jobId }) => {
+      await t.run(async (ctx) =>
+        ctx.db.patch('chatroom_enhancerJobs', jobId, { nextRetryAt: Date.now() + 60_000 })
+      );
+    });
+    await insertEnhancerJob({ chatroomId: roomB, userId, machineId });
+
+    const pending = await t.query(api.daemon.enhancer.index.pendingForChatroom, {
+      sessionId,
+      machineId,
+      chatroomId: roomA,
+    });
+    const ids = pending.map((j: { jobId: Id<'chatroom_enhancerJobs'> }) => j.jobId);
+    expect(ids).toContain(eligibleA.jobId);
+    expect(ids).toHaveLength(1);
+    const pendingB = await t.query(api.daemon.enhancer.index.pendingForChatroom, {
+      sessionId,
+      machineId,
+      chatroomId: roomB,
+    });
+    expect(pendingB.map((j: { jobId: Id<'chatroom_enhancerJobs'> }) => j.jobId)).toHaveLength(1);
+  });
+
+  test('pendingForChatroom scopes to the machine within a shared room', async () => {
+    const { sessionId } = await createTestSession('enh-machine-isolation');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineA = 'test-machine-isol-a';
+    const machineB = 'test-machine-isol-b';
+    await registerMachineWithDaemon(sessionId, machineA);
+    await registerMachineWithDaemon(sessionId, machineB);
+    const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
+
+    const jobA = await insertEnhancerJob({ chatroomId, userId, machineId: machineA });
+    await insertEnhancerJob({ chatroomId, userId, machineId: machineB });
+
+    const pending = await t.query(api.daemon.enhancer.index.pendingForChatroom, {
+      sessionId,
+      machineId: machineA,
+      chatroomId,
+    });
+    const ids = pending.map((j: { jobId: Id<'chatroom_enhancerJobs'> }) => j.jobId);
+    expect(ids).toEqual([jobA.jobId]);
+  });
 });

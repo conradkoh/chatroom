@@ -19,7 +19,7 @@ const V2_SUBSCRIBED_QUERIES = [
   'api.workspaces.listRecentlyObservedWorkspacesForMachine',
   'api.daemon.commands.listActionableCommandRuns',
   'api.daemon.machineCommandInbox.watchNext',
-  'api.daemon.enhancer.index.pendingForMachine',
+  'api.daemon.enhancer.index.pendingForChatroom',
 ] as const;
 
 const LEGACY_INIT_FILES_TO_GUARD = [

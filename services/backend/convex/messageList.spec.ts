@@ -256,6 +256,7 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
     const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
       machineId,
+      chatroomId,
       afterKey: '',
     });
 
@@ -283,13 +284,14 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
 
   test('returns null when no signals after cursor', async () => {
     const { sessionId } = await createTestSession('task-signals-null');
-    await createChatroom(sessionId);
+    const chatroomId = await createChatroom(sessionId);
     const machineId = 'task-signals-machine-null';
     await registerMachine(sessionId, machineId);
 
     const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
       machineId,
+      chatroomId,
       afterKey: 'zzz',
     });
 
@@ -332,6 +334,7 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
     const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
       machineId,
+      chatroomId,
       afterKey: '',
       limit: 3,
     });
@@ -339,5 +342,81 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
     expect(result).not.toBeNull();
     expect(result!.items).toHaveLength(3);
     expect(result!.hasMore).toBe(true);
+  });
+
+  test('excludes signals from another room on the same machine', async () => {
+    const { sessionId } = await createTestSession('task-signals-rooms');
+    const roomA = await createChatroom(sessionId);
+    const roomB = await createChatroom(sessionId);
+    const machineId = 'task-signals-machine-rooms';
+    await registerMachine(sessionId, machineId);
+
+    const now = Date.now();
+    const insertSignal = async (chatroomId: Id<'chatroom_rooms'>, marker: string) => {
+      const taskId = await t.run(async (ctx) => {
+        return await ctx.db.insert('chatroom_tasks', {
+          chatroomId,
+          createdBy: 'user',
+          content: `task ${marker}`,
+          status: 'pending',
+          createdAt: now,
+          updatedAt: now,
+          queuePosition: 0,
+        });
+      });
+      const key = `${String(now).padStart(16, '0')}:${taskId}`;
+      await t.run(async (ctx) => {
+        await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+          chatroomId,
+          taskId: taskId as Id<'chatroom_tasks'>,
+          machineId,
+          targetRole: 'planner',
+          taskStatus: 'pending',
+          signalKey: key,
+          taskUpdatedAt: now,
+        });
+      });
+      return key;
+    };
+    const roomAKey = await insertSignal(roomA, 'A');
+    await insertSignal(roomB, 'B');
+
+    const resultA = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+      sessionId,
+      machineId,
+      chatroomId: roomA,
+      afterKey: '',
+    });
+
+    expect(resultA).not.toBeNull();
+    expect(resultA!.items).toHaveLength(1);
+    expect(resultA!.items[0]).toMatchObject({ chatroomId: roomA, signalKey: roomAKey });
+    expect(resultA!.highKey).toBe(roomAKey);
+    expect(resultA!.hasMore).toBe(false);
+
+    const resultB = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+      sessionId,
+      machineId,
+      chatroomId: roomB,
+      afterKey: '',
+    });
+
+    expect(resultB).not.toBeNull();
+    expect(resultB!.items).toHaveLength(1);
+    expect(resultB!.items[0]).toMatchObject({ chatroomId: roomB });
+  });
+
+  test('returns null for an unauthorized machine', async () => {
+    const { sessionId } = await createTestSession('task-signals-unauthorized');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+      sessionId,
+      machineId: 'never-registered-task-signals-machine',
+      chatroomId,
+      afterKey: '',
+    });
+
+    expect(result).toBeNull();
   });
 });

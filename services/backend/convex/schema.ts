@@ -735,7 +735,9 @@ export default defineSchema({
     ),
     signalKey: v.string(),
     taskUpdatedAt: v.number(),
-  }).index('by_machineId_signalKey', ['machineId', 'signalKey']),
+  })
+    .index('by_machineId_signalKey', ['machineId', 'signalKey'])
+    .index('by_machineId_chatroomId_signalKey', ['machineId', 'chatroomId', 'signalKey']),
 
   /** Two-key signal frontier; lagging cursors must use the append-only range. */
   chatroom_machineTaskStatusSignalHeads: defineTable({
@@ -2895,7 +2897,8 @@ export default defineSchema({
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_status_nextRetryAt', ['status', 'nextRetryAt'])
     .index('by_chatroom_originUserMessageId', ['chatroomId', 'originUserMessageId'])
-    .index('by_userId_status', ['userId', 'status']),
+    .index('by_userId_status', ['userId', 'status'])
+    .index('by_machine_chatroom_status', ['machineId', 'chatroomId', 'status']),
 
   chatroom_taskDeliveryReceipts: defineTable({
     chatroomId: v.id('chatroom_rooms'),

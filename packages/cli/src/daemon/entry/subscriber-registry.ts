@@ -24,12 +24,16 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     void routeInboundEvent(deps.router, event);
   };
 
+  const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
 
   const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
-    // Workspace membership nudges keep the per-workspace git watches in sync
-    // (e.g. a newly registered workspace enables git request processing there).
-    if (claimed.type === 'daemon.workspaceListChanged') void gitRequest.refreshWorkspaces();
+    // Workspace membership nudges keep the per-room enhancer and per-workspace
+    // git watches in sync (e.g. a newly registered workspace enables both).
+    if (claimed.type === 'daemon.workspaceListChanged') {
+      void enhancerJob.refreshChatrooms();
+      void gitRequest.refreshWorkspaces();
+    }
     await dispatchCommandInboundEvent({
       type: 'command.received',
       commandId: claimed.commandId,
@@ -43,7 +47,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const fileWrite = startFileWriteRequestSubscriber(deps, onEvent);
   const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
   const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
-  const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
 
   return {
     async stopAll() {

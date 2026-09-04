@@ -26,7 +26,11 @@ const fetchMachineAssignedTaskSnapshots = vi.hoisted(() =>
 const createInboxStateStore = vi.hoisted(() => vi.fn());
 const resolveInboxDbPath = vi.hoisted(() => vi.fn().mockReturnValue('/tmp/test-inbox.sqlite'));
 
-vi.mock('../infrastructure/inbox/task.js', () => ({ runTaskInbox: vi.fn() }));
+vi.mock('../infrastructure/inbox/task.js', () => ({
+  runTaskInbox: vi.fn(),
+  taskSignalCursorAt: (timestamp: number) =>
+    `${String(Math.max(0, Math.floor(timestamp))).padStart(16, '0')}:`,
+}));
 vi.mock('./native-delivery/task-delivery-processor.js', () => ({ processTasksUpdate }));
 vi.mock('../infrastructure/agent-operational/operational-inbox.js', () => ({
   runOperationalInbox,
@@ -92,6 +96,14 @@ const OPERATIONAL_SCOPE_ROOM_2 = {
   inboxType: 'operational',
   scopeKey: COMPOSITE_SCOPE_KEY('machine-1', 'room-2'),
 };
+const TASK_SCOPE_ROOM_1 = {
+  inboxType: 'task',
+  scopeKey: COMPOSITE_SCOPE_KEY('machine-1', 'room-1'),
+};
+const TASK_SCOPE_ROOM_2 = {
+  inboxType: 'task',
+  scopeKey: COMPOSITE_SCOPE_KEY('machine-1', 'room-2'),
+};
 const BASELINE = '0000000000001234:';
 
 beforeEach(() => {
@@ -111,7 +123,10 @@ function makeInboxStore(persistedRooms: Record<string, { afterSignalKey: string 
 } {
   const store = {
     get: vi.fn((key: { inboxType: string; scopeKey: string }) => {
-      if (key.inboxType === 'operational' && persistedRooms[key.scopeKey]) {
+      if (
+        (key.inboxType === 'operational' || key.inboxType === 'task') &&
+        persistedRooms[key.scopeKey]
+      ) {
         return { state: persistedRooms[key.scopeKey] };
       }
       return null;
@@ -137,7 +152,7 @@ type StartTaskInboxOptions = {
 async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promise<{
   handle: { stop: () => void };
   operationalHandlers: () => ((update: never) => Promise<void>)[];
-  taskInboxHandler: () => ((update: never) => Promise<void>) | undefined;
+  taskInboxHandlers: () => Map<string, (update: never) => Promise<void>>;
 }> {
   const { Effect, Layer } = await import('effect');
   const { AgentLifecycleOutboxService, DaemonAgentProcessManagerService, DaemonSessionService } =
@@ -162,15 +177,15 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   );
   fetchMachineAgentOperationalStatus.mockResolvedValue(options.bootstrapRows ?? []);
   const operationalHandlers: ((update: never) => Promise<void>)[] = [];
-  let taskInboxHandler: ((update: never) => Promise<void>) | undefined;
+  const taskInboxHandlers = new Map<string, (update: never) => Promise<void>>();
   runOperationalInbox.mockImplementation(
     options.operationalInboxImpl ??
       (async (_options, handler) => {
         operationalHandlers.push(handler);
       })
   );
-  vi.mocked(runTaskInbox).mockImplementation(async (_options, handler) => {
-    taskInboxHandler = handler;
+  vi.mocked(runTaskInbox).mockImplementation(async (taskOptions, handler) => {
+    taskInboxHandlers.set(taskOptions.chatroomId, handler);
   });
   const handle = await Effect.runPromise(
     startTaskInboxEffect({} as never).pipe(Effect.provide(layers))
@@ -178,7 +193,7 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   return {
     handle,
     operationalHandlers: () => operationalHandlers,
-    taskInboxHandler: () => taskInboxHandler,
+    taskInboxHandlers: () => taskInboxHandlers,
   };
 }
 
@@ -305,7 +320,7 @@ describe('runInboxLoopWithRestart', () => {
 });
 
 describe('startTaskInboxEffect operational room supervisor', () => {
-  it('saves a fresh baseline per discovered room and acks with matching room ids', async () => {
+  it('saves a fresh operational and task baseline per discovered room and acks with matching room ids', async () => {
     const store = makeInboxStore();
     vi.spyOn(Date, 'now').mockReturnValue(1234);
 
@@ -314,13 +329,14 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     });
     await vi.waitFor(() => expect(ackMachineOperationalSignals).toHaveBeenCalledTimes(2));
 
-    expect(store.save).toHaveBeenCalledTimes(2);
     expect(store.save).toHaveBeenCalledWith(OPERATIONAL_SCOPE_ROOM_1, {
       afterSignalKey: BASELINE,
     });
     expect(store.save).toHaveBeenCalledWith(OPERATIONAL_SCOPE_ROOM_2, {
       afterSignalKey: BASELINE,
     });
+    expect(store.save).toHaveBeenCalledWith(TASK_SCOPE_ROOM_1, { afterSignalKey: BASELINE });
+    expect(store.save).toHaveBeenCalledWith(TASK_SCOPE_ROOM_2, { afterSignalKey: BASELINE });
     expect(ackMachineOperationalSignals).toHaveBeenCalledWith(
       expect.anything(),
       'machine-1',
@@ -343,6 +359,9 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     expect(runOperationalInbox.mock.calls[1]?.[0]).toMatchObject({
       initialAfterSignalKey: BASELINE,
     });
+    const taskCalls = vi.mocked(runTaskInbox).mock.calls;
+    expect(taskCalls.map((call) => call[0].chatroomId).sort()).toEqual(['room-1', 'room-2']);
+    expect(taskCalls.every((call) => call[0].initialAfterSignalKey === BASELINE)).toBe(true);
     handle.stop();
     vi.restoreAllMocks();
   });
@@ -375,6 +394,20 @@ describe('startTaskInboxEffect operational room supervisor', () => {
       ([key]) => key.inboxType === 'operational' && key.scopeKey === 'machine-1'
     );
     expect(legacyWrites).toHaveLength(0);
+    const legacyTaskReads = store.get.mock.calls.filter(
+      ([key]) => key.inboxType === 'task' && key.scopeKey === 'machine-1'
+    );
+    expect(legacyTaskReads).toHaveLength(0);
+    const legacyTaskWrites = store.save.mock.calls.filter(
+      ([key]) => key.inboxType === 'task' && key.scopeKey === 'machine-1'
+    );
+    expect(legacyTaskWrites).toHaveLength(0);
+    const taskCalls = vi.mocked(runTaskInbox).mock.calls;
+    expect(taskCalls).toHaveLength(1);
+    expect(taskCalls[0]?.[0]).toMatchObject({
+      chatroomId: 'room-1',
+      initialAfterSignalKey: persistedKey,
+    });
     handle.stop();
   });
 
@@ -408,47 +441,43 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     vi.restoreAllMocks();
   });
 
-  it('starts independent watchers per room and deduplicates repeated discovery', async () => {
+  it('starts independent operational and task watchers per room and deduplicates repeated discovery', async () => {
     const persistedRooms = {
       [COMPOSITE_SCOPE_KEY('machine-1', 'room-1')]: { afterSignalKey: 'cursor-1' },
       [COMPOSITE_SCOPE_KEY('machine-1', 'room-2')]: { afterSignalKey: 'cursor-2' },
     };
     makeInboxStore(persistedRooms);
+    vi.useFakeTimers();
 
-    const { handle, taskInboxHandler } = await startTaskInboxForTest({
+    const { handle } = await startTaskInboxForTest({
       bootstrapRows: [opRow('room-1'), opRow('room-2')],
     });
-    await vi.waitFor(() => expect(runOperationalInbox).toHaveBeenCalledTimes(2));
 
-    const calls = runOperationalInbox.mock.calls;
-    expect(calls.map((call) => call[0].chatroomId).sort()).toEqual(['room-1', 'room-2']);
-    expect(calls.find((call) => call[0].chatroomId === 'room-1')?.[0]).toMatchObject({
+    const opCalls = runOperationalInbox.mock.calls;
+    expect(opCalls.map((call) => call[0].chatroomId).sort()).toEqual(['room-1', 'room-2']);
+    expect(opCalls.find((call) => call[0].chatroomId === 'room-1')?.[0]).toMatchObject({
       initialAfterSignalKey: 'cursor-1',
     });
-    expect(calls.find((call) => call[0].chatroomId === 'room-2')?.[0]).toMatchObject({
+    expect(opCalls.find((call) => call[0].chatroomId === 'room-2')?.[0]).toMatchObject({
       initialAfterSignalKey: 'cursor-2',
     });
 
-    const handler = taskInboxHandler();
-    expect(handler).toBeDefined();
-    await handler?.({
-      signals: [
-        {
-          chatroomId: 'room-1',
-          taskId: 'task-1',
-          targetRole: 'builder',
-          taskStatus: 'pending',
-          signalKey: 'k1',
-          taskUpdatedAt: 100,
-        },
-      ],
-      snapshots: [],
-      afterSignalKey: '',
-      throughSignalKey: 'k1',
-    } as never);
+    const taskCalls = vi.mocked(runTaskInbox).mock.calls;
+    expect(taskCalls.map((call) => call[0].chatroomId).sort()).toEqual(['room-1', 'room-2']);
+    expect(taskCalls.find((call) => call[0].chatroomId === 'room-1')?.[0]).toMatchObject({
+      initialAfterSignalKey: 'cursor-1',
+    });
+    expect(taskCalls.find((call) => call[0].chatroomId === 'room-2')?.[0]).toMatchObject({
+      initialAfterSignalKey: 'cursor-2',
+    });
 
+    // Membership refresh re-discovers the same rooms; watchers must not duplicate.
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(runOperationalInbox).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(2);
+
     handle.stop();
+    vi.useRealTimers();
   });
 
   it('keeps process -> save -> ack ordering with the room-scoped cursor', async () => {
@@ -490,6 +519,44 @@ describe('startTaskInboxEffect operational room supervisor', () => {
       'room-1',
       'key-1'
     );
+    handle.stop();
+  });
+
+  it('task handler delivers then persists the room composite task cursor', async () => {
+    const store = makeInboxStore();
+    const { handle, taskInboxHandlers } = await startTaskInboxForTest({
+      tasks: [taskSnapshot('task-1', 'room-1')],
+      bootstrapRows: [opRow('room-1')],
+    });
+    const roomOneTaskHandler = taskInboxHandlers().get('room-1');
+    expect(roomOneTaskHandler).toBeDefined();
+
+    const order: string[] = [];
+    processTasksUpdate.mockImplementation(async () => {
+      order.push('deliver');
+    });
+    store.save.mockImplementation(() => {
+      order.push('save');
+    });
+
+    await roomOneTaskHandler?.({
+      signals: [
+        {
+          chatroomId: 'room-1',
+          taskId: 'task-1',
+          targetRole: 'builder',
+          taskStatus: 'pending',
+          signalKey: 'k1',
+          taskUpdatedAt: 100,
+        },
+      ],
+      snapshots: [taskSnapshot('task-1', 'room-1')],
+      afterSignalKey: '',
+      throughSignalKey: 'k1',
+    } as never);
+
+    expect(order).toEqual(['deliver', 'save']);
+    expect(store.save).toHaveBeenCalledWith(TASK_SCOPE_ROOM_1, { afterSignalKey: 'k1' });
     handle.stop();
   });
 
@@ -549,24 +616,39 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     handle.stop();
   });
 
-  it('hydrates and watches a room discovered through a task-inbox update before first delivery', async () => {
-    makeInboxStore();
-    const { handle, taskInboxHandler } = await startTaskInboxForTest({ tasks: [] });
-    const order: string[] = [];
-    fetchMachineAgentOperationalStatus.mockImplementation(async () => {
-      order.push('hydrate');
-      return [];
-    });
-    processTasksUpdate.mockImplementation(async () => {
-      order.push('process');
+  it('later discovery via reconcile refresh starts room watchers and delivers its first task', async () => {
+    const store = makeInboxStore();
+    vi.useFakeTimers();
+
+    const { handle, taskInboxHandlers } = await startTaskInboxForTest({
+      bootstrapRows: [],
+      tasks: [],
     });
 
-    const handler = taskInboxHandler();
-    expect(handler).toBeDefined();
-    await handler?.({
+    expect(runOperationalInbox).not.toHaveBeenCalled();
+    expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(0);
+
+    // Periodic room-membership refresh surfaces room-2 for the first time.
+    fetchMachineAgentOperationalStatus.mockResolvedValue([opRow('room-2')]);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(runOperationalInbox.mock.calls.map((call) => call[0].chatroomId)).toEqual(['room-2']);
+    const taskCalls = vi.mocked(runTaskInbox).mock.calls;
+    expect(taskCalls.map((call) => call[0].chatroomId)).toEqual(['room-2']);
+
+    // A second refresh re-discovers room-2; no duplicate watchers are started.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(runOperationalInbox).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(1);
+
+    // Deliver room-2's first task through its per-room handler.
+    const roomTwoTaskHandler = taskInboxHandlers().get('room-2');
+    expect(roomTwoTaskHandler).toBeDefined();
+    processTasksUpdate.mockClear();
+    await roomTwoTaskHandler?.({
       signals: [
         {
-          chatroomId: 'room-new',
+          chatroomId: 'room-2',
           taskId: 'task-1',
           targetRole: 'builder',
           taskStatus: 'pending',
@@ -574,35 +656,16 @@ describe('startTaskInboxEffect operational room supervisor', () => {
           taskUpdatedAt: 100,
         },
       ],
-      snapshots: [taskSnapshot('task-1', 'room-new')],
+      snapshots: [taskSnapshot('task-1', 'room-2')],
       afterSignalKey: '',
       throughSignalKey: 'k1',
     } as never);
 
-    expect(order).toEqual(['hydrate', 'process']);
-    expect(runOperationalInbox).toHaveBeenCalledTimes(1);
-    expect(runOperationalInbox.mock.calls[0]?.[0]).toMatchObject({
-      chatroomId: 'room-new',
-    });
+    expect(processTasksUpdate).toHaveBeenCalled();
+    expect(store.save).toHaveBeenCalledWith(TASK_SCOPE_ROOM_2, { afterSignalKey: 'k1' });
 
-    // A later update for the same room must not start a second watcher.
-    await handler?.({
-      signals: [
-        {
-          chatroomId: 'room-new',
-          taskId: 'task-2',
-          targetRole: 'builder',
-          taskStatus: 'in_progress',
-          signalKey: 'k2',
-          taskUpdatedAt: 101,
-        },
-      ],
-      snapshots: [taskSnapshot('task-2', 'room-new')],
-      afterSignalKey: 'k1',
-      throughSignalKey: 'k2',
-    } as never);
-    expect(runOperationalInbox).toHaveBeenCalledTimes(1);
     handle.stop();
+    vi.useRealTimers();
   });
 
   it('isolates one room restart from another and aborts all watchers on shutdown', async () => {
@@ -630,13 +693,23 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(1);
     expect(calls.find((call) => call.chatroomId === 'room-2')?.signal.aborted).toBe(false);
 
+    const taskCalls = vi.mocked(runTaskInbox).mock.calls;
+    expect(taskCalls).toHaveLength(2);
+    const taskSignals = taskCalls.map((call) => call[0].signal!);
+    const roomTwoTaskSignal = taskSignals.find(
+      (_signal, index) => taskCalls[index][0].chatroomId === 'room-2'
+    );
+    expect(roomTwoTaskSignal?.aborted).toBe(false);
+
     // Room-1 restarts after the backoff; room-2 is untouched.
     await vi.advanceTimersByTimeAsync(1_000);
     expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(2);
     expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(1);
+    expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(2);
 
     handle.stop();
     expect(calls.every((call) => call.signal.aborted)).toBe(true);
+    expect(taskSignals.every((signal) => signal.aborted)).toBe(true);
     vi.useRealTimers();
   });
 
