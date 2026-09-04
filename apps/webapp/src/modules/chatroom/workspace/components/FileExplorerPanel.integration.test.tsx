@@ -141,7 +141,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     workspaceFiles: { requestFileContent: {}, getFileContentV2: {} },
-    workspaces: { setFileTreeSyncEnabled: {} },
   },
 }));
 
