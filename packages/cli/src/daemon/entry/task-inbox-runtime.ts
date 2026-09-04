@@ -36,7 +36,11 @@ import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
 import { MachineTaskSnapshotState } from '../infrastructure/inbox/task-snapshot-state.js';
-import { runTaskInbox } from '../infrastructure/inbox/task.js';
+import {
+  runTaskInbox,
+  taskSignalCursorAt,
+  type TaskInboxUpdate,
+} from '../infrastructure/inbox/task.js';
 
 const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 const INBOX_RESTART_INITIAL_MS = 1_000;
@@ -89,8 +93,8 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
 }
 
-/** Collision-safe durable cursor scope for one machine/chatroom operational stream. */
-function operationalScopeKey(machineId: string, chatroomId: string): string {
+/** Collision-safe durable cursor scope for one machine/chatroom stream (operational and task). */
+function roomScopeKey(machineId: string, chatroomId: string): string {
   return JSON.stringify([machineId, chatroomId]);
 }
 
@@ -174,10 +178,6 @@ export const startTaskInboxEffect = (
       `[${formatTimestamp()}] 📬 Starting task-inbox (chatroom-scoped operational signals)`
     );
     const inboxStore = createInboxStateStore(resolveInboxDbPath(session.machineId));
-    const persisted = inboxStore.get<{ afterSignalKey: string }>({
-      inboxType: 'task',
-      scopeKey: session.machineId,
-    });
     const serviceStartedAt = Date.now();
     const abort = new AbortController();
     let stopped = false;
@@ -201,14 +201,6 @@ export const startTaskInboxEffect = (
     const cooldown = new RecoveryCooldown();
     let inboxUpdatesInFlight = 0;
     let reconcileInFlight = false;
-    const inboxOptions: Parameters<typeof runTaskInbox>[0] = {
-      client: wsClient,
-      sessionId: session.sessionId as SessionId,
-      machineId: session.machineId,
-      serviceStartedAt,
-      initialAfterSignalKey: persisted?.state.afterSignalKey,
-      signal: abort.signal,
-    };
     const bootstrapSucceeded = yield* Effect.tryPromise(async () => {
       const rows = await fetchMachineAgentOperationalStatus(sessionDeps, session.machineId);
       agentOperationalReadModel.replace(rows);
@@ -244,7 +236,7 @@ export const startTaskInboxEffect = (
         inboxStore.save(
           {
             inboxType: 'operational',
-            scopeKey: operationalScopeKey(session.machineId, chatroomId),
+            scopeKey: roomScopeKey(session.machineId, chatroomId),
           },
           { afterSignalKey: update.throughSignalKey }
         );
@@ -263,10 +255,11 @@ export const startTaskInboxEffect = (
       }
     };
 
-    // Sole watcher-creation path: one watcher per chatroom for the daemon lifetime.
-    // The map entry is installed before any optional hydration so concurrent
-    // discoveries cannot start duplicate watchers.
-    const ensureOperationalInbox = (chatroomId: string): Promise<void> => {
+    // Sole watcher-creation path: one watcher entry per chatroom (serving BOTH the
+    // operational and the task inbox loop) for the daemon lifetime. The map entry is
+    // installed before any optional hydration so concurrent discoveries cannot start
+    // duplicate watchers.
+    const ensureRoomInboxes = (chatroomId: string): Promise<void> => {
       const existing = roomWatchers.get(chatroomId);
       if (existing) return existing.startPromise;
 
@@ -293,19 +286,22 @@ export const startTaskInboxEffect = (
             );
           }
         }
-        const roomKey = {
+        // Operational watcher — composite cursor as before.
+        const operationalRoomKey = {
           inboxType: 'operational' as const,
-          scopeKey: operationalScopeKey(session.machineId, chatroomId),
+          scopeKey: roomScopeKey(session.machineId, chatroomId),
         };
-        const persistedRoom = inboxStore.get<{ afterSignalKey: string }>(roomKey);
-        let initialCursor: string;
-        if (persistedRoom) {
-          initialCursor = persistedRoom.state.afterSignalKey;
+        const persistedOperationalRoom = inboxStore.get<{ afterSignalKey: string }>(
+          operationalRoomKey
+        );
+        let operationalCursor: string;
+        if (persistedOperationalRoom) {
+          operationalCursor = persistedOperationalRoom.state.afterSignalKey;
           void ackMachineOperationalSignals(
             sessionDeps,
             session.machineId,
             chatroomId,
-            initialCursor
+            operationalCursor
           ).catch((error) =>
             console.warn(
               `[OperationalInbox room=${chatroomId}] startup signal cleanup failed:`,
@@ -313,15 +309,15 @@ export const startTaskInboxEffect = (
             )
           );
         } else if (bootstrapSucceeded) {
-          initialCursor = operationalSignalCursorAt(serviceStartedAt);
+          operationalCursor = operationalSignalCursorAt(serviceStartedAt);
           // Persist the baseline before acking historical signals skipped by this daemon.
           try {
-            inboxStore.save(roomKey, { afterSignalKey: initialCursor });
+            inboxStore.save(operationalRoomKey, { afterSignalKey: operationalCursor });
             void ackMachineOperationalSignals(
               sessionDeps,
               session.machineId,
               chatroomId,
-              initialCursor
+              operationalCursor
             ).catch((error) =>
               console.warn(
                 `[OperationalInbox room=${chatroomId}] startup signal cleanup failed:`,
@@ -335,7 +331,7 @@ export const startTaskInboxEffect = (
             );
           }
         } else {
-          initialCursor = operationalSignalCursorAt(serviceStartedAt);
+          operationalCursor = operationalSignalCursorAt(serviceStartedAt);
         }
         void runOperationalInboxLoopWithRestart(
           {
@@ -344,10 +340,65 @@ export const startTaskInboxEffect = (
             machineId: session.machineId,
             chatroomId,
             serviceStartedAt,
-            initialAfterSignalKey: initialCursor,
+            initialAfterSignalKey: operationalCursor,
             signal: controller.signal,
           },
           operationalHandler,
+          () => stopped
+        );
+
+        // Task watcher — composite task cursor (never reuse the legacy machine cursor).
+        const taskRoomKey = {
+          inboxType: 'task' as const,
+          scopeKey: roomScopeKey(session.machineId, chatroomId),
+        };
+        const persistedTaskRoom = inboxStore.get<{ afterSignalKey: string }>(taskRoomKey);
+        let taskCursor: string;
+        if (persistedTaskRoom) {
+          taskCursor = persistedTaskRoom.state.afterSignalKey;
+        } else if (bootstrapSucceeded) {
+          taskCursor = taskSignalCursorAt(serviceStartedAt);
+          try {
+            inboxStore.save(taskRoomKey, { afterSignalKey: taskCursor });
+          } catch (error) {
+            console.warn(
+              `[TaskInbox room=${chatroomId}] failed to persist bootstrap baseline:`,
+              error
+            );
+          }
+        } else {
+          taskCursor = taskSignalCursorAt(serviceStartedAt);
+        }
+
+        const taskHandlerForRoom = async (update: TaskInboxUpdate): Promise<void> => {
+          inboxUpdatesInFlight += 1;
+          try {
+            await handleTaskInboxUpdate(update, {
+              runtime,
+              effectContext,
+              cooldown,
+              agentMgr,
+              sessionDeps,
+              machineId: session.machineId,
+              taskSnapshotState,
+            });
+            inboxStore.save(taskRoomKey, { afterSignalKey: update.throughSignalKey });
+          } finally {
+            inboxUpdatesInFlight -= 1;
+          }
+        };
+
+        void runInboxLoopWithRestart(
+          {
+            client: wsClient,
+            sessionId: session.sessionId as SessionId,
+            machineId: session.machineId,
+            chatroomId,
+            serviceStartedAt,
+            initialAfterSignalKey: taskCursor,
+            signal: controller.signal,
+          },
+          taskHandlerForRoom,
           () => stopped
         );
       })();
@@ -358,7 +409,7 @@ export const startTaskInboxEffect = (
     // Start watchers for rooms known from the operational bootstrap before the first
     // assigned-task bootstrap delivery.
     yield* Effect.tryPromise(() =>
-      Promise.all([...knownRoomIds].map((chatroomId) => ensureOperationalInbox(chatroomId)))
+      Promise.all([...knownRoomIds].map((chatroomId) => ensureRoomInboxes(chatroomId)))
     ).pipe(
       Effect.catchAll((error) => {
         console.warn('[OperationalInbox] initial watcher start failed:', error);
@@ -376,7 +427,7 @@ export const startTaskInboxEffect = (
         machineId: session.machineId,
         taskSnapshotState,
         onDiscoveredChatrooms: async (chatroomIds) => {
-          await Promise.all(chatroomIds.map((chatroomId) => ensureOperationalInbox(chatroomId)));
+          await Promise.all(chatroomIds.map((chatroomId) => ensureRoomInboxes(chatroomId)));
         },
       })
     ).pipe(
@@ -386,40 +437,26 @@ export const startTaskInboxEffect = (
       })
     );
 
-    const inboxHandler: Parameters<typeof runTaskInbox>[1] = async (update) => {
-      inboxUpdatesInFlight += 1;
-      try {
-        const chatroomIds = [
-          ...new Set([
-            ...update.snapshots.map((snapshot) => snapshot.chatroomId),
-            ...update.signals.map((signal) => signal.chatroomId),
-          ]),
-        ];
-        if (chatroomIds.length > 0) {
-          await Promise.all(chatroomIds.map((chatroomId) => ensureOperationalInbox(chatroomId)));
-        }
-        await handleTaskInboxUpdate(update, {
-          runtime,
-          effectContext,
-          cooldown,
-          agentMgr,
-          sessionDeps,
-          machineId: session.machineId,
-          taskSnapshotState,
-        });
-        inboxStore.save(
-          { inboxType: 'task', scopeKey: session.machineId },
-          { afterSignalKey: update.throughSignalKey }
-        );
-      } finally {
-        inboxUpdatesInFlight -= 1;
-      }
-    };
-
     /** Fallback reliability reconcile — primary delivery is reactive via inbox signals. */
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdatesInFlight > 0 || reconcileInFlight) return;
       reconcileInFlight = true;
+      void (async () => {
+        try {
+          // Periodic room-membership refresh keeps discovery alive without the
+          // machine-wide task feed, which previously surfaced new rooms.
+          const current = await fetchMachineAgentOperationalStatus(sessionDeps, session.machineId);
+          agentOperationalReadModel.replace(current);
+          for (const row of current) knownRoomIds.add(row.chatroomId);
+          await Promise.all(
+            [...new Set(current.map((row) => row.chatroomId))].map((chatroomId) =>
+              ensureRoomInboxes(chatroomId)
+            )
+          );
+        } catch (error) {
+          console.warn('[TaskInbox] room membership refresh failed:', error);
+        }
+      })();
       void processTasksUpdate(
         runtime,
         effectContext,
@@ -437,7 +474,6 @@ export const startTaskInboxEffect = (
           reconcileInFlight = false;
         });
     }, NATIVE_DELIVERY_RECONCILE_MS);
-    void runInboxLoopWithRestart(inboxOptions, inboxHandler, () => stopped);
     return {
       stop() {
         stopped = true;
