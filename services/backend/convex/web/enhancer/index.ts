@@ -1,6 +1,7 @@
 export {
   upsertConfig,
   disableConfig,
+  setEnhancerEnabled,
   enqueueHandoff,
   recordAttemptFailure,
   complete,

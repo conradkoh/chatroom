@@ -42,6 +42,7 @@ import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/r
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
+import { configureTeamAgentRole as configureTeamAgentRoleUsecase } from '../src/domain/usecase/machine/configure-team-agent-role';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAgentOperationalStatus as listMachineAgentOperationalStatusUseCase } from '../src/domain/usecase/machine/list-machine-agent-operational-status';
@@ -718,6 +719,44 @@ export const getDaemonStatusesBatch = query({
     }
 
     return { statuses };
+  },
+});
+
+/** Canonical per-role config projection for the current team (includes unbound rows). */
+export const getTeamRoleConfigs = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { configs: [] };
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== auth.userId) return { configs: [] };
+    if (!chatroom.teamId) return { configs: [] };
+    const allConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+    const teamSegment = `#team_${chatroom.teamId}#`;
+    const configs = allConfigs
+      .filter((c) => c.teamRoleKey?.includes(teamSegment))
+      .map((c) => ({
+        role: c.role,
+        type: c.type,
+        machineId: c.machineId ?? null,
+        agentHarness: c.agentHarness ?? null,
+        model: c.model ?? null,
+        workingDir: c.workingDir ?? null,
+        enabled: c.enabled ?? true,
+        desiredState: c.desiredState ?? 'stopped',
+        circuitState: c.circuitState ?? 'closed',
+        lifecycleRevision: c.lifecycleRevision ?? 0,
+        spawnedAgentPid: c.spawnedAgentPid ?? null,
+        updatedAt: c.updatedAt,
+        createdAt: c.createdAt,
+      }));
+    return { configs };
   },
 });
 
@@ -1624,6 +1663,33 @@ export const requestGitRefresh = mutation({
 // TEAM AGENT CONFIGS
 // Team-level agent configuration for auto-restart decisions
 // ============================================================================
+
+/** Configuration-only save for a team agent role — never starts the agent. */
+export const configureTeamAgentRole = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    machineId: v.string(),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    const saved = await configureTeamAgentRoleUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      userId: auth.userId,
+      role: args.role,
+      machineId: args.machineId,
+      agentHarness: args.agentHarness,
+      model: args.model,
+      workingDir: args.workingDir,
+    });
+    return { success: true, config: saved };
+  },
+});
 
 /** Upserts team agent configuration for a chatroom+role and emits an agent.registered event. */
 export const saveTeamAgentConfig = mutation({
