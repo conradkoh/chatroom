@@ -11,7 +11,7 @@ export function PlannerNewSessionToggle() {
     () => setStartInNewSession(!startInNewSession),
     [startInNewSession, setStartInNewSession]
   );
-  useAltShortcut({ key: 'n', onTrigger: onToggle });
+  useAltShortcut({ code: 'KeyN', onTrigger: onToggle });
 
   return <PlannerNewSessionToggleButton isActive={startInNewSession} onToggle={onToggle} />;
 }

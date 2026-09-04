@@ -72,7 +72,7 @@ export function PlannerEnhancerToggle({
     void handleToggle();
   }, [teamSupportState, isDisabling, handleUnsupportedClick, handleToggle]);
 
-  useAltShortcut({ key: 'e', onTrigger: handleShortcut });
+  useAltShortcut({ code: 'KeyE', onTrigger: handleShortcut });
 
   if (teamSupportState !== 'supported') {
     return (

@@ -16,7 +16,9 @@ describe('PlannerNewSessionToggle', () => {
     expect(button).toHaveAttribute('aria-pressed', 'false');
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', altKey: true, bubbles: true }));
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyN', key: '˜', altKey: true, bubbles: true })
+      );
     });
 
     expect(button).toHaveAttribute('aria-pressed', 'true');

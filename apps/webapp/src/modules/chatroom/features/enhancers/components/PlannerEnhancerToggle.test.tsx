@@ -162,7 +162,9 @@ describe('PlannerEnhancerToggle', () => {
     mockConfig = SAVED_CONFIG;
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', altKey: true, bubbles: true }));
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyE', key: '´', altKey: true, bubbles: true })
+    );
 
     await waitFor(() =>
       expect(mockSaveConfig).toHaveBeenCalledWith({ ...SAVED_CONFIG, enabled: true })
@@ -179,7 +181,9 @@ describe('PlannerEnhancerToggle', () => {
       />
     );
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', altKey: true, bubbles: true }));
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyE', key: '´', altKey: true, bubbles: true })
+    );
 
     await waitFor(() => expect(mockToastMessage).toHaveBeenCalled());
     expect(mockOpenDialog).not.toHaveBeenCalled();
