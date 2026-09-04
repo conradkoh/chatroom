@@ -14,6 +14,7 @@ function mkWorkspace(
     hostname: 'host',
     workingDir,
     agentRoles: [],
+    fileTreeSyncEnabled: true,
     ...overrides,
   };
 }

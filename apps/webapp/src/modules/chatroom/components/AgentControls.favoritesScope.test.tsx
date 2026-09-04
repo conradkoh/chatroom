@@ -19,6 +19,7 @@ vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
         machineAlias: undefined,
         agentRoles: [],
         _registryId: 'r1',
+        fileTreeSyncEnabled: true,
       },
     ],
     isLoading: false,
@@ -145,6 +146,7 @@ function AsyncFavoritesScopeHarness({ loaded }: { loaded: boolean }) {
             hostname: 'a',
             agentRoles: [],
             registeredAt: 100,
+            fileTreeSyncEnabled: true,
           },
           {
             machineId: 'machine-b',
@@ -153,6 +155,7 @@ function AsyncFavoritesScopeHarness({ loaded }: { loaded: boolean }) {
             hostname: 'b',
             agentRoles: [],
             registeredAt: 200,
+            fileTreeSyncEnabled: true,
           },
         ]
       : [],

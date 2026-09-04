@@ -16,7 +16,6 @@ export type TeamSupportState = 'loading' | 'supported' | 'unsupported';
 
 interface PlannerEnhancerToggleButtonProps {
   isActive: boolean;
-  isEnhancing: boolean;
   isDisabling: boolean;
   teamSupportState: TeamSupportState;
   onToggle: () => void;
@@ -24,13 +23,12 @@ interface PlannerEnhancerToggleButtonProps {
   onUnsupportedClick: () => void;
 }
 
-function barClass(isActive: boolean, isEnhancing: boolean): string {
+function barClass(isActive: boolean): string {
   return cn(
     'shrink-0 w-[3.75rem] px-0 py-2 sm:w-full sm:px-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',
     isActive
       ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
-      : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover',
-    isEnhancing && 'animate-pulse'
+      : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
   );
 }
 
@@ -39,7 +37,6 @@ const UNSUPPORTED_TITLE =
 
 export function PlannerEnhancerToggleButton({
   isActive,
-  isEnhancing,
   isDisabling,
   teamSupportState,
   onToggle,
@@ -68,7 +65,7 @@ export function PlannerEnhancerToggleButton({
           <button
             type="button"
             className={cn(
-              barClass(isActive, isEnhancing),
+              barClass(isActive),
               (isUnsupported || isLoading) && 'opacity-50 cursor-default'
             )}
             title={

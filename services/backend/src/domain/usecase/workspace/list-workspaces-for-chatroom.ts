@@ -24,6 +24,7 @@ export interface WorkspaceForChatroomView {
   machineAlias?: string | undefined;
   registeredAt: number;
   registeredBy: string;
+  fileTreeSyncEnabled: boolean;
 }
 
 export type ListWorkspacesForChatroomResult = WorkspaceForChatroomView[];
@@ -63,5 +64,6 @@ export async function listWorkspacesForChatroom(
     machineAlias: machineAliasMap.get(ws.machineId),
     registeredAt: ws.registeredAt,
     registeredBy: ws.registeredBy,
+    fileTreeSyncEnabled: ws.fileTreeSyncEnabled === true,
   }));
 }

@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 
 import { PlannerEnhancerToggleButton, type TeamSupportState } from './PlannerEnhancerToggleButton';
 import { useComposerPreflightShortcut } from '../../../hooks/useComposerPreflightShortcut';
-import { useActiveEnhancerJob } from '../hooks/useActiveEnhancerJob';
 import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
 import { hasEnhancerConfigFields, type EnhancerConfig } from '../types/enhancer';
 
@@ -44,7 +43,6 @@ export function PlannerEnhancerToggle({
   const { config, isActive, saveConfig, disable, openDialog, dialog } = useEnhancerConfigDialogHost(
     { chatroomId, workspaceMachineId: machineId }
   );
-  const { isEnhancing } = useActiveEnhancerJob(chatroomId);
   const [isDisabling, setIsDisabling] = useState(false);
 
   const handleToggle = useCallback(async () => {
@@ -78,7 +76,6 @@ export function PlannerEnhancerToggle({
     return (
       <PlannerEnhancerToggleButton
         isActive={false}
-        isEnhancing={false}
         isDisabling={false}
         teamSupportState={teamSupportState}
         onToggle={() => {}}
@@ -92,7 +89,6 @@ export function PlannerEnhancerToggle({
     <>
       <PlannerEnhancerToggleButton
         isActive={isActive}
-        isEnhancing={isEnhancing}
         isDisabling={isDisabling}
         teamSupportState="supported"
         onToggle={handleToggle}

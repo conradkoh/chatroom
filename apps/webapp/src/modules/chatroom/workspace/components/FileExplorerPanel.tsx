@@ -6,6 +6,7 @@ import {
   ChevronRight,
   FilePlus,
   FolderPlus,
+  FolderX,
   MoreHorizontal,
   RefreshCw,
   Search,
@@ -85,6 +86,8 @@ interface FileExplorerPanelProps {
   chatroomId?: string;
   machineId: string | null;
   workingDir: string | null;
+  /** Whether file-tree data synchronization is enabled for this workspace. When false the panel shows a read-only disabled state pointing to Settings. */
+  fileTreeSyncEnabled?: boolean;
   fileTabs: UseFileTabsReturn;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
@@ -106,6 +109,7 @@ interface FileExplorerPanelProps {
   onFileDeleted?: (filePath: string) => void;
 }
 
+// fallow-ignore-next-line complexity
 function ExplorerPanelHeader({
   explorerSyncEnabled,
   onToggleSync,
@@ -130,9 +134,14 @@ function ExplorerPanelHeader({
             <MoreHorizontal size={13} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[180px]">
-            <DropdownMenuCheckboxItem checked={explorerSyncEnabled} onCheckedChange={onToggleSync}>
-              Sync with active editor
-            </DropdownMenuCheckboxItem>
+            {onToggleSync ? (
+              <DropdownMenuCheckboxItem
+                checked={explorerSyncEnabled}
+                onCheckedChange={onToggleSync}
+              >
+                Sync with active editor
+              </DropdownMenuCheckboxItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
@@ -246,6 +255,7 @@ export const FileExplorerPanel = memo(
         chatroomId,
         machineId,
         workingDir,
+        fileTreeSyncEnabled = false,
         fileTabs,
         onFileSelect,
         onFileDoubleClick,
@@ -440,9 +450,33 @@ export const FileExplorerPanel = memo(
       if (!machineId || !workingDir) {
         return (
           <div className="h-full flex flex-col min-w-0">
-            <ExplorerPanelHeader />
+            <ExplorerPanelHeader
+              explorerSyncEnabled={explorerSyncEnabled}
+              onToggleSync={onToggleSync}
+            />
             <div className="flex flex-1 items-center justify-center text-chatroom-text-muted text-xs px-4 text-center">
               No workspace connected
+            </div>
+          </div>
+        );
+      }
+
+      if (!fileTreeSyncEnabled) {
+        return (
+          <div className="h-full flex flex-col min-w-0">
+            <ExplorerPanelHeader
+              explorerSyncEnabled={explorerSyncEnabled}
+              onToggleSync={onToggleSync}
+            />
+            <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3 px-6 text-center">
+              <FolderX className="text-chatroom-text-muted" size={32} aria-hidden />
+              <p className="text-sm font-semibold text-chatroom-text-primary">
+                Workspace file tree syncing is disabled
+              </p>
+              <p className="max-w-64 text-xs text-chatroom-text-secondary">
+                Enable file tree sync in Settings → Workspaces to browse this workspace&apos;s
+                files.
+              </p>
             </div>
           </div>
         );

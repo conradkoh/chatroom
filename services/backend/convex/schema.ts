@@ -760,7 +760,7 @@ export default defineSchema({
     }),
   }).index('by_machineId', ['machineId']),
 
-  /** Slim machine-routed operational-status change signals. */
+  /** Slim machine-routed operational-status change signals, scoped per chatroom. */
   chatroom_machineOperationalSignals: defineTable({
     machineId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
@@ -769,21 +769,7 @@ export default defineSchema({
     signalKey: v.string(),
     projectedAt: v.number(),
     removed: v.optional(v.boolean()),
-  }).index('by_machineId_signalKey', ['machineId', 'signalKey']),
-
-  /** Two-key operational signal frontier; lagging cursors use append-only range. */
-  chatroom_machineOperationalSignalHeads: defineTable({
-    machineId: v.string(),
-    previousSignalKey: v.optional(v.string()),
-    latestSignal: v.object({
-      chatroomId: v.id('chatroom_rooms'),
-      role: v.string(),
-      revisionKey: v.string(),
-      signalKey: v.string(),
-      projectedAt: v.number(),
-      removed: v.optional(v.boolean()),
-    }),
-  }).index('by_machineId', ['machineId']),
+  }).index('by_machineId_chatroomId_signalKey', ['machineId', 'chatroomId', 'signalKey']),
 
   /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).
@@ -1956,6 +1942,8 @@ export default defineSchema({
     registeredAt: v.number(),
     registeredBy: v.string(), // role that first registered this workspace
     removedAt: v.optional(v.number()), // soft delete timestamp
+    /** Opt-in file-tree sync; absent or undefined means disabled. */
+    fileTreeSyncEnabled: v.optional(v.boolean()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])

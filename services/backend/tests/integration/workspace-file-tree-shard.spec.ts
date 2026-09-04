@@ -6,7 +6,11 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
+import {
+  createTestSession,
+  registerMachineWithDaemon,
+  registerWorkspaceWithFileTreeSync,
+} from '../helpers/integration';
 
 const GZIP_PAYLOAD = { compression: 'gzip' as const, content: 'eJyrrgUAAXUA+Q==' };
 
@@ -17,6 +21,7 @@ describe('workspace file tree shard v3', () => {
     const workingDir = '/tmp/workspace';
     const syncGeneration = 'gen-write-1';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     const result = await t.mutation(api.workspaceFiles.syncFileTreeShardV3Batch, {
       sessionId,
@@ -50,6 +55,7 @@ describe('workspace file tree shard v3', () => {
     const workingDir = '/tmp/workspace';
     const syncGeneration = 'gen-skip-1';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceFileTreeShardV3', {
@@ -106,6 +112,7 @@ describe('workspace file tree shard v3', () => {
     const workingDir = '/tmp/workspace';
     const syncGeneration = 'gen-manifest-1';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.mutation(api.workspaceFiles.syncFileTreeManifestV3, {
       sessionId,
@@ -142,6 +149,7 @@ describe('workspace file tree shard v3', () => {
     const workingDir = '/tmp/workspace';
     const syncGeneration = 'gen-query-1';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceFileTreeManifestV3', {
@@ -176,6 +184,7 @@ describe('workspace file tree shard v3', () => {
     const workingDir = '/tmp/workspace';
     const syncGeneration = 'gen-shards-query';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.mutation(api.workspaceFiles.syncFileTreeShardV3Batch, {
       sessionId,
@@ -223,6 +232,7 @@ describe('workspace file tree shard v3', () => {
     const oldGeneration = 'gen-old';
     const newGeneration = 'gen-new';
     await registerMachineWithDaemon(sessionId, machineId);
+    await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.mutation(api.workspaceFiles.syncFileTreeShardV3Batch, {
       sessionId,

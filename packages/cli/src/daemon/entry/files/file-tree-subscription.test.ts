@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import type { Layer } from 'effect';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -185,6 +186,78 @@ describe('startFileTreeSubscriptionEffect', () => {
       'fulfill',
       expect.objectContaining({ workingDir: '/workspace' })
     );
+  });
+
+  it('stops a cold sync without fulfilling its request when sync is disabled', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'cold-disabled', workingDir: '/workspace' }]);
+      }
+      if (endpoint === 'lease') {
+        return Promise.resolve({ watchCount: 0, expiresAt: null, leaseActive: false });
+      }
+      return Promise.resolve(null);
+    });
+    vi.mocked(deps.backend.mutation).mockImplementation((endpoint: string) => {
+      if (endpoint === 'publish' || endpoint === 'sync-v2') {
+        return Promise.reject(
+          new ConvexError({ code: 'FILE_TREE_SYNC_DISABLED', message: 'disabled' })
+        );
+      }
+      return Promise.resolve(undefined);
+    });
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
+
+    await expect(handle.drainPendingFileTreeRequests()).resolves.toBeUndefined();
+
+    expect(startCoordinator).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).not.toHaveBeenCalledWith('fulfill', expect.anything());
+  });
+
+  it('stops an active coordinator when a delta send is disabled', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'lease') return Promise.resolve(ACTIVE_LEASE);
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'active-disabled', workingDir: '/workspace' }]);
+      }
+      if (endpoint === 'checkpoint') return Promise.resolve({ revision: 0 });
+      return Promise.resolve(null);
+    });
+    vi.mocked(deps.backend.mutation).mockImplementation((endpoint: string) => {
+      if (endpoint === 'delta') {
+        return Promise.reject(
+          new ConvexError({ code: 'FILE_TREE_SYNC_DISABLED', message: 'disabled' })
+        );
+      }
+      return Promise.resolve({ status: 'applied', revision: 1 });
+    });
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
+
+    await handle.drainPendingFileTreeRequests();
+    await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
+    const options = startCoordinator.mock.calls[0]![0];
+
+    await expect(
+      options.onDelta(
+        {
+          operationId: 'disabled-operation',
+          added: [{ path: 'new.ts', type: 'file' }],
+          removed: [],
+          typeChanged: [],
+          createdAt: 1,
+        },
+        0
+      )
+    ).resolves.toEqual({ status: 'applied', revision: 0 });
+    await vi.waitFor(() => expect(coordinatorHandle.stop).toHaveBeenCalled());
   });
 
   it('maps cached path changes to revisioned backend operations', async () => {

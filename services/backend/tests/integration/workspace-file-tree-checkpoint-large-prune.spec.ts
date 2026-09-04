@@ -3,7 +3,11 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import { FILE_TREE_CHECKPOINT_PRUNE_BATCH_SIZE } from '../../convex/workspaceFileTree/repositories/deltaRepository';
 import { t } from '../../test.setup';
-import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
+import {
+  createTestSession,
+  registerMachineWithDaemon,
+  registerWorkspaceWithFileTreeSync,
+} from '../helpers/integration';
 
 const WORKING_DIR = '/tmp/checkpoint-large-prune';
 const ADD_OPERATION = {
@@ -16,6 +20,7 @@ const DELTA_COUNT = FILE_TREE_CHECKPOINT_PRUNE_BATCH_SIZE + 50;
 async function setup(sessionKey: string, machineId: string) {
   const { sessionId } = await createTestSession(sessionKey);
   await registerMachineWithDaemon(sessionId, machineId);
+  await registerWorkspaceWithFileTreeSync(sessionId, machineId, WORKING_DIR);
   return { sessionId, machineId };
 }
 

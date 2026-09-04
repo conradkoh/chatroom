@@ -145,6 +145,7 @@ const defaultProps = {
   workingDir: '/test',
   fileTabs,
   activeTabPath: null,
+  fileTreeSyncEnabled: true,
   explorerSyncEnabled: false,
   onToggleSync: vi.fn(),
 };
@@ -221,6 +222,51 @@ describe('FileExplorerPanel workspace root', () => {
     fireEvent.click(screen.getByTitle('New folder'));
 
     expect(lastNewFolderProps).toEqual(expect.objectContaining({ open: true, defaultDir: '' }));
+  });
+});
+
+describe('FileExplorerPanel file-tree sync setting', () => {
+  it('shows a disabled state pointing to Settings without mounting the file explorer', () => {
+    render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled={false} />);
+
+    expect(screen.getByText('Workspace file tree syncing is disabled')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Enable file tree sync in Settings → Workspaces to browse this workspace's files\./
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enable file tree sync' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('file-explorer')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Filter files…')).not.toBeInTheDocument();
+  });
+
+  it('disabled Explorer options contain only Sync with active editor', () => {
+    render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled={false} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Explorer options' }));
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Sync with active editor' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'Workspace file tree sync' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('enabled state renders the explorer with no enable button and only Sync with active editor in options', () => {
+    render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled />);
+
+    expect(screen.getByTestId('file-explorer')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enable file tree sync' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Explorer options' }));
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Sync with active editor' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'Workspace file tree sync' })
+    ).not.toBeInTheDocument();
   });
 });
 

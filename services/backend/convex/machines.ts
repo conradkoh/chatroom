@@ -23,6 +23,7 @@ import {
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
+import { machineOperationalSignalScopeValidator } from '../src/domain/entities/machine-operational-signal';
 import { ackMachineOperationalSignals as ackMachineOperationalSignalsUseCase } from '../src/domain/usecase/agent/ack-machine-operational-signals';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
@@ -2221,13 +2222,13 @@ export const listMachineAssignedTaskSnapshots = query({
 });
 
 /**
- * Reactive cursor-pinned operational-status signals for this machine.
+ * Reactive cursor-pinned operational-status signals for this machine and chatroom.
  * Returns null while idle so the subscription carries no full operational row array.
  */
 export const subscribeMachineOperationalSignalsSince = query({
   args: {
     ...SessionIdArg,
-    machineId: v.string(),
+    ...machineOperationalSignalScopeValidator,
     afterKey: v.string(),
     limit: v.optional(v.number()),
   },
@@ -2239,21 +2240,13 @@ export const subscribeMachineOperationalSignalsSince = query({
       Math.max(args.limit ?? DEFAULT_OPERATIONAL_SIGNALS_LIMIT, 1),
       MAX_OPERATIONAL_SIGNALS_LIMIT
     );
-    const head = await ctx.db
-      .query('chatroom_machineOperationalSignalHeads')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (head) {
-      if (head.latestSignal.signalKey <= args.afterKey) return null;
-      if (head.previousSignalKey === undefined || args.afterKey >= head.previousSignalKey) {
-        const item = head.latestSignal;
-        return { items: [item], highKey: item.signalKey, hasMore: false };
-      }
-    }
     const page = await ctx.db
       .query('chatroom_machineOperationalSignals')
-      .withIndex('by_machineId_signalKey', (q) =>
-        q.eq('machineId', args.machineId).gt('signalKey', args.afterKey)
+      .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('chatroomId', args.chatroomId)
+          .gt('signalKey', args.afterKey)
       )
       .order('asc')
       .take(limit + 1);
@@ -2272,11 +2265,11 @@ export const subscribeMachineOperationalSignalsSince = query({
   },
 });
 
-/** Hydrate operational rows for a cursor range after signal delivery. */
+/** Hydrate operational rows for a cursor range after signal delivery, scoped to a chatroom. */
 export const listOperationalStatusForMachineSignalRange = query({
   args: {
     ...SessionIdArg,
-    machineId: v.string(),
+    ...machineOperationalSignalScopeValidator,
     afterSignalKey: v.string(),
     throughSignalKey: v.string(),
     limit: v.optional(v.number()),
@@ -2291,6 +2284,7 @@ export const listOperationalStatusForMachineSignalRange = query({
     );
     return listOperationalStatusForMachineSignalRangeUseCase(ctx, {
       machineId: args.machineId,
+      chatroomId: args.chatroomId,
       userId: auth.userId,
       afterSignalKey: args.afterSignalKey,
       throughSignalKey: args.throughSignalKey,
@@ -2312,17 +2306,18 @@ export const listMachineAgentOperationalStatus = query({
   },
 });
 
-/** Acknowledge delivered operational signals and keep the signal head current. */
+/** Acknowledge delivered operational signals for a machine and chatroom. */
 export const ackMachineOperationalSignals = mutation({
   args: {
     ...SessionIdArg,
-    machineId: v.string(),
+    ...machineOperationalSignalScopeValidator,
     throughSignalKey: v.string(),
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     return ackMachineOperationalSignalsUseCase(ctx, {
       machineId: args.machineId,
+      chatroomId: args.chatroomId,
       throughSignalKey: args.throughSignalKey,
     });
   },

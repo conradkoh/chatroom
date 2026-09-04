@@ -8,6 +8,7 @@
 // fallow-ignore-file complexity
 
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { requireFileTreeSyncEnabledForWorkspace } from '../../../../convex/workspaceFileTree/access';
 import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
 import { FILE_TREE_SNAPSHOT_STALENESS_MS } from '../../constants/workspace-file-tree-watch';
 
@@ -28,6 +29,7 @@ export async function requestWorkspaceFileTree(
   input: RequestWorkspaceFileTreeInput
 ): Promise<RequestWorkspaceFileTreeResult> {
   const workingDir = normalizeWorkingDir(input.workingDir);
+  await requireFileTreeSyncEnabledForWorkspace(ctx, input.machineId, workingDir);
 
   if (!input.force) {
     const existingTree = await ctx.db

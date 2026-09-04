@@ -23,6 +23,7 @@ function mkWorkspace(machineId: string, workingDir: string): Workspace {
     hostname: 'host',
     workingDir,
     agentRoles: ['builder'],
+    fileTreeSyncEnabled: true,
   };
 }
 

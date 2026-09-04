@@ -139,7 +139,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
-  api: { workspaceFiles: { requestFileContent: {}, getFileContentV2: {} } },
+  api: {
+    workspaceFiles: { requestFileContent: {}, getFileContentV2: {} },
+  },
 }));
 
 vi.mock('../hooks/useFileContent', () => ({
@@ -184,6 +186,7 @@ const defaultProps = {
   workingDir: '/workspace',
   fileTabs,
   activeTabPath: null,
+  fileTreeSyncEnabled: true,
   explorerSyncEnabled: false,
   onToggleSync: vi.fn(),
 };
