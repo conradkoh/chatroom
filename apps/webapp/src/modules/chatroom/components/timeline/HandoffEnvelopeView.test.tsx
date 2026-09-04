@@ -30,6 +30,26 @@ describe('HandoffEnvelopeView', () => {
     expect(screen.queryByTestId('section-markdown')).not.toBeInTheDocument();
   });
 
+  it('timeline initiallyExpanded opens every section in canonical order with aria-expanded', () => {
+    render(<HandoffEnvelopeView content={ENVELOPE} variant="timeline" initiallyExpanded />);
+    const markdowns = screen.getAllByTestId('section-markdown');
+    expect(markdowns.length).toBe(4);
+    expect(markdowns[0]).toHaveTextContent('User request here');
+    expect(markdowns[1]).toHaveTextContent('Supporting constraints');
+    expect(markdowns[2]).toHaveTextContent('Research notes');
+    expect(markdowns[3]).toHaveTextContent('Do the thing');
+    for (const sectionId of [
+      'user-message',
+      'additional-context',
+      'grounding',
+      'builder-handoff',
+    ]) {
+      expect(
+        screen.getByTestId(`handoff-section-${sectionId}`).querySelector('button')
+      ).toHaveAttribute('aria-expanded', 'true');
+    }
+  });
+
   it('detail variant opens all sections by default in canonical order', () => {
     render(<HandoffEnvelopeView content={ENVELOPE} variant="detail" />);
     const markdowns = screen.getAllByTestId('section-markdown');
@@ -58,6 +78,22 @@ describe('HandoffEnvelopeView', () => {
     expect(sectionToggle).toBeTruthy();
     fireEvent.click(sectionToggle!);
     expect(screen.getByTestId('section-markdown')).toHaveTextContent('Supporting constraints');
+  });
+
+  it('collapses and re-expands a section after an initially expanded render', () => {
+    render(<HandoffEnvelopeView content={ENVELOPE} variant="timeline" initiallyExpanded />);
+    const sectionToggle = screen
+      .getByTestId('handoff-section-user-message')
+      .querySelector('button');
+    expect(sectionToggle).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(sectionToggle!);
+    expect(sectionToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('User request here')).not.toBeInTheDocument();
+
+    fireEvent.click(sectionToggle!);
+    expect(sectionToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('User request here')).toBeInTheDocument();
   });
 
   it('switches to raw view', () => {
