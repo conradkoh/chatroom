@@ -641,6 +641,18 @@ export const migrateStandingInstructionsNameToTitle = migrations.define({
 // --- Workspace File Tree Migrations ---
 
 /**
+ * Migration: Backfill legacy workspaces as opted out of file-tree synchronization.
+ * Idempotent: workspaces with an explicit setting are left unchanged.
+ */
+export const backfillWorkspaceFileTreeSyncDisabled = migrations.define({
+  table: 'chatroom_workspaces',
+  migrateOne: async (_ctx, workspace) => {
+    if (workspace.fileTreeSyncEnabled !== undefined) return;
+    return { fileTreeSyncEnabled: false };
+  },
+});
+
+/**
  * Migration: Compact legacy verbose file-tree delta operations to short-key format.
  * Required after PR #1122 changed the stored schema; production rows may still use
  * {operation, path, entryType} shape.
@@ -1014,6 +1026,7 @@ const allMigrationReferences = [
   internal.migrations.stripTimelineMachineSignalFields,
   internal.migrations.stripMachineAssignedTaskSnapshotOperationalFields,
   // Workspace File Tree
+  internal.migrations.backfillWorkspaceFileTreeSyncDisabled,
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State
   internal.migrations.dropEmbeddedRecentCommits,

@@ -64,6 +64,6 @@ export async function listWorkspacesForChatroom(
     machineAlias: machineAliasMap.get(ws.machineId),
     registeredAt: ws.registeredAt,
     registeredBy: ws.registeredBy,
-    fileTreeSyncEnabled: ws.fileTreeSyncEnabled ?? true,
+    fileTreeSyncEnabled: ws.fileTreeSyncEnabled === true,
   }));
 }

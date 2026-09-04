@@ -229,7 +229,7 @@ export const getWorkspaceById = query({
 
     return {
       ...workspace,
-      fileTreeSyncEnabled: workspace.fileTreeSyncEnabled ?? true,
+      fileTreeSyncEnabled: workspace.fileTreeSyncEnabled === true,
     };
   },
 });
