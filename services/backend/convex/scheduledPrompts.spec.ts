@@ -136,6 +136,9 @@ describe('scheduled prompts', () => {
     expect(msg!.senderRole).toBe('user');
     expect(msg!.taskId).toBeDefined();
 
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', msg!.taskId!));
+    expect(task?.startInNewSession).toBe(true);
+
     // Verify prompt row has updated nextRunAt
     const row = await t.run(async (ctx) => {
       return await ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>);
