@@ -31,6 +31,19 @@ describe('getHandoffReportTemplateBody', () => {
     expect(direction).toContain('## Key Technical Decisions');
   });
 
+  test('System Design section mandates a fenced mermaid block, never a bare mermaid line', () => {
+    const body = getHandoffReportTemplateBody();
+    const direction = body.match(/<handoff-direction>[\s\S]*<\/handoff-direction>/)?.[0] ?? '';
+    const systemDesign =
+      direction.match(/## System Design\n([\s\S]*?)\n<\/handoff-direction>/)?.[1] ?? '';
+
+    expect(systemDesign).toContain('```mermaid');
+    expect(systemDesign).toContain('flowchart TD');
+    expect(systemDesign).toMatch(/fenced code block/i);
+    expect(systemDesign).toMatch(/bare "mermaid" line/i);
+    expect(systemDesign).not.toMatch(/^mermaid\s*$/m);
+  });
+
   test('handoff-action contains Manual steps', () => {
     const body = getHandoffReportTemplateBody();
     const action = body.match(/<handoff-action>[\s\S]*<\/handoff-action>/)?.[0] ?? '';
