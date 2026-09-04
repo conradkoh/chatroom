@@ -9,12 +9,14 @@ type AckResult = FunctionReturnType<typeof api.machines.ackMachineOperationalSig
 export async function ackMachineOperationalSignals(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
+  chatroomId: string,
   throughSignalKey: string
 ): Promise<void> {
   while (true) {
     const result = (await sessionDeps.backend.mutation(api.machines.ackMachineOperationalSignals, {
       sessionId: sessionDeps.sessionId,
       machineId,
+      chatroomId,
       throughSignalKey,
     })) as AckResult;
     if (!result.hasMore) return;
