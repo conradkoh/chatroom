@@ -473,9 +473,12 @@ export const FileExplorerPanel = memo(
               <p className="text-sm font-semibold text-chatroom-text-primary">
                 Workspace file tree syncing is disabled
               </p>
-              <p className="max-w-64 text-xs text-chatroom-text-muted">
-                Enable file tree sync in Settings → Workspaces to browse this workspace&apos;s
-                files.
+              <p className="max-w-64 text-xs text-chatroom-text-secondary">
+                Enable file tree sync in{' '}
+                <span className="font-medium text-chatroom-text-primary">
+                  Settings → Workspaces
+                </span>{' '}
+                to browse this workspace&apos;s files.
               </p>
             </div>
           </div>

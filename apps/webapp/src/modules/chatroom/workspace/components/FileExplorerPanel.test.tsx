@@ -230,8 +230,15 @@ describe('FileExplorerPanel file-tree sync setting', () => {
     render(<FileExplorerPanel {...defaultProps} fileTreeSyncEnabled={false} />);
 
     expect(screen.getByText('Workspace file tree syncing is disabled')).toBeInTheDocument();
+    expect(screen.getByText('Settings → Workspaces')).toBeInTheDocument();
+    expect(screen.getByText('Settings → Workspaces')).toHaveClass('text-chatroom-text-primary');
     expect(
-      screen.getByText(/Enable file tree sync in Settings → Workspaces to browse/)
+      screen.getByText(
+        (content, element) =>
+          element?.tagName === 'P' &&
+          content.includes('Enable file tree sync in') &&
+          content.includes('to browse this workspace')
+      )
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Enable file tree sync' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('file-explorer')).not.toBeInTheDocument();
