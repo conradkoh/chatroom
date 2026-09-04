@@ -15,7 +15,11 @@ describe('legacy enhancer migration helpers', () => {
       'enhancer',
       'builder',
     ]);
-    expect(mergeCanonicalEnhancerIntoTeamRoles('solo', ['solo'])).toEqual(['solo', 'enhancer']);
+    expect(mergeCanonicalEnhancerIntoTeamRoles('solo', ['solo'])).toEqual([
+      'solo',
+      'enhancer',
+      'builder',
+    ]);
   });
 
   test('preserves existing enhancer and custom teams', () => {
