@@ -18,7 +18,14 @@ async function setup(label: string) {
     teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'planner',
   });
-  return { chatroomId, machineId: `ack-machine-${label}`, sessionId };
+  const otherChatroomId = await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamId: 'duo',
+    teamName: 'Duo',
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'planner',
+  });
+  return { chatroomId, otherChatroomId, machineId: `ack-machine-${label}`, sessionId };
 }
 
 function key(timestamp: number, chatroomId: string, role = 'builder'): string {
@@ -44,6 +51,17 @@ async function writeSignals(
   });
 }
 
+async function remainingSignals(machineId: string, chatroomId: Id<'chatroom_rooms'>) {
+  return t.run((ctx) =>
+    ctx.db
+      .query('chatroom_machineOperationalSignals')
+      .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+        q.eq('machineId', machineId).eq('chatroomId', chatroomId)
+      )
+      .collect()
+  );
+}
+
 describe('ackMachineOperationalSignals', () => {
   test('deletes delivered signals and preserves later signals', async () => {
     const { chatroomId, machineId } = await setup('range');
@@ -51,52 +69,34 @@ describe('ackMachineOperationalSignals', () => {
     const result = await t.run((ctx) =>
       ackMachineOperationalSignals(ctx, {
         machineId,
+        chatroomId: String(chatroomId),
         throughSignalKey: key(101, String(chatroomId), 'role-1'),
       })
     );
     expect(result).toEqual({ deletedCount: 2, hasMore: false });
-    const remaining = await t.run((ctx) =>
-      ctx.db
-        .query('chatroom_machineOperationalSignals')
-        .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machineId))
-        .collect()
-    );
+    const remaining = await remainingSignals(machineId, chatroomId);
     expect(remaining.map((row) => row.signalKey)).toEqual([key(102, String(chatroomId), 'role-2')]);
   });
 
-  test('reconciles the head after acknowledging a signal range', async () => {
-    const { chatroomId, machineId } = await setup('head');
-    await writeSignals(machineId, chatroomId, 3);
-    await t.run((ctx) =>
-      ackMachineOperationalSignals(ctx, {
-        machineId,
-        throughSignalKey: key(101, String(chatroomId), 'role-1'),
-      })
-    );
-    const head = await t.run((ctx) =>
-      ctx.db
-        .query('chatroom_machineOperationalSignalHeads')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first()
-    );
-    expect(head?.latestSignal.signalKey).toBe(key(102, String(chatroomId), 'role-2'));
-    expect(head?.previousSignalKey).toBeUndefined();
-  });
-
-  test('deletes the head when no signals remain and is idempotent', async () => {
+  test('is idempotent when no signals remain', async () => {
     const { chatroomId, machineId } = await setup('empty');
     await writeSignals(machineId, chatroomId, 1);
     const throughSignalKey = key(100, String(chatroomId), 'role-0');
-    await t.run((ctx) => ackMachineOperationalSignals(ctx, { machineId, throughSignalKey }));
-    const emptyHead = await t.run((ctx) =>
-      ctx.db
-        .query('chatroom_machineOperationalSignalHeads')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first()
+    await t.run((ctx) =>
+      ackMachineOperationalSignals(ctx, {
+        machineId,
+        chatroomId: String(chatroomId),
+        throughSignalKey,
+      })
     );
-    expect(emptyHead).toBeNull();
     await expect(
-      t.run((ctx) => ackMachineOperationalSignals(ctx, { machineId, throughSignalKey }))
+      t.run((ctx) =>
+        ackMachineOperationalSignals(ctx, {
+          machineId,
+          chatroomId: String(chatroomId),
+          throughSignalKey,
+        })
+      )
     ).resolves.toEqual({ deletedCount: 0, hasMore: false });
   });
 
@@ -106,15 +106,11 @@ describe('ackMachineOperationalSignals', () => {
     await t.run((ctx) =>
       ackMachineOperationalSignals(ctx, {
         machineId,
+        chatroomId: String(chatroomId),
         throughSignalKey: key(99, String(chatroomId), 'role-0'),
       })
     );
-    const remaining = await t.run((ctx) =>
-      ctx.db
-        .query('chatroom_machineOperationalSignals')
-        .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machineId))
-        .collect()
-    );
+    const remaining = await remainingSignals(machineId, chatroomId);
     expect(remaining).toHaveLength(2);
   });
 
@@ -124,37 +120,47 @@ describe('ackMachineOperationalSignals', () => {
     const result = await t.run((ctx) =>
       ackMachineOperationalSignals(ctx, {
         machineId,
+        chatroomId: String(chatroomId),
         throughSignalKey: key(200, String(chatroomId), 'role-100'),
       })
     );
     expect(result).toEqual({ deletedCount: 100, hasMore: true });
-    const remaining = await t.run((ctx) =>
-      ctx.db
-        .query('chatroom_machineOperationalSignals')
-        .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machineId))
-        .collect()
-    );
+    const remaining = await remainingSignals(machineId, chatroomId);
     expect(remaining).toHaveLength(1);
 
     const continuation = await t.run((ctx) =>
       ackMachineOperationalSignals(ctx, {
         machineId,
+        chatroomId: String(chatroomId),
         throughSignalKey: key(200, String(chatroomId), 'role-100'),
       })
     );
     expect(continuation).toEqual({ deletedCount: 1, hasMore: false });
 
-    const finalState = await t.run(async (ctx) => ({
-      signals: await ctx.db
-        .query('chatroom_machineOperationalSignals')
-        .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machineId))
-        .collect(),
-      head: await ctx.db
-        .query('chatroom_machineOperationalSignalHeads')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first(),
-    }));
-    expect(finalState.signals).toHaveLength(0);
-    expect(finalState.head).toBeNull();
+    const finalState = await remainingSignals(machineId, chatroomId);
+    expect(finalState).toHaveLength(0);
+  });
+
+  test('acknowledging room A leaves room B signals intact', async () => {
+    const { chatroomId, otherChatroomId, machineId } = await setup('cross-room');
+    await writeSignals(machineId, chatroomId, 2);
+    await writeSignals(machineId, otherChatroomId, 2);
+
+    const result = await t.run((ctx) =>
+      ackMachineOperationalSignals(ctx, {
+        machineId,
+        chatroomId: String(chatroomId),
+        throughSignalKey: key(400, String(otherChatroomId), 'role-1'),
+      })
+    );
+    expect(result).toEqual({ deletedCount: 2, hasMore: false });
+
+    const roomARemaining = await remainingSignals(machineId, chatroomId);
+    expect(roomARemaining).toHaveLength(0);
+    const roomBRemaining = await remainingSignals(machineId, otherChatroomId);
+    expect(roomBRemaining.map((row) => row.signalKey)).toEqual([
+      key(100, String(otherChatroomId), 'role-0'),
+      key(101, String(otherChatroomId), 'role-1'),
+    ]);
   });
 });

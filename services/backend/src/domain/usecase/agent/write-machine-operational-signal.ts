@@ -1,4 +1,3 @@
-import { upsertMachineOperationalSignalHead } from './project-machine-operational-signal-head';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -34,6 +33,4 @@ export async function writeMachineOperationalSignal(
     ...(input.removed ? { removed: true } : {}),
   };
   await ctx.db.insert('chatroom_machineOperationalSignals', signal);
-  const { machineId, ...headSignal } = signal;
-  await upsertMachineOperationalSignalHead(ctx, input.machineId, headSignal);
 }

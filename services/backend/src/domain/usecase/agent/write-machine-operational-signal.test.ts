@@ -18,8 +18,8 @@ describe('buildMachineOperationalSignalKey', () => {
 });
 
 describe('writeMachineOperationalSignal', () => {
-  test('creates a head and advances it only for newer signal keys', async () => {
-    const sessionId = 'operational-signal-head' as SessionId;
+  test('appends signals and does not create an operational head', async () => {
+    const sessionId = 'operational-signal-append' as SessionId;
     await t.mutation(api.auth.loginAnon, { sessionId });
     const chatroomId = await t.mutation(api.chatrooms.create, {
       sessionId,
@@ -54,21 +54,26 @@ describe('writeMachineOperationalSignal', () => {
       });
     });
 
-    const result = await t.run(async (ctx) => {
-      const signals = await ctx.db
+    const signals = await t.run((ctx) =>
+      ctx.db
         .query('chatroom_machineOperationalSignals')
-        .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machineId))
-        .collect();
-      const head = await ctx.db
-        .query('chatroom_machineOperationalSignalHeads')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      return { signals, head };
-    });
+        .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+          q.eq('machineId', machineId).eq('chatroomId', chatroomId)
+        )
+        .order('asc')
+        .collect()
+    );
 
-    expect(result.signals).toHaveLength(3);
-    expect(result.head?.previousSignalKey).toBe('0000000000000100:' + chatroomId + ':builder');
-    expect(result.head?.latestSignal.signalKey).toBe('0000000000000101:' + chatroomId + ':builder');
-    expect(result.head?.latestSignal.revisionKey).toBe('revision-2');
+    expect(signals).toHaveLength(3);
+    expect(signals.map((row) => row.signalKey)).toEqual([
+      '0000000000000099:' + chatroomId + ':builder',
+      '0000000000000100:' + chatroomId + ':builder',
+      '0000000000000101:' + chatroomId + ':builder',
+    ]);
+    expect(signals.map((row) => row.revisionKey)).toEqual([
+      'revision-older',
+      'revision-1',
+      'revision-2',
+    ]);
   });
 });
