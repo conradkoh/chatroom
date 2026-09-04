@@ -24,17 +24,6 @@ async function builderConfigFor(chatroomId: any) {
   );
 }
 
-async function builderConfigForSolo(chatroomId: any) {
-  return t.run((ctx) =>
-    ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'solo', 'builder'))
-      )
-      .first()
-  );
-}
-
 describe('builder ephemeral lifecycle', () => {
   test('planner handoff arms the builder config and creates a builder task', async () => {
     const { sessionId } = await createTestSession('builder-lifecycle-handoff');
@@ -66,49 +55,6 @@ describe('builder ephemeral lifecycle', () => {
     expect(task?.assignedTo).toBe('builder');
 
     const config = await builderConfigFor(chatroomId);
-    expect(config?.type).toBe('remote');
-    expect(config?.enabled).toBe(true);
-    expect(config?.desiredState).toBe('running');
-    expect(config?.machineId).toBe(machineId);
-    expect(config?.spawnedAgentPid).toBeUndefined();
-  });
-
-  test('solo handoff arms the builder config and creates a builder task', async () => {
-    const { sessionId } = await createTestSession('builder-lifecycle-solo-handoff');
-    const chatroomId = await t.mutation(api.chatrooms.create, {
-      sessionId,
-      teamId: 'solo',
-      teamName: 'Solo Team',
-      teamRoles: ['solo', 'builder'],
-      teamEntryPoint: 'solo',
-    });
-    const machineId = 'machine-builder-lifecycle-solo-handoff';
-    await registerMachineWithDaemon(sessionId, machineId);
-    await t.mutation(api.workspaces.registerWorkspace, {
-      sessionId,
-      chatroomId,
-      machineId,
-      workingDir: '/workspace',
-      hostname: 'test-host',
-      registeredBy: 'solo',
-    });
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'solo');
-
-    expect(await builderConfigForSolo(chatroomId)).toBeNull();
-
-    const handoff = await t.mutation(api.messages.handoff, {
-      sessionId,
-      chatroomId,
-      senderRole: 'solo',
-      targetRole: 'builder',
-      content: 'Build me a feature',
-    });
-    expect(handoff.success).toBe(true);
-
-    const task = await t.run((ctx) => ctx.db.get('chatroom_tasks', handoff.newTaskId));
-    expect(task?.assignedTo).toBe('builder');
-
-    const config = await builderConfigForSolo(chatroomId);
     expect(config?.type).toBe('remote');
     expect(config?.enabled).toBe(true);
     expect(config?.desiredState).toBe('running');

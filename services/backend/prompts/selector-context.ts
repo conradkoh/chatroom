@@ -19,15 +19,13 @@ function detectTeamTypeByName(teamName?: string): TeamKind | null {
 }
 
 function isSoloTeamByRoles(teamRoles: string[]): boolean {
-  const normalized = teamRoles.map((r) => r.toLowerCase());
-  return normalized.includes('solo') && !normalized.includes('planner');
+  return teamRoles.some((r) => r.toLowerCase() === 'solo') && teamRoles.length === 1;
 }
 
 function isDuoTeamByRoles(teamRoles: string[]): boolean {
-  const normalized = teamRoles.map((r) => r.toLowerCase());
-  return (
-    normalized.includes('planner') && normalized.includes('builder') && !normalized.includes('solo')
-  );
+  const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
+  const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
+  return hasPlanner && hasBuilder && teamRoles.length === 2;
 }
 
 function detectTeamType(teamRoles: string[], teamName?: string): TeamKind | 'unknown' {

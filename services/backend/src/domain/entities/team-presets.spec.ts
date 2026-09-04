@@ -16,7 +16,7 @@ describe('team presets', () => {
     });
     expect(TEAM_PRESETS.solo).toMatchObject({
       name: 'Solo',
-      roles: ['solo', 'enhancer', 'builder'],
+      roles: ['solo', 'enhancer'],
       entryPoint: 'solo',
     });
     expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');

@@ -1,9 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  mergeCanonicalBuilderIntoTeamRoles,
-  migrateLegacyBuilderConfigRow,
-} from './migrate-legacy-builder-config';
+import { migrateLegacyBuilderConfigRow } from './migrate-legacy-builder-config';
 import { api } from '../../../../convex/_generated/api';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
@@ -62,32 +59,6 @@ async function configFor(chatroomId: any, role: string) {
 }
 
 describe('builder ephemeral migration', () => {
-  test('mergeCanonicalBuilderIntoTeamRoles appends builder to solo teams', () => {
-    expect(mergeCanonicalBuilderIntoTeamRoles('solo', ['solo'])).toEqual([
-      'solo',
-      'enhancer',
-      'builder',
-    ]);
-    expect(mergeCanonicalBuilderIntoTeamRoles('solo', ['solo', 'enhancer'])).toEqual([
-      'solo',
-      'enhancer',
-      'builder',
-    ]);
-    expect(mergeCanonicalBuilderIntoTeamRoles('solo', ['solo', 'enhancer', 'builder'])).toEqual([
-      'solo',
-      'enhancer',
-      'builder',
-    ]);
-    expect(mergeCanonicalBuilderIntoTeamRoles('duo', ['planner', 'builder'])).toEqual([
-      'planner',
-      'builder',
-    ]);
-    expect(mergeCanonicalBuilderIntoTeamRoles('custom', ['planner', 'builder'])).toEqual([
-      'planner',
-      'builder',
-    ]);
-  });
-
   test('clears PID and forces stopped for a running legacy builder config', async () => {
     const sessionId = 'builder-migration-running';
     const chatroomId = await setupBuilderChatroom(sessionId);

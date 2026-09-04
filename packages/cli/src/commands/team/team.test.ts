@@ -19,9 +19,7 @@ describe('team commands', () => {
     expect(log.mock.calls.join('\n')).toContain(
       'duo — Duo (planner, enhancer, builder) entry: planner'
     );
-    expect(log.mock.calls.join('\n')).toContain(
-      'solo — Solo (solo, enhancer, builder) entry: solo'
-    );
+    expect(log.mock.calls.join('\n')).toContain('solo — Solo (solo, enhancer) entry: solo');
     log.mockRestore();
   });
 
@@ -49,7 +47,7 @@ describe('team commands', () => {
       expect.objectContaining({
         chatroomId: 'room_1',
         teamId: 'solo',
-        teamRoles: ['solo', 'enhancer', 'builder'],
+        teamRoles: ['solo', 'enhancer'],
         teamEntryPoint: 'solo',
       })
     );
