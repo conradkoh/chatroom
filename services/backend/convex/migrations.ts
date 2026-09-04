@@ -22,7 +22,10 @@ import {
   projectAgentRoleStatusReadModel,
   statusEventForAgentEvent,
 } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
-import { migrateLegacyBuilderConfigRow } from '../src/domain/usecase/builder/migrate-legacy-builder-config';
+import {
+  migrateLegacyBuilderConfigRow,
+  mergeCanonicalBuilderIntoTeamRoles,
+} from '../src/domain/usecase/builder/migrate-legacy-builder-config';
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
 import {
   mergeCanonicalEnhancerIntoTeamRoles,
@@ -427,6 +430,24 @@ export const migrateAgentViewMetadataEnhancerRole = migrations.define({
   migrateOne: async (_ctx, row) => {
     const merged = mergeCanonicalEnhancerIntoTeamRoles(row.teamId, row.teamRoles);
     if (JSON.stringify(merged) === JSON.stringify(row.teamRoles)) return;
+    return migrationPatch<Doc<'chatroom_agentViewMetadata'>>({ teamRoles: merged });
+  },
+});
+
+export const migrateAddBuilderToSoloRoomTeamRoles = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (_ctx, room) => {
+    const merged = mergeCanonicalBuilderIntoTeamRoles(room.teamId, room.teamRoles ?? []);
+    if (!merged || JSON.stringify(merged) === JSON.stringify(room.teamRoles ?? [])) return;
+    return migrationPatch<Doc<'chatroom_rooms'>>({ teamRoles: merged });
+  },
+});
+
+export const migrateAgentViewMetadataBuilderRole = migrations.define({
+  table: 'chatroom_agentViewMetadata',
+  migrateOne: async (_ctx, row) => {
+    const merged = mergeCanonicalBuilderIntoTeamRoles(row.teamId, row.teamRoles);
+    if (!merged || JSON.stringify(merged) === JSON.stringify(row.teamRoles)) return;
     return migrationPatch<Doc<'chatroom_agentViewMetadata'>>({ teamRoles: merged });
   },
 });
@@ -1055,6 +1076,8 @@ const allMigrationReferences = [
   internal.migrations.migrateEnhancerConfigToTeamAgentConfig,
   internal.migrations.migrateAddEnhancerToRoomTeamRoles,
   internal.migrations.migrateAgentViewMetadataEnhancerRole,
+  internal.migrations.migrateAddBuilderToSoloRoomTeamRoles,
+  internal.migrations.migrateAgentViewMetadataBuilderRole,
   internal.migrations.migrateEnhancerJobOriginToTask,
   internal.migrations.migrateTaskEnhancerEnabledSnapshot,
   // Machine Config Favorites

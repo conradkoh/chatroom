@@ -1,7 +1,28 @@
 import { isEphemeralAgentRole, normalizeAgentRole } from '@workspace/shared/domain/agent-role';
+import { getTeamPreset } from '@workspace/shared/domain/team-presets';
 
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+
+// fallow-ignore-next-line complexity
+export function mergeCanonicalBuilderIntoTeamRoles(
+  teamId: string | undefined | null,
+  teamRoles: readonly string[] | undefined | null
+): string[] | undefined {
+  if (!teamId || !teamRoles?.length) return teamRoles ? [...teamRoles] : undefined;
+  const preset = getTeamPreset(teamId);
+  if (!preset || !preset.roles.some((r) => r.trim().toLowerCase() === 'builder'))
+    return [...teamRoles];
+  const normalized = teamRoles.map((r) => r.trim().toLowerCase());
+  if (normalized.includes('builder')) return [...teamRoles];
+  if (teamId.toLowerCase() === 'solo' && normalized.includes('solo')) {
+    const out = [...teamRoles];
+    if (!normalized.includes('enhancer')) out.push('enhancer');
+    out.push('builder');
+    return out;
+  }
+  return [...teamRoles];
+}
 
 /**
  * One-off migration: retire legacy builder agent configs when builder becomes
