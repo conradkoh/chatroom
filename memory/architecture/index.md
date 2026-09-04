@@ -8,3 +8,4 @@
 - [Agent stop golden path](agent-stop-golden-path.md) — durable aggregate stops, exact-target execution, projection-driven UI
 - [Explicit optional props for intermediate states](explicit-optional-props.md) — distinguish omitted capabilities from temporarily unavailable values at TypeScript component boundaries
 - [Bandwidth at rest across projects](bandwidth-at-rest-scaling.md) — cross-app audit of Convex subscription and heartbeat paths when many projects are idle
+- [Daemon machine-keyed subscriptions](daemon-machine-keyed-subscriptions.md) — research log of machineId-keyed daemon subscriptions that should be chatroom/workspace-scoped
