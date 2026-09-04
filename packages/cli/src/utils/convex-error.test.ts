@@ -7,7 +7,11 @@
 import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
-import { getErrorMessage } from './convex-error.js';
+import {
+  getConvexErrorCode,
+  getErrorMessage,
+  isFileTreeSyncDisabledError,
+} from './convex-error.js';
 
 describe('getErrorMessage', () => {
   describe('ConvexError with string data', () => {
@@ -116,5 +120,28 @@ describe('getErrorMessage', () => {
     it('converts numbers to string', () => {
       expect(getErrorMessage(404)).toBe('404');
     });
+  });
+});
+
+describe('ConvexError code helpers', () => {
+  it('extracts a structured code from object data', () => {
+    const error = new ConvexError({ code: 'FILE_TREE_SYNC_DISABLED', message: 'disabled' });
+
+    expect(getConvexErrorCode(error)).toBe('FILE_TREE_SYNC_DISABLED');
+    expect(isFileTreeSyncDisabledError(error)).toBe(true);
+  });
+
+  it('does not extract codes from string data', () => {
+    const error = new ConvexError('FILE_TREE_SYNC_DISABLED');
+
+    expect(getConvexErrorCode(error)).toBeUndefined();
+    expect(isFileTreeSyncDisabledError(error)).toBe(false);
+  });
+
+  it('does not classify regular errors as disabled sync errors', () => {
+    const error = new Error('FILE_TREE_SYNC_DISABLED');
+
+    expect(getConvexErrorCode(error)).toBeUndefined();
+    expect(isFileTreeSyncDisabledError(error)).toBe(false);
   });
 });

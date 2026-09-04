@@ -26,6 +26,7 @@ function makeWorkspace(machineId: string, workingDir: string): Workspace {
     hostname: 'host',
     workingDir,
     agentRoles: [],
+    fileTreeSyncEnabled: true,
   };
 }
 
@@ -107,6 +108,32 @@ describe('useMultiWorkspaceFileSync', () => {
     expect(mocks.requestMutation).toHaveBeenCalledWith({
       machineId: 'machine-1',
       workingDir: '/repo-a',
+    });
+  });
+
+  it('refreshAll skips workspaces with file-tree sync disabled', async () => {
+    vi.useFakeTimers();
+    const workspaces = [
+      makeWorkspace('machine-1', '/repo-a/'),
+      { ...makeWorkspace('machine-2', '/repo-b'), fileTreeSyncEnabled: false },
+    ];
+    const { result } = renderHook(() => useMultiWorkspaceFileSync(workspaces));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    mocks.requestMutation.mockClear();
+
+    act(() => {
+      result.current.refreshAll({ force: true });
+    });
+
+    expect(mocks.requestMutation).toHaveBeenCalledTimes(1);
+    expect(mocks.requestMutation).toHaveBeenCalledWith({
+      machineId: 'machine-1',
+      workingDir: '/repo-a',
+      force: true,
     });
   });
 });

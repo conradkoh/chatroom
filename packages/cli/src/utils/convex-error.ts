@@ -5,6 +5,7 @@
  * than the generic "[Request ID: xxx] Server Error" .message property.
  */
 
+import { FILE_TREE_SYNC_DISABLED_CODE } from '@workspace/backend/convex/workspaceFileTree/access.js';
 import { ConvexError, type Value } from 'convex/values';
 
 const SERVER_ERROR_HINT =
@@ -42,7 +43,11 @@ function formatConvexErrorData(error: ConvexError<Value>): string {
 
   if (error.data !== null && typeof error.data === 'object') {
     return formatConvexErrorObject(
-      error.data as { code?: string | undefined; message?: string | undefined; fields?: string[] | undefined }
+      error.data as {
+        code?: string | undefined;
+        message?: string | undefined;
+        fields?: string[] | undefined;
+      }
     );
   }
   return String(error.data);
@@ -59,4 +64,22 @@ export function getErrorMessage(error: unknown): string {
   if (error instanceof ConvexError) return formatConvexErrorData(error as ConvexError<Value>);
   if (error instanceof Error) return formatServerError(error);
   return String(error);
+}
+
+/** Returns the structured application code carried by a ConvexError object. */
+// fallow-ignore-next-line unused-export complexity
+export function getConvexErrorCode(error: unknown): string | undefined {
+  if (!(error instanceof ConvexError)) return undefined;
+
+  const data = (error as ConvexError<Value>).data;
+  if (data !== null && typeof data === 'object' && 'code' in data) {
+    const code = (data as { code: unknown }).code;
+    if (typeof code === 'string') return code;
+  }
+  return undefined;
+}
+
+/** Identifies the terminal backend response that disables local file-tree sync. */
+export function isFileTreeSyncDisabledError(error: unknown): boolean {
+  return getConvexErrorCode(error) === FILE_TREE_SYNC_DISABLED_CODE;
 }

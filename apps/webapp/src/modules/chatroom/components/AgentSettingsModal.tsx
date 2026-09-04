@@ -19,6 +19,7 @@ import {
   FileText,
 } from 'lucide-react';
 import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from 'react';
+import { toast } from 'sonner';
 
 import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
@@ -46,6 +47,7 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
+import { Switch } from '@/components/ui/switch';
 import { getDaemonStartCommand } from '@/lib/environment';
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
@@ -557,6 +559,8 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
   const purgeFullDiffMutation = useSessionMutation(api.workspaces.purgeFullDiffV2);
   const purgeCommitDetailMutation = useSessionMutation(api.workspaces.purgeCommitDetailV2);
   const requestFileTreeMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+  const setFileTreeSyncEnabledMutation = useSessionMutation(api.workspaces.setFileTreeSyncEnabled);
+  const [fileTreeSyncPendingIds, setFileTreeSyncPendingIds] = useState<Set<string>>(new Set());
 
   // Build a set of machineId::workingDir keys for active team agents.
   // Any agent in the active team that has a machine + workspace configured
@@ -586,6 +590,34 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
       }
     },
     [removeWorkspace]
+  );
+
+  // Toggle file-tree sync for a single workspace (per registry id). No optimistic
+  // update — the Convex subscription is the source of truth for the switch state.
+  const handleFileTreeSyncToggle = useCallback(
+    async (registryId: string, enabled: boolean) => {
+      if (fileTreeSyncPendingIds.has(registryId)) return;
+      setFileTreeSyncPendingIds((prev) => new Set(prev).add(registryId));
+      try {
+        await setFileTreeSyncEnabledMutation({
+          workspaceId: registryId as Id<'chatroom_workspaces'>,
+          enabled,
+        });
+      } catch {
+        toast.error(
+          enabled
+            ? 'Failed to enable workspace file tree sync'
+            : 'Failed to disable workspace file tree sync'
+        );
+      } finally {
+        setFileTreeSyncPendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(registryId);
+          return next;
+        });
+      }
+    },
+    [fileTreeSyncPendingIds, setFileTreeSyncEnabledMutation]
   );
 
   // Purge cache dialog state
@@ -669,11 +701,12 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
       )}
       {workspaces.map((ws) => {
         const hostname = getWorkspaceDisplayHostname(ws);
+        const registryId = ws._registryId;
         const hasActiveRemote = ws.machineId
           ? activeAgentWorkspaceKeys.has(`${ws.machineId}::${ws.workingDir}`)
           : false;
         const isRemoving = removingId === ws._registryId;
-        const canRemove = !hasActiveRemote && !isRemoving && !!ws._registryId;
+        const canRemove = !hasActiveRemote && !isRemoving && !!registryId;
 
         return (
           <div
@@ -688,6 +721,35 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
               <div className="text-xs text-chatroom-text-muted font-mono truncate mt-0.5">
                 {ws.workingDir}
               </div>
+              {registryId ? (
+                <div className="mt-3 flex items-center justify-between gap-4 border-t border-chatroom-border pt-3">
+                  <div className="min-w-0">
+                    <label
+                      htmlFor={`file-tree-sync-${registryId}`}
+                      className="text-xs font-medium text-chatroom-text-primary"
+                    >
+                      Sync file tree
+                    </label>
+                    <p className="text-[10px] text-chatroom-text-muted">
+                      Allow this workspace&apos;s file and folder changes to sync to Chatroom.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {fileTreeSyncPendingIds.has(registryId) ? (
+                      <span className="text-[10px] text-chatroom-text-muted">
+                        {ws.fileTreeSyncEnabled ? 'Disabling…' : 'Enabling…'}
+                      </span>
+                    ) : null}
+                    <Switch
+                      id={`file-tree-sync-${registryId}`}
+                      checked={ws.fileTreeSyncEnabled}
+                      disabled={fileTreeSyncPendingIds.has(registryId)}
+                      onCheckedChange={(checked) => handleFileTreeSyncToggle(registryId, checked)}
+                      aria-label={`Sync file tree for ${hostname}`}
+                    />
+                  </div>
+                </div>
+              ) : null}
               {ws.agentRoles.length > 0 && (
                 <div className="text-[10px] text-chatroom-text-muted mt-1">
                   Agents: {ws.agentRoles.join(', ')}

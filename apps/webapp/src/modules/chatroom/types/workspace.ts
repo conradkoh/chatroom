@@ -22,6 +22,8 @@ export interface Workspace {
   registeredAt?: number;
   /** ID from workspace registry, used for manual removal */
   _registryId?: string;
+  /** Whether this workspace syncs file-tree data to Chatroom. Defaults true for legacy rows. */
+  fileTreeSyncEnabled: boolean;
 }
 
 /**

@@ -66,6 +66,7 @@ export async function registerWorkspace(
     hostname,
     registeredBy,
     registeredAt: Date.now(),
+    fileTreeSyncEnabled: false,
   });
   await enqueueWorkspaceListChangedForChatroom(ctx, chatroomId as Id<'chatroom_rooms'>);
 

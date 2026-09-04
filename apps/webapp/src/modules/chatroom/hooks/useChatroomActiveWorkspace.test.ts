@@ -28,6 +28,7 @@ function makeWorkspace(overrides: {
     hostname: overrides.hostname ?? 'laptop',
     machineAlias: overrides.machineAlias,
     agentRoles: [],
+    fileTreeSyncEnabled: true,
     _registryId: overrides._registryId,
   };
 }

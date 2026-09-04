@@ -9,12 +9,16 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Doc } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
 import { getSession, requireSession } from './auth/session';
 import { omitUndefined } from './lib/omitUndefined';
+import { str } from './utils/types';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
-import { str } from './utils/types';
+import { upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
+import { normalizeWorkingDir } from './workspacePathSecurity';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
@@ -102,6 +106,73 @@ export const removeWorkspace = mutation({
     await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
 
     return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
+  },
+});
+
+/**
+ * Tears down all file-tree sync state for a workspace after sync is disabled.
+ * Zeros the watch lease, cancels any pending request, and queues a daemon release.
+ * Does not clear cached file-tree data.
+ */
+async function disableFileTreeSyncLifecycle(
+  ctx: MutationCtx,
+  workspace: Doc<'chatroom_workspaces'>,
+  now: number
+): Promise<void> {
+  const workingDir = normalizeWorkingDir(workspace.workingDir);
+  const { machineId } = workspace;
+
+  const watchRow = await ctx.db
+    .query('chatroom_workspaceFileTreeWatches')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+  if (watchRow) {
+    await ctx.db.patch('chatroom_workspaceFileTreeWatches', watchRow._id, {
+      watchCount: 0,
+      expiresAt: undefined,
+      updatedAt: now,
+    });
+  }
+
+  const pendingRequest = await ctx.db
+    .query('chatroom_workspaceFileTreeRequests')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+  if (pendingRequest?.status === 'pending') {
+    await ctx.db.patch('chatroom_workspaceFileTreeRequests', pendingRequest._id, {
+      status: 'done',
+      updatedAt: now,
+    });
+  }
+
+  await upsertPendingFileTreeReleaseRequest(ctx, machineId, workingDir);
+}
+
+/**
+ * Enables or disables future file-tree synchronization for a workspace.
+ * Cached file-tree data is intentionally retained when sync is disabled.
+ */
+export const setFileTreeSyncEnabled = mutation({
+  args: {
+    ...SessionIdArg,
+    workspaceId: v.id('chatroom_workspaces'),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { workspace } = await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
+    const now = Date.now();
+
+    await ctx.db.patch('chatroom_workspaces', args.workspaceId, {
+      fileTreeSyncEnabled: args.enabled,
+    });
+
+    if (args.enabled) return;
+
+    await disableFileTreeSyncLifecycle(ctx, workspace, now);
   },
 });
 
@@ -209,7 +280,10 @@ export const getWorkspaceById = query({
     });
     if (!hasAccess) return null;
 
-    return workspace;
+    return {
+      ...workspace,
+      fileTreeSyncEnabled: workspace.fileTreeSyncEnabled === true,
+    };
   },
 });
 
