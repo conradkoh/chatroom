@@ -1864,7 +1864,6 @@ export function ChatroomDashboard({
                         <FileExplorerPanel
                           ref={fileExplorerPanelRef}
                           chatroomId={chatroomId}
-                          workspaceId={activeWorkspace.workspaceId}
                           machineId={activeWorkspace.machineId}
                           workingDir={activeWorkspace.workingDir}
                           fileTreeSyncEnabled={fileTreeSyncEnabled}

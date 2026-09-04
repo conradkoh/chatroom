@@ -1,8 +1,6 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   ChevronDown,
   ChevronRight,
@@ -57,8 +55,6 @@ import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 import { useWorkspaceUploadJobs } from '../hooks/useWorkspaceUploadJobs';
 import { basename } from '../utils/diff-parser';
 
-import { Button } from '@/components/ui/button';
-
 export interface FileExplorerPanelHandle {
   refresh: () => void;
 }
@@ -88,7 +84,6 @@ type ExplorerContextTarget =
 
 interface FileExplorerPanelProps {
   chatroomId?: string;
-  workspaceId?: string | null;
   machineId: string | null;
   workingDir: string | null;
   /** Whether file-tree data synchronization is enabled for this workspace. When false the panel shows a read-only disabled state pointing to Settings. */
@@ -116,19 +111,13 @@ interface FileExplorerPanelProps {
 
 // fallow-ignore-next-line complexity
 function ExplorerPanelHeader({
-  fileTreeSyncEnabled = true,
-  fileTreeSyncPending = false,
-  onFileTreeSyncChange,
   explorerSyncEnabled,
   onToggleSync,
 }: {
-  fileTreeSyncEnabled?: boolean;
-  fileTreeSyncPending?: boolean;
-  onFileTreeSyncChange?: (enabled: boolean) => void;
   explorerSyncEnabled?: boolean;
   onToggleSync?: (enabled: boolean) => void;
 }) {
-  const showMenu = onFileTreeSyncChange != null || onToggleSync != null;
+  const showMenu = onToggleSync != null;
 
   return (
     <div className="px-3 py-2 border-b border-chatroom-border-strong flex items-center justify-between shrink-0">
@@ -145,19 +134,9 @@ function ExplorerPanelHeader({
             <MoreHorizontal size={13} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[180px]">
-            {onFileTreeSyncChange ? (
-              <DropdownMenuCheckboxItem
-                checked={fileTreeSyncEnabled}
-                disabled={fileTreeSyncPending}
-                onCheckedChange={onFileTreeSyncChange}
-              >
-                Workspace file tree sync
-              </DropdownMenuCheckboxItem>
-            ) : null}
             {onToggleSync ? (
               <DropdownMenuCheckboxItem
                 checked={explorerSyncEnabled}
-                disabled={!fileTreeSyncEnabled}
                 onCheckedChange={onToggleSync}
               >
                 Sync with active editor
@@ -274,7 +253,6 @@ export const FileExplorerPanel = memo(
     function FileExplorerPanel(
       {
         chatroomId,
-        workspaceId,
         machineId,
         workingDir,
         fileTreeSyncEnabled = false,
@@ -333,34 +311,6 @@ export const FileExplorerPanel = memo(
         handleDrop,
         handleUploadDialogOpenChange,
       } = useExplorerFileDrop();
-
-      const setFileTreeSyncEnabledMutation = useSessionMutation(
-        api.workspaces.setFileTreeSyncEnabled
-      );
-      const [fileTreeSyncPending, setFileTreeSyncPending] = useState(false);
-
-      // fallow-ignore-next-line complexity
-      const handleFileTreeSyncChange = useCallback(
-        async (enabled: boolean) => {
-          if (!workspaceId || fileTreeSyncPending) return;
-          setFileTreeSyncPending(true);
-          try {
-            await setFileTreeSyncEnabledMutation({
-              workspaceId: workspaceId as Id<'chatroom_workspaces'>,
-              enabled,
-            });
-          } catch {
-            toast.error(
-              enabled
-                ? 'Failed to enable workspace file tree sync'
-                : 'Failed to disable workspace file tree sync'
-            );
-          } finally {
-            setFileTreeSyncPending(false);
-          }
-        },
-        [workspaceId, fileTreeSyncPending, setFileTreeSyncEnabledMutation]
-      );
 
       const openNewFileDialog = useCallback((defaultDir = '') => {
         setNewFileDefaultDir(defaultDir);
@@ -501,9 +451,6 @@ export const FileExplorerPanel = memo(
         return (
           <div className="h-full flex flex-col min-w-0">
             <ExplorerPanelHeader
-              fileTreeSyncEnabled={fileTreeSyncEnabled}
-              fileTreeSyncPending={fileTreeSyncPending}
-              onFileTreeSyncChange={handleFileTreeSyncChange}
               explorerSyncEnabled={explorerSyncEnabled}
               onToggleSync={onToggleSync}
             />
@@ -518,9 +465,6 @@ export const FileExplorerPanel = memo(
         return (
           <div className="h-full flex flex-col min-w-0">
             <ExplorerPanelHeader
-              fileTreeSyncEnabled={fileTreeSyncEnabled}
-              fileTreeSyncPending={fileTreeSyncPending}
-              onFileTreeSyncChange={handleFileTreeSyncChange}
               explorerSyncEnabled={explorerSyncEnabled}
               onToggleSync={onToggleSync}
             />
@@ -530,16 +474,9 @@ export const FileExplorerPanel = memo(
                 Workspace file tree syncing is disabled
               </p>
               <p className="max-w-64 text-xs text-chatroom-text-secondary">
-                Enable file tree sync to browse this workspace&apos;s files.
+                Enable file tree sync in Settings → Workspaces to browse this workspace&apos;s
+                files.
               </p>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => handleFileTreeSyncChange(true)}
-                disabled={fileTreeSyncPending}
-              >
-                {fileTreeSyncPending ? 'Enabling…' : 'Enable file tree sync'}
-              </Button>
             </div>
           </div>
         );
@@ -548,9 +485,6 @@ export const FileExplorerPanel = memo(
       return (
         <div className="h-full flex flex-col min-w-0">
           <ExplorerPanelHeader
-            fileTreeSyncEnabled={fileTreeSyncEnabled}
-            fileTreeSyncPending={fileTreeSyncPending}
-            onFileTreeSyncChange={handleFileTreeSyncChange}
             explorerSyncEnabled={explorerSyncEnabled}
             onToggleSync={onToggleSync}
           />
