@@ -1,6 +1,7 @@
 import { extractHandoffXmlTag } from './extractHandoffXmlTag';
 
-export type HandoffEnvelopeSectionId = 'user-message' | 'grounding' | 'builder-handoff';
+export type HandoffEnvelopeSectionId =
+  'user-message' | 'additional-context' | 'grounding' | 'builder-handoff';
 
 export interface HandoffEnvelopeSection {
   id: HandoffEnvelopeSectionId;
@@ -17,6 +18,7 @@ export interface HandoffEnvelopeParseResult {
 
 const SECTION_DEFS: { id: HandoffEnvelopeSectionId; label: string }[] = [
   { id: 'user-message', label: 'User message' },
+  { id: 'additional-context', label: 'Additional context' },
   { id: 'grounding', label: 'Grounding' },
   { id: 'builder-handoff', label: 'Builder handoff draft' },
 ];

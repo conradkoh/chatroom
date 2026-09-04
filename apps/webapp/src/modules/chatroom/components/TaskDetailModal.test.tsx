@@ -77,6 +77,7 @@ const ENVELOPE_TASK = {
   chatroomId: 'room-1' as Id<'chatroom_rooms'>,
   createdBy: 'planner',
   content: `<user-message>User request here</user-message>
+<additional-context>Supporting constraints</additional-context>
 <grounding>Research notes</grounding>
 <builder-handoff>## Goal\nDo the thing</builder-handoff>`,
   status: 'pending' as TaskStatus,
@@ -131,6 +132,7 @@ describe('TaskDetailModal — structured handoff', () => {
     render(<TaskDetailModal isOpen task={ENVELOPE_TASK} {...defaultProps} />);
     expect(screen.getByTestId('handoff-envelope-view')).toBeInTheDocument();
     expect(screen.getByTestId('handoff-section-user-message')).toBeInTheDocument();
+    expect(screen.getByTestId('handoff-section-additional-context')).toBeInTheDocument();
   });
 
   it('renders HandoffReportView for structured report task', () => {
