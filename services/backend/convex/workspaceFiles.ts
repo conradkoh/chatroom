@@ -14,10 +14,7 @@ import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
 import { compactFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
 import { omitUndefined } from './lib/omitUndefined';
-import {
-  isFileTreeSyncEnabled,
-  requireFileTreeSyncEnabledForWorkspace,
-} from './workspaceFileTree/access';
+import { requireFileTreeSyncEnabledForWorkspace } from './workspaceFileTree/access';
 import * as blobSnapshots from './workspaceFileTree/repositories/blobSnapshotRepository';
 import * as shardedSnapshots from './workspaceFileTree/repositories/shardedSnapshotRepository';
 import { publishFileTreeCheckpoint as publishCheckpointService } from './workspaceFileTree/services/checkpointPublishService';
@@ -455,12 +452,7 @@ export const getPendingFileTreeRequests = query({
     const enabledRequests = [];
     for (const request of requests) {
       try {
-        const workspace = await requireFileTreeSyncEnabledForWorkspace(
-          ctx,
-          args.machineId,
-          request.workingDir
-        );
-        if (!isFileTreeSyncEnabled(workspace)) continue;
+        await requireFileTreeSyncEnabledForWorkspace(ctx, args.machineId, request.workingDir);
       } catch {
         continue;
       }
