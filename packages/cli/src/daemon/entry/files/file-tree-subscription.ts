@@ -140,7 +140,7 @@ async function drainPendingFileTreeReleaseRequests(
     let successCount = 0;
     for (const normalized of releasesByDir) {
       try {
-        await stopCoordinatorForWorkingDir(
+        await stopFileTreeSyncForDir(
           coordinators,
           checkpointOutboxRegistry,
           deltaOutboxRegistry,
@@ -151,7 +151,6 @@ async function drainPendingFileTreeReleaseRequests(
           machineId: session.machineId,
           workingDir: normalized,
         });
-        console.log(`[${formatTimestamp()}] 🌳 File tree coordinator stopped: ${normalized}`);
         successCount++;
       } catch (err: unknown) {
         logSubscriptionWarn(`File tree release failed for ${normalized}`, err);
