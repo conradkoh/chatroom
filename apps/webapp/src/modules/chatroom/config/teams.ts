@@ -21,8 +21,8 @@ export const TEAMS_CONFIG: TeamsConfig = {
     },
     solo: {
       name: 'Solo',
-      description: 'A single agent working independently',
-      roles: ['solo'],
+      description: 'A single agent working independently, with optional on-demand builder',
+      roles: ['solo', 'builder'],
       entryPoint: 'solo',
     },
   },
