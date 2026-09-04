@@ -47,7 +47,6 @@ export function createWorkspaceFileTreeDeltaSend(
       return result;
     } catch (error: unknown) {
       if (!isFileTreeSyncDisabledError(error)) throw error;
-      if (!options?.onSyncDisabled) throw error;
       void (async () => options?.onSyncDisabled?.())().catch(() => undefined);
       return { status: 'applied', revision: unit.baseRevision };
     }

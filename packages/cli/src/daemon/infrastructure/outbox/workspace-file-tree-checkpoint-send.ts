@@ -101,7 +101,6 @@ export function createWorkspaceFileTreeCheckpointSend(
       return { revision };
     } catch (error: unknown) {
       if (!isFileTreeSyncDisabledError(error)) throw error;
-      if (!options?.onSyncDisabled) throw error;
       void (async () => options?.onSyncDisabled?.())().catch(() => undefined);
       return { revision: state.revision };
     }

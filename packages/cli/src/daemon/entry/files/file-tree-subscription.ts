@@ -50,10 +50,24 @@ async function runOneShotFileTreeSync(
   deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry | undefined
 ): Promise<void> {
   const normalized = normalizeWorkingDirForLookup(workingDir);
+  let syncDisabled = false;
   try {
     const tree = await scanFileTree(normalized);
-    const send = createWorkspaceFileTreeCheckpointSend(session, normalized);
+    const send = createWorkspaceFileTreeCheckpointSend(session, normalized, {
+      onSyncDisabled: () => {
+        syncDisabled = true;
+      },
+    });
     await send({ tree, revision: 0 });
+    if (syncDisabled) {
+      await stopFileTreeSyncForDir(
+        coordinators,
+        checkpointOutboxRegistry,
+        deltaOutboxRegistry,
+        normalized
+      );
+      return;
+    }
     await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
       sessionId: session.sessionId,
       machineId: session.machineId,
