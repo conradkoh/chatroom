@@ -12,9 +12,11 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { getSession, requireSession } from './auth/session';
 import { omitUndefined } from './lib/omitUndefined';
+import { str } from './utils/types';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
-import { str } from './utils/types';
+import { upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
+import { normalizeWorkingDir } from './workspacePathSecurity';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
@@ -116,10 +118,46 @@ export const setFileTreeSyncEnabled = mutation({
     enabled: v.boolean(),
   },
   handler: async (ctx, args) => {
-    await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
+    const { workspace } = await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
+    const now = Date.now();
+
     await ctx.db.patch('chatroom_workspaces', args.workspaceId, {
       fileTreeSyncEnabled: args.enabled,
     });
+
+    if (args.enabled) return;
+
+    const workingDir = normalizeWorkingDir(workspace.workingDir);
+    const { machineId } = workspace;
+
+    const watchRow = await ctx.db
+      .query('chatroom_workspaceFileTreeWatches')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', machineId).eq('workingDir', workingDir)
+      )
+      .first();
+    if (watchRow) {
+      await ctx.db.patch('chatroom_workspaceFileTreeWatches', watchRow._id, {
+        watchCount: 0,
+        expiresAt: undefined,
+        updatedAt: now,
+      });
+    }
+
+    const pendingRequest = await ctx.db
+      .query('chatroom_workspaceFileTreeRequests')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', machineId).eq('workingDir', workingDir)
+      )
+      .first();
+    if (pendingRequest?.status === 'pending') {
+      await ctx.db.patch('chatroom_workspaceFileTreeRequests', pendingRequest._id, {
+        status: 'done',
+        updatedAt: now,
+      });
+    }
+
+    await upsertPendingFileTreeReleaseRequest(ctx, machineId, workingDir);
   },
 });
 
