@@ -192,7 +192,7 @@ describe('disabled workspace file-tree synchronization', () => {
         dataHash: 'enabled-v2-hash',
         scannedAt: Date.now(),
       })
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
   });
 
   test('getPendingFileTreeRequests omits a disabled workspace request', async () => {

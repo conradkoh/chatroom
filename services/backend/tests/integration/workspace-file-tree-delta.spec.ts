@@ -6,12 +6,17 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, registerWorkspaceWithFileTreeSync } from '../helpers/integration';
+import {
+  createTestSession,
+  registerMachineWithDaemon,
+  registerWorkspaceWithFileTreeSync,
+} from '../helpers/integration';
 
 const WORKING_DIR = '/tmp/incremental-workspace';
 
 async function setup(sessionKey: string, machineId: string) {
   const { sessionId } = await createTestSession(sessionKey);
+  await registerMachineWithDaemon(sessionId, machineId);
   await registerWorkspaceWithFileTreeSync(sessionId, machineId, WORKING_DIR);
   return { sessionId, machineId };
 }

@@ -8,13 +8,18 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, registerWorkspaceWithFileTreeSync } from '../helpers/integration';
+import {
+  createTestSession,
+  registerMachineWithDaemon,
+  registerWorkspaceWithFileTreeSync,
+} from '../helpers/integration';
 
 describe('workspace file tree requests', () => {
   test('requestFileTree returns cached when V2 tree is fresh', async () => {
     const { sessionId } = await createTestSession('test-wft-cached');
     const machineId = 'machine-wft-cached';
     const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
     await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
@@ -43,6 +48,7 @@ describe('workspace file tree requests', () => {
     const { sessionId } = await createTestSession('test-wft-force');
     const machineId = 'machine-wft-force';
     const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
     await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
@@ -72,6 +78,7 @@ describe('workspace file tree requests', () => {
     const { sessionId } = await createTestSession('test-wft-slash');
     const machineId = 'machine-wft-slash';
     const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
     await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
@@ -100,6 +107,7 @@ describe('workspace file tree requests', () => {
     const { sessionId } = await createTestSession('test-wft-get-slash');
     const machineId = 'machine-wft-get-slash';
     const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
     await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
@@ -129,6 +137,7 @@ describe('workspace file tree requests', () => {
     const { sessionId } = await createTestSession('test-wft-v3-cached');
     const machineId = 'machine-wft-v3-cached';
     const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
     await registerWorkspaceWithFileTreeSync(sessionId, machineId, workingDir);
 
     await t.run(async (ctx) => {
