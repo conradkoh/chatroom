@@ -23,6 +23,7 @@ import {
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
+import { machineOperationalSignalScopeValidator } from '../src/domain/entities/machine-operational-signal';
 import { ackMachineOperationalSignals as ackMachineOperationalSignalsUseCase } from '../src/domain/usecase/agent/ack-machine-operational-signals';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
@@ -2227,8 +2228,7 @@ export const listMachineAssignedTaskSnapshots = query({
 export const subscribeMachineOperationalSignalsSince = query({
   args: {
     ...SessionIdArg,
-    machineId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
+    ...machineOperationalSignalScopeValidator,
     afterKey: v.string(),
     limit: v.optional(v.number()),
   },
@@ -2269,8 +2269,7 @@ export const subscribeMachineOperationalSignalsSince = query({
 export const listOperationalStatusForMachineSignalRange = query({
   args: {
     ...SessionIdArg,
-    machineId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
+    ...machineOperationalSignalScopeValidator,
     afterSignalKey: v.string(),
     throughSignalKey: v.string(),
     limit: v.optional(v.number()),
@@ -2311,8 +2310,7 @@ export const listMachineAgentOperationalStatus = query({
 export const ackMachineOperationalSignals = mutation({
   args: {
     ...SessionIdArg,
-    machineId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
+    ...machineOperationalSignalScopeValidator,
     throughSignalKey: v.string(),
   },
   handler: async (ctx, args) => {
