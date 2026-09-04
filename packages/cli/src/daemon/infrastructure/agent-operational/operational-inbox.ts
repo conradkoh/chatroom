@@ -12,7 +12,11 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
-import type { Doc, Id } from '../../../api.js';
+import {
+  buildListOperationalStatusForMachineSignalRangeArgs,
+  buildSubscribeMachineOperationalSignalsSinceArgs,
+} from './operational-signal-contract.js';
+import type { Doc } from '../../../api.js';
 import { api } from '../../../api.js';
 
 const DEFAULT_SIGNAL_PAGE_LIMIT = 100;
@@ -104,13 +108,13 @@ function waitForOperationalSignalPage(
 
     unsubscribe = options.client.onUpdate(
       api.machines.subscribeMachineOperationalSignalsSince,
-      {
+      buildSubscribeMachineOperationalSignalsSinceArgs({
         sessionId: options.sessionId,
         machineId: options.machineId,
-        chatroomId: options.chatroomId as Id<'chatroom_rooms'>,
+        chatroomId: options.chatroomId,
         afterKey: afterSignalKey,
         limit: options.signalPageLimit ?? DEFAULT_SIGNAL_PAGE_LIMIT,
-      },
+      }),
       (result: unknown) => {
         if (!result || typeof result !== 'object') return;
         const page = result as {
@@ -164,14 +168,14 @@ async function fetchRowsForSignalPage(
     throwIfAborted(options.signal);
     const result = await options.client.query(
       api.machines.listOperationalStatusForMachineSignalRange,
-      {
+      buildListOperationalStatusForMachineSignalRangeArgs({
         sessionId: options.sessionId,
         machineId: options.machineId,
-        chatroomId: options.chatroomId as Id<'chatroom_rooms'>,
+        chatroomId: options.chatroomId,
         afterSignalKey,
         throughSignalKey: page.highSignalKey,
         limit: options.operationalPageLimit ?? DEFAULT_OPERATIONAL_PAGE_LIMIT,
-      }
+      })
     );
     rows.push(...result.rows);
     removed.push(...result.removed);
