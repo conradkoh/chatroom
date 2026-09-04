@@ -58,8 +58,20 @@ vi.mock('../../attachments', async (importOriginal) => {
 });
 
 vi.mock('./HandoffEnvelopeView', () => ({
-  HandoffEnvelopeView: ({ content, variant }: { content: string; variant: string }) => (
-    <div data-testid="handoff-envelope-view" data-variant={variant}>
+  HandoffEnvelopeView: ({
+    content,
+    variant,
+    initiallyExpanded,
+  }: {
+    content: string;
+    variant: string;
+    initiallyExpanded?: boolean;
+  }) => (
+    <div
+      data-testid="handoff-envelope-view"
+      data-variant={variant}
+      data-initially-expanded={String(initiallyExpanded)}
+    >
       {content}
     </div>
   ),
@@ -120,10 +132,27 @@ describe('TimelineTeamMessage enhancer toggle', () => {
   it('renders HandoffEnvelopeView for planner check-in envelope', () => {
     const envelopeMessage: Message = {
       ...BASE_MESSAGE,
+      targetRole: 'enhancer',
       content: '<user-message>hello</user-message><grounding>notes</grounding>',
     };
     render(<TimelineTeamMessage message={envelopeMessage} chatroomId="room-1" />);
-    expect(screen.getByTestId('handoff-envelope-view')).toBeInTheDocument();
+    const envelopeView = screen.getByTestId('handoff-envelope-view');
+    expect(envelopeView).toBeInTheDocument();
+    expect(envelopeView).toHaveAttribute('data-initially-expanded', 'true');
+    expect(screen.queryByTestId('timeline-markdown-body')).not.toBeInTheDocument();
+  });
+
+  it('renders HandoffEnvelopeView collapsed for a non-planner-to-enhancer envelope', () => {
+    const envelopeMessage: Message = {
+      ...BASE_MESSAGE,
+      senderRole: 'enhancer',
+      targetRole: 'planner',
+      content: '<user-message>hi</user-message><grounding>notes</grounding>',
+    };
+    render(<TimelineTeamMessage message={envelopeMessage} chatroomId="room-1" />);
+    const envelopeView = screen.getByTestId('handoff-envelope-view');
+    expect(envelopeView).toBeInTheDocument();
+    expect(envelopeView).toHaveAttribute('data-initially-expanded', 'false');
     expect(screen.queryByTestId('timeline-markdown-body')).not.toBeInTheDocument();
   });
 

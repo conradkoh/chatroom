@@ -12,16 +12,21 @@ export type HandoffEnvelopeViewVariant = 'timeline' | 'detail';
 export interface HandoffEnvelopeViewProps {
   content: string;
   variant?: HandoffEnvelopeViewVariant;
+  /** Opens every rendered section on first render; users can still collapse sections. */
+  initiallyExpanded?: boolean;
 }
 
 export const HandoffEnvelopeView = memo(function HandoffEnvelopeView({
   content,
   variant = 'timeline',
+  initiallyExpanded = false,
 }: HandoffEnvelopeViewProps) {
   const parsed = useMemo(() => parseHandoffEnvelope(content), [content]);
   const [showRaw, setShowRaw] = useState(false);
   const [openSections, setOpenSections] = useState<Set<string>>(() =>
-    variant === 'detail' ? new Set(parsed.sections.map((s) => s.id)) : new Set()
+    variant === 'detail' || initiallyExpanded
+      ? new Set(parsed.sections.map((section) => section.id))
+      : new Set()
   );
 
   const toggleSection = (id: string) => {
