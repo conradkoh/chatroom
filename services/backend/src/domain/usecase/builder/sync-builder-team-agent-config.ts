@@ -32,20 +32,20 @@ function preserveExistingTimestamps(
   return existing?.createdAt !== undefined ? { createdAt: existing.createdAt } : {};
 }
 
-/** Arm ephemeral builder config from the planner's remote config before daemon wake. */
+/** Arm ephemeral builder config from the coordinator's remote config before daemon wake. */
 // fallow-ignore-next-line complexity
-export async function syncBuilderTeamAgentConfigFromPlanner(
+export async function syncBuilderTeamAgentConfigFromCoordinator(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; teamId: string }
+  args: { chatroomId: Id<'chatroom_rooms'>; teamId: string; coordinatorRole: string }
 ): Promise<Doc<'chatroom_teamAgentConfigs'> | null> {
   if (!isEphemeralAgentRole('builder')) return null;
 
-  const plannerKey = buildTeamRoleKey(args.chatroomId, args.teamId, 'planner');
-  const plannerConfig = await ctx.db
+  const coordinatorKey = buildTeamRoleKey(args.chatroomId, args.teamId, args.coordinatorRole);
+  const coordinatorConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', plannerKey))
+    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', coordinatorKey))
     .first();
-  if (!isCompleteRemoteTeamAgentConfig(plannerConfig)) return null;
+  if (!isCompleteRemoteTeamAgentConfig(coordinatorConfig)) return null;
 
   const teamRoleKey = buildTeamRoleKey(args.chatroomId, args.teamId, 'builder');
   const existing = await ctx.db
@@ -60,10 +60,10 @@ export async function syncBuilderTeamAgentConfigFromPlanner(
       chatroomId: args.chatroomId,
       role: 'builder',
       type: 'remote',
-      machineId: plannerConfig.machineId,
-      agentHarness: plannerConfig.agentHarness,
-      model: plannerConfig.model,
-      workingDir: plannerConfig.workingDir,
+      machineId: coordinatorConfig.machineId,
+      agentHarness: coordinatorConfig.agentHarness,
+      model: coordinatorConfig.model,
+      workingDir: coordinatorConfig.workingDir,
       enabled: true,
       desiredState: 'running', // armed for wake; no PID until daemon spawns
       wantResume: false,

@@ -1,15 +1,16 @@
 import { describe, expect, test } from 'vitest';
 
-import { syncBuilderTeamAgentConfigFromPlanner } from './sync-builder-team-agent-config';
+import { syncBuilderTeamAgentConfigFromCoordinator } from './sync-builder-team-agent-config';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 import {
   createDuoTeamChatroom,
+  createSoloTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
 } from '../../../../tests/helpers/integration';
 
-describe('syncBuilderTeamAgentConfigFromPlanner', () => {
+describe('syncBuilderTeamAgentConfigFromCoordinator', () => {
   test('copies planner config fields to builder config', async () => {
     const { sessionId } = await createTestSession('sync-builder-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
@@ -35,7 +36,11 @@ describe('syncBuilderTeamAgentConfigFromPlanner', () => {
     });
 
     const result = await t.run((ctx) =>
-      syncBuilderTeamAgentConfigFromPlanner(ctx, { chatroomId, teamId: 'duo' })
+      syncBuilderTeamAgentConfigFromCoordinator(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        coordinatorRole: 'planner',
+      })
     );
 
     expect(result).not.toBeNull();
@@ -49,7 +54,7 @@ describe('syncBuilderTeamAgentConfigFromPlanner', () => {
     expect(result?.wantResume).toBe(false);
   });
 
-  test('returns null when planner config is incomplete', async () => {
+  test('returns null when coordinator config is incomplete', async () => {
     const { sessionId } = await createTestSession('sync-builder-2');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'sync-builder-machine-2';
@@ -57,7 +62,11 @@ describe('syncBuilderTeamAgentConfigFromPlanner', () => {
 
     // No planner config inserted — should be a no-op
     const result = await t.run((ctx) =>
-      syncBuilderTeamAgentConfigFromPlanner(ctx, { chatroomId, teamId: 'duo' })
+      syncBuilderTeamAgentConfigFromCoordinator(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        coordinatorRole: 'planner',
+      })
     );
     expect(result).toBeNull();
   });
@@ -88,7 +97,13 @@ describe('syncBuilderTeamAgentConfigFromPlanner', () => {
     });
 
     // First sync — creates builder config with lifecycleRevision 0 (from existing)
-    await t.run((ctx) => syncBuilderTeamAgentConfigFromPlanner(ctx, { chatroomId, teamId: 'duo' }));
+    await t.run((ctx) =>
+      syncBuilderTeamAgentConfigFromCoordinator(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        coordinatorRole: 'planner',
+      })
+    );
 
     // Bump lifecycleRevision manually to simulate a start intent
     await t.run(async (ctx) => {
@@ -102,8 +117,63 @@ describe('syncBuilderTeamAgentConfigFromPlanner', () => {
 
     // Second sync — should preserve lifecycleRevision: 7
     const result = await t.run((ctx) =>
-      syncBuilderTeamAgentConfigFromPlanner(ctx, { chatroomId, teamId: 'duo' })
+      syncBuilderTeamAgentConfigFromCoordinator(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        coordinatorRole: 'planner',
+      })
     );
     expect(result?.lifecycleRevision).toBe(7);
+  });
+
+  test('copies solo config fields to builder config', async () => {
+    const { sessionId } = await createTestSession('sync-builder-solo');
+    const chatroomId = await createSoloTeamChatroom(sessionId);
+    const machineId = 'sync-builder-machine-solo';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'solo', 'solo'),
+        chatroomId,
+        role: 'solo',
+        type: 'remote',
+        machineId,
+        agentHarness: 'opencode',
+        model: 'solo-model',
+        workingDir: '/workspace/solo',
+        enabled: true,
+        desiredState: 'running',
+        lifecycleRevision: 1,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await t.run((ctx) =>
+      syncBuilderTeamAgentConfigFromCoordinator(ctx, {
+        chatroomId,
+        teamId: 'solo',
+        coordinatorRole: 'solo',
+      })
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.role).toBe('builder');
+    expect(result?.machineId).toBe(machineId);
+    expect(result?.model).toBe('solo-model');
+    expect(result?.workingDir).toBe('/workspace/solo');
+
+    const builderRow = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'solo', 'builder'))
+        )
+        .first()
+    );
+    expect(builderRow?.machineId).toBe(machineId);
+    expect(builderRow?.model).toBe('solo-model');
+    expect(builderRow?.workingDir).toBe('/workspace/solo');
   });
 });

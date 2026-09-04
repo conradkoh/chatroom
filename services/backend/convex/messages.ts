@@ -31,7 +31,7 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
-import { syncBuilderTeamAgentConfigFromPlanner } from '../src/domain/usecase/builder/sync-builder-team-agent-config';
+import { syncBuilderTeamAgentConfigFromCoordinator } from '../src/domain/usecase/builder/sync-builder-team-agent-config';
 import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueue-user-message-at-front';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
@@ -1067,9 +1067,19 @@ export async function runHandoffHandler(
     // handoff creates a builder task, so the daemon wake finds it ready. Then
     // reproject machine assigned-task snapshots for the new builder task.
     if (normalizedTargetRole === 'builder' && chatroom?.teamId !== undefined) {
-      await syncBuilderTeamAgentConfigFromPlanner(ctx, {
+      const coordinatorRole =
+        getTeamStructure({
+          teamId: chatroom.teamId,
+          ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
+          persistedRoles: teamRoles,
+          ...(chatroom.teamEntryPoint !== undefined
+            ? { persistedEntryPoint: chatroom.teamEntryPoint }
+            : {}),
+        }).roles.find((r) => r.lifecycle === 'permanent')?.role ?? 'planner';
+      await syncBuilderTeamAgentConfigFromCoordinator(ctx, {
         chatroomId: args.chatroomId,
         teamId: chatroom.teamId,
+        coordinatorRole,
       });
       await projectAssignedTaskSnapshotsAfterTaskChange(ctx, newTaskId);
     }
