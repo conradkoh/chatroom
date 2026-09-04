@@ -11,7 +11,6 @@ import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/e
 import { transitionEnhancerEntryPointToWaiting } from '../../../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import {
   getEnhancerTeamAgentConfig,
-  hasRemoteEnhancerConfigFields,
   syncEnhancerTeamAgentConfig,
 } from '../../../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
 import { mutation } from '../../_generated/server';
@@ -112,44 +111,6 @@ export const disableConfig = mutation({
         await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, { enabled: false });
     }
     return { disabled: true as const };
-  },
-});
-
-export const setEnhancerEnabled = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    enabled: v.boolean(),
-  },
-  // fallow-ignore-next-line complexity
-  handler: async (ctx, args) => {
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    if (!chatroom.teamId || !getTeamPreset(chatroom.teamId)) {
-      throw new ConvexError({
-        code: 'INVALID_TEAM',
-        message: 'Enhancer configuration requires a Solo or Duo team',
-      });
-    }
-
-    const row = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, chatroom.teamId);
-
-    if (args.enabled && !hasRemoteEnhancerConfigFields(row)) {
-      throw new ConvexError({
-        code: 'ENHANCER_CONFIG_INCOMPLETE',
-        message:
-          'Configure machine, harness, model, and working directory before enabling the enhancer',
-      });
-    }
-
-    if (!row) {
-      return { success: true, enabled: false };
-    }
-
-    await ctx.db.patch('chatroom_teamAgentConfigs', row._id, {
-      enabled: args.enabled,
-      updatedAt: Date.now(),
-    });
-    return { success: true, enabled: args.enabled };
   },
 });
 
