@@ -63,15 +63,15 @@ describe('machines.getAgentViewStatus', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
-    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'planner', 55555);
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 55555);
 
     const result = await t.query(api.machines.getAgentViewStatus, {
       sessionId: sessionId as any,
       chatroomId,
     });
 
-    const builder = result!.agents.find((a) => a.role === 'planner');
+    const builder = result!.agents.find((a) => a.role === 'builder');
     expect(builder).toBeDefined();
     expect(builder!.state).toBe('running');
   });
@@ -91,11 +91,11 @@ describe('machines.getAgentStartConfig', () => {
     const result = await t.query(api.machines.getAgentStartConfig, {
       sessionId: sessionId as any,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
     });
 
     expect(result).not.toBeNull();
-    expect(result!.role).toBe('planner');
+    expect(result!.role).toBe('builder');
     expect(result!.connectedMachines).toBeDefined();
     expect(Array.isArray(result!.connectedMachines)).toBe(true);
     expect(result!.connectedMachines).toHaveLength(1);
@@ -109,7 +109,7 @@ describe('machines.getAgentStartConfig', () => {
     const result = await t.query(api.machines.getAgentStartConfig, {
       sessionId: 'bogus-session-id' as any,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
     });
 
     expect(result).toBeNull();
@@ -121,12 +121,12 @@ describe('machines.getAgentStartConfig', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     const result = await t.query(api.machines.getAgentStartConfig, {
       sessionId: sessionId as any,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
     });
 
     expect(result).not.toBeNull();
@@ -171,8 +171,8 @@ describe('machines.listAgentOverview', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
-    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'planner', 77777);
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 77777);
 
     const results = await t.query(api.machines.listAgentOverview, {
       sessionId: sessionId as any,
@@ -181,7 +181,7 @@ describe('machines.listAgentOverview', () => {
     const entry = results.find((r) => r.chatroomId === chatroomId);
     expect(entry).toBeDefined();
     expect(entry!.agentStatus).toBe('running');
-    expect(entry!.runningRoles).toContain('planner');
+    expect(entry!.runningRoles).toContain('builder');
   });
 
   test('overview entries do not contain machineId', async () => {
@@ -190,7 +190,7 @@ describe('machines.listAgentOverview', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     const results = await t.query(api.machines.listAgentOverview, {
       sessionId: sessionId as any,

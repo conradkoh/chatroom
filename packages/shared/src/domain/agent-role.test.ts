@@ -11,7 +11,7 @@ import {
 describe('agent-role lifecycle tags', () => {
   test('known roles carry exactly one lifecycle tag', () => {
     expect(getAgentRoleTags('planner')).toEqual(['permanent']);
-    expect(getAgentRoleTags('builder')).toEqual(['ephemeral']);
+    expect(getAgentRoleTags('builder')).toEqual(['permanent']);
     expect(getAgentRoleTags('solo')).toEqual(['permanent']);
     expect(getAgentRoleTags('enhancer')).toEqual(['ephemeral']);
   });
@@ -29,7 +29,10 @@ describe('agent-role lifecycle tags', () => {
   });
 
   test('filters ephemeral roles from a team role list', () => {
-    expect(getPermanentRoleNames(['planner', 'enhancer', 'builder'])).toEqual(['planner']);
+    expect(getPermanentRoleNames(['planner', 'enhancer', 'builder'])).toEqual([
+      'planner',
+      'builder',
+    ]);
     expect(getPermanentRoleNames(['solo', 'enhancer'])).toEqual(['solo']);
     expect(getPermanentRoleNames(['architect'])).toEqual(['architect']);
   });

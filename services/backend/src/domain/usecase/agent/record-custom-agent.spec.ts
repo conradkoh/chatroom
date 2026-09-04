@@ -45,37 +45,27 @@ async function registerMachine(sessionId: SessionId, machineId: string) {
 }
 
 /**
- * Bind a role to a machine via a remote team config. This writes to
+ * Bind a role to a machine via the start-agent command path. This writes to
  * `chatroom_teamAgentConfigs` with `machineId` set, mirroring the production
  * flow. (`recordRemoteAgentRegistered` only emits an event and does not bind.)
  */
 async function bindRoleToMachine(
-  _sessionId: SessionId,
+  sessionId: SessionId,
   machineId: string,
   chatroomId: Id<'chatroom_rooms'>,
   role: string
 ) {
-  await t.run(async (ctx) => {
-    const room = await ctx.db.get(chatroomId);
-    if (!room?.teamId) return;
-    const teamRoleKey = buildTeamRoleKey(chatroomId, room.teamId, role);
-    const now = Date.now();
-    await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey,
+  await t.mutation(api.machines.sendCommand, {
+    sessionId,
+    machineId,
+    type: 'start-agent',
+    payload: {
       chatroomId,
       role,
-      type: 'remote',
-      machineId,
-      agentHarness: 'opencode',
       model: TEST_MODEL_OPENCODE,
+      agentHarness: 'opencode',
       workingDir: '/tmp/test',
-      enabled: true,
-      desiredState: 'running',
-      circuitState: 'closed',
-      lifecycleRevision: 0,
-      createdAt: now,
-      updatedAt: now,
-    });
+    },
   });
 }
 

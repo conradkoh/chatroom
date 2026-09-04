@@ -6,7 +6,6 @@
  * and agent config helpers to avoid duplication.
  */
 
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect } from 'vitest';
 
@@ -169,44 +168,6 @@ export async function setupRemoteAgentConfig(
   role: string,
   options?: { agentHarness?: string | undefined; workingDir?: string | undefined }
 ): Promise<void> {
-  // Ephemeral roles cannot be started directly (startAgent throws), so set up
-  // the remote config by hand — as if it were armed and waiting for a daemon wake.
-  if (isEphemeralAgentRole(role)) {
-    await t.run(async (ctx) => {
-      const room = await ctx.db.get(chatroomId);
-      if (!room?.teamId) return;
-      const teamRoleKey = buildTeamRoleKey(chatroomId, room.teamId, role);
-      const now = Date.now();
-      const existing = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-        .first();
-      const fields = {
-        chatroomId,
-        role,
-        type: 'remote' as const,
-        machineId,
-        agentHarness: (options?.agentHarness ?? 'opencode') as 'opencode',
-        model: TEST_MODEL_OPENCODE_LEGACY,
-        workingDir: options?.workingDir ?? '/test/workspace',
-        enabled: true,
-        desiredState: 'running' as const,
-        circuitState: 'closed' as const,
-        lifecycleRevision: existing?.lifecycleRevision ?? 0,
-        updatedAt: now,
-      };
-      if (existing) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, fields);
-      } else {
-        await ctx.db.insert('chatroom_teamAgentConfigs', {
-          ...fields,
-          teamRoleKey,
-          createdAt: now,
-        });
-      }
-    });
-    return;
-  }
   // Start agent via sendCommand to create both team and machine agent configs
   await t.mutation(api.machines.sendCommand, {
     sessionId,

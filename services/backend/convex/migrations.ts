@@ -22,7 +22,6 @@ import {
   projectAgentRoleStatusReadModel,
   statusEventForAgentEvent,
 } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
-import { migrateLegacyBuilderConfigRow } from '../src/domain/usecase/builder/migrate-legacy-builder-config';
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
 import {
   mergeCanonicalEnhancerIntoTeamRoles,
@@ -399,17 +398,6 @@ export const migrateEnhancerConfigToTeamAgentConfig = migrations.define({
   table: 'chatroom_enhancerConfigs',
   migrateOne: async (ctx, row) => {
     await migrateEnhancerConfigRow(ctx, row);
-  },
-});
-
-// Builder ephemeral transition: retire legacy Duo builder configs left running.
-// Run via:
-//   cd services/backend && npx convex run migrations:run '{"fn":"migrations:migrateLegacyBuilderToEphemeral"}'
-// Idempotent: stopped configs without a PID are skipped.
-export const migrateLegacyBuilderToEphemeral = migrations.define({
-  table: 'chatroom_teamAgentConfigs',
-  migrateOne: async (ctx, row) => {
-    await migrateLegacyBuilderConfigRow(ctx, row);
   },
 });
 

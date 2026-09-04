@@ -42,7 +42,7 @@ describe('startAgent — config persistence', () => {
         {
           machineId,
           chatroomId,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
@@ -63,7 +63,7 @@ describe('startAgent — config persistence', () => {
       return ctx.db.query('chatroom_teamAgentConfigs').collect();
     });
     const relevantTeamConfig = teamConfig.find(
-      (c) => c.chatroomId === chatroomId && c.role === 'planner'
+      (c) => c.chatroomId === chatroomId && c.role === 'builder'
     );
     expect(relevantTeamConfig).toBeDefined();
     expect(relevantTeamConfig!.type).toBe('remote');
@@ -91,7 +91,7 @@ describe('startAgent — config persistence', () => {
         {
           machineId,
           chatroomId,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: 'old-model',
           agentHarness: 'opencode',
@@ -116,7 +116,7 @@ describe('startAgent — config persistence', () => {
         {
           machineId,
           chatroomId,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: 'new-model',
           agentHarness: 'opencode',
@@ -136,7 +136,7 @@ describe('startAgent — config persistence', () => {
       return ctx.db.query('chatroom_teamAgentConfigs').collect();
     });
     const builderConfigs = teamConfigs.filter(
-      (c) => c.chatroomId === chatroomId && c.role === 'planner'
+      (c) => c.chatroomId === chatroomId && c.role === 'builder'
     );
     expect(builderConfigs.length).toBe(1);
     expect(builderConfigs[0]!.model).toBe('new-model');
@@ -181,7 +181,7 @@ describe('startAgent — harness validation', () => {
           {
             machineId,
             chatroomId,
-            role: 'planner',
+            role: 'builder',
             userId: user!._id,
             model: TEST_MODEL_OPENCODE_LEGACY,
             agentHarness: 'opencode',
@@ -224,7 +224,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
         {
           machineId,
           chatroomId: chatroomId1,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: 'model-for-chatroom-1',
           agentHarness: 'opencode',
@@ -239,7 +239,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
         {
           machineId,
           chatroomId: chatroomId2,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: 'model-for-chatroom-2',
           agentHarness: 'opencode',
@@ -259,10 +259,10 @@ describe('startAgent — teamRoleKey collision regression', () => {
     });
 
     const config1 = allTeamConfigs.find(
-      (c) => c.chatroomId === chatroomId1 && c.role === 'planner'
+      (c) => c.chatroomId === chatroomId1 && c.role === 'builder'
     );
     const config2 = allTeamConfigs.find(
-      (c) => c.chatroomId === chatroomId2 && c.role === 'planner'
+      (c) => c.chatroomId === chatroomId2 && c.role === 'builder'
     );
 
     // Both configs must exist independently
@@ -297,7 +297,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
         {
           machineId,
           chatroomId,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
@@ -325,7 +325,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
     // Key must start with 'chatroom_' and include both teamId and role
     expect(key).toMatch(/^chatroom_/);
     expect(key).toContain('#team_duo');
-    expect(key).toContain('#role_planner');
+    expect(key).toContain('#role_builder');
   });
 });
 
@@ -345,7 +345,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
     await registerMachineWithDaemon(sessionId, machineId);
 
     // Join participants so getInitPrompt can read presence
-    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
     await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
 
     // ===== ACTION =====
@@ -362,7 +362,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
         {
           machineId,
           chatroomId,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
@@ -375,11 +375,11 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
 
     // ===== VERIFY =====
     // getInitPrompt must look up the config by the same key used in startAgent
-    // (`chatroom_${chatroom._id}#team_${teamId}#role_planner`) and return agentType='remote'.
+    // (`chatroom_${chatroom._id}#team_${teamId}#role_builder`) and return agentType='remote'.
     const initPrompt = await t.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       convexUrl: 'http://127.0.0.1:3210',
     });
 
@@ -395,13 +395,13 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
     const { sessionId } = await createTestSession('test-init-prompt-agenttype-2');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
-    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
     await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
 
     const initPrompt = await t.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       convexUrl: 'http://127.0.0.1:3210',
     });
 
@@ -434,7 +434,7 @@ describe('startAgent — command payload', () => {
         {
           machineId,
           chatroomId,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: 'my-specific-model',
           agentHarness: 'opencode',
@@ -455,7 +455,7 @@ describe('startAgent — command payload', () => {
       expect(evt.agentHarness).toBe('opencode');
       expect(evt.workingDir).toBe('/specific/path');
       expect(evt.chatroomId).toBe(chatroomId);
-      expect(evt.role).toBe('planner');
+      expect(evt.role).toBe('builder');
     }
   });
 });
@@ -479,7 +479,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       type: 'remote',
       machineId,
       agentHarness: 'pi',
@@ -491,7 +491,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
       return ctx.db
         .query('chatroom_teamAgentConfigs')
         .filter((q) =>
-          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'planner'))
+          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
         )
         .first();
     });
@@ -501,7 +501,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       type: 'remote',
       machineId,
       // agentHarness intentionally omitted — register-agent doesn't pass it
@@ -514,7 +514,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
       return ctx.db
         .query('chatroom_teamAgentConfigs')
         .filter((q) =>
-          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'planner'))
+          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
         )
         .first();
     });
@@ -531,7 +531,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       type: 'remote',
       machineId,
       agentHarness: 'opencode',
@@ -542,7 +542,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
       return ctx.db
         .query('chatroom_teamAgentConfigs')
         .filter((q) =>
-          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'planner'))
+          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
         )
         .first();
     });
@@ -559,7 +559,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       type: 'remote',
       machineId,
       // No agentHarness
@@ -570,7 +570,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
       return ctx.db
         .query('chatroom_teamAgentConfigs')
         .filter((q) =>
-          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'planner'))
+          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
         )
         .first();
     });

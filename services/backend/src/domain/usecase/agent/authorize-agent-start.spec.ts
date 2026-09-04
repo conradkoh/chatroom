@@ -25,7 +25,7 @@ async function setup(id: string) {
   await t.mutation(api.machines.saveTeamAgentConfig, {
     sessionId: id as any,
     chatroomId,
-    role: 'planner',
+    role: 'builder',
     type: 'remote',
     machineId,
     agentHarness: 'opencode',
@@ -38,7 +38,7 @@ async function configId(chatroomId: any) {
     ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first()
   );
@@ -49,32 +49,32 @@ describe('authorizeAgentStart', () => {
     const { chatroomId, machineId } = await setup('authorize-cases');
     expect(
       await t.run((ctx) =>
-        authorizeAgentStart(ctx, { chatroomId, role: 'planner', machineId, lifecycleRevision: 0 })
+        authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId, lifecycleRevision: 0 })
       )
     ).toEqual({ allowed: true, lifecycleRevision: 0 });
     const config = await configId(chatroomId);
     await t.run((ctx) => ctx.db.patch(config!._id, { lifecycleRevision: 2 }));
     expect(
       await t.run((ctx) =>
-        authorizeAgentStart(ctx, { chatroomId, role: 'planner', machineId, lifecycleRevision: 0 })
+        authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId, lifecycleRevision: 0 })
       )
     ).toEqual({ allowed: false, reason: 'stale_revision' });
     await t.run((ctx) =>
       ctx.db.patch(config!._id, { lifecycleRevision: 2, desiredState: 'stopped' })
     );
     expect(
-      (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'planner', machineId })))
+      (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })))
         .reason
     ).toBe('stopped');
     await t.run((ctx) => ctx.db.patch(config!._id, { desiredState: 'running', enabled: false }));
     expect(
-      (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'planner', machineId })))
+      (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })))
         .reason
     ).toBe('disabled');
     expect(
       (
         await t.run((ctx) =>
-          authorizeAgentStart(ctx, { chatroomId, role: 'planner', machineId: 'wrong' })
+          authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId: 'wrong' })
         )
       ).reason
     ).toBe('not_configured');
@@ -93,7 +93,7 @@ describe('authorizeAgentStart', () => {
       })
     );
     expect(
-      await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'planner', machineId }))
+      await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId }))
     ).toEqual({ allowed: false, reason: 'stop_in_flight' });
   });
 

@@ -31,7 +31,7 @@ describe('sendCommand start-agent wantResume', () => {
       type: 'start-agent',
       payload: {
         chatroomId,
-        role: 'planner',
+        role: 'builder',
         model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',
@@ -59,7 +59,7 @@ describe('sendCommand start-agent wantResume', () => {
       type: 'start-agent',
       payload: {
         chatroomId,
-        role: 'planner',
+        role: 'builder',
         model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',
@@ -87,7 +87,7 @@ describe('sendCommand start-agent wantResume', () => {
       type: 'start-agent',
       payload: {
         chatroomId,
-        role: 'planner',
+        role: 'builder',
         model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',
@@ -99,7 +99,7 @@ describe('sendCommand start-agent wantResume', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { wantResume: true });
@@ -113,7 +113,7 @@ describe('sendCommand start-agent wantResume', () => {
       type: 'start-agent',
       payload: {
         chatroomId,
-        role: 'planner',
+        role: 'builder',
         model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',

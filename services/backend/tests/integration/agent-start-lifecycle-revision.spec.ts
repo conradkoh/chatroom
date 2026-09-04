@@ -17,7 +17,7 @@ async function setup(id: string) {
   const machineId = `revision-${id}`;
   await registerMachineWithDaemon(sessionId, machineId);
   const chatroomId = await createDuoTeamChatroom(sessionId);
-  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
   return { sessionId, machineId, chatroomId };
 }
 
@@ -26,7 +26,7 @@ async function configFor(chatroomId: any) {
     ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first()
   );
@@ -42,7 +42,7 @@ describe('agent start lifecycle revision fence', () => {
       fact: {
         kind: 'spawned',
         chatroomId,
-        role: 'planner',
+        role: 'builder',
         pid: 50001,
         lifecycleRevision: config?.lifecycleRevision ?? 1,
         revisionKey: 'accept',
@@ -59,7 +59,7 @@ describe('agent start lifecycle revision fence', () => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       if (config) await ctx.db.patch(config._id, { spawnedAgentPid: 50002 });
@@ -84,7 +84,7 @@ describe('agent start lifecycle revision fence', () => {
       fact: {
         kind: 'spawned',
         chatroomId,
-        role: 'planner',
+        role: 'builder',
         pid: 6248,
         lifecycleRevision: before?.lifecycleRevision ?? 0,
         revisionKey: 'late',
@@ -106,7 +106,7 @@ describe('agent start lifecycle revision fence', () => {
       sessionId,
       machineId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       pid: 50003,
       lifecycleRevision: config?.lifecycleRevision ?? 0,
     });

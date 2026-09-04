@@ -8,7 +8,6 @@ import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
-  createPlannerBuilderDuoChatroom,
   createTestSession,
   joinParticipant,
   setupRemoteAgentConfig,
@@ -128,8 +127,8 @@ describe('Phase E — pending task after agent restart', () => {
     const { sessionId } = await createTestSession('phase-e-start-config');
     const machineId = 'machine-phase-e-start';
     await registerMachineWithCursorSdk(sessionId, machineId);
-    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner', {
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder', {
       agentHarness: 'cursor-sdk',
       model: 'old-model',
     });
@@ -153,7 +152,7 @@ describe('Phase E — pending task after agent restart', () => {
         {
           machineId,
           chatroomId,
-          role: 'planner',
+          role: 'builder',
           userId: user!._id,
           model: 'updated-model',
           agentHarness: 'cursor-sdk',
@@ -178,7 +177,7 @@ describe('Phase E — pending task after agent restart', () => {
     const op = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_agentRoleOperationalStatus')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'planner'))
+        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
         .first()
     );
     expect(op).toBeDefined();

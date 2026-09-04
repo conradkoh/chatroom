@@ -73,13 +73,13 @@ describe('promoteQueuedMessage', () => {
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     const machineId = 'machine-promote-offline-restart';
     await registerMachineWithDaemon(sessionId, machineId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
     await t.run(async (ctx) => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       expect(config).toBeDefined();
@@ -88,7 +88,7 @@ describe('promoteQueuedMessage', () => {
       const participant = await ctx.db
         .query('chatroom_participants')
         .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'planner')
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
         )
         .first();
       if (participant) {
@@ -96,7 +96,7 @@ describe('promoteQueuedMessage', () => {
       } else {
         await ctx.db.insert('chatroom_participants', {
           chatroomId,
-          role: 'planner',
+          role: 'builder',
           agentType: 'remote',
           lastStatus: 'agent.exited',
           lastDesiredState: 'running',
@@ -110,7 +110,7 @@ describe('promoteQueuedMessage', () => {
     const restartCommands = await getInboxCommandsForChatroom(chatroomId, 'agent.restart');
     expect(restartCommands).toHaveLength(1);
     expect(restartCommands[0].machineId).toBe(machineId);
-    expect(restartCommands[0].command).toMatchObject({ type: 'agent.restart', role: 'planner' });
+    expect(restartCommands[0].command).toMatchObject({ type: 'agent.restart', role: 'builder' });
   });
 
   test('creates a chatroom_messages record from queue data', async () => {

@@ -79,7 +79,7 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
     sessionId,
     chatroomId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     model: 'test-model-a',
     workingDir: '/test/workspace',
     startCount: 3,
@@ -89,7 +89,7 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     startTime: now - 24 * 3_600_000,
     endTime: now,
   });
@@ -113,7 +113,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
     sessionId,
     chatroomId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     model: 'model-x',
     workingDir: '/test/ws',
     startCount: 2,
@@ -131,7 +131,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
       {
         machineId,
         chatroomId: chatroomId2,
-        role: 'planner',
+        role: 'builder',
         userId: user!._id,
         model: 'model-x',
         agentHarness: 'opencode',
@@ -148,7 +148,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
       sessionId,
       machineId,
       chatroomId: chatroomId2,
-      role: 'planner',
+      role: 'builder',
       pid: 20000 + i,
       model: 'model-x',
     });
@@ -159,7 +159,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     chatroomId,
     startTime: now - 24 * 3_600_000,
     endTime: now,
@@ -172,7 +172,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
   const result2 = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     chatroomId: chatroomId2,
     startTime: now - 24 * 3_600_000,
     endTime: now,
@@ -194,7 +194,7 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
     sessionId,
     chatroomId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     model: 'model-ws',
     workingDir: '/workspace/projectA',
     startCount: 4,
@@ -205,7 +205,7 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     workingDir: '/workspace/projectA',
     startTime: now - 24 * 3_600_000,
     endTime: now,
@@ -218,7 +218,7 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
   const resultOther = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     workingDir: '/workspace/projectB',
     startTime: now - 24 * 3_600_000,
     endTime: now,
@@ -247,7 +247,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
       {
         machineId,
         chatroomId,
-        role: 'planner',
+        role: 'builder',
         userId: user!._id,
         model: 'model-alpha',
         agentHarness: 'opencode',
@@ -264,7 +264,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
       sessionId,
       machineId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       pid: 30000 + i,
       model: 'model-alpha',
     });
@@ -276,7 +276,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
       sessionId,
       machineId,
       chatroomId,
-      role: 'planner',
+      role: 'builder',
       pid: 40000 + i,
       model: 'model-beta',
     });
@@ -286,7 +286,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     startTime: now - 24 * 3_600_000,
     endTime: now,
   });
@@ -308,7 +308,7 @@ test('getAgentRestartMetrics caps range at 720h and returns empty when no data',
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
-    role: 'planner',
+    role: 'builder',
     startTime: now - 9999 * 3_600_000,
     endTime: now,
   });

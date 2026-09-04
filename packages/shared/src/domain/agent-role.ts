@@ -9,7 +9,7 @@ export type AgentRoleDefinition = {
 /** Known roles have one lifecycle tag; unknown roles default to permanent. */
 export const AGENT_ROLE_DEFINITIONS = {
   planner: { role: 'planner', tags: ['permanent'] },
-  builder: { role: 'builder', tags: ['ephemeral'] },
+  builder: { role: 'builder', tags: ['permanent'] },
   solo: { role: 'solo', tags: ['permanent'] },
   enhancer: { role: 'enhancer', tags: ['ephemeral'] },
 } as const satisfies Record<string, AgentRoleDefinition>;

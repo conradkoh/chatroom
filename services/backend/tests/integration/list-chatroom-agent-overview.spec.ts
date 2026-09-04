@@ -67,9 +67,9 @@ describe('listChatroomAgentOverview — running agent', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
-    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'planner', 99999);
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 99999);
 
     const results = await t.run(async (ctx) => {
       return listChatroomAgentOverview(ctx, { userId: ownerId });
@@ -78,8 +78,8 @@ describe('listChatroomAgentOverview — running agent', () => {
     const entry = results.find((r) => r.chatroomId === chatroomId);
     expect(entry).toBeDefined();
     expect(entry!.agentStatus).toBe('running');
-    expect(entry!.runningRoles).toContain('planner');
-    expect(entry!.aliveRoles).toContain('planner');
+    expect(entry!.runningRoles).toContain('builder');
+    expect(entry!.aliveRoles).toContain('builder');
   });
 });
 
@@ -93,7 +93,7 @@ describe('listChatroomAgentOverview — stopped agent', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     const results = await t.run(async (ctx) => {
       return listChatroomAgentOverview(ctx, { userId: ownerId });
@@ -117,7 +117,7 @@ describe('listChatroomAgentOverview — no machine details leaked', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     const results = await t.run(async (ctx) => {
       return listChatroomAgentOverview(ctx, { userId: ownerId });
@@ -166,10 +166,10 @@ describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     // Set a spawned agent PID
-    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'planner', 88888);
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 88888);
 
     // Now disconnect the daemon
     await t.mutation(api.machines.updateDaemonStatus, {
@@ -189,6 +189,6 @@ describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
     expect(entry!.runningRoles).toEqual([]);
     expect(entry!.runningAgents).toEqual([]);
     // ...but the agent is still alive (spawned PID) so the listing dot is not grey idle.
-    expect(entry!.aliveRoles).toContain('planner');
+    expect(entry!.aliveRoles).toContain('builder');
   });
 });

@@ -209,7 +209,9 @@ describe('updateTeam use case', () => {
     const userId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await seedRunningAgentPid(sessionId as any, chatroomId, machineId, 'planner', 60101);
+    await seedRunningAgentPid(sessionId as any, chatroomId, machineId, 'builder', 60102);
 
     const result = await t.run(async (ctx) => {
       return updateTeam(ctx, {
@@ -222,7 +224,7 @@ describe('updateTeam use case', () => {
       });
     });
 
-    expect(result.stoppedAgentCount).toBeGreaterThanOrEqual(1);
+    expect(result.stoppedAgentCount).toBeGreaterThanOrEqual(2);
   });
 
   test('starts target-team agents after switch when configs exist', async () => {
@@ -233,6 +235,7 @@ describe('updateTeam use case', () => {
     const userId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     const result = await t.run(async (ctx) => {
       return updateTeam(ctx, {
@@ -245,20 +248,18 @@ describe('updateTeam use case', () => {
       });
     });
 
-    // Only the permanent planner role is started on switch — the ephemeral
-    // builder is armed on demand via planner handoff instead.
-    expect(result.startedAgentCount).toBeGreaterThanOrEqual(1);
+    expect(result.startedAgentCount).toBeGreaterThanOrEqual(2);
 
     const inboxStarts = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStart');
     const teamSwitchStarts = inboxStarts.filter(
       (row) =>
         row.command.type === 'agent.requestStart' && row.command.reason === 'platform.team_switch'
     );
-    expect(teamSwitchStarts.length).toBeGreaterThanOrEqual(1);
+    expect(teamSwitchStarts.length).toBeGreaterThanOrEqual(2);
     expect(
       teamSwitchStarts
         .map((row) => (row.command.type === 'agent.requestStart' ? row.command.role : ''))
         .sort()
-    ).toEqual(['planner']);
+    ).toEqual(['builder', 'planner']);
   });
 });

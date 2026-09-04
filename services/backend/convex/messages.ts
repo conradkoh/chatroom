@@ -31,7 +31,6 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
-import { syncBuilderTeamAgentConfigFromPlanner } from '../src/domain/usecase/builder/sync-builder-team-agent-config';
 import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueue-user-message-at-front';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
@@ -56,7 +55,6 @@ import {
   resolveTaskPlannerEnhancerEnabled,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import { validateEnhancerHandoff } from '../src/domain/usecase/enhancer/validate-enhancer-handoff';
-import { projectAssignedTaskSnapshotsAfterTaskChange } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   insertChatroomMessage,
   isMessageReadModelComplete,
@@ -1062,17 +1060,6 @@ export async function runHandoffHandler(
 
     // Link message to task
     await linkMessageToTask(ctx, messageId, newTaskId);
-
-    // Arm the ephemeral builder config from the planner's remote config when a
-    // handoff creates a builder task, so the daemon wake finds it ready. Then
-    // reproject machine assigned-task snapshots for the new builder task.
-    if (normalizedTargetRole === 'builder' && chatroom?.teamId !== undefined) {
-      await syncBuilderTeamAgentConfigFromPlanner(ctx, {
-        chatroomId: args.chatroomId,
-        teamId: chatroom.teamId,
-      });
-      await projectAssignedTaskSnapshotsAfterTaskChange(ctx, newTaskId);
-    }
   }
 
   let enhancerJobId: Id<'chatroom_enhancerJobs'> | null = null;
