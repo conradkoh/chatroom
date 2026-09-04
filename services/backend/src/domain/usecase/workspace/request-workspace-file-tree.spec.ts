@@ -27,6 +27,13 @@ function createMockCtx({
   const ctx = {
     db: {
       query: vi.fn((table: string) => {
+        if (table === 'chatroom_workspaces') {
+          return {
+            withIndex: vi.fn(() => ({
+              first: vi.fn(async () => ({ fileTreeSyncEnabled: true })),
+            })),
+          };
+        }
         if (table === 'chatroom_workspaceFileTreeV2') {
           return {
             withIndex: vi.fn(() => ({
