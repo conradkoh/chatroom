@@ -1,6 +1,8 @@
 'use client';
 import { RotateCcw } from 'lucide-react';
 
+import { getComposerPreflightShortcutLabel } from '../../../hooks/useComposerPreflightShortcut';
+
 import { cn } from '@/lib/utils';
 
 export function PlannerNewSessionToggleButton({
@@ -10,6 +12,8 @@ export function PlannerNewSessionToggleButton({
   isActive: boolean;
   onToggle: () => void;
 }) {
+  const shortcut = getComposerPreflightShortcutLabel('N');
+
   return (
     <button
       type="button"
@@ -18,8 +22,8 @@ export function PlannerNewSessionToggleButton({
       onClick={onToggle}
       title={
         isActive
-          ? 'New session enabled — click to disable (Alt+N)'
-          : 'New session disabled — click to enable (Alt+N)'
+          ? `New session enabled — click to disable (${shortcut})`
+          : `New session disabled — click to enable (${shortcut})`
       }
       className={cn(
         'shrink-0 w-[3.75rem] px-0 py-2 sm:w-full sm:px-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',

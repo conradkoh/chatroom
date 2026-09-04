@@ -2,6 +2,8 @@
 
 import { Settings2, Sparkles } from 'lucide-react';
 
+import { getComposerPreflightShortcutLabel } from '../../../hooks/useComposerPreflightShortcut';
+
 import {
   ContextMenu,
   ContextMenuContent,
@@ -48,6 +50,7 @@ export function PlannerEnhancerToggleButton({
   const isLoading = teamSupportState === 'loading';
 
   const label = isUnsupported ? 'Enhancer' : 'Enhance';
+  const shortcut = getComposerPreflightShortcutLabel('E');
 
   const handleClick = () => {
     if (isLoading) return;
@@ -72,8 +75,8 @@ export function PlannerEnhancerToggleButton({
               isUnsupported
                 ? UNSUPPORTED_TITLE
                 : isActive
-                  ? 'Enhancement enabled — click to disable for the next message (Alt+E). Use ✕ on the enhancer task to cancel the active review.'
-                  : 'Enhancement disabled — click to turn on (Alt+E)'
+                  ? `Enhancement enabled — click to disable for the next message (${shortcut}). Use ✕ on the enhancer task to cancel the active review.`
+                  : `Enhancement disabled — click to turn on (${shortcut})`
             }
             aria-label={label}
             aria-pressed={isLoading ? undefined : isActive}
