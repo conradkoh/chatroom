@@ -83,10 +83,12 @@ import {
   classifyResumeStormReason,
   formatPermanentHarnessFailureMessage,
 } from '../../domain/usecase/classify-resume-storm-reason.js';
+import { CURSOR_SDK_SESSION_REOPEN_REASON } from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
 import {
   decideResumePathOnRestart,
   shouldAutoRestartAfterProcessExit,
 } from '../../domain/usecase/decide-resume-path.js';
+import { hasCursorSdkSessionReopenTrigger } from '../../domain/usecase/detect-cursor-sdk-run-error.js';
 import {
   handleTurnCompleted,
   type ResumeStormTracker,
@@ -121,6 +123,7 @@ import type {
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../local/harness/services/spawn-prompt.js';
+import { cursorSdkSessionMonitor } from '../local/harness/session-monitors/cursor-sdk-session-monitor.js';
 import { noOpSessionMonitor } from '../local/harness/session-monitors/no-op-session-monitor.js';
 import type { AgentLifecycleOutboxResult } from '../outbox/agent-lifecycle-outbox.js';
 
@@ -178,6 +181,8 @@ export interface AgentSlot {
   lastInFlightTaskId?: string | undefined;
   /** Native harness turn lifecycle — delivery control plane (not UI participant state). */
   nativeTurnPhase?: NativeTurnPhase | undefined;
+  /** Prevents repeated proactive recovery triggers while a failed process is exiting. */
+  proactiveSessionRecoveryTriggered?: boolean | undefined;
   /** When the slot entered stopping — used to detect hung stop. */
   stoppingSince?: number | undefined;
   /** Monotonic token for the current stop attempt — bumped on stop claim and force-clear. */
@@ -344,6 +349,7 @@ export class AgentProcessManager {
     slot.stopCommandId = undefined;
     slot.stopTargetKey = undefined;
     slot.nativeTurnPhase = undefined;
+    slot.proactiveSessionRecoveryTriggered = false;
   }
 
   private bumpStopGeneration(slot: AgentSlot): number {
@@ -1180,6 +1186,9 @@ export class AgentProcessManager {
       workingDir: ctx.workingDir as string,
       reason: policy.recoveryReason,
       wantResume,
+      ...(policy.recoveryReason === CURSOR_SDK_SESSION_REOPEN_REASON
+        ? { initPrompt: 'continue' }
+        : {}),
     };
     const result = await this.ensureRunning(ensureOpts);
     if (result.success) return { kind: 'success' };
@@ -2068,6 +2077,8 @@ export class AgentProcessManager {
     }
 
     let spawnResult: SpawnResult | undefined;
+    const initialMessage = opts.initPrompt ?? initPrompt.initialMessage;
+    const systemPrompt = opts.systemPrompt ?? initPrompt.rolePrompt;
     const resumePath = decideResumePathOnRestart({
       supportsDaemonMemoryResume: typeof service.resumeFromDaemonMemory === 'function',
       wantResume,
@@ -2082,8 +2093,8 @@ export class AgentProcessManager {
           agentHarness: opts.agentHarness,
           workingDir: opts.workingDir,
           model: opts.model,
-          initPrompt: initPrompt.initialMessage,
-          systemPrompt: initPrompt.rolePrompt,
+          initPrompt: initialMessage,
+          systemPrompt,
           service,
         })) ?? undefined;
     }
@@ -2091,13 +2102,13 @@ export class AgentProcessManager {
     if (!spawnResult) {
       const { deferInitialTurn, prompt } = resolveNativeSpawnPolicy(
         opts.agentHarness,
-        initPrompt.initialMessage
+        initialMessage
       );
       try {
         spawnResult = await service.spawn({
           workingDir: opts.workingDir,
           prompt,
-          systemPrompt: initPrompt.rolePrompt,
+          systemPrompt,
           model: opts.model,
           context: {
             machineId: this.deps.machineId,
@@ -2149,6 +2160,7 @@ export class AgentProcessManager {
     slot.lastOutputAt = slot.startedAt;
     slot.pendingOperation = undefined;
     slot.recentLogLines = [];
+    slot.proactiveSessionRecoveryTriggered = false;
     slot.providerUnavailableEmitted = false;
     this.deps.resumeStormTracker.reset(opts.chatroomId, opts.role);
   }
@@ -2222,6 +2234,7 @@ export class AgentProcessManager {
         slot.lastOutputAt = this.deps.clock.now();
         const entry: AgentLogLine = { stream: 'stdout', message: line };
         appendRecentLogLine(slot, entry.message);
+        this.maybeTriggerProactiveCursorSdkRecovery(slot, opts, pid);
         this.deps.logSink?.write({
           timestamp: this.deps.clock.now(),
           level: 'info',
@@ -2280,6 +2293,48 @@ export class AgentProcessManager {
       now: () => this.deps.clock.now(),
       activityEmitter: spawnResult.activityEmitter,
     });
+  }
+
+  /**
+   * Cursor SDK run/auth errors can leave the process alive while its native turn
+   * phase remains busy. Trigger the existing exit-based recovery path as soon as
+   * the terminal failure is logged, while ensuring one trigger per process.
+   */
+  private maybeTriggerProactiveCursorSdkRecovery(
+    slot: AgentSlot,
+    opts: EnsureRunningOpts,
+    pid: number
+  ): void {
+    if (
+      opts.agentHarness !== 'cursor-sdk' ||
+      (slot.state !== 'running' && slot.state !== 'spawning') ||
+      slot.proactiveSessionRecoveryTriggered ||
+      !hasCursorSdkSessionReopenTrigger(slot.recentLogLines ?? [])
+    ) {
+      return;
+    }
+
+    const monitor = this.deps.sessionMonitors.get('cursor-sdk') ?? cursorSdkSessionMonitor;
+    const classification = monitor.classifyExitFailure({
+      recentLogLines: slot.recentLogLines ?? [],
+      harness: 'cursor-sdk',
+      wantResume: slot.wantResume,
+    });
+    if (!classification.hadSessionFailure) return;
+
+    slot.proactiveSessionRecoveryTriggered = true;
+    setNativeTurnPhase(slot, defaultNativeTurnPhase());
+    if (classification.requiresTaskReleaseBeforeRecovery) {
+      this.clearLastInFlightTask(opts.chatroomId, opts.role);
+    }
+
+    try {
+      this.deps.processes.kill(pid, 'SIGTERM');
+    } catch (err) {
+      console.log(
+        `[AgentProcessManager] ⚠️ Failed to stop Cursor SDK after session failure for ${opts.role}: ${(err as Error).message}`
+      );
+    }
   }
 
   private async finalizeRunningSlot(

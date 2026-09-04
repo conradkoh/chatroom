@@ -20,6 +20,8 @@
  *   into each session's SseEventBuffer for async consumer delivery.
  */
 
+// fallow-ignore-file code-duplication
+
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 
@@ -42,6 +44,10 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
+import {
+  mapOpencodeProviderModelOptions,
+  type OpencodeCatalogModel,
+} from '../../services/opencode-sdk/opencode-model-catalog.js';
 import { waitForListeningUrl } from '../../services/opencode-sdk/parse-listening-url.js';
 import { requireHarnessModel } from '../../services/require-harness-model.js';
 
@@ -159,10 +165,9 @@ export class OpencodeSdkHarness implements BoundHarness {
       .map((p) => ({
         providerID: p.id,
         name: p.name,
-        models: Object.entries(p.models ?? {}).map(([modelID, m]) => ({
-          modelID,
-          name: m.name,
-        })),
+        models: mapOpencodeProviderModelOptions(
+          (p.models ?? {}) as Record<string, OpencodeCatalogModel>
+        ),
       }));
   }
 
@@ -389,7 +394,8 @@ export class OpencodeSdkHarness implements BoundHarness {
       return null;
     }
 
-    const result = subscribed.result as { stream?: AsyncIterable<unknown> | undefined } | null | undefined;
+    const result = subscribed.result as
+      { stream?: AsyncIterable<unknown> | undefined } | null | undefined;
     if (!result?.stream) {
       await this._sseSleepIfActive(100, state);
       return null;

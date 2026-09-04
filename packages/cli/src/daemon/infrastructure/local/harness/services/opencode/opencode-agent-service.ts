@@ -16,6 +16,7 @@ import { type ChildProcess } from 'node:child_process';
 
 import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { fetchOpencodeProviderModelCatalog } from '../opencode-sdk/opencode-model-catalog.js';
 import { parseOpencodeSpawnModel } from '../opencode-sdk/pure.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { createSessionLogCallbacks } from '../session-log-callbacks.js';
@@ -46,6 +47,9 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
+    const fromProvider = await fetchOpencodeProviderModelCatalog(this.deps, process.cwd());
+    if (fromProvider.length > 0) return fromProvider;
+
     const output = await this.runListCommand('opencode', `${OPENCODE_COMMAND} models`);
 
     if (output === null) return [];

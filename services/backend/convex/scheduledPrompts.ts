@@ -345,7 +345,7 @@ export const fireOne = internalMutation({
       content: row.prompt,
       sourcePlatform: 'scheduled',
       scheduledPromptId: row._id,
-      startInNewSession: undefined,
+      startInNewSession: true,
       ...(chatroom.ownerId ? { userId: chatroom.ownerId } : {}),
     });
     if (!result.ok) return;

@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 import { PlannerEnhancerToggleButton, type TeamSupportState } from './PlannerEnhancerToggleButton';
+import { useComposerPreflightShortcut } from '../../../hooks/useComposerPreflightShortcut';
 import { useActiveEnhancerJob } from '../hooks/useActiveEnhancerJob';
 import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
 import { hasEnhancerConfigFields, type EnhancerConfig } from '../types/enhancer';
@@ -61,6 +62,17 @@ export function PlannerEnhancerToggle({
       'Enhancer is available to Solo and Duo teams. Choose one of those team types to enable request-first planning input.'
     );
   }, []);
+
+  const handleShortcut = useCallback(() => {
+    if (teamSupportState === 'loading' || isDisabling) return;
+    if (teamSupportState !== 'supported') {
+      handleUnsupportedClick();
+      return;
+    }
+    void handleToggle();
+  }, [teamSupportState, isDisabling, handleUnsupportedClick, handleToggle]);
+
+  useComposerPreflightShortcut({ code: 'KeyE', onTrigger: handleShortcut });
 
   if (teamSupportState !== 'supported') {
     return (
