@@ -1,6 +1,8 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   ChevronDown,
   ChevronRight,
@@ -54,6 +56,8 @@ import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 import { useWorkspaceUploadJobs } from '../hooks/useWorkspaceUploadJobs';
 import { basename } from '../utils/diff-parser';
+
+import { Button } from '@/components/ui/button';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -253,6 +257,7 @@ export const FileExplorerPanel = memo(
     function FileExplorerPanel(
       {
         chatroomId,
+        workspaceId,
         machineId,
         workingDir,
         fileTreeSyncEnabled = false,
@@ -311,6 +316,26 @@ export const FileExplorerPanel = memo(
         handleDrop,
         handleUploadDialogOpenChange,
       } = useExplorerFileDrop();
+
+      const setFileTreeSyncEnabledMutation = useSessionMutation(
+        api.workspaces.setFileTreeSyncEnabled
+      );
+      const [enablingFileTreeSync, setEnablingFileTreeSync] = useState(false);
+
+      const handleEnableFileTreeSync = useCallback(async () => {
+        if (!workspaceId || enablingFileTreeSync) return;
+        setEnablingFileTreeSync(true);
+        try {
+          await setFileTreeSyncEnabledMutation({
+            workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+            enabled: true,
+          });
+        } catch {
+          toast.error('Failed to enable workspace file tree sync');
+        } finally {
+          setEnablingFileTreeSync(false);
+        }
+      }, [workspaceId, enablingFileTreeSync, setFileTreeSyncEnabledMutation]);
 
       const openNewFileDialog = useCallback((defaultDir = '') => {
         setNewFileDefaultDir(defaultDir);
@@ -474,12 +499,16 @@ export const FileExplorerPanel = memo(
                 Workspace file tree syncing is disabled
               </p>
               <p className="max-w-64 text-xs text-chatroom-text-secondary">
-                Enable file tree sync in{' '}
-                <span className="font-medium text-chatroom-text-primary">
-                  Settings → Workspaces
-                </span>{' '}
-                to browse this workspace&apos;s files.
+                Enable file tree sync to browse this workspace&apos;s files.
               </p>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={handleEnableFileTreeSync}
+                disabled={enablingFileTreeSync}
+              >
+                {enablingFileTreeSync ? 'Enabling…' : 'Enable file tree sync'}
+              </Button>
             </div>
           </div>
         );
