@@ -24,7 +24,12 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     void routeInboundEvent(deps.router, event);
   };
 
+  const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
+
   const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
+    // Workspace membership nudges keep the per-room enhancer watches in sync
+    // (e.g. a newly registered workspace enables enhancer jobs in that room).
+    if (claimed.type === 'daemon.workspaceListChanged') void enhancerJob.refreshChatrooms();
     await dispatchCommandInboundEvent({
       type: 'command.received',
       commandId: claimed.commandId,
@@ -39,7 +44,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const fileWrite = startFileWriteRequestSubscriber(deps, onEvent);
   const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
   const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
-  const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
 
   return {
     async stopAll() {
