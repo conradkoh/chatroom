@@ -137,3 +137,50 @@ describe('Native task delivery — attached context', () => {
     expect(output).not.toContain('<attached>');
   });
 });
+
+describe('Native task delivery — Chat mode eager template matrix', () => {
+  test('duo planner chat entry-point user only includes user template, no builder/enhancer', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: CHATROOM_ID,
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: CLI_ENV,
+      task: { _id: 'task-id', content: 'Hello' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+      conversationMode: 'chat',
+    });
+
+    // Only user template in eager templates
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('Handoff to `user`');
+    expect(output).not.toContain('Handoff to `builder`');
+    expect(output).not.toContain('Handoff to `enhancer`');
+    // No alternate handoff targets
+    expect(output).not.toContain('<handoffs>');
+    // Chat-mode guidance
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
+  });
+
+  test('solo chat entry-point user only includes user template, no enhancer', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: CHATROOM_ID,
+      role: 'solo',
+      teamId: 'solo',
+      cliEnvPrefix: CLI_ENV,
+      task: { _id: 'task-id', content: 'Hello' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['user', 'enhancer'],
+      isEntryPoint: true,
+      conversationMode: 'chat',
+    });
+
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('Handoff to `user`');
+    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).not.toContain('<handoffs>');
+    expect(output).toContain('<chat-mode>');
+  });
+});

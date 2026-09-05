@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { composeNativeSystemPrompt } from '../../../prompts/native/system-prompt';
 import { generateNativeTaskDeliveryOutput } from '../../../prompts/native/task-delivery';
 import {
+  getNativeChatTaskStartedPrompt,
   getNativeTaskStartedPrompt,
   getNativeTaskStartedPromptForHandoffRecipient,
 } from '../../../prompts/native/task-started-content';
@@ -217,5 +218,93 @@ describe('native task delivery', () => {
     expect(output).toContain('<attachments>');
     expect(output).toContain('file-source="./windsurfrules"');
     expect(output).toContain('# Shadcn');
+  });
+
+  test('chat task started prompt contains direct answer instruction and no context commands', () => {
+    const prompt = getNativeChatTaskStartedPrompt();
+    expect(prompt).toContain('Chat-mode task from the user');
+    expect(prompt).toContain('Answer the user directly and concisely');
+    // Should not contain actual context command invocations (with --chatroom-id)
+    expect(prompt).not.toContain('context read --chatroom-id');
+    expect(prompt).not.toContain('context new --chatroom-id');
+    // Should contain the prohibition text
+    expect(prompt).toContain('Do not run `chatroom context read` or `chatroom context new`');
+    expect(prompt).toContain('Do not invoke the enhancer or delegate');
+  });
+
+  test('native chat delivery includes Chat intake and excludes context commands and handoffs', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'Hello there' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+      conversationMode: 'chat',
+    });
+
+    // Chat intake present
+    expect(output).toContain('Chat-mode task from the user');
+    // No actual context command invocations (with --chatroom-id)
+    expect(output).not.toContain('context new --chatroom-id');
+    expect(output).not.toContain('context read --chatroom-id');
+    // No alternate handoff targets
+    expect(output).not.toContain('<handoffs>');
+    expect(output).not.toContain('Handoff to `builder`');
+    // Only user template (no builder/enhancer templates)
+    expect(output).not.toContain('Delegation Brief');
+    expect(output).not.toContain('Handoff to `enhancer`');
+    // Primary user command present
+    expect(output).toContain('--next-role="user"');
+    // No proof-rich sections
+    expect(output).not.toContain('<handoff-proofs>');
+    expect(output).not.toContain('<handoff-direction>');
+    expect(output).not.toContain('<handoff-action>');
+  });
+
+  test('solo native chat delivery includes Chat intake and excludes alternate targets', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'solo',
+      teamId: 'solo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'Hello there' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['user', 'enhancer'],
+      isEntryPoint: true,
+      conversationMode: 'chat',
+    });
+
+    expect(output).toContain('Chat-mode task from the user');
+    expect(output).not.toContain('context new --chatroom-id');
+    expect(output).not.toContain('context read --chatroom-id');
+    expect(output).not.toContain('<handoffs>');
+    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).toContain('--next-role="user"');
+  });
+
+  test('code mode native delivery retains context prompt and proof-rich report template', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'Implement feature' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+      conversationMode: 'code',
+    });
+
+    // Context commands present (code mode has context rule)
+    expect(output).toContain('context read');
+    expect(output).toContain('context new');
+    // Proof-rich report template present
+    expect(output).toContain('Report Template (Planner → User)');
+    expect(output).toContain('Delegation Brief (Planner → Builder)');
+    // No chat-mode guidance
+    expect(output).not.toContain('<chat-mode>');
   });
 });

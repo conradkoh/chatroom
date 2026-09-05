@@ -6,7 +6,10 @@
  * listen-loop framing.
  */
 
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+
 import { getHandoffTemplate } from '../cli/handoff-templates';
+import { isChatModeEntryPointUserTask } from '../task-delivery/chat-mode-policy';
 
 /** toRole targets to inline per team:role on native task delivery. */
 const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
@@ -19,8 +22,17 @@ const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
 function getNativeDeliveryTemplateTargets(
   teamId: string | undefined,
   role: string,
-  includeEnhancerTemplate?: boolean
+  includeEnhancerTemplate?: boolean,
+  modeContext?: {
+    conversationMode?: ConversationMode | undefined;
+    isEntryPoint?: boolean | undefined;
+    senderRole?: string | undefined;
+  }
 ): readonly string[] {
+  // Chat-mode entry-point user tasks: only the user template, no builder/enhancer targets.
+  if (isChatModeEntryPointUserTask(modeContext ?? {})) {
+    return ['user'];
+  }
   const key = `${(teamId ?? 'duo').toLowerCase()}:${role.toLowerCase()}`;
   const base = NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
   if (!includeEnhancerTemplate) {
@@ -35,6 +47,7 @@ function renderNativeDeliveryTemplateBlock(
     role: string;
     chatroomId?: string | undefined;
     cliEnvPrefix?: string | undefined;
+    conversationMode?: ConversationMode | undefined;
   },
   toRole: string
 ): string[] | null {
@@ -46,6 +59,7 @@ function renderNativeDeliveryTemplateBlock(
     chatroomId: params.chatroomId,
     role: params.role,
     cliEnvPrefix: params.cliEnvPrefix,
+    conversationMode: params.conversationMode,
   });
   if (!template) return null;
   return [`### Handoff to \`${toRole}\``, template, ''];
@@ -59,15 +73,33 @@ export function appendNativeDeliveryHandoffTemplates(
     chatroomId?: string | undefined;
     cliEnvPrefix?: string | undefined;
     includeEnhancerTemplate?: boolean | undefined;
+    conversationMode?: ConversationMode | undefined;
+    isEntryPoint?: boolean | undefined;
+    senderRole?: string | undefined;
   }
 ): void {
   const targets = getNativeDeliveryTemplateTargets(
     params.teamId,
     params.role,
-    params.includeEnhancerTemplate
+    params.includeEnhancerTemplate,
+    {
+      conversationMode: params.conversationMode,
+      isEntryPoint: params.isEntryPoint,
+      senderRole: params.senderRole,
+    }
   );
   const blocks = targets.flatMap(
-    (toRole) => renderNativeDeliveryTemplateBlock(params, toRole) ?? []
+    (toRole) =>
+      renderNativeDeliveryTemplateBlock(
+        {
+          teamId: params.teamId,
+          role: params.role,
+          chatroomId: params.chatroomId,
+          cliEnvPrefix: params.cliEnvPrefix,
+          conversationMode: params.conversationMode,
+        },
+        toRole
+      ) ?? []
   );
   if (blocks.length === 0) return;
 

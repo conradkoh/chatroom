@@ -8,9 +8,11 @@
 
 import { getNativeEnhancerInputTaskIntake } from './enhancer-input-intake';
 import {
+  getNativeChatTaskStartedPrompt,
   getNativeTaskStartedPrompt,
   getNativeTaskStartedPromptForHandoffRecipient,
 } from './task-started-content';
+import { isChatModeEntryPointUserTask } from '../task-delivery/chat-mode-policy';
 import {
   appendTaskDeliveryHandoffSections,
   type TaskDeliveryParams,
@@ -22,12 +24,22 @@ export type NativeTaskDeliveryParams = TaskDeliveryParams;
 function resolveNativeTaskIntakeContent(
   params: Pick<
     NativeTaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'isEntryPoint' | 'message'
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'isEntryPoint' | 'message' | 'conversationMode'
   >
 ): string {
-  const { chatroomId, role, cliEnvPrefix, isEntryPoint, message } = params;
+  const { chatroomId, role, cliEnvPrefix, isEntryPoint, message, conversationMode } = params;
   if (!isEntryPoint) {
     return getNativeTaskStartedPromptForHandoffRecipient();
+  }
+  // Chat-mode entry-point user tasks: direct answer, no context commands.
+  if (
+    isChatModeEntryPointUserTask({
+      conversationMode,
+      isEntryPoint,
+      senderRole: message?.senderRole,
+    })
+  ) {
+    return getNativeChatTaskStartedPrompt();
   }
   if (message?.senderRole.toLowerCase() === 'enhancer') {
     return getNativeEnhancerInputTaskIntake({ chatroomId, role, cliEnvPrefix });
@@ -44,7 +56,13 @@ function appendNativeTaskIntake(
   lines: string[],
   params: Pick<
     NativeTaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'teamId' | 'isEntryPoint' | 'message'
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'teamId'
+    | 'isEntryPoint'
+    | 'message'
+    | 'conversationMode'
   >
 ): void {
   lines.push('', '<task-intake>', resolveNativeTaskIntakeContent(params), '</task-intake>');
@@ -109,6 +127,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     teamId,
     isEntryPoint,
     message,
+    conversationMode,
   });
   appendTaskDeliveryHandoffSections(lines, {
     chatroomId,

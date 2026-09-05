@@ -36,6 +36,12 @@ ${getContextRuleBlock(
 )}`;
 }
 
+export function getNativeChatTaskStartedPrompt(): string {
+  return `### Start working
+
+This is a Chat-mode task from the user. Answer the user directly and concisely. Do not run \`chatroom context read\` or \`chatroom context new\` for this task. Do not invoke the enhancer or delegate to another agent.`;
+}
+
 export function getNativeTaskStartedPromptForHandoffRecipient(): string {
   return `### Start Working
 

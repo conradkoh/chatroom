@@ -245,4 +245,62 @@ describe('appendTaskDeliveryHandoffSections — conversationMode', () => {
     expect(output).not.toContain('<handoff-enhancer-disabled>');
     expect(output).toContain('--next-role="user"');
   });
+
+  test('chat entry-point user output includes no-context instruction and omits handoffs and alternate targets', () => {
+    const output = renderHandoffSections({
+      plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      conversationMode: 'chat',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
+    expect(output).toContain('--next-role="user"');
+
+    // No alternate handoff targets block
+    expect(output).not.toContain('<handoffs>');
+    expect(output).not.toContain('Handoff to `builder`');
+    expect(output).not.toContain('Handoff to `enhancer`');
+
+    // No proof-rich sections
+    expect(output).not.toContain('<handoff-proofs>');
+    expect(output).not.toContain('<handoff-direction>');
+    expect(output).not.toContain('<handoff-action>');
+    expect(output).not.toContain('Not Applicable.');
+  });
+
+  test('solo chat entry-point user output omits handoffs and alternate targets', () => {
+    const output = renderHandoffSections({
+      role: 'solo',
+      teamId: 'solo',
+      plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['user', 'enhancer'],
+      conversationMode: 'chat',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
+    expect(output).toContain('--next-role="user"');
+    expect(output).not.toContain('<handoffs>');
+    expect(output).not.toContain('Handoff to `enhancer`');
+  });
+
+  test('delegated/non-entry-point chat task retains normal target/template behavior', () => {
+    const output = renderHandoffSections({
+      role: 'builder',
+      conversationMode: 'chat',
+      availableHandoffTargets: ['planner'],
+      isEntryPoint: false,
+      message: { _id: 'planner-msg', senderRole: 'planner' },
+    });
+
+    // No chat-mode guidance for non-entry-point
+    expect(output).not.toContain('<chat-mode>');
+    // Normal handoff targets present
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('--next-role="planner"');
+    expect(output).toContain('Handoff to `planner`');
+  });
 });
