@@ -115,6 +115,21 @@ describe('task-delivery-logic', () => {
       ).toEqual([pendingPlannerTask]);
     });
 
+    it('does not wake an agent whose start circuit is open', () => {
+      registerTestNativeDeliverySession({
+        runtime: undefined as never,
+        effectContext: undefined as never,
+        agentMgr: {} as never,
+        sessionDeps: {} as never,
+        machineId: 'machine-1',
+        operationalRows: [operationalRow('room-1', 'planner', 'circuit_open')],
+      });
+
+      expect(
+        listNativePendingTasksNeedingWake([pendingPlannerTask], new RecoveryCooldown(0), 10_000)
+      ).toEqual([]);
+    });
+
     it('wakes a pending native snapshot with no operational row and no presence', () => {
       // Offline agent: absent operational row (never reported) and no
       // participant/presence signal. Assignment alone makes it wake-eligible.

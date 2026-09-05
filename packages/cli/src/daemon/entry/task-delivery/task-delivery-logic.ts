@@ -5,6 +5,7 @@ import {
   isSlotStopping,
 } from '../../../daemon/domain/usecase/check-agent-slot.js';
 import {
+  isOperationalCircuitOpen,
   isOperationalDesiredRunning,
   isOperationalStopIntentActive,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
@@ -120,6 +121,10 @@ function isNativePendingTaskNeedingWake(task: AssignedTaskSnapshotView): boolean
     task.agentConfig.role
   );
   if (isOperationalDesiredRunning(op)) return false;
+  // A failed start opens the circuit. Do not let the still-pending task
+  // immediately re-trigger the same failing spawn; manual start or a fresh
+  // lifecycle transition must close/re-authorize the circuit first.
+  if (isOperationalCircuitOpen(op)) return false;
   if (isOperationalStopIntentActive(op)) return false;
   return Boolean(task.agentConfig.workingDir);
 }
