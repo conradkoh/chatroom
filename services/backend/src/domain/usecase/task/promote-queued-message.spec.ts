@@ -407,3 +407,112 @@ describe('promoteQueuedMessage', () => {
     expect(result).toBeNull();
   });
 });
+
+describe('promoteQueuedMessage — TaskEnvelopeV1', () => {
+  test('copies an explicit queue envelope intact to the promoted task', async () => {
+    const { sessionId } = await createTestSession('promote-env-explicit');
+    const chatroomId = await createChatroom(sessionId);
+
+    const explicitEnvelope = {
+      version: 1 as const,
+      conversationMode: 'code' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'team' as const, phase: 'implementation' as const },
+    };
+    const queuedMessageId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'planner',
+        content: 'explicit envelope task',
+        type: 'message',
+        queuePosition: 20,
+        taskEnvelope: explicitEnvelope,
+      });
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
+    });
+
+    expect(result).toBeDefined();
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result!.taskId));
+    // The full snapshot is copied, including session policy and workflow phase.
+    expect(task?.taskEnvelope).toEqual(explicitEnvelope);
+    expect(task?.taskEnvelope?.sessionPolicy).toBe('new');
+    expect(task?.taskEnvelope?.handoffWorkflow).toEqual({
+      preset: 'team',
+      phase: 'implementation',
+    });
+  });
+
+  test('normalizes a legacy queue row without taskEnvelope into a complete envelope on the task', async () => {
+    const { sessionId } = await createTestSession('promote-env-legacy');
+    const chatroomId = await createChatroom(sessionId);
+
+    const queuedMessageId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'planner',
+        content: 'legacy envelope task',
+        type: 'message',
+        queuePosition: 21,
+        conversationMode: 'chat',
+        plannerEnhancerEnabled: false,
+      });
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
+    });
+
+    expect(result).toBeDefined();
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result!.taskId));
+    expect(task?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'chat',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'direct', phase: 'entry' },
+    });
+    // Temporary scalar projections are preserved for existing readers.
+    expect(task?.conversationMode).toBe('chat');
+    expect(task?.plannerEnhancerEnabled).toBe(false);
+  });
+
+  test('legacy enhancer-scalar rows keep scalar expectations alongside the complete envelope', async () => {
+    const { sessionId } = await createTestSession('promote-env-enh-scalar');
+    const chatroomId = await createChatroom(sessionId);
+
+    const queuedMessageId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'planner',
+        content: 'enh scalar task',
+        type: 'message',
+        queuePosition: 22,
+        plannerEnhancerEnabled: true,
+        startInNewSession: true,
+      });
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
+    });
+
+    expect(result).toBeDefined();
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result!.taskId));
+    // Normalized from the enhancer boolean → code:enhanced; session from the flag.
+    expect(task?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code:enhanced',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
+    });
+    // Existing scalar expectations stay intact.
+    expect(task?.plannerEnhancerEnabled).toBe(true);
+    expect(task?.startInNewSession).toBe(true);
+    expect(task?.conversationMode).toBeUndefined();
+  });
+});

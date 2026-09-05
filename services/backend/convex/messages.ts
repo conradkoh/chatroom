@@ -7,7 +7,12 @@ import {
   getEnhancerEntryPointRole,
   isEnhancerEntryPointRole,
 } from '@workspace/shared/domain/enhancer-team-capability';
-import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
+import {
+  normalizeTaskEnvelope,
+  withTaskEnvelopeConversationMode,
+  withTaskEnvelopeSessionPolicy,
+  type TaskEnvelopeV1,
+} from '@workspace/shared/domain/task-envelope';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -1476,6 +1481,59 @@ export const listQueued = query({
   },
 });
 
+/**
+ * TEMPORARY compatibility projection for legacy scalar readers. The canonical
+ * TaskEnvelopeV1 is the only policy source; these scalar columns are derived
+ * from it and are NOT independent inputs. Remove together with the
+ * plannerEnhancerEnabled/conversationMode/startInNewSession columns after all
+ * readers migrate to taskEnvelope.
+ */
+function taskEnvelopeLegacyProjection(envelope: TaskEnvelopeV1) {
+  return {
+    taskEnvelope: envelope,
+    plannerEnhancerEnabled: envelope.conversationMode === 'code:enhanced',
+    conversationMode: envelope.conversationMode,
+    startInNewSession: envelope.sessionPolicy === 'new',
+  };
+}
+
+/** Atomically replaces a queue row's complete TaskEnvelopeV1 in one patch. */
+export const updateQueuedMessageEnvelope = mutation({
+  args: {
+    ...SessionIdArg,
+    queuedMessageId: v.id('chatroom_messageQueue'),
+    taskEnvelope: taskEnvelopeV1Validator,
+  },
+  handler: async (ctx, args) => {
+    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
+    if (!record) {
+      throw new ConvexError({
+        code: 'QUEUED_MESSAGE_NOT_FOUND',
+        message: 'Queued message not found',
+      });
+    }
+    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
+    // The Convex validator already rejects malformed shapes; the shared guard
+    // additionally enforces the mode/preset invariant. A semantic mismatch is
+    // surfaced as a clear error rather than silently normalized.
+    let envelope: TaskEnvelopeV1;
+    try {
+      envelope = normalizeTaskEnvelope({ taskEnvelope: args.taskEnvelope });
+    } catch {
+      throw new ConvexError({
+        code: 'INVALID_TASK_ENVELOPE',
+        message: 'Invalid TaskEnvelopeV1 value',
+      });
+    }
+    await ctx.db.patch(
+      'chatroom_messageQueue',
+      args.queuedMessageId,
+      taskEnvelopeLegacyProjection(envelope)
+    );
+  },
+});
+
+/** Legacy adapter: derives the code mode from the boolean and rewrites the envelope. */
 export const updateQueuedMessagePlannerEnhancer = mutation({
   args: {
     ...SessionIdArg,
@@ -1491,15 +1549,21 @@ export const updateQueuedMessagePlannerEnhancer = mutation({
       });
     }
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    // Derive the conversation mode from the boolean for consistency with the new mode contract.
-    const conversationMode = args.plannerEnhancerEnabled ? 'code:enhanced' : 'code';
-    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
-      plannerEnhancerEnabled: args.plannerEnhancerEnabled,
-      conversationMode,
-    });
+    // Historical behavior: false maps to code (never chat).
+    const current = normalizeTaskEnvelope(record);
+    const next = withTaskEnvelopeConversationMode(
+      current,
+      args.plannerEnhancerEnabled ? 'code:enhanced' : 'code'
+    );
+    await ctx.db.patch(
+      'chatroom_messageQueue',
+      args.queuedMessageId,
+      taskEnvelopeLegacyProjection(next)
+    );
   },
 });
 
+/** Legacy adapter: rewrites the envelope for the requested conversation mode. */
 export const updateQueuedMessageConversationMode = mutation({
   args: {
     ...SessionIdArg,
@@ -1515,14 +1579,17 @@ export const updateQueuedMessageConversationMode = mutation({
       });
     }
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    const plannerEnhancerEnabled = plannerEnhancerEnabledForMode(args.conversationMode);
-    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
-      conversationMode: args.conversationMode,
-      plannerEnhancerEnabled,
-    });
+    const current = normalizeTaskEnvelope(record);
+    const next = withTaskEnvelopeConversationMode(current, args.conversationMode);
+    await ctx.db.patch(
+      'chatroom_messageQueue',
+      args.queuedMessageId,
+      taskEnvelopeLegacyProjection(next)
+    );
   },
 });
 
+/** Legacy adapter: rewrites the envelope's session policy from the boolean. */
 export const updateQueuedMessageStartInNewSession = mutation({
   args: {
     ...SessionIdArg,
@@ -1537,9 +1604,16 @@ export const updateQueuedMessageStartInNewSession = mutation({
         message: 'Queued message not found',
       });
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
-      startInNewSession: args.startInNewSession,
-    });
+    const current = normalizeTaskEnvelope(record);
+    const next = withTaskEnvelopeSessionPolicy(
+      current,
+      args.startInNewSession ? 'new' : 'continue'
+    );
+    await ctx.db.patch(
+      'chatroom_messageQueue',
+      args.queuedMessageId,
+      taskEnvelopeLegacyProjection(next)
+    );
   },
 });
 
