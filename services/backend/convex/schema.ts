@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { storedFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
+import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import {
   agentHarnessValidator,
   agentTypeValidator,
@@ -613,6 +614,8 @@ export default defineSchema({
       v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
     ),
     startInNewSession: v.optional(v.boolean()),
+    // Optional canonical TaskEnvelopeV1 snapshot (undefined = legacy scalars below)
+    taskEnvelope: v.optional(taskEnvelopeV1Validator),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
@@ -692,6 +695,8 @@ export default defineSchema({
     /** Enhancer-enabled snapshot captured when the task was enqueued. */
     enhancerEnabledAtEnqueue: v.optional(v.boolean()),
     startInNewSession: v.optional(v.boolean()),
+    // Optional canonical TaskEnvelopeV1 snapshot (undefined = legacy scalars below)
+    taskEnvelope: v.optional(taskEnvelopeV1Validator),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
