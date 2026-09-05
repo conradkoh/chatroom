@@ -51,10 +51,3 @@ export function legacyConversationMode(plannerEnhancerEnabled?: boolean): Conver
 export function plannerEnhancerEnabledForMode(mode: ConversationMode): boolean {
   return mode === 'code:enhanced';
 }
-
-/** Convex-compatible validator for the conversationMode field. */
-export function conversationModeValidator() {
-  // Lazy import to avoid circular deps; consumers should import from 'convex/values' directly.
-  // This helper is only for reference — schema.ts builds its own v.union.
-  return null;
-}
