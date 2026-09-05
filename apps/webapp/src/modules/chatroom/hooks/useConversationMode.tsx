@@ -1,10 +1,17 @@
 'use client';
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { useEnhancerConfig } from '../features/enhancers/hooks/useEnhancerConfig';
-import { isEnhancerConfigActive } from '../features/enhancers/types/enhancer';
 
 // ── Context ──────────────────────────────────────────────────────────────────
 
@@ -37,14 +44,19 @@ interface ConversationModeProviderProps {
  * enhancer config. Resets per chatroom. UI-only — no server preference.
  *
  * Seed logic:
- * - Active valid enhancer config → `code:enhanced`
+ * - Active valid server config → `code:enhanced`
  * - All other cases → `code` (historical default)
  *
- * Once the user explicitly cycles the mode, server config hydration will not
- * overwrite it.
+ * Reconciles with authoritative backend state:
+ * - disabled → enabled: force `code:enhanced` (backend is authoritative)
+ * - enabled → disabled: force `code` only if current mode is `code:enhanced`;
+ *   otherwise preserve the user's disabled mode (chat/code)
+ *
+ * During an optimistic local transition (user has selected), the provider
+ * defers to the toggle's success/error settlement and does not overwrite.
  */
 export function ConversationModeProvider({ chatroomId, children }: ConversationModeProviderProps) {
-  const { config } = useEnhancerConfig(chatroomId);
+  const { serverIsActive } = useEnhancerConfig(chatroomId);
   const hasUserSelectedRef = useRef(false);
   const [mode, setModeRaw] = useState<ConversationMode>(DEFAULT_MODE);
 
@@ -52,16 +64,42 @@ export function ConversationModeProvider({ chatroomId, children }: ConversationM
   const lastChatroomRef = useRef<string | null>(null);
   const [syncedMode, setSyncedMode] = useState<ConversationMode>(DEFAULT_MODE);
 
+  // Refs for transition detection.
+  const prevServerActiveRef = useRef<boolean | undefined>(undefined);
+
+  // Compute effective mode BEFORE the effect so the effect sees the latest value.
+  const effectiveMode = hasUserSelectedRef.current ? mode : syncedMode;
+
   // When chatroom changes, reset user selection and seed from config.
   if (lastChatroomRef.current !== chatroomId) {
     lastChatroomRef.current = chatroomId;
     hasUserSelectedRef.current = false;
-    const initial = isEnhancerConfigActive(config) ? 'code:enhanced' : 'code';
+    prevServerActiveRef.current = serverIsActive === undefined ? undefined : serverIsActive;
+    const initial = serverIsActive === true ? 'code:enhanced' : 'code';
     setSyncedMode(initial);
   }
 
-  // Use the user-selected mode if they've cycled, otherwise the synced mode.
-  const effectiveMode = hasUserSelectedRef.current ? mode : syncedMode;
+  // Reconcile with authoritative backend state changes via effect.
+  useEffect(() => {
+    if (serverIsActive === undefined) return;
+    const prev = prevServerActiveRef.current;
+    prevServerActiveRef.current = serverIsActive;
+
+    // Skip on first render for this chatroom — handled by the chatroom-change block above.
+    if (prev === undefined) return;
+
+    if (!prev && serverIsActive) {
+      // disabled → enabled: backend is authoritative, force Enhanced.
+      hasUserSelectedRef.current = false;
+      setSyncedMode('code:enhanced');
+    } else if (prev && !serverIsActive) {
+      // enabled → disabled: only force Code if currently Enhanced.
+      // Use effectiveMode computed above (latest value, not stale closure).
+      if (effectiveMode === 'code:enhanced') {
+        setSyncedMode('code');
+      }
+    }
+  }, [serverIsActive, syncedMode, effectiveMode]);
 
   const setMode = useCallback((newMode: ConversationMode) => {
     hasUserSelectedRef.current = true;

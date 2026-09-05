@@ -85,7 +85,7 @@ export function PlannerConversationModeToggleButton({
   const shortcut = getComposerPreflightShortcutLabel('M');
 
   const handleClick = () => {
-    if (isLoading || isBusy) return;
+    if (isLoading) return;
     if (isUnsupported) {
       onUnsupportedClick();
       return;
@@ -107,7 +107,6 @@ export function PlannerConversationModeToggleButton({
             aria-label={`Mode: ${modeLabel(mode)}`}
             aria-busy={isBusy || undefined}
             aria-disabled={isUnsupported || undefined}
-            disabled={isBusy && !isUnsupported}
             data-testid="planner-conversation-mode-toggle"
             onClick={handleClick}
           >

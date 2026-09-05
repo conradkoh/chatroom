@@ -115,19 +115,58 @@ describe('PlannerConversationModeToggleButton', () => {
     );
   });
 
-  it('disables button when busy', () => {
+  it('remains activatable (not natively disabled) when busy for optimistic rapid activation', () => {
+    const onCycle = vi.fn();
     render(
       <PlannerConversationModeToggleButton
         mode="code"
         isBusy={true}
         teamSupportState="supported"
-        onCycle={vi.fn()}
+        onCycle={onCycle}
         onConfigure={vi.fn()}
         onUnsupportedClick={vi.fn()}
       />
     );
 
-    expect(screen.getByTestId('planner-conversation-mode-toggle')).toBeDisabled();
+    const button = screen.getByTestId('planner-conversation-mode-toggle');
+    // Not natively disabled — allows rapid clicking
+    expect(button).not.toBeDisabled();
+    // Still has aria-busy for accessibility
+    expect(button).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('calls onCycle when clicked while busy', () => {
+    const onCycle = vi.fn();
+    render(
+      <PlannerConversationModeToggleButton
+        mode="code"
+        isBusy={true}
+        teamSupportState="supported"
+        onCycle={onCycle}
+        onConfigure={vi.fn()}
+        onUnsupportedClick={vi.fn()}
+      />
+    );
+
+    screen.getByTestId('planner-conversation-mode-toggle').click();
+    expect(onCycle).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onCycle when loading', () => {
+    const onCycle = vi.fn();
+    render(
+      <PlannerConversationModeToggleButton
+        mode="code"
+        isBusy={false}
+        teamSupportState="loading"
+        onCycle={onCycle}
+        onConfigure={vi.fn()}
+        onUnsupportedClick={vi.fn()}
+      />
+    );
+
+    screen.getByTestId('planner-conversation-mode-toggle').click();
+    expect(onCycle).not.toHaveBeenCalled();
   });
 
   it('does not disable Chat/Code when unsupported', () => {

@@ -1,7 +1,7 @@
 // fallow-ignore-file complexity
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -13,61 +13,25 @@ import { useConversationMode } from '../../../hooks/useConversationMode';
 import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
 import { hasEnhancerConfigFields } from '../types/enhancer';
 
+type ConversationMode = 'chat' | 'code' | 'code:enhanced';
+
 interface PlannerConversationModeToggleProps {
   chatroomId: string;
   machineId: string | null | undefined;
   teamSupportState?: TeamSupportState;
 }
 
-function computeNextMode(
-  mode: 'chat' | 'code' | 'code:enhanced'
-): 'chat' | 'code' | 'code:enhanced' {
+function computeNextMode(mode: ConversationMode): ConversationMode {
   if (mode === 'chat') return 'code';
   if (mode === 'code') return 'code:enhanced';
   return 'chat';
-}
-
-async function executeModeTransition(args: {
-  currentMode: 'chat' | 'code' | 'code:enhanced';
-  nextMode: 'chat' | 'code' | 'code:enhanced';
-  config: ReturnType<typeof useEnhancerConfigDialogHost>['config'];
-  saveConfig: ReturnType<typeof useEnhancerConfigDialogHost>['saveConfig'];
-  disable: ReturnType<typeof useEnhancerConfigDialogHost>['disable'];
-  openDialog: ReturnType<typeof useEnhancerConfigDialogHost>['openDialog'];
-  setMode: (mode: 'chat' | 'code' | 'code:enhanced') => void;
-}): Promise<boolean> {
-  const { currentMode, nextMode, config, saveConfig, disable, openDialog, setMode } = args;
-
-  if (nextMode === 'code:enhanced') {
-    if (hasEnhancerConfigFields(config)) {
-      await saveConfig({ ...config, enabled: true });
-      setMode('code:enhanced');
-      return true;
-    }
-    openDialog();
-    return false;
-  }
-
-  if (currentMode === 'code:enhanced' && nextMode === 'chat') {
-    try {
-      await disable();
-    } catch {
-      toast.error('Failed to disable enhancement. Keeping Enhanced mode.');
-      return false;
-    }
-    setMode('chat');
-    return true;
-  }
-
-  setMode(nextMode);
-  return true;
 }
 
 function UnsupportedToggle({
   mode,
   onUnsupportedClick,
 }: {
-  mode: 'chat' | 'code' | 'code:enhanced';
+  mode: ConversationMode;
   onUnsupportedClick: () => void;
 }) {
   return (
@@ -90,7 +54,7 @@ function SupportedToggle({
   onUnsupportedClick,
   dialog,
 }: {
-  mode: 'chat' | 'code' | 'code:enhanced';
+  mode: ConversationMode;
   isBusy: boolean;
   onCycle: () => void;
   onConfigure: () => void;
@@ -125,24 +89,86 @@ export function PlannerConversationModeToggle({
   });
   const [isBusy, setIsBusy] = useState(false);
 
-  const handleCycle = useCallback(async () => {
-    if (isBusy) return;
-    setIsBusy(true);
-    try {
-      const nextMode = computeNextMode(mode);
-      await executeModeTransition({
-        currentMode: mode,
-        nextMode,
-        config,
-        saveConfig,
-        disable,
-        openDialog,
-        setMode,
-      });
-    } finally {
-      setIsBusy(false);
+  // ── Optimistic reconciliation refs ──────────────────────────────────────
+  // Generation counter: incremented on each activation; stale async results
+  // are discarded when their generation no longer matches.
+  const generationRef = useRef(0);
+  // The last mode that was confirmed by the backend (for rollback on failure).
+  const committedModeRef = useRef<ConversationMode>(mode);
+  // Serialized mutation promise chain — ensures backend writes are ordered.
+  const mutationChainRef = useRef<Promise<void>>(Promise.resolve());
+  // Mounted guard: prevent state updates after unmount.
+  const mountedRef = useRef(true);
+
+  // Keep committedModeRef in sync with mode when it changes externally
+  // (e.g. provider hydration from server state).
+  const lastModeRef = useRef(mode);
+  if (lastModeRef.current !== mode) {
+    lastModeRef.current = mode;
+    // Only sync committed mode if we're not in an active reconciliation.
+    // During reconciliation, the toggle owns the mode lifecycle.
+    if (generationRef.current === 0) {
+      committedModeRef.current = mode;
     }
-  }, [isBusy, mode, config, saveConfig, disable, openDialog, setMode]);
+  }
+
+  const handleCycle = useCallback(() => {
+    const nextMode = computeNextMode(mode);
+
+    // Incomplete config: open dialog, do not change mode.
+    if (nextMode === 'code:enhanced' && !hasEnhancerConfigFields(config)) {
+      openDialog();
+      return;
+    }
+
+    // ── Immediate optimistic UI ─────────────────────────────────────────
+    setMode(nextMode);
+
+    // Non-boundary transitions (chat ↔ code) need no backend mutation.
+    const crossesEnhancedBoundary = nextMode === 'code:enhanced' || mode === 'code:enhanced';
+    if (!crossesEnhancedBoundary) {
+      committedModeRef.current = nextMode;
+      return;
+    }
+
+    // ── Serialized backend reconciliation ───────────────────────────────
+    const gen = ++generationRef.current;
+    const desiredEnabled = nextMode === 'code:enhanced';
+    setIsBusy(true);
+
+    // Chain onto existing promise so mutations are serialized.
+    mutationChainRef.current = mutationChainRef.current.then(async () => {
+      // Skip if a newer activation superseded this one.
+      if (gen !== generationRef.current) return;
+
+      try {
+        if (desiredEnabled) {
+          await saveConfig({ ...config!, enabled: true });
+        } else {
+          await disable();
+        }
+
+        // Success: settle on the requested mode (unless superseded).
+        if (gen !== generationRef.current) return;
+        committedModeRef.current = nextMode;
+        setIsBusy(false);
+      } catch {
+        // Terminal failure: rollback only if no newer intent exists.
+        if (gen !== generationRef.current) return;
+
+        if (mountedRef.current) {
+          setMode(committedModeRef.current);
+          setIsBusy(false);
+        }
+
+        toast.error(
+          desiredEnabled
+            ? 'Failed to enable enhancement. Reverted to previous mode.'
+            : 'Failed to disable enhancement. Keeping Enhanced mode.'
+        );
+      }
+    });
+  }, [mode, config, saveConfig, disable, openDialog, setMode]);
 
   const handleUnsupportedClick = useCallback(() => {
     toast.message(
@@ -151,13 +177,13 @@ export function PlannerConversationModeToggle({
   }, []);
 
   const handleShortcut = useCallback(() => {
-    if (teamSupportState === 'loading' || isBusy) return;
+    if (teamSupportState === 'loading') return;
     if (teamSupportState !== 'supported') {
       handleUnsupportedClick();
       return;
     }
-    void handleCycle();
-  }, [teamSupportState, isBusy, handleUnsupportedClick, handleCycle]);
+    handleCycle();
+  }, [teamSupportState, handleUnsupportedClick, handleCycle]);
 
   useComposerPreflightShortcut({ code: 'KeyM', onTrigger: handleShortcut });
 
