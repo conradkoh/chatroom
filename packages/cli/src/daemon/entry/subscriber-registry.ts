@@ -1,5 +1,6 @@
 import { dispatchCommandInboundEvent } from './command-inbound-registry.js';
 import { routeInboundEvent, type EventRouterDeps } from './event-router.js';
+import { refreshTaskInboxRoomMembership } from './task-inbox-membership-registry.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
@@ -28,11 +29,12 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
 
   const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
-    // Workspace membership nudges keep the per-room enhancer and per-workspace
-    // git watches in sync (e.g. a newly registered workspace enables both).
+    // Workspace membership nudges keep task, operational, enhancer, and Git
+    // watches in sync (e.g. a newly registered workspace enables all of them).
     if (claimed.type === 'daemon.workspaceListChanged') {
       void enhancerJob.refreshChatrooms();
       void gitRequest.refreshWorkspaces();
+      void refreshTaskInboxRoomMembership();
     }
     await dispatchCommandInboundEvent({
       type: 'command.received',

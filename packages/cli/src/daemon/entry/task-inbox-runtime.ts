@@ -22,6 +22,10 @@ import {
   type TaskDeliveryRuntime,
 } from './native-delivery/task-delivery-processor.js';
 import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
+import {
+  registerTaskInboxRoomMembershipRefresh,
+  unregisterTaskInboxRoomMembershipRefresh,
+} from './task-inbox-membership-registry.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import { ackMachineOperationalSignals } from '../infrastructure/agent-operational/ack-machine-operational-signals.js';
 import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
@@ -255,10 +259,9 @@ export const startTaskInboxEffect = (
       }
     };
 
-    // Sole watcher-creation path: one watcher entry per chatroom (serving BOTH the
-    // operational and the task inbox loop) for the daemon lifetime. The map entry is
-    // installed before any optional hydration so concurrent discoveries cannot start
-    // duplicate watchers.
+    // Sole watcher-creation path: one watcher entry per active chatroom (serving BOTH
+    // the operational and task inbox loops). The map entry is installed before any
+    // optional hydration so concurrent discoveries cannot start duplicate watchers.
     const ensureRoomInboxes = (chatroomId: string): Promise<void> => {
       const existing = roomWatchers.get(chatroomId);
       if (existing) return existing.startPromise;
@@ -406,6 +409,35 @@ export const startTaskInboxEffect = (
       return entry.startPromise;
     };
 
+    const refreshRoomMembership = async (): Promise<void> => {
+      try {
+        const workspaces = await wsClient.query(api.workspaces.listWorkspacesForMachine, {
+          sessionId: session.sessionId as SessionId,
+          machineId: session.machineId,
+        });
+        if (stopped) return;
+        const chatroomIds = [
+          ...new Set((workspaces ?? []).map((workspace) => workspace.chatroomId)),
+        ];
+        const activeChatroomIds = new Set<string>(chatroomIds);
+        for (const [chatroomId, watcher] of roomWatchers) {
+          if (activeChatroomIds.has(chatroomId)) continue;
+          watcher.controller.abort();
+          roomWatchers.delete(chatroomId);
+          knownRoomIds.delete(chatroomId);
+        }
+        await Promise.all(chatroomIds.map((chatroomId) => ensureRoomInboxes(chatroomId)));
+      } catch (error) {
+        console.warn('[TaskInbox] room membership refresh failed:', error);
+      }
+    };
+
+    registerTaskInboxRoomMembershipRefresh(refreshRoomMembership);
+
+    // Cover membership changes that happened while the daemon was offline or before
+    // the command-inbox handler was registered. Later changes arrive through nudges.
+    yield* Effect.promise(refreshRoomMembership);
+
     // Start watchers for rooms known from the operational bootstrap before the first
     // assigned-task bootstrap delivery.
     yield* Effect.tryPromise(() =>
@@ -441,22 +473,6 @@ export const startTaskInboxEffect = (
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdatesInFlight > 0 || reconcileInFlight) return;
       reconcileInFlight = true;
-      void (async () => {
-        try {
-          // Periodic room-membership refresh keeps discovery alive without the
-          // machine-wide task feed, which previously surfaced new rooms.
-          const current = await fetchMachineAgentOperationalStatus(sessionDeps, session.machineId);
-          agentOperationalReadModel.replace(current);
-          for (const row of current) knownRoomIds.add(row.chatroomId);
-          await Promise.all(
-            [...new Set(current.map((row) => row.chatroomId))].map((chatroomId) =>
-              ensureRoomInboxes(chatroomId)
-            )
-          );
-        } catch (error) {
-          console.warn('[TaskInbox] room membership refresh failed:', error);
-        }
-      })();
       void processTasksUpdate(
         runtime,
         effectContext,
@@ -482,6 +498,7 @@ export const startTaskInboxEffect = (
           watcher.controller.abort();
         }
         clearInterval(reconcileTimer);
+        unregisterTaskInboxRoomMembershipRefresh();
         unregisterNativeDeliverySession();
         inboxStore.close();
       },

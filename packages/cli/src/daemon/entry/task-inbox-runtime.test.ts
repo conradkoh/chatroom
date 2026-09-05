@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { refreshTaskInboxRoomMembership } from './task-inbox-membership-registry.js';
 import {
   bootstrapMachineAssignedTaskSnapshots,
   runInboxLoopWithRestart,
@@ -142,6 +143,7 @@ function makeInboxStore(persistedRooms: Record<string, { afterSignalKey: string 
 
 type StartTaskInboxOptions = {
   tasks?: unknown[];
+  workspaces?: { chatroomId: string }[];
   bootstrapRows?: MachineAgentOperationalRow[];
   operationalInboxImpl?: (
     options: Parameters<typeof runOperationalInbox>[0],
@@ -151,19 +153,22 @@ type StartTaskInboxOptions = {
 
 async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promise<{
   handle: { stop: () => void };
+  workspaceQuery: ReturnType<typeof vi.fn>;
   operationalHandlers: () => ((update: never) => Promise<void>)[];
   taskInboxHandlers: () => Map<string, (update: never) => Promise<void>>;
 }> {
   const { Effect, Layer } = await import('effect');
   const { AgentLifecycleOutboxService, DaemonAgentProcessManagerService, DaemonSessionService } =
     await import('./daemon-services.js');
+  const backendQuery = vi.fn().mockResolvedValue({ tasks: options.tasks ?? [] });
+  const workspaceQuery = vi.fn().mockResolvedValue(options.workspaces ?? []);
   const session = {
     sessionId: 'session-1',
     machineId: 'machine-1',
     convexUrl: 'https://example.com',
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue({ tasks: options.tasks ?? [] }),
+      query: backendQuery,
     },
     agentServices: new Map(),
   };
@@ -188,10 +193,11 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
     taskInboxHandlers.set(taskOptions.chatroomId, handler);
   });
   const handle = await Effect.runPromise(
-    startTaskInboxEffect({} as never).pipe(Effect.provide(layers))
+    startTaskInboxEffect({ query: workspaceQuery } as never).pipe(Effect.provide(layers))
   );
   return {
     handle,
+    workspaceQuery,
     operationalHandlers: () => operationalHandlers,
     taskInboxHandlers: () => taskInboxHandlers,
   };
@@ -616,11 +622,11 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     handle.stop();
   });
 
-  it('later discovery via reconcile refresh starts room watchers and delivers its first task', async () => {
+  it('workspace membership nudge starts room watchers and delivers its first task', async () => {
     const store = makeInboxStore();
     vi.useFakeTimers();
 
-    const { handle, taskInboxHandlers } = await startTaskInboxForTest({
+    const { handle, workspaceQuery, taskInboxHandlers } = await startTaskInboxForTest({
       bootstrapRows: [],
       tasks: [],
     });
@@ -628,18 +634,32 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     expect(runOperationalInbox).not.toHaveBeenCalled();
     expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(0);
 
-    // Periodic room-membership refresh surfaces room-2 for the first time.
+    // A workspace membership nudge surfaces room-2 for the first time.
     fetchMachineAgentOperationalStatus.mockResolvedValue([opRow('room-2')]);
-    await vi.advanceTimersByTimeAsync(10_000);
+    workspaceQuery.mockResolvedValueOnce([{ chatroomId: 'room-2' }]);
+    await refreshTaskInboxRoomMembership();
 
     expect(runOperationalInbox.mock.calls.map((call) => call[0].chatroomId)).toEqual(['room-2']);
     const taskCalls = vi.mocked(runTaskInbox).mock.calls;
     expect(taskCalls.map((call) => call[0].chatroomId)).toEqual(['room-2']);
 
-    // A second refresh re-discovers room-2; no duplicate watchers are started.
-    await vi.advanceTimersByTimeAsync(10_000);
+    // A second nudge re-discovers room-2; no duplicate watchers are started.
+    workspaceQuery.mockResolvedValueOnce([{ chatroomId: 'room-2' }]);
+    await refreshTaskInboxRoomMembership();
     expect(runOperationalInbox).toHaveBeenCalledTimes(1);
     expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(1);
+
+    // Removal stops the room watcher; re-adding it starts a fresh pair.
+    workspaceQuery.mockResolvedValueOnce([]);
+    await refreshTaskInboxRoomMembership();
+    workspaceQuery.mockResolvedValueOnce([{ chatroomId: 'room-2' }]);
+    await refreshTaskInboxRoomMembership();
+    expect(runOperationalInbox).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(2);
+
+    const fetchCountAfterNudges = fetchMachineAgentOperationalStatus.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(fetchMachineAgentOperationalStatus).toHaveBeenCalledTimes(fetchCountAfterNudges);
 
     // Deliver room-2's first task through its per-room handler.
     const roomTwoTaskHandler = taskInboxHandlers().get('room-2');
