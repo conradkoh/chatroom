@@ -88,6 +88,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     sourceAttachments,
     standingInstructions,
     plannerEnhancerEnabled,
+    conversationMode,
   } = params;
 
   const lines: string[] = [];
@@ -119,6 +120,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     availableHandoffTargets,
     isEntryPoint,
     plannerEnhancerEnabled,
+    conversationMode,
   });
 
   return lines.join('\n').trim();

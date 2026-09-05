@@ -4,6 +4,7 @@
  * Used by both native and CLI task delivery paths.
  */
 
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { isSupportedEnhancerRole } from '@workspace/shared/domain/enhancer-team-capability';
 
 import {
@@ -34,6 +35,25 @@ export interface TaskDeliveryParams {
   plannerEnhancerEnabled?: boolean | undefined;
   originUserMessageId?: string | undefined;
   entryPointRole?: string | undefined;
+  /**
+   * Explicit conversation mode snapshot. When present, drives mode-specific
+   * prompt behaviour (e.g. Chat mode suppresses enhancer ceremony).
+   */
+  conversationMode?: ConversationMode | undefined;
+}
+
+/**
+ * Returns true when this is a Chat-mode entry-point task from a user message.
+ * Chat mode: answer the user directly; no enhancer/delegation ceremony.
+ */
+function isChatMode(
+  params: Pick<TaskDeliveryParams, 'conversationMode' | 'isEntryPoint' | 'message'>
+): boolean {
+  return (
+    params.conversationMode === 'chat' &&
+    params.isEntryPoint === true &&
+    params.message?.senderRole.toLowerCase() === 'user'
+  );
 }
 
 function appendPlannerEnhancerGuidanceForMessage(
@@ -94,9 +114,12 @@ function appendTaskDeliveryEnhancerGuidanceIfEnabled(
     | 'task'
     | 'isEntryPoint'
     | 'teamId'
+    | 'conversationMode'
   >
 ): void {
   if (!params.isEntryPoint || !isSupportedEnhancerRole(params.teamId, params.role)) return;
+  // Chat mode: no enhancer ceremony for entry-point user tasks.
+  if (isChatMode(params)) return;
   if (params.plannerEnhancerEnabled) return appendEnabledEnhancerGuidance(lines, params);
 
   const senderRole = params.message?.senderRole?.toLowerCase();
@@ -168,6 +191,7 @@ function appendTaskDeliveryNextSteps(
     | 'originUserMessageId'
     | 'entryPointRole'
     | 'teamId'
+    | 'conversationMode'
   >
 ): void {
   const {
@@ -179,6 +203,7 @@ function appendTaskDeliveryNextSteps(
     isEntryPoint,
     plannerEnhancerEnabled,
     teamId,
+    conversationMode,
   } = params;
   const senderRole = getTaskSenderRole(message);
   if (role.toLowerCase() === 'enhancer') {
@@ -199,6 +224,7 @@ function appendTaskDeliveryNextSteps(
     availableHandoffTargets,
     isEntryPoint,
     plannerEnhancerEnabled,
+    conversationMode,
   });
 
   lines.push('');
@@ -268,8 +294,24 @@ export function appendTaskDeliveryHandoffSections(
     | 'plannerEnhancerEnabled'
     | 'originUserMessageId'
     | 'entryPointRole'
+    | 'conversationMode'
   >
 ): void {
+  // Chat-mode direct-answer guidance: concise, no enhancer/delegation ceremony.
+  if (isChatMode(params)) {
+    lines.push('');
+    lines.push('<chat-mode>');
+    lines.push('## Conversational Mode (Chat)');
+    lines.push('');
+    lines.push(
+      '**Answer the user directly and concisely.** Do not invoke the enhancer, delegate to another agent, or perform code/repository work unless the request itself requires it.'
+    );
+    lines.push(
+      'When your response is ready, run the final handoff command below to deliver it to the user.'
+    );
+    lines.push('</chat-mode>');
+  }
+
   appendTaskDeliveryNextSteps(lines, params);
   appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, {
     chatroomId: params.chatroomId,
@@ -280,6 +322,7 @@ export function appendTaskDeliveryHandoffSections(
     task: params.task,
     isEntryPoint: params.isEntryPoint,
     teamId: params.teamId,
+    conversationMode: params.conversationMode,
   });
   appendTaskDeliveryHandoffTemplates(lines, {
     teamId: params.teamId,
@@ -287,6 +330,8 @@ export function appendTaskDeliveryHandoffSections(
     chatroomId: params.chatroomId,
     cliEnvPrefix: params.cliEnvPrefix,
     includeEnhancerTemplate:
+      // Chat mode: never include enhancer-only template content.
+      params.conversationMode !== 'chat' &&
       params.plannerEnhancerEnabled &&
       params.isEntryPoint === true &&
       params.message?.senderRole.toLowerCase() === 'user',

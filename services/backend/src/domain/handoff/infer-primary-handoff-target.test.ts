@@ -105,3 +105,78 @@ describe('inferPrimaryHandoffTarget', () => {
     ).toBe('planner');
   });
 });
+
+describe('inferPrimaryHandoffTarget — conversationMode', () => {
+  test('explicit chat + entry point + user task targets user', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
+        role: 'planner',
+        availableHandoffTargets: ['enhancer', 'builder', 'user'],
+        isEntryPoint: true,
+        conversationMode: 'chat',
+      })
+    ).toBe('user');
+  });
+
+  test('explicit code + entry point + user task targets user (no enhancer)', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
+        role: 'planner',
+        availableHandoffTargets: ['enhancer', 'builder', 'user'],
+        isEntryPoint: true,
+        conversationMode: 'code',
+      })
+    ).toBe('user');
+  });
+
+  test('explicit code:enhanced + entry point + user task targets enhancer', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
+        role: 'planner',
+        availableHandoffTargets: ['enhancer', 'builder', 'user'],
+        isEntryPoint: true,
+        conversationMode: 'code:enhanced',
+      })
+    ).toBe('enhancer');
+  });
+
+  test('explicit chat overrides legacy plannerEnhancerEnabled: true', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
+        role: 'planner',
+        availableHandoffTargets: ['enhancer', 'builder', 'user'],
+        isEntryPoint: true,
+        plannerEnhancerEnabled: true,
+        conversationMode: 'chat',
+      })
+    ).toBe('user');
+  });
+
+  test('omitted mode + plannerEnhancerEnabled: true targets enhancer (legacy)', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
+        role: 'planner',
+        availableHandoffTargets: ['enhancer', 'builder', 'user'],
+        isEntryPoint: true,
+        plannerEnhancerEnabled: true,
+      })
+    ).toBe('enhancer');
+  });
+
+  test('omitted mode + plannerEnhancerEnabled: false targets user (legacy)', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
+        role: 'planner',
+        availableHandoffTargets: ['builder', 'user'],
+        isEntryPoint: true,
+        plannerEnhancerEnabled: false,
+      })
+    ).toBe('user');
+  });
+});

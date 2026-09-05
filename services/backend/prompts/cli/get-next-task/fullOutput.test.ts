@@ -271,3 +271,84 @@ describe('generateFullCliOutput — standing instructions', () => {
     expect(output).not.toContain('<instruction>');
   });
 });
+
+describe('generateFullCliOutput — conversationMode', () => {
+  const plannerUserParams = {
+    ...BASE_PARAMS,
+    teamId: 'duo',
+    role: 'planner',
+    isEntryPoint: true,
+    availableHandoffTargets: ['enhancer', 'builder', 'user'],
+    message: { _id: 'msg-id', senderRole: 'user', content: 'hello' },
+    task: { _id: 'task-id', content: 'hello' },
+  };
+
+  test('CLI chat mode includes direct guidance and no enhancer sections', () => {
+    const output = generateFullCliOutput({
+      ...plannerUserParams,
+      conversationMode: 'chat',
+      nativeIntegration: false,
+    });
+
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Answer the user directly and concisely');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<handoff-enhancer-disabled>');
+    expect(output).toContain('--next-role="user"');
+    expect(output).toContain('get-next-task');
+  });
+
+  test('native chat mode includes direct guidance and no enhancer sections', () => {
+    const output = generateFullCliOutput({
+      ...plannerUserParams,
+      conversationMode: 'chat',
+      nativeIntegration: true,
+    });
+
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Answer the user directly and concisely');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<handoff-enhancer-disabled>');
+    expect(output).toContain('--next-role="user"');
+    expect(output).not.toContain('get-next-task');
+  });
+
+  test('CLI code mode omits chat-mode and retains enhancer-disabled guidance', () => {
+    const output = generateFullCliOutput({
+      ...plannerUserParams,
+      conversationMode: 'code',
+      plannerEnhancerEnabled: false,
+      availableHandoffTargets: ['builder', 'user'],
+      nativeIntegration: false,
+    });
+
+    expect(output).not.toContain('<chat-mode>');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).toContain('<handoff-enhancer-disabled>');
+    expect(output).toContain('--next-role="user"');
+  });
+
+  test('CLI code:enhanced mode retains enhancer guidance', () => {
+    const output = generateFullCliOutput({
+      ...plannerUserParams,
+      conversationMode: 'code:enhanced',
+      plannerEnhancerEnabled: true,
+      nativeIntegration: false,
+    });
+
+    expect(output).not.toContain('<chat-mode>');
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('--next-role="enhancer"');
+  });
+
+  test('undefined mode preserves legacy boolean behaviour', () => {
+    const output = generateFullCliOutput({
+      ...plannerUserParams,
+      plannerEnhancerEnabled: true,
+      nativeIntegration: false,
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<chat-mode>');
+  });
+});

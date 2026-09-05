@@ -1,5 +1,8 @@
 // fallow-ignore-file complexity code-duplication
-import { plannerEnhancerEnabledForMode } from '@workspace/shared/domain/conversation-mode';
+import {
+  legacyConversationMode,
+  plannerEnhancerEnabledForMode,
+} from '@workspace/shared/domain/conversation-mode';
 import {
   getEnhancerEntryPointRole,
   isEnhancerEntryPointRole,
@@ -1861,6 +1864,10 @@ export const getTaskDeliveryPrompt = query({
       team: chatroom,
     });
 
+    // Derive effective conversation mode: explicit snapshot takes precedence over legacy boolean.
+    const conversationMode =
+      task.conversationMode ?? legacyConversationMode(plannerEnhancerEnabled);
+
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
 
@@ -1915,6 +1922,7 @@ export const getTaskDeliveryPrompt = query({
       sourceAttachments,
       standingInstructions,
       plannerEnhancerEnabled,
+      conversationMode,
       entryPointRole: getTeamEntryPoint(chatroom) ?? undefined,
       originUserMessageId: task.originUserMessageId ?? undefined,
     });

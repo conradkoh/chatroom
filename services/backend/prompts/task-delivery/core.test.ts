@@ -114,3 +114,90 @@ describe('appendTaskDeliveryHandoffSections — enhancer disabled', () => {
     expect(output).toContain('Handoff to `builder`');
   });
 });
+
+describe('appendTaskDeliveryHandoffSections — conversationMode', () => {
+  const enhancerParams: Partial<TaskDeliveryParams> = {
+    plannerEnhancerEnabled: true,
+    availableHandoffTargets: ['enhancer', 'builder', 'user'],
+  };
+
+  test('chat mode includes direct-answer guidance and omits enhancer sections', () => {
+    const output = renderHandoffSections({
+      ...enhancerParams,
+      conversationMode: 'chat',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    // Chat-mode guidance present
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Answer the user directly and concisely');
+    expect(output).toContain('Do not invoke the enhancer, delegate to another agent');
+    expect(output).toContain('</chat-mode>');
+
+    // No enhancer guidance sections
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<handoff-enhancer-disabled>');
+
+    // Final user handoff present (primary target is user, not enhancer)
+    expect(output).toContain('--next-role="user"');
+    expect(output).toContain('Handoff to `user`');
+  });
+
+  test('chat mode with legacy plannerEnhancerEnabled: true still targets user', () => {
+    const output = renderHandoffSections({
+      plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      conversationMode: 'chat',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).toContain('<chat-mode>');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).toContain('--next-role="user"');
+  });
+
+  test('code mode omits chat-mode guidance and retains enhancer-disabled guidance', () => {
+    const output = renderHandoffSections({
+      plannerEnhancerEnabled: false,
+      availableHandoffTargets: ['builder', 'user'],
+      conversationMode: 'code',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).not.toContain('<chat-mode>');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).toContain('<handoff-enhancer-disabled>');
+    expect(output).toContain('--next-role="user"');
+    expect(output).toContain('Handoff to `builder`');
+  });
+
+  test('code:enhanced mode retains enhancer guidance', () => {
+    const output = renderHandoffSections({
+      ...enhancerParams,
+      conversationMode: 'code:enhanced',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).not.toContain('<chat-mode>');
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('--next-role="enhancer"');
+  });
+
+  test('undefined mode retains legacy boolean behaviour', () => {
+    const outputTrue = renderHandoffSections({
+      plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+    expect(outputTrue).toContain('<handoff-enhancer>');
+    expect(outputTrue).toContain('--next-role="enhancer"');
+
+    const outputFalse = renderHandoffSections({
+      plannerEnhancerEnabled: false,
+      availableHandoffTargets: ['builder', 'user'],
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+    expect(outputFalse).not.toContain('<handoff-enhancer>');
+    expect(outputFalse).toContain('<handoff-enhancer-disabled>');
+  });
+});
