@@ -18,6 +18,8 @@
  * instead of a backend ensure-agent handler.
  */
 
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+
 import {
   adjustTaskCount,
   hasActiveTaskFromSource,
@@ -51,6 +53,7 @@ export interface CreateTaskArgs {
   attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
   queuePosition: number;
   plannerEnhancerEnabled?: boolean | undefined;
+  conversationMode?: ConversationMode | undefined;
   originUserMessageId?: Id<'chatroom_messages'> | undefined;
   enhancerEnabledAtEnqueue?: boolean | undefined;
   startInNewSession: boolean | undefined;
@@ -130,6 +133,7 @@ export async function createTask(
     ...(args.plannerEnhancerEnabled !== undefined
       ? { plannerEnhancerEnabled: args.plannerEnhancerEnabled }
       : {}),
+    ...(args.conversationMode !== undefined ? { conversationMode: args.conversationMode } : {}),
     ...(args.originUserMessageId ? { originUserMessageId: args.originUserMessageId } : {}),
     ...(args.enhancerEnabledAtEnqueue !== undefined
       ? { enhancerEnabledAtEnqueue: args.enhancerEnabledAtEnqueue }

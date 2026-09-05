@@ -1,4 +1,5 @@
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
 import type { ArtifactMeta } from '../components/ArtifactRenderer';
 
@@ -69,4 +70,6 @@ export interface Message {
   scheduledPromptId?: string;
   /** Snapshot of enhancer enabled at enqueue time (queued messages only) */
   plannerEnhancerEnabled?: boolean;
+  /** Per-message conversation mode snapshot (queued messages only) */
+  conversationMode?: ConversationMode;
 }

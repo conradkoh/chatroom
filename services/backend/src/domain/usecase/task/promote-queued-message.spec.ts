@@ -185,6 +185,67 @@ describe('promoteQueuedMessage', () => {
     expect(task?.plannerEnhancerEnabled).toBe(true);
   });
 
+  test('promotes conversationMode from queue record to task for each explicit mode', async () => {
+    const { sessionId } = await createTestSession('promote-conv-mode');
+    const chatroomId = await createChatroom(sessionId);
+
+    const modes = ['chat', 'code', 'code:enhanced'] as const;
+    for (const mode of modes) {
+      const queuedMessageId = await t.run(async (ctx) => {
+        return await ctx.db.insert('chatroom_messageQueue', {
+          chatroomId,
+          senderRole: 'user',
+          targetRole: 'planner',
+          content: `mode-${mode}`,
+          type: 'message',
+          queuePosition: 10,
+          conversationMode: mode,
+          plannerEnhancerEnabled: mode === 'code:enhanced',
+        });
+      });
+
+      const result = await t.run(async (ctx) => {
+        return await promoteQueuedMessage(ctx, queuedMessageId);
+      });
+
+      expect(result).toBeDefined();
+      const task = await t.run(async (ctx) => {
+        return await ctx.db.get('chatroom_tasks', result!.taskId);
+      });
+      expect(task?.conversationMode).toBe(mode);
+      expect(task?.plannerEnhancerEnabled).toBe(mode === 'code:enhanced');
+    }
+  });
+
+  test('legacy queue row without conversationMode promotes with undefined mode', async () => {
+    const { sessionId } = await createTestSession('promote-legacy-row');
+    const chatroomId = await createChatroom(sessionId);
+
+    const queuedMessageId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'planner',
+        content: 'legacy task',
+        type: 'message',
+        queuePosition: 11,
+        plannerEnhancerEnabled: true,
+        // No conversationMode — simulates legacy row
+      });
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
+    });
+
+    expect(result).toBeDefined();
+    const task = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_tasks', result!.taskId);
+    });
+    expect(task?.conversationMode).toBeUndefined();
+    expect(task?.plannerEnhancerEnabled).toBe(true);
+  });
+
   test('promotes startInNewSession from queue record to task', async () => {
     const { sessionId } = await createTestSession('promote-new-session-flag');
     const chatroomId = await createChatroom(sessionId);

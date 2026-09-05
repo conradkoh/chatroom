@@ -1,4 +1,5 @@
 // fallow-ignore-file complexity code-duplication
+import { plannerEnhancerEnabledForMode } from '@workspace/shared/domain/conversation-mode';
 import {
   getEnhancerEntryPointRole,
   isEnhancerEntryPointRole,
@@ -334,6 +335,7 @@ async function _sendMessageHandler(
     attachedSnippets?:
       { reference: string; fileSource: string; selectedContent: string }[] | undefined;
     startInNewSession?: boolean | undefined;
+    conversationMode?: 'chat' | 'code' | 'code:enhanced' | undefined;
   }
 ) {
   const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -473,6 +475,7 @@ async function _sendMessageHandler(
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
       startInNewSession: args.startInNewSession,
       userId: session.userId,
+      ...(args.conversationMode !== undefined ? { conversationMode: args.conversationMode } : {}),
     });
     if (!result.ok) {
       if (result.reason === 'empty_content') {
@@ -537,6 +540,12 @@ const attachedSnippetArgsValidator = v.object({
   selectedContent: v.string(),
 });
 
+const conversationModeValidator = v.union(
+  v.literal('chat'),
+  v.literal('code'),
+  v.literal('code:enhanced')
+);
+
 const sendMessageMutationArgs = {
   ...SessionIdArg,
   chatroomId: v.id('chatroom_rooms'),
@@ -549,6 +558,7 @@ const sendMessageMutationArgs = {
   attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
   attachedSnippets: v.optional(v.array(attachedSnippetArgsValidator)),
   startInNewSession: v.optional(v.boolean()),
+  conversationMode: v.optional(conversationModeValidator),
 };
 
 /** @deprecated Use sendMessage instead. */
@@ -569,6 +579,7 @@ export const enqueueMessageAtFront = mutation({
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
     attachedSnippets: v.optional(v.array(attachedSnippetArgsValidator)),
     startInNewSession: v.optional(v.boolean()),
+    conversationMode: v.optional(conversationModeValidator),
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -583,6 +594,7 @@ export const enqueueMessageAtFront = mutation({
         : {}),
       ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
+      ...(args.conversationMode !== undefined ? { conversationMode: args.conversationMode } : {}),
     });
     if (!result.ok)
       throw new ConvexError({
@@ -1435,6 +1447,7 @@ export const listQueued = query({
       isQueued: true as const,
       queuePosition: qMsg.queuePosition,
       plannerEnhancerEnabled: qMsg.plannerEnhancerEnabled,
+      conversationMode: qMsg.conversationMode,
       startInNewSession: qMsg.startInNewSession,
     }));
 
@@ -1465,8 +1478,34 @@ export const updateQueuedMessagePlannerEnhancer = mutation({
       });
     }
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
+    // Derive the conversation mode from the boolean for consistency with the new mode contract.
+    const conversationMode = args.plannerEnhancerEnabled ? 'code:enhanced' : 'code';
     await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
       plannerEnhancerEnabled: args.plannerEnhancerEnabled,
+      conversationMode,
+    });
+  },
+});
+
+export const updateQueuedMessageConversationMode = mutation({
+  args: {
+    ...SessionIdArg,
+    queuedMessageId: v.id('chatroom_messageQueue'),
+    conversationMode: conversationModeValidator,
+  },
+  handler: async (ctx, args) => {
+    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
+    if (!record) {
+      throw new ConvexError({
+        code: 'QUEUED_MESSAGE_NOT_FOUND',
+        message: 'Queued message not found',
+      });
+    }
+    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
+    const plannerEnhancerEnabled = plannerEnhancerEnabledForMode(args.conversationMode);
+    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
+      conversationMode: args.conversationMode,
+      plannerEnhancerEnabled,
     });
   },
 });

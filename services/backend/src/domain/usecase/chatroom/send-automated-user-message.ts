@@ -1,3 +1,6 @@
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import { plannerEnhancerEnabledForMode } from '@workspace/shared/domain/conversation-mode';
+
 import { markAgentViewHasHistory } from './project-agent-view-metadata';
 import { reserveFrontQueuePosition } from './reserve-front-queue-position';
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -29,6 +32,7 @@ export async function sendAutomatedUserMessage(
     userId?: Id<'users'> | undefined;
     startInNewSession: boolean | undefined;
     enqueueAtFront?: boolean | undefined;
+    conversationMode?: ConversationMode | undefined;
   }
 ): Promise<SendAutomatedUserMessageResult> {
   const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -45,8 +49,13 @@ export async function sendAutomatedUserMessage(
       ? await reserveFrontQueuePosition(ctx, args.chatroomId, chatroom)
       : await getAndIncrementQueuePosition(ctx, chatroom);
 
+  // Explicit mode snapshot: derive boolean from mode; undefined = legacy live-config fallback.
   let plannerEnhancerEnabled: boolean | undefined;
-  if (args.userId) {
+  let conversationMode: ConversationMode | undefined;
+  if (args.conversationMode) {
+    conversationMode = args.conversationMode;
+    plannerEnhancerEnabled = plannerEnhancerEnabledForMode(args.conversationMode);
+  } else if (args.userId) {
     const userId = args.userId;
     const config = await ctx.db
       .query('chatroom_enhancerConfigs')
@@ -74,6 +83,7 @@ export async function sendAutomatedUserMessage(
       ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
       ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
       ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
+      ...(conversationMode !== undefined ? { conversationMode } : {}),
       ...(args.startInNewSession !== undefined
         ? { startInNewSession: args.startInNewSession }
         : {}),
@@ -112,6 +122,7 @@ export async function sendAutomatedUserMessage(
     queuePosition,
     startInNewSession: args.startInNewSession,
     ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
+    ...(conversationMode !== undefined ? { conversationMode } : {}),
   });
   await linkMessageToTask(ctx, messageId, taskId);
   await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);

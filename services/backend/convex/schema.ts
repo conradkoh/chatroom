@@ -608,6 +608,10 @@ export default defineSchema({
     scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
     // Snapshot of enhancer enabled at enqueue time (undefined = legacy/live fallback)
     plannerEnhancerEnabled: v.optional(v.boolean()),
+    // Per-message conversation mode snapshot (undefined = legacy/live fallback)
+    conversationMode: v.optional(
+      v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
+    ),
     startInNewSession: v.optional(v.boolean()),
   })
     .index('by_chatroom', ['chatroomId'])
@@ -679,6 +683,10 @@ export default defineSchema({
     queuePosition: v.number(),
     // Snapshot of enhancer enabled at task creation (user-tasks only; undefined = legacy/live fallback)
     plannerEnhancerEnabled: v.optional(v.boolean()),
+    // Per-message conversation mode snapshot (undefined = legacy/live fallback)
+    conversationMode: v.optional(
+      v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
+    ),
     /** Originating user message for request-first enhancer enforcement. */
     originUserMessageId: v.optional(v.id('chatroom_messages')),
     /** Enhancer-enabled snapshot captured when the task was enqueued. */

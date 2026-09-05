@@ -361,6 +361,29 @@ describe('listQueued query', () => {
     expect(queuedMessages[1].isQueued).toBe(true);
   });
 
+  test('includes conversationMode in queued message output when set', async () => {
+    const { sessionId } = await createTestSession('list-queued-conv-mode');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued with mode',
+      type: 'message',
+      conversationMode: 'code:enhanced',
+    });
+
+    const queuedMessages = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(queuedMessages.length).toBe(1);
+    expect(queuedMessages[0].conversationMode).toBe('code:enhanced');
+  });
+
   test('returns empty array when no queued messages exist', async () => {
     const { sessionId } = await createTestSession('list-queued-2');
     const chatroomId = await createChatroom(sessionId);
@@ -962,5 +985,123 @@ describe('getLastUserMessage query', () => {
     expect(result.last).not.toBeNull();
     expect(result.last!.content).toBe('the actual user request');
     expect(result.prior).toEqual([]);
+  });
+});
+
+describe('updateQueuedMessageConversationMode', () => {
+  test('sets conversationMode and derives plannerEnhancerEnabled on queue row', async () => {
+    const { sessionId } = await createTestSession('update-conv-mode-1');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    // Create a queued message
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'mode update target',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.length).toBe(1);
+    const queuedId = queued[0]._id;
+
+    // Update to code:enhanced
+    await t.mutation(api.messages.updateQueuedMessageConversationMode, {
+      sessionId,
+      queuedMessageId: queuedId,
+      conversationMode: 'code:enhanced',
+    });
+
+    const updated = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', queuedId);
+    });
+    expect(updated?.conversationMode).toBe('code:enhanced');
+    expect(updated?.plannerEnhancerEnabled).toBe(true);
+  });
+
+  test('sets conversationMode=chat derives plannerEnhancerEnabled=false', async () => {
+    const { sessionId } = await createTestSession('update-conv-mode-chat');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'chat mode target',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]._id;
+
+    await t.mutation(api.messages.updateQueuedMessageConversationMode, {
+      sessionId,
+      queuedMessageId: queuedId,
+      conversationMode: 'chat',
+    });
+
+    const updated = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', queuedId);
+    });
+    expect(updated?.conversationMode).toBe('chat');
+    expect(updated?.plannerEnhancerEnabled).toBe(false);
+  });
+
+  test('rejects invalid conversationMode values', async () => {
+    const { sessionId } = await createTestSession('update-conv-mode-invalid');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'invalid mode target',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]._id;
+
+    await expect(
+      t.mutation(api.messages.updateQueuedMessageConversationMode, {
+        sessionId,
+        queuedMessageId: queuedId,
+        conversationMode: 'invalid_mode' as 'chat',
+      })
+    ).rejects.toThrow();
+  });
+
+  test('retains backward compatibility: updateQueuedMessagePlannerEnhancer also sets conversationMode', async () => {
+    const { sessionId } = await createTestSession('update-backward-compat');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'backward compat target',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]._id;
+
+    // Use the legacy boolean mutation
+    await t.mutation(api.messages.updateQueuedMessagePlannerEnhancer, {
+      sessionId,
+      queuedMessageId: queuedId,
+      plannerEnhancerEnabled: true,
+    });
+
+    const updated = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', queuedId);
+    });
+    expect(updated?.plannerEnhancerEnabled).toBe(true);
+    expect(updated?.conversationMode).toBe('code:enhanced');
   });
 });
