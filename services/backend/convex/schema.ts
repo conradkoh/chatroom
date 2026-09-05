@@ -697,6 +697,8 @@ export default defineSchema({
     startInNewSession: v.optional(v.boolean()),
     // Optional canonical TaskEnvelopeV1 snapshot (undefined = legacy scalars below)
     taskEnvelope: v.optional(taskEnvelopeV1Validator),
+    /** Execution receipt: when a requested new session was actually consumed. */
+    sessionPolicyConsumedAt: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
