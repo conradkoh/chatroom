@@ -114,5 +114,27 @@ describe('task-delivery-logic', () => {
         listNativePendingTasksNeedingWake([pendingPlannerTask], new RecoveryCooldown(0), 10_000)
       ).toEqual([pendingPlannerTask]);
     });
+
+    it('wakes a pending native snapshot with no operational row and no presence', () => {
+      // Offline agent: absent operational row (never reported) and no
+      // participant/presence signal. Assignment alone makes it wake-eligible.
+      registerTestNativeDeliverySession({
+        runtime: undefined as never,
+        effectContext: undefined as never,
+        agentMgr: {} as never,
+        sessionDeps: {} as never,
+        machineId: 'machine-1',
+        operationalRows: [],
+      });
+
+      const offlineTask = {
+        ...pendingPlannerTask,
+        participant: { lastSeenAction: null, lastSeenAt: null, lastStatus: null },
+      };
+
+      expect(
+        listNativePendingTasksNeedingWake([offlineTask], new RecoveryCooldown(0), 10_000)
+      ).toEqual([offlineTask]);
+    });
   });
 });
