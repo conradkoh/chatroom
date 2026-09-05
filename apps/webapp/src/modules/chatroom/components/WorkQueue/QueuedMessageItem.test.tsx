@@ -187,10 +187,8 @@ describe('QueuedMessageItem', () => {
 
   it('renders the shared envelope controls (mode + session) in the row regardless of team enhancer support', () => {
     renderItem(makeMessage());
-    expect(screen.getByRole('combobox', { name: 'Queued message mode' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('combobox', { name: 'Queued message session policy' })
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('queued-message-session-toggle')).toBeInTheDocument();
   });
 
   it('displays matching selections for a message with an explicit envelope', () => {
@@ -198,10 +196,14 @@ describe('QueuedMessageItem', () => {
       taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'new' }),
     });
     renderItem(message);
-    expect(screen.getByRole('combobox', { name: 'Queued message mode' })).toHaveTextContent('Chat');
-    expect(
-      screen.getByRole('combobox', { name: 'Queued message session policy' })
-    ).toHaveTextContent('New session');
+    expect(screen.getByTestId('queued-message-mode-toggle')).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('Chat')
+    );
+    expect(screen.getByTestId('queued-message-session-toggle')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 
   it('clicking or pressing Enter/Space on envelope controls does NOT open the detail modal', () => {
@@ -209,7 +211,7 @@ describe('QueuedMessageItem', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    const mode = screen.getByRole('combobox', { name: 'Queued message mode' });
+    const mode = screen.getByTestId('queued-message-mode-toggle');
     act(() => {
       fireEvent.click(mode);
       fireEvent.keyDown(mode, { key: 'Enter' });

@@ -247,22 +247,20 @@ describe('QueuedMessageDetailModal', () => {
       })
     );
 
-    expect(screen.getByRole('combobox', { name: 'Queued message mode' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('combobox', { name: 'Queued message session policy' })
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('queued-message-session-toggle')).toBeInTheDocument();
   });
 
   it('envelope controls remain keyboard-activatable in the detail modal', () => {
     renderModal(makeMessage());
 
-    const mode = screen.getByRole('combobox', { name: 'Queued message mode' });
-    expect(mode).toHaveAttribute('tabindex', '0');
+    const mode = screen.getByTestId('queued-message-mode-toggle');
+    expect(mode.tagName).toBe('BUTTON');
     act(() => {
       fireEvent.keyDown(mode, { key: 'Enter' });
     });
     // The control handles its own keyboard activation without errors.
-    expect(screen.getByRole('combobox', { name: 'Queued message mode' })).toBeInTheDocument();
+    expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
   });
 
   it('view-attached-task chip opens its own modal', () => {

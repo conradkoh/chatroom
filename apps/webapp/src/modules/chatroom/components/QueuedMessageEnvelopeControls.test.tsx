@@ -1,13 +1,12 @@
 /**
  * QueuedMessageEnvelopeControls — Unit Tests
  *
- * Verifies the shared stateless envelope editor: complete-envelope selection,
- * full mode/session option surface, legacy-scalar fallback, pending guards,
+ * Verifies the shared stateless envelope editor: tap-to-cycle mode toggle,
+ * binary session toggle, legacy-scalar fallback, pending guards,
  * error mapping, and event isolation from an enclosing row.
  */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { createTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,26 +40,12 @@ function renderControls(message: Message) {
   return render(<QueuedMessageEnvelopeControls message={message} />);
 }
 
-function modeCombobox() {
-  return screen.getByRole('combobox', { name: 'Queued message mode' });
+function modeToggle() {
+  return screen.getByTestId('queued-message-mode-toggle');
 }
 
-function sessionCombobox() {
-  return screen.getByRole('combobox', { name: 'Queued message session policy' });
-}
-
-async function selectModeOption(label: string) {
-  const user = userEvent.setup();
-  await user.click(modeCombobox());
-  const option = await screen.findByRole('option', { name: label });
-  await user.click(option);
-}
-
-async function selectSessionOption(label: string) {
-  const user = userEvent.setup();
-  await user.click(sessionCombobox());
-  const option = await screen.findByRole('option', { name: label });
-  await user.click(option);
+function sessionToggle() {
+  return screen.getByTestId('queued-message-session-toggle');
 }
 
 beforeEach(() => {
@@ -69,7 +54,7 @@ beforeEach(() => {
 });
 
 describe('QueuedMessageEnvelopeControls', () => {
-  it('renders all mode and session options with correct initial selections', async () => {
+  it('renders mode and session toggles with correct initial state', async () => {
     const envelope: TaskEnvelopeV1 = {
       version: 1,
       conversationMode: 'chat',
@@ -78,29 +63,23 @@ describe('QueuedMessageEnvelopeControls', () => {
     };
     renderControls(makeMessage({ taskEnvelope: envelope }));
 
-    expect(modeCombobox()).toHaveTextContent('Chat');
-    expect(sessionCombobox()).toHaveTextContent('Continue');
+    expect(modeToggle()).toBeInTheDocument();
+    expect(sessionToggle()).toBeInTheDocument();
+    expect(modeToggle()).toHaveAttribute('aria-label', expect.stringContaining('Chat'));
+    expect(sessionToggle()).toHaveAttribute('aria-pressed', 'false');
 
-    const user = userEvent.setup();
-    await user.click(modeCombobox());
-    expect(await screen.findByRole('option', { name: 'Chat' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Code' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Code:Enhanced' })).toBeInTheDocument();
-
-    await user.keyboard('{Escape}');
-    await user.click(sessionCombobox());
-    expect(await screen.findByRole('option', { name: 'Continue' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'New session' })).toBeInTheDocument();
+    // No dropdowns remain.
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
-  it('mode change sends one complete envelope with the new mode default workflow and preserved session policy', async () => {
+  it('mode toggle cycles chat → code and sends one complete envelope with preserved session policy', async () => {
     const envelope: TaskEnvelopeV1 = createTaskEnvelope({
       conversationMode: 'chat',
       sessionPolicy: 'new',
     });
     renderControls(makeMessage({ taskEnvelope: envelope }));
 
-    await selectModeOption('Code');
+    fireEvent.click(modeToggle());
 
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalledTimes(1);
@@ -116,7 +95,7 @@ describe('QueuedMessageEnvelopeControls', () => {
     });
   });
 
-  it('session change sends one complete envelope preserving mode and current non-entry workflow', async () => {
+  it('session toggle flips continue → new preserving mode and current non-entry workflow', async () => {
     const envelope: TaskEnvelopeV1 = {
       version: 1,
       conversationMode: 'code',
@@ -125,7 +104,7 @@ describe('QueuedMessageEnvelopeControls', () => {
     };
     renderControls(makeMessage({ taskEnvelope: envelope }));
 
-    await selectSessionOption('New session');
+    fireEvent.click(sessionToggle());
 
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalledTimes(1);
@@ -151,10 +130,10 @@ describe('QueuedMessageEnvelopeControls', () => {
       })
     );
 
-    expect(modeCombobox()).toHaveTextContent('Chat');
-    expect(sessionCombobox()).toHaveTextContent('New session');
+    expect(modeToggle()).toHaveAttribute('aria-label', expect.stringContaining('Chat'));
+    expect(sessionToggle()).toHaveAttribute('aria-pressed', 'true');
 
-    await selectModeOption('Code');
+    fireEvent.click(modeToggle());
 
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalledTimes(1);
@@ -170,7 +149,7 @@ describe('QueuedMessageEnvelopeControls', () => {
     });
   });
 
-  it('disables both controls while the mutation is pending and ignores duplicate changes', async () => {
+  it('disables both toggles while the mutation is pending and ignores duplicate taps', async () => {
     let release!: () => void;
     mockUpdate.mockImplementation(
       () =>
@@ -184,17 +163,16 @@ describe('QueuedMessageEnvelopeControls', () => {
       })
     );
 
-    await selectModeOption('Chat');
+    fireEvent.click(modeToggle());
 
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalledTimes(1);
-      expect(modeCombobox()).toBeDisabled();
-      expect(sessionCombobox()).toBeDisabled();
+      expect(modeToggle()).toBeDisabled();
+      expect(sessionToggle()).toBeDisabled();
     });
 
-    // A second change attempt while pending must not add another call.
-    fireEvent.click(sessionCombobox());
-    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+    // A second tap attempt while pending must not add another call.
+    fireEvent.click(sessionToggle());
     expect(mockUpdate).toHaveBeenCalledTimes(1);
 
     release();
@@ -208,7 +186,7 @@ describe('QueuedMessageEnvelopeControls', () => {
       })
     );
 
-    await selectModeOption('Code');
+    fireEvent.click(modeToggle());
 
     await waitFor(() => {
       expect(screen.getByTestId('queued-message-envelope-error')).toHaveTextContent(
@@ -217,8 +195,8 @@ describe('QueuedMessageEnvelopeControls', () => {
     });
     expect(screen.getByRole('alert')).toHaveTextContent('This task has already started.');
     // Controls remain reconciled to the reactive prop (no optimistic divergence).
-    expect(modeCombobox()).toHaveTextContent('Chat');
-    expect(sessionCombobox()).toHaveTextContent('Continue');
+    expect(modeToggle()).toHaveAttribute('aria-label', expect.stringContaining('Chat'));
+    expect(sessionToggle()).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('shows a concise generic error for other mutation failures', async () => {
@@ -229,7 +207,7 @@ describe('QueuedMessageEnvelopeControls', () => {
       })
     );
 
-    await selectModeOption('Code');
+    fireEvent.click(modeToggle());
 
     await waitFor(() => {
       expect(screen.getByTestId('queued-message-envelope-error')).toHaveTextContent(
@@ -238,7 +216,7 @@ describe('QueuedMessageEnvelopeControls', () => {
     });
   });
 
-  it('keyboard and click on a control do not activate an enclosing row; the row stays keyboard-accessible', async () => {
+  it('keyboard and click on a toggle do not activate an enclosing row; the row stays keyboard-accessible', async () => {
     const rowClick = vi.fn();
     const rowKeyDown = vi.fn((e: React.KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') e.preventDefault();
@@ -256,9 +234,9 @@ describe('QueuedMessageEnvelopeControls', () => {
       </div>
     );
 
-    const mode = modeCombobox();
-    // Controls are focusable (keyboard accessible).
-    expect(mode).toHaveAttribute('tabindex', '0');
+    const mode = modeToggle();
+    // Native buttons are keyboard accessible without extra tabindex wiring.
+    expect(mode.tagName).toBe('BUTTON');
 
     fireEvent.click(mode);
     expect(rowClick).not.toHaveBeenCalled();

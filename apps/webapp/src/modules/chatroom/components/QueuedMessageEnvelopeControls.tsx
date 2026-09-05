@@ -2,18 +2,20 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import {
+  nextConversationMode,
+  type ConversationMode,
+} from '@workspace/shared/domain/conversation-mode';
 import {
   normalizeTaskEnvelope,
   withTaskEnvelopeConversationMode,
   withTaskEnvelopeSessionPolicy,
   type TaskEnvelopeV1,
-  type TaskSessionPolicy,
 } from '@workspace/shared/domain/task-envelope';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { Code2, MessageCircle, RotateCcw, Sparkles } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import type { Message } from '../types/message';
 
 import { cn } from '@/lib/utils';
@@ -22,6 +24,68 @@ export interface QueuedMessageEnvelopeControlsProps {
   message: Message;
   compact?: boolean;
   className?: string;
+}
+
+function modeIcon(mode: ConversationMode) {
+  switch (mode) {
+    case 'chat':
+      return <MessageCircle size={14} />;
+    case 'code':
+      return <Code2 size={14} />;
+    case 'code:enhanced':
+      return <Sparkles size={14} />;
+  }
+}
+
+function modeLabel(mode: ConversationMode): string {
+  switch (mode) {
+    case 'chat':
+      return 'Chat';
+    case 'code':
+      return 'Code';
+    case 'code:enhanced':
+      return 'Enhanced';
+  }
+}
+
+function modeTitle(mode: ConversationMode): string {
+  switch (mode) {
+    case 'chat':
+      return 'Mode: Chat — click to switch to Code.';
+    case 'code':
+      return 'Mode: Code — click to switch to Enhanced.';
+    case 'code:enhanced':
+      return 'Mode: Enhanced — click to switch to Chat.';
+  }
+}
+
+function modeButtonClass(mode: ConversationMode, compact: boolean): string {
+  void compact;
+  return cn(
+    'p-1.5 rounded transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50',
+    mode === 'code:enhanced'
+      ? 'text-blue-500 dark:text-blue-400'
+      : mode === 'chat'
+        ? 'text-emerald-500 dark:text-emerald-400'
+        : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+  );
+}
+
+function sessionButtonClass(isNew: boolean, compact: boolean): string {
+  return cn(
+    'p-1.5 rounded transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50',
+    isNew
+      ? 'text-yellow-500 dark:text-yellow-400'
+      : compact
+        ? 'text-muted-foreground'
+        : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+  );
+}
+
+function sessionTitle(isNew: boolean): string {
+  return isNew
+    ? 'New session enabled — click to disable.'
+    : 'New session disabled — click to enable.';
 }
 
 /**
@@ -35,7 +99,7 @@ export interface QueuedMessageEnvelopeControlsProps {
  *
  * Event propagation (click / mousedown / keydown) is stopped so the controls
  * never activate an enclosing row (e.g. opening the detail modal) while
- * remaining fully keyboard accessible themselves.
+ * remaining fully keyboard accessible themselves (native buttons).
  */
 export function QueuedMessageEnvelopeControls({
   message,
@@ -85,76 +149,53 @@ export function QueuedMessageEnvelopeControls({
     [isUpdating, update, message._id]
   );
 
-  const handleModeChange = useCallback(
-    (mode: string | null) => {
-      // withTaskEnvelopeConversationMode preserves session policy and resets the
-      // workflow to the new mode's default preset + entry phase.
-      if (!mode) return;
-      void applyEnvelope(withTaskEnvelopeConversationMode(current, mode as ConversationMode));
-    },
-    [applyEnvelope, current]
-  );
+  const handleModeCycle = useCallback(() => {
+    // withTaskEnvelopeConversationMode preserves session policy and resets the
+    // workflow to the new mode's default preset + entry phase.
+    const next = nextConversationMode(current.conversationMode);
+    void applyEnvelope(withTaskEnvelopeConversationMode(current, next));
+  }, [applyEnvelope, current]);
 
-  const handleSessionChange = useCallback(
-    (policy: string | null) => {
-      // withTaskEnvelopeSessionPolicy preserves mode and current workflow.
-      if (!policy) return;
-      void applyEnvelope(withTaskEnvelopeSessionPolicy(current, policy as TaskSessionPolicy));
-    },
-    [applyEnvelope, current]
-  );
+  const handleSessionToggle = useCallback(() => {
+    // withTaskEnvelopeSessionPolicy preserves mode and current workflow.
+    const next = current.sessionPolicy === 'new' ? 'continue' : 'new';
+    void applyEnvelope(withTaskEnvelopeSessionPolicy(current, next));
+  }, [applyEnvelope, current]);
+
+  const isNewSession = current.sessionPolicy === 'new';
 
   return (
     <div
-      className={cn('flex items-center gap-1.5', className)}
+      className={cn('flex items-center gap-1', className)}
       onClick={stopPropagation}
       onMouseDown={stopPropagation}
       onKeyDown={stopPropagation}
     >
-      {!compact && (
-        <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-          Mode
-        </span>
-      )}
-      <Select
-        value={current.conversationMode}
-        onValueChange={handleModeChange}
+      <button
+        type="button"
+        data-testid="queued-message-session-toggle"
+        aria-pressed={isNewSession}
+        aria-busy={isUpdating || undefined}
         disabled={isUpdating}
-        items={{ chat: 'Chat', code: 'Code', 'code:enhanced': 'Code:Enhanced' }}
+        title={sessionTitle(isNewSession)}
+        onClick={handleSessionToggle}
+        className={sessionButtonClass(isNewSession, compact)}
       >
-        <SelectTrigger size="sm" aria-label="Queued message mode" className="h-7 px-2 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent align="start">
-          <SelectItem value="chat">Chat</SelectItem>
-          <SelectItem value="code">Code</SelectItem>
-          <SelectItem value="code:enhanced">Code:Enhanced</SelectItem>
-        </SelectContent>
-      </Select>
+        <RotateCcw size={14} />
+      </button>
 
-      {!compact && (
-        <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-          Session
-        </span>
-      )}
-      <Select
-        value={current.sessionPolicy}
-        onValueChange={handleSessionChange}
+      <button
+        type="button"
+        data-testid="queued-message-mode-toggle"
+        aria-label={`Mode: ${modeLabel(current.conversationMode)}`}
+        aria-busy={isUpdating || undefined}
         disabled={isUpdating}
-        items={{ continue: 'Continue', new: 'New session' }}
+        title={modeTitle(current.conversationMode)}
+        onClick={handleModeCycle}
+        className={modeButtonClass(current.conversationMode, compact)}
       >
-        <SelectTrigger
-          size="sm"
-          aria-label="Queued message session policy"
-          className="h-7 px-2 text-xs"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent align="start">
-          <SelectItem value="continue">Continue</SelectItem>
-          <SelectItem value="new">New session</SelectItem>
-        </SelectContent>
-      </Select>
+        {modeIcon(current.conversationMode)}
+      </button>
 
       {error && (
         <span
