@@ -8,6 +8,8 @@
  * This module resolves templates by team and re-exports duo getters for tests.
  */
 
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+
 import { getDuoHandoffTemplate } from '../../teams/duo/handoff-templates';
 import { getSoloHandoffTemplate } from '../../teams/solo/handoff-templates';
 
@@ -19,6 +21,7 @@ export interface HandoffTemplateQuery {
   chatroomId?: string | undefined;
   role?: string | undefined;
   cliEnvPrefix?: string | undefined;
+  conversationMode?: ConversationMode | undefined;
 }
 
 /**
