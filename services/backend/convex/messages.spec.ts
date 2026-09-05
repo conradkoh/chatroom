@@ -5,6 +5,7 @@
 import {
   withTaskEnvelopeConversationMode,
   withTaskEnvelopeSessionPolicy,
+  type TaskEnvelopeV1,
 } from '@workspace/shared/domain/task-envelope';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
@@ -747,6 +748,189 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     const handoffTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
     expect(handoffTask?.status).toBe('pending');
     expect(handoffTask?.assignedTo).toBe('planner');
+  });
+});
+
+describe('_handoffHandler — envelope propagation across agent handoffs', () => {
+  async function seedTaskWithEnvelope(
+    chatroomId: Id<'chatroom_rooms'>,
+    opts: {
+      assignedTo: string;
+      createdBy: string;
+      content: string;
+      queuePosition: number;
+      taskEnvelope?: TaskEnvelopeV1;
+      conversationMode?: 'chat' | 'code' | 'code:enhanced';
+      plannerEnhancerEnabled?: boolean;
+      startInNewSession?: boolean;
+    }
+  ): Promise<Id<'chatroom_tasks'>> {
+    return await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: opts.createdBy,
+        content: opts.content,
+        status: 'in_progress',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: opts.queuePosition,
+        assignedTo: opts.assignedTo,
+        startedAt: now,
+        acknowledgedAt: now,
+        ...(opts.taskEnvelope !== undefined ? { taskEnvelope: opts.taskEnvelope } : {}),
+        ...(opts.conversationMode !== undefined ? { conversationMode: opts.conversationMode } : {}),
+        ...(opts.plannerEnhancerEnabled !== undefined
+          ? { plannerEnhancerEnabled: opts.plannerEnhancerEnabled }
+          : {}),
+        ...(opts.startInNewSession !== undefined
+          ? { startInNewSession: opts.startInNewSession }
+          : {}),
+      });
+    });
+  }
+
+  test('agent handoff inherits and advances the exact sender task envelope', async () => {
+    const { sessionId } = await createTestSession('handoff-envelope-basic');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const sourceEnvelope = {
+      version: 1 as const,
+      conversationMode: 'code' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'team' as const, phase: 'entry' as const },
+    };
+    const builderTaskId = await seedTaskWithEnvelope(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'planner',
+      content: 'builder work',
+      queuePosition: 0,
+      taskEnvelope: sourceEnvelope,
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'handed to planner',
+      targetRole: 'planner',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.completedTaskIds).toContain(builderTaskId);
+
+    const plannerTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    // Full copied + advanced envelope: team/entry -> team/implementation, session preserved.
+    expect(plannerTask?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'team', phase: 'implementation' },
+    });
+    // Temporary compatibility projections derived from the inherited envelope.
+    expect(plannerTask?.conversationMode).toBe('code');
+    expect(plannerTask?.plannerEnhancerEnabled).toBe(false);
+    expect(plannerTask?.startInNewSession).toBe(true);
+
+    // The source task envelope is untouched.
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(builderTaskId));
+    expect(sourceTask?.taskEnvelope).toEqual(sourceEnvelope);
+  });
+
+  test('sender-task selection is exact when multiple active tasks exist', async () => {
+    const { sessionId } = await createTestSession('handoff-envelope-multi');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const builderEnvelope = {
+      version: 1 as const,
+      conversationMode: 'code:enhanced' as const,
+      sessionPolicy: 'continue' as const,
+      handoffWorkflow: { preset: 'enhanced-team' as const, phase: 'entry' as const },
+    };
+    const unrelatedEnvelope = {
+      version: 1 as const,
+      conversationMode: 'chat' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'direct' as const, phase: 'entry' as const },
+    };
+    await seedTaskWithEnvelope(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'planner',
+      content: 'builder work',
+      queuePosition: 0,
+      taskEnvelope: builderEnvelope,
+    });
+    // Unrelated active task for a different role with a different envelope.
+    await seedTaskWithEnvelope(chatroomId, {
+      assignedTo: 'planner',
+      createdBy: 'builder',
+      content: 'unrelated planner work',
+      queuePosition: 1,
+      taskEnvelope: unrelatedEnvelope,
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'handed to planner',
+      targetRole: 'planner',
+    });
+    expect(result.success).toBe(true);
+
+    const plannerTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    // Inherited from the builder task (enhanced-team/entry -> enhancement), not the unrelated chat task.
+    expect(plannerTask?.taskEnvelope?.handoffWorkflow).toEqual({
+      preset: 'enhanced-team',
+      phase: 'enhancement',
+    });
+    expect(plannerTask?.taskEnvelope?.conversationMode).toBe('code:enhanced');
+    expect(plannerTask?.taskEnvelope?.sessionPolicy).toBe('continue');
+    expect(plannerTask?.plannerEnhancerEnabled).toBe(true);
+    expect(plannerTask?.startInNewSession).toBe(false);
+  });
+
+  test('legacy sender task without envelope is normalized and advanced on handoff', async () => {
+    const { sessionId } = await createTestSession('handoff-envelope-legacy');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const builderTaskId = await seedTaskWithEnvelope(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'planner',
+      content: 'builder work',
+      queuePosition: 0,
+      conversationMode: 'chat',
+      plannerEnhancerEnabled: false,
+      startInNewSession: true,
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'handed to planner',
+      targetRole: 'planner',
+    });
+    expect(result.success).toBe(true);
+
+    const plannerTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    // chat + startInNewSession:true -> normalized envelope (direct/entry),
+    // advanced one step to direct/delivery, session policy new preserved.
+    expect(plannerTask?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'chat',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'direct', phase: 'delivery' },
+    });
+    expect(plannerTask?.conversationMode).toBe('chat');
+    expect(plannerTask?.plannerEnhancerEnabled).toBe(false);
+    expect(plannerTask?.startInNewSession).toBe(true);
+
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(builderTaskId));
+    expect(sourceTask?.taskEnvelope).toBeUndefined();
   });
 });
 

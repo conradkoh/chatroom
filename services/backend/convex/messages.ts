@@ -8,6 +8,7 @@ import {
   isEnhancerEntryPointRole,
 } from '@workspace/shared/domain/enhancer-team-capability';
 import {
+  advanceTaskEnvelopeWorkflow,
   normalizeTaskEnvelope,
   withTaskEnvelopeConversationMode,
   withTaskEnvelopeSessionPolicy,
@@ -1003,6 +1004,43 @@ export async function runHandoffHandler(
     }
   }
 
+  // Derive the target task's inherited envelope from the exact task owned by the
+  // sender role (never a recent unrelated message/task or a global chatroom mode).
+  // Legacy rows (no explicit envelope) are normalized at this boundary; explicit
+  // snapshots are structurally copied by normalizeTaskEnvelope and advanced once
+  // through the shared pure workflow transition without mutating the source task.
+  const sourceTask = tasksToComplete
+    .filter((task) => task.assignedTo?.toLowerCase() === normalizedSenderRole)
+    .sort((a, b) => a.queuePosition - b.queuePosition)[0];
+  const inheritedTaskEnvelope: TaskEnvelopeV1 | undefined = sourceTask
+    ? advanceTaskEnvelopeWorkflow(normalizeTaskEnvelope(sourceTask))
+    : undefined;
+
+  // TEMPORARY scalar compatibility projections for legacy readers, mirroring the
+  // user-ingress recipe in send-automated-user-message.ts. The canonical envelope
+  // is always inherited; the scalar projections (conversationMode / plannerEnhancerEnabled /
+  // startInNewSession) are only written when the source task itself carries explicit
+  // policy data (explicit envelope or legacy scalars). Fully legacy-allocated chains
+  // keep the projections undefined so existing readers (e.g. getTaskDeliveryPrompt's
+  // live enhancer-config fallback) keep their current behaviour until they migrate
+  // to taskEnvelope. The internal enhancer-delivery hop never projects scalars: the
+  // enhancer task's envelope is derived from the entry-point hop and its mode is not
+  // an explicit user selection, so legacy readers must retain live-config fallback.
+  const legacyScalarProjections =
+    sourceTask &&
+    !isEnhancerDelivery &&
+    (sourceTask.taskEnvelope !== undefined ||
+      sourceTask.conversationMode !== undefined ||
+      sourceTask.plannerEnhancerEnabled !== undefined ||
+      sourceTask.startInNewSession !== undefined) &&
+    inheritedTaskEnvelope
+      ? {
+          conversationMode: inheritedTaskEnvelope.conversationMode,
+          plannerEnhancerEnabled: inheritedTaskEnvelope.conversationMode === 'code:enhanced',
+          startInNewSession: inheritedTaskEnvelope.sessionPolicy === 'new',
+        }
+      : undefined;
+
   const completedTaskIds = await completeTasks(ctx, tasksToComplete, { skipAutoPromotion: true });
   let promotedTaskId: Id<'chatroom_tasks'> | null = null;
 
@@ -1081,7 +1119,11 @@ export async function runHandoffHandler(
       ...(isHandoffToEnhancer && taskOriginMessageId
         ? { originUserMessageId: taskOriginMessageId, enhancerEnabledAtEnqueue }
         : {}),
-      startInNewSession: undefined,
+      // Inherited canonical envelope plus temporary scalar compatibility projections
+      // (see legacyScalarProjections above). These scalars are projections only;
+      // policy selection remains driven by the canonical envelope itself.
+      ...(inheritedTaskEnvelope ? { taskEnvelope: inheritedTaskEnvelope } : {}),
+      ...(legacyScalarProjections ? legacyScalarProjections : { startInNewSession: undefined }),
     });
     newTaskId = createdTaskId;
 
