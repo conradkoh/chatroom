@@ -1,3 +1,8 @@
+import {
+  legacyConversationMode,
+  plannerEnhancerEnabledForMode,
+} from '@workspace/shared/domain/conversation-mode';
+import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -10,6 +15,7 @@ import { isNativeHarness } from '../../../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../../../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../../../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../../../src/domain/entities/team';
+import { getTeamRolesFromChatroom } from '../../../src/domain/usecase/chatroom/get-team-roles';
 import { getEnhancerConfigForUser } from '../../../src/domain/usecase/enhancer/get-enhancer-config-for-user';
 import { resolveTaskPlannerEnhancerEnabled } from '../../../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import type { Doc } from '../../_generated/dataModel';
@@ -81,17 +87,35 @@ export const getTaskDeliveryForJob = query({
     const availableRoles = waitingParticipants.map((p) => p.role);
 
     const enhancerConfig = await getEnhancerConfigForUser(ctx, job.chatroomId, auth.userId);
-    const plannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
+    const legacyPlannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
       taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
       liveConfig: enhancerConfig,
       role,
       team: chatroom,
     });
 
+    // The explicit task envelope is authoritative for mode/enhancer policy at
+    // this delivery boundary. Legacy rows without an envelope retain the
+    // existing live-config behaviour.
+    const hasExplicitTaskEnvelope = task.taskEnvelope !== undefined;
+    const normalizedTaskEnvelope = normalizeTaskEnvelope(task);
+    const conversationMode = hasExplicitTaskEnvelope
+      ? normalizedTaskEnvelope.conversationMode
+      : legacyConversationMode(legacyPlannerEnhancerEnabled);
+    const plannerEnhancerEnabled = hasExplicitTaskEnvelope
+      ? plannerEnhancerEnabledForMode(normalizedTaskEnvelope.conversationMode)
+      : legacyPlannerEnhancerEnabled;
+
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
 
-    const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles, {
+    // Configured team roles are authoritative structural capability; active
+    // participants remain a legacy fallback for empty-membership rooms.
+    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
+    const availableHandoffRoles = buildAvailableHandoffRoles({
+      teamRoles,
+      currentRole: role,
+      fallbackParticipantRoles: availableRoles,
       includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole === 'user',
     });
 
@@ -133,6 +157,7 @@ export const getTaskDeliveryForJob = query({
       sourceAttachments,
       standingInstructions: getActiveStandingInstructions(chatroom),
       plannerEnhancerEnabled,
+      conversationMode,
       entryPointRole: job.fromRole,
       originUserMessageId: task.originUserMessageId ?? job.originUserMessageId ?? undefined,
     });

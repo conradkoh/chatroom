@@ -122,7 +122,11 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     taskCreatedAt: task.createdAt ?? now,
     taskUpdatedAt,
     sessionAugmentation: resolveSessionAugmentationForTask(
-      { content: task.content, startInNewSession: task.startInNewSession },
+      {
+        content: task.content,
+        taskEnvelope: task.taskEnvelope,
+        startInNewSession: task.startInNewSession,
+      },
       config.role
     ),
     agentHarness: config.agentHarness ?? 'opencode',

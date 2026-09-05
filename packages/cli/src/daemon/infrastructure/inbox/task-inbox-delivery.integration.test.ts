@@ -294,6 +294,77 @@ describe('task inbox delivery integration', () => {
     );
   });
 
+  test('wakes an absent/offline pending snapshot with one ensureRunning and one hydration', async () => {
+    // Offline agent: no operational row at all (never reported), no local slot,
+    // no presence. The pending assigned snapshot alone must trigger exactly one
+    // ensureRunning with platform.pending_task_wake and one backend hydration.
+    const ensureRunning = vi.fn().mockResolvedValue({ success: true, pid: 99_003 });
+    const agentMgr = createAgentMgrMock({
+      getSlot: vi.fn().mockReturnValue(undefined),
+      ensureRunning,
+    });
+    const row = {
+      ...snapshot(),
+      agentConfig: {
+        ...snapshot().agentConfig,
+        spawnedAgentPid: undefined,
+      },
+    };
+    const full = fullTaskFromSnapshot(row as unknown as ReturnType<typeof snapshot>);
+    const query = vi
+      .fn()
+      .mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+        'taskId' in args ? full : { tasks: [row] }
+      );
+    const sessionDeps = {
+      sessionId: 'session-1',
+      convexUrl: 'http://test',
+      machineId: 'machine-1',
+      logEvent: vi.fn(),
+      backend: {
+        mutation: vi.fn(),
+        query,
+      },
+    } as never;
+    const deps = {
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      cooldown: new RecoveryCooldown(0),
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+    };
+    registerTestNativeDeliverySession({
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+      operationalRows: [],
+    });
+    await handleTaskInboxUpdate(
+      { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
+      deps
+    );
+    await vi.waitFor(() => expect(ensureRunning).toHaveBeenCalledTimes(1));
+    const wakeArgs = ensureRunning.mock.calls[0]![0] as Record<string, unknown>;
+    expect(wakeArgs.reason).toBe('platform.pending_task_wake');
+    expect(wakeArgs.role).toBe('builder');
+    expect(wakeArgs.chatroomId).toBe('room-1');
+    // Exactly one backend action hydration for the pending snapshot — no
+    // second participant/config query.
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith(expect.anything(), {
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      taskId: 'task-1',
+      role: 'builder',
+    });
+    // Native injection must not start before the mocked agent becomes running.
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(runNativeInjectionEffect).not.toHaveBeenCalled();
+  });
+
   test('does not wake when operational stopState is stopped', async () => {
     const ensureRunning = vi.fn().mockResolvedValue({ success: true, pid: 99_002 });
     const agentMgr = createAgentMgrMock({

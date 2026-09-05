@@ -7,7 +7,11 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { shouldEnqueueMessage, hasActiveTaskFromMaterializedCounts } from './create-task';
+import {
+  shouldEnqueueMessage,
+  hasActiveTaskFromMaterializedCounts,
+  createTask,
+} from './create-task';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -288,5 +292,147 @@ describe('shouldEnqueueMessage', () => {
 
       expect(enqueue).toBe(false);
     });
+  });
+});
+
+describe('createTask — TaskEnvelopeV1', () => {
+  test('persists a complete taskEnvelope with a fresh nested workflow object', async () => {
+    const { sessionId } = await createTestSession('create-task-env-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const suppliedEnvelope = {
+      version: 1 as const,
+      conversationMode: 'chat' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'direct' as const, phase: 'entry' as const },
+    };
+
+    const { taskId, status } = await t.run(async (ctx) => {
+      return await createTask(ctx, {
+        chatroomId,
+        createdBy: 'user',
+        content: 'envelope task',
+        queuePosition: 0,
+        startInNewSession: false,
+        taskEnvelope: suppliedEnvelope,
+      });
+    });
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_tasks', taskId);
+    });
+
+    expect(status).toBe('pending');
+    expect(task?.status).toBe('pending');
+    // The complete envelope is persisted.
+    expect(task?.taskEnvelope).toEqual(suppliedEnvelope);
+    // A fresh object is stored — the caller-owned envelope (and its nested
+    // workflow) must not be retained by reference.
+    expect(task?.taskEnvelope).not.toBe(suppliedEnvelope);
+    expect(task?.taskEnvelope?.handoffWorkflow).not.toBe(suppliedEnvelope.handoffWorkflow);
+
+    // Materialized pending count reflects the newly created task.
+    const counts = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_taskCounts')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+    });
+    expect(counts?.pending).toBe(1);
+  });
+
+  test('no envelope derives a complete normalized envelope from legacy scalar inputs', async () => {
+    const { sessionId } = await createTestSession('create-task-env-2');
+    const chatroomId = await createChatroom(sessionId);
+
+    const { taskId } = await t.run(async (ctx) => {
+      return await createTask(ctx, {
+        chatroomId,
+        createdBy: 'user',
+        content: 'scalar task',
+        queuePosition: 0,
+        startInNewSession: true,
+        conversationMode: 'code',
+      });
+    });
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_tasks', taskId);
+    });
+    // The canonical envelope is complete even when only scalars were supplied.
+    expect(task?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'team', phase: 'entry' },
+    });
+    // Scalar columns equal the projection derived from the stored envelope.
+    expect(task?.conversationMode).toBe('code');
+    expect(task?.plannerEnhancerEnabled).toBe(false);
+    expect(task?.startInNewSession).toBe(true);
+  });
+
+  test('explicit envelope wins over conflicting stale legacy scalar args', async () => {
+    const { sessionId } = await createTestSession('create-task-env-3');
+    const chatroomId = await createChatroom(sessionId);
+
+    const suppliedEnvelope = {
+      version: 1 as const,
+      conversationMode: 'chat' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'direct' as const, phase: 'entry' as const },
+    };
+
+    const { taskId } = await t.run(async (ctx) => {
+      return await createTask(ctx, {
+        chatroomId,
+        createdBy: 'user',
+        content: 'explicit envelope task',
+        queuePosition: 0,
+        plannerEnhancerEnabled: true,
+        conversationMode: 'code',
+        startInNewSession: false,
+        taskEnvelope: suppliedEnvelope,
+      });
+    });
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_tasks', taskId);
+    });
+    expect(task?.taskEnvelope).toEqual(suppliedEnvelope);
+    // Scalar columns are projections of the envelope, not the stale inputs.
+    expect(task?.conversationMode).toBe('chat');
+    expect(task?.plannerEnhancerEnabled).toBe(false);
+    expect(task?.startInNewSession).toBe(true);
+  });
+
+  test('stored envelope is structurally fresh and never the caller-owned object', async () => {
+    const { sessionId } = await createTestSession('create-task-env-4');
+    const chatroomId = await createChatroom(sessionId);
+
+    const suppliedEnvelope = {
+      version: 1 as const,
+      conversationMode: 'code:enhanced' as const,
+      sessionPolicy: 'continue' as const,
+      handoffWorkflow: { preset: 'enhanced-team' as const, phase: 'entry' as const },
+    };
+
+    const { taskId } = await t.run(async (ctx) => {
+      return await createTask(ctx, {
+        chatroomId,
+        createdBy: 'user',
+        content: 'copy envelope task',
+        queuePosition: 0,
+        startInNewSession: true,
+        taskEnvelope: suppliedEnvelope,
+      });
+    });
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_tasks', taskId);
+    });
+    expect(task?.taskEnvelope).toEqual(suppliedEnvelope);
+    expect(task?.taskEnvelope).not.toBe(suppliedEnvelope);
+    expect(task?.taskEnvelope?.handoffWorkflow).not.toBe(suppliedEnvelope.handoffWorkflow);
   });
 });

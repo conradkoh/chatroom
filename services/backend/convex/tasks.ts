@@ -1,3 +1,7 @@
+import {
+  normalizeTaskEnvelope,
+  withTaskEnvelopeSessionPolicy,
+} from '@workspace/shared/domain/task-envelope';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -25,6 +29,7 @@ import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/m
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
   createTask as createTaskUsecase,
+  deriveTaskPolicyProjection,
   hasActiveTaskFromMaterializedCounts,
 } from '../src/domain/usecase/task/create-task';
 import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
@@ -116,8 +121,19 @@ export const updateTaskStartInNewSession = mutation({
     if (!task) throw new Error('Task not found');
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
     if (task.status !== 'pending') throw new Error('Only pending tasks can be updated');
+
+    // Compatibility adapter: the scalar boolean is rewritten through a complete
+    // envelope read/transform/write. Mode, preset, and phase are preserved; only
+    // the session policy changes. The scalar columns are projections of the new
+    // envelope, never independent policy.
+    const current = normalizeTaskEnvelope(task);
+    const next = withTaskEnvelopeSessionPolicy(
+      current,
+      args.startInNewSession ? 'new' : 'continue'
+    );
+
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      startInNewSession: args.startInNewSession,
+      ...deriveTaskPolicyProjection(next),
       updatedAt: Date.now(),
     });
     await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);

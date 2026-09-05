@@ -393,6 +393,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
+      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      \`\`\`bash
+      chatroom handoff list-templates --role="builder" --team-id="duo"
+      \`\`\`
+      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+
       **Implementation Guidelines:**
       - Write clean, maintainable, well-documented code
       - Follow established patterns and best practices from the codebase
@@ -1387,5 +1393,84 @@ describe('Get-Next-Task Recent Improvements', () => {
 
     // Should not have attachedBacklogItems
     expect(result.attachedBacklogItems).toBeUndefined();
+  });
+});
+
+describe('Chat mode handoff capability with no builder participant', () => {
+  test('configured duo builder is advertised and a planner → builder handoff routes', async () => {
+    const { sessionId } = await createTestSession('chat-cap-planner-only');
+
+    // Duo room with planner entry point; only the planner joins as a participant.
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'duo',
+      teamName: 'Duo Team',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+    await joinParticipants(sessionId, chatroomId, ['planner']);
+
+    // Chat-mode user task routes to the planner entry point.
+    const userMessageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Chat capability regression task',
+      type: 'message',
+      conversationMode: 'chat',
+    });
+
+    // Planner claims and starts the Chat task.
+    const claimed = await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId: claimed.taskId,
+    });
+
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId: claimed.taskId,
+      messageId: userMessageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Chat primary recommendation stays direct-to-user.
+    expect(fullCliOutput).toContain('--next-role="user"');
+    expect(fullCliOutput).toContain('<chat-mode>');
+    // The configured builder is advertised as an alternate handoff target even
+    // though no builder participant has joined.
+    expect(fullCliOutput).toContain('**builder**');
+    expect(fullCliOutput).toContain('--next-role="builder"');
+
+    // A real planner → builder handoff succeeds and creates a builder task.
+    const handoff = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'builder',
+      content: 'Delegation brief for the Chat-mode task',
+    });
+    expect(handoff.success).toBe(true);
+    expect(handoff.newTaskId).toBeTruthy();
+
+    const handoffMessage = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messages', handoff.messageId as Id<'chatroom_messages'>)
+    );
+    expect(handoffMessage?.targetRole).toBe('builder');
+
+    const builderTask = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_tasks', handoff.newTaskId as Id<'chatroom_tasks'>)
+    );
+    expect(builderTask).toBeDefined();
+    expect(builderTask?.status).toBe('pending');
+    expect(builderTask?.assignedTo).toBe('builder');
   });
 });

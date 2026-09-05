@@ -10,6 +10,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { getBuilderGuidance } from '../../prompts/cli/roles/builder';
+import { getEnhancerGuidance } from '../../prompts/cli/roles/enhancer';
 import { getPlannerGuidance } from '../../prompts/cli/roles/planner';
 import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/selector-context';
 
@@ -183,6 +184,12 @@ describe('getBuilderGuidance', () => {
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
+      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      \`\`\`bash
+      chatroom handoff list-templates --role="builder" --team-id="duo"
+      \`\`\`
+      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+
       **Implementation Guidelines:**
       - Write clean, maintainable, well-documented code
       - Follow established patterns and best practices from the codebase
@@ -227,5 +234,62 @@ describe('getRoleGuidanceFromContext - duo team', () => {
 
     expect(guidance).toContain('Duo Team Context');
     expect(guidance).not.toContain('reviewer');
+  });
+});
+
+describe('role guidance — handoff template discovery instruction', () => {
+  test('planner guidance mentions inspecting role-owned handoff templates before work', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner', 'builder'],
+      isEntryPoint: true,
+      convexUrl: CONVEX_URL,
+    });
+
+    expect(guidance).toContain('Role-owned handoff contracts');
+    expect(guidance).toContain('chatroom handoff list-templates --role="planner" --team-id="duo"');
+  });
+
+  test('solo team planner guidance uses the solo team id in the discovery command', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner'],
+      isEntryPoint: true,
+      convexUrl: CONVEX_URL,
+    });
+
+    expect(guidance).toContain('chatroom handoff list-templates');
+  });
+
+  test('builder guidance mentions inspecting role-owned handoff templates before implementation rules', () => {
+    const guidance = getBuilderGuidance({
+      role: 'builder',
+      teamRoles: ['planner', 'builder'],
+      isEntryPoint: false,
+      convexUrl: CONVEX_URL,
+      codeChangesTarget: 'planner',
+      questionTarget: 'planner',
+    });
+
+    expect(guidance).toContain('Role-owned handoff contracts');
+    expect(guidance).toContain('chatroom handoff list-templates --role="builder" --team-id="duo"');
+    expect(guidance.indexOf('list-templates')).toBeLessThan(
+      guidance.indexOf('**Implementation Guidelines:**')
+    );
+  });
+
+  test('enhancer guidance mentions inspecting role-owned handoff templates without weakening restrictions', () => {
+    const guidance = getEnhancerGuidance({
+      role: 'enhancer',
+      teamRoles: ['planner', 'builder', 'enhancer'],
+      isEntryPoint: false,
+      convexUrl: CONVEX_URL,
+    });
+
+    expect(guidance).toContain('Role-owned handoff contracts');
+    expect(guidance).toContain('chatroom handoff list-templates --role="enhancer" --team-id="duo"');
+    expect(guidance).toContain(
+      'Do NOT implement, spawn subagents, or propose multiple alternative designs.'
+    );
   });
 });

@@ -4,6 +4,7 @@ import {
   AgentStopReasonEnum,
 } from '@workspace/backend/src/domain/entities/agent.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import { taskRequestsNativeColdSession } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
@@ -29,13 +30,21 @@ async function waitForHarnessSessionId(
   return null;
 }
 
-/** Cold-restart native harness when user opted in via task.startInNewSession. */
+/** Cold-restart native harness when the task requests a new session. */
 // fallow-ignore-next-line complexity
 export async function ensureColdSessionBeforeNativeInject(
   task: AssignedTaskWithContent,
   deps: NativeInjectorDeps
 ): Promise<string | null> {
-  if (!task.startInNewSession) return null;
+  if (
+    !taskRequestsNativeColdSession({
+      content: task.taskContent ?? '',
+      taskEnvelope: task.taskEnvelope,
+      startInNewSession: task.startInNewSession,
+    })
+  ) {
+    return null;
+  }
 
   const { chatroomId, agentConfig, taskId } = task;
   const { role, agentHarness, model, workingDir } = agentConfig;

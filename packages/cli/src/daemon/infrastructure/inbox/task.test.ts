@@ -45,11 +45,6 @@ describe('runTaskInbox', () => {
     const client = {
       onUpdate: vi.fn(
         (_query: unknown, args: Record<string, unknown>, onPage: (page: unknown) => void) => {
-          expect(args).toMatchObject({
-            machineId: 'machine-1',
-            chatroomId: 'chatroom-1',
-            afterKey: '0000000000000010:',
-          });
           deliverPage = onPage;
           return unsubscribe;
         }
@@ -91,6 +86,21 @@ describe('runTaskInbox', () => {
 
     await runPromise;
 
+    // Exactly one room-scoped signal subscription for the one signal page —
+    // no second subscription and no presence/config query. (Convex function
+    // refs are unprintable Proxies, so identity is proven by the single
+    // mock client entry point plus the exact arguments below.)
+    expect(client.onUpdate).toHaveBeenCalledTimes(1);
+    expect(client.onUpdate.mock.calls[0]![1]).toEqual({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      chatroomId: 'chatroom-1',
+      afterKey: '0000000000000010:',
+      limit: 100,
+    });
+
+    // Exactly one imperative range hydration for the one signal page.
+    expect(query).toHaveBeenCalledTimes(1);
     expect(query).toHaveBeenCalledWith(expect.anything(), {
       sessionId: 'session-1',
       machineId: 'machine-1',
@@ -99,6 +109,7 @@ describe('runTaskInbox', () => {
       throughSignalKey: '0000000000000011:task-1',
       limit: 500,
     });
+    // One signal page → one range hydration → one handler update.
     expect(updates).toHaveLength(1);
     expect(unsubscribe).toHaveBeenCalled();
   });

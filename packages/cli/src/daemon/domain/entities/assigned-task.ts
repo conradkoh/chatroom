@@ -1,3 +1,5 @@
+import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
+
 export const ACTIVE_TASK_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
 export type ActiveTaskStatus = (typeof ACTIVE_TASK_STATUSES)[number];
 
@@ -51,5 +53,6 @@ export type AssignedTaskSnapshotView = AssignedTask;
 /** Full task view including content — for one-shot action fetches. */
 export interface AssignedTaskWithContent extends AssignedTask {
   taskContent: string;
+  taskEnvelope?: TaskEnvelopeV1 | undefined;
   startInNewSession?: boolean | undefined;
 }

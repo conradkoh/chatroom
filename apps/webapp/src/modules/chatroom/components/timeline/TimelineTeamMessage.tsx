@@ -23,6 +23,10 @@ import {
 import { MessageAttachmentChips } from '../../attachments';
 import { EnhancerMessageDiffSection } from '../../features/enhancers/components/EnhancerMessageDiffSection';
 import type { Message } from '../../types/message';
+import {
+  normalizeChatroomMarkdownContent,
+  unwrapMarkdownPresentationFence,
+} from '../../utils/normalizeChatroomMarkdownContent';
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
 import { hasPlanningReviewOutcome } from '../../utils/parsePlanningReviewOutcome';
@@ -61,7 +65,13 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   const hasEnhancerOriginal =
     typeof message.enhancerOriginalContent === 'string' &&
     message.enhancerOriginalContent.length > 0;
-  const displayContent = message.content;
+  // Original content stays lossless for enhancer/diff/metadata semantics; the
+  // visual render path additionally unwraps the handoff presentation fence.
+  const originalContent = message.content;
+  const renderContent =
+    message.type === 'handoff'
+      ? normalizeChatroomMarkdownContent(unwrapMarkdownPresentationFence(originalContent))
+      : originalContent;
 
   const messageTypeBadge = getMessageTypeBadge(message.type);
   const machineLabel = formatMachineLabel(machines, machineId);
@@ -111,31 +121,31 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       </div>
 
       <div className={`px-4 py-3 ${TIMELINE_MESSAGE_BODY}`}>
-        {message.type === 'handoff' && hasPlanningReviewOutcome(displayContent) ? (
-          <PlanningReviewOutcomeView content={displayContent} variant="timeline" />
-        ) : message.type === 'handoff' && hasHandoffEnvelope(displayContent) ? (
+        {message.type === 'handoff' && hasPlanningReviewOutcome(renderContent) ? (
+          <PlanningReviewOutcomeView content={renderContent} variant="timeline" />
+        ) : message.type === 'handoff' && hasHandoffEnvelope(renderContent) ? (
           <HandoffEnvelopeView
-            content={displayContent}
+            content={renderContent}
             variant="timeline"
             initiallyExpanded={
               message.senderRole === 'planner' && message.targetRole === 'enhancer'
             }
           />
-        ) : message.type === 'handoff' && hasHandoffReport(displayContent) ? (
+        ) : message.type === 'handoff' && hasHandoffReport(renderContent) ? (
           <HandoffReportView
-            content={displayContent}
+            content={renderContent}
             variant="timeline"
             targetRole={message.targetRole}
           />
         ) : (
-          <TimelineMarkdownBody content={displayContent} />
+          <TimelineMarkdownBody content={renderContent} />
         )}
         <div className="mt-2 empty:hidden">
           <MessageAttachmentChips message={message} />
         </div>
         <EnhancerMessageDiffSection
           message={message}
-          displayContent={displayContent}
+          displayContent={originalContent}
           hasEnhancerOriginal={hasEnhancerOriginal}
         />
       </div>

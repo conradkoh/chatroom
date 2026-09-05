@@ -4,6 +4,7 @@
 
 import { getSessionContinuityLine } from '../../native/session-continuity';
 import type { BuilderGuidanceParams } from '../../types/cli';
+import { getHandoffTemplateDiscoveryGuidance } from '../sections';
 
 function getBuilderFlowMermaid(
   nativeIntegration: boolean | undefined,
@@ -57,6 +58,8 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 - **After code changes** → Hand off to \`${codeChangesTarget}\`
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
   ⚠️ If \`${questionTarget}\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
+
+${getHandoffTemplateDiscoveryGuidance({ teamId: 'duo', rolePlaceholder: 'builder' })}
 
 **Implementation Guidelines:**
 - Write clean, maintainable, well-documented code

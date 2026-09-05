@@ -23,6 +23,21 @@ export function useEnhancerConfig(chatroomId: string) {
   const upsertMutation = useSessionMutation(api.web.enhancer.index.upsertConfig);
   const disableMutation = useSessionMutation(api.web.enhancer.index.disableConfig);
 
+  // Derive authoritative server-active state from the reactive query only.
+  // undefined while loading, false for null, otherwise active check of hydrated shape.
+  const serverIsActive: boolean | undefined =
+    serverConfig === undefined
+      ? undefined
+      : serverConfig === null
+        ? false
+        : isEnhancerConfigActive({
+            enabled: serverConfig.enabled,
+            targetId: serverConfig.targetId,
+            agentHarness: serverConfig.agentHarness,
+            model: serverConfig.model,
+            machineId: serverConfig.machineId,
+          });
+
   useEffect(() => {
     if (serverConfig === undefined) return;
     if (serverConfig === null) {
@@ -49,16 +64,29 @@ export function useEnhancerConfig(chatroomId: string) {
 
   const saveConfig = useCallback(
     async (cfg: EnhancerConfig) => {
+      // Capture prior state for rollback on rejection.
+      const priorConfig = getEnhancerConfig(chatroomId);
       setEnhancerConfig(chatroomId, cfg);
       setConfig(cfg);
-      await upsertMutation({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        enabled: cfg.enabled,
-        targetId: cfg.targetId,
-        agentHarness: cfg.agentHarness,
-        model: cfg.model,
-        machineId: cfg.machineId,
-      });
+      try {
+        await upsertMutation({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          enabled: cfg.enabled,
+          targetId: cfg.targetId,
+          agentHarness: cfg.agentHarness,
+          model: cfg.model,
+          machineId: cfg.machineId,
+        });
+      } catch (err) {
+        // Restore prior optimistic state so a failed enable does not leave stale "enabled" cache.
+        if (priorConfig === null) {
+          clearEnhancerConfig(chatroomId);
+        } else {
+          setEnhancerConfig(chatroomId, priorConfig);
+        }
+        setConfig(priorConfig);
+        throw err;
+      }
     },
     [chatroomId, upsertMutation]
   );
@@ -76,6 +104,7 @@ export function useEnhancerConfig(chatroomId: string) {
   return {
     config,
     isActive: isEnhancerConfigActive(config),
+    serverIsActive,
     saveConfig,
     disable,
   };

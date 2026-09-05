@@ -15,8 +15,8 @@ import { NATIVE_INIT_SCENARIOS, TEAM_CONFIGS } from '../../helpers/native-workfl
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
 
-/** Length budget for native duo/planner init with role guidance restored. */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 12000;
+/** Length budget for native duo/planner init with role guidance + handoff contract discovery restored. */
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 12400;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

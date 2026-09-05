@@ -209,6 +209,54 @@ Prior round returned as \`<planning-review-outcome status="cancelled">\`
     expect(screen.queryByTestId('planning-review-outcome-view')).not.toBeInTheDocument();
   });
 
+  describe('presentation-fence unwrapping', () => {
+    it('unwraps the outer markdown fence for handoffs while preserving inner code fences', () => {
+      const wrappedHandoff: Message = {
+        ...BASE_MESSAGE,
+        content:
+          '```markdown\n## Summary\nHello world\n\n```typescript\nconst value = 1;\n```\n```',
+      };
+      render(<TimelineTeamMessage message={wrappedHandoff} chatroomId="room-1" />);
+      const body = screen.getByTestId('timeline-markdown-body');
+      expect(body).toHaveTextContent('## Summary');
+      expect(body).toHaveTextContent('Hello world');
+      expect(body.textContent).toContain('```typescript');
+      expect(body.textContent).toContain('const value = 1;');
+      expect(body.textContent).not.toContain('```markdown');
+    });
+
+    it('routes a fenced handoff report through HandoffReportView without the outer wrapper', () => {
+      const wrappedReport: Message = {
+        ...BASE_MESSAGE,
+        senderRole: 'enhancer',
+        targetRole: 'planner',
+        content:
+          '```markdown\n<handoff-overview>\n## Summary\nLooks good overall\n</handoff-overview>\n\n<handoff-action>\n## Risks & failure modes\nEdge case X\n</handoff-action>\n```',
+      };
+      render(<TimelineTeamMessage message={wrappedReport} chatroomId="room-1" />);
+      const reportView = screen.getByTestId('handoff-report-view');
+      expect(reportView).toBeInTheDocument();
+      expect(screen.getByTestId('handoff-section-overview')).toBeInTheDocument();
+      expect(screen.getByTestId('handoff-section-action')).toBeInTheDocument();
+      expect(reportView.textContent).not.toContain('```markdown');
+    });
+
+    it('passes non-handoff messages through unchanged even when they contain a presentation fence', () => {
+      const wrappedContent =
+        '```markdown\n## Summary\nHello world\n\n```typescript\nconst value = 1;\n```\n```';
+      const plainMessage: Message = {
+        ...BASE_MESSAGE,
+        type: 'message',
+        content: wrappedContent,
+      };
+      render(<TimelineTeamMessage message={plainMessage} chatroomId="room-1" />);
+      const body = screen.getByTestId('timeline-markdown-body');
+      expect(body.textContent).toContain('```markdown');
+      expect(body.textContent).toContain('## Summary');
+      expect(body.textContent).toContain('```typescript');
+    });
+  });
+
   it('uses true-center grid on header when headerNavigation provided', () => {
     render(
       <TimelineTeamMessage

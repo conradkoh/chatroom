@@ -39,7 +39,6 @@ import {
 } from '../src/domain/usecase/agent/project-agent-operational-status';
 import { registerSpawnedAgentIfAuthorized } from '../src/domain/usecase/agent/register-spawned-agent';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
-import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
@@ -1717,18 +1716,6 @@ export const saveTeamAgentConfig = mutation({
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
-  },
-});
-
-/** Restart offline remote agents using persisted team config. Called when user sends a message. */
-export const restartOfflineAgentsFromConfig = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
   },
 });
 

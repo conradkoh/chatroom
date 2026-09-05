@@ -1,3 +1,4 @@
+import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
@@ -96,7 +97,13 @@ describe('runNativeInjectionEffect', () => {
     expect(order).toEqual(['claim', 'query', 'activity', 'receipt', 'augmented-state', 'resume']);
     expect(auditOrder).toEqual(['augmented', 'delivered']);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
-    expect(deps.lifecycleOutbox!.enqueue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'activity', action: 'native:task-injected', taskId: 'task_1' }));
+    expect(deps.lifecycleOutbox!.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'activity',
+        action: 'native:task-injected',
+        taskId: 'task_1',
+      })
+    );
   });
 
   test('skips claim when task is already acknowledged', async () => {
@@ -196,6 +203,59 @@ describe('runNativeInjectionEffect', () => {
   test('regression: planner without startInNewSession resumes existing session without cold restart', async () => {
     const deps = createDeps();
     const task = makeTask({
+      agentConfig: {
+        ...makeTask().agentConfig,
+        role: 'planner',
+      },
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
+
+    expect(deps.agentMgr.stop).not.toHaveBeenCalled();
+    expect(deps.agentMgr.ensureRunning).not.toHaveBeenCalled();
+    expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
+  });
+
+  test('explicit envelope new with scalar false still cold-restarts and emits augmentation', async () => {
+    const deps = createDeps();
+    const task = makeTask({
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'code', sessionPolicy: 'new' }),
+      startInNewSession: false,
+      agentConfig: {
+        ...makeTask().agentConfig,
+        role: 'planner',
+        model: 'composer-1',
+      },
+    });
+    const augmentedCalls: Record<string, unknown>[] = [];
+
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_fn: unknown, args: Record<string, unknown>) => {
+        if ('mode' in args) augmentedCalls.push(args);
+        return undefined;
+      }
+    );
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
+
+    expect(deps.agentMgr.stop).toHaveBeenCalled();
+    expect(deps.agentMgr.ensureRunning).toHaveBeenCalledWith(
+      expect.objectContaining({ wantResume: false, role: 'planner' })
+    );
+    expect(augmentedCalls).toHaveLength(1);
+    expect(augmentedCalls[0]).toMatchObject({
+      mode: 'new_session',
+      newSessionStarted: true,
+      harnessSessionId: 'sess_cold',
+    });
+    expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
+  });
+
+  test('explicit envelope continue with scalar true does not cold-restart', async () => {
+    const deps = createDeps();
+    const task = makeTask({
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
+      startInNewSession: true,
       agentConfig: {
         ...makeTask().agentConfig,
         role: 'planner',

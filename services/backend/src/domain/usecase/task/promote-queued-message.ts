@@ -1,10 +1,11 @@
+import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
+
 import { createTask } from './create-task';
 import { adjustTaskCount } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
-import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agents-on-user-message';
 import { markAgentViewHasHistory } from '../chatroom/project-agent-view-metadata';
 import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 
@@ -33,6 +34,11 @@ export async function promoteQueuedMessage(
   const chatroom = await ctx.db.get('chatroom_rooms', queueRecord.chatroomId);
   if (!chatroom) return null;
   const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
+
+  // The canonical envelope is the atomic policy snapshot copied from the queue
+  // row to the promoted task. Legacy rows (no taskEnvelope stored) are
+  // normalized once from their scalar policy fields into a complete envelope.
+  const taskEnvelope = normalizeTaskEnvelope(queueRecord);
 
   // Copy from staging → messages
   const messageId = await insertChatroomMessage(ctx, {
@@ -82,16 +88,19 @@ export async function promoteQueuedMessage(
     queuePosition,
     startInNewSession: queueRecord.startInNewSession,
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
+    // TEMPORARY legacy scalar projections for existing readers; derived from the
+    // queue row and NOT independent policy inputs. Remove after reader migration.
     ...(queueRecord.plannerEnhancerEnabled !== undefined
       ? { plannerEnhancerEnabled: queueRecord.plannerEnhancerEnabled }
       : {}),
+    ...(queueRecord.conversationMode !== undefined
+      ? { conversationMode: queueRecord.conversationMode }
+      : {}),
+    taskEnvelope,
   });
 
   // Patch message with taskId (bidirectional link)
   await linkMessageToTask(ctx, messageId, taskId);
-
-  // Match direct user-message delivery: wake remote agents that are offline.
-  await restartOfflineAgentsOnUserMessage(ctx, queueRecord.chatroomId);
 
   // Delete the queue record (no longer needed after promotion)
   await ctx.db.delete('chatroom_messageQueue', queuedMessageId);

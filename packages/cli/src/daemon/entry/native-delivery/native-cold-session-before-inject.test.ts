@@ -1,4 +1,5 @@
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { describe, expect, test, vi } from 'vitest';
 
 import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
@@ -122,6 +123,40 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     );
 
     expect(result).toBeNull();
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  test('explicit envelope new plus stale scalar false cold-restarts', async () => {
+    const deps = createDeps();
+    const task = makeTask({
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'code', sessionPolicy: 'new' }),
+      startInNewSession: false,
+    });
+
+    const result = await ensureColdSessionBeforeNativeInject(task, deps);
+
+    expect(result).toBe('sess_after_cold');
+    expect(deps.agentMgr.stop).toHaveBeenCalledWith({
+      chatroomId: 'room_1',
+      role: 'planner',
+      reason: 'platform.task_start_in_new_session',
+    });
+    expect(deps.agentMgr.ensureRunning).toHaveBeenCalledWith(
+      expect.objectContaining({ wantResume: false, reason: 'platform.task_start_in_new_session' })
+    );
+  });
+
+  test('explicit envelope continue plus stale scalar true does not cold-restart', async () => {
+    const deps = createDeps();
+    const task = makeTask({
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
+      startInNewSession: true,
+    });
+
+    const result = await ensureColdSessionBeforeNativeInject(task, deps);
+
+    expect(result).toBeNull();
+    expect(deps.agentMgr.stop).not.toHaveBeenCalled();
     expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 });

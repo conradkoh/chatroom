@@ -262,13 +262,28 @@ teamCommand
 handoffCommandGroup
   .command('view-template')
   .description('Print the handoff message template for a role pair')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--next-role <nextRole>', 'Target role for the handoff')
   .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
-  .action(async (options: { role: string; nextRole: string; teamId?: string | undefined }) => {
+  // --role / --next-role are declared on the handoff group so subcommand flag
+  // names never collide with the parent options (commander v14 enforces parent
+  // required options on subcommand dispatch and shadows shared flags).
+  // fallow-ignore-next-line complexity
+  .action(async function (options: { teamId?: string | undefined }) {
+    const parentOpts = (this.parent?.opts() ?? {}) as { role?: string; nextRole?: string };
+    if (!parentOpts.role || !parentOpts.nextRole) {
+      console.error(
+        parentOpts.role
+          ? `error: required option '--next-role <nextRole>' not specified`
+          : `error: required option '--role <role>' not specified`
+      );
+      process.exit(1);
+    }
     const { printHandoffViewTemplate } = await import('./commands/handoff/view-template.js');
     try {
-      printHandoffViewTemplate(options);
+      printHandoffViewTemplate({
+        role: parentOpts.role,
+        nextRole: parentOpts.nextRole,
+        teamId: options.teamId,
+      });
     } catch (err) {
       console.error(`❌ ${(err as Error).message}`);
       process.exit(1);
@@ -276,10 +291,49 @@ handoffCommandGroup
   });
 
 handoffCommandGroup
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--next-role <nextRole>', 'Role to hand off to')
-  .action(async (options: { chatroomId: string; role: string; nextRole: string }) => {
+  .command('list-templates')
+  .description(
+    'List the role-owned handoff contract and renderable templates (static, no chatroom required)'
+  )
+  .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
+  // fallow-ignore-next-line complexity
+  .action(async function (options: { teamId?: string | undefined }) {
+    const parentOpts = (this.parent?.opts() ?? {}) as { role?: string };
+    if (!parentOpts.role) {
+      console.error(`error: required option '--role <role>' not specified`);
+      process.exit(1);
+    }
+    const { printHandoffListTemplates } = await import('./commands/handoff/list-templates.js');
+    try {
+      printHandoffListTemplates({ role: parentOpts.role, teamId: options.teamId });
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+handoffCommandGroup
+  .option('--chatroom-id <id>', 'Chatroom identifier')
+  .option('--role <role>', 'Your role')
+  .option('--next-role <nextRole>', 'Role to hand off to')
+  // fallow-ignore-next-line complexity
+  .action(async (options: { chatroomId?: string; role?: string; nextRole?: string }) => {
+    const missing = [
+      ['--chatroom-id', options.chatroomId],
+      ['--role', options.role],
+      ['--next-role', options.nextRole],
+    ].filter(([, value]) => !value);
+    if (missing.length > 0) {
+      const [flag] = missing[0] as [string];
+      console.error(`error: required option '${flag} <...>' not specified`);
+      process.exit(1);
+    }
+    const { chatroomId, role, nextRole } = options as {
+      chatroomId: string;
+      role: string;
+      nextRole: string;
+    };
+
     await maybeRequireAuth();
 
     // Read message from stdin
@@ -305,10 +359,10 @@ handoffCommandGroup
     }
 
     const { handoff } = await import('./commands/handoff/index.js');
-    await handoff(options.chatroomId, {
-      role: options.role,
+    await handoff(chatroomId, {
+      role,
       message,
-      nextRole: options.nextRole,
+      nextRole,
     });
   });
 
@@ -392,27 +446,29 @@ backlogCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (creator)')
   .option('--content-file <path>', 'Path to file containing task content (or use stdin/heredoc)')
-  .action(async (options: { chatroomId: string; role: string; contentFile?: string | undefined }) => {
-    await maybeRequireAuth();
+  .action(
+    async (options: { chatroomId: string; role: string; contentFile?: string | undefined }) => {
+      await maybeRequireAuth();
 
-    let content: string;
-    try {
-      content = await readHeredocOrFileContent(options, {
-        delimiter: (await import('@workspace/backend/prompts/cli/stdin-heredoc.js'))
-          .BACKLOG_STDIN_DELIMITER,
-        fieldLabel: 'Content',
-        emptyMessage: 'Content is empty. Provide content via --content-file or stdin (heredoc).',
-        heredocExampleCommand:
-          "chatroom backlog add --chatroom-id=<id> --role=<role> << 'CHATROOM_BACKLOG_END'",
-      });
-    } catch (err) {
-      console.error(`❌ ${(err as Error).message}`);
-      process.exit(1);
+      let content: string;
+      try {
+        content = await readHeredocOrFileContent(options, {
+          delimiter: (await import('@workspace/backend/prompts/cli/stdin-heredoc.js'))
+            .BACKLOG_STDIN_DELIMITER,
+          fieldLabel: 'Content',
+          emptyMessage: 'Content is empty. Provide content via --content-file or stdin (heredoc).',
+          heredocExampleCommand:
+            "chatroom backlog add --chatroom-id=<id> --role=<role> << 'CHATROOM_BACKLOG_END'",
+        });
+      } catch (err) {
+        console.error(`❌ ${(err as Error).message}`);
+        process.exit(1);
+      }
+
+      const { addBacklog } = await import('./commands/backlog/index.js');
+      await addBacklog(options.chatroomId, { role: options.role, content });
     }
-
-    const { addBacklog } = await import('./commands/backlog/index.js');
-    await addBacklog(options.chatroomId, { role: options.role, content });
-  });
+  );
 
 backlogCommand
   .command('update')
@@ -669,14 +725,16 @@ workspaceFileTreeCommand
   .requiredOption('--machine-id <id>', 'Machine identifier')
   .requiredOption('--working-dir <path>', 'Workspace working directory')
   .option('--force', 'Force reconciliation walk (explicit recovery)')
-  .action(async (options: { machineId: string; workingDir: string; force?: boolean | undefined }) => {
-    await maybeRequireAuth();
-    const { requestWorkspaceFileTreeFromCli } = await import('./commands/workspace/index.js');
-    const result = await requestWorkspaceFileTreeFromCli(options.machineId, options.workingDir, {
-      force: options.force,
-    });
-    console.log(`✅ File tree request: ${result.status}`);
-  });
+  .action(
+    async (options: { machineId: string; workingDir: string; force?: boolean | undefined }) => {
+      await maybeRequireAuth();
+      const { requestWorkspaceFileTreeFromCli } = await import('./commands/workspace/index.js');
+      const result = await requestWorkspaceFileTreeFromCli(options.machineId, options.workingDir, {
+        force: options.force,
+      });
+      console.log(`✅ File tree request: ${result.status}`);
+    }
+  );
 
 workspaceFileTreeCommand
   .command('status')
@@ -706,11 +764,13 @@ messageCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--content <text>', 'Message content')
   .option('--target-role <role>', 'Target role (defaults to team entry point)')
-  .action(async (options: { chatroomId: string; content: string; targetRole?: string | undefined }) => {
-    await maybeRequireAuth();
-    const { sendUserMessage } = await import('./commands/messages/send.js');
-    await sendUserMessage(options.chatroomId, options);
-  });
+  .action(
+    async (options: { chatroomId: string; content: string; targetRole?: string | undefined }) => {
+      await maybeRequireAuth();
+      const { sendUserMessage } = await import('./commands/messages/send.js');
+      await sendUserMessage(options.chatroomId, options);
+    }
+  );
 
 messagesCommand
   .command('list')
@@ -791,11 +851,13 @@ messagesCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--content <text>', 'Message content')
   .option('--target-role <role>', 'Target role (defaults to team entry point)')
-  .action(async (options: { chatroomId: string; content: string; targetRole?: string | undefined }) => {
-    await maybeRequireAuth();
-    const { sendUserMessage } = await import('./commands/messages/send.js');
-    await sendUserMessage(options.chatroomId, options);
-  });
+  .action(
+    async (options: { chatroomId: string; content: string; targetRole?: string | undefined }) => {
+      await maybeRequireAuth();
+      const { sendUserMessage } = await import('./commands/messages/send.js');
+      await sendUserMessage(options.chatroomId, options);
+    }
+  );
 
 messagesCommand
   .command('download')
@@ -1033,14 +1095,16 @@ artifactCommand
     collectMultiValueOption,
     []
   )
-  .action(async (options: { chatroomId: string; role: string; artifact?: string[] | undefined }) => {
-    await maybeRequireAuth();
-    const { viewManyArtifacts } = await import('./commands/artifact/index.js');
-    await viewManyArtifacts(options.chatroomId, {
-      role: options.role,
-      artifactIds: options.artifact || [],
-    });
-  });
+  .action(
+    async (options: { chatroomId: string; role: string; artifact?: string[] | undefined }) => {
+      await maybeRequireAuth();
+      const { viewManyArtifacts } = await import('./commands/artifact/index.js');
+      await viewManyArtifacts(options.chatroomId, {
+        role: options.role,
+        artifactIds: options.artifact || [],
+      });
+    }
+  );
 
 // ============================================================================
 // FILE COMMANDS (auth required)

@@ -41,7 +41,7 @@ ${getTeamCompositionSection(teamRoles)}
 
 ${getPlannerSoloOperatingModel(nativeIntegration)}
 
-${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG)}
+${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG, { role: 'solo', teamId: 'solo' })}
 
 **Implementation Guidelines:**
 - Write clean, maintainable, well-documented code

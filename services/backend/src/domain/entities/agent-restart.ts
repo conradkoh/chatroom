@@ -1,10 +1,7 @@
 import type { AgentHarness } from './agent';
 
 // fallow-ignore-next-line unused-export
-export const AGENT_RESTART_REASONS = [
-  'user.restart',
-  'platform.restart_offline_on_user_message',
-] as const;
+export const AGENT_RESTART_REASONS = ['user.restart'] as const;
 
 export type AgentRestartReason = (typeof AGENT_RESTART_REASONS)[number];
 
@@ -18,14 +15,10 @@ export interface RunnableRemoteAgentConfig {
 
 export type UserAgentRestartOverrides = Omit<RunnableRemoteAgentConfig, 'wantResume'>;
 
-export type AgentRestartRequest =
-  | {
-      reason: Extract<AgentRestartReason, 'user.restart'>;
-      overrides: UserAgentRestartOverrides;
-    }
-  | {
-      reason: Extract<AgentRestartReason, 'platform.restart_offline_on_user_message'>;
-    };
+export type AgentRestartRequest = {
+  reason: Extract<AgentRestartReason, 'user.restart'>;
+  overrides: UserAgentRestartOverrides;
+};
 
 export type AgentRestartResult =
   | { status: 'requested'; correlationId: string; releasedTaskCount: number }

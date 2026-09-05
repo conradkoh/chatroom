@@ -409,4 +409,83 @@ describe('subscribeTaskStatusSignalsSince', () => {
     });
     expect(afterHighKey).toBeNull();
   });
+
+  test('task-status signal wire shape is exactly the six-field slim contract', async () => {
+    // The hot subscription must stay room-scoped and slim: any added outer or
+    // item field (task content, participant, config, presence) fails this test.
+    // Implementation, schema, and indexes are untouched — this only pins the wire.
+    const { sessionId } = await createTestSession('ml-signals-exact-wire-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'ml-signals-exact-wire-machine-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+
+    const taskId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'exact wire task',
+        status: 'pending',
+        assignedTo: 'planner',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 0,
+      });
+    });
+
+    await t.run(async (ctx) => {
+      const { transitionTask } = await import('../../src/domain/usecase/task/transition-task');
+      await transitionTask(ctx, taskId, 'acknowledged', 'claimTask', { assignedTo: 'planner' });
+    });
+
+    const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+      sessionId: sessionId as any,
+      machineId,
+      chatroomId,
+      afterKey: '',
+    });
+
+    expect(result).not.toBeNull();
+    // Exact outer keys: items, highKey, hasMore — nothing else.
+    expect(Object.keys(result!).sort()).toEqual(['hasMore', 'highKey', 'items']);
+    expect(result!.items).toHaveLength(1);
+
+    const item = result!.items[0] as Record<string, unknown>;
+    // Exact item keys: the six slim fields — no content/participant/config.
+    expect(Object.keys(item).sort()).toEqual([
+      'chatroomId',
+      'signalKey',
+      'targetRole',
+      'taskId',
+      'taskStatus',
+      'taskUpdatedAt',
+    ]);
+
+    // Expected values come from the seeded signal row; the object literal
+    // enumerates every allowed field so added payload fields fail toEqual.
+    const row = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_machineTaskStatusSignals')
+        .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+          q.eq('machineId', machineId).eq('chatroomId', chatroomId).gt('signalKey', '')
+        )
+        .order('asc')
+        .first()
+    );
+    expect(row).toBeDefined();
+    expect(result).toEqual({
+      items: [
+        {
+          chatroomId: row!.chatroomId,
+          taskId: row!.taskId,
+          targetRole: row!.targetRole,
+          taskStatus: row!.taskStatus,
+          signalKey: row!.signalKey,
+          taskUpdatedAt: row!.taskUpdatedAt,
+        },
+      ],
+      highKey: row!.signalKey,
+      hasMore: false,
+    });
+  });
 });

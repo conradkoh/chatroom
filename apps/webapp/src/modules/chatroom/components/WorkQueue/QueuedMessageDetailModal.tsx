@@ -7,7 +7,6 @@ import { Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
 import React, { memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
 
-import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
 import { MessageAttachmentChips, countMessageAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
@@ -17,6 +16,7 @@ import {
 } from '../detail-modal';
 import { RichTextEditor, isInteractiveClickTarget } from '../detail-modal-shared';
 import { modalMarkdownComponents } from '../markdown-utils';
+import { QueuedMessageEnvelopeControls } from '../QueuedMessageEnvelopeControls';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +48,7 @@ interface QueuedMessageDetailModalProps {
   /** Called when the user promotes the message. */
   /** Called when the user deletes the message. */
   onDelete: (queuedMessageId: string) => Promise<void>;
+  /** Kept for source compatibility; the shared envelope control exposes the complete mode contract regardless of team enhancer support. */
   teamSupportsEnhancer?: boolean;
 }
 
@@ -93,7 +94,6 @@ function QueuedMessageDetailForm({
   isOpen,
   onClose,
   onDelete,
-  teamSupportsEnhancer,
 }: QueuedMessageDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
@@ -267,12 +267,7 @@ function QueuedMessageDetailForm({
             </>
           ) : (
             <>
-              {teamSupportsEnhancer ? (
-                <QueuedMessageEnhancerToggle
-                  queuedMessageId={message._id}
-                  plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
-                />
-              ) : null}
+              <QueuedMessageEnvelopeControls message={message} />
 
               <div className="flex-1" />
 
