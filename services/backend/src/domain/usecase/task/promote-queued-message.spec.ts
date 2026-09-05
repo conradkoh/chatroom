@@ -217,7 +217,7 @@ describe('promoteQueuedMessage', () => {
     }
   });
 
-  test('legacy queue row without conversationMode promotes with undefined mode', async () => {
+  test('legacy queue row without conversationMode promotes with the derived mode', async () => {
     const { sessionId } = await createTestSession('promote-legacy-row');
     const chatroomId = await createChatroom(sessionId);
 
@@ -242,7 +242,9 @@ describe('promoteQueuedMessage', () => {
     const task = await t.run(async (ctx) => {
       return await ctx.db.get('chatroom_tasks', result!.taskId);
     });
-    expect(task?.conversationMode).toBeUndefined();
+    // Canonical persistence derives the mode projection from the normalized
+    // envelope (legacy enhancer boolean true → code:enhanced).
+    expect(task?.conversationMode).toBe('code:enhanced');
     expect(task?.plannerEnhancerEnabled).toBe(true);
   });
 
@@ -510,9 +512,10 @@ describe('promoteQueuedMessage — TaskEnvelopeV1', () => {
       sessionPolicy: 'new',
       handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
     });
-    // Existing scalar expectations stay intact.
+    // Existing scalar expectations stay canonical: all projections derive from
+    // the complete envelope (code:enhanced/new).
     expect(task?.plannerEnhancerEnabled).toBe(true);
     expect(task?.startInNewSession).toBe(true);
-    expect(task?.conversationMode).toBeUndefined();
+    expect(task?.conversationMode).toBe('code:enhanced');
   });
 });

@@ -19,7 +19,7 @@
  */
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
-import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
+import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
 import {
   adjustTaskCount,
@@ -59,11 +59,33 @@ export interface CreateTaskArgs {
   enhancerEnabledAtEnqueue?: boolean | undefined;
   startInNewSession: boolean | undefined;
   /**
-   * Optional canonical TaskEnvelopeV1 snapshot. When supplied, the complete
-   * envelope is inserted on chatroom_tasks. The legacy scalar arguments above
-   * remain the temporary compatibility projections passed by existing callers.
+   * Optional canonical TaskEnvelopeV1 snapshot. The legacy scalar arguments
+   * remain compatibility inputs that only feed normalization when this field
+   * is absent; an explicit envelope always wins.
    */
   taskEnvelope?: TaskEnvelopeV1 | undefined;
+}
+
+/**
+ * Complete persisted policy snapshot plus the scalar compatibility projections
+ * derived from it. Legacy scalar columns are written ONLY from this projection
+ * so they can never become an independent policy source for an enveloped row.
+ */
+export function deriveTaskPolicyProjection(envelope: TaskEnvelopeV1) {
+  return {
+    taskEnvelope: {
+      version: envelope.version,
+      conversationMode: envelope.conversationMode,
+      sessionPolicy: envelope.sessionPolicy,
+      handoffWorkflow: {
+        preset: envelope.handoffWorkflow.preset,
+        phase: envelope.handoffWorkflow.phase,
+      },
+    },
+    conversationMode: envelope.conversationMode,
+    plannerEnhancerEnabled: envelope.conversationMode === 'code:enhanced',
+    startInNewSession: envelope.sessionPolicy === 'new',
+  };
 }
 
 export interface CreateTaskResult {
@@ -123,6 +145,18 @@ export async function createTask(
   // Status is always pending for direct task creation
   const status = 'pending' as const;
 
+  // Canonicalize the policy once at the write boundary: an explicit envelope is
+  // authoritative; legacy scalar inputs only feed normalization when there is
+  // no envelope. The stored row carries a complete structural copy plus the
+  // derived scalar projections.
+  const taskEnvelope = normalizeTaskEnvelope({
+    taskEnvelope: args.taskEnvelope,
+    conversationMode: args.conversationMode,
+    plannerEnhancerEnabled: args.plannerEnhancerEnabled,
+    startInNewSession: args.startInNewSession,
+  });
+  const policyProjection = deriveTaskPolicyProjection(taskEnvelope);
+
   const taskId = await ctx.db.insert('chatroom_tasks', {
     chatroomId: args.chatroomId,
     createdBy: args.createdBy,
@@ -137,28 +171,12 @@ export async function createTask(
       args.attachedTaskIds.length > 0 && {
         attachedTaskIds: args.attachedTaskIds,
       }),
-    ...(args.plannerEnhancerEnabled !== undefined
-      ? { plannerEnhancerEnabled: args.plannerEnhancerEnabled }
-      : {}),
-    ...(args.conversationMode !== undefined ? { conversationMode: args.conversationMode } : {}),
     ...(args.originUserMessageId ? { originUserMessageId: args.originUserMessageId } : {}),
     ...(args.enhancerEnabledAtEnqueue !== undefined
       ? { enhancerEnabledAtEnqueue: args.enhancerEnabledAtEnqueue }
       : {}),
-    ...(args.startInNewSession !== undefined ? { startInNewSession: args.startInNewSession } : {}),
-    ...(args.taskEnvelope
-      ? {
-          taskEnvelope: {
-            version: args.taskEnvelope.version,
-            conversationMode: args.taskEnvelope.conversationMode,
-            sessionPolicy: args.taskEnvelope.sessionPolicy,
-            handoffWorkflow: {
-              preset: args.taskEnvelope.handoffWorkflow.preset,
-              phase: args.taskEnvelope.handoffWorkflow.phase,
-            },
-          },
-        }
-      : {}),
+    // Complete canonical snapshot plus derived scalar projections.
+    ...policyProjection,
   });
 
   // Update materialized task counts

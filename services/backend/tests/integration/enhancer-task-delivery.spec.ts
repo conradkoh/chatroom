@@ -36,11 +36,11 @@ async function setPlannerAsEntryPoint(chatroomId: Id<'chatroom_rooms'>): Promise
     await ctx.db.patch('chatroom_rooms', chatroomId, { teamEntryPoint: 'planner' });
   });
 }
-
 async function createPlannerTaskFromUserMessage(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  content: string
+  content: string,
+  opts?: { conversationMode?: 'chat' | 'code' | 'code:enhanced' }
 ): Promise<{ messageId: Id<'chatroom_messages'>; taskId: Id<'chatroom_tasks'> }> {
   const messageId = await t.mutation(api.messages.sendMessage, {
     sessionId,
@@ -49,19 +49,21 @@ async function createPlannerTaskFromUserMessage(
     content,
     targetRole: 'planner',
     type: 'message',
+    ...(opts?.conversationMode !== undefined ? { conversationMode: opts.conversationMode } : {}),
   });
 
-  const { taskId } = await t.mutation(api.tasks.createTask, {
-    sessionId,
-    chatroomId,
-    content,
-    createdBy: 'user',
-    sourceMessageId: messageId,
+  // The canonical user-origin task is the one created by the user message send.
+  const task = await t.run(async (ctx) => {
+    return await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .filter((q) => q.eq(q.field('sourceMessageId'), messageId))
+      .first();
   });
+  if (!task) throw new Error('missing user-origin task');
 
-  return { messageId, taskId };
+  return { messageId, taskId: task._id };
 }
-
 async function getPlannerDeliveryPrompt(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
@@ -90,7 +92,8 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     const { messageId, taskId } = await createPlannerTaskFromUserMessage(
       sessionId,
       chatroomId,
-      'Add dark mode to settings'
+      'Add dark mode to settings',
+      { conversationMode: 'code:enhanced' }
     );
 
     const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
@@ -118,14 +121,16 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       content: 'Add request-first planning to solo',
       targetRole: 'solo',
       type: 'message',
+      conversationMode: 'code:enhanced',
     });
-    const { taskId } = await t.mutation(api.tasks.createTask, {
-      sessionId,
-      chatroomId,
-      content: 'Add request-first planning to solo',
-      createdBy: 'user',
-      sourceMessageId: messageId,
+    const soloTask = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('sourceMessageId'), messageId))
+        .first();
     });
+    const taskId = soloTask!._id;
 
     const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
       sessionId,

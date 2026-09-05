@@ -192,8 +192,9 @@ describe('sendAutomatedUserMessage — explicit conversationMode', () => {
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .first();
     });
-    // Without a user enhancer config, plannerEnhancerEnabled defaults to undefined/false
-    expect(task?.conversationMode).toBeUndefined();
+    // Without a user enhancer config, plannerEnhancerEnabled defaults to false
+    // and canonical persistence stores the derived code-mode projection.
+    expect(task?.conversationMode).toBe('code');
   });
 });
 
@@ -334,10 +335,10 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
     expect(newSessionTask?.taskEnvelope?.sessionPolicy).toBe('new');
     expect(sameSessionTask?.taskEnvelope?.sessionPolicy).toBe('continue');
     expect(omittedSessionTask?.taskEnvelope?.sessionPolicy).toBe('continue');
-    // The scalar projection preserves the caller's explicit boolean incl. false.
+    // The scalar projection is derived from the envelope session policy.
     expect(newSessionTask?.startInNewSession).toBe(true);
     expect(sameSessionTask?.startInNewSession).toBe(false);
-    expect(omittedSessionTask?.startInNewSession).toBeUndefined();
+    expect(omittedSessionTask?.startInNewSession).toBe(false);
   });
 
   test('legacy no-mode send still yields a complete envelope from the enhancer-config fallback', async () => {
@@ -367,8 +368,9 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
       sessionPolicy: 'continue',
       handoffWorkflow: { preset: 'team', phase: 'entry' },
     });
-    // Legacy scalar projections are preserved for the legacy caller path.
-    expect(task?.conversationMode).toBeUndefined();
+    // Legacy scalar projections are derived from the envelope (code) on the
+    // newly created task.
+    expect(task?.conversationMode).toBe('code');
   });
 
   test('supplied explicit taskEnvelope wins over stale mode/enhancer/session scalars', async () => {
@@ -403,8 +405,8 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
     // Derived compatibility projections follow the envelope mode.
     expect(task?.conversationMode).toBe('chat');
     expect(task?.plannerEnhancerEnabled).toBe(false);
-    // The caller's explicit startInNewSession scalar is preserved as a projection.
-    expect(task?.startInNewSession).toBe(false);
+    // The session projection follows the envelope (new), not the stale scalar false.
+    expect(task?.startInNewSession).toBe(true);
   });
 
   test('listQueued returns a complete normalized envelope for a legacy queue row and an envelope row', async () => {

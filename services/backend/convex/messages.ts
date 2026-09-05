@@ -801,7 +801,15 @@ export async function runHandoffHandler(
 
     const userOriginTask =
       activeEntryPointTasks.find((t) => t.createdBy === 'user') ?? activeEntryPointTasks[0];
-    enhancerEnabledAtEnqueue = userOriginTask?.plannerEnhancerEnabled;
+
+    // The explicit envelope is the source of enhancer authorization; the legacy
+    // scalar is fallback-only. This prevents stale plannerEnhancerEnabled=true
+    // from authorizing enhancer work for an explicit Chat/Code envelope.
+    enhancerEnabledAtEnqueue =
+      userOriginTask?.taskEnvelope !== undefined
+        ? normalizeTaskEnvelope({ taskEnvelope: userOriginTask.taskEnvelope }).conversationMode ===
+          'code:enhanced'
+        : userOriginTask?.plannerEnhancerEnabled;
 
     const originUserMessageId = userOriginTask?.sourceMessageId
       ? await walkToUserMessageId(ctx, userOriginTask.sourceMessageId)
@@ -854,6 +862,7 @@ export async function runHandoffHandler(
 
     const handoffValidation = validateEnhancerHandoff({
       taskPlannerEnhancerEnabled: userOriginTask?.plannerEnhancerEnabled,
+      taskEnvelope: userOriginTask?.taskEnvelope,
       config: enhancerConfig,
     });
 
