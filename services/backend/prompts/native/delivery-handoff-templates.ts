@@ -9,7 +9,6 @@
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
 import { getHandoffTemplate } from '../cli/handoff-templates';
-import { isChatModeEntryPointUserTask } from '../task-delivery/chat-mode-policy';
 
 /** toRole targets to inline per team:role on native task delivery. */
 const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
@@ -22,17 +21,12 @@ const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
 function getNativeDeliveryTemplateTargets(
   teamId: string | undefined,
   role: string,
-  includeEnhancerTemplate?: boolean,
-  modeContext?: {
-    conversationMode?: ConversationMode | undefined;
-    isEntryPoint?: boolean | undefined;
-    senderRole?: string | undefined;
-  }
+  includeEnhancerTemplate?: boolean
 ): readonly string[] {
-  // Chat-mode entry-point user tasks: only the user template, no builder/enhancer targets.
-  if (isChatModeEntryPointUserTask(modeContext ?? {})) {
-    return ['user'];
-  }
+  // Mode-independent role/team base matrix: Chat-only callers pass
+  // includeEnhancerTemplate: false and keep the full team base (e.g. duo
+  // planner keeps user + builder). Conversation mode never removes an
+  // advertised team target.
   const key = `${(teamId ?? 'duo').toLowerCase()}:${role.toLowerCase()}`;
   const base = NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
   if (!includeEnhancerTemplate) {
@@ -81,12 +75,7 @@ export function appendNativeDeliveryHandoffTemplates(
   const targets = getNativeDeliveryTemplateTargets(
     params.teamId,
     params.role,
-    params.includeEnhancerTemplate,
-    {
-      conversationMode: params.conversationMode,
-      isEntryPoint: params.isEntryPoint,
-      senderRole: params.senderRole,
-    }
+    params.includeEnhancerTemplate
   );
   const blocks = targets.flatMap(
     (toRole) =>

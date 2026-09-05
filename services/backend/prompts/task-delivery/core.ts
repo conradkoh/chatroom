@@ -250,27 +250,15 @@ function appendTaskDeliveryHandoffTargets(
   lines: string[],
   params: Pick<
     TaskDeliveryParams,
-    | 'chatroomId'
-    | 'role'
-    | 'cliEnvPrefix'
-    | 'availableHandoffTargets'
-    | 'conversationMode'
-    | 'isEntryPoint'
-    | 'message'
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'availableHandoffTargets'
   >
 ): void {
   const { chatroomId, role, cliEnvPrefix, availableHandoffTargets } = params;
 
-  // Chat-mode entry-point user tasks: no alternate handoff targets (primary user command only).
-  if (
-    isChatModeEntryPointUserTask({
-      conversationMode: params.conversationMode,
-      isEntryPoint: params.isEntryPoint,
-      senderRole: params.message?.senderRole,
-    })
-  )
-    return;
-
+  // availableHandoffTargets is pure capability data: it is rendered for every
+  // mode and never filtered by conversationMode. Chat only changes the primary
+  // recommendation (step 2) and its enhancer ceremony, never the advertised
+  // team handoff capabilities.
   if (availableHandoffTargets.length === 0) return;
 
   lines.push('');
@@ -315,7 +303,9 @@ export function appendTaskDeliveryHandoffSections(
     ? params.conversationMode === 'code:enhanced'
     : params.plannerEnhancerEnabled === true;
 
-  // Chat-mode direct-answer guidance: concise, no enhancer/delegation ceremony.
+  // Chat-mode direct-answer recommendation: concise by default, no enhancer
+  // ceremony. This changes the recommended workflow, not team capabilities or
+  // handoff authority — alternate team targets remain advertised below.
   if (
     isChatModeEntryPointUserTask({
       conversationMode: params.conversationMode,
@@ -328,7 +318,7 @@ export function appendTaskDeliveryHandoffSections(
     lines.push('## Conversational Mode (Chat)');
     lines.push('');
     lines.push(
-      '**Answer the user directly and concisely.** Do not invoke the enhancer, delegate to another agent, or perform code/repository work unless the request itself requires it.'
+      '**Answer the user directly and concisely by default. Chat mode changes the recommended ceremony, not your team capabilities or handoff authority. If the request requires team work, you may hand off to any advertised team target (for example, builder). Do not invoke the enhancer as part of the default Chat flow.**'
     );
     lines.push(
       '**Do not run `chatroom context read` or `chatroom context new` for this Chat-mode task.**'

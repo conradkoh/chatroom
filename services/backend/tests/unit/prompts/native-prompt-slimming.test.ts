@@ -220,19 +220,20 @@ describe('native task delivery', () => {
     expect(output).toContain('# Shadcn');
   });
 
-  test('chat task started prompt contains direct answer instruction and no context commands', () => {
+  test('chat task started prompt contains direct-answer default, no context commands, and no delegation prohibition', () => {
     const prompt = getNativeChatTaskStartedPrompt();
     expect(prompt).toContain('Chat-mode task from the user');
-    expect(prompt).toContain('Answer the user directly and concisely');
+    expect(prompt).toContain('Answer the user directly and concisely by default');
     // Should not contain actual context command invocations (with --chatroom-id)
     expect(prompt).not.toContain('context read --chatroom-id');
     expect(prompt).not.toContain('context new --chatroom-id');
-    // Should contain the prohibition text
     expect(prompt).toContain('Do not run `chatroom context read` or `chatroom context new`');
-    expect(prompt).toContain('Do not invoke the enhancer or delegate');
+    // No blanket delegation prohibition; advertised team handoffs remain available
+    expect(prompt).not.toContain('delegate to another agent');
+    expect(prompt).toContain('you may hand off to any advertised team target');
   });
 
-  test('native chat delivery includes Chat intake and excludes context commands and handoffs', () => {
+  test('native chat delivery keeps advertised handoffs and omits enhancer sections', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
@@ -250,21 +251,26 @@ describe('native task delivery', () => {
     // No actual context command invocations (with --chatroom-id)
     expect(output).not.toContain('context new --chatroom-id');
     expect(output).not.toContain('context read --chatroom-id');
-    // No alternate handoff targets
-    expect(output).not.toContain('<handoffs>');
-    expect(output).not.toContain('Handoff to `builder`');
-    // Only user template (no builder/enhancer templates)
-    expect(output).not.toContain('Delegation Brief');
+    // Advertised team capabilities remain (builder template + plain handoff)
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**builder**');
+    expect(output).toContain('Handoff to `builder`');
+    expect(output).toContain('Delegation Brief');
+    // No enhancer
     expect(output).not.toContain('Handoff to `enhancer`');
-    // Primary user command present
+    expect(output).not.toContain('<handoff-enhancer>');
+    // Direct primary user command
     expect(output).toContain('--next-role="user"');
+    // Advertised-handoff wording, not a blanket prohibition
+    expect(output).not.toContain('delegate to another agent');
+    expect(output).toContain('you may hand off to any advertised team target');
     // No proof-rich sections
     expect(output).not.toContain('<handoff-proofs>');
     expect(output).not.toContain('<handoff-direction>');
     expect(output).not.toContain('<handoff-action>');
   });
 
-  test('solo native chat delivery includes Chat intake and excludes alternate targets', () => {
+  test('solo native chat delivery keeps advertised targets and omits enhancer template', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'solo',
@@ -280,8 +286,10 @@ describe('native task delivery', () => {
     expect(output).toContain('Chat-mode task from the user');
     expect(output).not.toContain('context new --chatroom-id');
     expect(output).not.toContain('context read --chatroom-id');
-    expect(output).not.toContain('<handoffs>');
-    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**user**');
+    expect(output).toContain('**enhancer**');
+    expect(output).not.toContain('<handoff-enhancer>');
     expect(output).toContain('--next-role="user"');
   });
 

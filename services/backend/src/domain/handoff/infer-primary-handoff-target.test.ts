@@ -119,6 +119,18 @@ describe('inferPrimaryHandoffTarget — conversationMode', () => {
     ).toBe('user');
   });
 
+  test('explicit chat recommendation is independent of advertised builder capability', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
+        role: 'planner',
+        availableHandoffTargets: ['builder', 'user'],
+        isEntryPoint: true,
+        conversationMode: 'chat',
+      })
+    ).toBe('user');
+  });
+
   test('explicit code + entry point + user task targets user (no enhancer)', () => {
     expect(
       inferPrimaryHandoffTarget({

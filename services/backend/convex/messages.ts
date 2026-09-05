@@ -1990,14 +1990,21 @@ export const getTaskDeliveryPrompt = query({
       team: chatroom,
     });
 
-    // Derive effective conversation mode: explicit snapshot takes precedence over legacy boolean.
-    const conversationMode =
-      task.conversationMode ?? legacyConversationMode(legacyPlannerEnhancerEnabled);
+    // Derive effective conversation mode: the explicit task envelope is the
+    // authoritative per-message policy. Legacy rows without an envelope retain
+    // the existing scalar/live-config behaviour.
+    const hasExplicitTaskEnvelope = task.taskEnvelope !== undefined;
+    const normalizedTaskEnvelope = normalizeTaskEnvelope(task);
 
-    // When an explicit mode is present, it is the source of truth for the enhancer boolean.
-    // Legacy callers without an explicit mode retain the resolved live-config behaviour.
-    const plannerEnhancerEnabled = task.conversationMode
-      ? plannerEnhancerEnabledForMode(task.conversationMode)
+    const conversationMode = hasExplicitTaskEnvelope
+      ? normalizedTaskEnvelope.conversationMode
+      : legacyConversationMode(legacyPlannerEnhancerEnabled);
+
+    // When an explicit envelope is present, its mode is the source of truth for
+    // the enhancer boolean; legacy callers without an envelope retain the
+    // resolved live-config behaviour.
+    const plannerEnhancerEnabled = hasExplicitTaskEnvelope
+      ? plannerEnhancerEnabledForMode(normalizedTaskEnvelope.conversationMode)
       : legacyPlannerEnhancerEnabled;
 
     const deliveryMessageSenderRole =

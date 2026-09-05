@@ -121,26 +121,32 @@ describe('appendTaskDeliveryHandoffSections — conversationMode', () => {
     availableHandoffTargets: ['enhancer', 'builder', 'user'],
   };
 
-  test('chat mode includes direct-answer guidance and omits enhancer sections', () => {
+  test('chat mode keeps capabilities advertised and omits enhancer ceremony', () => {
     const output = renderHandoffSections({
       ...enhancerParams,
       conversationMode: 'chat',
       message: { _id: 'user-msg', senderRole: 'user' },
     });
 
-    // Chat-mode guidance present
+    // Chat-mode direct recommendation present
     expect(output).toContain('<chat-mode>');
-    expect(output).toContain('Answer the user directly and concisely');
-    expect(output).toContain('Do not invoke the enhancer, delegate to another agent');
+    expect(output).toContain('Answer the user directly and concisely by default');
+    expect(output).toContain('you may hand off to any advertised team target');
+    expect(output).not.toContain('delegate to another agent');
     expect(output).toContain('</chat-mode>');
 
-    // No enhancer guidance sections
+    // No enhancer ceremony guidance sections
     expect(output).not.toContain('<handoff-enhancer>');
     expect(output).not.toContain('<handoff-enhancer-disabled>');
 
-    // Final user handoff present (primary target is user, not enhancer)
+    // Final user handoff present (primary recommendation is user)
     expect(output).toContain('--next-role="user"');
     expect(output).toContain('Handoff to `user`');
+
+    // Advertised team capabilities remain rendered (mode never filters them)
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**builder**');
+    expect(output).toContain('Handoff to `builder`');
   });
 
   test('chat mode with legacy plannerEnhancerEnabled: true still targets user', () => {
@@ -246,7 +252,7 @@ describe('appendTaskDeliveryHandoffSections — conversationMode', () => {
     expect(output).toContain('--next-role="user"');
   });
 
-  test('chat entry-point user output includes no-context instruction and omits handoffs and alternate targets', () => {
+  test('chat entry-point user output keeps capabilities advertised and omits enhancer ceremony', () => {
     const output = renderHandoffSections({
       plannerEnhancerEnabled: true,
       availableHandoffTargets: ['enhancer', 'builder', 'user'],
@@ -257,10 +263,15 @@ describe('appendTaskDeliveryHandoffSections — conversationMode', () => {
     expect(output).toContain('<chat-mode>');
     expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
     expect(output).toContain('--next-role="user"');
+    expect(output).not.toContain('delegate to another agent');
 
-    // No alternate handoff targets block
-    expect(output).not.toContain('<handoffs>');
-    expect(output).not.toContain('Handoff to `builder`');
+    // Alternate team capabilities remain rendered (capability data, not filtered by mode)
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**builder**');
+    expect(output).toContain('Handoff to `builder`');
+
+    // Enhancer ceremony/template remains absent for Chat even when scalar legacy says enabled
+    expect(output).not.toContain('<handoff-enhancer>');
     expect(output).not.toContain('Handoff to `enhancer`');
 
     // No proof-rich sections
@@ -270,7 +281,7 @@ describe('appendTaskDeliveryHandoffSections — conversationMode', () => {
     expect(output).not.toContain('Not Applicable.');
   });
 
-  test('solo chat entry-point user output omits handoffs and alternate targets', () => {
+  test('solo chat entry-point user keeps advertised targets and omits enhancer template', () => {
     const output = renderHandoffSections({
       role: 'solo',
       teamId: 'solo',
@@ -283,8 +294,12 @@ describe('appendTaskDeliveryHandoffSections — conversationMode', () => {
     expect(output).toContain('<chat-mode>');
     expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
     expect(output).toContain('--next-role="user"');
-    expect(output).not.toContain('<handoffs>');
-    expect(output).not.toContain('Handoff to `enhancer`');
+    // Supplied capability data still renders (user + enhancer were advertised)
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**user**');
+    expect(output).toContain('**enhancer**');
+    // No enhancer ceremony guidance
+    expect(output).not.toContain('<handoff-enhancer>');
   });
 
   test('delegated/non-entry-point chat task retains normal target/template behavior', () => {

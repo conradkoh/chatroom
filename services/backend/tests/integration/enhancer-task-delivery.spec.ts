@@ -217,6 +217,9 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
         status: 'in_progress',
         assignedTo: 'planner',
         sourceMessageId: msgId,
+        // Legacy-explicit enhancer request: the envelope derived by handoff
+        // propagation stays code:enhanced so enhancer-input guidance remains.
+        plannerEnhancerEnabled: true,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         queuePosition: 1,
@@ -225,12 +228,19 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     });
 
     const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
-    const { jobId } = await insertEnhancerJob({
+    const { jobId, taskId: enhancerTaskId } = await insertEnhancerJob({
       chatroomId,
       userId,
       machineId,
       originUserMessageId,
       draftContent: 'Check-in draft',
+    });
+
+    // Legacy-explicit enhancer request: the enhancer task is the source for the
+    // handoff-derived envelope, so it must carry the scalar for the feedback
+    // task's envelope to stay code:enhanced under the envelope-authoritative reader.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', enhancerTaskId, { plannerEnhancerEnabled: true });
     });
 
     await t.mutation(api.daemon.enhancer.index.claimForSpawn, {

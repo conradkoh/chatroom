@@ -352,7 +352,7 @@ describe('generateFullCliOutput — conversationMode', () => {
     expect(output).not.toContain('<chat-mode>');
   });
 
-  test('CLI chat mode excludes handoffs, and proof sections', () => {
+  test('CLI chat mode keeps advertised handoffs and omits enhancer sections', () => {
     const output = generateFullCliOutput({
       ...plannerUserParams,
       conversationMode: 'chat',
@@ -360,11 +360,16 @@ describe('generateFullCliOutput — conversationMode', () => {
     });
 
     expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Answer the user directly and concisely by default');
     expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
     expect(output).toContain('--next-role="user"');
-    // No alternate handoff targets
-    expect(output).not.toContain('<handoffs>');
-    expect(output).not.toContain('Handoff to `builder`');
+    expect(output).not.toContain('delegate to another agent');
+    // Advertised team capabilities remain rendered (mode never filters them)
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**builder**');
+    // No enhancer ceremony/template
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<handoff-enhancer-disabled>');
     expect(output).not.toContain('Handoff to `enhancer`');
     // No proof-rich sections
     expect(output).not.toContain('<handoff-proofs>');
@@ -375,7 +380,7 @@ describe('generateFullCliOutput — conversationMode', () => {
     expect(output).toContain('get-next-task');
   });
 
-  test('native chat mode excludes context commands, handoffs, and proof sections', () => {
+  test('native chat mode keeps advertised handoffs and omits enhancer sections', () => {
     const output = generateFullCliOutput({
       ...plannerUserParams,
       conversationMode: 'chat',
@@ -388,15 +393,19 @@ describe('generateFullCliOutput — conversationMode', () => {
     // No actual context command invocations (with --chatroom-id)
     expect(output).not.toContain('context new --chatroom-id');
     expect(output).not.toContain('context read --chatroom-id');
-    // No alternate handoff targets
-    expect(output).not.toContain('<handoffs>');
-    expect(output).not.toContain('Handoff to `builder`');
+    // Advertised team capabilities remain (builder template + plain handoff)
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**builder**');
+    expect(output).toContain('Handoff to `builder`');
+    // No enhancer template/ceremony
     expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('delegate to another agent');
     // Chat-mode intake
     expect(output).toContain('Chat-mode task from the user');
   });
 
-  test('solo chat mode CLI excludes handoffs and alternate targets', () => {
+  test('solo chat mode CLI keeps advertised targets and omits enhancer template', () => {
     const output = generateFullCliOutput({
       ...plannerUserParams,
       role: 'solo',
@@ -409,7 +418,12 @@ describe('generateFullCliOutput — conversationMode', () => {
     expect(output).toContain('<chat-mode>');
     expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
     expect(output).toContain('--next-role="user"');
-    expect(output).not.toContain('<handoffs>');
+    // Supplied capability data still renders (user + enhancer were advertised)
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**user**');
+    expect(output).toContain('**enhancer**');
+    // No enhancer ceremony/template
+    expect(output).not.toContain('<handoff-enhancer>');
     expect(output).not.toContain('Handoff to `enhancer`');
   });
 });
