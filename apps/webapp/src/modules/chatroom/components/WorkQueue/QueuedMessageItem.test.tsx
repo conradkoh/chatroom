@@ -5,10 +5,13 @@
  * - No attachments → no chip strip rendered.
  * - One task attachment → chip rendered with task content visible.
  * - Clicking a chip does NOT open the queued-message detail modal (stopPropagation).
+ * - The shared envelope controls render in the row and their interactions do not
+ *   open the detail modal, while row Enter/Space still does.
  */
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +32,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     messages: {
       updateUserMessageOrTask: 'messages:updateUserMessageOrTask',
       deleteUserMessageOrTask: 'messages:deleteUserMessageOrTask',
+      updateQueuedMessageEnvelope: 'messages:updateQueuedMessageEnvelope',
     },
     tasks: {},
   },
@@ -181,13 +185,49 @@ describe('QueuedMessageItem', () => {
     expect(screen.getByText('See this context')).toBeInTheDocument();
   });
 
-  it('shows new-session toggle even when team does not support enhancer (solo teams)', () => {
+  it('renders the shared envelope controls (mode + session) in the row regardless of team enhancer support', () => {
     renderItem(makeMessage());
-    expect(screen.getByTestId('queued-message-new-session-toggle')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Queued message mode' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: 'Queued message session policy' })
+    ).toBeInTheDocument();
   });
 
-  it('hides enhancer toggle when team does not support enhancer', () => {
+  it('displays matching selections for a message with an explicit envelope', () => {
+    const message = makeMessage({
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'new' }),
+    });
+    renderItem(message);
+    expect(screen.getByRole('combobox', { name: 'Queued message mode' })).toHaveTextContent('Chat');
+    expect(
+      screen.getByRole('combobox', { name: 'Queued message session policy' })
+    ).toHaveTextContent('New session');
+  });
+
+  it('clicking or pressing Enter/Space on envelope controls does NOT open the detail modal', () => {
     renderItem(makeMessage());
-    expect(screen.queryByTestId('queued-message-enhancer-toggle')).not.toBeInTheDocument();
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    const mode = screen.getByRole('combobox', { name: 'Queued message mode' });
+    act(() => {
+      fireEvent.click(mode);
+      fireEvent.keyDown(mode, { key: 'Enter' });
+      fireEvent.keyDown(mode, { key: ' ' });
+    });
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(capturedIsOpen).toBe(false);
+  });
+
+  it('row Enter/Space still opens the detail modal', async () => {
+    renderItem(makeMessage({ content: 'keyboard row test' }));
+
+    const row = screen.getByRole('button', { name: /keyboard row test/i });
+    act(() => {
+      fireEvent.keyDown(row, { key: 'Enter' });
+    });
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });

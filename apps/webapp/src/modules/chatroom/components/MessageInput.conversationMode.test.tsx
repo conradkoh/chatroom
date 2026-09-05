@@ -114,7 +114,7 @@ describe('MessageInput conversationMode', () => {
     vi.clearAllMocks();
   });
 
-  it('passes conversationMode to sendMessage', async () => {
+  it('sends one complete TaskEnvelopeV1 instead of scalar policy fields', async () => {
     renderMessageInput('room-1');
 
     const textarea = screen.getByPlaceholderText('Type a message...');
@@ -122,11 +122,18 @@ describe('MessageInput conversationMode', () => {
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
 
     await waitFor(() => {
-      expect(mockSendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          conversationMode: 'code:enhanced',
-        })
-      );
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    const args = mockSendMessage.mock.calls[0][0] as Record<string, unknown>;
+    // No independent scalar policy fields are submitted.
+    expect(args).not.toHaveProperty('conversationMode');
+    expect(args).not.toHaveProperty('startInNewSession');
+    expect(args.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code:enhanced',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
     });
   });
 
@@ -142,14 +149,21 @@ describe('MessageInput conversationMode', () => {
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
     });
 
-    // Log what was actually called for debugging
-    console.log('mockSendMessage called with:', JSON.stringify(mockSendMessage.mock.calls[0]));
-
     // Mode should still be code:enhanced for the next send
-    expect(mockSendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        conversationMode: 'code:enhanced',
-      })
+    const currentFirst = mockSendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect((currentFirst.taskEnvelope as { conversationMode: string }).conversationMode).toBe(
+      'code:enhanced'
+    );
+
+    fireEvent.change(textarea, { target: { value: 'second message' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
+
+    await waitFor(() => {
+      expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    });
+    const currentSecond = mockSendMessage.mock.calls[1][0] as Record<string, unknown>;
+    expect((currentSecond.taskEnvelope as { conversationMode: string }).conversationMode).toBe(
+      'code:enhanced'
     );
   });
 
@@ -167,12 +181,15 @@ describe('MessageInput conversationMode', () => {
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
     });
 
-    // Log what was actually called for debugging
-    console.log('mockSendMessage called with:', JSON.stringify(mockSendMessage.mock.calls[0]));
-
     // Error should be shown
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
+
+    // The failed-send call still carried the correct complete envelope.
+    const args = mockSendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect((args.taskEnvelope as { conversationMode: string }).conversationMode).toBe(
+      'code:enhanced'
+    );
   });
 });

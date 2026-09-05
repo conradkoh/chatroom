@@ -1,5 +1,6 @@
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
 import type { ArtifactMeta } from '../components/ArtifactRenderer';
 
@@ -72,4 +73,11 @@ export interface Message {
   plannerEnhancerEnabled?: boolean;
   /** Per-message conversation mode snapshot (queued messages only) */
   conversationMode?: ConversationMode;
+  /**
+   * Complete canonical policy snapshot for queued messages; legacy scalar
+   * fields (`conversationMode`, `plannerEnhancerEnabled`, `startInNewSession`)
+   * remain compatibility-only and are normalized as a fallback when this field
+   * is absent on older responses/fixtures.
+   */
+  taskEnvelope?: TaskEnvelopeV1;
 }

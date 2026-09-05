@@ -3,6 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, ArrowUp, Paperclip, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
@@ -194,12 +195,19 @@ async function runSendFlow({
       fileSource: s.fileSource,
       selectedContent: s.selectedContent,
     }));
+    // Compat: startInNewSession and conversationMode remain provider/context
+    // inputs, but are submitted once as a single canonical TaskEnvelopeV1. The
+    // backend explicit envelope is authoritative; no independent scalar policy
+    // fields are sent.
+    const taskEnvelope = createTaskEnvelope({
+      conversationMode,
+      sessionPolicy: startInNewSession ? 'new' : 'continue',
+    });
     await (sendMessage as (args: Record<string, unknown>) => Promise<unknown>)({
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: 'user',
       content: text.trim(),
-      startInNewSession,
-      conversationMode,
+      taskEnvelope,
       type: 'message',
       ...(snippets.length > 0 && { attachedSnippets: snippets }),
       ...(attachedTasks.length > 0 && { attachedTaskIds: attachedTasks.map((task) => task.id) }),
