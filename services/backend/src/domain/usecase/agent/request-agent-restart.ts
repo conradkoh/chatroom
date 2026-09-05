@@ -1,12 +1,11 @@
 import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { getAgentConfig } from './get-agent-config';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
-import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { AgentStartReasonEnum, type AgentType } from '../../entities/agent';
+import type { AgentType } from '../../entities/agent';
 import {
   isRunnableRemoteTeamConfig,
   type AgentRestartRequest,
@@ -38,47 +37,25 @@ export async function requestAgentRestart(
   }
 
   const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
-  const resolved = resolveRestartOverrides(input.request, base, chatroom, input.role);
+  const resolved = resolveRestartOverrides(input.request);
 
   validateMachineHarness(machine, resolved.agentHarness);
 
-  const releasedTaskCount = await releaseRestartTasks(ctx, input);
+  const releasedTaskCount = await releaseRestartTasks(ctx, {
+    chatroomId: input.chatroomId,
+    role: input.role,
+  });
   const correlationId = crypto.randomUUID();
   await persistRestartAndEmit(ctx, input, resolved, chatroom, correlationId, Date.now());
 
   return { status: 'requested', correlationId, releasedTaskCount };
 }
 
-function resolveRestartOverrides(
-  request: AgentRestartRequest,
-  base: {
-    machineId: string;
-    agentHarness: RunnableRemoteAgentConfig['agentHarness'];
-    model: string;
-    workingDir: string;
-    wantResume: boolean | undefined;
-  },
-  chatroom: Doc<'chatroom_rooms'> | null,
-  role: string
-): RunnableRemoteAgentConfig {
-  if (request.reason === AgentStartReasonEnum['user.restart']) {
-    return {
-      ...request.overrides,
-      wantResume: false,
-    };
-  }
-
+function resolveRestartOverrides(request: AgentRestartRequest): RunnableRemoteAgentConfig {
   return {
-    machineId: base.machineId,
-    agentHarness: base.agentHarness,
-    model: base.model,
-    workingDir: base.workingDir,
-    wantResume: base.wantResume ?? defaultWantResume(chatroom, role),
+    ...request.overrides,
+    wantResume: false,
   };
-}
-
-function defaultWantResume(chatroom: Doc<'chatroom_rooms'> | null, role: string): boolean {
-  return chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : false;
 }
 
 function validateMachineHarness(
@@ -92,9 +69,8 @@ function validateMachineHarness(
 
 async function releaseRestartTasks(
   ctx: MutationCtx,
-  input: { chatroomId: Id<'chatroom_rooms'>; role: string; request: AgentRestartRequest }
+  input: { chatroomId: Id<'chatroom_rooms'>; role: string }
 ): Promise<number> {
-  if (input.request.reason !== AgentStartReasonEnum['user.restart']) return 0;
   return releaseTasksOnAgentExit(ctx, { chatroomId: input.chatroomId, role: input.role });
 }
 
@@ -104,7 +80,6 @@ async function persistRestartAndEmit(
   input: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    request: AgentRestartRequest;
   },
   resolved: RunnableRemoteAgentConfig,
   chatroom: Doc<'chatroom_rooms'> | null,
@@ -121,7 +96,6 @@ async function persistRestartAndEmit(
         role: input.role,
         type: 'remote' as AgentType,
         ...configFields,
-        ...(input.request.reason !== AgentStartReasonEnum['user.restart'] ? { wantResume } : {}),
         updatedAt: now,
         desiredState: 'running' as const,
         circuitState: 'closed' as const,
