@@ -297,6 +297,13 @@ export function appendTaskDeliveryHandoffSections(
     | 'conversationMode'
   >
 ): void {
+  // Derive the effective enhancer flag: explicit mode takes precedence over legacy boolean.
+  // When an explicit mode is present, it is the source of truth; legacy callers without a
+  // mode retain the existing boolean behaviour.
+  const effectivePlannerEnhancerEnabled = params.conversationMode
+    ? params.conversationMode === 'code:enhanced'
+    : params.plannerEnhancerEnabled === true;
+
   // Chat-mode direct-answer guidance: concise, no enhancer/delegation ceremony.
   if (isChatMode(params)) {
     lines.push('');
@@ -312,12 +319,15 @@ export function appendTaskDeliveryHandoffSections(
     lines.push('</chat-mode>');
   }
 
-  appendTaskDeliveryNextSteps(lines, params);
+  appendTaskDeliveryNextSteps(lines, {
+    ...params,
+    plannerEnhancerEnabled: effectivePlannerEnhancerEnabled,
+  });
   appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, {
     chatroomId: params.chatroomId,
     role: params.role,
     cliEnvPrefix: params.cliEnvPrefix,
-    plannerEnhancerEnabled: params.plannerEnhancerEnabled,
+    plannerEnhancerEnabled: effectivePlannerEnhancerEnabled,
     message: params.message,
     task: params.task,
     isEntryPoint: params.isEntryPoint,
@@ -332,7 +342,7 @@ export function appendTaskDeliveryHandoffSections(
     includeEnhancerTemplate:
       // Chat mode: never include enhancer-only template content.
       params.conversationMode !== 'chat' &&
-      params.plannerEnhancerEnabled &&
+      effectivePlannerEnhancerEnabled &&
       params.isEntryPoint === true &&
       params.message?.senderRole.toLowerCase() === 'user',
   });

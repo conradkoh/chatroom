@@ -101,7 +101,8 @@ async function enrichMessageAttachments(
     attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
     attachedSnippets?:
-      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+      | { reference: string; fileSource: string; selectedContent: string }[]
+      | undefined;
     startInNewSession?: boolean | undefined;
   }
 ) {
@@ -129,7 +130,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
+    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
+    | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -185,7 +187,8 @@ export async function resolveSourceAttachmentsForDelivery(
   ctx: QueryCtx,
   message: {
     attachedSnippets?:
-      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+      | { reference: string; fileSource: string; selectedContent: string }[]
+      | undefined;
     attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
     attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
@@ -336,7 +339,8 @@ async function _sendMessageHandler(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
     attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
     attachedSnippets?:
-      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+      | { reference: string; fileSource: string; selectedContent: string }[]
+      | undefined;
     startInNewSession?: boolean | undefined;
     conversationMode?: 'chat' | 'code' | 'code:enhanced' | undefined;
   }
@@ -1857,7 +1861,7 @@ export const getTaskDeliveryPrompt = query({
 
     const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
 
-    const plannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
+    const legacyPlannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
       taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
       liveConfig: enhancerConfig,
       role: args.role,
@@ -1866,7 +1870,13 @@ export const getTaskDeliveryPrompt = query({
 
     // Derive effective conversation mode: explicit snapshot takes precedence over legacy boolean.
     const conversationMode =
-      task.conversationMode ?? legacyConversationMode(plannerEnhancerEnabled);
+      task.conversationMode ?? legacyConversationMode(legacyPlannerEnhancerEnabled);
+
+    // When an explicit mode is present, it is the source of truth for the enhancer boolean.
+    // Legacy callers without an explicit mode retain the resolved live-config behaviour.
+    const plannerEnhancerEnabled = task.conversationMode
+      ? plannerEnhancerEnabledForMode(task.conversationMode)
+      : legacyPlannerEnhancerEnabled;
 
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;

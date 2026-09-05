@@ -200,4 +200,49 @@ describe('appendTaskDeliveryHandoffSections — conversationMode', () => {
     expect(outputFalse).not.toContain('<handoff-enhancer>');
     expect(outputFalse).toContain('<handoff-enhancer-disabled>');
   });
+
+  test('code:enhanced with stale plannerEnhancerEnabled: false still includes enhancer guidance', () => {
+    const output = renderHandoffSections({
+      plannerEnhancerEnabled: false,
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      conversationMode: 'code:enhanced',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('--next-role="enhancer"');
+    expect(output).toContain('Immediately hand off the user request');
+    expect(output).toContain('Planning Request (Planner → Enhancer)');
+    expect(output).toContain('<additional-context>');
+  });
+
+  test('code with stale plannerEnhancerEnabled: true omits enhancer guidance and targets user', () => {
+    const output = renderHandoffSections({
+      plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      conversationMode: 'code',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).not.toContain('<chat-mode>');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).toContain('<handoff-enhancer-disabled>');
+    expect(output).toContain('--next-role="user"');
+    expect(output).toContain('Handoff to `builder`');
+  });
+
+  test('chat with stale plannerEnhancerEnabled: true remains direct/no enhancer', () => {
+    const output = renderHandoffSections({
+      plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      conversationMode: 'chat',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Answer the user directly and concisely');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<handoff-enhancer-disabled>');
+    expect(output).toContain('--next-role="user"');
+  });
 });
