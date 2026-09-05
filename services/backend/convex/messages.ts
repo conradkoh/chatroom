@@ -1844,7 +1844,14 @@ export const getRolePrompt = query({
     );
 
     const availableRoles = waitingParticipants.map((p) => p.role);
-    const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
+    // Configured team roles are authoritative structural capability; active
+    // participants remain a legacy fallback for empty-membership rooms.
+    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
+    const availableHandoffRoles = buildAvailableHandoffRoles({
+      teamRoles,
+      currentRole: args.role,
+      fallbackParticipantRoles: availableRoles,
+    });
 
     let plannerEnhancerActive: boolean | undefined;
     if (isEnhancerEntryPointRole(chatroom, args.role)) {
@@ -2019,7 +2026,13 @@ export const getTaskDeliveryPrompt = query({
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
 
-    const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles, {
+    // Configured team roles are authoritative structural capability; active
+    // participants remain a legacy fallback for empty-membership rooms.
+    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
+    const availableHandoffRoles = buildAvailableHandoffRoles({
+      teamRoles,
+      currentRole: args.role,
+      fallbackParticipantRoles: availableRoles,
       includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole === 'user',
     });
 

@@ -15,6 +15,7 @@ import { isNativeHarness } from '../../../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../../../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../../../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../../../src/domain/entities/team';
+import { getTeamRolesFromChatroom } from '../../../src/domain/usecase/chatroom/get-team-roles';
 import { getEnhancerConfigForUser } from '../../../src/domain/usecase/enhancer/get-enhancer-config-for-user';
 import { resolveTaskPlannerEnhancerEnabled } from '../../../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import type { Doc } from '../../_generated/dataModel';
@@ -108,7 +109,13 @@ export const getTaskDeliveryForJob = query({
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
 
-    const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles, {
+    // Configured team roles are authoritative structural capability; active
+    // participants remain a legacy fallback for empty-membership rooms.
+    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
+    const availableHandoffRoles = buildAvailableHandoffRoles({
+      teamRoles,
+      currentRole: role,
+      fallbackParticipantRoles: availableRoles,
       includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole === 'user',
     });
 
