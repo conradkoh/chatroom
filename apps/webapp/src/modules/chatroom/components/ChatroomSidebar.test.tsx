@@ -10,7 +10,6 @@ import { useChatroomListing } from '../context/ChatroomListingContext';
 const mockArchiveChatroom = vi.fn().mockResolvedValue({ success: true, disabledPromptCount: 0 });
 const mockRequestChatroomStop = vi.fn().mockResolvedValue({ stopCommandId: 'stop' });
 const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
-const mockRestartOfflineAgents = vi.fn().mockResolvedValue({ restartedRoles: ['builder'] });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
 const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
@@ -75,9 +74,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'stopAllCommandRunsForChatroom') {
         return mockStopAllCommandRuns;
       }
-      if (name === 'restartOfflineAgentsFromConfig') {
-        return mockRestartOfflineAgents;
-      }
     }
     return () => {};
   },
@@ -93,7 +89,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
     machines: {
       sendCommand: { name: 'sendCommand' },
-      restartOfflineAgentsFromConfig: { name: 'restartOfflineAgentsFromConfig' },
     },
     commands: {
       stopAllCommandRunsForChatroom: { name: 'stopAllCommandRunsForChatroom' },
@@ -173,8 +168,6 @@ describe('ChatroomSidebar', () => {
     mockRequestChatroomStop.mockResolvedValue({ stopCommandId: 'stop' });
     mockStopAllCommandRuns.mockReset();
     mockStopAllCommandRuns.mockResolvedValue({ stoppedCount: 0 });
-    mockRestartOfflineAgents.mockReset();
-    mockRestartOfflineAgents.mockResolvedValue({ restartedRoles: ['builder'] });
     mockMarkAsUnread.mockReset();
     mockMarkAsRead.mockReset();
     mockToastSuccess.mockReset();
@@ -403,46 +396,12 @@ describe('ChatroomSidebar', () => {
     });
   });
 
-  it('play button restarts offline agents from config without opening modal', async () => {
+  it('play button opens the manual start modal', async () => {
     const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
     renderSidebar([chatroom]);
 
     const playButton = screen.getByTitle('Start with last configuration');
     fireEvent.click(playButton);
-
-    await waitFor(() => {
-      expect(mockRestartOfflineAgents).toHaveBeenCalledWith({
-        chatroomId: chatroom._id,
-      });
-    });
-
-    expect(mockToastSuccess).toHaveBeenCalledWith('Started builder');
-    expect(screen.queryByTestId('start-agent-modal')).not.toBeInTheDocument();
-  });
-
-  it('play button opens agent modal when no roles are restarted', async () => {
-    mockRestartOfflineAgents.mockResolvedValue({ restartedRoles: [] });
-    const chatroom = makeChatroom({ remoteAgentStatus: 'none' });
-    renderSidebar([chatroom]);
-
-    fireEvent.click(screen.getByTitle('Start with last configuration'));
-
-    await waitFor(() => {
-      expect(mockRestartOfflineAgents).toHaveBeenCalledWith({
-        chatroomId: chatroom._id,
-      });
-    });
-
-    expect(mockToastSuccess).not.toHaveBeenCalled();
-    expect(screen.getByTestId('start-agent-modal')).toBeInTheDocument();
-  });
-
-  it('play button opens agent modal when restart mutation fails', async () => {
-    mockRestartOfflineAgents.mockRejectedValue(new Error('restart failed'));
-    const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
-    renderSidebar([chatroom]);
-
-    fireEvent.click(screen.getByTitle('Start with last configuration'));
 
     await waitFor(() => {
       expect(screen.getByTestId('start-agent-modal')).toBeInTheDocument();

@@ -68,10 +68,10 @@ async function createQueueRecord(
 // ---------------------------------------------------------------------------
 
 describe('promoteQueuedMessage', () => {
-  test('restarts offline agent when queued message is promoted', async () => {
-    const { sessionId } = await createTestSession('promote-offline-restart');
+  test('does not schedule agent restarts when a queued message is promoted', async () => {
+    const { sessionId } = await createTestSession('promote-no-restart');
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
-    const machineId = 'machine-promote-offline-restart';
+    const machineId = 'machine-promote-no-restart';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
@@ -105,12 +105,13 @@ describe('promoteQueuedMessage', () => {
     });
 
     const queuedMessageId = await createQueueRecord(chatroomId);
-    await t.run((ctx) => promoteQueuedMessage(ctx, queuedMessageId));
+    const result = await t.run((ctx) => promoteQueuedMessage(ctx, queuedMessageId));
 
+    // Promotion still creates the pending task; pickup is assignment-driven
+    // (daemon), never presence-driven restarts.
+    expect(result?.taskId).toBeDefined();
     const restartCommands = await getInboxCommandsForChatroom(chatroomId, 'agent.restart');
-    expect(restartCommands).toHaveLength(1);
-    expect(restartCommands[0].machineId).toBe(machineId);
-    expect(restartCommands[0].command).toMatchObject({ type: 'agent.restart', role: 'builder' });
+    expect(restartCommands).toHaveLength(0);
   });
 
   test('creates a chatroom_messages record from queue data', async () => {
