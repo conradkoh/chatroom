@@ -10,7 +10,11 @@
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import type { Doc, Id } from '../../../api.js';
+import {
+  buildListTasksForMachineSignalRangeArgs,
+  buildSubscribeTaskStatusSignalsSinceArgs,
+} from './task-signal-contract.js';
+import type { Doc } from '../../../api.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 
@@ -104,13 +108,13 @@ function waitForTaskSignalPage(
 
     unsubscribe = options.client.onUpdate(
       api.messageList.subscribeTaskStatusSignalsSince,
-      {
+      buildSubscribeTaskStatusSignalsSinceArgs({
         sessionId: options.sessionId,
         machineId: options.machineId,
-        chatroomId: options.chatroomId as Id<'chatroom_rooms'>,
+        chatroomId: options.chatroomId,
         afterKey: afterSignalKey,
         limit: options.signalPageLimit ?? DEFAULT_SIGNAL_PAGE_LIMIT,
-      },
+      }),
       (result: unknown) => {
         if (!result || typeof result !== 'object') return;
 
@@ -163,14 +167,17 @@ async function fetchSnapshotsForSignalPage(
   let afterSignalKey = page.afterSignalKey;
   while (true) {
     throwIfAborted(options.signal);
-    const result = await options.client.query(api.tasks.listTasksForMachineSignalRange, {
-      sessionId: options.sessionId,
-      machineId: options.machineId,
-      chatroomId: options.chatroomId as Id<'chatroom_rooms'>,
-      afterSignalKey,
-      throughSignalKey: page.highSignalKey,
-      limit: options.taskPageLimit ?? DEFAULT_TASK_PAGE_LIMIT,
-    });
+    const result = await options.client.query(
+      api.tasks.listTasksForMachineSignalRange,
+      buildListTasksForMachineSignalRangeArgs({
+        sessionId: options.sessionId,
+        machineId: options.machineId,
+        chatroomId: options.chatroomId,
+        afterSignalKey,
+        throughSignalKey: page.highSignalKey,
+        limit: options.taskPageLimit ?? DEFAULT_TASK_PAGE_LIMIT,
+      })
+    );
 
     snapshots.push(...result.snapshots);
     if (!result.hasMore || !result.nextSignalKey) break;
