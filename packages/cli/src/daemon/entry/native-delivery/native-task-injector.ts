@@ -3,9 +3,9 @@ import {
   shouldEmitSessionAugmentation,
   resolveSessionAugmentationForTask,
   sessionAugmentationNewSessionStarted,
+  taskRequestsNativeColdSession,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect } from 'effect';
-import { buildActivityLifecycleFact, type AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 
 import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
 import { buildNativeInjectionPrompt } from './native-task-injector-logic.js';
@@ -13,6 +13,10 @@ import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { OperationResult } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import {
+  buildActivityLifecycleFact,
+  type AgentLifecycleFact,
+} from '../../domain/entities/agent-lifecycle-fact.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
@@ -40,7 +44,7 @@ export interface NativeInjectorAgentMgr {
 export interface NativeInjectorDeps {
   sessionId: string;
   machineId: string;
-  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
+  logEvent?: ((event: Record<string, unknown>) => Promise<void>) | undefined;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -48,7 +52,8 @@ export interface NativeInjectorDeps {
   agentMgr: NativeInjectorAgentMgr;
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
   convexUrl?: string | undefined;
-  onTaskDelivered?:( (args: { chatroomId: string; role: string; taskId: string }) => void) | undefined;
+  onTaskDelivered?:
+    ((args: { chatroomId: string; role: string; taskId: string }) => void) | undefined;
 }
 
 async function emitTaskDeliveryFailed(
@@ -160,7 +165,13 @@ function resolveHarnessSessionForInject(
     const { chatroomId, taskId, agentConfig } = task;
     const { role } = agentConfig;
 
-    if (!task.startInNewSession) {
+    if (
+      !taskRequestsNativeColdSession({
+        content: task.taskContent ?? '',
+        taskEnvelope: task.taskEnvelope,
+        startInNewSession: task.startInNewSession,
+      })
+    ) {
       return { harnessSessionId: initialHarnessSessionId, sessionAugmentationEmitted: false };
     }
 
@@ -293,7 +304,11 @@ function loadNativeInjectionPrompt(
     }
 
     const augmentationMode = resolveSessionAugmentationForTask(
-      { content: taskContent, startInNewSession: task.startInNewSession },
+      {
+        content: taskContent,
+        taskEnvelope: task.taskEnvelope,
+        startInNewSession: task.startInNewSession,
+      },
       role
     );
 
@@ -321,7 +336,14 @@ function injectNativeTaskPrompt(
     yield* Effect.tryPromise({
       try: () =>
         deps.lifecycleOutbox
-          ? deps.lifecycleOutbox.enqueue(buildActivityLifecycleFact({ chatroomId, role, action: NATIVE_TASK_INJECTED_ACTION, taskId }))
+          ? deps.lifecycleOutbox.enqueue(
+              buildActivityLifecycleFact({
+                chatroomId,
+                role,
+                action: NATIVE_TASK_INJECTED_ACTION,
+                taskId,
+              })
+            )
           : Promise.reject(new Error('lifecycle outbox missing')),
       catch: (err) => err,
     });

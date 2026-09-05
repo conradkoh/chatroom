@@ -61,7 +61,11 @@ type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'o
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
     resolveSessionAugmentationForTask(
-      { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
+      {
+        content: task.taskContent ?? '',
+        taskEnvelope: task.taskEnvelope,
+        startInNewSession: task.startInNewSession,
+      },
       task.agentConfig.role
     )
   );
