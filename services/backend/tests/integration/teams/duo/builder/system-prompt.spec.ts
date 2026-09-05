@@ -277,6 +277,12 @@ describe('Duo Team > Builder > System Prompt', () => {
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
+      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      \`\`\`bash
+      chatroom handoff list-templates --role="builder" --team-id="duo"
+      \`\`\`
+      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+
       **Implementation Guidelines:**
       - Write clean, maintainable, well-documented code
       - Follow established patterns and best practices from the codebase
