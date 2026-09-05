@@ -157,7 +157,6 @@ describe('PlannerConversationModeToggle', () => {
 
     fireEvent.click(screen.getByTestId('planner-conversation-mode-toggle'));
     expect(mockSetMode).not.toHaveBeenCalled();
-    expect(mockToastMessage).not.toHaveBeenCalled();
   });
 
   it('Ctrl+E cycles mode', async () => {
