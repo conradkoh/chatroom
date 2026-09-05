@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-/** True on Windows — uses Alt shortcuts to avoid browser Ctrl+N/E conflicts. */
+/** True on Windows — uses Alt shortcuts to avoid browser Ctrl+N/M conflicts. */
 // fallow-ignore-next-line unused-export
 export function isWindowsPlatform(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -10,7 +10,7 @@ export function isWindowsPlatform(): boolean {
 }
 
 /** Human-readable shortcut label for tooltips (Ctrl+N on macOS/Linux, Alt+N on Windows). */
-export function getComposerPreflightShortcutLabel(letter: 'N' | 'E'): string {
+export function getComposerPreflightShortcutLabel(letter: 'N' | 'M'): string {
   const modifier = isWindowsPlatform() ? 'Alt' : 'Ctrl';
   return `${modifier}+${letter}`;
 }
@@ -32,7 +32,7 @@ export function isComposerPreflightShortcut(event: KeyboardEvent, code: string):
 }
 
 export interface UseComposerPreflightShortcutOptions {
-  /** Physical key code, e.g. KeyN or KeyE. */
+  /** Physical key code, e.g. KeyN or KeyM. */
   code: string;
   enabled?: boolean;
   onTrigger: () => void;

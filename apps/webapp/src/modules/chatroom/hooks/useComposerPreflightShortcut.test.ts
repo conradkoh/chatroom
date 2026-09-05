@@ -33,9 +33,9 @@ describe('getComposerPreflightShortcutLabel', () => {
     expect(getComposerPreflightShortcutLabel('N')).toBe('Ctrl+N');
   });
 
-  it('returns Alt+E on Windows', () => {
+  it('returns Alt+M on Windows', () => {
     mockPlatform('Win32');
-    expect(getComposerPreflightShortcutLabel('E')).toBe('Alt+E');
+    expect(getComposerPreflightShortcutLabel('M')).toBe('Alt+M');
   });
 });
 
@@ -53,12 +53,12 @@ describe('isComposerPreflightShortcut', () => {
     ).toBe(true);
   });
 
-  it('matches Ctrl+E on Linux', () => {
+  it('matches Ctrl+M on Linux', () => {
     mockPlatform('Linux x86_64');
     expect(
       isComposerPreflightShortcut(
-        new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', ctrlKey: true }),
-        'KeyE'
+        new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true }),
+        'KeyM'
       )
     ).toBe(true);
   });
@@ -107,11 +107,11 @@ describe('isComposerPreflightShortcut', () => {
     ).toBe(false);
   });
 
-  it('ignores Ctrl+Shift+E', () => {
+  it('ignores Ctrl+Shift+M', () => {
     expect(
       isComposerPreflightShortcut(
-        new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', ctrlKey: true, shiftKey: true }),
-        'KeyE'
+        new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, shiftKey: true }),
+        'KeyM'
       )
     ).toBe(false);
   });
@@ -126,15 +126,15 @@ describe('useComposerPreflightShortcut', () => {
     vi.restoreAllMocks();
   });
 
-  it('calls onTrigger for Ctrl+E on macOS and consumes the event', () => {
+  it('calls onTrigger for Ctrl+M on macOS and consumes the event', () => {
     const onTrigger = vi.fn();
     const addSpy = vi.spyOn(window, 'addEventListener');
-    renderHook(() => useComposerPreflightShortcut({ code: 'KeyE', onTrigger }));
+    renderHook(() => useComposerPreflightShortcut({ code: 'KeyM', onTrigger }));
 
     expect(addSpy).toHaveBeenCalledWith('keydown', expect.any(Function), { capture: true });
     const event = new KeyboardEvent('keydown', {
-      code: 'KeyE',
-      key: 'e',
+      code: 'KeyM',
+      key: 'm',
       ctrlKey: true,
       bubbles: true,
       cancelable: true,
@@ -151,9 +151,9 @@ describe('useComposerPreflightShortcut', () => {
 
   it('does not call onTrigger when disabled', () => {
     const onTrigger = vi.fn();
-    renderHook(() => useComposerPreflightShortcut({ code: 'KeyE', enabled: false, onTrigger }));
+    renderHook(() => useComposerPreflightShortcut({ code: 'KeyM', enabled: false, onTrigger }));
     window.dispatchEvent(
-      new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', ctrlKey: true, bubbles: true })
+      new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, bubbles: true })
     );
     expect(onTrigger).not.toHaveBeenCalled();
   });

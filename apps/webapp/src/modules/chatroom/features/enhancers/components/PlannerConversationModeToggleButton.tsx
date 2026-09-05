@@ -82,7 +82,7 @@ export function PlannerConversationModeToggleButton({
 }: PlannerConversationModeToggleButtonProps) {
   const isUnsupported = teamSupportState === 'unsupported';
   const isLoading = teamSupportState === 'loading';
-  const shortcut = getComposerPreflightShortcutLabel('E');
+  const shortcut = getComposerPreflightShortcutLabel('M');
 
   const handleClick = () => {
     if (isLoading || isBusy) return;

@@ -159,7 +159,7 @@ export function PlannerConversationModeToggle({
     void handleCycle();
   }, [teamSupportState, isBusy, handleUnsupportedClick, handleCycle]);
 
-  useComposerPreflightShortcut({ code: 'KeyE', onTrigger: handleShortcut });
+  useComposerPreflightShortcut({ code: 'KeyM', onTrigger: handleShortcut });
 
   if (teamSupportState !== 'supported') {
     return <UnsupportedToggle mode={mode} onUnsupportedClick={handleUnsupportedClick} />;

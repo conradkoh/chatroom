@@ -159,19 +159,19 @@ describe('PlannerConversationModeToggle', () => {
     expect(mockSetMode).not.toHaveBeenCalled();
   });
 
-  it('Ctrl+E cycles mode', async () => {
+  it('Ctrl+M cycles mode', async () => {
     mockMode = 'code';
     mockConfig = SAVED_CONFIG;
     render(<PlannerConversationModeToggle chatroomId="room-1" machineId="machine-1" />);
 
     window.dispatchEvent(
-      new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', ctrlKey: true, bubbles: true })
+      new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, bubbles: true })
     );
 
     await waitFor(() => expect(mockSetMode).toHaveBeenCalledWith('code:enhanced'));
   });
 
-  it('Ctrl+E shows unsupported toast for unsupported teams', async () => {
+  it('Ctrl+M shows unsupported toast for unsupported teams', async () => {
     render(
       <PlannerConversationModeToggle
         chatroomId="room-1"
@@ -181,10 +181,22 @@ describe('PlannerConversationModeToggle', () => {
     );
 
     window.dispatchEvent(
-      new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', ctrlKey: true, bubbles: true })
+      new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, bubbles: true })
     );
 
     await waitFor(() => expect(mockToastMessage).toHaveBeenCalled());
     expect(mockSetMode).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+E does not trigger the mode toggle', async () => {
+    render(<PlannerConversationModeToggle chatroomId="room-1" machineId="machine-1" />);
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', ctrlKey: true, bubbles: true })
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockSetMode).not.toHaveBeenCalled();
+    expect(mockToastMessage).not.toHaveBeenCalled();
   });
 });
