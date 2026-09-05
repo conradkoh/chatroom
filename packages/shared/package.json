@@ -14,7 +14,8 @@
     "./domain/chatroom-status": "./src/domain/chatroom-status.ts",
     "./domain/chatroom-agent-activity-status": "./src/domain/chatroom-agent-activity-status.ts",
     "./domain/chatroom-activity-status": "./src/domain/chatroom-activity-status.ts",
-    "./domain/conversation-mode": "./src/domain/conversation-mode.ts"
+    "./domain/conversation-mode": "./src/domain/conversation-mode.ts",
+    "./domain/task-envelope": "./src/domain/task-envelope.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
