@@ -240,6 +240,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## System Design
       <!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+      <!-- Mermaid formatting: wrap the diagram in a fenced code block that begins with \`\`\`mermaid and ends with \`\`\`. Never write a bare "mermaid" line — it will not render. -->
 
       \`\`\`mermaid
       flowchart TD
@@ -827,6 +828,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## System Design
       <!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+      <!-- Mermaid formatting: wrap the diagram in a fenced code block that begins with \`\`\`mermaid and ends with \`\`\`. Never write a bare "mermaid" line — it will not render. -->
 
       \`\`\`mermaid
       flowchart TD

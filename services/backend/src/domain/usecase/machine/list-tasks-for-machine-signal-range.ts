@@ -1,9 +1,11 @@
 import type { AssignedTaskSnapshotView } from './assigned-task-snapshot-contract';
 import { assignedTaskSnapshotFromDoc } from './assigned-task-snapshot-row';
+import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
 export type ListTasksForMachineSignalRangeInput = {
   machineId: string;
+  chatroomId: string;
   userId: string;
   afterSignalKey: string;
   throughSignalKey: string;
@@ -23,9 +25,10 @@ export async function listTasksForMachineSignalRange(
   void input.userId;
   const signals = await ctx.db
     .query('chatroom_machineTaskStatusSignals')
-    .withIndex('by_machineId_signalKey', (q) =>
+    .withIndex('by_machineId_chatroomId_signalKey', (q) =>
       q
         .eq('machineId', input.machineId)
+        .eq('chatroomId', input.chatroomId as Id<'chatroom_rooms'>)
         .gt('signalKey', input.afterSignalKey)
         .lte('signalKey', input.throughSignalKey)
     )

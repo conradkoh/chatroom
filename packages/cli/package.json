@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.107.0",
+  "version": "1.107.1",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
@@ -25,8 +25,8 @@
     "@earendil-works/pi-coding-agent": "0.74.2",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.18.23",
-    "@openai/codex": "0.147.0",
-    "@openai/codex-sdk": "0.147.0",
+    "@openai/codex": "0.153.4",
+    "@openai/codex-sdk": "0.153.4",
     "chokidar": "^5.0.0",
     "commander": "^14.0.0",
     "convex": "^1.31.0",

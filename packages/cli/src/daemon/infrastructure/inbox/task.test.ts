@@ -20,6 +20,7 @@ describe('runTaskInbox', () => {
       client: client as never,
       sessionId: 'session-1' as never,
       machineId: 'machine-1',
+      chatroomId: 'chatroom-1',
       initialAfterSignalKey: '0000000000000010:',
     };
 
@@ -33,7 +34,7 @@ describe('runTaskInbox', () => {
     expect(subscriptionAfterKeys).toEqual(['0000000000000010:', '0000000000000010:']);
   });
 
-  it('subscribes at machine scope and hydrates task records through the signal page', async () => {
+  it('subscribes at room scope and hydrates task records through the signal page', async () => {
     const query = vi.fn().mockResolvedValue({
       snapshots: [{ taskId: 'task-1' }],
       nextSignalKey: null,
@@ -44,7 +45,11 @@ describe('runTaskInbox', () => {
     const client = {
       onUpdate: vi.fn(
         (_query: unknown, args: Record<string, unknown>, onPage: (page: unknown) => void) => {
-          expect(args).toMatchObject({ machineId: 'machine-1', afterKey: '0000000000000010:' });
+          expect(args).toMatchObject({
+            machineId: 'machine-1',
+            chatroomId: 'chatroom-1',
+            afterKey: '0000000000000010:',
+          });
           deliverPage = onPage;
           return unsubscribe;
         }
@@ -59,6 +64,7 @@ describe('runTaskInbox', () => {
         client: client as never,
         sessionId: 'session-1' as never,
         machineId: 'machine-1',
+        chatroomId: 'chatroom-1',
         serviceStartedAt: 10,
         signal: controller.signal,
       },
@@ -88,6 +94,7 @@ describe('runTaskInbox', () => {
     expect(query).toHaveBeenCalledWith(expect.anything(), {
       sessionId: 'session-1',
       machineId: 'machine-1',
+      chatroomId: 'chatroom-1',
       afterSignalKey: '0000000000000010:',
       throughSignalKey: '0000000000000011:task-1',
       limit: 500,

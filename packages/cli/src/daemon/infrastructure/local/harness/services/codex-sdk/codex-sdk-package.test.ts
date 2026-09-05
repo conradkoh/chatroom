@@ -17,7 +17,7 @@ const NPM_PUBLISH_ROOT = join(CLI_ROOT, '.npm-publish');
 
 describe('codex-sdk-package', () => {
   it('resolves the pinned @openai/codex-sdk version from the chatroom-cli install', () => {
-    expect(getBundledCodexSdkVersion(import.meta.url)).toBe('0.147.0');
+    expect(getBundledCodexSdkVersion(import.meta.url)).toBe('0.153.4');
   });
 
   it('imports @openai/codex-sdk from the chatroom-cli dependency graph', async () => {
@@ -48,7 +48,7 @@ describe('codex-sdk-package', () => {
 
   it('resolveChatroomCliRoot works from the compiled dist layout', () => {
     const distFile = join(CLI_ROOT, 'dist', 'index.js');
-    expect(getBundledCodexSdkVersion(pathToFileURL(distFile).href)).toBe('0.147.0');
+    expect(getBundledCodexSdkVersion(pathToFileURL(distFile).href)).toBe('0.153.4');
   });
 
   it('formats SDK runtime errors with code and name', () => {
