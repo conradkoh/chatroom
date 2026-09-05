@@ -6,7 +6,6 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
-import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agents-on-user-message';
 import { markAgentViewHasHistory } from '../chatroom/project-agent-view-metadata';
 import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 
@@ -102,9 +101,6 @@ export async function promoteQueuedMessage(
 
   // Patch message with taskId (bidirectional link)
   await linkMessageToTask(ctx, messageId, taskId);
-
-  // Match direct user-message delivery: wake remote agents that are offline.
-  await restartOfflineAgentsOnUserMessage(ctx, queueRecord.chatroomId);
 
   // Delete the queue record (no longer needed after promotion)
   await ctx.db.delete('chatroom_messageQueue', queuedMessageId);

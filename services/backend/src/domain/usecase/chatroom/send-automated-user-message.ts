@@ -8,7 +8,6 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
-import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agents-on-user-message';
 import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
 import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
@@ -160,6 +159,5 @@ export async function sendAutomatedUserMessage(
     taskEnvelope: envelope,
   });
   await linkMessageToTask(ctx, messageId, taskId);
-  await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
   return { ok: true, messageId };
 }
