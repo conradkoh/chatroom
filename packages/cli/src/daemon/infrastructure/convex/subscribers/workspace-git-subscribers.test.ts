@@ -8,6 +8,10 @@ import type { WorkspaceGitInboundEvent } from '../../../domain/usecase/handle-wo
 import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
+import {
+  registerTaskInboxRoomMembershipRefresh,
+  unregisterTaskInboxRoomMembershipRefresh,
+} from '../../../entry/task-inbox-membership-registry.js';
 
 const GIT_REQUEST_ID = 'git_req_1';
 const SESSION_ID = 'session-test' as SessionId;
@@ -281,6 +285,8 @@ describe('workspace-git v2 subscribers', () => {
   });
 
   it('claimed daemon.workspaceListChanged nudges the git workspace refresh', async () => {
+    const refreshTaskInboxRooms = vi.fn().mockResolvedValue(undefined);
+    registerTaskInboxRoomMembershipRefresh(refreshTaskInboxRooms);
     const entries: {
       args: unknown;
       cb: (r: unknown) => void;
@@ -294,7 +300,7 @@ describe('workspace-git v2 subscribers', () => {
     });
     const wsClient = { onUpdate, query, mutation } as unknown as ConvexClient;
 
-    void startAllSubscribers({
+    const registry = startAllSubscribers({
       wsClient,
       sessionId: SESSION_ID,
       machineId: MACHINE_ID,
@@ -325,7 +331,10 @@ describe('workspace-git v2 subscribers', () => {
 
     expect(gitCalls()).toHaveLength(2);
     expect(gitCalls()[1].args).toMatchObject({ workingDir: '/b' });
+    expect(refreshTaskInboxRooms).toHaveBeenCalledOnce();
     expect(mutation).toHaveBeenCalled();
+    await registry.stopAll();
+    unregisterTaskInboxRoomMembershipRefresh();
   });
 
   it('default router deps provide deliverInbound hook', () => {
