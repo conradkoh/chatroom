@@ -19,6 +19,7 @@
  */
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
 import {
   adjustTaskCount,
@@ -57,6 +58,12 @@ export interface CreateTaskArgs {
   originUserMessageId?: Id<'chatroom_messages'> | undefined;
   enhancerEnabledAtEnqueue?: boolean | undefined;
   startInNewSession: boolean | undefined;
+  /**
+   * Optional canonical TaskEnvelopeV1 snapshot. When supplied, the complete
+   * envelope is inserted on chatroom_tasks. The legacy scalar arguments above
+   * remain the temporary compatibility projections passed by existing callers.
+   */
+  taskEnvelope?: TaskEnvelopeV1 | undefined;
 }
 
 export interface CreateTaskResult {
@@ -139,6 +146,19 @@ export async function createTask(
       ? { enhancerEnabledAtEnqueue: args.enhancerEnabledAtEnqueue }
       : {}),
     ...(args.startInNewSession !== undefined ? { startInNewSession: args.startInNewSession } : {}),
+    ...(args.taskEnvelope
+      ? {
+          taskEnvelope: {
+            version: args.taskEnvelope.version,
+            conversationMode: args.taskEnvelope.conversationMode,
+            sessionPolicy: args.taskEnvelope.sessionPolicy,
+            handoffWorkflow: {
+              preset: args.taskEnvelope.handoffWorkflow.preset,
+              phase: args.taskEnvelope.handoffWorkflow.phase,
+            },
+          },
+        }
+      : {}),
   });
 
   // Update materialized task counts

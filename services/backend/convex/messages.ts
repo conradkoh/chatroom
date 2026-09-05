@@ -7,6 +7,7 @@ import {
   getEnhancerEntryPointRole,
   isEnhancerEntryPointRole,
 } from '@workspace/shared/domain/enhancer-team-capability';
+import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -18,6 +19,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
+import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
@@ -101,8 +103,7 @@ async function enrichMessageAttachments(
     attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
     attachedSnippets?:
-      | { reference: string; fileSource: string; selectedContent: string }[]
-      | undefined;
+      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
     startInNewSession?: boolean | undefined;
   }
 ) {
@@ -130,8 +131,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
-    | undefined;
+    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -187,8 +187,7 @@ export async function resolveSourceAttachmentsForDelivery(
   ctx: QueryCtx,
   message: {
     attachedSnippets?:
-      | { reference: string; fileSource: string; selectedContent: string }[]
-      | undefined;
+      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
     attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
     attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
@@ -339,10 +338,10 @@ async function _sendMessageHandler(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
     attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
     attachedSnippets?:
-      | { reference: string; fileSource: string; selectedContent: string }[]
-      | undefined;
+      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
     startInNewSession?: boolean | undefined;
     conversationMode?: 'chat' | 'code' | 'code:enhanced' | undefined;
+    taskEnvelope?: TaskEnvelopeV1 | undefined;
   }
 ) {
   const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -483,6 +482,7 @@ async function _sendMessageHandler(
       startInNewSession: args.startInNewSession,
       userId: session.userId,
       ...(args.conversationMode !== undefined ? { conversationMode: args.conversationMode } : {}),
+      ...(args.taskEnvelope !== undefined ? { taskEnvelope: args.taskEnvelope } : {}),
     });
     if (!result.ok) {
       if (result.reason === 'empty_content') {
@@ -566,6 +566,7 @@ const sendMessageMutationArgs = {
   attachedSnippets: v.optional(v.array(attachedSnippetArgsValidator)),
   startInNewSession: v.optional(v.boolean()),
   conversationMode: v.optional(conversationModeValidator),
+  taskEnvelope: v.optional(taskEnvelopeV1Validator),
 };
 
 /** @deprecated Use sendMessage instead. */
@@ -587,6 +588,7 @@ export const enqueueMessageAtFront = mutation({
     attachedSnippets: v.optional(v.array(attachedSnippetArgsValidator)),
     startInNewSession: v.optional(v.boolean()),
     conversationMode: v.optional(conversationModeValidator),
+    taskEnvelope: v.optional(taskEnvelopeV1Validator),
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -602,6 +604,7 @@ export const enqueueMessageAtFront = mutation({
       ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
       ...(args.conversationMode !== undefined ? { conversationMode: args.conversationMode } : {}),
+      ...(args.taskEnvelope !== undefined ? { taskEnvelope: args.taskEnvelope } : {}),
     });
     if (!result.ok)
       throw new ConvexError({
@@ -1456,6 +1459,9 @@ export const listQueued = query({
       plannerEnhancerEnabled: qMsg.plannerEnhancerEnabled,
       conversationMode: qMsg.conversationMode,
       startInNewSession: qMsg.startInNewSession,
+      // Normalized canonical snapshot: complete for both legacy rows (derived)
+      // and rows that already persist an explicit envelope.
+      taskEnvelope: normalizeTaskEnvelope(qMsg),
     }));
 
     // Enrich queued messages with attachment details (shared helper)

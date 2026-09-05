@@ -1,5 +1,6 @@
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { plannerEnhancerEnabledForMode } from '@workspace/shared/domain/conversation-mode';
+import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
 import { markAgentViewHasHistory } from './project-agent-view-metadata';
 import { reserveFrontQueuePosition } from './reserve-front-queue-position';
@@ -33,6 +34,7 @@ export async function sendAutomatedUserMessage(
     startInNewSession: boolean | undefined;
     enqueueAtFront?: boolean | undefined;
     conversationMode?: ConversationMode | undefined;
+    taskEnvelope?: TaskEnvelopeV1 | undefined;
   }
 ): Promise<SendAutomatedUserMessageResult> {
   const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -49,22 +51,43 @@ export async function sendAutomatedUserMessage(
       ? await reserveFrontQueuePosition(ctx, args.chatroomId, chatroom)
       : await getAndIncrementQueuePosition(ctx, chatroom);
 
-  // Explicit mode snapshot: derive boolean from mode; undefined = legacy live-config fallback.
-  let plannerEnhancerEnabled: boolean | undefined;
-  let conversationMode: ConversationMode | undefined;
-  if (args.conversationMode) {
-    conversationMode = args.conversationMode;
-    plannerEnhancerEnabled = plannerEnhancerEnabledForMode(args.conversationMode);
-  } else if (args.userId) {
-    const userId = args.userId;
+  // Compatibility transition: an explicit envelope or mode short-circuits the
+  // legacy enhancer-config lookup. Only old-style callers (no envelope, no
+  // mode) keep the live-config fallback so the resolved boolean selects the
+  // same effective enhancer mode while a complete envelope is still persisted.
+  let legacyPlannerEnhancerEnabled: boolean | undefined;
+  const userId = args.userId;
+  if (args.taskEnvelope === undefined && args.conversationMode === undefined && userId) {
     const config = await ctx.db
       .query('chatroom_enhancerConfigs')
       .withIndex('by_chatroom_user', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('userId', userId)
       )
       .unique();
-    plannerEnhancerEnabled = resolvePlannerEnhancerEnabledFromConfig(config);
+    legacyPlannerEnhancerEnabled = resolvePlannerEnhancerEnabledFromConfig(config);
   }
+
+  // TaskEnvelopeV1 is the source of truth for the policy snapshot.
+  const envelope = normalizeTaskEnvelope({
+    taskEnvelope: args.taskEnvelope,
+    conversationMode: args.conversationMode,
+    plannerEnhancerEnabled: legacyPlannerEnhancerEnabled,
+    startInNewSession: args.startInNewSession,
+  });
+
+  // TEMPORARY backwards-compatible scalar projections for legacy readers.
+  // These fields are derived from the envelope only (or the legacy fallback
+  // input that produced it) and are NOT sources of truth. Remove together with
+  // the plannerEnhancerEnabled/conversationMode/startInNewSession columns after
+  // all readers migrate to taskEnvelope.
+  const modeExplicitlySelected =
+    args.taskEnvelope !== undefined || args.conversationMode !== undefined;
+  const legacyConversationModeProjection = modeExplicitlySelected
+    ? envelope.conversationMode
+    : undefined;
+  const legacyPlannerEnhancerProjection = modeExplicitlySelected
+    ? plannerEnhancerEnabledForMode(envelope.conversationMode)
+    : legacyPlannerEnhancerEnabled;
 
   if (enqueue) {
     const queuedMessageId = await ctx.db.insert('chatroom_messageQueue', {
@@ -82,11 +105,17 @@ export async function sendAutomatedUserMessage(
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
       ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
       ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
-      ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
-      ...(conversationMode !== undefined ? { conversationMode } : {}),
+      // TEMPORARY scalar projections (see legacy recipe above).
+      ...(legacyPlannerEnhancerProjection !== undefined
+        ? { plannerEnhancerEnabled: legacyPlannerEnhancerProjection }
+        : {}),
+      ...(legacyConversationModeProjection !== undefined
+        ? { conversationMode: legacyConversationModeProjection }
+        : {}),
       ...(args.startInNewSession !== undefined
         ? { startInNewSession: args.startInNewSession }
         : {}),
+      taskEnvelope: envelope,
     });
     await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
@@ -121,8 +150,14 @@ export async function sendAutomatedUserMessage(
     attachedTaskIds: args.attachedTaskIds,
     queuePosition,
     startInNewSession: args.startInNewSession,
-    ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
-    ...(conversationMode !== undefined ? { conversationMode } : {}),
+    // TEMPORARY scalar projections (see legacy recipe above).
+    ...(legacyPlannerEnhancerProjection !== undefined
+      ? { plannerEnhancerEnabled: legacyPlannerEnhancerProjection }
+      : {}),
+    ...(legacyConversationModeProjection !== undefined
+      ? { conversationMode: legacyConversationModeProjection }
+      : {}),
+    taskEnvelope: envelope,
   });
   await linkMessageToTask(ctx, messageId, taskId);
   await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
