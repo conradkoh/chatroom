@@ -24,7 +24,7 @@ vi.mock('./codex-sdk-package.js', () => ({
   importBundledCodexSdk: vi.fn(async () => ({
     Codex: mockCodex,
   })),
-  getBundledCodexSdkVersion: vi.fn(() => '0.147.0'),
+  getBundledCodexSdkVersion: vi.fn(() => '0.153.4'),
   resolveCodexExecutablePath: vi.fn(() => '/tmp/codex'),
   formatCodexSdkError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
   formatCodexSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
@@ -124,7 +124,7 @@ describe('CodexSdkAgentService', () => {
         importBundledCodexSdk: vi.fn(async () => {
           throw new Error('SDK missing');
         }),
-        getBundledCodexSdkVersion: vi.fn(() => '0.147.0'),
+        getBundledCodexSdkVersion: vi.fn(() => '0.153.4'),
         formatCodexSdkError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
         formatCodexSdkLoadError: (err: unknown) =>
           err instanceof Error ? err.message : String(err),
@@ -146,7 +146,7 @@ describe('CodexSdkAgentService', () => {
     it('returns pinned SDK semver', async () => {
       const service = new CodexSdkAgentService(createMockDeps());
       await expect(service.getVersion()).resolves.toEqual({
-        version: '0.147.0',
+        version: '0.153.4',
         major: 0,
       });
     });

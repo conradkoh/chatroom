@@ -14,7 +14,16 @@ minimumReleaseAgeStrict: true
 # nested NestedTaskUpdate (pinned 2026-08-05).
 # 1.0.28: latest stable; clearer errors and reliability fixes since 1.0.26 (pinned 2026-08-17).
 # @anthropic-ai/claude-agent-sdk — EBADF daemon errors; latest patch may include fixes (chore/backlog).
+# @openai/codex(-sdk) 0.153.4 — latest stable; exact pin for the daemon codex harness (pinned 2026-09-05).
 minimumReleaseAgeExclude:
+  - '@openai/codex'
+  - '@openai/codex-sdk'
+  - '@openai/codex-darwin-arm64'
+  - '@openai/codex-darwin-x64'
+  - '@openai/codex-linux-arm64'
+  - '@openai/codex-linux-x64'
+  - '@openai/codex-win32-arm64'
+  - '@openai/codex-win32-x64'
   - '@anthropic-ai/claude-agent-sdk'
   - '@anthropic-ai/claude-agent-sdk-darwin-arm64'
   - '@anthropic-ai/claude-agent-sdk-darwin-x64'
