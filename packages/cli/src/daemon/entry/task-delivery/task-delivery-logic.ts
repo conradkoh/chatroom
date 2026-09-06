@@ -1,4 +1,5 @@
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import {
   isSlotIdle,
   isSlotSpawning,
@@ -12,6 +13,7 @@ import {
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { STOPPING_TIMEOUT_MS } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
+import { snapshotRequestsNativeColdSession } from '../native-delivery/native-cold-session-delivery.js';
 import { getNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
 import { isNativeHarness } from '../native-delivery/native-task-injector-logic.js';
 
@@ -79,13 +81,80 @@ function isNativeAgentSlotDown(
   return isSlotUnavailableForPid(slot, pid, health.isPidAlive, now);
 }
 
+function roleKey(chatroomId: string, role: string): string {
+  return `${chatroomId}:${role.toLowerCase()}`;
+}
+
+function isCandidateDeliverableForOwnership(task: AssignedTaskSnapshotView): boolean {
+  if (!isDeliverableTaskStatus(task.status)) return false;
+  if (task.status === 'acknowledged') {
+    return task.assignedTo?.toLowerCase() === task.agentConfig.role.toLowerCase();
+  }
+  return true;
+}
+
+/** Pending tasks sort before acknowledged ones; ties break by creation time. */
+function comparePendingFirst(a: AssignedTaskSnapshotView, b: AssignedTaskSnapshotView): number {
+  const pendingDelta = (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1);
+  return pendingDelta !== 0 ? pendingDelta : a.createdAt - b.createdAt;
+}
+
+/**
+ * Select the next delivery candidate per (chatroomId, role) in the same
+ * pending-first/createdAt order delivery uses. An eligible cold owner
+ * suppresses competing recovery for that role only.
+ */
+// fallow-ignore-next-line complexity
+function selectNextCandidatePerRole(
+  tasks: AssignedTaskSnapshotView[]
+): Map<string, AssignedTaskSnapshotView> {
+  const byRole = new Map<string, AssignedTaskSnapshotView[]>();
+  for (const task of tasks) {
+    if (!isCandidateDeliverableForOwnership(task)) continue;
+    const key = roleKey(task.chatroomId, task.agentConfig.role);
+    const list = byRole.get(key) ?? [];
+    list.push(task);
+    byRole.set(key, list);
+  }
+  const selected = new Map<string, AssignedTaskSnapshotView>();
+  for (const [key, list] of byRole) {
+    const first = [...list].sort(comparePendingFirst)[0];
+    if (first) selected.set(key, first);
+  }
+  return selected;
+}
+
+/**
+ * Roles whose selected candidate owns a delivery cold start (explicit cold
+ * intent + local slot down per existing health rules). Recovery must not
+ * compete with delivery for these roles.
+ */
+// fallow-ignore-next-line complexity
+function selectColdOwnedRoles(
+  tasks: AssignedTaskSnapshotView[],
+  health: NativeAgentLocalHealth,
+  now: number
+): Set<string> {
+  const owned = new Set<string>();
+  for (const [key, candidate] of selectNextCandidatePerRole(tasks)) {
+    if (!isNativeHarness(candidate.agentConfig.agentHarness)) continue;
+    if (!snapshotRequestsNativeColdSession(candidate)) continue;
+    if (!isNativeAgentSlotDown(candidate, health, now)) continue;
+    owned.add(key);
+  }
+  return owned;
+}
+
 /** Native agent should be running for an active task but the local slot is down. */
+// fallow-ignore-next-line complexity
 function isNativeActiveTaskAgentDown(
   task: AssignedTaskSnapshotView,
   health: NativeAgentLocalHealth,
-  now: number
+  now: number,
+  coldOwnedRoles?: Set<string> | undefined
 ): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
+  if (coldOwnedRoles?.has(roleKey(task.chatroomId, task.agentConfig.role))) return false;
   const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
     task.chatroomId,
     task.agentConfig.role
@@ -101,8 +170,9 @@ export function listNativeTasksNeedingRevive(
   now: number,
   cooldown: RecoveryCooldown
 ): AssignedTaskSnapshotView[] {
+  const coldOwnedRoles = selectColdOwnedRoles(tasks, health, now);
   return tasks.filter((task) => {
-    if (!isNativeActiveTaskAgentDown(task, health, now)) return false;
+    if (!isNativeActiveTaskAgentDown(task, health, now, coldOwnedRoles)) return false;
     const { chatroomId, agentConfig } = task;
     if (!agentConfig.workingDir) return false;
     if (!cooldown.canAttempt(chatroomId, agentConfig.role, 'revive', now)) return false;
@@ -112,9 +182,15 @@ export function listNativeTasksNeedingRevive(
 }
 
 /** Pending native task assigned to this machine whose backend agent is stopped. */
-function isNativePendingTaskNeedingWake(task: AssignedTaskSnapshotView): boolean {
+// fallow-ignore-next-line complexity
+function isNativePendingTaskNeedingWake(
+  task: AssignedTaskSnapshotView,
+  coldOwnedRoles?: Set<string> | undefined
+): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
   if (task.status !== 'pending') return false;
+  if (snapshotRequestsNativeColdSession(task)) return false;
+  if (coldOwnedRoles?.has(roleKey(task.chatroomId, task.agentConfig.role))) return false;
   if (isChatroomStopScopeActive(task.chatroomId)) return false;
   const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
     task.chatroomId,
@@ -129,13 +205,28 @@ function isNativePendingTaskNeedingWake(task: AssignedTaskSnapshotView): boolean
   return Boolean(task.agentConfig.workingDir);
 }
 
+// fallow-ignore-next-line complexity
 export function listNativePendingTasksNeedingWake(
   tasks: AssignedTaskSnapshotView[],
   cooldown: RecoveryCooldown,
   now: number
 ): AssignedTaskSnapshotView[] {
+  // Suppress wake for a role whose selected candidate owns a cold start, so a
+  // continue-session row queued behind an explicit cold task cannot revive
+  // ahead of delivery. Uses slot-agnostic candidate intent (wake applies when
+  // operational is stopped/missing).
+  const coldOwnedRoles = new Set<string>();
+  for (const [key, candidate] of selectNextCandidatePerRole(tasks)) {
+    if (
+      candidate.status === 'pending' &&
+      isNativeHarness(candidate.agentConfig.agentHarness) &&
+      snapshotRequestsNativeColdSession(candidate)
+    ) {
+      coldOwnedRoles.add(key);
+    }
+  }
   return tasks.filter((task) => {
-    if (!isNativePendingTaskNeedingWake(task)) return false;
+    if (!isNativePendingTaskNeedingWake(task, coldOwnedRoles)) return false;
     const { chatroomId, agentConfig } = task;
     if (!cooldown.canAttempt(chatroomId, agentConfig.role, 'wake', now)) return false;
     cooldown.recordAttempt(chatroomId, agentConfig.role, 'wake', now);

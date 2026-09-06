@@ -14,7 +14,10 @@ import {
   explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
 } from './native-task-injector-logic.js';
-import { runNativeInjectionEffect } from './native-task-injector.js';
+import {
+  runNativeInjectionEffect,
+  type NativeDeliverySessionHandles,
+} from './native-task-injector.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
@@ -34,15 +37,8 @@ import { getRoleDeliveryState } from '../role-delivery-state.js';
 type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskDeliveryContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
-export interface NativeTaskDeliverySessionDeps {
-  sessionId: string;
+export interface NativeTaskDeliverySessionDeps extends NativeDeliverySessionHandles {
   convexUrl: string;
-  machineId: string;
-  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
-  backend: {
-    mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
-    query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
-  };
 }
 
 export interface NativeSessionLostParams {
@@ -112,16 +108,10 @@ export class NativeTaskDeliveryCoordinator {
         continue;
       }
 
+      // Absent harness id is represented as absent (never a pretend
+      // session). Cold policy creates a real session inside the injector;
+      // continue policy without a session fails before receipt/injection.
       const harnessSessionId = slot?.harnessSessionId;
-      if (!harnessSessionId) {
-        logNativeDeliverySkip(
-          role,
-          row.chatroomId,
-          row.taskId,
-          'harness_session_missing (pre-gate)'
-        );
-        continue;
-      }
 
       const ledgerBlock = explainLedgerDeliveryBlock(row.taskId, harnessSessionId, ledger);
       if (ledgerBlock) {
@@ -139,7 +129,7 @@ export class NativeTaskDeliveryCoordinator {
       }
 
       if (!deliveryState.tryAcquireDelivery(row.chatroomId, role)) {
-        ledger.clearDelivery(row.taskId, harnessSessionId);
+        ledger.releaseAttempt(row.taskId);
         logNativeDeliveryMutexSkip(role, row.chatroomId, row.taskId);
         continue;
       }
@@ -184,9 +174,14 @@ export class NativeTaskDeliveryCoordinator {
               getSlot: (chatroomId, role) => agentMgr.getSlot(chatroomId, role),
             },
             convexUrl: sessionDeps.convexUrl,
-            onTaskDelivered: ({ chatroomId, role, taskId: deliveredTaskId }) => {
+            onTaskDelivered: ({
+              chatroomId,
+              role,
+              taskId: deliveredTaskId,
+              harnessSessionId: resolvedSessionId,
+            }) => {
               deliveredToHarness = true;
-              ledger.markDelivered(deliveredTaskId, harnessSessionId);
+              ledger.markDelivered(deliveredTaskId, resolvedSessionId);
               Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, deliveredTaskId));
               deliveryState.clearNativeNudgeFailures(chatroomId, role);
             },
@@ -203,8 +198,11 @@ export class NativeTaskDeliveryCoordinator {
           Effect.ensuring(
             Effect.sync(() => {
               deliveryState.releaseDelivery(row.chatroomId, row.agentConfig.role);
+              // Finalizer always releases the attempt, including success
+              // (markDelivered already released), missing hydrate/outbox,
+              // claim/start/prompt failure, and interruption.
               if (!deliveredToHarness) {
-                ledger.clearDelivery(taskId, harnessSessionId);
+                ledger.releaseAttempt(taskId);
               }
             })
           )

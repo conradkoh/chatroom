@@ -30,7 +30,16 @@ async function waitForHarnessSessionId(
   return null;
 }
 
-/** Cold-restart native harness when the task requests a new session. */
+/**
+ * Cold-restart native harness when the task requests a new session.
+ *
+ * Constraints:
+ * - Missing/idle slots start directly with `wantResume: false` (no stop).
+ * - A running old session must stop successfully before starting; a failed
+ *   stop never proceeds to start/inject.
+ * - Spawning or stopping slots are transitions: wait for reconciliation
+ *   instead of launching another operation.
+ */
 // fallow-ignore-next-line complexity
 export async function ensureColdSessionBeforeNativeInject(
   task: AssignedTaskWithContent,
@@ -50,11 +59,19 @@ export async function ensureColdSessionBeforeNativeInject(
   const { role, agentHarness, model, workingDir } = agentConfig;
   if (!workingDir || !model) return null;
 
-  await deps.agentMgr.stop({
-    chatroomId,
-    role,
-    reason: AgentStopReasonEnum['platform.task_start_in_new_session'],
-  });
+  const slot = deps.agentMgr.getSlot(chatroomId, role);
+  const slotState = slot?.state;
+  if (slotState === 'spawning' || slotState === 'stopping') {
+    return null;
+  }
+  if (slotState === 'running') {
+    const stopped = await deps.agentMgr.stop({
+      chatroomId,
+      role,
+      reason: AgentStopReasonEnum['platform.task_start_in_new_session'],
+    });
+    if (!stopped?.success) return null;
+  }
 
   const spawn = await deps.agentMgr.ensureRunning({
     chatroomId,

@@ -215,9 +215,9 @@ async function deliverOneTask(
           ensureRunning: (opts) => Effect.runPromise(deps.agentMgr.ensureRunning(opts)),
           getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
         },
-        onTaskDelivered: ({ chatroomId, role, taskId }) => {
+        onTaskDelivered: ({ chatroomId, role, taskId, harnessSessionId: resolvedSessionId }) => {
           deliveredToHarness = true;
-          ledger.markDelivered(taskId, harnessSessionId);
+          ledger.markDelivered(taskId, resolvedSessionId);
           void deps.agentMgr.setLastInFlightTask(chatroomId, role, taskId);
         },
       })
@@ -230,7 +230,7 @@ async function deliverOneTask(
     return false;
   } finally {
     if (!deliveredToHarness) {
-      ledger.clearDelivery(snapshot.taskId as string, harnessSessionId);
+      ledger.releaseAttempt(snapshot.taskId as string);
     }
   }
 }

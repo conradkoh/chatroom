@@ -41,7 +41,13 @@ function createAgentMgrMocks(
     resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue({ success: true }),
     ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
-    getSlot: vi.fn().mockReturnValue({ harnessSessionId: 'sess_cold' }),
+    // Existing running session with old context: cold path must stop it first.
+    getSlot: vi.fn().mockReturnValue({
+      state: 'running',
+      pid: 4242,
+      harnessSessionId: 'sess_cold',
+      nativeTurnPhase: 'idle',
+    }),
     ...overrides,
   };
 }

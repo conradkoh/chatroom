@@ -196,6 +196,26 @@ async function clearStuckStoppingSlotIfNeeded(
   }
 }
 
+/**
+ * Normalize expired stopping slots before ownership selection, so a cold
+ * delivery decision and recovery suppression observe the same lifecycle.
+ * Restart-in-flight roles are excluded; local process-manager stop intent
+ * remains authoritative elsewhere.
+ */
+async function normalizeStuckStoppingSlots(
+  tasks: AssignedTaskSnapshotView[],
+  agentMgr: DaemonAgentProcessManagerServiceShape
+): Promise<void> {
+  const seen = new Set<string>();
+  for (const row of tasks) {
+    const key = `${row.chatroomId}:${row.agentConfig.role.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
+    await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
+  }
+}
+
 async function reviveNativeTasks(
   tasks: AssignedTaskSnapshotView[],
   localHealth: {
@@ -215,7 +235,6 @@ async function reviveNativeTasks(
 ): Promise<void> {
   for (const row of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
     if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
-    await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
     runNativeReviveEffect(full, runtime, effectContext, agentMgr);
@@ -234,7 +253,6 @@ async function wakeStoppedAgentsForPendingTasks(
 ): Promise<void> {
   for (const row of listNativePendingTasksNeedingWake(tasks, cooldown, now)) {
     if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
-    await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
     runNativeWakeEffect(full, runtime, effectContext, agentMgr);
@@ -260,6 +278,8 @@ export async function processTasksUpdate(
     getSlot: (chatroomId: string, role: string) => agentMgr.getSlot(chatroomId, role),
     isPidAlive: (pid: number) => isProcessAlive((p) => process.kill(p, 0), pid),
   };
+
+  await normalizeStuckStoppingSlots(filteredTasks, agentMgr);
 
   await wakeStoppedAgentsForPendingTasks(
     filteredTasks,
