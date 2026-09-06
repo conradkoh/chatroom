@@ -7,7 +7,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { internal } from '../../convex/_generated/api';
+import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import {
   deleteCliSessionLastUsedAt,
@@ -370,5 +370,261 @@ describe('last-at projections: backfills', () => {
     // Legacy fields untouched.
     expect(result.cliSource?.lastUsedAt).toBe(1000);
     expect(result.machineSource?.lastSeenAt).toBe(3000);
+  });
+});
+
+describe('last-at projections: session dual writes', () => {
+  test('cliAuth.approveAuthRequest dual-writes cli projection', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-approve-${suffix}`);
+
+    const { requestId } = await t.mutation(api.cliAuth.createAuthRequest, {
+      deviceName: `device-${suffix}`,
+    });
+    const approved = await t.mutation(api.cliAuth.approveAuthRequest, {
+      requestId,
+      sessionId,
+    });
+    expect(approved).toEqual({ success: true });
+
+    const status = await t.query(api.cliAuth.getAuthRequestStatus, { requestId });
+    if (status.status !== 'approved') throw new Error('expected approved auth request');
+    const publicCliSessionId = status.sessionId;
+
+    const result = await t.run(async (ctx: any) => {
+      const parent = await ctx.db
+        .query('cliSessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', publicCliSessionId))
+        .unique();
+      if (!parent) throw new Error('cliSessions parent not found');
+      const projection = await ctx.db
+        .query('chatroom_cliSessionLastUsedAt')
+        .withIndex('by_cliSessionId', (q: any) => q.eq('cliSessionId', parent._id))
+        .unique();
+      return { parent, projection };
+    });
+    expect(result.parent.lastUsedAt).toEqual(expect.any(Number));
+    expect(result.projection).not.toBeNull();
+    expect(result.projection.lastUsedAt).toBe(result.parent.lastUsedAt);
+  });
+
+  test('cliAuth.touchSession advances parent and projection together', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-touch-${suffix}`);
+
+    const { requestId } = await t.mutation(api.cliAuth.createAuthRequest, {});
+    const approved = await t.mutation(api.cliAuth.approveAuthRequest, {
+      requestId,
+      sessionId,
+    });
+    expect(approved).toEqual({ success: true });
+    const status = await t.query(api.cliAuth.getAuthRequestStatus, { requestId });
+    if (status.status !== 'approved') throw new Error('expected approved auth request');
+
+    const touched = await t.mutation(api.cliAuth.touchSession, {
+      sessionId: status.sessionId as any,
+    });
+    expect(touched).toBe(true);
+
+    const result = await t.run(async (ctx: any) => {
+      const parent = await ctx.db
+        .query('cliSessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', status.sessionId))
+        .unique();
+      if (!parent) throw new Error('cliSessions parent not found');
+      const projection = await ctx.db
+        .query('chatroom_cliSessionLastUsedAt')
+        .withIndex('by_cliSessionId', (q: any) => q.eq('cliSessionId', parent._id))
+        .unique();
+      return { parent, projection };
+    });
+    expect(result.projection).not.toBeNull();
+    expect(result.projection.lastUsedAt).toBe(result.parent.lastUsedAt);
+  });
+
+  test('sessions.updateSessionActivity dual-writes session projection', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-activity-${suffix}`);
+
+    const updated = await t.mutation(api.sessions.updateSessionActivity, { sessionId });
+    expect(updated).toEqual({ success: true });
+
+    const result = await t.run(async (ctx: any) => {
+      const parent = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!parent) throw new Error('sessions parent not found');
+      const projection = await ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', parent._id))
+        .unique();
+      return { parent, projection };
+    });
+    expect(Number.isFinite(result.parent.lastActivityAt)).toBe(true);
+    expect(result.projection).not.toBeNull();
+    expect(result.projection.lastActivityAt).toBe(result.parent.lastActivityAt);
+  });
+
+  test('sessions.updateSessionDeviceInfo dual-writes session projection', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-device-${suffix}`);
+
+    const parentDocId = await t.run(async (ctx: any) => {
+      const parent = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!parent) throw new Error('sessions parent not found');
+      return parent._id;
+    });
+
+    const lastActivityAt = Date.now() + 60_000;
+    await t.mutation(internal.sessions.updateSessionDeviceInfo, {
+      sessionId: parentDocId,
+      deviceInfo: { userAgent: `ua-${suffix}` },
+      lastActivityAt,
+    });
+
+    const result = await t.run(async (ctx: any) => {
+      const parent = await ctx.db.get(parentDocId);
+      const projection = await ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', parentDocId))
+        .unique();
+      return { parent, projection };
+    });
+    expect(result.parent.lastActivityAt).toBe(lastActivityAt);
+    expect(result.projection).not.toBeNull();
+    expect(result.projection.lastActivityAt).toBe(lastActivityAt);
+  });
+
+  test('auth.logout removes the web session projection', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-logout-${suffix}`);
+    await t.mutation(api.sessions.updateSessionActivity, { sessionId });
+
+    const parentDocId: Id<'sessions'> = await t.run(async (ctx: any) => {
+      const parent = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!parent) throw new Error('sessions parent not found');
+      return parent._id;
+    });
+    const before = await t.run(async (ctx: any) =>
+      ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', parentDocId))
+        .unique()
+    );
+    expect(before).not.toBeNull();
+
+    await t.mutation(api.auth.logout, { sessionId });
+
+    const after = await t.run(async (ctx: any) => ({
+      parent: await ctx.db.get(parentDocId),
+      projection: await ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', parentDocId))
+        .unique(),
+    }));
+    expect(after.parent).toBeNull();
+    expect(after.projection).toBeNull();
+  });
+
+  test('sessions.revokeSession removes target projection, retains current', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-revoke-${suffix}`);
+    await t.mutation(api.sessions.updateSessionActivity, { sessionId });
+
+    const ids = await t.run(async (ctx: any) => {
+      const current = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!current) throw new Error('current session not found');
+      const otherPublicId = `lastat-revoke-other-${suffix}`;
+      const otherDocId = await ctx.db.insert('sessions', {
+        sessionId: otherPublicId,
+        userId: current.userId,
+        createdAt: 1_000,
+        lastActivityAt: 2_000,
+      });
+      await upsertSessionLastActivityAt(ctx, otherDocId, 2_000);
+      await upsertSessionLastActivityAt(ctx, current._id, current.lastActivityAt ?? Date.now());
+      return { currentDocId: current._id, otherDocId };
+    });
+
+    const revoked = await t.mutation(api.sessions.revokeSession, {
+      sessionIdToRevoke: ids.otherDocId,
+      sessionId,
+    });
+    expect(revoked).toEqual({ success: true });
+
+    const result = await t.run(async (ctx: any) => ({
+      targetParent: await ctx.db.get(ids.otherDocId),
+      targetProjection: await ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', ids.otherDocId))
+        .unique(),
+      currentProjection: await ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', ids.currentDocId))
+        .unique(),
+    }));
+    expect(result.targetParent).toBeNull();
+    expect(result.targetProjection).toBeNull();
+    expect(result.currentProjection).not.toBeNull();
+  });
+
+  test('sessions.revokeAllOtherSessions removes all revoked projections', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-revoke-all-${suffix}`);
+    await t.mutation(api.sessions.updateSessionActivity, { sessionId });
+
+    const ids = await t.run(async (ctx: any) => {
+      const current = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!current) throw new Error('current session not found');
+      const others: Id<'sessions'>[] = [];
+      for (let i = 0; i < 2; i++) {
+        const docId = await ctx.db.insert('sessions', {
+          sessionId: `lastat-revoke-all-other-${suffix}-${i}`,
+          userId: current.userId,
+          createdAt: 1_000,
+          lastActivityAt: 3_000 + i,
+        });
+        await upsertSessionLastActivityAt(ctx, docId, 3_000 + i);
+        others.push(docId);
+      }
+      await upsertSessionLastActivityAt(ctx, current._id, current.lastActivityAt ?? Date.now());
+      return { currentDocId: current._id, others };
+    });
+
+    const revoked = await t.mutation(api.sessions.revokeAllOtherSessions, { sessionId });
+    expect(revoked.success).toBe(true);
+    expect(revoked.revokedCount).toBe(2);
+
+    const result = await t.run(async (ctx: any) => {
+      const projections = [];
+      for (const docId of ids.others) {
+        projections.push(
+          await ctx.db
+            .query('chatroom_sessionLastActivityAt')
+            .withIndex('by_sessionId', (q: any) => q.eq('sessionId', docId))
+            .unique()
+        );
+      }
+      const currentProjection = await ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', ids.currentDocId))
+        .unique();
+      return { projections, currentProjection };
+    });
+    expect(result.projections).toEqual([null, null]);
+    expect(result.currentProjection).not.toBeNull();
   });
 });

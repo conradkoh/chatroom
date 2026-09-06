@@ -3,6 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
+import { deleteSessionLastActivityAt, upsertSessionLastActivityAt } from './lib/lastAtProjections';
 
 /**
  * Device info for session tracking.
@@ -119,6 +120,7 @@ export const revokeSession = mutation({
 
     // Delete the session
     await ctx.db.delete('sessions', args.sessionIdToRevoke);
+    await deleteSessionLastActivityAt(ctx, sessionToRevoke._id);
 
     return { success: true };
   },
@@ -160,6 +162,7 @@ export const revokeAllOtherSessions = mutation({
     let revokedCount = 0;
     for (const session of otherSessions) {
       await ctx.db.delete('sessions', session._id);
+      await deleteSessionLastActivityAt(ctx, session._id);
       revokedCount++;
     }
 
@@ -205,6 +208,7 @@ export const updateSessionActivity = mutation({
     }
 
     await ctx.db.patch('sessions', currentSession._id, updates);
+    await upsertSessionLastActivityAt(ctx, currentSession._id, now);
 
     return { success: true };
   },
@@ -229,5 +233,6 @@ export const updateSessionDeviceInfo = internalMutation({
       deviceInfo: args.deviceInfo,
       lastActivityAt: args.lastActivityAt,
     });
+    await upsertSessionLastActivityAt(ctx, args.sessionId, args.lastActivityAt);
   },
 });

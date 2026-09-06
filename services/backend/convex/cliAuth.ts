@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
+import { upsertCliSessionLastUsedAt } from './lib/lastAtProjections';
 import { omitUndefined } from './lib/omitUndefined';
 
 // Auth request expires after 5 minutes
@@ -212,7 +213,7 @@ export const approveAuthRequest = mutation({
     const cliSessionId = generateId(64);
 
     // Create CLI session
-    await ctx.db.insert('cliSessions', {
+    const cliSessionDocId = await ctx.db.insert('cliSessions', {
       sessionId: cliSessionId,
       userId: session.userId,
       isActive: true,
@@ -222,6 +223,7 @@ export const approveAuthRequest = mutation({
       lastUsedAt: now,
       expiresAt: now + CLI_SESSION_EXPIRY_MS,
     });
+    await upsertCliSessionLastUsedAt(ctx, cliSessionDocId, now);
 
     // Update auth request
     await ctx.db.patch('cliAuthRequests', request._id, {
@@ -348,13 +350,15 @@ export const touchSession = mutation({
       return false;
     }
 
+    const now = Date.now();
     await ctx.db.patch('cliSessions', session._id, {
-      lastUsedAt: Date.now(),
+      lastUsedAt: now,
       // Extend expiry on each touch (sliding window) so active sessions
       // never expire while in use. The fixed creation-time expiry was
       // causing daemon sessions to silently die after 30 days.
-      expiresAt: Date.now() + CLI_SESSION_EXPIRY_MS,
+      expiresAt: now + CLI_SESSION_EXPIRY_MS,
     });
+    await upsertCliSessionLastUsedAt(ctx, session._id, now);
 
     return true;
   },
