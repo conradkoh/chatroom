@@ -65,7 +65,8 @@ describe('task inbox delivery integration', () => {
   });
 
   test('delivers a pending snapshot through the native coordinator', async () => {
-    const agentMgr = createAgentMgrMock();
+    const clearStuckStoppingSlot = vi.fn().mockResolvedValue(false);
+    const agentMgr = createAgentMgrMock({ clearStuckStoppingSlot });
     const sessionDeps = {
       sessionId: 'session-1',
       convexUrl: 'http://test',
@@ -101,6 +102,9 @@ describe('task inbox delivery integration', () => {
       }
     );
     await vi.waitFor(() => expect(runNativeInjectionEffect).toHaveBeenCalled());
+    expect(clearStuckStoppingSlot).toHaveBeenCalledWith('room-1', 'builder', {
+      clearStopIntent: true,
+    });
   });
 
   test('does not inject a replayed inbox snapshot twice', async () => {
