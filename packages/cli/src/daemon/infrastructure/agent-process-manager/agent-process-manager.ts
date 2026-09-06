@@ -1381,10 +1381,14 @@ export class AgentProcessManager {
     if (elapsed < STOPPING_TIMEOUT_MS) {
       return false;
     }
-    await this.forceClearStuckStoppingSlot(key, slot, chatroomId, role, 'daemon.stop_timeout');
-    if (options?.clearStopIntent) {
-      this.clearStopIntent(slot);
-    }
+    await this.forceClearStuckStoppingSlot(
+      key,
+      slot,
+      chatroomId,
+      role,
+      'daemon.stop_timeout',
+      options?.clearStopIntent
+    );
     console.warn(`[AgentProcessManager] ⚠️ Cleared stuck stopping slot for ${role}@${chatroomId}`);
     return true;
   }
@@ -2578,7 +2582,8 @@ export class AgentProcessManager {
     slot: AgentSlot,
     chatroomId: string,
     role: string,
-    reason: 'daemon.stop_timeout'
+    reason: 'daemon.stop_timeout',
+    clearStopIntent = false
   ): Promise<void> {
     const pid = slot.pid;
     const harness = slot.harness;
@@ -2590,6 +2595,11 @@ export class AgentProcessManager {
 
     this.bumpStopGeneration(slot);
     this.clearSlotRuntimeState(slot);
+    // Clear the expired intent in the same synchronous transition as the slot.
+    // Doing this after awaited cleanup could erase a newer stop request.
+    if (clearStopIntent) {
+      this.clearStopIntent(slot);
+    }
 
     void logDaemonAuditEvent(this.deps.logEvent, {
       type: 'agent.stopTimeout',
