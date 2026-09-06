@@ -58,15 +58,24 @@ export const listMySessions = query({
       .withIndex('by_userId', (q) => q.eq('userId', currentSession.userId))
       .collect();
 
-    // Map to session info, marking the current session
-    const sessions: SessionInfo[] = allSessions.map((session) => ({
-      _id: session._id,
-      createdAt: session.createdAt,
-      lastActivityAt: session.lastActivityAt,
-      authMethod: session.authMethod,
-      deviceInfo: session.deviceInfo,
-      isCurrent: session.sessionId === args.sessionId,
-    }));
+    // Map to session info, marking the current session.
+    // Read the last-activity projection first, falling back to the legacy
+    // parent field for sessions without a projection row (compatibility).
+    const sessions: SessionInfo[] = [];
+    for (const session of allSessions) {
+      const projection = await ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', session._id))
+        .first();
+      sessions.push({
+        _id: session._id,
+        createdAt: session.createdAt,
+        lastActivityAt: projection?.lastActivityAt ?? session.lastActivityAt,
+        authMethod: session.authMethod,
+        deviceInfo: session.deviceInfo,
+        isCurrent: session.sessionId === args.sessionId,
+      });
+    }
 
     // Sort by last activity (most recent first), with current session at top
     sessions.sort((a, b) => {

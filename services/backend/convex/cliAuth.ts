@@ -451,15 +451,25 @@ export const listUserSessions = query({
       .withIndex('by_userId', (q) => q.eq('userId', userId))
       .collect();
 
-    return sessions.map((s) =>
-      omitUndefined({
-        sessionId: s.sessionId,
-        deviceName: s.deviceName,
-        cliVersion: s.cliVersion,
-        createdAt: s.createdAt,
-        lastUsedAt: s.lastUsedAt,
-        isActive: s.isActive,
-      })
-    );
+    // Read the last-used projection first, falling back to the legacy
+    // parent field for sessions without a projection row (compatibility).
+    const result = [];
+    for (const s of sessions) {
+      const projection = await ctx.db
+        .query('chatroom_cliSessionLastUsedAt')
+        .withIndex('by_cliSessionId', (q) => q.eq('cliSessionId', s._id))
+        .first();
+      result.push(
+        omitUndefined({
+          sessionId: s.sessionId,
+          deviceName: s.deviceName,
+          cliVersion: s.cliVersion,
+          createdAt: s.createdAt,
+          lastUsedAt: projection?.lastUsedAt ?? s.lastUsedAt,
+          isActive: s.isActive,
+        })
+      );
+    }
+    return result;
   },
 });

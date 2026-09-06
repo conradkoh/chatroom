@@ -825,3 +825,242 @@ describe('last-at projections: machine dual writes', () => {
     expect(after.projection).toBeNull();
   });
 });
+
+describe('last-at projections: projection-backed readers and cleanup', () => {
+  test('sessions.listMySessions prefers projection, falls back to legacy', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-reader-session-${suffix}`);
+
+    const ids = await t.run(async (ctx: any) => {
+      const current = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!current) throw new Error('current session not found');
+      // Legacy 2_000 with a newer projection 9_000: reader must return 9_000.
+      const projectedDocId = await ctx.db.insert('sessions', {
+        sessionId: `lastat-reader-projected-${suffix}`,
+        userId: current.userId,
+        createdAt: 1_000,
+        lastActivityAt: 2_000,
+      });
+      await upsertSessionLastActivityAt(ctx, projectedDocId, 9_000);
+      // Legacy-only session: reader must fall back to 3_000.
+      const legacyDocId = await ctx.db.insert('sessions', {
+        sessionId: `lastat-reader-legacy-${suffix}`,
+        userId: current.userId,
+        createdAt: 1_000,
+        lastActivityAt: 3_000,
+      });
+      return { projectedDocId, legacyDocId };
+    });
+
+    const result = await t.query(api.sessions.listMySessions, { sessionId });
+    expect(result.success).toBe(true);
+    const sessions = result.sessions ?? [];
+    // Current session stays on top; shape preserved.
+    expect(sessions[0]?.isCurrent).toBe(true);
+    const projected = sessions.find((s: any) => String(s._id) === String(ids.projectedDocId));
+    const legacy = sessions.find((s: any) => String(s._id) === String(ids.legacyDocId));
+    expect(projected?.lastActivityAt).toBe(9_000);
+    expect(legacy?.lastActivityAt).toBe(3_000);
+  });
+
+  test('cliAuth.listUserSessions prefers projection, falls back to legacy', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-reader-cli-${suffix}`);
+
+    await t.run(async (ctx: any) => {
+      const current = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!current) throw new Error('current session not found');
+      const projectedPublicId = `lastat-cli-projected-${suffix}`;
+      const projectedDocId = await ctx.db.insert('cliSessions', {
+        sessionId: projectedPublicId,
+        userId: current.userId,
+        isActive: true,
+        createdAt: 1_000,
+        lastUsedAt: 1_000,
+      });
+      await upsertCliSessionLastUsedAt(ctx, projectedDocId, 5_000);
+      await ctx.db.insert('cliSessions', {
+        sessionId: `lastat-cli-legacy-${suffix}`,
+        userId: current.userId,
+        isActive: true,
+        createdAt: 1_000,
+        lastUsedAt: 2_000,
+      });
+    });
+
+    const result = await t.query(api.cliAuth.listUserSessions, { sessionId });
+    const projected = result.find((s: any) => s.sessionId === `lastat-cli-projected-${suffix}`);
+    const legacy = result.find((s: any) => s.sessionId === `lastat-cli-legacy-${suffix}`);
+    // Required numeric shape preserved; projection wins when present.
+    expect(projected?.lastUsedAt).toBe(5_000);
+    expect(legacy?.lastUsedAt).toBe(2_000);
+  });
+
+  test('cleanupCliSessions stale pass is projection-driven, handles orphans and inactive', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-cli-cleanup-${suffix}`);
+    const now = Date.now();
+    const stale = now - 91 * 24 * 60 * 60 * 1000;
+
+    const ids = await t.run(async (ctx: any) => {
+      const current = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!current) throw new Error('current session not found');
+      // Fresh legacy parent, stale projection: only the projection scan selects it.
+      const staleDocId = await ctx.db.insert('cliSessions', {
+        sessionId: `lastat-cli-stale-${suffix}`,
+        userId: current.userId,
+        isActive: true,
+        createdAt: now,
+        lastUsedAt: now,
+      });
+      await upsertCliSessionLastUsedAt(ctx, staleDocId, stale);
+      // Inactive parent with stale projection: projection row must go too.
+      const inactiveDocId = await ctx.db.insert('cliSessions', {
+        sessionId: `lastat-cli-inactive-${suffix}`,
+        userId: current.userId,
+        isActive: false,
+        createdAt: now,
+        lastUsedAt: now,
+      });
+      await upsertCliSessionLastUsedAt(ctx, inactiveDocId, stale);
+      // Orphan projection: parent deleted before cleanup runs.
+      const orphanDocId = await ctx.db.insert('cliSessions', {
+        sessionId: `lastat-cli-orphan-${suffix}`,
+        userId: current.userId,
+        isActive: true,
+        createdAt: now,
+        lastUsedAt: now,
+      });
+      await upsertCliSessionLastUsedAt(ctx, orphanDocId, stale);
+      await ctx.db.delete('cliSessions', orphanDocId);
+      // Fresh parent + fresh projection: must survive.
+      const freshDocId = await ctx.db.insert('cliSessions', {
+        sessionId: `lastat-cli-fresh-${suffix}`,
+        userId: current.userId,
+        isActive: true,
+        createdAt: now,
+        lastUsedAt: now,
+      });
+      await upsertCliSessionLastUsedAt(ctx, freshDocId, now);
+      return { staleDocId, inactiveDocId, orphanDocId, freshDocId };
+    });
+
+    await t.mutation(internal.chatroomCleanup.cleanupCliSessions, {});
+
+    const after = await t.run(async (ctx: any) => {
+      const read = async (docId: any) => ({
+        parent: await ctx.db.get(docId),
+        projection: await ctx.db
+          .query('chatroom_cliSessionLastUsedAt')
+          .withIndex('by_cliSessionId', (q: any) => q.eq('cliSessionId', docId))
+          .unique(),
+      });
+      return {
+        stale: await read(ids.staleDocId),
+        inactive: await read(ids.inactiveDocId),
+        orphan: await read(ids.orphanDocId),
+        fresh: await read(ids.freshDocId),
+      };
+    });
+    expect(after.stale.parent).toBeNull();
+    expect(after.stale.projection).toBeNull();
+    expect(after.inactive.parent).toBeNull();
+    expect(after.inactive.projection).toBeNull();
+    expect(after.orphan.projection).toBeNull();
+    expect(after.fresh.parent).not.toBeNull();
+    expect(after.fresh.projection?.lastUsedAt).toBe(now);
+  });
+
+  test('cleanupMachines selects by projection even when legacy is newer', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-machine-proj-cleanup-${suffix}`);
+    const now = Date.now();
+    const stale = now - 91 * 24 * 60 * 60 * 1000;
+    const staleMachineId = `lastat-mproj-stale-${suffix}`;
+    const freshMachineId = `lastat-mproj-fresh-${suffix}`;
+    const orphanMachineId = `lastat-mproj-orphan-${suffix}`;
+
+    await t.run(async (ctx: any) => {
+      const session = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!session) throw new Error('test session not found');
+      // Fresh legacy field, stale projection: only the projection scan selects it.
+      await ctx.db.insert('chatroom_machines', {
+        machineId: staleMachineId,
+        userId: session.userId,
+        hostname: 'test-host',
+        os: 'darwin',
+        availableHarnesses: ['opencode'],
+        registeredAt: now,
+        lastSeenAt: now,
+        daemonConnected: false,
+      });
+      await upsertMachineLastSeenAt(ctx, staleMachineId, stale);
+      // Orphan projection: parent deleted before cleanup runs.
+      await ctx.db.insert('chatroom_machines', {
+        machineId: orphanMachineId,
+        userId: session.userId,
+        hostname: 'test-host',
+        os: 'darwin',
+        availableHarnesses: ['opencode'],
+        registeredAt: now,
+        lastSeenAt: now,
+        daemonConnected: false,
+      });
+      await upsertMachineLastSeenAt(ctx, orphanMachineId, stale);
+      const orphanParent = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q: any) => q.eq('machineId', orphanMachineId))
+        .unique();
+      await ctx.db.delete('chatroom_machines', orphanParent._id);
+      // Fresh parent + fresh projection: must survive.
+      await ctx.db.insert('chatroom_machines', {
+        machineId: freshMachineId,
+        userId: session.userId,
+        hostname: 'test-host',
+        os: 'darwin',
+        availableHarnesses: ['opencode'],
+        registeredAt: now,
+        lastSeenAt: now,
+        daemonConnected: false,
+      });
+      await upsertMachineLastSeenAt(ctx, freshMachineId, now);
+    });
+
+    await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+
+    const after = await t.run(async (ctx: any) => {
+      const read = async (mid: string) => ({
+        parent: await ctx.db
+          .query('chatroom_machines')
+          .withIndex('by_machineId', (q: any) => q.eq('machineId', mid))
+          .unique(),
+        projection: await ctx.db
+          .query('chatroom_machineLastSeenAt')
+          .withIndex('by_machineId', (q: any) => q.eq('machineId', mid))
+          .unique(),
+      });
+      return {
+        stale: await read(staleMachineId),
+        orphan: await read(orphanMachineId),
+        fresh: await read(freshMachineId),
+      };
+    });
+    expect(after.stale.parent).toBeNull();
+    expect(after.stale.projection).toBeNull();
+    expect(after.orphan.projection).toBeNull();
+    expect(after.fresh.parent).not.toBeNull();
+    expect(after.fresh.projection?.lastSeenAt).toBe(now);
+  });
+});
