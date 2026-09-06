@@ -1825,6 +1825,51 @@ describe('AgentProcessManager', () => {
       );
     });
 
+    test('can clear stale stop intent for task-delivery recovery', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - 31_000;
+
+      const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE, {
+        clearStopIntent: true,
+      });
+
+      expect(cleared).toBe(true);
+      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(false);
+      const result = await manager.ensureRunning(
+        createOpts({ reason: 'platform.task_monitor_nudge' })
+      );
+      expect(result.success).toBe(true);
+    });
+
+    test('preserves a new stop intent requested during force-clear cleanup', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - 31_000;
+
+      let finishPidCleanup!: () => void;
+      const pidCleanup = new Promise<void>((resolve) => {
+        finishPidCleanup = resolve;
+      });
+      (deps.persistence.clearAgentPid as ReturnType<typeof vi.fn>).mockReturnValueOnce(pidCleanup);
+
+      const clearing = manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE, {
+        clearStopIntent: true,
+      });
+      await vi.waitFor(() => expect(slot.state).toBe('idle'));
+
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop');
+      finishPidCleanup();
+      await clearing;
+
+      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(true);
+      expect(slot.expectedStopReason).toBe('user.stop');
+    });
+
     test('does not clear stopping slot within timeout window', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
