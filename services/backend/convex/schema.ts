@@ -956,6 +956,30 @@ export default defineSchema({
     .index('by_userId_active', ['userId', 'isActive']),
 
   /**
+   * Projection of cliSessions.lastUsedAt for ordered cleanup scans.
+   * One row per CLI session; eventual source of truth for last-use recency.
+   * Legacy `cliSessions.lastUsedAt` remains authoritative until later slices.
+   */
+  chatroom_cliSessionLastUsedAt: defineTable({
+    cliSessionId: v.id('cliSessions'),
+    lastUsedAt: v.number(),
+  })
+    .index('by_cliSessionId', ['cliSessionId'])
+    .index('by_lastUsedAt', ['lastUsedAt']),
+
+  /**
+   * Projection of sessions.lastActivityAt for ordered cleanup scans.
+   * One row per web session; eventual source of truth for activity recency.
+   * Legacy `sessions.lastActivityAt` remains authoritative until later slices.
+   */
+  chatroom_sessionLastActivityAt: defineTable({
+    sessionId: v.id('sessions'),
+    lastActivityAt: v.number(),
+  })
+    .index('by_sessionId', ['sessionId'])
+    .index('by_lastActivityAt', ['lastActivityAt']),
+
+  /**
    * User favorites for chatrooms.
    * Tracks which chatrooms a user has marked as favorite for quick access.
    */
@@ -1088,6 +1112,19 @@ export default defineSchema({
     // Convex mutations are serializable, so the check-then-insert is race-safe.
     .index('by_machineId', ['machineId'])
     .index('by_userId', ['userId']),
+
+  /**
+   * Projection of legacy chatroom_machines.lastSeenAt for ordered cleanup scans.
+   * One row per stable string machineId; eventual source of truth for machine
+   * cleanup recency. Distinct from chatroom_machineLiveness.lastSeenAt, which
+   * remains the authoritative daemon-heartbeat projection.
+   */
+  chatroom_machineLastSeenAt: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_lastSeenAt', ['lastSeenAt']),
 
   /**
    * Machine liveness data - volatile fields separated from the main machine record
