@@ -65,9 +65,7 @@ function modeButtonClass(mode: ConversationMode, compact: boolean): string {
     'p-1.5 rounded transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50',
     mode === 'code:enhanced'
       ? 'text-blue-500 dark:text-blue-400'
-      : mode === 'chat'
-        ? 'text-emerald-500 dark:text-emerald-400'
-        : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+      : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
   );
 }
 
