@@ -92,13 +92,15 @@ export const setUserAccessLevelDefault = migrations.define({
 });
 
 // --- Last-at projections ---
-// Retained backfills for the slim timestamp projection tables. The legacy
-// source fields have been removed from the schema, but already-deployed rows
-// may still carry them as stored data, so each backfill reads the historical
-// value through a narrow legacy cast and skips rows without one. Each backfill
-// only advances its projection row and never patches a legacy field. Safe to
-// rerun: an existing newer projection value is preserved (Math.max semantics).
-// Once all environments have run these, they become no-ops.
+// Compatibility phase: the legacy parent fields remain optional schema
+// validators and retained stored values are migration inputs only. Runtime
+// callers use the projection tables. Keep these validators/values until all
+// environments have completed the registered backfills; a later release may
+// then remove the fields after that rollout gate.
+// Each backfill only advances its projection row and never patches a legacy
+// field. Safe to rerun: an existing newer projection value is preserved
+// (Math.max semantics). Once all environments have run these, they become
+// no-ops.
 
 /** Historical stored shape of cliSessions before lastUsedAt removal. */
 type LegacyCliSessionTimestamp = { lastUsedAt?: number };

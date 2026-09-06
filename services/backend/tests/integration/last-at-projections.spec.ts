@@ -2,11 +2,12 @@
  * Final slice: last-at timestamp projections as the runtime source of truth.
  *
  * Covers the canonical upsert/delete helpers, the retained historical
- * backfills (no-op for current-schema rows), projection-backed writers,
- * readers with safe fallbacks, ordered cleanup, and liveness separation.
- * The legacy parent fields (`cliSessions.lastUsedAt`,
- * `sessions.lastActivityAt`, `chatroom_machines.lastSeenAt`) are removed;
- * parents must not own them.
+ * backfills (which copy retained optional parent values), projection-backed
+ * writers, readers with safe fallbacks, ordered cleanup, and liveness
+ * separation. The legacy parent fields (`cliSessions.lastUsedAt`,
+ * `sessions.lastActivityAt`, `chatroom_machines.lastSeenAt`) are retained as
+ * optional migration inputs only; runtime writers omit them and runtime
+ * readers never use them.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -25,7 +26,7 @@ import { t } from '../../test.setup';
 import { createTestSession } from '../helpers/integration';
 import { TEST_MODEL_OPENCODE } from '../helpers/test-models';
 
-async function insertCliSession(): Promise<Id<'cliSessions'>> {
+async function insertCliSession(lastUsedAt?: number): Promise<Id<'cliSessions'>> {
   return await t.run(async (ctx: any) => {
     const user = await ctx.db.query('users').first();
     return await ctx.db.insert('cliSessions', {
@@ -33,21 +34,23 @@ async function insertCliSession(): Promise<Id<'cliSessions'>> {
       userId: user!._id,
       isActive: true,
       createdAt: 1_000,
+      ...(lastUsedAt !== undefined ? { lastUsedAt } : {}),
     });
   });
 }
 
-async function insertWebSession(): Promise<Id<'sessions'>> {
+async function insertWebSession(lastActivityAt?: number): Promise<Id<'sessions'>> {
   return await t.run(async (ctx: any) => {
     const sessionId = `web-${Math.random().toString(36).slice(2)}`;
     return await ctx.db.insert('sessions', {
       sessionId,
       createdAt: 1_000,
+      ...(lastActivityAt !== undefined ? { lastActivityAt } : {}),
     });
   });
 }
 
-async function insertMachine(machineId: string): Promise<void> {
+async function insertMachine(machineId: string, lastSeenAt?: number): Promise<void> {
   await t.run(async (ctx: any) => {
     const user = await ctx.db.query('users').first();
     await ctx.db.insert('chatroom_machines', {
@@ -58,11 +61,12 @@ async function insertMachine(machineId: string): Promise<void> {
       availableHarnesses: ['opencode'],
       registeredAt: 1_000,
       daemonConnected: false,
+      ...(lastSeenAt !== undefined ? { lastSeenAt } : {}),
     });
   });
 }
 
-/** Asserts the removed legacy parent fields are absent from a parent row. */
+/** Asserts a runtime-written parent omits the optional legacy timestamp field. */
 function expectNoLegacyTimestamp(parent: any, field: string): void {
   expect(Object.prototype.hasOwnProperty.call(parent, field)).toBe(false);
 }
@@ -283,84 +287,127 @@ describe('last-at projections: helpers', () => {
 });
 
 describe('last-at projections: backfills', () => {
-  test('backfills skip current-schema rows without historical fields (no-op)', async () => {
+  test('backfills copy historical values, preserve newer projections, stay idempotent', async () => {
     await createTestSession('lastat-backfill');
     const suffix = Math.random().toString(36).slice(2);
 
-    // Current-schema parents carry no legacy timestamp fields.
-    const cliSessionId = await insertCliSession();
-    const activeSessionId = await insertWebSession();
-    const idleSessionId = await insertWebSession();
+    // Historical parents carrying retained optional source values, no projections yet.
+    const cliSessionId = await insertCliSession(1_100);
+    const activeSessionId = await insertWebSession(1_300);
+    const idleSessionId = await insertWebSession(undefined);
     const machineId = `backfill-machine-${suffix}`;
-    await insertMachine(machineId);
-    // Seed one projection via the canonical helper to prove backfills
-    // preserve existing values (monotonic, no regression).
+    await insertMachine(machineId, 1_500);
+    // Separate parents with a newer pre-existing projection each: the older
+    // retained source value must not regress them.
+    const newerCliSessionId = await insertCliSession(1_100);
+    const newerSessionId = await insertWebSession(1_300);
+    const newerMachineId = `backfill-newer-machine-${suffix}`;
+    await insertMachine(newerMachineId, 1_500);
     await t.run(async (ctx: any) => {
-      await upsertCliSessionLastUsedAt(ctx, cliSessionId, 5000);
-      await upsertSessionLastActivityAt(ctx, activeSessionId, 9000);
-      await upsertMachineLastSeenAt(ctx, machineId, 8000);
+      await upsertCliSessionLastUsedAt(ctx, newerCliSessionId, 9_100);
+      await upsertSessionLastActivityAt(ctx, newerSessionId, 9_300);
+      await upsertMachineLastSeenAt(ctx, newerMachineId, 9_500);
     });
 
-    await t.mutation(internal.migrations.backfillCliSessionLastUsedAt, {
-      cursor: null,
-      batchSize: 100,
-    });
-    await t.mutation(internal.migrations.backfillSessionLastActivityAt, {
-      cursor: null,
-      batchSize: 100,
-    });
-    await t.mutation(internal.migrations.backfillMachineLastSeenAt, {
-      cursor: null,
-      batchSize: 100,
+    async function runAllBackfills(): Promise<void> {
+      await t.mutation(internal.migrations.backfillCliSessionLastUsedAt, {
+        cursor: null,
+        batchSize: 100,
+      });
+      await t.mutation(internal.migrations.backfillSessionLastActivityAt, {
+        cursor: null,
+        batchSize: 100,
+      });
+      await t.mutation(internal.migrations.backfillMachineLastSeenAt, {
+        cursor: null,
+        batchSize: 100,
+      });
+    }
+    await runAllBackfills();
+    // Second run proves idempotency.
+    await runAllBackfills();
+
+    const result = await t.run(async (ctx: any) => {
+      const collectBy = async (table: string, index: string, key: string, value: any) =>
+        ctx.db
+          .query(table)
+          .withIndex(index, (q: any) => q.eq(key, value))
+          .collect();
+      return {
+        cli: await collectBy(
+          'chatroom_cliSessionLastUsedAt',
+          'by_cliSessionId',
+          'cliSessionId',
+          cliSessionId
+        ),
+        active: await collectBy(
+          'chatroom_sessionLastActivityAt',
+          'by_sessionId',
+          'sessionId',
+          activeSessionId
+        ),
+        idle: await collectBy(
+          'chatroom_sessionLastActivityAt',
+          'by_sessionId',
+          'sessionId',
+          idleSessionId
+        ),
+        machine: await collectBy(
+          'chatroom_machineLastSeenAt',
+          'by_machineId',
+          'machineId',
+          machineId
+        ),
+        newerCli: await collectBy(
+          'chatroom_cliSessionLastUsedAt',
+          'by_cliSessionId',
+          'cliSessionId',
+          newerCliSessionId
+        ),
+        newerActive: await collectBy(
+          'chatroom_sessionLastActivityAt',
+          'by_sessionId',
+          'sessionId',
+          newerSessionId
+        ),
+        newerMachine: await collectBy(
+          'chatroom_machineLastSeenAt',
+          'by_machineId',
+          'machineId',
+          newerMachineId
+        ),
+        cliSource: await ctx.db.get(cliSessionId),
+        activeSource: await ctx.db.get(activeSessionId),
+        idleSource: await ctx.db.get(idleSessionId),
+        machineSource: await ctx.db
+          .query('chatroom_machines')
+          .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+          .first(),
+      };
     });
 
-    // Rerun to prove idempotency.
-    await t.mutation(internal.migrations.backfillCliSessionLastUsedAt, {
-      cursor: null,
-      batchSize: 100,
-    });
-    await t.mutation(internal.migrations.backfillSessionLastActivityAt, {
-      cursor: null,
-      batchSize: 100,
-    });
-    await t.mutation(internal.migrations.backfillMachineLastSeenAt, {
-      cursor: null,
-      batchSize: 100,
-    });
-
-    const result = await t.run(async (ctx: any) => ({
-      cli: await ctx.db
-        .query('chatroom_cliSessionLastUsedAt')
-        .withIndex('by_cliSessionId', (q: any) => q.eq('cliSessionId', cliSessionId))
-        .first(),
-      active: await ctx.db
-        .query('chatroom_sessionLastActivityAt')
-        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', activeSessionId))
-        .first(),
-      idle: await ctx.db
-        .query('chatroom_sessionLastActivityAt')
-        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', idleSessionId))
-        .first(),
-      machine: await ctx.db
-        .query('chatroom_machineLastSeenAt')
-        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
-        .first(),
-      cliSource: await ctx.db.get(cliSessionId),
-      machineSource: await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
-        .first(),
-    }));
-
-    // Seeded values preserved; nothing fabricated for rows without history.
-    expect(result.cli?.lastUsedAt).toBe(5000);
-    expect(result.active?.lastActivityAt).toBe(9000);
-    expect(result.machine?.lastSeenAt).toBe(8000);
-    // Session without activity still produces no projection row.
-    expect(result.idle).toBeNull();
-    // Removed legacy fields are absent from current-schema parents.
-    expectNoLegacyTimestamp(result.cliSource, 'lastUsedAt');
-    expectNoLegacyTimestamp(result.machineSource, 'lastSeenAt');
+    // Historical values copied exactly, one row per mapping.
+    expect(result.cli).toHaveLength(1);
+    expect(result.cli[0].lastUsedAt).toBe(1_100);
+    expect(result.active).toHaveLength(1);
+    expect(result.active[0].lastActivityAt).toBe(1_300);
+    expect(result.machine).toHaveLength(1);
+    expect(result.machine[0].lastSeenAt).toBe(1_500);
+    // Newer pre-existing projections preserved (not regressed), still one row each.
+    expect(result.newerCli).toHaveLength(1);
+    expect(result.newerCli[0].lastUsedAt).toBe(9_100);
+    expect(result.newerActive).toHaveLength(1);
+    expect(result.newerActive[0].lastActivityAt).toBe(9_300);
+    expect(result.newerMachine).toHaveLength(1);
+    expect(result.newerMachine[0].lastSeenAt).toBe(9_500);
+    // Session without historical activity gets no fabricated projection row.
+    expect(result.idle).toHaveLength(0);
+    // Retained source values unchanged after both runs.
+    expect(result.cliSource?.lastUsedAt).toBe(1_100);
+    expect(result.activeSource?.lastActivityAt).toBe(1_300);
+    expect(result.machineSource?.lastSeenAt).toBe(1_500);
+    // No-source session keeps the field absent and no projection.
+    expect(Object.prototype.hasOwnProperty.call(result.idleSource, 'lastActivityAt')).toBe(false);
   });
 });
 
@@ -396,7 +443,7 @@ describe('last-at projections: session dual writes', () => {
     });
     expect(result.projection).not.toBeNull();
     expect(Number.isFinite(result.projection.lastUsedAt)).toBe(true);
-    // Removed legacy field is absent; approval time is the projection value.
+    // Runtime writers omit the optional compatibility field; approval time is the projection value.
     expectNoLegacyTimestamp(result.parent, 'lastUsedAt');
   });
 
@@ -770,7 +817,7 @@ describe('last-at projections: machine dual writes', () => {
 
     const after = await readMachineAndProjection(machineId);
     // Heartbeat flipped liveness connectivity but left the parent without
-    // the removed field and the dedicated cleanup projection untouched.
+    // the optional compatibility field and the dedicated cleanup projection untouched.
     expect(after.liveness?.daemonConnected).toBe(true);
     expectNoLegacyTimestamp(after.machine, 'lastSeenAt');
     expect(after.projections).toHaveLength(1);
@@ -1051,7 +1098,7 @@ describe('last-at projections: projection-backed readers and cleanup', () => {
     expect(after.fresh.projection?.lastSeenAt).toBe(now);
   });
 
-  test('final parity: writers populate projections, parents lack removed fields', async () => {
+  test('final parity: writers populate projections, parents omit compatibility fields', async () => {
     const suffix = Math.random().toString(36).slice(2);
     const { sessionId } = await createTestSession(`lastat-parity-${suffix}`);
     const machineId = `lastat-parity-machine-${suffix}`;
@@ -1113,7 +1160,7 @@ describe('last-at projections: projection-backed readers and cleanup', () => {
       connected: true,
     });
 
-    // Every parent lacks its removed field; every projection is populated.
+    // Every parent omits its optional compatibility field; every projection is populated.
     const parity = await t.run(async (ctx: any) => {
       const webParent = await ctx.db
         .query('sessions')

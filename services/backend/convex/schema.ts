@@ -201,6 +201,12 @@ export default defineSchema({
     expiresAt: v.optional(v.number()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
     expiresAtLabel: v.optional(v.string()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
     // Device and activity tracking for session management
+    /**
+     * @deprecated Read/write chatroom_sessionLastActivityAt instead. Retained as
+     * an optional migration input until the projection backfill has completed in
+     * every environment; remove in a later release only after that rollout gate.
+     */
+    lastActivityAt: v.optional(v.number()),
     deviceInfo: v.optional(
       v.object({
         userAgent: v.optional(v.string()), // Raw user agent string
@@ -943,6 +949,12 @@ export default defineSchema({
     cliVersion: v.optional(v.string()),
     // Timestamps
     createdAt: v.number(),
+    /**
+     * @deprecated Read/write chatroom_cliSessionLastUsedAt instead. Retained as
+     * an optional migration input until the projection backfill has completed in
+     * every environment; remove in a later release only after that rollout gate.
+     */
+    lastUsedAt: v.optional(v.number()),
     // Optional expiry (null = no expiry, just manual revocation)
     expiresAt: v.optional(v.number()),
     // Revocation info
@@ -1099,6 +1111,13 @@ export default defineSchema({
     ),
     // When machine was first registered
     registeredAt: v.number(),
+    /**
+     * @deprecated Read/write chatroom_machineLastSeenAt instead. Retained as an
+     * optional migration input until the projection backfill has completed in
+     * every environment; remove in a later release only after that rollout gate.
+     * This is not chatroom_machineLiveness.lastSeenAt.
+     */
+    lastSeenAt: v.optional(v.number()),
     // Whether daemon is currently connected (for UI status display)
     daemonConnected: v.boolean(),
     // Last time the user requested a capabilities refresh for this machine (cooldown)
