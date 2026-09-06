@@ -9,6 +9,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { upsertMachineLastSeenAt } from './lib/lastAtProjections';
 import { str } from './utils/types';
 import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
 import { validateWorkingDir } from './workspacePathSecurity';
@@ -203,15 +204,16 @@ export const register = mutation({
         );
       }
 
-      // Update existing machine
+      // Update existing machine. Last-seen recency lives in the dedicated
+      // projection table (see upsert below).
       await ctx.db.patch('chatroom_machines', existing._id, {
         hostname: args.hostname,
         os: args.os,
         availableHarnesses: args.availableHarnesses,
         harnessVersions: args.harnessVersions,
         ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
-        lastSeenAt: now,
       });
+      await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
       // Dual-write into dedicated models table (re-register / update path)
       await upsertMachineModels(ctx, args.machineId, args.availableModels);
@@ -224,7 +226,8 @@ export const register = mutation({
       return { machineId: args.machineId, isNew: false };
     }
 
-    // Create new machine registration
+    // Create new machine registration. Last-seen recency lives in the
+    // dedicated projection table (see upsert below).
     await ctx.db.insert('chatroom_machines', {
       machineId: args.machineId,
       userId: userId,
@@ -234,9 +237,9 @@ export const register = mutation({
       ...(args.harnessVersions !== undefined ? { harnessVersions: args.harnessVersions } : {}),
       ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
       registeredAt: now,
-      lastSeenAt: now,
       daemonConnected: false,
     });
+    await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
     // Dual-write into dedicated models table (new-insert path)
     await upsertMachineModels(ctx, args.machineId, args.availableModels);
@@ -313,12 +316,14 @@ export const refreshCapabilities = mutation({
       throw new Error('Machine is registered to a different user');
     }
 
+    const now = Date.now();
     await ctx.db.patch('chatroom_machines', existing._id, {
       availableHarnesses: args.availableHarnesses,
       harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
-      lastSeenAt: Date.now(),
     });
+    // Last-seen recency is recorded in the dedicated projection below.
+    await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
     // Dual-write into dedicated models table (suppresses no-op writes for bandwidth)
     await upsertMachineModels(ctx, args.machineId, args.availableModels);
@@ -822,8 +827,9 @@ export const updateDaemonStatus = mutation({
     // Kept for backward compatibility during migration.
     await ctx.db.patch('chatroom_machines', machine._id, {
       daemonConnected: args.connected,
-      lastSeenAt: now,
     });
+    // Last-seen recency is recorded in the dedicated projection below.
+    await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
     // Also update liveness table
     const existingLiveness = await ctx.db

@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
+import { upsertCliSessionLastUsedAt } from './lib/lastAtProjections';
 import { omitUndefined } from './lib/omitUndefined';
 
 // Auth request expires after 5 minutes
@@ -211,17 +212,18 @@ export const approveAuthRequest = mutation({
     const now = Date.now();
     const cliSessionId = generateId(64);
 
-    // Create CLI session
-    await ctx.db.insert('cliSessions', {
+    // Create CLI session. Last-use recency lives in the dedicated
+    // projection table; the parent keeps only creation time.
+    const cliSessionDocId = await ctx.db.insert('cliSessions', {
       sessionId: cliSessionId,
       userId: session.userId,
       isActive: true,
       ...(request.deviceName !== undefined ? { deviceName: request.deviceName } : {}),
       ...(request.cliVersion !== undefined ? { cliVersion: request.cliVersion } : {}),
       createdAt: now,
-      lastUsedAt: now,
       expiresAt: now + CLI_SESSION_EXPIRY_MS,
     });
+    await upsertCliSessionLastUsedAt(ctx, cliSessionDocId, now);
 
     // Update auth request
     await ctx.db.patch('cliAuthRequests', request._id, {
@@ -332,7 +334,7 @@ export const validateSession = query({
   },
 });
 
-/** Updates lastUsedAt and extends the expiry of a CLI session (sliding window). */
+/** Records CLI session activity in the last-used projection and extends expiry (sliding window). */
 export const touchSession = mutation({
   args: {
     ...SessionIdArg,
@@ -348,13 +350,15 @@ export const touchSession = mutation({
       return false;
     }
 
+    const now = Date.now();
     await ctx.db.patch('cliSessions', session._id, {
-      lastUsedAt: Date.now(),
       // Extend expiry on each touch (sliding window) so active sessions
       // never expire while in use. The fixed creation-time expiry was
       // causing daemon sessions to silently die after 30 days.
-      expiresAt: Date.now() + CLI_SESSION_EXPIRY_MS,
+      // Last-use recency is recorded in the dedicated projection below.
+      expiresAt: now + CLI_SESSION_EXPIRY_MS,
     });
+    await upsertCliSessionLastUsedAt(ctx, session._id, now);
 
     return true;
   },
@@ -447,15 +451,26 @@ export const listUserSessions = query({
       .withIndex('by_userId', (q) => q.eq('userId', userId))
       .collect();
 
-    return sessions.map((s) =>
-      omitUndefined({
-        sessionId: s.sessionId,
-        deviceName: s.deviceName,
-        cliVersion: s.cliVersion,
-        createdAt: s.createdAt,
-        lastUsedAt: s.lastUsedAt,
-        isActive: s.isActive,
-      })
-    );
+    // Read the last-used projection first. Sessions without a projection
+    // row (unexpected after approval/backfill) fall back to creation time
+    // to satisfy the required numeric response shape.
+    const result = [];
+    for (const s of sessions) {
+      const projection = await ctx.db
+        .query('chatroom_cliSessionLastUsedAt')
+        .withIndex('by_cliSessionId', (q) => q.eq('cliSessionId', s._id))
+        .first();
+      result.push(
+        omitUndefined({
+          sessionId: s.sessionId,
+          deviceName: s.deviceName,
+          cliVersion: s.cliVersion,
+          createdAt: s.createdAt,
+          lastUsedAt: projection?.lastUsedAt ?? s.createdAt,
+          isActive: s.isActive,
+        })
+      );
+    }
+    return result;
   },
 });

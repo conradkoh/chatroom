@@ -8,6 +8,7 @@
 
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
+import { deleteCliSessionLastUsedAt, deleteMachineLastSeenAt } from './lib/lastAtProjections';
 import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import { deleteMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { deleteMachineTaskStatusSignalHead } from '../src/domain/usecase/task/project-machine-task-status-signal-head';
@@ -127,7 +128,8 @@ export const cleanupReadCursors = internalMutation({
 // ─── Machines Cleanup (90-day inactive) ─────────────────────────────────────
 
 /**
- * Delete machines where lastSeenAt is older than 90 days.
+ * Delete machines where the dedicated last-seen projection is older than 90 days.
+ * The projection index is the source of truth for stale recency.
  * Also cleans up ALL related rows across machine-keyed tables:
  * - chatroom_machineLiveness
  * - chatroom_machineStatus
@@ -157,14 +159,24 @@ export const cleanupMachines = internalMutation({
   handler: async (ctx) => {
     const cutoff = Date.now() - NINETY_DAYS_MS;
 
-    // Process only a few machines per run (each has many related rows)
-    const oldMachines = await ctx.db
-      .query('chatroom_machines')
-      .filter((q) => q.lt(q.field('lastSeenAt'), cutoff))
+    // Stale recency comes from the dedicated projection index. Process only
+    // a few machines per run (each has many related rows).
+    const oldMachineProjections = await ctx.db
+      .query('chatroom_machineLastSeenAt')
+      .withIndex('by_lastSeenAt', (q) => q.lt('lastSeenAt', cutoff))
       .take(50);
 
     let deletedMachines = 0;
-    for (const machine of oldMachines) {
+    for (const projection of oldMachineProjections) {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', projection.machineId))
+        .first();
+      if (!machine) {
+        // Orphan projection: parent already gone, just clean the row.
+        await deleteMachineLastSeenAt(ctx, projection.machineId);
+        continue;
+      }
       const mid = machine.machineId;
 
       // ── Related rows keyed by machineId (indexed) ──
@@ -352,6 +364,7 @@ export const cleanupMachines = internalMutation({
 
       // Finally delete the machine itself
       await ctx.db.delete('chatroom_machines', machine._id);
+      await deleteMachineLastSeenAt(ctx, mid);
       deletedMachines++;
     }
 
@@ -362,7 +375,7 @@ export const cleanupMachines = internalMutation({
     }
 
     // Self-reschedule if we hit the batch limit
-    if (oldMachines.length === 50) {
+    if (oldMachineProjections.length === 50) {
       await ctx.scheduler.runAfter(0, internal.chatroomCleanup.cleanupMachines);
     }
   },
@@ -407,7 +420,7 @@ export const cleanupParticipants = internalMutation({
 /**
  * Delete CLI sessions that are:
  * - Inactive (isActive === false) AND older than 30 days
- * - OR have lastUsedAt older than 90 days (stale active sessions)
+ * - OR have a last-used projection older than 90 days (stale active sessions)
  *
  * Uses a Set to track deleted IDs and prevent double-delete between passes.
  */
@@ -430,20 +443,30 @@ export const cleanupCliSessions = internalMutation({
 
     for (const session of inactiveSessions) {
       await ctx.db.delete('cliSessions', session._id);
+      await deleteCliSessionLastUsedAt(ctx, session._id);
       deletedIds.add(session._id);
     }
 
-    // 2. Stale sessions (lastUsedAt > 90 days) — skip already-deleted ones
+    // 2. Stale sessions — selected by the dedicated last-used projection
+    // index, which is the source of truth for last-use recency.
+    // Skip already-deleted ones.
     const staleSessions = await ctx.db
-      .query('cliSessions')
-      .filter((q) => q.lt(q.field('lastUsedAt'), staleCutoff))
+      .query('chatroom_cliSessionLastUsedAt')
+      .withIndex('by_lastUsedAt', (q) => q.lt('lastUsedAt', staleCutoff))
       .take(BATCH_SIZE);
 
-    for (const session of staleSessions) {
+    for (const projection of staleSessions) {
+      const session = await ctx.db.get('cliSessions', projection.cliSessionId);
+      if (!session) {
+        // Orphan projection: parent already gone, just clean the row.
+        await deleteCliSessionLastUsedAt(ctx, projection.cliSessionId);
+        continue;
+      }
       if (!deletedIds.has(session._id)) {
         await ctx.db.delete('cliSessions', session._id);
         deletedIds.add(session._id);
       }
+      await deleteCliSessionLastUsedAt(ctx, session._id);
     }
 
     if (deletedIds.size > 0) {
