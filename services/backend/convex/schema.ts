@@ -833,6 +833,7 @@ export default defineSchema({
     configLifecycleRevision: v.optional(v.number()),
   })
     .index('by_machineId', ['machineId'])
+    .index('by_machineId_chatroomId', ['machineId', 'chatroomId'])
     .index('by_machineId_taskId_role', ['machineId', 'taskId', 'role'])
     .index('by_machineId_revisionKey', ['machineId', 'revisionKey'])
     .index('by_machineId_presenceKey', ['machineId', 'presenceKey'])

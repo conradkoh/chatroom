@@ -6,7 +6,10 @@ import { describe, expect, test } from 'vitest';
 
 import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { projectAssignedTaskSnapshotsForChatroom } from '../../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import {
+  projectAssignedTaskSnapshotsAfterTaskChange,
+  projectAssignedTaskSnapshotsForChatroom,
+} from '../../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
@@ -164,6 +167,79 @@ describe('snapshot projection: session augmentation from canonical envelope', ()
     const row = await readSnapshotRow(machineId, taskId);
     expect(row?.sessionAugmentation).toBe('none');
     expect(row?.requestsNativeColdSession).toBe(false);
+  });
+
+  test('after-task-change sync is scoped to the changed task', async () => {
+    // One machine serving two chatrooms: a single-task change must not
+    // rewrite or drop the other chatroom's rows (previously a full
+    // chatroom/machine rebuild fanned out over every indexed active task).
+    const { sessionId } = await createTestSession('scoped-sync-session');
+    const machineId = 'scoped-sync-machine';
+    await registerMachineWithDaemon(sessionId as never, machineId);
+    const roomA = await createBuilderEntryDuoChatroom(sessionId as never);
+    const roomB = await createBuilderEntryDuoChatroom(sessionId as never);
+    await setupRemoteAgentConfig(sessionId as never, roomA, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as never, roomB, machineId, 'builder');
+
+    const seedTask = (chatroomId: Id<'chatroom_rooms'>) =>
+      t.run(async (ctx) => {
+        const now = Date.now();
+        return await ctx.db.insert('chatroom_tasks', {
+          chatroomId,
+          createdBy: 'builder',
+          content: 'scoped sync task',
+          status: 'pending' as const,
+          assignedTo: 'builder',
+          queuePosition: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+    const taskA = await seedTask(roomA);
+    const taskB = await seedTask(roomB);
+    await t.run(async (ctx) => {
+      await projectAssignedTaskSnapshotsForChatroom(ctx, roomA);
+      await projectAssignedTaskSnapshotsForChatroom(ctx, roomB);
+    });
+
+    const readRow = (taskId: Id<'chatroom_tasks'>) =>
+      t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_machineAssignedTaskSnapshots')
+          .withIndex('by_machineId_taskId_role', (q) =>
+            q.eq('machineId', machineId).eq('taskId', taskId).eq('role', 'builder')
+          )
+          .unique()
+      );
+    const beforeB = await readRow(taskB);
+    expect(beforeB).not.toBeNull();
+
+    // Touch task A, then sync only task A.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskA, {
+        content: 'scoped sync task (edited)',
+        updatedAt: Date.now() + 1_000,
+      });
+    });
+    await t.run(async (ctx) => {
+      await projectAssignedTaskSnapshotsAfterTaskChange(ctx, taskA);
+    });
+
+    const afterA = await readRow(taskA);
+    const afterB = await readRow(taskB);
+    expect(afterA?.taskUpdatedAt).toBeGreaterThan(beforeB?.taskUpdatedAt ?? 0);
+    // Room B's row is byte-identical: no rewrite, no revision churn.
+    expect(afterB).toEqual(beforeB);
+
+    // Completing task A drops only its own rows.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskA, { status: 'completed' });
+    });
+    await t.run(async (ctx) => {
+      await projectAssignedTaskSnapshotsAfterTaskChange(ctx, taskA);
+    });
+    expect(await readRow(taskA)).toBeNull();
+    expect(await readRow(taskB)).toEqual(beforeB);
   });
 
   test('legacy task without envelope preserves scalar and role-default behavior', async () => {
