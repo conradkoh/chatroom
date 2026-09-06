@@ -1,8 +1,9 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Doc, Id } from './_generated/dataModel';
+import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
+import { deleteSessionLastActivityAt, upsertSessionLastActivityAt } from './lib/lastAtProjections';
 
 /**
  * Device info for session tracking.
@@ -57,15 +58,24 @@ export const listMySessions = query({
       .withIndex('by_userId', (q) => q.eq('userId', currentSession.userId))
       .collect();
 
-    // Map to session info, marking the current session
-    const sessions: SessionInfo[] = allSessions.map((session) => ({
-      _id: session._id,
-      createdAt: session.createdAt,
-      lastActivityAt: session.lastActivityAt,
-      authMethod: session.authMethod,
-      deviceInfo: session.deviceInfo,
-      isCurrent: session.sessionId === args.sessionId,
-    }));
+    // Map to session info, marking the current session.
+    // Activity recency comes from the dedicated projection; sessions without
+    // an activity event have no row and keep the field undefined.
+    const sessions: SessionInfo[] = [];
+    for (const session of allSessions) {
+      const projection = await ctx.db
+        .query('chatroom_sessionLastActivityAt')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', session._id))
+        .first();
+      sessions.push({
+        _id: session._id,
+        createdAt: session.createdAt,
+        lastActivityAt: projection?.lastActivityAt,
+        authMethod: session.authMethod,
+        deviceInfo: session.deviceInfo,
+        isCurrent: session.sessionId === args.sessionId,
+      });
+    }
 
     // Sort by last activity (most recent first), with current session at top
     sessions.sort((a, b) => {
@@ -119,6 +129,7 @@ export const revokeSession = mutation({
 
     // Delete the session
     await ctx.db.delete('sessions', args.sessionIdToRevoke);
+    await deleteSessionLastActivityAt(ctx, sessionToRevoke._id);
 
     return { success: true };
   },
@@ -160,6 +171,7 @@ export const revokeAllOtherSessions = mutation({
     let revokedCount = 0;
     for (const session of otherSessions) {
       await ctx.db.delete('sessions', session._id);
+      await deleteSessionLastActivityAt(ctx, session._id);
       revokedCount++;
     }
 
@@ -195,16 +207,15 @@ export const updateSessionActivity = mutation({
     }
 
     const now = Date.now();
-    const updates: Partial<Doc<'sessions'>> = {
-      lastActivityAt: now,
-    };
 
-    // Only update device info if provided and not already set
+    // Only update device info if provided and not already set.
+    // Activity recency is recorded in the dedicated projection below.
     if (args.deviceInfo && !currentSession.deviceInfo) {
-      updates.deviceInfo = args.deviceInfo;
+      await ctx.db.patch('sessions', currentSession._id, {
+        deviceInfo: args.deviceInfo,
+      });
     }
-
-    await ctx.db.patch('sessions', currentSession._id, updates);
+    await upsertSessionLastActivityAt(ctx, currentSession._id, now);
 
     return { success: true };
   },
@@ -227,7 +238,7 @@ export const updateSessionDeviceInfo = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     await ctx.db.patch('sessions', args.sessionId, {
       deviceInfo: args.deviceInfo,
-      lastActivityAt: args.lastActivityAt,
     });
+    await upsertSessionLastActivityAt(ctx, args.sessionId, args.lastActivityAt);
   },
 });
