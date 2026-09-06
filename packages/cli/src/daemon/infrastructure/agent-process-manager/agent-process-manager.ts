@@ -1365,7 +1365,11 @@ export class AgentProcessManager {
   }
 
   /** Force-clear slots stuck in stopping beyond STOPPING_TIMEOUT_MS. Returns true if cleared. */
-  async clearStuckStoppingSlot(chatroomId: string, role: string): Promise<boolean> {
+  async clearStuckStoppingSlot(
+    chatroomId: string,
+    role: string,
+    options?: { clearStopIntent?: boolean }
+  ): Promise<boolean> {
     const key = agentKey(chatroomId, role);
     const slot = this.slots.get(key);
     if (!slot || slot.state !== 'stopping') {
@@ -1378,6 +1382,9 @@ export class AgentProcessManager {
       return false;
     }
     await this.forceClearStuckStoppingSlot(key, slot, chatroomId, role, 'daemon.stop_timeout');
+    if (options?.clearStopIntent) {
+      this.clearStopIntent(slot);
+    }
     console.warn(`[AgentProcessManager] ⚠️ Cleared stuck stopping slot for ${role}@${chatroomId}`);
     return true;
   }

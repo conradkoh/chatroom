@@ -1825,6 +1825,25 @@ describe('AgentProcessManager', () => {
       );
     });
 
+    test('can clear stale stop intent for task-delivery recovery', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - 31_000;
+
+      const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE, {
+        clearStopIntent: true,
+      });
+
+      expect(cleared).toBe(true);
+      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(false);
+      const result = await manager.ensureRunning(
+        createOpts({ reason: 'platform.task_monitor_nudge' })
+      );
+      expect(result.success).toBe(true);
+    });
+
     test('does not clear stopping slot within timeout window', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;

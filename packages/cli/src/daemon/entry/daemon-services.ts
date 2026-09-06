@@ -116,23 +116,28 @@ export const DaemonSpawningServiceLive = (ops: SpawningOps): Layer.Layer<DaemonS
 
 /** Effect service wrapping AgentProcessManager — precise types from the class. */
 export interface DaemonAgentProcessManagerServiceShape {
-  executeScopedStopForCommand?: ((args: {
-    stopCommandId: string;
-    chatroomId: string;
-    scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
-    reason: AgentStopReason;
-    inboxCommandId: string;
-  }) => Effect.Effect<ScopedStopExecutionSummary>) | undefined;
-  runInboxRoleScopedStop?:( (event: AgentRequestStopEventPayload) => Effect.Effect<void>) | undefined;
-  runInboxScopedStop?: ((event: {
-    commandId?: string | undefined;
-    _id?: string | undefined;
-    stopCommandId: string;
-    chatroomId: string;
-    scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
-    reason: string;
-    deadline: number;
-  }) => Effect.Effect<void>) | undefined;
+  executeScopedStopForCommand?:
+    | ((args: {
+        stopCommandId: string;
+        chatroomId: string;
+        scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
+        reason: AgentStopReason;
+        inboxCommandId: string;
+      }) => Effect.Effect<ScopedStopExecutionSummary>)
+    | undefined;
+  runInboxRoleScopedStop?:
+    ((event: AgentRequestStopEventPayload) => Effect.Effect<void>) | undefined;
+  runInboxScopedStop?:
+    | ((event: {
+        commandId?: string | undefined;
+        _id?: string | undefined;
+        stopCommandId: string;
+        chatroomId: string;
+        scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
+        reason: string;
+        deadline: number;
+      }) => Effect.Effect<void>)
+    | undefined;
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
@@ -140,7 +145,11 @@ export interface DaemonAgentProcessManagerServiceShape {
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
   getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
   listActive: () => { chatroomId: string; role: string; slot: AgentSlot }[];
-  clearStuckStoppingSlot: (chatroomId: string, role: string) => Effect.Effect<boolean>;
+  clearStuckStoppingSlot: (
+    chatroomId: string,
+    role: string,
+    options?: { clearStopIntent?: boolean }
+  ) => Effect.Effect<boolean>;
   /** Waits until any in-progress agent turn ends and the manager becomes idle. */
   whenTurnEndsIdle: () => Effect.Effect<void>;
   resumeTurnForSlot: (args: {
@@ -154,7 +163,8 @@ export interface DaemonAgentProcessManagerServiceShape {
     role: string,
     taskId: string
   ) => Effect.Effect<void>;
-  reconcileNativeTurnPhaseIdle?:( (chatroomId: string, role: string) => Effect.Effect<void>) | undefined;
+  reconcileNativeTurnPhaseIdle?:
+    ((chatroomId: string, role: string) => Effect.Effect<void>) | undefined;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -231,8 +241,8 @@ export const DaemonAgentProcessManagerServiceLive = (
     recover: () => Effect.promise(() => mgr.recover()),
     getSlot: (chatroomId, role) => mgr.getSlot(chatroomId, role),
     listActive: () => mgr.listActive(),
-    clearStuckStoppingSlot: (chatroomId, role) =>
-      Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role)),
+    clearStuckStoppingSlot: (chatroomId, role, options) =>
+      Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role, options)),
     whenTurnEndsIdle: () => Effect.promise(() => mgr.whenTurnEndsIdle()),
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
     setLastInFlightTask: (chatroomId, role, taskId) =>

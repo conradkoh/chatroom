@@ -109,7 +109,7 @@ function runNativeReviveEffect(
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
-      yield* agentMgr.ensureRunning({
+      const result = yield* agentMgr.ensureRunning({
         chatroomId,
         role,
         agentHarness: agentConfig.agentHarness as AgentHarness,
@@ -120,6 +120,13 @@ function runNativeReviveEffect(
         lifecycleRevision: task.agentConfig.configLifecycleRevision,
         taskId: task.taskId,
       });
+      if (!result.success) {
+        yield* Effect.sync(() =>
+          console.warn(
+            `[TaskMonitor] native revive rejected for ${role}@${chatroomId}: ${result.error ?? 'unknown error'}`
+          )
+        );
+      }
     }).pipe(
       Effect.provide(effectContext),
       Effect.catchAll((err) =>
@@ -147,7 +154,7 @@ function runNativeWakeEffect(
   );
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
-      yield* agentMgr.ensureRunning({
+      const result = yield* agentMgr.ensureRunning({
         chatroomId,
         role,
         agentHarness: agentConfig.agentHarness as AgentHarness,
@@ -158,6 +165,13 @@ function runNativeWakeEffect(
         lifecycleRevision: task.agentConfig.configLifecycleRevision,
         taskId: task.taskId,
       });
+      if (!result.success) {
+        yield* Effect.sync(() =>
+          console.warn(
+            `[TaskMonitor] native wake rejected for ${role}@${chatroomId}: ${result.error ?? 'unknown error'}`
+          )
+        );
+      }
     }).pipe(
       Effect.provide(effectContext),
       Effect.catchAll((err) =>
@@ -188,9 +202,12 @@ async function fetchTaskForAction(
 async function clearStuckStoppingSlotIfNeeded(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   chatroomId: string,
-  role: string
+  role: string,
+  clearStopIntent: boolean
 ): Promise<void> {
-  const cleared = await agentMgr.clearStuckStoppingSlot(chatroomId, role);
+  const cleared = await agentMgr.clearStuckStoppingSlot(chatroomId, role, {
+    clearStopIntent,
+  });
   if (cleared) {
     console.log(`[TaskMonitor] cleared stuck stopping slot for ${role}@${chatroomId}`);
   }
@@ -212,7 +229,12 @@ async function normalizeStuckStoppingSlots(
     if (seen.has(key)) continue;
     seen.add(key);
     if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
-    await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
+    await clearStuckStoppingSlotIfNeeded(
+      agentMgr,
+      row.chatroomId,
+      row.agentConfig.role,
+      row.agentConfig.desiredState === 'running'
+    );
   }
 }
 
