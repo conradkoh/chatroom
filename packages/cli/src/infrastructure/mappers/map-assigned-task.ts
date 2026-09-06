@@ -30,6 +30,7 @@ export function mapAssignedTaskSnapshot(
       configLifecycleRevision: row.agentConfig.configLifecycleRevision,
     },
     participant: row.participant,
+    requestsNativeColdSession: row.requestsNativeColdSession,
   };
 }
 

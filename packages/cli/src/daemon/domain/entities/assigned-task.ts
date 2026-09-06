@@ -37,6 +37,8 @@ export interface AssignedTask {
   createdAt: number;
   agentConfig: AssignedTaskAgentConfig;
   participant?: AssignedTaskParticipant | undefined;
+  /** Explicit native cold-restart intent projected at write time. */
+  requestsNativeColdSession?: boolean | undefined;
 }
 
 export function isDeliverableTaskStatus(status: ActiveTaskStatus): boolean {

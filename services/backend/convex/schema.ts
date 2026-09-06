@@ -803,6 +803,8 @@ export default defineSchema({
     taskCreatedAt: v.number(),
     taskUpdatedAt: v.number(),
     sessionAugmentation: v.optional(v.union(v.literal('none'), v.literal('new_session'))),
+    /** Explicit native cold-restart intent (envelope/scalar); distinct from role-default sessionAugmentation. */
+    requestsNativeColdSession: v.optional(v.boolean()),
 
     agentHarness: v.string(),
     model: v.optional(v.string()),

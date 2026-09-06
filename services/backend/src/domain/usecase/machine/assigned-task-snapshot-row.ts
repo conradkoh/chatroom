@@ -35,6 +35,7 @@ export function assignedTaskSnapshotFromDoc(doc: SnapshotDoc): AssignedTaskSnaps
     assignedTo: doc.taskAssignedTo,
     updatedAt: doc.taskUpdatedAt,
     createdAt: doc.taskCreatedAt,
+    requestsNativeColdSession: doc.requestsNativeColdSession,
     agentConfig: toAgentConfigView(configStub as RemoteAgentConfig, doc.machineId),
   };
 }
@@ -58,6 +59,7 @@ function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTask
     assignedTo: signal.assignedTo,
     updatedAt: signal.createdAt,
     createdAt: signal.createdAt,
+    requestsNativeColdSession: signal.requestsNativeColdSession,
     agentConfig: {
       role: signal.role,
       machineId: signal.machineId,
@@ -75,6 +77,8 @@ function patchMonitorRowFromSignal(
   return {
     ...existing,
     status: signal.status,
+    requestsNativeColdSession:
+      signal.requestsNativeColdSession ?? existing.requestsNativeColdSession,
     agentConfig: {
       ...existing.agentConfig,
     },

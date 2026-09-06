@@ -118,7 +118,10 @@ describe('snapshot projection: session augmentation from canonical envelope', ()
   async function readSnapshotRow(
     machineId: string,
     taskId: Id<'chatroom_tasks'>
-  ): Promise<{ sessionAugmentation: 'none' | 'new_session' | undefined } | null> {
+  ): Promise<{
+    sessionAugmentation: 'none' | 'new_session' | undefined;
+    requestsNativeColdSession: boolean | undefined;
+  } | null> {
     return await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_machineAssignedTaskSnapshots')
@@ -138,6 +141,7 @@ describe('snapshot projection: session augmentation from canonical envelope', ()
 
     const row = await readSnapshotRow(machineId, taskId);
     expect(row?.sessionAugmentation).toBe('new_session');
+    expect(row?.requestsNativeColdSession).toBe(true);
 
     const actionView = await t.query(api.machines.getAssignedTaskForAction, {
       sessionId: sessionId as never,
@@ -159,6 +163,7 @@ describe('snapshot projection: session augmentation from canonical envelope', ()
 
     const row = await readSnapshotRow(machineId, taskId);
     expect(row?.sessionAugmentation).toBe('none');
+    expect(row?.requestsNativeColdSession).toBe(false);
   });
 
   test('legacy task without envelope preserves scalar and role-default behavior', async () => {
@@ -169,6 +174,9 @@ describe('snapshot projection: session augmentation from canonical envelope', ()
     expect(
       (await readSnapshotRow(scalarTrue.machineId, scalarTrue.taskId))?.sessionAugmentation
     ).toBe('new_session');
+    expect(
+      (await readSnapshotRow(scalarTrue.machineId, scalarTrue.taskId))?.requestsNativeColdSession
+    ).toBe(true);
 
     const scalarFalse = await seedProjectedTask({
       sessionPrefix: 'proj-legacy-false',
@@ -177,11 +185,18 @@ describe('snapshot projection: session augmentation from canonical envelope', ()
     expect(
       (await readSnapshotRow(scalarFalse.machineId, scalarFalse.taskId))?.sessionAugmentation
     ).toBe('none');
+    expect(
+      (await readSnapshotRow(scalarFalse.machineId, scalarFalse.taskId))?.requestsNativeColdSession
+    ).toBe(false);
 
     const undefinedScalar = await seedProjectedTask({ sessionPrefix: 'proj-legacy-undefined' });
     expect(
       (await readSnapshotRow(undefinedScalar.machineId, undefinedScalar.taskId))
         ?.sessionAugmentation
     ).toBe('new_session');
+    expect(
+      (await readSnapshotRow(undefinedScalar.machineId, undefinedScalar.taskId))
+        ?.requestsNativeColdSession
+    ).toBe(false);
   });
 });

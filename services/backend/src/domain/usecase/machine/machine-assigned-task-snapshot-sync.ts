@@ -14,7 +14,10 @@ import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import { getTeamEntryPoint } from '../../entities/team';
-import { resolveSessionAugmentationForTask } from '../../handoff/parse-session-augmentation';
+import {
+  resolveSessionAugmentationForTask,
+  taskRequestsNativeColdSession,
+} from '../../handoff/parse-session-augmentation';
 
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type SnapshotDoc = Doc<'chatroom_machineAssignedTaskSnapshots'>;
@@ -72,6 +75,7 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     signalType: primaryAssignedTaskSignalType(doc.taskUpdatedAt, doc.configUpdatedAt),
     revisionKey: doc.revisionKey,
     sessionAugmentation: doc.sessionAugmentation,
+    requestsNativeColdSession: doc.requestsNativeColdSession,
     machineId: doc.machineId,
     agentHarness: doc.agentHarness,
     workingDir: doc.workingDir,
@@ -129,6 +133,11 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
       },
       config.role
     ),
+    requestsNativeColdSession: taskRequestsNativeColdSession({
+      content: task.content,
+      taskEnvelope: task.taskEnvelope,
+      startInNewSession: task.startInNewSession,
+    }),
     agentHarness: config.agentHarness ?? 'opencode',
     model: config.model,
     workingDir: config.workingDir,
