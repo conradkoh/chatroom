@@ -56,10 +56,13 @@ export function explainInFlightDeliveryBlock(
 /** Skip re-injecting a task that was already delivered in this harness session. */
 export function explainLedgerDeliveryBlock(
   taskId: string,
-  harnessSessionId: string,
+  harnessSessionId: string | undefined,
   ledger: NativeDeliveryLedger
 ): string | null {
-  if (ledger.isDelivered(taskId, harnessSessionId)) {
+  if (ledger.isAttemptInFlight(taskId)) {
+    return 'delivery_ledger_busy (duplicate inject in flight)';
+  }
+  if (harnessSessionId && ledger.isDelivered(taskId, harnessSessionId)) {
     return 'already_delivered_this_session';
   }
   return null;

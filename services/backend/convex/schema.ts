@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { storedFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
+import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import {
   agentHarnessValidator,
   agentTypeValidator,
@@ -608,7 +609,13 @@ export default defineSchema({
     scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
     // Snapshot of enhancer enabled at enqueue time (undefined = legacy/live fallback)
     plannerEnhancerEnabled: v.optional(v.boolean()),
+    // Per-message conversation mode snapshot (undefined = legacy/live fallback)
+    conversationMode: v.optional(
+      v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
+    ),
     startInNewSession: v.optional(v.boolean()),
+    // Optional canonical TaskEnvelopeV1 snapshot (undefined = legacy scalars below)
+    taskEnvelope: v.optional(taskEnvelopeV1Validator),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
@@ -679,11 +686,19 @@ export default defineSchema({
     queuePosition: v.number(),
     // Snapshot of enhancer enabled at task creation (user-tasks only; undefined = legacy/live fallback)
     plannerEnhancerEnabled: v.optional(v.boolean()),
+    // Per-message conversation mode snapshot (undefined = legacy/live fallback)
+    conversationMode: v.optional(
+      v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
+    ),
     /** Originating user message for request-first enhancer enforcement. */
     originUserMessageId: v.optional(v.id('chatroom_messages')),
     /** Enhancer-enabled snapshot captured when the task was enqueued. */
     enhancerEnabledAtEnqueue: v.optional(v.boolean()),
     startInNewSession: v.optional(v.boolean()),
+    // Optional canonical TaskEnvelopeV1 snapshot (undefined = legacy scalars below)
+    taskEnvelope: v.optional(taskEnvelopeV1Validator),
+    /** Execution receipt: when a requested new session was actually consumed. */
+    sessionPolicyConsumedAt: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
@@ -788,6 +803,8 @@ export default defineSchema({
     taskCreatedAt: v.number(),
     taskUpdatedAt: v.number(),
     sessionAugmentation: v.optional(v.union(v.literal('none'), v.literal('new_session'))),
+    /** Explicit native cold-restart intent (envelope/scalar); distinct from role-default sessionAugmentation. */
+    requestsNativeColdSession: v.optional(v.boolean()),
 
     agentHarness: v.string(),
     model: v.optional(v.string()),
@@ -816,6 +833,7 @@ export default defineSchema({
     configLifecycleRevision: v.optional(v.number()),
   })
     .index('by_machineId', ['machineId'])
+    .index('by_machineId_chatroomId', ['machineId', 'chatroomId'])
     .index('by_machineId_taskId_role', ['machineId', 'taskId', 'role'])
     .index('by_machineId_revisionKey', ['machineId', 'revisionKey'])
     .index('by_machineId_presenceKey', ['machineId', 'presenceKey'])

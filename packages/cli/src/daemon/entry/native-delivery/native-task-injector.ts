@@ -3,9 +3,9 @@ import {
   shouldEmitSessionAugmentation,
   resolveSessionAugmentationForTask,
   sessionAugmentationNewSessionStarted,
+  taskRequestsNativeColdSession,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect } from 'effect';
-import { buildActivityLifecycleFact, type AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 
 import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
 import { buildNativeInjectionPrompt } from './native-task-injector-logic.js';
@@ -13,6 +13,10 @@ import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { OperationResult } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import {
+  buildActivityLifecycleFact,
+  type AgentLifecycleFact,
+} from '../../domain/entities/agent-lifecycle-fact.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
@@ -37,18 +41,29 @@ export interface NativeInjectorAgentMgr {
   getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
 }
 
-export interface NativeInjectorDeps {
+/** Shared daemon session + backend handles for native delivery. */
+export interface NativeDeliverySessionHandles {
   sessionId: string;
   machineId: string;
-  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
+  logEvent?: ((event: Record<string, unknown>) => Promise<void>) | undefined;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
   };
+}
+
+export interface NativeInjectorDeps extends NativeDeliverySessionHandles {
   agentMgr: NativeInjectorAgentMgr;
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
   convexUrl?: string | undefined;
-  onTaskDelivered?:( (args: { chatroomId: string; role: string; taskId: string }) => void) | undefined;
+  onTaskDelivered?:
+    | ((args: {
+        chatroomId: string;
+        role: string;
+        taskId: string;
+        harnessSessionId: string;
+      }) => void)
+    | undefined;
 }
 
 async function emitTaskDeliveryFailed(
@@ -147,10 +162,37 @@ function claimPendingTaskIfNeeded(
   });
 }
 
+type HarnessSessionResolution =
+  | { readonly kind: 'use-existing'; readonly harnessSessionId: string }
+  | { readonly kind: 'cold-start' }
+  | { readonly kind: 'missing' };
+
+/**
+ * Decide how to obtain a harness session without performing any effect.
+ * Continue policy requires an existing real session; an absent session must
+ * fail before receipt/injection rather than leak a placeholder.
+ */
+function resolveHarnessSessionPolicy(
+  task: AssignedTaskWithContent,
+  initialHarnessSessionId: string | undefined
+): HarnessSessionResolution {
+  if (
+    !taskRequestsNativeColdSession({
+      content: task.taskContent ?? '',
+      taskEnvelope: task.taskEnvelope,
+      startInNewSession: task.startInNewSession,
+    })
+  ) {
+    if (!initialHarnessSessionId) return { kind: 'missing' };
+    return { kind: 'use-existing', harnessSessionId: initialHarnessSessionId };
+  }
+  return { kind: 'cold-start' };
+}
+
 function resolveHarnessSessionForInject(
   task: AssignedTaskWithContent,
   deps: NativeInjectorDeps,
-  initialHarnessSessionId: string
+  initialHarnessSessionId: string | undefined
 ): Effect.Effect<
   { harnessSessionId: string; sessionAugmentationEmitted: boolean },
   unknown,
@@ -160,8 +202,12 @@ function resolveHarnessSessionForInject(
     const { chatroomId, taskId, agentConfig } = task;
     const { role } = agentConfig;
 
-    if (!task.startInNewSession) {
-      return { harnessSessionId: initialHarnessSessionId, sessionAugmentationEmitted: false };
+    const policy = resolveHarnessSessionPolicy(task, initialHarnessSessionId);
+    if (policy.kind === 'missing') {
+      return yield* Effect.fail(new Error('harness session missing for continue inject'));
+    }
+    if (policy.kind === 'use-existing') {
+      return { harnessSessionId: policy.harnessSessionId, sessionAugmentationEmitted: false };
     }
 
     const coldSession = yield* applyColdSessionIfRequested(task, deps, chatroomId, role, taskId);
@@ -219,7 +265,8 @@ function emitSessionAugmentationIfNeeded(
 function resumeHarnessWithPrompt(
   task: AssignedTaskWithContent,
   deps: NativeInjectorDeps,
-  prompt: string
+  prompt: string,
+  harnessSessionId: string
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
     const { chatroomId, taskId, agentConfig } = task;
@@ -254,7 +301,12 @@ function resumeHarnessWithPrompt(
       catch: (err) => err,
     }).pipe(Effect.catchAll(() => Effect.void));
 
-    deps.onTaskDelivered?.({ chatroomId, role, taskId: taskId as string });
+    deps.onTaskDelivered?.({
+      chatroomId,
+      role,
+      taskId: taskId as string,
+      harnessSessionId,
+    });
   });
 }
 
@@ -293,7 +345,11 @@ function loadNativeInjectionPrompt(
     }
 
     const augmentationMode = resolveSessionAugmentationForTask(
-      { content: taskContent, startInNewSession: task.startInNewSession },
+      {
+        content: taskContent,
+        taskEnvelope: task.taskEnvelope,
+        startInNewSession: task.startInNewSession,
+      },
       role
     );
 
@@ -321,7 +377,14 @@ function injectNativeTaskPrompt(
     yield* Effect.tryPromise({
       try: () =>
         deps.lifecycleOutbox
-          ? deps.lifecycleOutbox.enqueue(buildActivityLifecycleFact({ chatroomId, role, action: NATIVE_TASK_INJECTED_ACTION, taskId }))
+          ? deps.lifecycleOutbox.enqueue(
+              buildActivityLifecycleFact({
+                chatroomId,
+                role,
+                action: NATIVE_TASK_INJECTED_ACTION,
+                taskId,
+              })
+            )
           : Promise.reject(new Error('lifecycle outbox missing')),
       catch: (err) => err,
     });
@@ -347,13 +410,13 @@ function injectNativeTaskPrompt(
       augmentationMode
     );
 
-    yield* resumeHarnessWithPrompt(task, deps, prompt);
+    yield* resumeHarnessWithPrompt(task, deps, prompt, harnessSessionId);
   });
 }
 
 export function runNativeInjectionEffect(
   task: AssignedTaskWithContent,
-  initialHarnessSessionId: string,
+  initialHarnessSessionId: string | undefined,
   deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {

@@ -6,6 +6,8 @@
  */
 // fallow-ignore-file unused-type unused-export
 
+import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
+
 import type { AssignedTaskSnapshotView } from './assigned-task-snapshot-contract';
 import type { Id } from '../../../../convex/_generated/dataModel';
 
@@ -34,6 +36,7 @@ export {
 /** Full view including task content — for one-shot action fetches. */
 export interface AssignedTaskView extends AssignedTaskSnapshotView {
   taskContent: string;
+  taskEnvelope?: TaskEnvelopeV1 | undefined;
   startInNewSession?: boolean | undefined;
 }
 

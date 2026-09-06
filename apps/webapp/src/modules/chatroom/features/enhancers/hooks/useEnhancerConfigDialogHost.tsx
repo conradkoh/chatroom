@@ -18,7 +18,7 @@ export function useEnhancerConfigDialogHost({
   workspaceMachineId,
 }: UseEnhancerConfigDialogHostOptions) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { config, isActive, saveConfig, disable } = useEnhancerConfig(chatroomId);
+  const { config, isActive, serverIsActive, saveConfig, disable } = useEnhancerConfig(chatroomId);
   const favoritesMachineId = config?.machineId ?? workspaceMachineId ?? null;
   const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
     useEnhancerConfigFavorites(favoritesMachineId);
@@ -60,6 +60,7 @@ export function useEnhancerConfigDialogHost({
   return {
     config,
     isActive,
+    serverIsActive,
     saveConfig,
     disable,
     favorites,

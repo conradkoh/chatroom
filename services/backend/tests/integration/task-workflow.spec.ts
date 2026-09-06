@@ -569,3 +569,168 @@ describe('Task Workflow - Race Conditions', () => {
     expect(tasks[0]?.assignedTo).toBe('builder');
   });
 });
+
+describe('updateTaskStartInNewSession — complete-envelope compatibility adapter', () => {
+  test('explicit envelope new update preserves mode/phase/preset and rewrites projections', async () => {
+    const { sessionId } = await createTestSession('upd-env-new');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'new-session task',
+      createdBy: 'user',
+    });
+
+    // Seed a code/team/implementation envelope with a stale scalar.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskId, {
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'code',
+          sessionPolicy: 'continue',
+          handoffWorkflow: { preset: 'team', phase: 'implementation' },
+        },
+        startInNewSession: false,
+      });
+    });
+
+    await t.mutation(api.tasks.updateTaskStartInNewSession, {
+      sessionId,
+      taskId,
+      startInNewSession: true,
+    });
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'team', phase: 'implementation' },
+    });
+    expect(task?.conversationMode).toBe('code');
+    expect(task?.plannerEnhancerEnabled).toBe(false);
+    expect(task?.startInNewSession).toBe(true);
+  });
+
+  test('explicit envelope continue update preserves everything except session policy', async () => {
+    const { sessionId } = await createTestSession('upd-env-continue');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'continue-session task',
+      createdBy: 'user',
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskId, {
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'code:enhanced',
+          sessionPolicy: 'new',
+          handoffWorkflow: { preset: 'enhanced-team', phase: 'enhancement' },
+        },
+        startInNewSession: true,
+      });
+    });
+
+    await t.mutation(api.tasks.updateTaskStartInNewSession, {
+      sessionId,
+      taskId,
+      startInNewSession: false,
+    });
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code:enhanced',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'enhanced-team', phase: 'enhancement' },
+    });
+    expect(task?.plannerEnhancerEnabled).toBe(true);
+    expect(task?.startInNewSession).toBe(false);
+  });
+
+  test('legacy task without an envelope is normalized and updated atomically', async () => {
+    const { sessionId } = await createTestSession('upd-env-legacy');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+
+    // Direct legacy-style insertion with scalar only, no envelope.
+    const taskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'legacy scalar task',
+        status: 'pending',
+        queuePosition: 0,
+        startInNewSession: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await t.mutation(api.tasks.updateTaskStartInNewSession, {
+      sessionId,
+      taskId,
+      startInNewSession: true,
+    });
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    // Normalized from scalars → code mode, default team/entry workflow, new session.
+    expect(task?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'team', phase: 'entry' },
+    });
+    expect(task?.startInNewSession).toBe(true);
+    expect(task?.conversationMode).toBe('code');
+  });
+
+  test('missing and non-pending tasks keep their existing error behavior', async () => {
+    const { sessionId } = await createTestSession('upd-env-errors');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+
+    // Create then hard-delete the task so its id references no existing row.
+    const removedTask = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'removed task',
+      createdBy: 'user',
+    });
+    const missingTaskId = removedTask.taskId;
+    await t.run(async (ctx) => {
+      await ctx.db.delete('chatroom_tasks', removedTask.taskId);
+    });
+    await expect(
+      t.mutation(api.tasks.updateTaskStartInNewSession, {
+        sessionId,
+        taskId: missingTaskId,
+        startInNewSession: true,
+      })
+    ).rejects.toThrow('Task not found');
+
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'non-pending task',
+      createdBy: 'user',
+    });
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await expect(
+      t.mutation(api.tasks.updateTaskStartInNewSession, {
+        sessionId,
+        taskId,
+        startInNewSession: true,
+      })
+    ).rejects.toThrow('Only pending tasks can be updated');
+  });
+});

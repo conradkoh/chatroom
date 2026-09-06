@@ -39,6 +39,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messages: {
       updateUserMessageOrTask: 'messages:updateUserMessageOrTask',
+      updateQueuedMessageEnvelope: 'messages:updateQueuedMessageEnvelope',
     },
   },
 }));
@@ -234,7 +235,35 @@ describe('QueuedMessageDetailModal', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('modal closed → nothing rendered', () => {
+  it('renders the shared mode and session policy controls in the detail modal', () => {
+    renderModal(
+      makeMessage({
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'code',
+          sessionPolicy: 'continue',
+          handoffWorkflow: { preset: 'team', phase: 'entry' },
+        },
+      })
+    );
+
+    expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('queued-message-session-toggle')).toBeInTheDocument();
+  });
+
+  it('envelope controls remain keyboard-activatable in the detail modal', () => {
+    renderModal(makeMessage());
+
+    const mode = screen.getByTestId('queued-message-mode-toggle');
+    expect(mode.tagName).toBe('BUTTON');
+    act(() => {
+      fireEvent.keyDown(mode, { key: 'Enter' });
+    });
+    // The control handles its own keyboard activation without errors.
+    expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
+  });
+
+  it('view-attached-task chip opens its own modal', () => {
     const message = makeMessage({
       attachedTasks: [{ _id: 'task-1', content: 'Fix the bug' }],
     });

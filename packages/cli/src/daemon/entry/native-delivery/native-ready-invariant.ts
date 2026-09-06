@@ -1,5 +1,9 @@
 import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/types.js';
 
+import {
+  explainColdSessionDeliveryBlock,
+  isNativeColdSessionDeliveryOwnedSpawn,
+} from './native-cold-session-delivery.js';
 import { getNativeDeliverySession } from './native-delivery-session-registry.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
@@ -29,6 +33,17 @@ export function explainAgentReadyForNativeDeliveryBlock(
     task.chatroomId,
     agentConfig.role
   );
+  // Explicit cold-session tasks: apply stop/circuit/transition guards first.
+  // When the slot is down (missing/idle) and unblocked, delivery owns the
+  // cold start and bypasses the running-slot gates below; a running slot
+  // falls through so the injector can cold-replace the existing session.
+  const coldBlock = explainColdSessionDeliveryBlock(task, slot, operational);
+  if (coldBlock) {
+    return coldBlock;
+  }
+  if (isNativeColdSessionDeliveryOwnedSpawn(task, slot)) {
+    return null;
+  }
   if (!isOperationalDesiredRunning(operational)) {
     return `operational_state_not_running (state=${operational?.operationalState ?? 'missing'})`;
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AgentOperationalReadModel,
+  isOperationalCircuitOpen,
   isOperationalDesiredRunning,
 } from './agent-operational-read-model.js';
 
@@ -28,6 +29,14 @@ describe('AgentOperationalReadModel', () => {
     expect(isOperationalDesiredRunning(row('one', 'running'))).toBe(true);
     expect(isOperationalDesiredRunning(row('one', 'stopped'))).toBe(false);
     expect(isOperationalDesiredRunning(undefined)).toBe(false);
+  });
+
+  it('recognizes an open start circuit', () => {
+    expect(isOperationalCircuitOpen(row('one', 'running'))).toBe(false);
+    expect(isOperationalCircuitOpen({ ...row('one'), operationalState: 'circuit_open' })).toBe(
+      true
+    );
+    expect(isOperationalCircuitOpen(undefined)).toBe(false);
   });
 
   it('applies hydrated signal rows and removals incrementally', () => {

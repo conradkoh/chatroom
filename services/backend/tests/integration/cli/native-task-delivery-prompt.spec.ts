@@ -5,6 +5,7 @@
  * detail is documented in tests/unit/prompts/native-workflow-disclosure.test.ts.
  */
 
+import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
@@ -250,5 +251,63 @@ describe('Native task delivery prompt (integration)', () => {
     expect(fullCliOutput).toContain('get-next-task');
     expect(fullCliOutput).toContain('<handoffs>');
     expect(fullCliOutput).toContain('you MUST run the handoff command');
+  });
+
+  test('explicit Chat envelope keeps builder capability and suppresses enhancer at the prompt boundary', async () => {
+    const { sessionId } = await createTestSession('test-chat-env-planner');
+    const chatroomId = await createTeamChatroom(sessionId, 'duo');
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+    await saveNativeAgentConfig(sessionId, chatroomId, 'planner', 'opencode-sdk');
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Hello in Chat mode',
+      targetRole: 'planner',
+      type: 'message',
+    });
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'Hello in Chat mode',
+      createdBy: 'user',
+      sourceMessageId: messageId,
+    });
+
+    // Seed a valid explicit Chat envelope plus deliberately stale legacy
+    // mode/enhancer scalars so the envelope precedence is observable.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskId, {
+        taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
+        conversationMode: 'code:enhanced',
+        plannerEnhancerEnabled: true,
+      });
+    });
+
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
+      messageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Direct Chat recommendation is primary
+    expect(fullCliOutput).toContain('<chat-mode>');
+    expect(fullCliOutput).toContain('Answer the user directly and concisely by default');
+    expect(fullCliOutput).toContain('--next-role="user"');
+
+    // Builder capability remains advertised (handoff block + eager template)
+    expect(fullCliOutput).toContain('<handoffs>');
+    expect(fullCliOutput).toContain('**builder**');
+    expect(fullCliOutput).toContain('Handoff to `builder`');
+
+    // The stale enhancer/mode scalar is overridden by the explicit envelope
+    expect(fullCliOutput).not.toContain('<handoff-enhancer>');
+    expect(fullCliOutput).not.toContain('Handoff to `enhancer`');
+    expect(fullCliOutput).not.toContain('delegate to another agent');
+    expect(fullCliOutput).toContain('you may hand off to any advertised team target');
   });
 });

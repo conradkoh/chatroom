@@ -95,6 +95,7 @@ import type * as lib_hierarchy from "../lib/hierarchy.js";
 import type * as lib_omitUndefined from "../lib/omitUndefined.js";
 import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
 import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
+import type * as lib_taskEnvelope from "../lib/taskEnvelope.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
 import type * as machineCommandCleanup from "../machineCommandCleanup.js";
@@ -253,6 +254,7 @@ declare const fullApi: ApiFromModules<{
   "lib/omitUndefined": typeof lib_omitUndefined;
   "lib/promoteNextTaskDeps": typeof lib_promoteNextTaskDeps;
   "lib/stdinDecoder": typeof lib_stdinDecoder;
+  "lib/taskEnvelope": typeof lib_taskEnvelope;
   "lib/taskStateMachine": typeof lib_taskStateMachine;
   "lib/taskWorkflows": typeof lib_taskWorkflows;
   machineCommandCleanup: typeof machineCommandCleanup;

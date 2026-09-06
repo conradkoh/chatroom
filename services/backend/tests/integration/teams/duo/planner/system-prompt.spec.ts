@@ -314,6 +314,12 @@ describe('Duo Team > Planner > System Prompt', () => {
         - **Handoff completeness**: The user can ONLY see the final handoff-to-\`user\` message. Write it as a complete, standalone document — do not reference prior messages or assume the user has context from earlier session text.
       - **Quality Accountability**: You are ultimately accountable for all work. If the user's requirements are not met, hand work back to the builder for rework.
 
+      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      \`\`\`bash
+      chatroom handoff list-templates --role="planner" --team-id="duo"
+      \`\`\`
+      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+
       **Delegation & Decomposition:**
 
       Any task that requires code changes must be delegated to the builder — break it into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below).

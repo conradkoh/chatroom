@@ -36,6 +36,12 @@ ${getContextRuleBlock(
 )}`;
 }
 
+export function getNativeChatTaskStartedPrompt(): string {
+  return `### Start working
+
+This is a Chat-mode task from the user. Answer the user directly and concisely by default — Chat mode changes the recommended ceremony for the entry point, not your team capabilities or handoff authority. If this request requires team work, you may hand off to any advertised team target. Do not run \`chatroom context read\` or \`chatroom context new\` for this task. Do not invoke the enhancer as part of the default Chat flow.`;
+}
+
 export function getNativeTaskStartedPromptForHandoffRecipient(): string {
   return `### Start Working
 

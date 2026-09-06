@@ -32,6 +32,9 @@ async function createPlannerUserMessageAndTask(
       status: 'in_progress',
       assignedTo: 'planner',
       sourceMessageId: id,
+      // Legacy-explicit enhancer request: the envelope derived by handoff
+      // propagation stays code:enhanced so the enhancer loop is preserved.
+      plannerEnhancerEnabled: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       queuePosition: 1,

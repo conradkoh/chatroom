@@ -137,3 +137,56 @@ describe('Native task delivery — attached context', () => {
     expect(output).not.toContain('<attached>');
   });
 });
+
+describe('Native task delivery — Chat mode eager template matrix', () => {
+  test('duo planner chat entry-point user keeps user + builder templates and omits enhancer', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: CHATROOM_ID,
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: CLI_ENV,
+      task: { _id: 'task-id', content: 'Hello' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+      conversationMode: 'chat',
+    });
+
+    // Eager templates keep the full duo planner base (user + builder)
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('Handoff to `user`');
+    expect(output).toContain('Handoff to `builder`');
+    // No enhancer template for Chat
+    expect(output).not.toContain('Handoff to `enhancer`');
+    // Alternate handoff targets remain advertised
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**builder**');
+    // Chat-mode guidance
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
+  });
+
+  test('solo chat entry-point user keeps user template and no enhancer template', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: CHATROOM_ID,
+      role: 'solo',
+      teamId: 'solo',
+      cliEnvPrefix: CLI_ENV,
+      task: { _id: 'task-id', content: 'Hello' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['user', 'enhancer'],
+      isEntryPoint: true,
+      conversationMode: 'chat',
+    });
+
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('Handoff to `user`');
+    // No enhancer template (includeEnhancerTemplate stays false for Chat)
+    expect(output).not.toContain('Handoff to `enhancer`');
+    // Supplied capability data still renders (user + enhancer were advertised)
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**user**');
+    expect(output).toContain('**enhancer**');
+    expect(output).toContain('<chat-mode>');
+  });
+});

@@ -12,6 +12,8 @@
  * - Reminder footer
  */
 
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+
 import type { PrimaryDeliveryAttachments } from '../../../src/domain/entities/message-attachments.js';
 import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
 import {
@@ -58,6 +60,11 @@ export interface FullCliOutputParams {
   plannerEnhancerEnabled?: boolean | undefined;
   entryPointRole?: string | undefined;
   originUserMessageId?: string | undefined;
+  /**
+   * Explicit conversation mode snapshot. When present, drives mode-specific
+   * prompt behaviour (e.g. Chat mode suppresses enhancer ceremony).
+   */
+  conversationMode?: ConversationMode | undefined;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -76,6 +83,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     standingInstructions,
     plannerEnhancerEnabled,
     entryPointRole,
+    conversationMode,
   } = params;
 
   return generateNativeTaskDeliveryOutput({
@@ -92,6 +100,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     plannerEnhancerEnabled,
     entryPointRole,
     originUserMessageId: params.originUserMessageId,
+    conversationMode,
   });
 }
 
@@ -110,6 +119,7 @@ function appendCliSharedHandoffSections(
     | 'plannerEnhancerEnabled'
     | 'originUserMessageId'
     | 'entryPointRole'
+    | 'conversationMode'
   >
 ): void {
   const { message, ...rest } = params;
@@ -139,6 +149,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     sourceAttachments,
     standingInstructions,
     plannerEnhancerEnabled,
+    conversationMode,
   } = params;
 
   if (nativeIntegration) {
@@ -169,6 +180,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     plannerEnhancerEnabled,
     entryPointRole: params.entryPointRole,
     originUserMessageId: params.originUserMessageId,
+    conversationMode,
   });
   appendCliTaskDeliveryFooter(lines, { chatroomId, role, cliEnvPrefix });
 

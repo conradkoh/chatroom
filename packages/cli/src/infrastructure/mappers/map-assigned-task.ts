@@ -30,6 +30,7 @@ export function mapAssignedTaskSnapshot(
       configLifecycleRevision: row.agentConfig.configLifecycleRevision,
     },
     participant: row.participant,
+    requestsNativeColdSession: row.requestsNativeColdSession,
   };
 }
 
@@ -37,6 +38,7 @@ export function mapAssignedTaskView(row: BackendAssignedTaskView): AssignedTaskW
   return {
     ...mapAssignedTaskSnapshot(row),
     taskContent: row.taskContent,
+    taskEnvelope: row.taskEnvelope,
     startInNewSession: row.startInNewSession,
   };
 }

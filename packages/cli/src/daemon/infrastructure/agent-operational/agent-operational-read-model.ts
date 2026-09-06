@@ -18,6 +18,10 @@ export function isOperationalDesiredRunning(row: MachineAgentOperationalRow | un
   return row?.operationalState === 'running' || row?.operationalState === 'starting';
 }
 
+export function isOperationalCircuitOpen(row: MachineAgentOperationalRow | undefined): boolean {
+  return row?.operationalState === 'circuit_open';
+}
+
 export function isOperationalStopIntentActive(
   row: MachineAgentOperationalRow | undefined
 ): boolean {

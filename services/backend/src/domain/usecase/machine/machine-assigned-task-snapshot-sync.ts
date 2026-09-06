@@ -14,13 +14,23 @@ import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import { getTeamEntryPoint } from '../../entities/team';
-import { resolveSessionAugmentationForTask } from '../../handoff/parse-session-augmentation';
+import {
+  resolveSessionAugmentationForTask,
+  taskRequestsNativeColdSession,
+} from '../../handoff/parse-session-augmentation';
 
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type SnapshotDoc = Doc<'chatroom_machineAssignedTaskSnapshots'>;
 type ActiveTaskStatus = SnapshotDoc['taskStatus'];
 
 const ACTIVE_TASK_STATUSES: ActiveTaskStatus[] = ['pending', 'acknowledged', 'in_progress'];
+
+/**
+ * Upper bound per active status per chatroom. Active queues are small (only
+ * pending/acknowledged/in_progress rows); the cap keeps a single projection
+ * pass within the Convex mutation budget if a queue ever grows unbounded.
+ */
+const MAX_ACTIVE_TASKS_PER_STATUS = 500;
 
 type CollectCtx = QueryCtx | MutationCtx;
 
@@ -33,7 +43,7 @@ async function collectActiveTasksForChatroom(
     const rows = await ctx.db
       .query('chatroom_tasks')
       .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', status))
-      .collect();
+      .take(MAX_ACTIVE_TASKS_PER_STATUS);
     tasks.push(...rows);
   }
   return tasks;
@@ -72,6 +82,7 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     signalType: primaryAssignedTaskSignalType(doc.taskUpdatedAt, doc.configUpdatedAt),
     revisionKey: doc.revisionKey,
     sessionAugmentation: doc.sessionAugmentation,
+    requestsNativeColdSession: doc.requestsNativeColdSession,
     machineId: doc.machineId,
     agentHarness: doc.agentHarness,
     workingDir: doc.workingDir,
@@ -122,9 +133,18 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     taskCreatedAt: task.createdAt ?? now,
     taskUpdatedAt,
     sessionAugmentation: resolveSessionAugmentationForTask(
-      { content: task.content, startInNewSession: task.startInNewSession },
+      {
+        content: task.content,
+        taskEnvelope: task.taskEnvelope,
+        startInNewSession: task.startInNewSession,
+      },
       config.role
     ),
+    requestsNativeColdSession: taskRequestsNativeColdSession({
+      content: task.content,
+      taskEnvelope: task.taskEnvelope,
+      startInNewSession: task.startInNewSession,
+    }),
     agentHarness: config.agentHarness ?? 'opencode',
     model: config.model,
     workingDir: config.workingDir,
@@ -189,11 +209,32 @@ async function deleteSnapshotsForMachine(ctx: MutationCtx, machineId: string): P
   }
 }
 
-/** Rebuild projection rows for one machine (daemon startup / backfill). */
+/** Delete rows whose machine:task:role key is no longer desired. */
+async function deleteSnapshotsNotInDesiredKeys(
+  ctx: MutationCtx,
+  rows: SnapshotDoc[],
+  desiredKeys: Set<string>
+): Promise<void> {
+  for (const row of rows) {
+    const key = `${row.machineId}:${row.taskId}:${row.role}`;
+    if (!desiredKeys.has(key)) {
+      await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);
+    }
+  }
+}
+
+/**
+ * Rebuild projection rows for one machine (daemon startup / backfill).
+ *
+ * When `onlyChatroomId` is set, only that chatroom is re-projected and stale
+ * cleanup is scoped to it via `by_machineId_chatroomId` — chatroom-scoped
+ * callers must not pay for every other chatroom the machine serves.
+ */
 // fallow-ignore-next-line complexity
 export async function projectAssignedTaskSnapshotsForMachine(
   ctx: MutationCtx,
-  machineId: string
+  machineId: string,
+  opts?: { onlyChatroomId?: Id<'chatroom_rooms'> | undefined }
 ): Promise<void> {
   const agentConfigs = await loadRemoteAgentConfigsForMachine(ctx, machineId);
   if (!agentConfigs) {
@@ -201,7 +242,11 @@ export async function projectAssignedTaskSnapshotsForMachine(
     return;
   }
 
-  const chatroomIds = new Set(agentConfigs.map((c) => c.chatroomId));
+  const allChatroomIds = new Set(agentConfigs.map((c) => c.chatroomId));
+  const chatroomIds =
+    opts?.onlyChatroomId && allChatroomIds.has(opts.onlyChatroomId)
+      ? new Set([opts.onlyChatroomId])
+      : allChatroomIds;
   const now = Date.now();
   const desiredKeys = new Set<string>();
 
@@ -234,16 +279,24 @@ export async function projectAssignedTaskSnapshotsForMachine(
     }
   }
 
+  // Stale-row cleanup is scoped to the re-projected chatrooms so an unrelated
+  // chatroom's rows are never deleted by a scoped pass.
+  if (opts?.onlyChatroomId && allChatroomIds.has(opts.onlyChatroomId)) {
+    const existing = await ctx.db
+      .query('chatroom_machineAssignedTaskSnapshots')
+      .withIndex('by_machineId_chatroomId', (q) =>
+        q.eq('machineId', machineId).eq('chatroomId', opts.onlyChatroomId as Id<'chatroom_rooms'>)
+      )
+      .collect();
+    await deleteSnapshotsNotInDesiredKeys(ctx, existing, desiredKeys);
+    return;
+  }
+
   const existing = await ctx.db
     .query('chatroom_machineAssignedTaskSnapshots')
     .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
     .collect();
-  for (const row of existing) {
-    const key = `${row.machineId}:${row.taskId}:${row.role}`;
-    if (!desiredKeys.has(key)) {
-      await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);
-    }
-  }
+  await deleteSnapshotsNotInDesiredKeys(ctx, existing, desiredKeys);
 }
 
 /** Rebuild assigned-task snapshot projection for all machines in a chatroom. */
@@ -285,7 +338,7 @@ export async function projectAssignedTaskSnapshotsForChatroom(
     configs.map((c) => c.machineId).filter((id): id is string => id !== undefined)
   );
   for (const machineId of machineIds) {
-    await projectAssignedTaskSnapshotsForMachine(ctx, machineId);
+    await projectAssignedTaskSnapshotsForMachine(ctx, machineId, { onlyChatroomId: chatroomId });
   }
 }
 
@@ -327,7 +380,12 @@ export async function refreshSnapshotDeliveryConfigForChatroomRole(
   }
 }
 
-/** After task status leaves active set, drop snapshot rows. */
+/**
+ * Sync snapshot rows for a single changed task. Work is bounded to this
+ * task's responsible configs (machines × roles) plus its existing rows —
+ * never a full chatroom/machine rebuild.
+ */
+// fallow-ignore-next-line complexity
 export async function projectAssignedTaskSnapshotsAfterTaskChange(
   ctx: MutationCtx,
   taskId: Id<'chatroom_tasks'>
@@ -341,7 +399,31 @@ export async function projectAssignedTaskSnapshotsAfterTaskChange(
     await deleteSnapshotsForTask(ctx, taskId);
     return;
   }
-  await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
+
+  const chatroom = await ctx.db.get('chatroom_rooms', task.chatroomId);
+  const { configs } = await loadRemoteConfigsForChatroom(ctx, task.chatroomId);
+  const responsibleConfigs = resolveResponsibleConfigs(task, configs, chatroom ?? {});
+  const now = Date.now();
+  const desiredKeys = new Set<string>();
+  for (const config of responsibleConfigs) {
+    if (!config.machineId) continue;
+    desiredKeys.add(`${config.machineId}:${task._id}:${config.role}`);
+    await upsertSnapshotRow(ctx, {
+      machineId: config.machineId,
+      task,
+      config,
+      now,
+    });
+  }
+
+  // Drop rows for this task that are no longer desired (e.g. reassigned to a
+  // different role/machine). Scoped to the task via by_taskId — tiny by
+  // construction (one row per machine × role).
+  const existing = await ctx.db
+    .query('chatroom_machineAssignedTaskSnapshots')
+    .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
+    .collect();
+  await deleteSnapshotsNotInDesiredKeys(ctx, existing, desiredKeys);
 }
 
 export async function assertMachineSnapshotAccess(

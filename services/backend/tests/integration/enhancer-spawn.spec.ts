@@ -4,6 +4,7 @@
  * Verifies pending job query, claim for spawn, spawn payload, and nextRetryAt filtering.
  */
 
+import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { describe, expect, test } from 'vitest';
 
 import { setupPlannerWorkspaceForSession } from './harness-fixtures';
@@ -277,6 +278,69 @@ describe('daemon.enhancer.index', () => {
     expect(delivery.taskDeliveryOutput).not.toContain('enhancer complete');
     expect(delivery.taskDeliveryOutput).toContain(String(originUserMessageId));
     expect(delivery.systemPrompt).toContain('single-turn, memoryless **design advisor**');
+  });
+
+  test('getTaskDeliveryForJob uses explicit envelope mode over stale legacy enhancer scalar', async () => {
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-env-boundary');
+    await addEnhancerToTeamRoles(chatroomId);
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+
+    const originUserMessageId = await createPlannerUserMessageAndTask(
+      sessionId,
+      chatroomId,
+      'Envelope boundary test'
+    );
+    const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
+    const { jobId } = await insertEnhancerJob({
+      chatroomId,
+      userId,
+      machineId,
+      originUserMessageId,
+      draftContent: '<request>Envelope boundary</request>',
+    });
+
+    // Seed an explicit code:enhanced envelope with deliberately stale legacy
+    // scalars that say enhancer is off, so envelope precedence is observable.
+    await t.run(async (ctx) => {
+      const job = await ctx.db.get('chatroom_enhancerJobs', jobId as Id<'chatroom_enhancerJobs'>);
+      if (!job?.taskId) return;
+      await ctx.db.patch('chatroom_tasks', job.taskId, {
+        taskEnvelope: createTaskEnvelope({
+          conversationMode: 'code:enhanced',
+          sessionPolicy: 'continue',
+        }),
+        conversationMode: 'chat',
+        plannerEnhancerEnabled: false,
+      });
+    });
+
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId,
+      machineId,
+    });
+
+    const delivery = await t.query(api.daemon.enhancer.index.getTaskDeliveryForJob, {
+      sessionId,
+      jobId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // The explicit code:enhanced envelope re-enables enhancer handoff targeting
+    // despite the stale chat/false scalars on the task row.
+    expect(delivery.taskDeliveryOutput).toContain('<handoffs>');
+    expect(delivery.taskDeliveryOutput).toContain('**enhancer**');
+    expect(delivery.taskDeliveryOutput).not.toContain('enhancer complete');
   });
 
   test('pendingForMachine respects nextRetryAt filter', async () => {

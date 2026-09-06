@@ -65,3 +65,105 @@ describe('useEnhancerConfig hydration', () => {
     expect(result.current.isActive).toBe(false);
   });
 });
+
+describe('useEnhancerConfig serverIsActive', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMutation.mockReturnValue(vi.fn().mockResolvedValue(undefined));
+  });
+
+  it('returns undefined while server config is loading', () => {
+    mockQuery.mockReturnValue(undefined);
+    const { result } = renderHook(() => useEnhancerConfig('room-1'));
+    expect(result.current.serverIsActive).toBeUndefined();
+  });
+
+  it('returns false when server config is null', async () => {
+    mockQuery.mockReturnValue(null);
+    const { result } = renderHook(() => useEnhancerConfig('room-1'));
+    await waitFor(() => expect(result.current.serverIsActive).toBe(false));
+  });
+
+  it('returns true when server config is active', async () => {
+    mockQuery.mockReturnValue(complete);
+    const { result } = renderHook(() => useEnhancerConfig('room-1'));
+    await waitFor(() => expect(result.current.serverIsActive).toBe(true));
+  });
+
+  it('returns false when server config is enabled but incomplete', async () => {
+    mockQuery.mockReturnValue({ ...complete, model: '' });
+    const { result } = renderHook(() => useEnhancerConfig('room-1'));
+    await waitFor(() => expect(result.current.serverIsActive).toBe(false));
+  });
+
+  it('derives from server query not local optimistic state', async () => {
+    mockQuery.mockReturnValue(null);
+    const { result } = renderHook(() => useEnhancerConfig('room-1'));
+    await waitFor(() => expect(result.current.config).toBeNull());
+
+    // serverIsActive should be false regardless of local state — it derives from the server query.
+    expect(result.current.serverIsActive).toBe(false);
+  });
+});
+
+describe('useEnhancerConfig transactional saveConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockQuery.mockReturnValue(null);
+  });
+
+  it('restores prior config and rethrows when mutation rejects', async () => {
+    const priorConfig = {
+      enabled: false,
+      targetId: 'handoff:planner-to-builder' as const,
+      agentHarness: 'cursor' as const,
+      model: 'gpt-4',
+      machineId: 'machine-1',
+    };
+
+    // Seed the store with the prior config via initial query.
+    mockQuery.mockReturnValue({
+      ...priorConfig,
+      enabled: false,
+      updatedAt: 1,
+    });
+    const upsert = vi.fn().mockRejectedValue(new Error('network'));
+    mockMutation.mockReturnValue(upsert);
+
+    const { result } = renderHook(() => useEnhancerConfig('room-1'));
+
+    // Wait for hydration to seed config.
+    await waitFor(() => expect(result.current.config).toEqual(priorConfig));
+
+    // Attempt to save a new enabled config — should fail and restore prior.
+    const newConfig = { ...priorConfig, enabled: true };
+    await expect(result.current.saveConfig(newConfig)).rejects.toThrow('network');
+
+    // Config should be restored to the prior state.
+    expect(result.current.config).toEqual(priorConfig);
+    expect(result.current.isActive).toBe(false);
+  });
+
+  it('clears store and rethrows when prior config was null', async () => {
+    mockQuery.mockReturnValue(null);
+    const upsert = vi.fn().mockRejectedValue(new Error('network'));
+    mockMutation.mockReturnValue(upsert);
+
+    const { result } = renderHook(() => useEnhancerConfig('room-1'));
+    await waitFor(() => expect(result.current.config).toBeNull());
+
+    const newConfig = {
+      enabled: true,
+      targetId: 'handoff:planner-to-builder' as const,
+      agentHarness: 'cursor' as const,
+      model: 'gpt-4',
+      machineId: 'machine-1',
+    };
+
+    await expect(result.current.saveConfig(newConfig)).rejects.toThrow('network');
+
+    // Config should be restored to null.
+    expect(result.current.config).toBeNull();
+    expect(result.current.isActive).toBe(false);
+  });
+});

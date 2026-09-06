@@ -863,6 +863,132 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
   });
 });
 
+describe('handoff-templates > conversation mode chat', () => {
+  test('duo planner → user with chat mode resolves to lean chat template', () => {
+    const template = getHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'user',
+      conversationMode: 'chat',
+    });
+    expect(template).toContain('Chat Response Template');
+    expect(template).toContain('Recipient visibility');
+    expect(template).not.toContain('<handoff-overview>');
+    expect(template).not.toContain('<handoff-proofs>');
+    expect(template).not.toContain('<handoff-direction>');
+    expect(template).not.toContain('<handoff-action>');
+    expect(template).not.toContain('Not Applicable.');
+    expect(template).not.toContain('get-role-guidance');
+    expect(template).not.toContain('context new');
+    expect(template).not.toContain('context read');
+    expect(template).not.toContain('Handoff to `builder`');
+    expect(template).not.toContain('Handoff to `enhancer`');
+  });
+
+  test('solo solo → user with chat mode resolves to lean chat template', () => {
+    const template = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'solo',
+      toRole: 'user',
+      conversationMode: 'chat',
+    });
+    expect(template).toContain('Chat Response Template');
+    expect(template).toContain('Recipient visibility');
+    expect(template).not.toContain('<handoff-overview>');
+    expect(template).not.toContain('<handoff-proofs>');
+    expect(template).not.toContain('<handoff-direction>');
+    expect(template).not.toContain('<handoff-action>');
+    expect(template).not.toContain('Not Applicable.');
+    expect(template).not.toContain('get-role-guidance');
+    expect(template).not.toContain('context new');
+    expect(template).not.toContain('context read');
+  });
+
+  test('chat mode does not affect non-user targets: duo planner → builder', () => {
+    const template = getHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'builder',
+      conversationMode: 'chat',
+    });
+    expect(template).toBe(getPlannerToBuilderHandoffTemplate());
+  });
+
+  test('chat mode does not affect non-user targets: solo solo → enhancer', () => {
+    const template = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'solo',
+      toRole: 'enhancer',
+      conversationMode: 'chat',
+    });
+    expect(template).toContain('Planning Request (Solo → Enhancer)');
+  });
+
+  test('code mode user templates retain proof-rich historical output (duo)', () => {
+    const template = getHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'user',
+      conversationMode: 'code',
+    });
+    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('<handoff-proofs>');
+  });
+
+  test('code:enhanced mode user templates retain proof-rich historical output (duo)', () => {
+    const template = getHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'user',
+      conversationMode: 'code:enhanced',
+    });
+    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('<handoff-proofs>');
+  });
+
+  test('undefined mode user templates retain proof-rich historical output (duo)', () => {
+    const template = getHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'user',
+    });
+    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('<handoff-proofs>');
+  });
+
+  test('code mode user templates retain proof-rich historical output (solo)', () => {
+    const template = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'solo',
+      toRole: 'user',
+      conversationMode: 'code',
+    });
+    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('<handoff-proofs>');
+  });
+
+  test('code:enhanced mode user templates retain proof-rich historical output (solo)', () => {
+    const template = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'solo',
+      toRole: 'user',
+      conversationMode: 'code:enhanced',
+    });
+    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('<handoff-proofs>');
+  });
+
+  test('undefined mode user templates retain proof-rich historical output (solo)', () => {
+    const template = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'solo',
+      toRole: 'user',
+    });
+    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('<handoff-proofs>');
+  });
+});
+
 describe('handoff-templates > invariants', () => {
   const deliveredTemplates: [string, string | null][] = [
     [

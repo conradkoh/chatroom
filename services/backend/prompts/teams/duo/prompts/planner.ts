@@ -51,7 +51,7 @@ ${getTeamCompositionSection(members)}
 
 ${operatingModelGuidance}
 
-${getCoreResponsibilitiesSection(DUO_TEAM_CONFIG)}
+${getCoreResponsibilitiesSection(DUO_TEAM_CONFIG, { role: 'planner', teamId: 'duo' })}
 
 ${getDelegationAndDecompositionSection(DUO_TEAM_CONFIG)}
 
