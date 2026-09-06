@@ -63,9 +63,7 @@ function barClass(mode: ConversationMode): string {
     'shrink-0 w-[3.75rem] px-0 py-2 sm:w-full sm:px-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',
     mode === 'code:enhanced'
       ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
-      : mode === 'chat'
-        ? 'text-emerald-500 dark:text-emerald-400 bg-emerald-500/10'
-        : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+      : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
   );
 }
 

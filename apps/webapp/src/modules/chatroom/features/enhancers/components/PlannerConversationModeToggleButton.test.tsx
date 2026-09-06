@@ -231,7 +231,7 @@ describe('PlannerConversationModeToggleButton', () => {
     expect(button.className).toContain('dark:text-blue-400');
   });
 
-  it('shows chat mode styling for chat', () => {
+  it('shows muted styling for chat (only enhanced is highlighted)', () => {
     render(
       <PlannerConversationModeToggleButton
         mode="chat"
@@ -244,7 +244,8 @@ describe('PlannerConversationModeToggleButton', () => {
     );
 
     const button = screen.getByTestId('planner-conversation-mode-toggle');
-    expect(button.className).toContain('text-emerald-500');
-    expect(button.className).toContain('dark:text-emerald-400');
+    expect(button.className).toContain('text-chatroom-text-muted');
+    expect(button.className).not.toContain('text-emerald-500');
+    expect(button.className).not.toContain('text-blue-500');
   });
 });
