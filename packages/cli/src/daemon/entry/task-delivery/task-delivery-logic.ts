@@ -9,6 +9,7 @@ import {
   isOperationalCircuitOpen,
   isOperationalDesiredRunning,
   isOperationalStopIntentActive,
+  type AgentOperationalReadModel,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { STOPPING_TIMEOUT_MS } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
@@ -151,14 +152,17 @@ function isNativeActiveTaskAgentDown(
   task: AssignedTaskSnapshotView,
   health: NativeAgentLocalHealth,
   now: number,
-  coldOwnedRoles?: Set<string> | undefined
+  coldOwnedRoles?: Set<string> | undefined,
+  operationalModel?: AgentOperationalReadModel | undefined
 ): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
   if (coldOwnedRoles?.has(roleKey(task.chatroomId, task.agentConfig.role))) return false;
-  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
-    task.chatroomId,
-    task.agentConfig.role
-  );
+  const op =
+    operationalModel?.get(task.chatroomId, task.agentConfig.role) ??
+    getNativeDeliverySession()?.agentOperationalReadModel?.get(
+      task.chatroomId,
+      task.agentConfig.role
+    );
   if (!isOperationalDesiredRunning(op)) return false;
   if (!isNativeRevivableTaskStatus(task)) return false;
   return isNativeAgentSlotDown(task, health, now);
@@ -168,11 +172,13 @@ export function listNativeTasksNeedingRevive(
   tasks: AssignedTaskSnapshotView[],
   health: NativeAgentLocalHealth,
   now: number,
-  cooldown: RecoveryCooldown
+  cooldown: RecoveryCooldown,
+  operationalModel?: AgentOperationalReadModel | undefined
 ): AssignedTaskSnapshotView[] {
   const coldOwnedRoles = selectColdOwnedRoles(tasks, health, now);
   return tasks.filter((task) => {
-    if (!isNativeActiveTaskAgentDown(task, health, now, coldOwnedRoles)) return false;
+    if (!isNativeActiveTaskAgentDown(task, health, now, coldOwnedRoles, operationalModel))
+      return false;
     const { chatroomId, agentConfig } = task;
     if (!agentConfig.workingDir) return false;
     if (!cooldown.canAttempt(chatroomId, agentConfig.role, 'revive', now)) return false;
@@ -185,17 +191,20 @@ export function listNativeTasksNeedingRevive(
 // fallow-ignore-next-line complexity
 function isNativePendingTaskNeedingWake(
   task: AssignedTaskSnapshotView,
-  coldOwnedRoles?: Set<string> | undefined
+  coldOwnedRoles?: Set<string> | undefined,
+  operationalModel?: AgentOperationalReadModel | undefined
 ): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
   if (task.status !== 'pending') return false;
   if (snapshotRequestsNativeColdSession(task)) return false;
   if (coldOwnedRoles?.has(roleKey(task.chatroomId, task.agentConfig.role))) return false;
   if (isChatroomStopScopeActive(task.chatroomId)) return false;
-  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
-    task.chatroomId,
-    task.agentConfig.role
-  );
+  const op =
+    operationalModel?.get(task.chatroomId, task.agentConfig.role) ??
+    getNativeDeliverySession()?.agentOperationalReadModel?.get(
+      task.chatroomId,
+      task.agentConfig.role
+    );
   if (isOperationalDesiredRunning(op)) return false;
   // A failed start opens the circuit. Do not let the still-pending task
   // immediately re-trigger the same failing spawn; manual start or a fresh
@@ -209,7 +218,8 @@ function isNativePendingTaskNeedingWake(
 export function listNativePendingTasksNeedingWake(
   tasks: AssignedTaskSnapshotView[],
   cooldown: RecoveryCooldown,
-  now: number
+  now: number,
+  operationalModel?: AgentOperationalReadModel | undefined
 ): AssignedTaskSnapshotView[] {
   // Suppress wake for a role whose selected candidate owns a cold start, so a
   // continue-session row queued behind an explicit cold task cannot revive
@@ -226,7 +236,7 @@ export function listNativePendingTasksNeedingWake(
     }
   }
   return tasks.filter((task) => {
-    if (!isNativePendingTaskNeedingWake(task, coldOwnedRoles)) return false;
+    if (!isNativePendingTaskNeedingWake(task, coldOwnedRoles, operationalModel)) return false;
     const { chatroomId, agentConfig } = task;
     if (!cooldown.canAttempt(chatroomId, agentConfig.role, 'wake', now)) return false;
     cooldown.recordAttempt(chatroomId, agentConfig.role, 'wake', now);

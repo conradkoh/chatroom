@@ -8,31 +8,37 @@ import { getNativeDeliverySession } from './native-delivery-session-registry.js'
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../daemon/domain/usecase/check-agent-slot.js';
-import { isOperationalDesiredRunning } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import {
+  isOperationalDesiredRunning,
+  type MachineAgentOperationalRow,
+} from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(
   task: AssignedTaskSnapshotView,
-  slot: AgentSlot | undefined
+  slot: AgentSlot | undefined,
+  operational?: MachineAgentOperationalRow | undefined
 ): boolean {
-  return explainAgentReadyForNativeDeliveryBlock(task, slot) === null;
+  return explainAgentReadyForNativeDeliveryBlock(task, slot, operational) === null;
 }
 
 /** Human-readable reason when agent/slot is not ready; null when ready. */
 // fallow-ignore-next-line complexity
 export function explainAgentReadyForNativeDeliveryBlock(
   task: AssignedTaskSnapshotView,
-  slot: AgentSlot | undefined
+  slot: AgentSlot | undefined,
+  explicitOperational?: MachineAgentOperationalRow | undefined
 ): string | null {
   const { agentConfig } = task;
   if (!isNativeHarness(agentConfig.agentHarness)) {
     return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
-  const operational = getNativeDeliverySession()?.agentOperationalReadModel?.get(
-    task.chatroomId,
-    agentConfig.role
-  );
+  // Prefer the explicit operational row; fall back to the delivery-session
+  // registry lookup for legacy callers during the coordinator migration.
+  const operational =
+    explicitOperational ??
+    getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, agentConfig.role);
   // Explicit cold-session tasks: apply stop/circuit/transition guards first.
   // When the slot is down (missing/idle) and unblocked, delivery owns the
   // cold start and bypasses the running-slot gates below; a running slot

@@ -6,15 +6,26 @@ import {
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import type { MachineAgentOperationalRow } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
 export { isNativeHarness } from '../../domain/native-integration/index.js';
+
+/**
+ * Readiness inputs for native delivery gating. Callers with an explicit
+ * operational read model should pass the row directly; legacy callers omit it
+ * and fall back to the delivery-session registry lookup.
+ */
+export type NativeDeliveryReadinessOptions = {
+  slot: AgentSlot | undefined;
+  operational?: MachineAgentOperationalRow | undefined;
+};
 
 /** True when daemon should deliver a task into a live native harness session. */
 // fallow-ignore-next-line unused-export
 export function shouldDeliverNativeTask(
   task: AssignedTaskSnapshotView,
-  opts: { slot: AgentSlot | undefined }
+  opts: NativeDeliveryReadinessOptions
 ): boolean {
   return explainNativeDeliveryBlock(task, opts) === null;
 }
@@ -23,7 +34,7 @@ export function shouldDeliverNativeTask(
 // fallow-ignore-next-line complexity
 export function explainNativeDeliveryBlock(
   task: AssignedTaskSnapshotView,
-  opts: { slot: AgentSlot | undefined }
+  opts: NativeDeliveryReadinessOptions
 ): string | null {
   if (!isDeliverableNativeTaskStatus(task.status)) {
     return `task_status_not_deliverable (status=${task.status})`;
@@ -37,10 +48,11 @@ export function explainNativeDeliveryBlock(
   }
   const inFlightBlock = explainInFlightDeliveryBlock(task, opts.slot);
   if (inFlightBlock) return inFlightBlock;
-  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot);
+  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.operational);
 }
 
 /** Block re-inject when this slot already delivered the task but harness has not started it. */
+// fallow-ignore-next-line unused-export
 export function explainInFlightDeliveryBlock(
   task: AssignedTaskSnapshotView,
   slot: AgentSlot | undefined

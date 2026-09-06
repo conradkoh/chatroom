@@ -1,14 +1,21 @@
-import { isOperationalDesiredRunning } from './agent-operational-read-model.js';
+import {
+  isOperationalDesiredRunning,
+  type AgentOperationalReadModel,
+} from './agent-operational-read-model.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 import { getNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
 
+// fallow-ignore-next-line unused-export
 export function enrichSnapshotWithOperational(
-  snapshot: AssignedTaskSnapshotView
+  snapshot: AssignedTaskSnapshotView,
+  operationalModel?: AgentOperationalReadModel | undefined
 ): AssignedTaskSnapshotView {
-  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
-    snapshot.chatroomId,
-    snapshot.agentConfig.role
-  );
+  const op =
+    operationalModel?.get(snapshot.chatroomId, snapshot.agentConfig.role) ??
+    getNativeDeliverySession()?.agentOperationalReadModel?.get(
+      snapshot.chatroomId,
+      snapshot.agentConfig.role
+    );
   if (!op) return snapshot;
   return {
     ...snapshot,
@@ -19,7 +26,8 @@ export function enrichSnapshotWithOperational(
   };
 }
 export function enrichSnapshotsWithOperational(
-  snapshots: readonly AssignedTaskSnapshotView[]
+  snapshots: readonly AssignedTaskSnapshotView[],
+  operationalModel?: AgentOperationalReadModel | undefined
 ): AssignedTaskSnapshotView[] {
-  return snapshots.map(enrichSnapshotWithOperational);
+  return snapshots.map((snapshot) => enrichSnapshotWithOperational(snapshot, operationalModel));
 }
