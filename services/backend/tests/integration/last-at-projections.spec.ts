@@ -19,6 +19,7 @@ import {
 } from '../../convex/lib/lastAtProjections';
 import { t } from '../../test.setup';
 import { createTestSession } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE } from '../helpers/test-models';
 
 async function insertCliSession(lastUsedAt: number): Promise<Id<'cliSessions'>> {
   return await t.run(async (ctx: any) => {
@@ -626,5 +627,201 @@ describe('last-at projections: session dual writes', () => {
     });
     expect(result.projections).toEqual([null, null]);
     expect(result.currentProjection).not.toBeNull();
+  });
+});
+
+describe('last-at projections: machine dual writes', () => {
+  async function readMachineAndProjection(machineId: string) {
+    return await t.run(async (ctx: any) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+        .unique();
+      if (!machine) throw new Error('chatroom_machines parent not found');
+      const projections = await ctx.db
+        .query('chatroom_machineLastSeenAt')
+        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+        .collect();
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+        .unique();
+      return { machine, projections, liveness };
+    });
+  }
+
+  test('machines.register new machine dual-writes machine projection', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-machine-register-${suffix}`);
+    const machineId = `lastat-register-${suffix}`;
+
+    const result = await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+    });
+    expect(result).toEqual({ machineId, isNew: true });
+
+    const { machine, projections } = await readMachineAndProjection(machineId);
+    expect(Number.isFinite(machine.lastSeenAt)).toBe(true);
+    expect(projections).toHaveLength(1);
+    expect(projections[0].lastSeenAt).toBe(machine.lastSeenAt);
+  });
+
+  test('machines.register existing and refreshCapabilities keep projection in parity', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-machine-update-${suffix}`);
+    const machineId = `lastat-update-${suffix}`;
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+    });
+
+    // Re-register (existing-machine path) with a changed hostname.
+    const second = await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host-renamed',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+    });
+    expect(second).toEqual({ machineId, isNew: false });
+
+    let state = await readMachineAndProjection(machineId);
+    expect(state.projections).toHaveLength(1);
+    expect(state.projections[0].lastSeenAt).toBe(state.machine.lastSeenAt);
+
+    // Runtime capability refresh path.
+    await t.mutation(api.machines.refreshCapabilities, {
+      sessionId,
+      machineId,
+      availableHarnesses: ['opencode'],
+      availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+    });
+
+    state = await readMachineAndProjection(machineId);
+    expect(state.projections).toHaveLength(1);
+    expect(state.projections[0].lastSeenAt).toBe(state.machine.lastSeenAt);
+  });
+
+  test('machines.updateDaemonStatus dual-writes projection, liveness stays separate', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-machine-status-${suffix}`);
+    const machineId = `lastat-status-${suffix}`;
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+    });
+    await t.mutation(api.machines.updateDaemonStatus, {
+      sessionId,
+      machineId,
+      connected: true,
+    });
+
+    const { machine, projections, liveness } = await readMachineAndProjection(machineId);
+    expect(machine.daemonConnected).toBe(true);
+    expect(projections).toHaveLength(1);
+    expect(projections[0].lastSeenAt).toBe(machine.lastSeenAt);
+    // Liveness is a separate authoritative table, not the cleanup projection.
+    expect(liveness).not.toBeNull();
+    expect(Number.isFinite(liveness.lastSeenAt)).toBe(true);
+  });
+
+  test('machines.daemonHeartbeat does not touch the dedicated cleanup projection', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-machine-hb-${suffix}`);
+    const machineId = `lastat-hb-${suffix}`;
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+    });
+    // Disconnect so the heartbeat performs a real liveness write (not a noop).
+    await t.mutation(api.machines.updateDaemonStatus, {
+      sessionId,
+      machineId,
+      connected: false,
+    });
+
+    const before = await readMachineAndProjection(machineId);
+    expect(before.projections).toHaveLength(1);
+    expect(before.liveness?.daemonConnected).toBe(false);
+
+    const heartbeat = await t.mutation(api.machines.daemonHeartbeat, {
+      sessionId,
+      machineId,
+    });
+    expect(heartbeat.success).toBe(true);
+
+    const after = await readMachineAndProjection(machineId);
+    // Heartbeat flipped liveness connectivity but left the legacy field
+    // and the dedicated cleanup projection untouched.
+    expect(after.liveness?.daemonConnected).toBe(true);
+    expect(after.machine.lastSeenAt).toBe(before.machine.lastSeenAt);
+    expect(after.projections).toHaveLength(1);
+    expect(after.projections[0].lastSeenAt).toBe(before.projections[0].lastSeenAt);
+  });
+
+  test('chatroomCleanup.cleanupMachines deletes parent and projection', async () => {
+    const suffix = Math.random().toString(36).slice(2);
+    const { sessionId } = await createTestSession(`lastat-machine-cleanup-${suffix}`);
+    const machineId = `lastat-cleanup-${suffix}`;
+    const staleLastSeenAt = Date.now() - 91 * 24 * 60 * 60 * 1000;
+
+    await t.run(async (ctx: any) => {
+      const session = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q: any) => q.eq('sessionId', sessionId))
+        .unique();
+      if (!session) throw new Error('test session not found');
+      await ctx.db.insert('chatroom_machines', {
+        machineId,
+        userId: session.userId,
+        hostname: 'test-host',
+        os: 'darwin',
+        availableHarnesses: ['opencode'],
+        registeredAt: staleLastSeenAt,
+        lastSeenAt: staleLastSeenAt,
+        daemonConnected: false,
+      });
+      await upsertMachineLastSeenAt(ctx, machineId, staleLastSeenAt);
+    });
+
+    const before = await readMachineAndProjection(machineId);
+    expect(before.machine.lastSeenAt).toBe(staleLastSeenAt);
+    expect(before.projections).toHaveLength(1);
+
+    await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+
+    const after = await t.run(async (ctx: any) => ({
+      machine: await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+        .unique(),
+      projection: await ctx.db
+        .query('chatroom_machineLastSeenAt')
+        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+        .unique(),
+    }));
+    expect(after.machine).toBeNull();
+    expect(after.projection).toBeNull();
   });
 });

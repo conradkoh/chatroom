@@ -8,6 +8,7 @@
 
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
+import { deleteMachineLastSeenAt } from './lib/lastAtProjections';
 import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import { deleteMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { deleteMachineTaskStatusSignalHead } from '../src/domain/usecase/task/project-machine-task-status-signal-head';
@@ -352,6 +353,7 @@ export const cleanupMachines = internalMutation({
 
       // Finally delete the machine itself
       await ctx.db.delete('chatroom_machines', machine._id);
+      await deleteMachineLastSeenAt(ctx, mid);
       deletedMachines++;
     }
 

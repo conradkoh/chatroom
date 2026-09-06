@@ -9,6 +9,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { upsertMachineLastSeenAt } from './lib/lastAtProjections';
 import { str } from './utils/types';
 import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
 import { validateWorkingDir } from './workspacePathSecurity';
@@ -212,6 +213,7 @@ export const register = mutation({
         ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
         lastSeenAt: now,
       });
+      await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
       // Dual-write into dedicated models table (re-register / update path)
       await upsertMachineModels(ctx, args.machineId, args.availableModels);
@@ -237,6 +239,7 @@ export const register = mutation({
       lastSeenAt: now,
       daemonConnected: false,
     });
+    await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
     // Dual-write into dedicated models table (new-insert path)
     await upsertMachineModels(ctx, args.machineId, args.availableModels);
@@ -313,12 +316,14 @@ export const refreshCapabilities = mutation({
       throw new Error('Machine is registered to a different user');
     }
 
+    const now = Date.now();
     await ctx.db.patch('chatroom_machines', existing._id, {
       availableHarnesses: args.availableHarnesses,
       harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
-      lastSeenAt: Date.now(),
+      lastSeenAt: now,
     });
+    await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
     // Dual-write into dedicated models table (suppresses no-op writes for bandwidth)
     await upsertMachineModels(ctx, args.machineId, args.availableModels);
@@ -824,6 +829,7 @@ export const updateDaemonStatus = mutation({
       daemonConnected: args.connected,
       lastSeenAt: now,
     });
+    await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
     // Also update liveness table
     const existingLiveness = await ctx.db
