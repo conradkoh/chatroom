@@ -69,6 +69,7 @@ export const assignedTaskSignalBootstrapFields = {
   workingDir: z.string().optional(),
   assignedTo: z.string().optional(),
   sessionAugmentation: sessionAugmentationSchema.optional(),
+  requestsNativeColdSession: z.boolean().optional(),
 } as const;
 
 export const assignedTaskSignalSchema = z.object(assignedTaskSignalBootstrapFields);
@@ -101,6 +102,7 @@ export const assignedTaskSnapshotRowSchema = z
     createdAt: z.number(),
     agentConfig: assignedTaskAgentConfigSchema,
     participant: assignedTaskParticipantSchema.optional(),
+    requestsNativeColdSession: z.boolean().optional(),
   })
   .transform((row) => ({
     ...row,

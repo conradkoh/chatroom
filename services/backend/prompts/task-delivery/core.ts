@@ -4,8 +4,10 @@
  * Used by both native and CLI task delivery paths.
  */
 
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { isSupportedEnhancerRole } from '@workspace/shared/domain/enhancer-team-capability';
 
+import { isChatModeEntryPointUserTask } from './chat-mode-policy.js';
 import {
   appendPlanningReviewOutcomeGuidance,
   appendTaskDeliveryEnhancerGuidance,
@@ -34,6 +36,11 @@ export interface TaskDeliveryParams {
   plannerEnhancerEnabled?: boolean | undefined;
   originUserMessageId?: string | undefined;
   entryPointRole?: string | undefined;
+  /**
+   * Explicit conversation mode snapshot. When present, drives mode-specific
+   * prompt behaviour (e.g. Chat mode suppresses enhancer ceremony).
+   */
+  conversationMode?: ConversationMode | undefined;
 }
 
 function appendPlannerEnhancerGuidanceForMessage(
@@ -94,9 +101,19 @@ function appendTaskDeliveryEnhancerGuidanceIfEnabled(
     | 'task'
     | 'isEntryPoint'
     | 'teamId'
+    | 'conversationMode'
   >
 ): void {
   if (!params.isEntryPoint || !isSupportedEnhancerRole(params.teamId, params.role)) return;
+  // Chat mode: no enhancer ceremony for entry-point user tasks.
+  if (
+    isChatModeEntryPointUserTask({
+      conversationMode: params.conversationMode,
+      isEntryPoint: params.isEntryPoint,
+      senderRole: params.message?.senderRole,
+    })
+  )
+    return;
   if (params.plannerEnhancerEnabled) return appendEnabledEnhancerGuidance(lines, params);
 
   const senderRole = params.message?.senderRole?.toLowerCase();
@@ -168,6 +185,7 @@ function appendTaskDeliveryNextSteps(
     | 'originUserMessageId'
     | 'entryPointRole'
     | 'teamId'
+    | 'conversationMode'
   >
 ): void {
   const {
@@ -179,6 +197,7 @@ function appendTaskDeliveryNextSteps(
     isEntryPoint,
     plannerEnhancerEnabled,
     teamId,
+    conversationMode,
   } = params;
   const senderRole = getTaskSenderRole(message);
   if (role.toLowerCase() === 'enhancer') {
@@ -199,6 +218,7 @@ function appendTaskDeliveryNextSteps(
     availableHandoffTargets,
     isEntryPoint,
     plannerEnhancerEnabled,
+    conversationMode,
   });
 
   lines.push('');
@@ -234,6 +254,11 @@ function appendTaskDeliveryHandoffTargets(
   >
 ): void {
   const { chatroomId, role, cliEnvPrefix, availableHandoffTargets } = params;
+
+  // availableHandoffTargets is pure capability data: it is rendered for every
+  // mode and never filtered by conversationMode. Chat only changes the primary
+  // recommendation (step 2) and its enhancer ceremony, never the advertised
+  // team handoff capabilities.
   if (availableHandoffTargets.length === 0) return;
 
   lines.push('');
@@ -268,26 +293,73 @@ export function appendTaskDeliveryHandoffSections(
     | 'plannerEnhancerEnabled'
     | 'originUserMessageId'
     | 'entryPointRole'
+    | 'conversationMode'
   >
 ): void {
-  appendTaskDeliveryNextSteps(lines, params);
+  // Derive the effective enhancer flag: explicit mode takes precedence over legacy boolean.
+  // When an explicit mode is present, it is the source of truth; legacy callers without a
+  // mode retain the existing boolean behaviour.
+  const effectivePlannerEnhancerEnabled = params.conversationMode
+    ? params.conversationMode === 'code:enhanced'
+    : params.plannerEnhancerEnabled === true;
+
+  // Chat-mode direct-answer recommendation: concise by default, no enhancer
+  // ceremony. This changes the recommended workflow, not team capabilities or
+  // handoff authority — alternate team targets remain advertised below.
+  if (
+    isChatModeEntryPointUserTask({
+      conversationMode: params.conversationMode,
+      isEntryPoint: params.isEntryPoint,
+      senderRole: params.message?.senderRole,
+    })
+  ) {
+    lines.push('');
+    lines.push('<chat-mode>');
+    lines.push('## Conversational Mode (Chat)');
+    lines.push('');
+    lines.push(
+      '**Answer the user directly and concisely by default. Chat mode changes the recommended ceremony, not your team capabilities or handoff authority. If the request requires team work, you may hand off to any advertised team target (for example, builder). Do not invoke the enhancer as part of the default Chat flow.**'
+    );
+    lines.push(
+      '**Do not run `chatroom context read` or `chatroom context new` for this Chat-mode task.**'
+    );
+    lines.push(
+      'When your response is ready, run the final handoff command below to deliver it to the user.'
+    );
+    lines.push('</chat-mode>');
+  }
+
+  appendTaskDeliveryNextSteps(lines, {
+    ...params,
+    plannerEnhancerEnabled: effectivePlannerEnhancerEnabled,
+  });
   appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, {
     chatroomId: params.chatroomId,
     role: params.role,
     cliEnvPrefix: params.cliEnvPrefix,
-    plannerEnhancerEnabled: params.plannerEnhancerEnabled,
+    plannerEnhancerEnabled: effectivePlannerEnhancerEnabled,
     message: params.message,
     task: params.task,
     isEntryPoint: params.isEntryPoint,
     teamId: params.teamId,
+    conversationMode: params.conversationMode,
   });
   appendTaskDeliveryHandoffTemplates(lines, {
     teamId: params.teamId,
     role: params.role,
     chatroomId: params.chatroomId,
     cliEnvPrefix: params.cliEnvPrefix,
+    conversationMode: params.conversationMode,
+    isEntryPoint: params.isEntryPoint,
+    senderRole: params.message?.senderRole,
     includeEnhancerTemplate:
-      params.plannerEnhancerEnabled &&
+      // Chat mode: never include enhancer-only template content.
+      !isChatModeEntryPointUserTask({
+        conversationMode: params.conversationMode,
+        isEntryPoint: params.isEntryPoint,
+        senderRole: params.message?.senderRole,
+      }) &&
+      effectivePlannerEnhancerEnabled &&
       params.isEntryPoint === true &&
       params.message?.senderRole.toLowerCase() === 'user',
   });

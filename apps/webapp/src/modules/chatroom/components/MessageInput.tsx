@@ -2,6 +2,8 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, ArrowUp, Paperclip, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
@@ -34,6 +36,7 @@ import {
 import { ComposerAccessoryButton } from './shared/ComposerAccessoryButton';
 import { composerAccessoryRowClassName } from './shared/composerAccessoryButtonStyles';
 import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
+import { useConversationMode } from '../hooks/useConversationMode';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 import { useStartInNewSessionPreference } from '../hooks/useStartInNewSessionPreference';
 import { takePendingComposerFocus } from '../utils/pendingComposerFocus';
@@ -150,6 +153,7 @@ interface SendFlowArgs {
   sending: boolean;
   chatroomId: string;
   startInNewSession: boolean;
+  conversationMode: ConversationMode;
   snippetAttachments: { id: string; fileSource: string; selectedContent: string }[];
   attachedTasks: { id: string }[];
   attachedBacklogItems: { id: string }[];
@@ -169,6 +173,7 @@ async function runSendFlow({
   sending,
   chatroomId,
   startInNewSession,
+  conversationMode,
   snippetAttachments,
   attachedTasks,
   attachedBacklogItems,
@@ -190,11 +195,19 @@ async function runSendFlow({
       fileSource: s.fileSource,
       selectedContent: s.selectedContent,
     }));
+    // Compat: startInNewSession and conversationMode remain provider/context
+    // inputs, but are submitted once as a single canonical TaskEnvelopeV1. The
+    // backend explicit envelope is authoritative; no independent scalar policy
+    // fields are sent.
+    const taskEnvelope = createTaskEnvelope({
+      conversationMode,
+      sessionPolicy: startInNewSession ? 'new' : 'continue',
+    });
     await (sendMessage as (args: Record<string, unknown>) => Promise<unknown>)({
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: 'user',
       content: text.trim(),
-      startInNewSession,
+      taskEnvelope,
       type: 'message',
       ...(snippets.length > 0 && { attachedSnippets: snippets }),
       ...(attachedTasks.length > 0 && { attachedTaskIds: attachedTasks.map((task) => task.id) }),
@@ -245,6 +258,7 @@ export function MessageInput({
   onUploadComplete,
 }: MessageInputProps) {
   const { startInNewSession } = useStartInNewSessionPreference();
+  const { mode: conversationMode } = useConversationMode();
   const draftKey = `chatroom-draft:${chatroomId}`;
   const [message, setMessage] = useState(() => {
     if (typeof window === 'undefined') return '';
@@ -421,6 +435,7 @@ export function MessageInput({
         sending,
         chatroomId,
         startInNewSession,
+        conversationMode,
         snippetAttachments,
         attachedTasks,
         attachedBacklogItems,
@@ -439,6 +454,7 @@ export function MessageInput({
       sending,
       sendMessage,
       chatroomId,
+      conversationMode,
       attachedTasks,
       attachedBacklogItems,
       attachedMessages,

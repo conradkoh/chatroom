@@ -6,8 +6,8 @@ import { ComposerPreflightBar } from './ComposerPreflightBar';
 vi.mock('../../features/enhancers/components/PlannerNewSessionToggle', () => ({
   PlannerNewSessionToggle: () => <div data-testid="planner-new-session-toggle" />,
 }));
-vi.mock('../../features/enhancers/components/PlannerEnhancerToggle', () => ({
-  PlannerEnhancerToggle: () => <div data-testid="planner-enhancer-toggle" />,
+vi.mock('../../features/enhancers/components/PlannerConversationModeToggle', () => ({
+  PlannerConversationModeToggle: () => <div data-testid="planner-conversation-mode-toggle" />,
 }));
 vi.mock('../StandingInstructionsBar', () => ({
   StandingInstructionsBar: () => <div data-testid="standing-instructions-bar" />,
@@ -38,5 +38,10 @@ describe('ComposerPreflightBar', () => {
 
     expect(siColumn?.className).toContain('flex-1');
     expect(siColumn?.className).toContain('min-w-0');
+  });
+
+  it('renders the conversation mode toggle', () => {
+    render(<ComposerPreflightBar chatroomId={'room1' as never} />);
+    expect(screen.getByTestId('planner-conversation-mode-toggle')).toBeInTheDocument();
   });
 });

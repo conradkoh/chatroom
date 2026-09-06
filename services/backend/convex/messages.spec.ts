@@ -2,12 +2,19 @@
  * Tests for _sendMessageHandler — verifies queued user message routing.
  */
 
+import {
+  createTaskEnvelope,
+  withTaskEnvelopeConversationMode,
+  withTaskEnvelopeSessionPolicy,
+  type TaskEnvelopeV1,
+} from '@workspace/shared/domain/task-envelope';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -359,6 +366,29 @@ describe('listQueued query', () => {
     expect(queuedMessages[1].content).toBe('second queued message');
     expect(queuedMessages[0].isQueued).toBe(true);
     expect(queuedMessages[1].isQueued).toBe(true);
+  });
+
+  test('includes conversationMode in queued message output when set', async () => {
+    const { sessionId } = await createTestSession('list-queued-conv-mode');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued with mode',
+      type: 'message',
+      conversationMode: 'code:enhanced',
+    });
+
+    const queuedMessages = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(queuedMessages.length).toBe(1);
+    expect(queuedMessages[0].conversationMode).toBe('code:enhanced');
   });
 
   test('returns empty array when no queued messages exist', async () => {
@@ -723,6 +753,189 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
   });
 });
 
+describe('_handoffHandler — envelope propagation across agent handoffs', () => {
+  async function seedTaskWithEnvelope(
+    chatroomId: Id<'chatroom_rooms'>,
+    opts: {
+      assignedTo: string;
+      createdBy: string;
+      content: string;
+      queuePosition: number;
+      taskEnvelope?: TaskEnvelopeV1;
+      conversationMode?: 'chat' | 'code' | 'code:enhanced';
+      plannerEnhancerEnabled?: boolean;
+      startInNewSession?: boolean;
+    }
+  ): Promise<Id<'chatroom_tasks'>> {
+    return await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: opts.createdBy,
+        content: opts.content,
+        status: 'in_progress',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: opts.queuePosition,
+        assignedTo: opts.assignedTo,
+        startedAt: now,
+        acknowledgedAt: now,
+        ...(opts.taskEnvelope !== undefined ? { taskEnvelope: opts.taskEnvelope } : {}),
+        ...(opts.conversationMode !== undefined ? { conversationMode: opts.conversationMode } : {}),
+        ...(opts.plannerEnhancerEnabled !== undefined
+          ? { plannerEnhancerEnabled: opts.plannerEnhancerEnabled }
+          : {}),
+        ...(opts.startInNewSession !== undefined
+          ? { startInNewSession: opts.startInNewSession }
+          : {}),
+      });
+    });
+  }
+
+  test('agent handoff inherits and advances the exact sender task envelope', async () => {
+    const { sessionId } = await createTestSession('handoff-envelope-basic');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const sourceEnvelope = {
+      version: 1 as const,
+      conversationMode: 'code' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'team' as const, phase: 'entry' as const },
+    };
+    const builderTaskId = await seedTaskWithEnvelope(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'planner',
+      content: 'builder work',
+      queuePosition: 0,
+      taskEnvelope: sourceEnvelope,
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'handed to planner',
+      targetRole: 'planner',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.completedTaskIds).toContain(builderTaskId);
+
+    const plannerTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    // Full copied + advanced envelope: team/entry -> team/implementation, session preserved.
+    expect(plannerTask?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'team', phase: 'implementation' },
+    });
+    // Temporary compatibility projections derived from the inherited envelope.
+    expect(plannerTask?.conversationMode).toBe('code');
+    expect(plannerTask?.plannerEnhancerEnabled).toBe(false);
+    expect(plannerTask?.startInNewSession).toBe(true);
+
+    // The source task envelope is untouched.
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(builderTaskId));
+    expect(sourceTask?.taskEnvelope).toEqual(sourceEnvelope);
+  });
+
+  test('sender-task selection is exact when multiple active tasks exist', async () => {
+    const { sessionId } = await createTestSession('handoff-envelope-multi');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const builderEnvelope = {
+      version: 1 as const,
+      conversationMode: 'code:enhanced' as const,
+      sessionPolicy: 'continue' as const,
+      handoffWorkflow: { preset: 'enhanced-team' as const, phase: 'entry' as const },
+    };
+    const unrelatedEnvelope = {
+      version: 1 as const,
+      conversationMode: 'chat' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'direct' as const, phase: 'entry' as const },
+    };
+    await seedTaskWithEnvelope(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'planner',
+      content: 'builder work',
+      queuePosition: 0,
+      taskEnvelope: builderEnvelope,
+    });
+    // Unrelated active task for a different role with a different envelope.
+    await seedTaskWithEnvelope(chatroomId, {
+      assignedTo: 'planner',
+      createdBy: 'builder',
+      content: 'unrelated planner work',
+      queuePosition: 1,
+      taskEnvelope: unrelatedEnvelope,
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'handed to planner',
+      targetRole: 'planner',
+    });
+    expect(result.success).toBe(true);
+
+    const plannerTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    // Inherited from the builder task (enhanced-team/entry -> enhancement), not the unrelated chat task.
+    expect(plannerTask?.taskEnvelope?.handoffWorkflow).toEqual({
+      preset: 'enhanced-team',
+      phase: 'enhancement',
+    });
+    expect(plannerTask?.taskEnvelope?.conversationMode).toBe('code:enhanced');
+    expect(plannerTask?.taskEnvelope?.sessionPolicy).toBe('continue');
+    expect(plannerTask?.plannerEnhancerEnabled).toBe(true);
+    expect(plannerTask?.startInNewSession).toBe(false);
+  });
+
+  test('legacy sender task without envelope is normalized and advanced on handoff', async () => {
+    const { sessionId } = await createTestSession('handoff-envelope-legacy');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const builderTaskId = await seedTaskWithEnvelope(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'planner',
+      content: 'builder work',
+      queuePosition: 0,
+      conversationMode: 'chat',
+      plannerEnhancerEnabled: false,
+      startInNewSession: true,
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'handed to planner',
+      targetRole: 'planner',
+    });
+    expect(result.success).toBe(true);
+
+    const plannerTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    // chat + startInNewSession:true -> normalized envelope (direct/entry),
+    // advanced one step to direct/delivery, session policy new preserved.
+    expect(plannerTask?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'chat',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'direct', phase: 'delivery' },
+    });
+    expect(plannerTask?.conversationMode).toBe('chat');
+    expect(plannerTask?.plannerEnhancerEnabled).toBe(false);
+    expect(plannerTask?.startInNewSession).toBe(true);
+
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(builderTaskId));
+    expect(sourceTask?.taskEnvelope).toBeUndefined();
+  });
+});
+
 describe('deleteUserMessageOrTask and materialized counts', () => {
   test('delete by task removes task and linked user message', async () => {
     const { sessionId } = await createTestSession('del-pending-task-1');
@@ -962,5 +1175,599 @@ describe('getLastUserMessage query', () => {
     expect(result.last).not.toBeNull();
     expect(result.last!.content).toBe('the actual user request');
     expect(result.prior).toEqual([]);
+  });
+});
+
+describe('updateQueuedMessageConversationMode', () => {
+  test('sets conversationMode and derives plannerEnhancerEnabled on queue row', async () => {
+    const { sessionId } = await createTestSession('update-conv-mode-1');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    // Create a queued message
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'mode update target',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.length).toBe(1);
+    const queuedId = queued[0]._id;
+
+    // Update to code:enhanced
+    await t.mutation(api.messages.updateQueuedMessageConversationMode, {
+      sessionId,
+      queuedMessageId: queuedId,
+      conversationMode: 'code:enhanced',
+    });
+
+    const updated = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', queuedId);
+    });
+    expect(updated?.conversationMode).toBe('code:enhanced');
+    expect(updated?.plannerEnhancerEnabled).toBe(true);
+  });
+
+  test('sets conversationMode=chat derives plannerEnhancerEnabled=false', async () => {
+    const { sessionId } = await createTestSession('update-conv-mode-chat');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'chat mode target',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]._id;
+
+    await t.mutation(api.messages.updateQueuedMessageConversationMode, {
+      sessionId,
+      queuedMessageId: queuedId,
+      conversationMode: 'chat',
+    });
+
+    const updated = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', queuedId);
+    });
+    expect(updated?.conversationMode).toBe('chat');
+    expect(updated?.plannerEnhancerEnabled).toBe(false);
+  });
+
+  test('rejects invalid conversationMode values', async () => {
+    const { sessionId } = await createTestSession('update-conv-mode-invalid');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'invalid mode target',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]._id;
+
+    await expect(
+      t.mutation(api.messages.updateQueuedMessageConversationMode, {
+        sessionId,
+        queuedMessageId: queuedId,
+        conversationMode: 'invalid_mode' as 'chat',
+      })
+    ).rejects.toThrow();
+  });
+
+  test('retains backward compatibility: updateQueuedMessagePlannerEnhancer also sets conversationMode', async () => {
+    const { sessionId } = await createTestSession('update-backward-compat');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'backward compat target',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]._id;
+
+    // Use the legacy boolean mutation
+    await t.mutation(api.messages.updateQueuedMessagePlannerEnhancer, {
+      sessionId,
+      queuedMessageId: queuedId,
+      plannerEnhancerEnabled: true,
+    });
+
+    const updated = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', queuedId);
+    });
+    expect(updated?.plannerEnhancerEnabled).toBe(true);
+    expect(updated?.conversationMode).toBe('code:enhanced');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateQueuedMessageEnvelope + legacy queue-setting adapters
+// ---------------------------------------------------------------------------
+
+async function seedQueuePolicyRow(
+  chatroomId: Id<'chatroom_rooms'>,
+  policy?: {
+    taskEnvelope?: {
+      version: 1;
+      conversationMode: 'chat' | 'code' | 'code:enhanced';
+      sessionPolicy: 'continue' | 'new';
+      handoffWorkflow: { preset: 'direct' | 'team' | 'enhanced-team'; phase: string };
+    };
+    conversationMode?: 'chat' | 'code' | 'code:enhanced';
+    plannerEnhancerEnabled?: boolean;
+    startInNewSession?: boolean;
+  }
+): Promise<Id<'chatroom_messageQueue'>> {
+  return await t.run(async (ctx) => {
+    return await ctx.db.insert('chatroom_messageQueue', {
+      chatroomId,
+      senderRole: 'user',
+      content: 'policy target',
+      type: 'message' as const,
+      queuePosition: 1,
+      ...(policy?.taskEnvelope !== undefined ? { taskEnvelope: policy.taskEnvelope } : {}),
+      ...(policy?.conversationMode !== undefined
+        ? { conversationMode: policy.conversationMode }
+        : {}),
+      ...(policy?.plannerEnhancerEnabled !== undefined
+        ? { plannerEnhancerEnabled: policy.plannerEnhancerEnabled }
+        : {}),
+      ...(policy?.startInNewSession !== undefined
+        ? { startInNewSession: policy.startInNewSession }
+        : {}),
+    });
+  });
+}
+
+describe('updateQueuedMessageEnvelope', () => {
+  test('replaces the complete stored envelope in one atomic patch', async () => {
+    const { sessionId } = await createTestSession('queue-env-replace');
+    const chatroomId = await createChatroom(sessionId);
+
+    const initial = {
+      version: 1 as const,
+      conversationMode: 'chat' as const,
+      sessionPolicy: 'continue' as const,
+      handoffWorkflow: { preset: 'direct' as const, phase: 'entry' as const },
+    };
+    const queuedId = await seedQueuePolicyRow(chatroomId, { taskEnvelope: initial });
+
+    const replacement = {
+      version: 1 as const,
+      conversationMode: 'code:enhanced' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'enhanced-team' as const, phase: 'entry' as const },
+    };
+    await t.mutation(api.messages.updateQueuedMessageEnvelope, {
+      sessionId,
+      queuedMessageId: queuedId,
+      taskEnvelope: replacement,
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', queuedId));
+    // Assert the complete stored object, not separate scalar equality only.
+    expect(row?.taskEnvelope).toEqual(replacement);
+    expect(row?.conversationMode).toBe('code:enhanced');
+    expect(row?.plannerEnhancerEnabled).toBe(true);
+    expect(row?.startInNewSession).toBe(true);
+  });
+
+  test('changing mode from chat to code resets preset/phase and preserves session policy', async () => {
+    const { sessionId } = await createTestSession('queue-env-mode-edit');
+    const chatroomId = await createChatroom(sessionId);
+
+    const current = {
+      version: 1 as const,
+      conversationMode: 'chat' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'direct' as const, phase: 'entry' as const },
+    };
+    const queuedId = await seedQueuePolicyRow(chatroomId, { taskEnvelope: current });
+
+    const next = withTaskEnvelopeConversationMode(current, 'code');
+    await t.mutation(api.messages.updateQueuedMessageEnvelope, {
+      sessionId,
+      queuedMessageId: queuedId,
+      taskEnvelope: next,
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', queuedId));
+    expect(row?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'team', phase: 'entry' },
+    });
+    expect(row?.conversationMode).toBe('code');
+    expect(row?.plannerEnhancerEnabled).toBe(false);
+    expect(row?.startInNewSession).toBe(true);
+  });
+
+  test('session policy edit preserves mode, preset, and a non-entry phase', async () => {
+    const { sessionId } = await createTestSession('queue-env-session-edit');
+    const chatroomId = await createChatroom(sessionId);
+
+    const current = {
+      version: 1 as const,
+      conversationMode: 'code' as const,
+      sessionPolicy: 'new' as const,
+      handoffWorkflow: { preset: 'team' as const, phase: 'implementation' as const },
+    };
+    const queuedId = await seedQueuePolicyRow(chatroomId, { taskEnvelope: current });
+
+    const next = withTaskEnvelopeSessionPolicy(current, 'continue');
+    await t.mutation(api.messages.updateQueuedMessageEnvelope, {
+      sessionId,
+      queuedMessageId: queuedId,
+      taskEnvelope: next,
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', queuedId));
+    expect(row?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'team', phase: 'implementation' },
+    });
+    expect(row?.startInNewSession).toBe(false);
+  });
+
+  test('updates a legacy queue row without taskEnvelope into a consistent complete state', async () => {
+    const { sessionId } = await createTestSession('queue-env-legacy-row');
+    const chatroomId = await createChatroom(sessionId);
+
+    const queuedId = await seedQueuePolicyRow(chatroomId, {
+      conversationMode: 'chat',
+      plannerEnhancerEnabled: false,
+      startInNewSession: true,
+    });
+
+    const replacement = {
+      version: 1 as const,
+      conversationMode: 'code' as const,
+      sessionPolicy: 'continue' as const,
+      handoffWorkflow: { preset: 'team' as const, phase: 'entry' as const },
+    };
+    await t.mutation(api.messages.updateQueuedMessageEnvelope, {
+      sessionId,
+      queuedMessageId: queuedId,
+      taskEnvelope: replacement,
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', queuedId));
+    expect(row?.taskEnvelope).toEqual(replacement);
+    // Scalar projections now derive from the replacement envelope.
+    expect(row?.conversationMode).toBe('code');
+    expect(row?.plannerEnhancerEnabled).toBe(false);
+    expect(row?.startInNewSession).toBe(false);
+  });
+
+  test('rejects a semantically inconsistent envelope (chat with team preset)', async () => {
+    const { sessionId } = await createTestSession('queue-env-semantic-bad');
+    const chatroomId = await createChatroom(sessionId);
+
+    const queuedId = await seedQueuePolicyRow(chatroomId, {
+      taskEnvelope: {
+        version: 1,
+        conversationMode: 'chat',
+        sessionPolicy: 'continue',
+        handoffWorkflow: { preset: 'direct', phase: 'entry' },
+      },
+    });
+
+    await expect(
+      t.mutation(api.messages.updateQueuedMessageEnvelope, {
+        sessionId,
+        queuedMessageId: queuedId,
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'chat',
+          sessionPolicy: 'continue',
+          handoffWorkflow: { preset: 'team', phase: 'entry' },
+        },
+      })
+    ).rejects.toThrow(/INVALID_TASK_ENVELOPE/);
+  });
+
+  test('missing queue row still throws QUEUED_MESSAGE_NOT_FOUND', async () => {
+    const { sessionId } = await createTestSession('queue-env-missing');
+    const chatroomId = await createChatroom(sessionId);
+
+    const deletedId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'temp',
+        type: 'message' as const,
+        queuePosition: 0,
+      });
+      await ctx.db.delete('chatroom_messageQueue', id);
+      return id;
+    });
+
+    await expect(
+      t.mutation(api.messages.updateQueuedMessageEnvelope, {
+        sessionId,
+        queuedMessageId: deletedId,
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'chat',
+          sessionPolicy: 'continue',
+          handoffWorkflow: { preset: 'direct', phase: 'entry' },
+        },
+      })
+    ).rejects.toThrow(/QUEUED_MESSAGE_NOT_FOUND/);
+  });
+
+  test('auth rejects updating a queue row in another chatroom', async () => {
+    const { sessionId: ownerSession } = await createTestSession('queue-env-auth-owner');
+    const { sessionId: otherSession } = await createTestSession('queue-env-auth-other');
+    const chatroomId = await createChatroom(ownerSession);
+
+    const queuedId = await seedQueuePolicyRow(chatroomId, {
+      conversationMode: 'chat',
+      plannerEnhancerEnabled: false,
+    });
+
+    await expect(
+      t.mutation(api.messages.updateQueuedMessageEnvelope, {
+        sessionId: otherSession,
+        queuedMessageId: queuedId,
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'chat',
+          sessionPolicy: 'continue',
+          handoffWorkflow: { preset: 'direct', phase: 'entry' },
+        },
+      })
+    ).rejects.toThrow(/ACCESS_DENIED/);
+  });
+});
+
+describe('legacy queue-setting mutations edit the complete envelope', () => {
+  test('updateQueuedMessageConversationMode(chat) rewrites the envelope and scalar projections', async () => {
+    const { sessionId } = await createTestSession('queue-adapter-conv-mode');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'adapter conv target',
+      type: 'message',
+    });
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]!._id;
+
+    await t.mutation(api.messages.updateQueuedMessageConversationMode, {
+      sessionId,
+      queuedMessageId: queuedId,
+      conversationMode: 'chat',
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', queuedId));
+    expect(row?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'chat',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'direct', phase: 'entry' },
+    });
+    expect(row?.conversationMode).toBe('chat');
+    expect(row?.plannerEnhancerEnabled).toBe(false);
+  });
+
+  test('updateQueuedMessagePlannerEnhancer(false) maps false to code (team), not chat', async () => {
+    const { sessionId } = await createTestSession('queue-adapter-plugin-false');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'adapter enh false',
+      type: 'message',
+    });
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]!._id;
+
+    await t.mutation(api.messages.updateQueuedMessagePlannerEnhancer, {
+      sessionId,
+      queuedMessageId: queuedId,
+      plannerEnhancerEnabled: false,
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', queuedId));
+    expect(row?.taskEnvelope?.conversationMode).toBe('code');
+    expect(row?.taskEnvelope?.handoffWorkflow).toEqual({ preset: 'team', phase: 'entry' });
+    expect(row?.plannerEnhancerEnabled).toBe(false);
+    expect(row?.conversationMode).toBe('code');
+  });
+
+  test('updateQueuedMessageStartInNewSession(true) sets sessionPolicy new and projection', async () => {
+    const { sessionId } = await createTestSession('queue-adapter-new-session');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'adapter new session',
+      type: 'message',
+    });
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const queuedId = queued[0]!._id;
+
+    await t.mutation(api.messages.updateQueuedMessageStartInNewSession, {
+      sessionId,
+      queuedMessageId: queuedId,
+      startInNewSession: true,
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', queuedId));
+    expect(row?.taskEnvelope?.sessionPolicy).toBe('new');
+    expect(row?.startInNewSession).toBe(true);
+    // Mode/preset are preserved by the session adapter.
+    expect(row?.taskEnvelope?.conversationMode).toBe('code');
+    expect(row?.taskEnvelope?.handoffWorkflow?.preset).toBe('team');
+  });
+});
+
+describe('enhancer handoff authorization — explicit envelope precedence', () => {
+  async function seedPlannerOriginTask(
+    chatroomId: Id<'chatroom_rooms'>,
+    policy: {
+      taskEnvelope?: TaskEnvelopeV1 | undefined;
+      plannerEnhancerEnabled?: boolean | undefined;
+    }
+  ): Promise<Id<'chatroom_tasks'>> {
+    return (await t.run(async (ctx) => {
+      const now = Date.now();
+      const msgId = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'enhancer auth task',
+        targetRole: 'planner',
+        type: 'message',
+      });
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'enhancer auth task',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        sourceMessageId: msgId,
+        queuePosition: 1,
+        createdAt: now,
+        updatedAt: now,
+        ...(policy.taskEnvelope !== undefined ? { taskEnvelope: policy.taskEnvelope } : {}),
+        ...(policy.plannerEnhancerEnabled !== undefined
+          ? { plannerEnhancerEnabled: policy.plannerEnhancerEnabled }
+          : {}),
+      });
+    })) as Id<'chatroom_tasks'>;
+  }
+
+  async function seedEnhancerTeamConfig(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+    await t.run(async (ctx) => {
+      const room = await ctx.db.get('chatroom_rooms', chatroomId);
+      if (!room?.teamId) return;
+      const now = Date.now();
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: buildTeamRoleKey(chatroomId, room.teamId, 'enhancer'),
+        chatroomId,
+        role: 'enhancer',
+        type: 'remote',
+        machineId: 'enh-machine',
+        agentHarness: 'opencode',
+        model: 'model',
+        workingDir: '/tmp',
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      // The enhancer job-spawn path resolves a workspace for the machine.
+      await ctx.db.insert('chatroom_workspaces', {
+        chatroomId,
+        machineId: 'enh-machine',
+        workingDir: '/tmp',
+        hostname: 'test-host',
+        registeredAt: now,
+        registeredBy: 'enhancer',
+      });
+    });
+  }
+
+  test('explicit chat envelope + stale plannerEnhancerEnabled=true rejects enhancer handoff', async () => {
+    const { sessionId } = await createTestSession('enh-auth-chat');
+    const chatroomId = await createChatroom(sessionId);
+    await seedPlannerOriginTask(chatroomId, {
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
+      plannerEnhancerEnabled: true,
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<request>Chat task</request>',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('ENHANCER_NOT_ENABLED');
+  });
+
+  test('explicit code:enhanced envelope + stale plannerEnhancerEnabled=false permits the configured enhancer path', async () => {
+    const { sessionId } = await createTestSession('enh-auth-codeenh');
+    const chatroomId = await createChatroom(sessionId);
+    await seedPlannerOriginTask(chatroomId, {
+      taskEnvelope: createTaskEnvelope({
+        conversationMode: 'code:enhanced',
+        sessionPolicy: 'continue',
+      }),
+      plannerEnhancerEnabled: false,
+    });
+    await seedEnhancerTeamConfig(chatroomId);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<request>Enhanced task</request>',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.enhancerJobId).toBeDefined();
+  });
+
+  test('legacy scalar-only rows retain current enhancer behavior', async () => {
+    const { sessionId } = await createTestSession('enh-auth-legacy-true');
+    const chatroomId = await createChatroom(sessionId);
+    await seedPlannerOriginTask(chatroomId, { plannerEnhancerEnabled: true });
+    await seedEnhancerTeamConfig(chatroomId);
+
+    const enabled = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<request>Legacy true</request>',
+    });
+    expect(enabled.success).toBe(true);
+
+    const { sessionId: sessionId2 } = await createTestSession('enh-auth-legacy-false');
+    const chatroomId2 = await createChatroom(sessionId2);
+    await seedPlannerOriginTask(chatroomId2, { plannerEnhancerEnabled: false });
+    await seedEnhancerTeamConfig(chatroomId2);
+
+    const disabled = await t.mutation(api.messages.handoff, {
+      sessionId: sessionId2,
+      chatroomId: chatroomId2,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<request>Legacy false</request>',
+    });
+    expect(disabled.success).toBe(false);
+    expect(disabled.error?.code).toBe('ENHANCER_NOT_ENABLED');
   });
 });

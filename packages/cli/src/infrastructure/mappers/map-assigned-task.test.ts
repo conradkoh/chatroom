@@ -2,6 +2,11 @@ import type {
   AssignedTaskSnapshotView as BackendAssignedTaskSnapshotView,
   AssignedTaskView as BackendAssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import {
+  advanceTaskEnvelopeWorkflow,
+  createTaskEnvelope,
+  type TaskEnvelopeV1,
+} from '@workspace/shared/domain/task-envelope';
 import { describe, expect, test } from 'vitest';
 
 import {
@@ -55,6 +60,25 @@ describe('map-assigned-task', () => {
     expect(mapped.taskContent).toBe('Do the thing');
     expect(mapped.taskId).toBe('task_1');
     expect(mapped.agentConfig.workingDir).toBe('/tmp/ws');
+  });
+
+  test('mapAssignedTaskView passes the explicit envelope through unchanged', () => {
+    const envelope: TaskEnvelopeV1 = advanceTaskEnvelopeWorkflow(
+      createTaskEnvelope({ conversationMode: 'code', sessionPolicy: 'new' })
+    );
+    expect(envelope.handoffWorkflow.phase).not.toBe('entry');
+
+    const mapped = mapAssignedTaskView({
+      ...backendSnapshot,
+      taskContent: 'Do the thing',
+      taskEnvelope: envelope,
+      startInNewSession: false,
+    } as BackendAssignedTaskView);
+
+    expect(mapped.taskEnvelope).toEqual(envelope);
+    expect(mapped.taskEnvelope?.sessionPolicy).toBe('new');
+    expect(mapped.taskEnvelope?.handoffWorkflow).toEqual(envelope.handoffWorkflow);
+    expect(mapped.startInNewSession).toBe(false);
   });
 
   test('mapAssignedTaskSnapshotList maps each row', () => {

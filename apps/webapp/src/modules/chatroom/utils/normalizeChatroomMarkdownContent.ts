@@ -15,3 +15,22 @@ export function normalizeChatroomMarkdownContent(input: string): string {
   if (containsStructuredEnvelope(decoded)) return decoded;
   return normalizeMarkdownContent(decoded);
 }
+
+/**
+ * Removes one outer markdown presentation fence from agent-submitted handoffs.
+ * This is display-only: the persisted/task content remains unchanged.
+ *
+ * Accepted wrapper:
+ *   ```markdown or ```md   (case-insensitive, whitespace around the line allowed)
+ *   ...
+ *   ```                     (final nonblank line)
+ *
+ * Inner fenced blocks and all non-matching input remain unchanged.
+ */
+export function unwrapMarkdownPresentationFence(input: string): string {
+  const match = input
+    .trim()
+    .match(/^```(?:markdown|md)\b[ \t]*\r?\n([\s\S]*?)(?:\r?\n)?```[ \t]*$/i);
+  if (!match) return input;
+  return match[1].trim();
+}

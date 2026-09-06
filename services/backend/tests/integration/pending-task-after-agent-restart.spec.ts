@@ -10,6 +10,7 @@ import {
   createBuilderEntryDuoChatroom,
   createTestSession,
   joinParticipant,
+  registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 import { TEST_MODEL_CURSOR_SDK, TEST_MODEL_OPENCODE } from '../helpers/test-models';
@@ -181,5 +182,65 @@ describe('Phase E — pending task after agent restart', () => {
         .first()
     );
     expect(op).toBeDefined();
+  });
+
+  test('pending task for a configured offline builder is projected with no participant row', async () => {
+    // Assignment, not participant presence, determines eligibility: the builder
+    // is configured on a machine but never joins, so no participant row exists.
+    const { sessionId } = await createTestSession('phase-e-offline-no-participant');
+    const machineId = 'machine-phase-e-offline-no-participant';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    const findBuilderParticipant = (): Promise<unknown> =>
+      t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'builder')
+          )
+          .unique()
+      );
+
+    // No builder participant exists before the canonical task ingress.
+    expect(await findBuilderParticipant()).toBeNull();
+
+    // Canonical user ingress: assigns the pending task to the team entry point.
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Offline builder task — no participant',
+      type: 'message',
+    });
+
+    const task = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .order('desc')
+        .first()
+    );
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('builder');
+    const taskId = task!._id;
+
+    // Normal projection/sync path (no participant read involved).
+    await syncMachineSnapshots(sessionId, machineId);
+    const { tasks } = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+      sessionId,
+      machineId,
+    });
+    const snap = tasks.find((row) => row.taskId === taskId);
+    expect(snap).toBeDefined();
+    expect(snap!.status).toBe('pending');
+    expect(snap!.assignedTo).toBe('builder');
+    expect(snap!.agentConfig.role).toBe('builder');
+    expect(snap!.agentConfig.machineId).toBe(machineId);
+    expect(snap).not.toHaveProperty('participant');
+
+    // Projection must not insert a participant as a side effect.
+    expect(await findBuilderParticipant()).toBeNull();
   });
 });

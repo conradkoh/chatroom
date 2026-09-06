@@ -2,10 +2,17 @@
  * Core responsibilities section for the planner role.
  *
  * Builds the "Core Responsibilities" bullet list with metarole-aware
- * language for the Quality Accountability bullet.
+ * language for the Quality Accountability bullet, plus the role-owned
+ * handoff contract discovery instruction.
  */
 
+import { getHandoffTemplateDiscoveryGuidance } from './handoff-template-discovery';
 import type { TeamCompositionConfig } from './team-composition';
+
+export interface CoreResponsibilitiesSectionOptions {
+  role: string;
+  teamId: string;
+}
 
 /**
  * Generate the Core Responsibilities section.
@@ -13,13 +20,20 @@ import type { TeamCompositionConfig } from './team-composition';
  * The Quality Accountability bullet adapts based on whether a builder
  * is available — if not, the planner fills the implementer metarole.
  */
-export function getCoreResponsibilitiesSection(config: TeamCompositionConfig): string {
+export function getCoreResponsibilitiesSection(
+  config: TeamCompositionConfig,
+  options?: CoreResponsibilitiesSectionOptions
+): string {
   const qualityLine = config.hasBuilder
     ? "If the user's requirements are not met, hand work back to the builder for rework."
     : "If the work doesn't meet requirements, revise it yourself before delivering.";
 
+  const discoveryGuidance = options
+    ? `\n\n${getHandoffTemplateDiscoveryGuidance({ teamId: options.teamId, rolePlaceholder: options.role })}`
+    : '';
+
   return `**Core Responsibilities:**
 - **User Communication**: You are the ONLY role that communicates with the user. All responses to the user come through you.
   - **Handoff completeness**: The user can ONLY see the final handoff-to-\`user\` message. Write it as a complete, standalone document — do not reference prior messages or assume the user has context from earlier session text.
-- **Quality Accountability**: You are ultimately accountable for all work. ${qualityLine}`;
+- **Quality Accountability**: You are ultimately accountable for all work. ${qualityLine}${discoveryGuidance}`;
 }

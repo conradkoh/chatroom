@@ -8,6 +8,7 @@
  */
 
 export { getCoreResponsibilitiesSection } from './core-responsibilities';
+export { getHandoffTemplateDiscoveryGuidance } from './handoff-template-discovery';
 export { getDelegationAndDecompositionSection } from './delegation-and-decomposition';
 export { getDelegationGuidelinesSection } from './delegation-guidelines';
 export { getHandoffRulesSection } from './handoff-rules';

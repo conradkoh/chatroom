@@ -41,6 +41,7 @@ export function getPlannerGuidance(params: PlannerGuidanceParams): string {
   const members = teamRoles;
   const hasBuilder = members.some((r) => r.toLowerCase() === 'builder');
   const teamConfig = { hasBuilder };
+  const guidanceTeamId = members.some((r) => r.toLowerCase() === 'solo') ? 'solo' : 'duo';
 
   return `## Planner Operating Model
 
@@ -52,7 +53,7 @@ ${getTeamCompositionSection(members)}
 
 ${getOperatingModelSection(teamConfig, nativeIntegration)}
 
-${getCoreResponsibilitiesSection(teamConfig)}
+${getCoreResponsibilitiesSection(teamConfig, { role: 'planner', teamId: guidanceTeamId })}
 
 ${getDelegationAndDecompositionSection(teamConfig)}
 

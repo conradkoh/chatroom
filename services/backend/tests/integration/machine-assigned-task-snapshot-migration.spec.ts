@@ -1,11 +1,22 @@
 /** Migration: strip legacy operational fields from machine task snapshots. */
 
+import { createTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { internal } from '../../convex/_generated/api';
+import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import {
+  projectAssignedTaskSnapshotsAfterTaskChange,
+  projectAssignedTaskSnapshotsForChatroom,
+} from '../../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { t } from '../../test.setup';
-import { createTestSession } from '../helpers/integration';
+import {
+  createBuilderEntryDuoChatroom,
+  createTestSession,
+  registerMachineWithDaemon,
+  setupRemoteAgentConfig,
+} from '../helpers/integration';
 
 describe('migration: stripMachineAssignedTaskSnapshotOperationalFields', () => {
   test('clears legacy operational fields from snapshot rows', async () => {
@@ -69,5 +80,199 @@ describe('migration: stripMachineAssignedTaskSnapshotOperationalFields', () => {
       cursor: null,
       batchSize: 100,
     });
+  });
+});
+
+describe('snapshot projection: session augmentation from canonical envelope', () => {
+  async function seedProjectedTask(settings: {
+    sessionPrefix: string;
+    taskEnvelope?: TaskEnvelopeV1 | undefined;
+    startInNewSession?: boolean | undefined;
+  }): Promise<{ sessionId: SessionId; machineId: string; taskId: Id<'chatroom_tasks'> }> {
+    const session = await createTestSession(`${settings.sessionPrefix}-session`);
+    const machineId = `${settings.sessionPrefix}-machine`;
+    await registerMachineWithDaemon(session.sessionId as never, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(session.sessionId as never);
+    await setupRemoteAgentConfig(session.sessionId as never, chatroomId, machineId, 'builder');
+
+    const taskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      const id = await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'builder',
+        content: 'projection test task',
+        status: 'pending' as const,
+        assignedTo: 'builder',
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+        ...(settings.taskEnvelope !== undefined ? { taskEnvelope: settings.taskEnvelope } : {}),
+        ...(settings.startInNewSession !== undefined
+          ? { startInNewSession: settings.startInNewSession }
+          : {}),
+      });
+      await projectAssignedTaskSnapshotsForChatroom(ctx, chatroomId);
+      return id;
+    });
+
+    return { sessionId: session.sessionId, machineId, taskId };
+  }
+
+  async function readSnapshotRow(
+    machineId: string,
+    taskId: Id<'chatroom_tasks'>
+  ): Promise<{
+    sessionAugmentation: 'none' | 'new_session' | undefined;
+    requestsNativeColdSession: boolean | undefined;
+  } | null> {
+    return await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_machineAssignedTaskSnapshots')
+        .withIndex('by_machineId_taskId_role', (q) =>
+          q.eq('machineId', machineId).eq('taskId', taskId).eq('role', 'builder')
+        )
+        .unique();
+    });
+  }
+
+  test('explicit envelope new wins over stale scalar false', async () => {
+    const { sessionId, machineId, taskId } = await seedProjectedTask({
+      sessionPrefix: 'proj-env-new',
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'code', sessionPolicy: 'new' }),
+      startInNewSession: false,
+    });
+
+    const row = await readSnapshotRow(machineId, taskId);
+    expect(row?.sessionAugmentation).toBe('new_session');
+    expect(row?.requestsNativeColdSession).toBe(true);
+
+    const actionView = await t.query(api.machines.getAssignedTaskForAction, {
+      sessionId: sessionId as never,
+      machineId,
+      taskId,
+      role: 'builder',
+    });
+    expect(actionView?.taskEnvelope).toEqual(
+      createTaskEnvelope({ conversationMode: 'code', sessionPolicy: 'new' })
+    );
+  });
+
+  test('explicit envelope continue wins over stale scalar true', async () => {
+    const { machineId, taskId } = await seedProjectedTask({
+      sessionPrefix: 'proj-env-continue',
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
+      startInNewSession: true,
+    });
+
+    const row = await readSnapshotRow(machineId, taskId);
+    expect(row?.sessionAugmentation).toBe('none');
+    expect(row?.requestsNativeColdSession).toBe(false);
+  });
+
+  test('after-task-change sync is scoped to the changed task', async () => {
+    // One machine serving two chatrooms: a single-task change must not
+    // rewrite or drop the other chatroom's rows (previously a full
+    // chatroom/machine rebuild fanned out over every indexed active task).
+    const { sessionId } = await createTestSession('scoped-sync-session');
+    const machineId = 'scoped-sync-machine';
+    await registerMachineWithDaemon(sessionId as never, machineId);
+    const roomA = await createBuilderEntryDuoChatroom(sessionId as never);
+    const roomB = await createBuilderEntryDuoChatroom(sessionId as never);
+    await setupRemoteAgentConfig(sessionId as never, roomA, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId as never, roomB, machineId, 'builder');
+
+    const seedTask = (chatroomId: Id<'chatroom_rooms'>) =>
+      t.run(async (ctx) => {
+        const now = Date.now();
+        return await ctx.db.insert('chatroom_tasks', {
+          chatroomId,
+          createdBy: 'builder',
+          content: 'scoped sync task',
+          status: 'pending' as const,
+          assignedTo: 'builder',
+          queuePosition: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+    const taskA = await seedTask(roomA);
+    const taskB = await seedTask(roomB);
+    await t.run(async (ctx) => {
+      await projectAssignedTaskSnapshotsForChatroom(ctx, roomA);
+      await projectAssignedTaskSnapshotsForChatroom(ctx, roomB);
+    });
+
+    const readRow = (taskId: Id<'chatroom_tasks'>) =>
+      t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_machineAssignedTaskSnapshots')
+          .withIndex('by_machineId_taskId_role', (q) =>
+            q.eq('machineId', machineId).eq('taskId', taskId).eq('role', 'builder')
+          )
+          .unique()
+      );
+    const beforeB = await readRow(taskB);
+    expect(beforeB).not.toBeNull();
+
+    // Touch task A, then sync only task A.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskA, {
+        content: 'scoped sync task (edited)',
+        updatedAt: Date.now() + 1_000,
+      });
+    });
+    await t.run(async (ctx) => {
+      await projectAssignedTaskSnapshotsAfterTaskChange(ctx, taskA);
+    });
+
+    const afterA = await readRow(taskA);
+    const afterB = await readRow(taskB);
+    expect(afterA?.taskUpdatedAt).toBeGreaterThan(beforeB?.taskUpdatedAt ?? 0);
+    // Room B's row is byte-identical: no rewrite, no revision churn.
+    expect(afterB).toEqual(beforeB);
+
+    // Completing task A drops only its own rows.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskA, { status: 'completed' });
+    });
+    await t.run(async (ctx) => {
+      await projectAssignedTaskSnapshotsAfterTaskChange(ctx, taskA);
+    });
+    expect(await readRow(taskA)).toBeNull();
+    expect(await readRow(taskB)).toEqual(beforeB);
+  });
+
+  test('legacy task without envelope preserves scalar and role-default behavior', async () => {
+    const scalarTrue = await seedProjectedTask({
+      sessionPrefix: 'proj-legacy-true',
+      startInNewSession: true,
+    });
+    expect(
+      (await readSnapshotRow(scalarTrue.machineId, scalarTrue.taskId))?.sessionAugmentation
+    ).toBe('new_session');
+    expect(
+      (await readSnapshotRow(scalarTrue.machineId, scalarTrue.taskId))?.requestsNativeColdSession
+    ).toBe(true);
+
+    const scalarFalse = await seedProjectedTask({
+      sessionPrefix: 'proj-legacy-false',
+      startInNewSession: false,
+    });
+    expect(
+      (await readSnapshotRow(scalarFalse.machineId, scalarFalse.taskId))?.sessionAugmentation
+    ).toBe('none');
+    expect(
+      (await readSnapshotRow(scalarFalse.machineId, scalarFalse.taskId))?.requestsNativeColdSession
+    ).toBe(false);
+
+    const undefinedScalar = await seedProjectedTask({ sessionPrefix: 'proj-legacy-undefined' });
+    expect(
+      (await readSnapshotRow(undefinedScalar.machineId, undefinedScalar.taskId))
+        ?.sessionAugmentation
+    ).toBe('new_session');
+    expect(
+      (await readSnapshotRow(undefinedScalar.machineId, undefinedScalar.taskId))
+        ?.requestsNativeColdSession
+    ).toBe(false);
   });
 });

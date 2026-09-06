@@ -5,11 +5,10 @@ import { Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
-import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
-import { QueuedMessageNewSessionToggle } from './QueuedMessageNewSessionToggle';
 import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import { MessageAttachmentChips } from '../../attachments';
 import type { Message } from '../../types/message';
+import { QueuedMessageEnvelopeControls } from '../QueuedMessageEnvelopeControls';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -45,6 +44,7 @@ interface QueuedMessageItemProps {
   chatroomId: Id<'chatroom_rooms'>;
   message: Message;
   onDelete: (queuedMessageId: string) => Promise<void>;
+  /** Kept for source compatibility; the shared envelope control exposes the complete mode contract regardless of team enhancer support. */
   teamSupportsEnhancer?: boolean;
 }
 
@@ -57,7 +57,6 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   chatroomId,
   message,
   onDelete,
-  teamSupportsEnhancer,
 }: QueuedMessageItemProps) {
   const elapsed = useElapsedTime(message._creationTime);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -117,16 +116,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
 
         {/* Inline quick actions — always visible. */}
         <div className="flex items-center gap-1" onClick={stopRowClick}>
-          <QueuedMessageNewSessionToggle
-            queuedMessageId={message._id}
-            startInNewSession={message.startInNewSession ?? false}
-          />
-          {teamSupportsEnhancer ? (
-            <QueuedMessageEnhancerToggle
-              queuedMessageId={message._id}
-              plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
-            />
-          ) : null}
+          <QueuedMessageEnvelopeControls message={message} compact />
           <button
             type="button"
             onClick={handleRowDelete}
@@ -145,7 +135,6 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         isOpen={isModalOpen}
         onClose={closeModal}
         onDelete={onDelete}
-        teamSupportsEnhancer={teamSupportsEnhancer}
       />
     </>
   );

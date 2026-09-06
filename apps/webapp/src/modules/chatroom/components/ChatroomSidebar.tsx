@@ -60,10 +60,8 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [isSubmittingStop, setIsSubmittingStop] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
   const { requestChatroomStop } = useAgentStop();
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
-  const restartOfflineAgents = useSessionMutation(api.machines.restartOfflineAgentsFromConfig);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
 
@@ -89,34 +87,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     setStopConfirmOpen(false);
   }, [chatroom._id, requestChatroomStop, stopAllCommandRuns]);
 
-  const handleStart = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      if (isStarting) return;
-      setIsStarting(true);
-      try {
-        const result = await restartOfflineAgents({
-          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-        });
-        if (result.restartedRoles.length > 0) {
-          toast.success(
-            result.restartedRoles.length === 1
-              ? `Started ${result.restartedRoles[0]}`
-              : `Started ${result.restartedRoles.join(', ')}`
-          );
-        } else {
-          setStartModalOpen(true);
-        }
-      } catch (error) {
-        console.error('Failed to restart offline agents:', error);
-        setStartModalOpen(true);
-      } finally {
-        setIsStarting(false);
-      }
-    },
-    [chatroom._id, isStarting, restartOfflineAgents]
-  );
+  const handleStart = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // Explicit manual start goes through the agent picker modal. Presence-driven
+    // restarts on user messages were removed; task pickup is assignment-driven.
+    setStartModalOpen(true);
+  }, []);
 
   const handleArchive = useCallback(() => {
     setArchiveDialogOpen(true);
@@ -201,8 +178,6 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
             <button
               onClick={handleStart}
               title="Start with last configuration"
-              disabled={isStarting}
-              aria-busy={isStarting}
               className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
               <Play size={10} fill="currentColor" />

@@ -49,6 +49,12 @@ const idleSlot = (overrides: Record<string, unknown> = {}) =>
   }) as never;
 
 describe('native-ready-invariant', () => {
+  it('allows delivery-owned cold spawn when slot is down and operational is starting', () => {
+    expect(
+      explainAgentReadyForNativeDeliveryBlock(task({ requestsNativeColdSession: true }), undefined)
+    ).toBeNull();
+  });
+
   it('blocks a stopped task when no local slot exists', () => {
     registerTestNativeDeliverySession({
       runtime: undefined as never,

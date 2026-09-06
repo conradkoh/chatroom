@@ -48,6 +48,7 @@ export async function getAssignedTaskForActionFromSnapshots(
   return {
     ...assignedTaskSnapshotFromDoc(snapshot),
     taskContent: task.content,
+    taskEnvelope: task.taskEnvelope,
     startInNewSession: task.startInNewSession,
   };
 }
