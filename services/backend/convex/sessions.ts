@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Doc, Id } from './_generated/dataModel';
+import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import { deleteSessionLastActivityAt, upsertSessionLastActivityAt } from './lib/lastAtProjections';
 
@@ -59,8 +59,8 @@ export const listMySessions = query({
       .collect();
 
     // Map to session info, marking the current session.
-    // Read the last-activity projection first, falling back to the legacy
-    // parent field for sessions without a projection row (compatibility).
+    // Activity recency comes from the dedicated projection; sessions without
+    // an activity event have no row and keep the field undefined.
     const sessions: SessionInfo[] = [];
     for (const session of allSessions) {
       const projection = await ctx.db
@@ -70,7 +70,7 @@ export const listMySessions = query({
       sessions.push({
         _id: session._id,
         createdAt: session.createdAt,
-        lastActivityAt: projection?.lastActivityAt ?? session.lastActivityAt,
+        lastActivityAt: projection?.lastActivityAt,
         authMethod: session.authMethod,
         deviceInfo: session.deviceInfo,
         isCurrent: session.sessionId === args.sessionId,
@@ -207,16 +207,14 @@ export const updateSessionActivity = mutation({
     }
 
     const now = Date.now();
-    const updates: Partial<Doc<'sessions'>> = {
-      lastActivityAt: now,
-    };
 
-    // Only update device info if provided and not already set
+    // Only update device info if provided and not already set.
+    // Activity recency is recorded in the dedicated projection below.
     if (args.deviceInfo && !currentSession.deviceInfo) {
-      updates.deviceInfo = args.deviceInfo;
+      await ctx.db.patch('sessions', currentSession._id, {
+        deviceInfo: args.deviceInfo,
+      });
     }
-
-    await ctx.db.patch('sessions', currentSession._id, updates);
     await upsertSessionLastActivityAt(ctx, currentSession._id, now);
 
     return { success: true };
@@ -240,7 +238,6 @@ export const updateSessionDeviceInfo = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     await ctx.db.patch('sessions', args.sessionId, {
       deviceInfo: args.deviceInfo,
-      lastActivityAt: args.lastActivityAt,
     });
     await upsertSessionLastActivityAt(ctx, args.sessionId, args.lastActivityAt);
   },

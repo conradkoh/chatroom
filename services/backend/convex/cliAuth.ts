@@ -212,7 +212,8 @@ export const approveAuthRequest = mutation({
     const now = Date.now();
     const cliSessionId = generateId(64);
 
-    // Create CLI session
+    // Create CLI session. Last-use recency lives in the dedicated
+    // projection table; the parent keeps only creation time.
     const cliSessionDocId = await ctx.db.insert('cliSessions', {
       sessionId: cliSessionId,
       userId: session.userId,
@@ -220,7 +221,6 @@ export const approveAuthRequest = mutation({
       ...(request.deviceName !== undefined ? { deviceName: request.deviceName } : {}),
       ...(request.cliVersion !== undefined ? { cliVersion: request.cliVersion } : {}),
       createdAt: now,
-      lastUsedAt: now,
       expiresAt: now + CLI_SESSION_EXPIRY_MS,
     });
     await upsertCliSessionLastUsedAt(ctx, cliSessionDocId, now);
@@ -334,7 +334,7 @@ export const validateSession = query({
   },
 });
 
-/** Updates lastUsedAt and extends the expiry of a CLI session (sliding window). */
+/** Records CLI session activity in the last-used projection and extends expiry (sliding window). */
 export const touchSession = mutation({
   args: {
     ...SessionIdArg,
@@ -352,10 +352,10 @@ export const touchSession = mutation({
 
     const now = Date.now();
     await ctx.db.patch('cliSessions', session._id, {
-      lastUsedAt: now,
       // Extend expiry on each touch (sliding window) so active sessions
       // never expire while in use. The fixed creation-time expiry was
       // causing daemon sessions to silently die after 30 days.
+      // Last-use recency is recorded in the dedicated projection below.
       expiresAt: now + CLI_SESSION_EXPIRY_MS,
     });
     await upsertCliSessionLastUsedAt(ctx, session._id, now);
@@ -451,8 +451,9 @@ export const listUserSessions = query({
       .withIndex('by_userId', (q) => q.eq('userId', userId))
       .collect();
 
-    // Read the last-used projection first, falling back to the legacy
-    // parent field for sessions without a projection row (compatibility).
+    // Read the last-used projection first. Sessions without a projection
+    // row (unexpected after approval/backfill) fall back to creation time
+    // to satisfy the required numeric response shape.
     const result = [];
     for (const s of sessions) {
       const projection = await ctx.db
@@ -465,7 +466,7 @@ export const listUserSessions = query({
           deviceName: s.deviceName,
           cliVersion: s.cliVersion,
           createdAt: s.createdAt,
-          lastUsedAt: projection?.lastUsedAt ?? s.lastUsedAt,
+          lastUsedAt: projection?.lastUsedAt ?? s.createdAt,
           isActive: s.isActive,
         })
       );

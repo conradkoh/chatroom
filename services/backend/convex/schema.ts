@@ -201,7 +201,6 @@ export default defineSchema({
     expiresAt: v.optional(v.number()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
     expiresAtLabel: v.optional(v.string()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
     // Device and activity tracking for session management
-    lastActivityAt: v.optional(v.number()), // Timestamp of last activity
     deviceInfo: v.optional(
       v.object({
         userAgent: v.optional(v.string()), // Raw user agent string
@@ -944,7 +943,6 @@ export default defineSchema({
     cliVersion: v.optional(v.string()),
     // Timestamps
     createdAt: v.number(),
-    lastUsedAt: v.number(),
     // Optional expiry (null = no expiry, just manual revocation)
     expiresAt: v.optional(v.number()),
     // Revocation info
@@ -956,9 +954,10 @@ export default defineSchema({
     .index('by_userId_active', ['userId', 'isActive']),
 
   /**
-   * Projection of cliSessions.lastUsedAt for ordered cleanup scans.
-   * One row per CLI session; eventual source of truth for last-use recency.
-   * Legacy `cliSessions.lastUsedAt` remains authoritative until later slices.
+   * Source of truth for CLI session last-use recency and ordered cleanup scans.
+   * One row per CLI session. Distinct from session creation time (`createdAt`),
+   * which remains on the parent row as the defensive fallback for the required
+   * numeric `lastUsedAt` response field when a projection row is absent.
    */
   chatroom_cliSessionLastUsedAt: defineTable({
     cliSessionId: v.id('cliSessions'),
@@ -968,9 +967,9 @@ export default defineSchema({
     .index('by_lastUsedAt', ['lastUsedAt']),
 
   /**
-   * Projection of sessions.lastActivityAt for ordered cleanup scans.
-   * One row per web session; eventual source of truth for activity recency.
-   * Legacy `sessions.lastActivityAt` remains authoritative until later slices.
+   * Source of truth for web session activity recency and ordered cleanup scans.
+   * One row per web session. Sessions without an activity event legitimately
+   * have no row; readers fall back to the parent `createdAt` for sorting.
    */
   chatroom_sessionLastActivityAt: defineTable({
     sessionId: v.id('sessions'),
@@ -1100,8 +1099,6 @@ export default defineSchema({
     ),
     // When machine was first registered
     registeredAt: v.number(),
-    // Last sync/heartbeat from CLI
-    lastSeenAt: v.number(),
     // Whether daemon is currently connected (for UI status display)
     daemonConnected: v.boolean(),
     // Last time the user requested a capabilities refresh for this machine (cooldown)
@@ -1114,10 +1111,10 @@ export default defineSchema({
     .index('by_userId', ['userId']),
 
   /**
-   * Projection of legacy chatroom_machines.lastSeenAt for ordered cleanup scans.
-   * One row per stable string machineId; eventual source of truth for machine
-   * cleanup recency. Distinct from chatroom_machineLiveness.lastSeenAt, which
-   * remains the authoritative daemon-heartbeat projection.
+   * Source of truth for machine last-seen recency and ordered cleanup scans.
+   * One row per stable string machineId. Distinct from
+   * chatroom_machineLiveness.lastSeenAt, which remains the authoritative
+   * daemon-heartbeat projection and is never written by machine lifecycle paths.
    */
   chatroom_machineLastSeenAt: defineTable({
     machineId: v.string(),

@@ -129,9 +129,8 @@ export const cleanupReadCursors = internalMutation({
 
 /**
  * Delete machines where the dedicated last-seen projection is older than 90 days.
- * The projection index (not the legacy parent field) is the stale-recency
- * source; the legacy `chatroom_machines.lastSeenAt` field remains during
- * compatibility rollout. Also cleans up ALL related rows across machine-keyed tables:
+ * The projection index is the source of truth for stale recency.
+ * Also cleans up ALL related rows across machine-keyed tables:
  * - chatroom_machineLiveness
  * - chatroom_machineStatus
  * - chatroom_machineModelFilters
@@ -421,7 +420,7 @@ export const cleanupParticipants = internalMutation({
 /**
  * Delete CLI sessions that are:
  * - Inactive (isActive === false) AND older than 30 days
- * - OR have lastUsedAt older than 90 days (stale active sessions)
+ * - OR have a last-used projection older than 90 days (stale active sessions)
  *
  * Uses a Set to track deleted IDs and prevent double-delete between passes.
  */
@@ -449,8 +448,8 @@ export const cleanupCliSessions = internalMutation({
     }
 
     // 2. Stale sessions — selected by the dedicated last-used projection
-    // index (not the legacy parent filter), so rows dual-written by
-    // touchSession/approveAuthRequest drive cleanup. Skip already-deleted ones.
+    // index, which is the source of truth for last-use recency.
+    // Skip already-deleted ones.
     const staleSessions = await ctx.db
       .query('chatroom_cliSessionLastUsedAt')
       .withIndex('by_lastUsedAt', (q) => q.lt('lastUsedAt', staleCutoff))

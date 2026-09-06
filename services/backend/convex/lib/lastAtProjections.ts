@@ -4,14 +4,16 @@ import type { MutationCtx } from '../_generated/server';
 /**
  * Canonical write/delete primitives for last-at timestamp projections.
  *
- * Each projection table holds exactly one row per mapping (parent id or
- * stable machineId string) plus its timestamp. Upserts use
+ * Each projection table is the runtime source of truth for its migrated
+ * timestamp and holds exactly one row per mapping (parent id or stable
+ * machineId string) plus its timestamp. Upserts use
  * `Math.max(existing, incoming)` semantics: a retry or delayed migration
  * must never regress the projection. Deletes are idempotent.
  *
- * Slice 1 is additive: legacy `cliSessions.lastUsedAt`,
- * `sessions.lastActivityAt`, and `chatroom_machines.lastSeenAt` remain the
- * authoritative fields until later slices migrate writers/readers.
+ * Session activity may legitimately have no row until an activity event
+ * occurs; readers fall back to the parent `createdAt` in that case.
+ * `chatroom_machineLiveness.lastSeenAt` is a separate authoritative
+ * daemon-heartbeat projection and is never written from these helpers.
  */
 
 function assertValidTimestamp(value: number, field: string): void {

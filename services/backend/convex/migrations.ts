@@ -92,18 +92,32 @@ export const setUserAccessLevelDefault = migrations.define({
 });
 
 // --- Last-at projections ---
-// Additive backfills for the slim timestamp projection tables. Each backfill
-// copies the legacy source value into its projection row and never patches
-// the legacy field. Safe to rerun: an existing newer projection value is
-// preserved (Math.max semantics).
+// Retained backfills for the slim timestamp projection tables. The legacy
+// source fields have been removed from the schema, but already-deployed rows
+// may still carry them as stored data, so each backfill reads the historical
+// value through a narrow legacy cast and skips rows without one. Each backfill
+// only advances its projection row and never patches a legacy field. Safe to
+// rerun: an existing newer projection value is preserved (Math.max semantics).
+// Once all environments have run these, they become no-ops.
+
+/** Historical stored shape of cliSessions before lastUsedAt removal. */
+type LegacyCliSessionTimestamp = { lastUsedAt?: number };
+/** Historical stored shape of sessions before lastActivityAt removal. */
+type LegacySessionTimestamp = { lastActivityAt?: number };
+/** Historical stored shape of chatroom_machines before lastSeenAt removal. */
+type LegacyMachineTimestamp = { lastSeenAt?: number };
 
 /**
- * Backfill chatroom_cliSessionLastUsedAt from cliSessions.lastUsedAt.
+ * Backfill chatroom_cliSessionLastUsedAt from the historical
+ * cliSessions.lastUsedAt stored value. Rows without the historical field
+ * are skipped.
  * Idempotent: only advances the projection when the source value is newer.
  */
 export const backfillCliSessionLastUsedAt = migrations.define({
   table: 'cliSessions',
   migrateOne: async (ctx, cliSession) => {
+    const timestamp = (cliSession as typeof cliSession & LegacyCliSessionTimestamp).lastUsedAt;
+    if (timestamp === undefined) return;
     const existing = await ctx.db
       .query('chatroom_cliSessionLastUsedAt')
       .withIndex('by_cliSessionId', (q) => q.eq('cliSessionId', cliSession._id))
@@ -111,25 +125,27 @@ export const backfillCliSessionLastUsedAt = migrations.define({
     if (!existing) {
       await ctx.db.insert('chatroom_cliSessionLastUsedAt', {
         cliSessionId: cliSession._id,
-        lastUsedAt: cliSession.lastUsedAt,
+        lastUsedAt: timestamp,
       });
-    } else if (cliSession.lastUsedAt > existing.lastUsedAt) {
+    } else if (timestamp > existing.lastUsedAt) {
       await ctx.db.patch('chatroom_cliSessionLastUsedAt', existing._id, {
-        lastUsedAt: cliSession.lastUsedAt,
+        lastUsedAt: timestamp,
       });
     }
   },
 });
 
 /**
- * Backfill chatroom_sessionLastActivityAt from sessions.lastActivityAt.
- * Sessions without lastActivityAt produce no projection row.
+ * Backfill chatroom_sessionLastActivityAt from the historical
+ * sessions.lastActivityAt stored value.
+ * Sessions without the historical field produce no projection row.
  * Idempotent: only advances the projection when the source value is newer.
  */
 export const backfillSessionLastActivityAt = migrations.define({
   table: 'sessions',
   migrateOne: async (ctx, session) => {
-    if (session.lastActivityAt === undefined) return;
+    const timestamp = (session as typeof session & LegacySessionTimestamp).lastActivityAt;
+    if (timestamp === undefined) return;
     const existing = await ctx.db
       .query('chatroom_sessionLastActivityAt')
       .withIndex('by_sessionId', (q) => q.eq('sessionId', session._id))
@@ -137,19 +153,20 @@ export const backfillSessionLastActivityAt = migrations.define({
     if (!existing) {
       await ctx.db.insert('chatroom_sessionLastActivityAt', {
         sessionId: session._id,
-        lastActivityAt: session.lastActivityAt,
+        lastActivityAt: timestamp,
       });
-    } else if (session.lastActivityAt > existing.lastActivityAt) {
+    } else if (timestamp > existing.lastActivityAt) {
       await ctx.db.patch('chatroom_sessionLastActivityAt', existing._id, {
-        lastActivityAt: session.lastActivityAt,
+        lastActivityAt: timestamp,
       });
     }
   },
 });
 
 /**
- * Backfill chatroom_machineLastSeenAt from legacy chatroom_machines.lastSeenAt.
- * This concerns the legacy machine-cleanup field, not
+ * Backfill chatroom_machineLastSeenAt from the historical
+ * chatroom_machines.lastSeenAt stored value. Rows without the historical
+ * field are skipped. This concerns the legacy machine-cleanup field, not
  * chatroom_machineLiveness.lastSeenAt (authoritative daemon-heartbeat
  * projection, untouched here).
  * Idempotent: only advances the projection when the source value is newer.
@@ -157,6 +174,8 @@ export const backfillSessionLastActivityAt = migrations.define({
 export const backfillMachineLastSeenAt = migrations.define({
   table: 'chatroom_machines',
   migrateOne: async (ctx, machine) => {
+    const timestamp = (machine as typeof machine & LegacyMachineTimestamp).lastSeenAt;
+    if (timestamp === undefined) return;
     const existing = await ctx.db
       .query('chatroom_machineLastSeenAt')
       .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
@@ -164,11 +183,11 @@ export const backfillMachineLastSeenAt = migrations.define({
     if (!existing) {
       await ctx.db.insert('chatroom_machineLastSeenAt', {
         machineId: machine.machineId,
-        lastSeenAt: machine.lastSeenAt,
+        lastSeenAt: timestamp,
       });
-    } else if (machine.lastSeenAt > existing.lastSeenAt) {
+    } else if (timestamp > existing.lastSeenAt) {
       await ctx.db.patch('chatroom_machineLastSeenAt', existing._id, {
-        lastSeenAt: machine.lastSeenAt,
+        lastSeenAt: timestamp,
       });
     }
   },

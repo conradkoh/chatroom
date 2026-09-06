@@ -204,14 +204,14 @@ export const register = mutation({
         );
       }
 
-      // Update existing machine
+      // Update existing machine. Last-seen recency lives in the dedicated
+      // projection table (see upsert below).
       await ctx.db.patch('chatroom_machines', existing._id, {
         hostname: args.hostname,
         os: args.os,
         availableHarnesses: args.availableHarnesses,
         harnessVersions: args.harnessVersions,
         ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
-        lastSeenAt: now,
       });
       await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
@@ -226,7 +226,8 @@ export const register = mutation({
       return { machineId: args.machineId, isNew: false };
     }
 
-    // Create new machine registration
+    // Create new machine registration. Last-seen recency lives in the
+    // dedicated projection table (see upsert below).
     await ctx.db.insert('chatroom_machines', {
       machineId: args.machineId,
       userId: userId,
@@ -236,7 +237,6 @@ export const register = mutation({
       ...(args.harnessVersions !== undefined ? { harnessVersions: args.harnessVersions } : {}),
       ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
       registeredAt: now,
-      lastSeenAt: now,
       daemonConnected: false,
     });
     await upsertMachineLastSeenAt(ctx, args.machineId, now);
@@ -321,8 +321,8 @@ export const refreshCapabilities = mutation({
       availableHarnesses: args.availableHarnesses,
       harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
-      lastSeenAt: now,
     });
+    // Last-seen recency is recorded in the dedicated projection below.
     await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
     // Dual-write into dedicated models table (suppresses no-op writes for bandwidth)
@@ -827,8 +827,8 @@ export const updateDaemonStatus = mutation({
     // Kept for backward compatibility during migration.
     await ctx.db.patch('chatroom_machines', machine._id, {
       daemonConnected: args.connected,
-      lastSeenAt: now,
     });
+    // Last-seen recency is recorded in the dedicated projection below.
     await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
     // Also update liveness table
