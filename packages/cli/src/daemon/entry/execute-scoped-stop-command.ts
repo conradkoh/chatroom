@@ -1,4 +1,5 @@
 import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
+import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 import { api } from '../../api.js';
 import { abortEnhancerSpawnsForChatroom } from './enhancer/enhancer-spawn-registry.js';
@@ -64,7 +65,7 @@ export async function executeScopedStopForCommand(args: {
       [...targetsByRole.entries()].map(([role, targets]) =>
         args.runSerializedForAgent(
           { chatroomId: args.chatroomId, role },
-          { timeoutMs: 120_000 },
+          { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
           async (_ops, context) => {
             if (context.signal.aborted) throw context.signal.reason;
             return runExactTargetsStop({

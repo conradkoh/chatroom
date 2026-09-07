@@ -100,7 +100,7 @@
 - [x] Replace the empty-target stop fallback with the serialized `processManagerService` stop capability.
 - [x] Make `processManagerService` mandatory in `DaemonAgentProcessManagerServiceLive`.
 - [x] Remove inline no-op serialized-operation fallbacks from scoped stop wiring.
-- [ ] Extract shared lifecycle timeout values into named constants.
+- [x] Extract shared lifecycle timeout values into named constants.
 - [ ] Remove legacy lifecycle methods from the Effect manager boundary once downstream consumers are migrated.
 - [ ] Remove transitional tests, casts, and compatibility-only test fixtures.
 - [x] Remove the compatibility branch from production `handleTaskInboxUpdate`; keep remaining legacy coverage behind an explicitly named temporary adapter.
