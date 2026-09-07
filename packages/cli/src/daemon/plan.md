@@ -43,17 +43,27 @@ introduced.
 
 - [ ] Replace the dedicated `turn-end-queue.ts` with the shared command queue
       once turn-end handling is migrated into the serialized command path.
-+- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
+- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
       related manager setters, clearers, and slot-based duplicate checks.
 - [ ] Simplify native task injection duplicate detection to use the centralized
       daemon task-state store.
-+- [x] Migrate or remove backend recovery readers such as
+- [x] Migrate or remove backend recovery readers such as
       `find-native-harness-in-progress-work.ts` so the daemon does not rebuild
       live task state from participant snapshots.
-+- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
+- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
       command queue and task-state store enforce the lifecycle invariant.
-+- [x] Remove obsolete recovery-focused integration tests after their behavior
+- [x] Remove obsolete recovery-focused integration tests after their behavior
       has been replaced by serialized task-state tests.
+
+### Deferred until the new implementation
+
+- [ ] Replace `turn-end-queue.ts` with the shared command queue after the
+      daemon-owned turn-end use case is wired in; it still coordinates active
+      non-native turn completion and daemon shutdown.
+- [ ] Remove backend `participant.lastInFlightTaskId` and its tests after
+      token-activity handling is migrated to the daemon task-state model.
+      Do not remove it as part of the daemon-only cleanup because it remains
+      an active backend dependency.
 
 ### Reimplementation around one decision path
 
@@ -471,3 +481,11 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
       events, stale generations, missing active tasks, and reminder failures.
 - [ ] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
++- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
+- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
++- [x] Migrate or remove backend recovery readers such as
+- [x] Migrate or remove backend recovery readers such as
++- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
+- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
++- [x] Remove obsolete recovery-focused integration tests after their behavior
+- [x] Remove obsolete recovery-focused integration tests after their behavior
