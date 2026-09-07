@@ -3,7 +3,7 @@ import { GET_NEXT_TASK_STARTED_ACTION } from '@workspace/backend/src/domain/enti
 import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { handleTaskInboxUpdate } from './task-inbox-delivery.js';
+import { handleLegacyTaskInboxUpdate as handleTaskInboxUpdate } from './legacy-task-inbox-delivery.js';
 import { unregisterNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
 import {

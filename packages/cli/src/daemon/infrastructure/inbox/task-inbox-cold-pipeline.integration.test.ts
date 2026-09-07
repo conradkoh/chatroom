@@ -11,7 +11,7 @@
 import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { handleTaskInboxUpdate } from './task-inbox-delivery.js';
+import { handleLegacyTaskInboxUpdate as handleTaskInboxUpdate } from './legacy-task-inbox-delivery.js';
 import {
   getNativeDeliveryLedger,
   resetNativeDeliveryLedgerForTests,

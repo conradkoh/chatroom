@@ -7,11 +7,11 @@
   - [x] Add send, receive, delete, and visibility-change use cases.
   - [x] Add the dedicated queue consumer and command dispatcher.
   - [x] Add the `AgentProcessManagerService` interface and queue-backed adapter.
-  - [x] Add imperative start, stop, restart, and recovery command submission.
+  - [x] Add imperative start, stop, and restart command submission.
   - [x] Add the in-process command completion notifier and filtered subscriptions.
   - [x] Make notifier dependencies mandatory and add serialization/completion tests.
   - [x] Add cancellable, timeout-bounded compound operations for one agent key.
-  - [x] Route start, stop, restart, recovery, and legacy daemon flows through the queue.
+  - [x] Route start, stop, restart, and legacy daemon flows through the queue.
 
 ## Next goal
 
@@ -33,8 +33,8 @@
   - [x] Migrate restart stop/start orchestration through one serialized agent operation.
   - [x] Coordinate role-scoped stop target execution through the process manager service.
   - [x] Coordinate chatroom-scoped exact-target stops per agent key.
-  - [x] Migrate recovery and shutdown lifecycle calls to the queue-backed service.
-  - [x] Migrate canonical task-orchestration wake/revive recovery starts.
+  - [x] Migrate shutdown lifecycle calls to the queue-backed service and remove former recovery callers.
+  - [x] Remove canonical task-orchestration wake/revive recovery starts.
   - [x] Migrate the remaining active start, stop, restart, recovery, and shutdown callers.
   - [x] Verify remaining direct manager references are limited to compatibility adapters and the
         process-manager implementation, with active lifecycle entry points using the queue-backed service.
@@ -44,23 +44,23 @@
 - [x] Inventory every remaining agent lifecycle caller and classify it as migrated, internal, or compatibility-only.
   - [x] Search UI, command-inbox, event-listener, task-delivery, restart, recovery, shutdown, and enhancer flows.
   - [x] Confirm active production entry points use the queue-backed service or serialized capability.
-  - [ ] Decide whether manager-internal restart/crash handling is intentionally below the service boundary.
-  - [ ] Audit manager-internal `maybeRestartAgent` and resume-storm stop calls for races with queued commands.
+  - [x] Keep process-exit bookkeeping below the service boundary; automatic crash/restart recovery is removed.
+  - [ ] Ensure manager-internal safety stops, including resume-storm stops, share the per-agent serialization boundary.
 - [ ] Verify every service dependency is mandatory in production wiring.
   - [ ] Remove optional `processManagerService` dependencies and inline serialized-operation fallbacks in daemon services.
   - [ ] Make task-inbox delivery and native task-delivery coordinator serialization dependencies mandatory.
-  - [ ] Confirm daemon initialization starts the queue consumer before recovery commands can be awaited.
+  - [ ] Confirm daemon initialization starts the queue consumer before lifecycle commands can be awaited.
 - [x] Define and verify completion semantics for every migrated caller.
   - [x] Confirm callers that require ordering await service promises.
   - [x] Confirm intentional fire-and-forget callers handle rejection or subscribe to notifications.
-  - [ ] Confirm operation timeouts and cancellation signals are present for every compound operation, including internal recovery paths.
+  - [ ] Confirm operation timeouts and cancellation signals are present for every remaining compound lifecycle operation, including manager-internal safety stops.
 - [x] Audit per-key coverage for multi-agent operations.
   - [x] Verify chatroom-scoped stops serialize independently per role.
   - [x] Verify UI start, stop, and restart actions use the same service boundary.
   - [x] Verify native delivery, recovery, and restart flows use the per-agent key.
 - [ ] Audit secondary lifecycle-triggering use cases that were not part of the first migration.
-  - [ ] Route resume-storm abort stops through the service or document why manager ownership makes direct execution safe.
-  - [ ] Audit automatic crash/exit restart paths for coordination with queued start/stop/restart commands.
+  - [ ] Route resume-storm abort stops through the shared per-agent serialization boundary.
+  - [x] Verify automatic crash/exit restart recovery has been removed; retain exit bookkeeping inside the manager.
   - [ ] Review enhancer/native harness stop paths and classify them as agent lifecycle or child-process cleanup.
 
 ## Recovery-boundary review
@@ -103,6 +103,8 @@
 - [ ] Extract shared lifecycle timeout values into named constants.
 - [ ] Remove legacy lifecycle methods from the Effect manager boundary once downstream consumers are migrated.
 - [ ] Remove transitional tests, casts, and compatibility-only test fixtures.
+- [x] Remove the compatibility branch from production `handleTaskInboxUpdate`; keep remaining legacy coverage behind an explicitly named temporary adapter.
+- [ ] Migrate tests off `legacy-task-inbox-delivery.ts` and delete the temporary adapter.
 - [ ] Remove or redesign direct lifecycle adapters used only to satisfy the legacy native injector contract.
 - [ ] Resolve the daemon-runtime readonly SQLite test failure and rerun the complete runtime suite.
 - [ ] Run the complete CLI test suite, typecheck, lint, and audit before declaring cleanup complete.
