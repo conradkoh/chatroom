@@ -284,7 +284,6 @@ describe('AgentProcessManager', () => {
         role: ROLE,
         model: 'gpt-5.6-luna[reasoning=low]',
         message: '[codex-sdk:builder run-error] Selected model is at capacity',
-        recoverable: true,
       });
       expect(getMutationCallsByArgs(deps, (args) => typeof args.error === 'string')).toHaveLength(
         0

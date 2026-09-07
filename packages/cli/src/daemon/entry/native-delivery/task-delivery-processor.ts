@@ -10,6 +10,8 @@
 import type { Runtime, Context } from 'effect';
 
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
+import { snapshotRequestsNativeColdSession } from './native-cold-session-delivery.js';
+import { getNativeDeliverySession } from './native-delivery-session-registry.js';
 import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
@@ -22,6 +24,15 @@ import type {
 } from '../daemon-services.js';
 import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
+import { isNativeHarness } from './native-task-injector-logic.js';
+import {
+  isOperationalCircuitOpen,
+  isOperationalStopIntentActive,
+} from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { isSlotIdle } from '../../domain/usecase/check-agent-slot.js';
+import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
+import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
+import type { AgentHarness } from '../daemon-types.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
   DaemonSessionService | DaemonAgentProcessManagerService
@@ -41,6 +52,68 @@ export type ProcessTasksUpdateOptions = {
 
 type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
 
+/**
+ * Activate pending native work through the process-manager serialization
+ * boundary. Delivery remains the owner of deciding whether activation is
+ * needed; the process manager remains the owner of actually starting it.
+ */
+export async function startPendingNativeAgents(
+  tasks: readonly AssignedTaskSnapshotView[],
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent']
+): Promise<void> {
+  const operationalModel = getNativeDeliverySession()?.agentOperationalReadModel;
+  const started = new Set<string>();
+  await Promise.all(
+    tasks.map(async (task) => {
+      if (
+        task.status !== 'pending' ||
+        !isNativeHarness(task.agentConfig.agentHarness) ||
+        snapshotRequestsNativeColdSession(task) ||
+        !task.agentConfig.workingDir
+      ) {
+        return;
+      }
+      const key = `${task.chatroomId}:${task.agentConfig.role.toLowerCase()}`;
+      if (started.has(key)) return;
+      const slot = agentMgr.getSlot(task.chatroomId, task.agentConfig.role);
+      if (slot && !isSlotIdle(slot.state)) return;
+      const operational = operationalModel?.get(task.chatroomId, task.agentConfig.role);
+      if (isChatroomStopScopeActive(task.chatroomId)) return;
+      if (isOperationalCircuitOpen(operational) || isOperationalStopIntentActive(operational)) return;
+      started.add(key);
+      try {
+        await runSerializedForAgent(
+          { chatroomId: task.chatroomId, role: task.agentConfig.role },
+          { timeoutMs: 120_000 },
+          (ops, context) =>
+            ops.startAgent(
+              {
+                chatroomId: task.chatroomId,
+                role: task.agentConfig.role,
+                agentHarness: task.agentConfig.agentHarness as AgentHarness,
+                model: task.agentConfig.model,
+                workingDir: task.agentConfig.workingDir as string,
+                reason:
+                  operational?.operationalState === 'running'
+                    ? AgentStartReasonEnum['platform.task_monitor_nudge']
+                    : AgentStartReasonEnum['platform.pending_task_wake'],
+                wantResume: false,
+                lifecycleRevision: task.agentConfig.configLifecycleRevision,
+                taskId: task.taskId,
+              },
+              context.signal
+            )
+        );
+      } catch (error) {
+        console.warn(
+          `[NativeDelivery] pending agent activation failed for ${task.agentConfig.role}@${task.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    })
+  );
+}
+
 export async function processTasksUpdate(
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
@@ -53,6 +126,8 @@ export async function processTasksUpdate(
 ): Promise<void> {
   const filteredTasks = filterSnapshotsExcludingRestartInFlight([...options.snapshots]);
   if (filteredTasks.length === 0) return;
+
+  await startPendingNativeAgents(filteredTasks, agentMgr, runSerializedForAgent);
 
   const first = filteredTasks[0];
   logNativeDeliveryFallback(pass, first.agentConfig.role, first.chatroomId, first.taskId);

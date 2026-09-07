@@ -65,7 +65,6 @@ import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line
 import {
   classifyProviderErrorFromLogs,
   hasHarnessOutputStalled,
-  providerUnavailableRecoverable,
 } from '../../domain/usecase/classify-provider-error.js';
 import {
   handleTurnCompleted,
@@ -854,7 +853,6 @@ export class AgentProcessManager {
       reason: classification.reason,
       model: slot.model ?? '',
       message: classification.message,
-      recoverable: providerUnavailableRecoverable(classification.reason),
     });
     void this.deps.backend
       .mutation(api.daemon.agentEvents.agentProviderUnavailable, {
@@ -865,7 +863,6 @@ export class AgentProcessManager {
         reason: classification.reason,
         model: slot.model ?? '',
         message: classification.message,
-        recoverable: providerUnavailableRecoverable(classification.reason),
       })
       .catch(() => {});
   }

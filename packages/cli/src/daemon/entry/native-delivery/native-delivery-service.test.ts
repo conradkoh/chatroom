@@ -1,6 +1,7 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { NativeDeliveryService } from './native-delivery-service.js';
+import { startPendingNativeAgents } from './task-delivery-processor.js';
 import { createAgentTaskStateService } from '../../infrastructure/agent-process-manager/components/agent-task-state/index.js';
 import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 
@@ -20,6 +21,43 @@ function createService(): NativeDeliveryService {
 }
 
 describe('NativeDeliveryService', () => {
+  test('activates pending work through the serialized process-manager operation', async () => {
+    const startAgent = vi.fn().mockResolvedValue({ success: true, pid: 42 });
+    const runSerializedForAgent = vi.fn(async (_key, _options, operation) =>
+      operation({ startAgent, stopAgent: vi.fn() }, { signal: new AbortController().signal })
+    );
+    await startPendingNativeAgents(
+      [
+        {
+          taskId: 'task-1',
+          chatroomId: 'room-1',
+          status: 'pending',
+          assignedTo: 'builder',
+          updatedAt: 1,
+          createdAt: 1,
+          agentConfig: {
+            role: 'builder',
+            machineId: 'machine-1',
+            agentHarness: 'cursor-sdk',
+            workingDir: '/tmp',
+          },
+          participant: { lastSeenAction: null, lastSeenAt: null, lastStatus: null },
+        },
+      ] as never,
+      { getSlot: () => undefined } as never,
+      runSerializedForAgent as never
+    );
+    expect(startAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatroomId: 'room-1',
+        role: 'builder',
+        wantResume: false,
+        reason: 'platform.pending_task_wake',
+      }),
+      expect.anything()
+    );
+  });
+
   test('owns delivery and handoff state transitions', async () => {
     const service = createService();
 

@@ -28,7 +28,7 @@
   - [x] Verify same-key ordering for service operations and competing queued commands.
   - [x] Add focused tests for the migrated flow and timeout/cancellation behavior.
   - [x] Remove compatibility fallbacks and verify competing legacy-path behavior.
-  - [ ] Migrate native pending-task activation to explicit `startAgent` calls through serialized coordination.
+  - [x] Migrate native pending-task activation to explicit `startAgent` calls through serialized coordination.
   - [x] Migrate `agent.requestStart` through the queue-backed process manager service.
   - [x] Migrate restart stop/start orchestration through one serialized agent operation.
   - [x] Coordinate role-scoped stop target execution through the process manager service.
@@ -106,8 +106,9 @@
 - [ ] Remove legacy lifecycle methods from the Effect manager boundary once downstream consumers are migrated.
 - [ ] Remove transitional tests, casts, and compatibility-only test fixtures.
 - [x] Remove the compatibility branch from production `handleTaskInboxUpdate`; keep remaining legacy coverage behind an explicitly named temporary adapter.
-- [ ] Assess full deprecation of `handleLegacyTaskInboxUpdate` and delete the adapter and its legacy-only tests when all callers use `NativeDeliveryService`.
-- [ ] Migrate tests off `legacy-task-inbox-delivery.ts` and delete the temporary adapter.
+  - [x] Delete `handleLegacyTaskInboxUpdate`, its temporary adapter, and legacy-only tests.
+  - [ ] Add replacement integration coverage through `NativeDeliveryService` for normal inbox and cold-session delivery.
+  - [x] Remove recovery-specific provider classification; retain ordinary provider-unavailable reason/message detection.
 - [ ] Remove or redesign direct lifecycle adapters used only to satisfy the legacy native injector contract.
 - [ ] Resolve the daemon-runtime readonly SQLite test failure and rerun the complete runtime suite.
 - [ ] Run the complete CLI test suite, typecheck, lint, and audit before declaring cleanup complete.

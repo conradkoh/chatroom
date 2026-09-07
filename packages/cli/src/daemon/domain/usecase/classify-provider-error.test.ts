@@ -4,7 +4,6 @@ import {
   classifyProviderErrorFromLogs,
   classifyProviderErrorLogLine,
   classifyProviderErrorMessage,
-  providerUnavailableRecoverable,
   hasHarnessOutputStalled,
   PROVIDER_ERROR_CLASSIFICATION_STALL_MS,
 } from './classify-provider-error.js';
@@ -27,14 +26,12 @@ describe('classifyProviderErrorMessage', () => {
   it('classifies model capacity', () => {
     expect(classifyProviderErrorMessage('Selected model is at capacity')).toMatchObject({
       reason: 'model_capacity',
-      recoverable: true,
     });
   });
 
   it('classifies rate limits', () => {
     expect(classifyProviderErrorMessage('Too many requests; rate limit exceeded')).toMatchObject({
       reason: 'rate_limit',
-      recoverable: true,
     });
   });
 });
@@ -89,7 +86,7 @@ describe('classifyProviderErrorLogLine', () => {
   it('still classifies real run-error lines', () => {
     expect(
       classifyProviderErrorLogLine('[codex-sdk:builder run-error] rate limit exceeded')
-    ).toMatchObject({ reason: 'rate_limit', recoverable: true });
+    ).toMatchObject({ reason: 'rate_limit' });
   });
 
   it('ignores pi tool_result containing embedded spawn-error from test output', () => {
@@ -123,10 +120,6 @@ describe('classifyProviderErrorFromLogs', () => {
         '[codex-sdk:solo run-error] Selected model is at capacity',
       ])
     ).toMatchObject({ reason: 'model_capacity' });
-  });
-
-  it('marks quota as non-recoverable', () => {
-    expect(providerUnavailableRecoverable('quota')).toBe(false);
   });
 
   it('ignores tool-output false positives when scanning recent logs', () => {
