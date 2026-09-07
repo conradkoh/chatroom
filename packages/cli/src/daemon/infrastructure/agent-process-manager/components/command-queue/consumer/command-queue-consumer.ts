@@ -81,8 +81,16 @@ export class CommandQueueConsumer<T> {
     status: 'succeeded' | 'failed',
     error?: unknown
   ): void {
-    this.deps.notifier?.publish({
+    const operationId =
+      typeof message.body === 'object' &&
+      message.body !== null &&
+      'operationId' in message.body &&
+      typeof message.body.operationId === 'string'
+        ? message.body.operationId
+        : message.messageId;
+    this.deps.notifier.publish({
       eventId: randomUUID(),
+      operationId,
       messageId: message.messageId,
       messageGroupId: message.messageGroupId,
       body: message.body,

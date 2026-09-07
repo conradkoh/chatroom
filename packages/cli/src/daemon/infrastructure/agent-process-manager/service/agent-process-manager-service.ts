@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type {
   EnsureRunningOpts,
   HandleExitOpts,
@@ -6,6 +8,7 @@ import type {
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type { AgentSlot } from '../agent-process-manager.js';
 import type {
+  CommandNotification,
   CommandNotificationFilter,
   CommandNotificationListener,
   CommandNotifier,
@@ -15,7 +18,6 @@ import {
   createCommandQueue,
   type CommandQueueConsumerOptions,
   type ReceivedCommandMessage,
-  type SentCommandMessage,
 } from '../components/command-queue/index.js';
 
 export interface RestartAgentInput {
@@ -24,10 +26,16 @@ export interface RestartAgentInput {
 }
 
 export type AgentProcessManagerCommand =
-  | { readonly type: 'start'; readonly input: EnsureRunningOpts }
-  | { readonly type: 'stop'; readonly input: StopOpts }
-  | { readonly type: 'restart'; readonly input: RestartAgentInput }
-  | { readonly type: 'recover'; readonly input: Record<string, never> };
+  | { readonly operationId: string; readonly type: 'start'; readonly input: EnsureRunningOpts }
+  | { readonly operationId: string; readonly type: 'stop'; readonly input: StopOpts }
+  | { readonly operationId: string; readonly type: 'restart'; readonly input: RestartAgentInput }
+  | {
+      readonly operationId: string;
+      readonly type: 'recover';
+      readonly input: Record<string, never>;
+    };
+
+export type AgentOperationResult = CommandNotification<AgentProcessManagerCommand>;
 
 export interface AgentProcessManagerExecutionPort {
   ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult>;
@@ -51,13 +59,13 @@ export interface AgentProcessManagerExecutionPort {
 
 export interface AgentProcessManagerService {
   /** Enqueue a start operation for one chatroom/role agent. */
-  startAgent(input: EnsureRunningOpts): Promise<SentCommandMessage>;
+  startAgent(input: EnsureRunningOpts): Promise<AgentOperationResult>;
   /** Enqueue a stop operation for one chatroom/role agent. */
-  stopAgent(input: StopOpts): Promise<SentCommandMessage>;
+  stopAgent(input: StopOpts): Promise<AgentOperationResult>;
   /** Enqueue a restart operation for one chatroom/role agent. */
-  restartAgent(input: RestartAgentInput): Promise<SentCommandMessage>;
+  restartAgent(input: RestartAgentInput): Promise<AgentOperationResult>;
   /** Enqueue the manager recovery operation. */
-  recoverAgents(): Promise<SentCommandMessage>;
+  recoverAgents(): Promise<AgentOperationResult>;
   /** Subscribe to execution outcomes from lifecycle commands. */
   subscribe(
     filter: CommandNotificationFilter,
@@ -119,17 +127,32 @@ function assertStopSucceeded(result: { success: boolean }): void {
   }
 }
 
+interface PendingOperation {
+  resolve(result: AgentOperationResult): void;
+  reject(error: unknown): void;
+}
+
 /**
  * Composes the imperative service API with the FIFO command queue.
  *
- * Lifecycle methods submit commands and return once the command has been
- * accepted by the queue. The consumer executes commands serially per
- * chatroom/role group.
+ * Lifecycle methods submit commands and resolve after the consumer completes
+ * the command. Callers can use `void service.stopAgent(...)` when completion
+ * is intentionally fire-and-forget.
  */
 export function createAgentProcessManagerService(
   deps: AgentProcessManagerServiceDependencies
 ): AgentProcessManagerService {
   const queue = createCommandQueue<AgentProcessManagerCommand>();
+  const pendingOperations = new Map<string, PendingOperation>();
+
+  deps.notifier.subscribe({}, (notification) => {
+    const pending = pendingOperations.get(notification.operationId);
+    if (!pending) return;
+    pendingOperations.delete(notification.operationId);
+    if (notification.status === 'succeeded') pending.resolve(notification);
+    else pending.reject(notification.error ?? new Error('Agent lifecycle command failed'));
+  });
+
   const consumer = new CommandQueueConsumer({
     queue,
     notifier: deps.notifier,
@@ -153,16 +176,29 @@ export function createAgentProcessManagerService(
     },
   });
 
-  const submit = (command: AgentProcessManagerCommand): Promise<SentCommandMessage> => {
+  const submit = (
+    commandFactory: (operationId: string) => AgentProcessManagerCommand
+  ): Promise<AgentOperationResult> => {
+    const operationId = randomUUID();
+    const completion = new Promise<AgentOperationResult>((resolve, reject) => {
+      pendingOperations.set(operationId, { resolve, reject });
+    });
+    const command = commandFactory(operationId);
     const message = commandMessage(command);
-    return queue.sendMessage(message);
+    void queue.sendMessage(message).catch((error: unknown) => {
+      const pending = pendingOperations.get(operationId);
+      if (!pending) return;
+      pendingOperations.delete(operationId);
+      pending.reject(error);
+    });
+    return completion;
   };
 
   return {
-    startAgent: (input) => submit({ type: 'start', input }),
-    stopAgent: (input) => submit({ type: 'stop', input }),
-    restartAgent: (input) => submit({ type: 'restart', input }),
-    recoverAgents: () => submit({ type: 'recover', input: {} }),
+    startAgent: (input) => submit((operationId) => ({ operationId, type: 'start', input })),
+    stopAgent: (input) => submit((operationId) => ({ operationId, type: 'stop', input })),
+    restartAgent: (input) => submit((operationId) => ({ operationId, type: 'restart', input })),
+    recoverAgents: () => submit((operationId) => ({ operationId, type: 'recover', input: {} })),
     subscribe: (filter, listener) => deps.notifier.subscribe(filter, listener),
     startProcessing: () => consumer.start(),
     stopProcessing: () => consumer.stop(),

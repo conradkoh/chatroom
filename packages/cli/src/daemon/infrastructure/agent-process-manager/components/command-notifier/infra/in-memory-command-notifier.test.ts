@@ -6,6 +6,7 @@ import type { CommandNotification } from '../entities/command-notification.js';
 function event(overrides: Partial<CommandNotification> = {}): CommandNotification {
   return {
     eventId: 'event-1',
+    operationId: 'operation-1',
     messageId: 'message-1',
     messageGroupId: 'room-1:builder',
     body: { type: 'stop' },

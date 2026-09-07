@@ -42,9 +42,9 @@ await service.stopAgent({
 });
 ```
 
-These methods resolve when the command is accepted by the queue. They do not
-wait for process execution to finish. The returned message contains the queue
-`messageId`, which can later support operation status or completion tracking.
+These methods resolve after the consumer finishes processing the command. Use
+`void service.stopAgent(...)` when the caller intentionally wants
+fire-and-forget behavior. A failed lifecycle operation rejects the promise.
 
 Commands for the same `chatroomId` and `role` share a FIFO message group and
 are processed serially. Commands for different agents may be processed in

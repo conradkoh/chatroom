@@ -18,6 +18,7 @@ const unsubscribe = notifier.subscribe({ messageId: operationMessageId }, (event
 
 notifier.publish({
   eventId: crypto.randomUUID(),
+  operationId: operationId,
   messageId: operationMessageId,
   messageGroupId: 'chatroom:role',
   body: command,

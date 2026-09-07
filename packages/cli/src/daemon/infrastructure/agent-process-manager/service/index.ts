@@ -1,5 +1,6 @@
 export {
   createAgentProcessManagerService,
+  type AgentOperationResult,
   type AgentProcessManagerService,
   type AgentProcessManagerServiceDependencies,
   type AgentProcessManagerCommand,
