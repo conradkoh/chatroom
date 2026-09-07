@@ -23,7 +23,6 @@
 
 import { isExplicitDaemonStart } from '@workspace/backend/src/domain/entities/agent.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
-import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
 import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
@@ -83,9 +82,7 @@ import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import { notifyNativeHarnessSessionLostOnExit } from '../../entry/native-delivery/native-harness-session-exit.js';
 import {
   getNativeTaskDeliveryCoordinator,
-  notifyNativeTurnIdle,
 } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
-import { decideNativeTurnEndFromInbox } from '../../entry/native-delivery/native-turn-end-inbox.js';
 import {
   defaultNativeTurnPhase,
   setNativeTurnPhase,
@@ -448,25 +445,6 @@ export class AgentProcessManager {
     }
   }
 
-  private async injectHarnessReminder(
-    chatroomId: string,
-    role: string,
-    prompt: string
-  ): Promise<void> {
-    const key = agentKey(chatroomId, role);
-    const slot = this.slots.get(key);
-    if (!slot?.pid || !slot.harness) return;
-    const service = this.deps.agentServices.get(slot.harness);
-    if (!service?.resumeTurn) return;
-    setNativeTurnPhase(slot, 'injecting');
-    try {
-      await service.resumeTurn(slot.pid, prompt);
-      setNativeTurnPhase(slot, 'turn_in_flight');
-    } catch {
-      setNativeTurnPhase(slot, defaultNativeTurnPhase());
-    }
-  }
-
   async stop(opts: StopOpts): Promise<{ success: boolean }> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
@@ -731,74 +709,12 @@ export class AgentProcessManager {
     slot: AgentSlot | undefined
   ): Promise<void> {
     this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
-    if (
-      await tryAbortResumeStorm(
-        {
-          resumeStormTracker: this.deps.resumeStormTracker,
-          backend: createTurnCompletedBackend({
-            sessionId: this.deps.sessionId,
-            machineId: this.deps.machineId,
-            logEvent: this.deps.logEvent,
-            backend: this.deps.backend,
-          }),
-          now: () => this.deps.clock.now(),
-          stopAgent: (args) => this.stop(args),
-        },
-        {
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-          pid: opts.pid,
-        },
-        slot
-      )
-    ) {
-      console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
-      return;
-    }
-
-    const inboxDecision = decideNativeTurnEndFromInbox({
-      chatroomId: opts.chatroomId,
-      role: opts.role,
-      taskId: slot?.lastInFlightTaskId,
-    });
-    if (inboxDecision === 'needs-handoff-reminder') {
-      await this.injectHarnessReminder(opts.chatroomId, opts.role, NATIVE_HANDOFF_REMINDER);
-      console.log(`[AgentProcessManager] ⏩ Handoff reminder injected for ${opts.role} (inbox)`);
-      return;
-    }
-    if (inboxDecision === 'handoff-completed') {
-      if (slot) {
-        setNativeTurnPhase(slot, defaultNativeTurnPhase());
-        this.clearLastInFlightTask(opts.chatroomId, opts.role);
-      }
-      notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
-      console.log(`[AgentProcessManager] ✅ Native agent_end handled for ${opts.role} (inbox)`);
-      return;
-    }
-
-    try {
-      const result = await this.deps.backend.mutation(api.participants.handleNativeAgentEnd, {
-        sessionId: this.deps.sessionId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        ...(slot?.lastInFlightTaskId ? { taskId: slot.lastInFlightTaskId } : {}),
-      });
-
-      if (result?.needsHandoffReminder) {
-        await this.injectHarnessReminder(opts.chatroomId, opts.role, NATIVE_HANDOFF_REMINDER);
-        console.log(`[AgentProcessManager] ⏩ Handoff reminder injected for ${opts.role}`);
-        return;
-      }
-
-      if (slot) {
-        setNativeTurnPhase(slot, defaultNativeTurnPhase());
-        this.clearLastInFlightTask(opts.chatroomId, opts.role);
-      }
-      notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
-      console.log(`[AgentProcessManager] ✅ Native agent_end handled for ${opts.role}`);
-    } catch (err) {
-      console.log(`   ⚠️  Failed native agent_end for ${opts.role}: ${(err as Error).message}`);
-    }
+    // Native turn-end handoff resolution is intentionally disabled while the
+    // split inbox/backend reminder flow is being replaced by one coordinator-owned
+    // decision path. Keep the slot in its current turn-in-flight state so the
+    // delivery coordinator cannot make a second task decision during the gap.
+    void opts;
+    void slot;
   }
 
   async handleExit(opts: HandleExitOpts): Promise<void> {

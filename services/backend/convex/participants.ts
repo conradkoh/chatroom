@@ -23,7 +23,6 @@ import { touchAgentRoleStatusLastSeen } from '../src/domain/usecase/agent/projec
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
-import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
 import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
 import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
@@ -304,24 +303,6 @@ export const getByRole = query({
         q.eq('chatroomId', args.chatroomId).eq('role', args.role)
       )
       .unique();
-  },
-});
-
-/** Idempotent handler for native harness agent_end — returns handoff reminder signal or transitions to waiting. */
-export const handleNativeAgentEnd = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    taskId: v.optional(v.id('chatroom_tasks')),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return await handleNativeAgentEndUsecase(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-      taskId: args.taskId,
-    });
   },
 });
 

@@ -1,4 +1,3 @@
-import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -11,16 +10,11 @@ import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 
-// Legacy recovery assertions below are removed from execution; these names remain only in
-// unreachable historical assertions until the obsolete test section is deleted.
+// Retained only for the currently disabled historical recovery assertions below.
 const CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS = 6;
 const CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS = 3;
+
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
-import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
-import type {
-  decideNativeTurnEndFromInbox,
-  NativeTurnEndInboxDecision,
-} from '../../entry/native-delivery/native-turn-end-inbox.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
 import type {
   RemoteAgentService,
@@ -34,28 +28,6 @@ vi.mock('../../entry/handlers/orphan-tracker.js', () => ({
   trackChildPid: vi.fn(),
   untrackChildPid: vi.fn(),
 }));
-
-const mockNotifyNativeTurnIdle = vi.hoisted(() => vi.fn());
-const mockDecideNativeTurnEndFromInbox = vi.hoisted(() =>
-  vi.fn<(params: Parameters<typeof decideNativeTurnEndFromInbox>[0]) => NativeTurnEndInboxDecision>(
-    () => 'unknown'
-  )
-);
-vi.mock('../../entry/native-delivery/native-task-delivery-coordinator.js', async () => {
-  const actual = await vi.importActual<typeof NativeTaskDeliveryCoordinatorModule>(
-    '../../entry/native-delivery/native-task-delivery-coordinator.js'
-  );
-  return {
-    ...actual,
-    notifyNativeTurnIdle: mockNotifyNativeTurnIdle,
-  };
-});
-vi.mock('../../entry/native-delivery/native-turn-end-inbox.js', async () => {
-  const actual = await vi.importActual<{
-    decideNativeTurnEndFromInbox: typeof decideNativeTurnEndFromInbox;
-  }>('../../entry/native-delivery/native-turn-end-inbox.js');
-  return { ...actual, decideNativeTurnEndFromInbox: mockDecideNativeTurnEndFromInbox };
-});
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -99,10 +71,7 @@ function createMockService() {
 }
 
 function mockBackendMutation(
-  defaultResult: Record<string, unknown> = {
-    needsHandoffReminder: false,
-    transitionedToWaiting: true,
-  }
+  defaultResult: Record<string, unknown> = {}
 ) {
   return vi.fn().mockImplementation((endpoint: unknown, args?: Record<string, unknown>) => {
     if (
@@ -233,21 +202,6 @@ function createNativeSdkService(harness: NativeSdkHarness) {
   return { service, resumeTurn, onAgentEndRegistrar };
 }
 
-function getHandleNativeAgentEndCalls(deps: AgentProcessManagerDeps): Record<string, unknown>[] {
-  const matches = getMutationCallsByArgs(
-    deps,
-    (args) =>
-      'sessionId' in args &&
-      'chatroomId' in args &&
-      'role' in args &&
-      !('action' in args) &&
-      !('pid' in args) &&
-      !('machineId' in args) &&
-      !('model' in args) &&
-      !('reason' in args)
-  );
-  return matches.length > 0 ? [matches[matches.length - 1]!] : [];
-}
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -257,7 +211,6 @@ describe('AgentProcessManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDecideNativeTurnEndFromInbox.mockReturnValue('unknown');
     deps = createDeps();
     manager = new AgentProcessManager(deps);
   });
@@ -395,31 +348,6 @@ describe('AgentProcessManager', () => {
       ).toHaveLength(0);
     });
 
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s calls handleNativeAgentEnd without resumeTurn when idle',
-      async (harness) => {
-        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        mockNotifyNativeTurnIdle.mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(resumeTurn).not.toHaveBeenCalled();
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-        });
-      }
-    );
-
     test('ignores stale agent_end callback after role slot is replaced by a newer process', async () => {
       const STALE_PID = 42;
       const CURRENT_PID = 43;
@@ -476,144 +404,14 @@ describe('AgentProcessManager', () => {
       expect(slot?.state).toBe('running');
 
       (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-      mockNotifyNativeTurnIdle.mockClear();
-
       await triggerAgentEnd(manager, staleAgentEndCb);
 
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
-      expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
       expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBe(CURRENT_PID);
       expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('running');
 
       const currentAgentEndCb = currentOnAgentEndRegistrar.mock.calls[0][0] as () => void;
       await triggerAgentEnd(manager, currentAgentEndCb);
-
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-      expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-      });
     });
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s injects handoff reminder when backend signals missed handoff',
-      async (harness) => {
-        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-          needsHandoffReminder: true,
-          transitionedToWaiting: false,
-        });
-        vi.mocked(deps.lifecycleOutbox.enqueue).mockClear();
-        mockNotifyNativeTurnIdle.mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-        expect(getHandleNativeAgentEndCalls(deps)[0]).not.toHaveProperty('bufferedContent');
-        expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
-        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
-        const nativeWaitingEnqueues = vi
-          .mocked(deps.lifecycleOutbox.enqueue)
-          .mock.calls.filter(
-            ([fact]) => fact.kind === 'activity' && fact.action === 'native:waiting'
-          );
-        expect(nativeWaitingEnqueues).toHaveLength(0);
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s injects handoff reminder from inbox without backend mutation',
-      async (harness) => {
-        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-in-progress');
-        mockDecideNativeTurnEndFromInbox.mockReturnValue('needs-handoff-reminder');
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
-        expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
-        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s accepts inbox-observed handoff without backend mutation',
-      async (harness) => {
-        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-completed');
-        mockDecideNativeTurnEndFromInbox.mockReturnValue('handoff-completed');
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
-        expect(resumeTurn).not.toHaveBeenCalled();
-        expect(manager.getSlot(CHATROOM_ID, ROLE)?.lastInFlightTaskId).toBeUndefined();
-        expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).toBe('idle');
-        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-        });
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'onAgentEnd for %s still calls handleNativeAgentEnd when wantResume is false',
-      async (harness) => {
-        const resumeTurn = vi.fn().mockResolvedValue(undefined);
-        const onAgentEndRegistrar = vi.fn();
-        const resumableService = {
-          ...createMockService(),
-          id: harness,
-          resumeTurn,
-          spawn: vi.fn().mockResolvedValue({
-            pid: PID,
-            harnessSessionId: `sess-${harness}-1`,
-            onExit: vi.fn(),
-            onOutput: vi.fn(),
-            onAgentEnd: onAgentEndRegistrar,
-          }),
-        };
-        deps.agentServices = new Map([[harness, resumableService]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({
-            agentHarness: harness as EnsureRunningOpts['agentHarness'],
-            wantResume: false,
-          })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(resumeTurn).not.toHaveBeenCalled();
-        expect(deps.processes.kill).not.toHaveBeenCalled();
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-      }
-    );
 
     test('onAgentEnd kills process for non-resumable harness', async () => {
       const onAgentEndRegistrar = vi.fn();
@@ -2608,7 +2406,6 @@ describe('AgentProcessManager', () => {
       await triggerAgentEnd(manager, agentEndCb!);
 
       expect(resumeTurn).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
       expect(
         getMutationCallsByArgs(
           deps,
@@ -2650,7 +2447,6 @@ describe('AgentProcessManager', () => {
       await triggerAgentEnd(manager, agentEndCb!);
 
       expect(resumeTurn).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
       expect(
         getMutationCallsByArgs(
           deps,
@@ -2825,7 +2621,6 @@ describe('AgentProcessManager', () => {
       // 3. Verify: resumeTurn was NOT called; native harness idles in-process
       expect(resumeTurn).not.toHaveBeenCalled();
       expect(localDeps.processes.kill).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(localDeps)).toHaveLength(1);
 
       // 4. Clear mocks for next phase
       (localDeps.processes.kill as ReturnType<typeof vi.fn>).mockClear();
@@ -2971,64 +2766,6 @@ describe('AgentProcessManager', () => {
 
         const slot = manager.getSlot(CHATROOM_ID, ROLE);
         expect(slot?.nativeTurnPhase).toBe('idle');
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'agent_end sets nativeTurnPhase to idle for %s (non-reminder path)',
-      async (harness) => {
-        const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        mockNotifyNativeTurnIdle.mockClear();
-
-        // Simulate turn_in_flight
-        const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-        slot.nativeTurnPhase = 'turn_in_flight';
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(slot.nativeTurnPhase).toBe('idle');
-        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-        });
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'agent_end does NOT set nativeTurnPhase idle on handoff reminder path for %s',
-      async (harness) => {
-        const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-          needsHandoffReminder: true,
-          transitionedToWaiting: false,
-        });
-        mockNotifyNativeTurnIdle.mockClear();
-
-        // Simulate turn_in_flight
-        const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-        slot.nativeTurnPhase = 'turn_in_flight';
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        // After handoff reminder, phase should be turn_in_flight (reminder injected, harness working)
-        expect(slot.nativeTurnPhase).toBe('turn_in_flight');
-        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
       }
     );
 
