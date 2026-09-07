@@ -85,7 +85,6 @@ import {
 } from '../local/harness/services/native-spawn-presence.js';
 import type {
   AgentLogLine,
-  HarnessReconnectMetadata,
   RemoteAgentService,
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';

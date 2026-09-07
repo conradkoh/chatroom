@@ -36,14 +36,12 @@ import { DetectionResult } from '../detection-result.js';
 import { getPiSessionDir } from '../pi/pi-agent-service.js';
 import { parsePiSpawnModel, resolvePiThinkingLevel } from '../pi/pure.js';
 import type {
-  DaemonHarnessSessionContext,
-  HarnessReconnectMetadata,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
-import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
+import { requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
 
@@ -188,56 +186,6 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     } catch (err) {
       console.warn(`[pi-sdk] listModels failed:`, err instanceof Error ? err.message : err);
       return [];
-    }
-  }
-
-  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
-    const session = this.sessions.get(pid);
-    if (!session) {
-      return undefined;
-    }
-    return {
-      agentName: 'builder',
-      model: session.model,
-    };
-  }
-
-  async resumeFromDaemonMemory(
-    options: SpawnOptions,
-    stored: DaemonHarnessSessionContext
-  ): Promise<SpawnResult> {
-    const model = resolveHarnessResumeModel(
-      options.model,
-      stored.model,
-      'pi-sdk resumeFromDaemonMemory'
-    );
-    const keeper = this.spawnKeeper(stored.workingDir);
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
-    const pid = keeper.pid!;
-
-    try {
-      const session = await this.openResumedSession({
-        workingDir: stored.workingDir,
-        systemPrompt: options.systemPrompt,
-        harnessSessionId: stored.harnessSessionId,
-      });
-      const fullPrompt = `${options.systemPrompt}\n\n${options.prompt}`;
-      return this.startRunningSession({
-        pid,
-        keeper,
-        session,
-        context: options.context,
-        workingDir: stored.workingDir,
-        model,
-        initialPrompt: fullPrompt,
-        deferInitialTurn: false,
-        storedSystemPrompt: options.systemPrompt,
-      });
-    } catch (err) {
-      writeSpawnError(buildAgentLogPrefix('pi-sdk', options.context), err);
-      keeper.kill();
-      this.deleteProcess(pid);
-      return this.spawn({ ...options, model });
     }
   }
 

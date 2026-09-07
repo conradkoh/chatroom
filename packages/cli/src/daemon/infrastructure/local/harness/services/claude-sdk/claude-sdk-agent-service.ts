@@ -30,14 +30,13 @@ import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent
 import { decodeClaudeVariant } from '../claude/claude-models.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
-  DaemonHarnessSessionContext,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
   VersionInfo,
   HarnessSessionIdUpdatedInfo,
 } from '../remote-agent-service.js';
-import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
+import { requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
 
@@ -658,39 +657,4 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     });
   }
 
-  async resumeFromDaemonMemory(
-    options: SpawnOptions,
-    stored: DaemonHarnessSessionContext
-  ): Promise<SpawnResult> {
-    try {
-      const keeper = this.spawnKeeper(stored.workingDir);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
-      const pid = keeper.pid!;
-      await loadSdk();
-      const executablePath = await resolvePathToClaudeCodeExecutable();
-      const resolvedModel = resolveHarnessResumeModel(
-        options.model,
-        stored.model,
-        'claude-sdk resumeFromDaemonMemory'
-      );
-      const { model, effort } = decodeClaudeSdkModel(resolvedModel);
-
-      return this.startRunningSession({
-        pid,
-        keeper,
-        context: options.context,
-        workingDir: stored.workingDir,
-        model,
-        effort,
-        initialPrompt: options.prompt,
-        deferInitialTurn: false,
-        storedSystemPrompt: options.systemPrompt,
-        executablePath,
-        resumedProviderSessionId: stored.harnessSessionId,
-      });
-    } catch (err) {
-      writeSpawnError(buildAgentLogPrefix('claude-sdk', options.context), err);
-      return this.spawn(options);
-    }
-  }
 }

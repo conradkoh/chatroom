@@ -456,7 +456,6 @@ describe('AgentProcessManager', () => {
         spawn: vi.fn().mockResolvedValue({
           pid: PID,
           harnessSessionId: 'sess-opencode-start',
-          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
           onExit: vi.fn(),
           onOutput: vi.fn(),
           onAgentEnd: vi.fn(),
@@ -710,17 +709,6 @@ describe('AgentProcessManager', () => {
   });
 
   describe('stop intent fencing', () => {
-    test('markStopIntent blocks ensureRunning for non-explicit start reasons', async () => {
-      await manager.ensureRunning(createOpts());
-      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);
-
-      const result = await manager.ensureRunning(
-        createOpts({ reason: 'platform.cursor_sdk_session_reopen' })
-      );
-
-      expect(result).toEqual({ success: false, error: 'stop_requested' });
-    });
-
     test('explicit user.start clears stop intent and allows ensureRunning', async () => {
       await manager.ensureRunning(createOpts());
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);

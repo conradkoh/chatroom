@@ -194,7 +194,7 @@ describe('CursorSdkAgentService', () => {
       );
     });
 
-    it('returns harnessSessionId and harnessReconnect from Agent.create', async () => {
+    it('returns harnessSessionId from Agent.create', async () => {
       stubSdkAgent();
       const child = makeFakeChild();
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
@@ -210,10 +210,6 @@ describe('CursorSdkAgentService', () => {
       });
 
       expect(result.harnessSessionId).toBe('agent-1');
-      expect(result.harnessReconnect).toEqual({
-        agentName: 'builder@c1',
-        model: 'composer-2.5',
-      });
     });
 
     it('deferInitialTurn skips agent.send until resumeTurn', async () => {
@@ -730,110 +726,6 @@ describe('CursorSdkAgentService', () => {
       );
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
       expect(sharedAgentCloseFn).toHaveBeenCalled();
-    });
-  });
-
-  describe('getHarnessReconnectContext', () => {
-    it('returns agentName and model while session is active', async () => {
-      stubSdkAgent();
-      const child = makeFakeChild();
-      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
-      const service = new CursorSdkAgentService(deps);
-
-      const result = await service.spawn({
-        workingDir: '/tmp/work',
-        prompt: createSpawnPrompt('do work'),
-        systemPrompt: 'system',
-        model: 'composer-2.5',
-        context: SPAWN_CONTEXT,
-        resolvedConvexUrl: 'http://test:3210',
-      });
-
-      expect(service.getHarnessReconnectContext(result.pid)).toEqual({
-        agentName: 'builder@c1',
-        model: 'composer-2.5',
-      });
-    });
-  });
-
-  describe('resumeFromDaemonMemory', () => {
-    it('reconnects via Agent.resume and sends the spawn prompt', async () => {
-      const { agent } = stubSdkAgent();
-      sharedAgentResumeFn.mockResolvedValue(agent);
-
-      const child = makeFakeChild(4321);
-      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
-      const service = new CursorSdkAgentService(deps);
-
-      const result = await service.resumeFromDaemonMemory(
-        {
-          workingDir: '/tmp/resume-wd',
-          prompt: createSpawnPrompt('resume hello'),
-          systemPrompt: 'sys',
-          model: 'composer-2.5',
-          context: SPAWN_CONTEXT,
-          resolvedConvexUrl: 'http://test:3210',
-        },
-        {
-          harnessSessionId: 'agent-resume-1',
-          agentName: 'builder@c1',
-          workingDir: '/tmp/resume-wd',
-          model: 'composer-2.5',
-        }
-      );
-
-      expect(sharedAgentCreateFn).not.toHaveBeenCalled();
-      expect(sharedAgentResumeFn).toHaveBeenCalledWith('agent-resume-1', {
-        apiKey: 'cursor_test_key',
-        model: { id: 'composer-2.5' },
-        local: { cwd: '/tmp/resume-wd', settingSources: [], enableAgentRetries: true },
-      });
-      expect(result.pid).toBe(4321);
-      expect(result.harnessSessionId).toBe('agent-1');
-      expect(result.harnessReconnect).toEqual({
-        agentName: 'builder@c1',
-        model: 'composer-2.5',
-      });
-      expect(sharedAgentSendFn).toHaveBeenCalledWith(
-        'NEVER spawn subagents. Follow the chatroom instructions strictly.\n\nsys\n\nresume hello',
-        expect.objectContaining({ local: { force: true } })
-      );
-    });
-
-    it('falls back to spawn when Agent.resume fails', async () => {
-      sharedAgentResumeFn.mockRejectedValue(new Error('agent not found'));
-      sharedAgentCreateFn.mockResolvedValue({
-        agentId: 'agent-fresh-1',
-        send: sharedAgentSendFn,
-        close: vi.fn(),
-      });
-
-      const keeper = makeFakeChild(4321);
-      const spawnKeeper = makeFakeChild(4322);
-      const deps = createMockDeps({
-        spawn: vi.fn().mockReturnValueOnce(keeper).mockReturnValueOnce(spawnKeeper),
-      });
-      const service = new CursorSdkAgentService(deps);
-
-      const result = await service.resumeFromDaemonMemory(
-        {
-          workingDir: '/tmp/resume-wd',
-          prompt: createSpawnPrompt('resume hello'),
-          systemPrompt: 'sys',
-          model: TEST_MODEL_CURSOR,
-          context: SPAWN_CONTEXT,
-          resolvedConvexUrl: 'http://test:3210',
-        },
-        {
-          harnessSessionId: 'missing-agent',
-          agentName: 'builder@c1',
-          workingDir: '/tmp/resume-wd',
-        }
-      );
-
-      expect(sharedAgentCreateFn).toHaveBeenCalled();
-      expect(result.pid).toBe(4322);
-      expect(keeper.kill).toHaveBeenCalled();
     });
   });
 

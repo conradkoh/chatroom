@@ -425,11 +425,12 @@ Co-located `*.test.ts` and `*.integration.test.ts` move with sources.
 These items were discovered after the recent recovery-removal phases and should
 be completed before treating the cleanup as finished.
 
-- [ ] Delete bypassed or obsolete recovery tests rather than leaving early
+- [x] Delete bypassed or obsolete recovery tests rather than leaving early
       returns, temporary constants, or unreachable historical assertions.
-- [ ] Remove the remaining agent-process-manager recovery state and helpers,
+- [x] Remove the remaining agent-process-manager recovery state and helpers,
       including daemon-memory session resume, harness-session snapshots, resume
       event emission, and related fields that no longer have production callers.
+      Native `resumeTurn` remains because it is the active task-delivery API.
 - [x] Remove the orphaned Cursor SDK run-error/reopen detection module and tests;
       repository search found no production consumer.
 - [x] Delete commented-out recovery blocks from task orchestration and task

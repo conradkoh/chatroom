@@ -58,12 +58,11 @@ export class SpawnRateLimiter {
   /**
    * Try to consume a token for the given chatroom.
    *
-   * If the reason starts with "user." or is `platform.cursor_sdk_session_reopen`,
-   * the spawn is always allowed (bypass). Otherwise, checks the token bucket and
-   * consumes a token if available.
+   * User-initiated starts are always allowed. Other reasons consume a token
+   * from the chatroom bucket.
    */
   tryConsume(chatroomId: string, reason: string): TryConsumeResult {
-    if (reason.startsWith('user.') || reason === 'platform.cursor_sdk_session_reopen') {
+    if (reason.startsWith('user.')) {
       return { allowed: true };
     }
 

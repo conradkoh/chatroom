@@ -58,21 +58,7 @@ export interface SpawnOptions {
   deferInitialTurn?: boolean | undefined;
 }
 
-/** Transitional provider metadata retained until adapter implementations are removed. */
-export interface HarnessReconnectMetadata {
-  agentName: string;
-  model?: string | undefined;
-}
-
-/** Transitional session input retained until provider resume implementations are removed. */
-export interface DaemonHarnessSessionContext {
-  harnessSessionId: string;
-  agentName: string;
-  workingDir: string;
-  model?: string | undefined;
-}
-
-/** Transitional provider session event retained until adapter implementations are removed. */
+/** Provider session identity notifications are retained for active SDK diagnostics. */
 export interface HarnessSessionIdUpdatedInfo {
   correlationId: string;
   previousResumableId?: string | undefined;
@@ -123,10 +109,7 @@ export interface SpawnResult {
   onAssistantText?:( (cb: (text: string) => void) => void) | undefined;
   /** Harness session ID used for native delivery correlation. */
   harnessSessionId?: string | undefined;
-  /** Transitional provider callback; no process-manager caller consumes it. */
   onHarnessSessionIdUpdated?: ((cb: (info: HarnessSessionIdUpdatedInfo) => void) => void) | undefined;
-  /** Transitional adapter metadata; no process-manager caller consumes it. */
-  harnessReconnect?: HarnessReconnectMetadata | undefined;
 }
 
 export interface ProcessInfo {
@@ -174,14 +157,6 @@ export interface RemoteAgentService {
    * be added to this interface.
    */
   resumeTurn?(pid: number, prompt: string): Promise<void>;
-
-  /** @deprecated Provider adapter cleanup removes daemon-memory restoration. */
-  resumeFromDaemonMemory?(
-    options: SpawnOptions,
-    session: DaemonHarnessSessionContext
-  ): Promise<SpawnResult>;
-  /** @deprecated Provider adapter cleanup removes reconnect metadata. */
-  getHarnessReconnectContext?(pid: number): HarnessReconnectMetadata | undefined;
 
   /** Stop an agent by PID (SIGTERM → wait → SIGKILL). */
   stop(pid: number): Promise<void>;
