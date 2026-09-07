@@ -1,6 +1,5 @@
 import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
-import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
@@ -47,21 +46,6 @@ export function explainNativeDeliveryBlock(
     }
   }
  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.operational);
-}
-
-/** Skip re-injecting a task that was already delivered in this harness session. */
-export function explainLedgerDeliveryBlock(
-  taskId: string,
-  harnessSessionId: string | undefined,
-  ledger: NativeDeliveryLedger
-): string | null {
-  if (ledger.isAttemptInFlight(taskId)) {
-    return 'delivery_ledger_busy (duplicate inject in flight)';
-  }
-  if (harnessSessionId && ledger.isDelivered(taskId, harnessSessionId)) {
-    return 'already_delivered_this_session';
-  }
-  return null;
 }
 
 const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {
