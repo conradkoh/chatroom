@@ -93,8 +93,7 @@ function sleep(ms: number): Promise<void> {
 
 async function waitForHarnessSessionId(
   deps: RestartOrchestratorDeps,
-  event: RestartOrchestratorEvent,
-  _pid: number
+  event: RestartOrchestratorEvent
 ): Promise<string | null> {
   const initial = deps.agentMgr.getSlot(event.chatroomId, event.role);
   if (initial?.harnessSessionId) {
@@ -282,7 +281,7 @@ export async function runRestartOrchestrator(
     }
 
     await emitPhase(deps, event, 'await_session');
-    const harnessSessionId = await waitForHarnessSessionId(deps, event, spawnResult.pid);
+    const harnessSessionId = await waitForHarnessSessionId(deps, event);
     if (!harnessSessionId) {
       await deps.runSerializedForAgent(
         { chatroomId, role },

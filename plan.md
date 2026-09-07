@@ -94,11 +94,11 @@
 ## Cleanup
 
 - [x] Remove the unused `EnsureRunningResult` type from the start use case.
-- [ ] Remove the unused restart session-wait PID parameter.
+- [x] Remove the unused restart session-wait PID parameter.
 - [x] Remove `NativeInjectorAgentMgr.stop()` and `.ensureRunning()` after all injector callers use serialized operations.
 - [x] Remove obsolete lifecycle adapter properties from restart, native delivery, and task orchestration wiring.
-- [ ] Replace the empty-target stop fallback with `processManagerService.stopAgent()`.
-- [ ] Make `processManagerService` mandatory in `DaemonAgentProcessManagerServiceLive`.
+- [x] Replace the empty-target stop fallback with the serialized `processManagerService` stop capability.
+- [x] Make `processManagerService` mandatory in `DaemonAgentProcessManagerServiceLive`.
 - [x] Remove inline no-op serialized-operation fallbacks from scoped stop wiring.
 - [ ] Extract shared lifecycle timeout values into named constants.
 - [ ] Remove legacy lifecycle methods from the Effect manager boundary once downstream consumers are migrated.

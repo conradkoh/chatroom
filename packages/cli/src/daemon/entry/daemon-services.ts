@@ -197,7 +197,10 @@ export const DaemonAgentProcessManagerServiceLive = (
           ? event.reason
           : (legacyReason[event.reason] ?? 'user.stop');
         if (Date.now() > event.deadline) return;
-        const execute = async () => {
+        const execute = async (
+          stopAgent: (opts: StopOpts, signal: AbortSignal) => Promise<{ success: boolean }>,
+          signal: AbortSignal
+        ) => {
           const result = await runRoleScopedStop({
             apm: mgr,
             confirmedDeps: mgr.getConfirmedStopAdapterDeps(),
@@ -205,13 +208,17 @@ export const DaemonAgentProcessManagerServiceLive = (
             role: event.role,
             reason: reason as AgentStopReason,
           });
-          if (result.targets.length === 0 && result.failures.length === 0 && event.pid)
-            await mgr.stop({
-              chatroomId: event.chatroomId as string,
-              role: event.role,
-              reason: reason as never,
-              pid: event.pid,
-            });
+          if (result.targets.length === 0 && result.failures.length === 0 && event.pid) {
+            await stopAgent(
+              {
+                chatroomId: event.chatroomId as string,
+                role: event.role,
+                reason: reason as never,
+                pid: event.pid,
+              },
+              signal
+            );
+          }
           for (const failure of result.failures)
             console.warn(
               `[daemon] scoped stop failed for ${failure.target.targetKey}`,
@@ -221,9 +228,9 @@ export const DaemonAgentProcessManagerServiceLive = (
         await processManagerService.runSerializedForAgent(
           { chatroomId: event.chatroomId as string, role: event.role },
           { timeoutMs: SCOPE_TARGET_STOP_TIMEOUT_MS },
-          async (_ops, context) => {
+          async (ops, context) => {
             if (context.signal.aborted) throw context.signal.reason;
-            await execute();
+            await execute(ops.stopAgent, context.signal);
           }
         );
       }),
