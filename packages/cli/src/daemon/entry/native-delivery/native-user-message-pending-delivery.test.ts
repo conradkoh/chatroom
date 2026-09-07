@@ -36,6 +36,7 @@ import {
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
 import {
   operationalRow,
@@ -184,6 +185,7 @@ describe('user message pending delivery path', () => {
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
       lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
+      operationalModel: new AgentOperationalReadModel(),
     });
 
     await vi.waitFor(() => {
@@ -253,6 +255,7 @@ describe('user message pending delivery path', () => {
       },
       machineId: MACHINE_ID,
       lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
+      operationalModel: new AgentOperationalReadModel(),
     });
 
     await new Promise((r) => setTimeout(r, 50));
@@ -294,6 +297,7 @@ describe('user message pending delivery path', () => {
       },
       machineId: MACHINE_ID,
       lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
+      operationalModel: new AgentOperationalReadModel(),
     });
 
     await new Promise((r) => setTimeout(r, 50));
@@ -338,6 +342,7 @@ describe('user message pending delivery path', () => {
       },
       machineId: MACHINE_ID,
       lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
+      operationalModel: new AgentOperationalReadModel(),
     });
 
     await new Promise((r) => setTimeout(r, 50));

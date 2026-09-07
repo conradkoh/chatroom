@@ -22,6 +22,7 @@ import {
   registerTestNativeDeliverySession,
 } from '../../infrastructure/agent-operational/test-support.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';
@@ -128,6 +129,7 @@ describe('native duplicate task injection', () => {
       },
       machineId: 'machine_dup',
       lifecycleOutbox: { enqueue: async () => undefined },
+      operationalModel: new AgentOperationalReadModel(),
     };
 
     coordinator.reconcileAssignedTasks(reconcileParams);

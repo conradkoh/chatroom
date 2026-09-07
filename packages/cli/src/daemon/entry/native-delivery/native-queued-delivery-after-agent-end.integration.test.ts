@@ -30,6 +30,7 @@ import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
@@ -123,6 +124,7 @@ describe('native queued delivery after agent_end', () => {
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
       lifecycleOutbox: { enqueue: async () => undefined },
+      operationalModel: new AgentOperationalReadModel(),
     });
 
     await vi.waitFor(() => {

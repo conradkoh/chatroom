@@ -19,6 +19,7 @@ import {
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
+import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
@@ -88,6 +89,7 @@ export class NativeTaskDeliveryCoordinator {
         fact: import('../../domain/entities/agent-lifecycle-fact.js').AgentLifecycleFact
       ) => Promise<unknown>;
     };
+    operationalModel: AgentOperationalReadModel;
     machineId: string;
     onTaskDelivered?:
       | ((args: {
@@ -107,6 +109,7 @@ export class NativeTaskDeliveryCoordinator {
       agentMgr,
       sessionDeps,
       lifecycleOutbox,
+      operationalModel,
       machineId,
       onTaskDelivered,
     } = params;
@@ -124,6 +127,7 @@ export class NativeTaskDeliveryCoordinator {
       const slot = agentMgr.getSlot(row.chatroomId, role);
       const blockReason = explainNativeDeliveryBlock(row, {
         slot,
+        operational: operationalModel.get(row.chatroomId, role),
       });
       if (blockReason) {
         if (isDeliverableTaskStatus(row.status)) {
@@ -254,7 +258,7 @@ export function reconcileDeliverableWorkForRole(chatroomId: string, role: string
   const { runtime, effectContext, agentMgr, sessionDeps, machineId, taskSnapshotState } = session;
   const tasks = taskSnapshotState?.listForRole(chatroomId, role) ?? [];
   if (tasks.length === 0) return;
-  if (!session.lifecycleOutbox) return;
+  if (!session.lifecycleOutbox || !session.agentOperationalReadModel) return;
   getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks,
     runtime,
@@ -263,6 +267,7 @@ export function reconcileDeliverableWorkForRole(chatroomId: string, role: string
     runSerializedForAgent: session.runSerializedForAgent,
     sessionDeps,
     lifecycleOutbox: session.lifecycleOutbox,
+    operationalModel: session.agentOperationalReadModel,
     machineId,
     onTaskDelivered: session.nativeDelivery
       ? (args) => session.nativeDelivery?.recordTaskDelivered(args)

@@ -142,6 +142,7 @@ export async function processTasksUpdate(
     runSerializedForAgent,
     sessionDeps,
     lifecycleOutbox,
+    operationalModel,
     machineId,
     onTaskDelivered: options.onTaskDelivered,
   });
