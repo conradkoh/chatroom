@@ -53,6 +53,11 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import type { HarnessSessionMonitor } from '../domain/entities/session-monitor.js';
 import { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
+import { createCommandNotifier } from '../infrastructure/agent-process-manager/components/command-notifier/index.js';
+import {
+  createAgentProcessManagerService,
+  type AgentProcessManagerCommand,
+} from '../infrastructure/agent-process-manager/service/index.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
 import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
@@ -412,6 +417,10 @@ function assembleDaemonSessionInit(args: {
       enqueue: (fact) => enqueueAgentLifecycleFact(agentLifecycleOutbox, machineId, fact),
     },
   });
+  const agentProcessManagerService = createAgentProcessManagerService({
+    execution: deps.agentProcessManager,
+    notifier: createCommandNotifier<AgentProcessManagerCommand>(),
+  });
 
   return {
     client,
@@ -424,6 +433,7 @@ function assembleDaemonSessionInit(args: {
     machine: deps.machine,
     spawning: deps.spawning,
     agentProcessManager: deps.agentProcessManager,
+    agentProcessManagerService,
     agentLifecycleOutbox,
     events: new DaemonEventBus(),
     agentServices,

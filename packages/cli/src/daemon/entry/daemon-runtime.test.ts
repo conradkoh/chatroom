@@ -94,6 +94,12 @@ describe('createDaemonRuntime', () => {
 
     const runtime = createDaemonRuntime({
       wsClient: { onUpdate: vi.fn() } as never,
+      agentLifecycleOutbox: {
+        stopAll: vi.fn().mockResolvedValue(undefined),
+      } as never,
+      agentProcessManagerService: {
+        stopProcessing: vi.fn().mockResolvedValue(undefined),
+      } as never,
       layers,
     });
 

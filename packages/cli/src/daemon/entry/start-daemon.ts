@@ -77,6 +77,7 @@ export async function startDaemon(): Promise<void> {
   console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/`);
 
   const layers = daemonSessionToLayers(init);
+  init.agentProcessManagerService.startProcessing();
   startBackgroundMachineCapabilitiesDiscovery(
     createStartBackgroundCapabilitiesDiscoveryDeps(layers)
   );
@@ -85,6 +86,7 @@ export async function startDaemon(): Promise<void> {
     wsClient,
     layers,
     agentLifecycleOutbox: init.agentLifecycleOutbox,
+    agentProcessManagerService: init.agentProcessManagerService,
   });
 
   try {

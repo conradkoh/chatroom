@@ -74,7 +74,7 @@ export interface AgentProcessManagerService {
 
   /** Start and stop the internal queue polling loop. */
   startProcessing(): void;
-  stopProcessing(): void;
+  stopProcessing(): Promise<void>;
 
   /** Non-lifecycle manager operations exposed through the same boundary. */
   handleExit(opts: HandleExitOpts): Promise<void>;
@@ -94,7 +94,7 @@ export interface AgentProcessManagerService {
 
 export interface AgentProcessManagerServiceDependencies {
   execution: AgentProcessManagerExecutionPort;
-  restartAgent(input: RestartAgentInput): Promise<void>;
+  restartAgent?: (input: RestartAgentInput) => Promise<void>;
   consumer?: CommandQueueConsumerOptions;
   notifier: CommandNotifier<AgentProcessManagerCommand>;
 }
@@ -167,6 +167,9 @@ export function createAgentProcessManagerService(
           assertStopSucceeded(await deps.execution.stop(input));
           return;
         case 'restart':
+          if (!deps.restartAgent) {
+            throw new Error('Agent process manager restart execution is not wired yet');
+          }
           await deps.restartAgent(input);
           return;
         case 'recover':

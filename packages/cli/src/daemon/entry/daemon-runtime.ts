@@ -56,6 +56,7 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import type { BoundHarness } from '../domain/entities/bound-harness.js';
 import type { SessionHandle } from '../domain/usecase/open-harness-session.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
+import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 
 const PROCESS_KILL_TIMEOUT_MS = 6_000;
 const CLOSE_TIMEOUT_MS = 3_000;
@@ -67,7 +68,8 @@ export type DaemonRuntimeHandle = {
 };
 
 export type DaemonRuntimeDeps = {
-  agentLifecycleOutbox?: AgentLifecycleOutboxRegistry | undefined;
+  agentLifecycleOutbox: AgentLifecycleOutboxRegistry;
+  agentProcessManagerService: AgentProcessManagerService;
   wsClient: ConvexClient;
   layers: Layer.Layer<
     DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
@@ -145,6 +147,8 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     }, SHUTDOWN_WATCHDOG_MS);
     shutdownWatchdog.unref?.();
 
+    await deps.agentProcessManagerService.stopProcessing();
+
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     stopWorkers();
 
@@ -162,7 +166,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
 
     // Shutdown stops enqueue lifecycle facts; keep the outbox alive until that
     // effect has completed so confirmed exits are not silently discarded.
-    await deps.agentLifecycleOutbox?.stopAll().catch(() => undefined);
+    await deps.agentLifecycleOutbox.stopAll().catch(() => undefined);
 
     for (const handle of activeSessions.values()) {
       await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
