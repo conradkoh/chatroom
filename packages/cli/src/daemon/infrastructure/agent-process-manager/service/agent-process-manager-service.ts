@@ -5,6 +5,11 @@ import type {
   StopOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type { AgentSlot } from '../agent-process-manager.js';
+import type {
+  CommandNotificationFilter,
+  CommandNotificationListener,
+  CommandNotifier,
+} from '../components/command-notifier/index.js';
 import {
   CommandQueueConsumer,
   createCommandQueue,
@@ -53,6 +58,11 @@ export interface AgentProcessManagerService {
   restartAgent(input: RestartAgentInput): Promise<SentCommandMessage>;
   /** Enqueue the manager recovery operation. */
   recoverAgents(): Promise<SentCommandMessage>;
+  /** Subscribe to execution outcomes from lifecycle commands. */
+  subscribe(
+    filter: CommandNotificationFilter,
+    listener: CommandNotificationListener<AgentProcessManagerCommand>
+  ): () => void;
 
   /** Start and stop the internal queue polling loop. */
   startProcessing(): void;
@@ -78,6 +88,7 @@ export interface AgentProcessManagerServiceDependencies {
   execution: AgentProcessManagerExecutionPort;
   restartAgent(input: RestartAgentInput): Promise<void>;
   consumer?: CommandQueueConsumerOptions;
+  notifier: CommandNotifier<AgentProcessManagerCommand>;
 }
 
 function messageGroupId(input: { chatroomId: string; role: string }): string {
@@ -121,6 +132,7 @@ export function createAgentProcessManagerService(
   const queue = createCommandQueue<AgentProcessManagerCommand>();
   const consumer = new CommandQueueConsumer({
     queue,
+    notifier: deps.notifier,
     ...deps.consumer,
     dispatch: async (message: ReceivedCommandMessage<AgentProcessManagerCommand>) => {
       const { type, input } = message.body;
@@ -151,6 +163,7 @@ export function createAgentProcessManagerService(
     stopAgent: (input) => submit({ type: 'stop', input }),
     restartAgent: (input) => submit({ type: 'restart', input }),
     recoverAgents: () => submit({ type: 'recover', input: {} }),
+    subscribe: (filter, listener) => deps.notifier.subscribe(filter, listener),
     startProcessing: () => consumer.start(),
     stopProcessing: () => consumer.stop(),
     handleExit: (input) => deps.execution.handleExit(input),

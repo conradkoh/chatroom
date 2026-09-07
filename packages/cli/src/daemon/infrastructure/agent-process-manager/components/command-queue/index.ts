@@ -14,6 +14,7 @@ export type {
   CommandQueueConsumerDependencies,
   CommandQueueConsumerOptions,
 } from './consumer/types.js';
+export type { CommandNotifier } from '../command-notifier/index.js';
 
 export interface CommandQueueOptions<T> {
   store?: CommandQueueStore<T>;

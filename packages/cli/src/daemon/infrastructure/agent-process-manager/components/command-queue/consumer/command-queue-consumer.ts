@@ -1,5 +1,6 @@
 import type { CommandQueueConsumerDependencies, CommandQueueConsumerOptions } from './types.js';
 import type { ReceivedCommandMessage } from '../entities/command-message.js';
+import { randomUUID } from 'node:crypto';
 
 const DEFAULT_POLL_INTERVAL_MS = 100;
 const DEFAULT_VISIBILITY_TIMEOUT_MS = 30_000;
@@ -65,11 +66,30 @@ export class CommandQueueConsumer<T> {
 
     try {
       await this.deps.dispatch(message);
+      this.publishNotification(message, 'succeeded');
       await this.deps.queue.deleteMessage(message.receiptHandle);
     } catch (error) {
+      this.publishNotification(message, 'failed', error);
       this.deps.onError?.(error, message);
     } finally {
       clearInterval(renewalTimer);
     }
+  }
+
+  private publishNotification(
+    message: ReceivedCommandMessage<T>,
+    status: 'succeeded' | 'failed',
+    error?: unknown
+  ): void {
+    this.deps.notifier?.publish({
+      eventId: randomUUID(),
+      messageId: message.messageId,
+      messageGroupId: message.messageGroupId,
+      body: message.body,
+      status,
+      completedAt: Date.now(),
+      receiveCount: message.receiveCount,
+      ...(error === undefined ? {} : { error }),
+    });
   }
 }

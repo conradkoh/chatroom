@@ -9,12 +9,21 @@ directly on the concrete `AgentProcessManager` or the command queue.
 The imperative lifecycle methods submit commands to the internal FIFO queue:
 
 ```ts
+import { createCommandNotifier } from '../components/command-notifier/index.js';
+
+const notifier = createCommandNotifier();
+
 const service = createAgentProcessManagerService({
   execution: agentProcessManager,
   restartAgent: async ({ chatroomId, role }) => {
     // Delegate to the existing restart orchestration during migration.
     await restartExistingAgent({ chatroomId, role });
   },
+  notifier,
+});
+
+const unsubscribe = service.subscribe({ messageGroupId: `${chatroomId}:${role}` }, (event) => {
+  console.log(`Lifecycle command ${event.status}`);
 });
 
 await service.startAgent({
@@ -56,8 +65,8 @@ try {
 ```
 
 The service constructor currently assembles the in-memory queue and consumer.
-That is the composition point for replacing the queue store or adding durable
-completion tracking later.
+The notifier is constructed separately and injected explicitly. This keeps
+notification delivery replaceable and makes it impossible to omit accidentally.
 
 ## Migration rule
 
