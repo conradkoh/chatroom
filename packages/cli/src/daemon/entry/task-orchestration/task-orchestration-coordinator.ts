@@ -50,11 +50,10 @@ import type {
   OperationResult,
   StopOpts,
 } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
-import type { AgentHarness } from '../daemon-types.js';
-import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import {
   getNativeDeliveryLedger,
   type NativeDeliveryLedger,
@@ -94,8 +93,8 @@ export type TaskOrchestrationEvent =
 export interface TaskOrchestrationProcessPort {
   getSlot(chatroomId: string, role: string): AgentSlot | undefined;
   clearStuckStoppingSlot(
-   chatroomId: string,
-   role: string,
+    chatroomId: string,
+    role: string,
     options: { clearStopIntent: boolean }
   ): Promise<boolean>;
   ensureRunning(opts: EnsureRunningOpts): Effect.Effect<OperationResult>;
@@ -209,7 +208,7 @@ export function createTaskOrchestrationCoordinator(
         state.dirty = false;
         const waiters = state.waiters.splice(0, state.waiters.length);
         try {
-      await reconcileRole(state.chatroomId, state.role, reasons);
+          await reconcileRole(state.chatroomId, state.role, reasons);
         } catch (err) {
           // A failed pass releases scheduler state and permits a later retry.
           console.warn(
@@ -240,89 +239,6 @@ export function createTaskOrchestrationCoordinator(
     });
     return result ? mapAssignedTaskView(result as Parameters<typeof mapAssignedTaskView>[0]) : null;
   }
-
-  /* Recovery wake/revive orchestration removed; retained temporarily for the cleanup phase.
-  async function runRecoveryEnsureRunning(
-    kind: 'wake' | 'revive',
-    full: AssignedTaskWithContent
-  ): Promise<void> {
-    const ctx = resolveTaskRunnerContextFromFull(full);
-    if (!ctx) return;
-    const detail =
-      kind === 'wake'
-        ? 'operational_state=stopped with pending task'
-        : 'backend PID stale or missing locally for pending task';
-    console.log(
-      `[TaskRecovery] native ${kind} ${ctx.role}@${ctx.chatroomId} — ${detail} ${full.taskId}`
-    );
-    try {
-      const result = await deps.runSerializedForAgent(
-        { chatroomId: ctx.chatroomId, role: ctx.role },
-        { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
-        (ops, context) =>
-          ops.startAgent(
-            {
-              chatroomId: ctx.chatroomId,
-              role: ctx.role,
-              agentHarness: ctx.agentConfig.agentHarness as AgentHarness,
-              model: ctx.agentConfig.model,
-              workingDir: ctx.workingDir,
-              reason:
-                kind === 'wake'
-                  ? AgentStartReasonEnum['platform.pending_task_wake']
-                  : AgentStartReasonEnum['platform.task_monitor_nudge'],
-              wantResume: ctx.wantResume,
-              lifecycleRevision: ctx.agentConfig.configLifecycleRevision,
-              taskId: full.taskId,
-            } as EnsureRunningOpts,
-            context.signal
-          )
-      );
-      if (!result.success) {
-        console.warn(
-          `[TaskRecovery] native ${kind} rejected for ${ctx.role}@${ctx.chatroomId}: ${result.error ?? 'unknown error'}`
-        );
-      }
-    } catch (err) {
-      console.warn(
-        `[TaskRecovery] native ${kind} failed for ${ctx.role}@${ctx.chatroomId}: ${getErrorMessage(err)}`
-      );
-    }
-  }
-
-  async function recoverWake(tasks: AssignedTaskSnapshotView[], now: number): Promise<void> {
-    for (const row of listNativePendingTasksNeedingWake(
-      tasks,
-      deps.cooldown,
-      now,
-      deps.agentOperationalReadModel
-    )) {
-      if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
-      const full = await fetchTaskForAction(row);
-      if (!full) continue;
-      await runRecoveryEnsureRunning('wake', full);
-    }
-  }
-
-  async function recoverRevive(tasks: AssignedTaskSnapshotView[], now: number): Promise<void> {
-    const localHealth = {
-      getSlot: (chatroomId: string, role: string) => deps.process.getSlot(chatroomId, role),
-      isPidAlive,
-    };
-    for (const row of listNativeTasksNeedingRevive(
-      tasks,
-      localHealth,
-      now,
-      deps.cooldown,
-      deps.agentOperationalReadModel
-    )) {
-      if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
-      const full = await fetchTaskForAction(row);
-      if (!full) continue;
-      await runRecoveryEnsureRunning('revive', full);
-    }
-  }
-  */
 
   function buildInjectorAgentMgr(): NativeInjectorAgentMgr {
     return {
@@ -484,8 +400,6 @@ export function createTaskOrchestrationCoordinator(
       }
     }
 
-    const now = Date.now();
-    // Recovery runs before delivery.
     await deliverNativeForRole(tasks);
   }
 
