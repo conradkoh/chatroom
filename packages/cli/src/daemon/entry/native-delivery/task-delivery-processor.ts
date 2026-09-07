@@ -17,11 +17,7 @@ import {
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect, Runtime, type Context } from 'effect';
 
-import type {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-  DaemonAgentProcessManagerServiceShape,
-} from '../daemon-services.js';
+import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import type { AgentHarness } from '../daemon-types.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import {
@@ -36,6 +32,11 @@ import type {
   AssignedTaskSnapshotView,
   AssignedTaskWithContent,
 } from '../../domain/entities/assigned-task.js';
+import type {
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+  DaemonAgentProcessManagerServiceShape,
+} from '../daemon-services.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
@@ -286,6 +287,7 @@ export async function processTasksUpdate(
   effectContext: TaskDeliveryContext,
   cooldown: RecoveryCooldown,
   agentMgr: DaemonAgentProcessManagerServiceShape,
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'] | undefined,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   _pass: TaskDeliveryPass,
@@ -334,6 +336,7 @@ export async function processTasksUpdate(
     runtime,
     effectContext,
     agentMgr,
+    ...(runSerializedForAgent ? { runSerializedForAgent } : {}),
     sessionDeps,
     machineId,
   });

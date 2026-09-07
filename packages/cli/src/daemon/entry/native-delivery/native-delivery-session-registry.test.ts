@@ -19,6 +19,7 @@ describe('native-delivery-session-registry', () => {
       runtime: Runtime.defaultRuntime as NativeDeliverySessionRegistration['runtime'],
       effectContext: Context.empty() as NativeDeliverySessionRegistration['effectContext'],
       agentMgr: { getSlot: vi.fn() } as never,
+      runSerializedForAgent: vi.fn(),
       sessionDeps: {
         sessionId: 's',
         machineId: 'm',

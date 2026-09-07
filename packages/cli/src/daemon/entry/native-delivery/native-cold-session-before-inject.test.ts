@@ -34,6 +34,30 @@ function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTas
 }
 
 function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps {
+  const agentMgr: NativeInjectorDeps['agentMgr'] = {
+    resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue({ success: true }),
+    ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 99_001 }),
+    getSlot: vi.fn().mockReturnValue({ state: 'running', harnessSessionId: 'sess_after_cold' }),
+  };
+  const runSerializedForAgent: NativeInjectorDeps['runSerializedForAgent'] = vi.fn(
+    async (_key, _options, operation) =>
+      operation(
+        {
+          startAgent: async (
+            input: Parameters<NativeInjectorDeps['agentMgr']['ensureRunning']>[0]
+          ) => {
+            const result = await agentMgr.ensureRunning(input);
+            if (!result.success) throw new Error('start failed');
+          },
+          stopAgent: async (input: Parameters<NativeInjectorDeps['agentMgr']['stop']>[0]) => {
+            const result = await agentMgr.stop(input);
+            if (!result.success) throw new Error('stop failed');
+          },
+        },
+        { signal: new AbortController().signal }
+      )
+  );
   return {
     sessionId: 'session_1',
     machineId: 'machine_1',
@@ -42,12 +66,8 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
       mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn(),
     },
-    agentMgr: {
-      resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
-      stop: vi.fn().mockResolvedValue({ success: true }),
-      ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 99_001 }),
-      getSlot: vi.fn().mockReturnValue({ state: 'running', harnessSessionId: 'sess_after_cold' }),
-    },
+    agentMgr,
+    runSerializedForAgent,
     ...overrides,
   };
 }
@@ -115,6 +135,17 @@ describe('ensureColdSessionBeforeNativeInject', () => {
         ...createDeps().agentMgr,
         ensureRunning: vi.fn().mockResolvedValue({ success: false }),
       },
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          {
+            startAgent: async () => {
+              throw new Error('start failed');
+            },
+            stopAgent: async () => undefined,
+          },
+          { signal: new AbortController().signal }
+        )
+      ),
     });
 
     const result = await ensureColdSessionBeforeNativeInject(

@@ -19,6 +19,10 @@ import {
 } from '../../domain/entities/agent-lifecycle-fact.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import type {
+  AgentKey,
+  SerializedAgentOperations,
+} from '../../infrastructure/agent-process-manager/service/index.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import type { AgentHarness } from '../daemon-types.js';
 
@@ -54,6 +58,12 @@ export interface NativeDeliverySessionHandles {
 
 export interface NativeInjectorDeps extends NativeDeliverySessionHandles {
   agentMgr: NativeInjectorAgentMgr;
+  /** Narrow coordination capability used by the cold-session flow. */
+  runSerializedForAgent?: <T>(
+    key: AgentKey,
+    options: { timeoutMs: number },
+    operation: (ops: SerializedAgentOperations, context: { signal: AbortSignal }) => Promise<T>
+  ) => Promise<T>;
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
   convexUrl?: string | undefined;
   onTaskDelivered?:

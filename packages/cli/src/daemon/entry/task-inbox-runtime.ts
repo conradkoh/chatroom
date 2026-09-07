@@ -5,6 +5,7 @@ import { Effect } from 'effect';
 
 import {
   DaemonAgentProcessManagerService,
+  DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
   type DaemonAgentProcessManagerServiceShape,
 } from './daemon-services.js';
@@ -36,6 +37,7 @@ import {
   runOperationalInbox,
   type OperationalInboxUpdate,
 } from '../infrastructure/agent-operational/operational-inbox.js';
+import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
@@ -56,6 +58,7 @@ type TaskInboxDependencies = {
   effectContext: TaskDeliveryContext;
   cooldown: RecoveryCooldown;
   agentMgr: DaemonAgentProcessManagerServiceShape;
+  runSerializedForAgent?: AgentProcessManagerService['runSerializedForAgent'];
   machineId: string;
   taskSnapshotState?: MachineTaskSnapshotState | undefined;
   /** Invoked with the assigned-task chatroom IDs after task state replace and before first delivery. */
@@ -86,6 +89,7 @@ export async function bootstrapMachineAssignedTaskSnapshots(
     deps.effectContext,
     deps.cooldown,
     deps.agentMgr,
+    deps.runSerializedForAgent,
     deps.sessionDeps,
     deps.machineId,
     'bootstrap',
@@ -152,11 +156,15 @@ export const startTaskInboxEffect = (
 ): Effect.Effect<
   { stop: () => void },
   never,
-  DaemonSessionService | DaemonAgentProcessManagerService | AgentLifecycleOutboxService
+  | DaemonSessionService
+  | DaemonAgentProcessManagerService
+  | DaemonAgentProcessManagerCommandService
+  | AgentLifecycleOutboxService
 > =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const agentMgr = yield* DaemonAgentProcessManagerService;
+    const commandService = yield* DaemonAgentProcessManagerCommandService;
     const lifecycleOutboxService = yield* AgentLifecycleOutboxService;
     const lifecycleOutbox = {
       enqueue: (fact: AgentLifecycleFact) =>
@@ -196,6 +204,7 @@ export const startTaskInboxEffect = (
       runtime,
       effectContext,
       agentMgr,
+      runSerializedForAgent: commandService.runSerializedForAgent,
       sessionDeps,
       machineId: session.machineId,
       taskSnapshotState,
@@ -231,6 +240,7 @@ export const startTaskInboxEffect = (
             effectContext,
             cooldown,
             agentMgr,
+            commandService.runSerializedForAgent,
             sessionDeps,
             session.machineId,
             'operational-status',
@@ -456,6 +466,7 @@ export const startTaskInboxEffect = (
         effectContext,
         cooldown,
         agentMgr,
+        runSerializedForAgent: commandService.runSerializedForAgent,
         machineId: session.machineId,
         taskSnapshotState,
         onDiscoveredChatrooms: async (chatroomIds) => {
@@ -478,6 +489,7 @@ export const startTaskInboxEffect = (
         effectContext,
         cooldown,
         agentMgr,
+        commandService.runSerializedForAgent,
         sessionDeps,
         session.machineId,
         'periodic-reconcile',

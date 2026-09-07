@@ -10,17 +10,19 @@
   - [x] Add imperative start, stop, restart, and recovery command submission.
   - [x] Add the in-process command completion notifier and filtered subscriptions.
   - [x] Make notifier dependencies mandatory and add serialization/completion tests.
+  - [x] Add cancellable, timeout-bounded compound operations for one agent key.
   - [ ] Route start, stop, restart, recovery, and legacy daemon flows through the queue.
 
 ## Next goal
 
 - [x] Wire `AgentProcessManagerService` into daemon startup and shutdown.
 - [ ] Migrate the first lifecycle flow.
-  - [ ] Expose `AgentProcessManagerService` through the runtime dependency graph.
-  - [ ] Migrate native cold-session stop/start sequencing as the pilot flow.
-  - [ ] Preserve completion-dependent follow-up work and failure handling.
-  - [ ] Verify same-key ordering and competing legacy-path behavior.
-  - [ ] Add focused integration tests for the migrated flow.
+  - [x] Expose `AgentProcessManagerService` through the runtime dependency graph.
+  - [x] Migrate native cold-session stop/start sequencing as the pilot flow.
+  - [x] Preserve completion-dependent follow-up work and failure handling.
+  - [x] Verify same-key ordering for service operations and competing queued commands.
+  - [x] Add focused tests for the migrated flow and timeout/cancellation behavior.
+  - [ ] Remove compatibility fallbacks and verify competing legacy-path behavior.
   - [ ] Migrate additional start, stop, restart, recovery, and shutdown callers.
   - [ ] Remove legacy direct lifecycle calls after each path is covered.
 

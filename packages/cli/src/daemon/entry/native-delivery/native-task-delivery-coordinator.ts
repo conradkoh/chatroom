@@ -24,6 +24,12 @@ import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigne
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
+  AgentKey,
+  SerializedAgentOperations,
+  SerializedAgentOperationOptions,
+  SerializedAgentOperationContext,
+} from '../../infrastructure/agent-process-manager/service/index.js';
+import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
   DaemonSessionService,
@@ -70,12 +76,21 @@ export class NativeTaskDeliveryCoordinator {
     runtime: TaskDeliveryRuntime;
     effectContext: TaskDeliveryContext;
     agentMgr: DaemonAgentProcessManagerServiceShape;
+    runSerializedForAgent?: <T>(
+      key: AgentKey,
+      options: SerializedAgentOperationOptions,
+      operation: (
+        ops: SerializedAgentOperations,
+        context: SerializedAgentOperationContext
+      ) => Promise<T>
+    ) => Promise<T>;
     sessionDeps: NativeTaskDeliverySessionDeps;
     machineId: string;
   }): void {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
-    const { runtime, effectContext, agentMgr, sessionDeps, machineId } = params;
+    const { runtime, effectContext, agentMgr, runSerializedForAgent, sessionDeps, machineId } =
+      params;
     const deliveryState = getRoleDeliveryState();
     const ledger = getNativeDeliveryLedger();
 
@@ -173,6 +188,7 @@ export class NativeTaskDeliveryCoordinator {
               ensureRunning: (opts) => Effect.runPromise(agentMgr.ensureRunning(opts)),
               getSlot: (chatroomId, role) => agentMgr.getSlot(chatroomId, role),
             },
+            ...(runSerializedForAgent ? { runSerializedForAgent } : {}),
             convexUrl: sessionDeps.convexUrl,
             onTaskDelivered: ({
               chatroomId,
@@ -234,6 +250,9 @@ export function reconcileDeliverableWorkForRole(chatroomId: string, role: string
     runtime,
     effectContext,
     agentMgr,
+    ...(session.runSerializedForAgent
+      ? { runSerializedForAgent: session.runSerializedForAgent }
+      : {}),
     sessionDeps,
     machineId,
   });

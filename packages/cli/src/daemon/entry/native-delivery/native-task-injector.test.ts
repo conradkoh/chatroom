@@ -53,6 +53,25 @@ function createAgentMgrMocks(
 }
 
 function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps {
+  const agentMgr = createAgentMgrMocks();
+  const runSerializedForAgent: NativeInjectorDeps['runSerializedForAgent'] = vi.fn(
+    async (_key, _options, operation) =>
+      operation(
+        {
+          startAgent: async (
+            input: Parameters<NativeInjectorDeps['agentMgr']['ensureRunning']>[0]
+          ) => {
+            const result = await agentMgr.ensureRunning(input);
+            if (!result.success) throw new Error('start failed');
+          },
+          stopAgent: async (input: Parameters<NativeInjectorDeps['agentMgr']['stop']>[0]) => {
+            const result = await agentMgr.stop(input);
+            if (!result.success) throw new Error('stop failed');
+          },
+        },
+        { signal: new AbortController().signal }
+      )
+  );
   return {
     sessionId: 'session_1',
     machineId: 'machine_1',
@@ -61,7 +80,8 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
       mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY OUTPUT' }),
     },
-    agentMgr: createAgentMgrMocks(),
+    agentMgr,
+    runSerializedForAgent,
     lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue(undefined) },
     convexUrl: 'http://test:3210',
     ...overrides,

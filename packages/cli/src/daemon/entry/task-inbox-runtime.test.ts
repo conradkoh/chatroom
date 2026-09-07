@@ -158,8 +158,12 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   taskInboxHandlers: () => Map<string, (update: never) => Promise<void>>;
 }> {
   const { Effect, Layer } = await import('effect');
-  const { AgentLifecycleOutboxService, DaemonAgentProcessManagerService, DaemonSessionService } =
-    await import('./daemon-services.js');
+  const {
+    AgentLifecycleOutboxService,
+    DaemonAgentProcessManagerCommandService,
+    DaemonAgentProcessManagerService,
+    DaemonSessionService,
+  } = await import('./daemon-services.js');
   const backendQuery = vi.fn().mockResolvedValue({ tasks: options.tasks ?? [] });
   const workspaceQuery = vi.fn().mockResolvedValue(options.workspaces ?? []);
   const session = {
@@ -175,6 +179,10 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   const layers = Layer.mergeAll(
     Layer.succeed(DaemonSessionService, session as never),
     Layer.succeed(DaemonAgentProcessManagerService, {} as never),
+    Layer.succeed(DaemonAgentProcessManagerCommandService, {
+      runSerializedForAgent: async (_key: never, operation: (ops: never) => Promise<unknown>) =>
+        operation({} as never),
+    } as never),
     Layer.succeed(AgentLifecycleOutboxService, {
       enqueue: () => Effect.succeed({ success: true }),
       stopAll: () => Effect.void,
