@@ -268,7 +268,14 @@ function setupCoordinator(opts?: {
     effectContext: Context.empty() as unknown as TaskOrchestrationCoordinatorDeps['effectContext'],
     sessionDeps,
     process,
-    runSerializedForAgent: {} as never,
+    runSerializedForAgent: async (_key, _options, operation) =>
+      operation(
+        {
+          startAgent: async (input) => Effect.runPromise(process.ensureRunning(input)),
+          stopAgent: async (input) => Effect.runPromise(process.stop(input)),
+        },
+        { signal: new AbortController().signal }
+      ),
     taskSnapshotState,
     agentOperationalReadModel,
     cooldown,

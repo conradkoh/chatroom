@@ -9,7 +9,11 @@ import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { recoverAgentStateEffect } from './state-recovery.js';
-import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
+import {
+  DaemonAgentProcessManagerCommandService,
+  DaemonSessionService,
+} from '../daemon-services.js';
+import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import type { ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
 
@@ -48,22 +52,17 @@ function makeSessionLayer(overrides?: {
 }
 
 function makeApmLayer(overrides?: {
-  recover?:( () => Effect.Effect<void>) | undefined;
-  listActive?:( () => { chatroomId: string; role: string; slot: any }[]) | undefined;
-}): Layer.Layer<DaemonAgentProcessManagerService> {
-  return Layer.succeed(DaemonAgentProcessManagerService, {
-    recover: overrides?.recover ?? (() => Effect.succeed(undefined as void)),
-    listActive: overrides?.listActive ?? (() => []),
-    clearStuckStoppingSlot: () => Effect.succeed(false),
-    ensureRunning: (_opts: any) => Effect.succeed({ type: 'started', pid: 0 } as any),
-    stop: (_opts: any) => Effect.succeed({ success: true }),
-    handleExit: (_opts: any) => Effect.succeed(undefined as void),
-    getSlot: vi.fn().mockReturnValue(undefined),
-    whenTurnEndsIdle: () => Effect.succeed(undefined as void),
-    resumeTurnForSlot: () => Effect.succeed(undefined as void),
-    setLastInFlightTask: () => Effect.void,
-    clearLastInFlightTaskIfMatches: () => Effect.void,
-  });
+  recover?: (() => Effect.Effect<void>) | undefined;
+  listActive?: (() => { chatroomId: string; role: string; slot: any }[]) | undefined;
+}): Layer.Layer<DaemonAgentProcessManagerCommandService> {
+  const recover = overrides?.recover ?? (() => Effect.succeed(undefined as void));
+  const listActive = overrides?.listActive ?? (() => []);
+  return Layer.succeed(DaemonAgentProcessManagerCommandService, {
+    recoverAgents: async () => {
+      await Effect.runPromise(recover());
+    },
+    listActive,
+  } as unknown as AgentProcessManagerService);
 }
 
 async function runWithLayers(

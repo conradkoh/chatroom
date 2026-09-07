@@ -70,9 +70,14 @@ async function runWithSession<A>(
 // Helper for recoverAgentStateEffect (E5.3) — builds DaemonSessionService + DaemonAgentProcessManagerService
 async function runRecovery(overrides?: Partial<DaemonSessionInit>) {
   const init = createMockDaemonSessionInit(overrides);
-  return Effect.runPromise(
-    recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
-  );
+  init.agentProcessManagerService.startProcessing();
+  try {
+    return await Effect.runPromise(
+      recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+  } finally {
+    await init.agentProcessManagerService.stopProcessing();
+  }
 }
 
 // ---------------------------------------------------------------------------

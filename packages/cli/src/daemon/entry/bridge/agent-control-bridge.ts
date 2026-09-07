@@ -109,14 +109,16 @@ export function createRestartAgentDeps(
 }
 
 export function createRecoverAgentStateDeps(
-  agentMgr: DaemonAgentProcessManagerServiceShape,
+  processManagerService: AgentProcessManagerService,
   session: DaemonSessionServiceShape
 ): RecoverAgentStateDeps {
   return {
     agentProcessManager: {
-      recover: async () => Effect.runPromise(agentMgr.recover()),
+      recover: async () => {
+        await processManagerService.recoverAgents();
+      },
       listActive: () =>
-        agentMgr.listActive().map((slot) => ({
+        processManagerService.listActive().map((slot) => ({
           chatroomId: slot.chatroomId,
           role: slot.role,
         })),

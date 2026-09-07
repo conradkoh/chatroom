@@ -28,6 +28,8 @@
   - [x] Migrate restart stop/start orchestration through one serialized agent operation.
   - [x] Coordinate role-scoped stop target execution through the process manager service.
   - [x] Coordinate chatroom-scoped exact-target stops per agent key.
+  - [x] Migrate recovery and shutdown lifecycle calls to the queue-backed service.
+  - [x] Migrate canonical task-orchestration wake/revive recovery starts.
   - [ ] Migrate additional start, stop, restart, recovery, and shutdown callers.
   - [ ] Remove legacy direct lifecycle calls after each path is covered.
 

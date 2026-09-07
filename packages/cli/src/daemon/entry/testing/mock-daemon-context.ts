@@ -24,7 +24,7 @@ export function createMockDaemonSessionInit(
   overrides?: Partial<DaemonSessionInit>
 ): DaemonSessionInit {
   const deps = createMockDaemonDeps();
-  return {
+  const init = {
     client: {} as ConvexClient,
     sessionId: 'test-session-id',
     machineId: 'test-machine-id',
@@ -35,10 +35,7 @@ export function createMockDaemonSessionInit(
     machine: deps.machine,
     spawning: deps.spawning,
     agentProcessManager: deps.agentProcessManager,
-    agentProcessManagerService: createAgentProcessManagerService({
-      execution: deps.agentProcessManager as unknown as AgentProcessManagerExecutionPort,
-      notifier: createCommandNotifier<AgentProcessManagerCommand>(),
-    }),
+    agentProcessManagerService: undefined,
     agentLifecycleOutbox: {
       enqueue: async () => ({ success: true }),
       get: () => ({ enqueue: async () => ({ success: true }), flushNow: async () => undefined }),
@@ -53,4 +50,13 @@ export function createMockDaemonSessionInit(
     logEvent: async () => undefined,
     ...overrides,
   };
+  return {
+    ...init,
+    agentProcessManagerService:
+      overrides?.agentProcessManagerService ??
+      createAgentProcessManagerService({
+        execution: init.agentProcessManager as unknown as AgentProcessManagerExecutionPort,
+        notifier: createCommandNotifier<AgentProcessManagerCommand>(),
+      }),
+  } as DaemonSessionInit;
 }

@@ -660,6 +660,9 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
 
     yield* registerEventListenersEffect().pipe(Effect.provide(daemonSessionToLayers(init)));
     yield* logStartupEffect(cachedModels).pipe(Effect.provide(daemonSessionToLayers(init)));
+    // Recovery submits through the queue-backed process-manager service, so
+    // its consumer must be running before the recovery command is awaited.
+    init.agentProcessManagerService.startProcessing();
     yield* recoverStateEffect(init);
 
     return init;
@@ -669,7 +672,7 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
 /** Thin wrapper — daemon-start/index.ts and tests still import this. */
 export type InitDaemonOptions = {
   logSink?: AgentLogSink | undefined;
-  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
+  logEvent?: ((event: Record<string, unknown>) => Promise<void>) | undefined;
 };
 export function getActiveLogSink(): AgentLogSink | undefined {
   return activeLogSink;

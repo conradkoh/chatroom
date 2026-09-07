@@ -7,15 +7,20 @@ import { Effect } from 'effect';
 
 import { recoverAgentState } from '../../domain/usecase/recover-agent-state.js';
 import { createRecoverAgentStateDeps } from '../bridge/agent-control-bridge.js';
-import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
+import {
+  DaemonAgentProcessManagerCommandService,
+  DaemonSessionService,
+} from '../daemon-services.js';
 
 export const recoverAgentStateEffect: Effect.Effect<
   void,
   never,
-  DaemonSessionService | DaemonAgentProcessManagerService
+  DaemonSessionService | DaemonAgentProcessManagerCommandService
 > = Effect.gen(function* () {
   const session = yield* DaemonSessionService;
-  const agentMgr = yield* DaemonAgentProcessManagerService;
+  const processManagerService = yield* DaemonAgentProcessManagerCommandService;
 
-  yield* Effect.promise(() => recoverAgentState(createRecoverAgentStateDeps(agentMgr, session)));
+  yield* Effect.promise(() =>
+    recoverAgentState(createRecoverAgentStateDeps(processManagerService, session))
+  );
 });

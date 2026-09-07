@@ -31,6 +31,7 @@
 // fallow-ignore-file complexity code-duplication unused-file
 
 import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
+import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 import {
   resolveSessionAugmentationForTask,
   sessionAugmentationToWantResume,
@@ -316,21 +317,27 @@ export function createTaskOrchestrationCoordinator(
       `[TaskRecovery] native ${kind} ${ctx.role}@${ctx.chatroomId} — ${detail} ${full.taskId}`
     );
     try {
-      const result = await runPort(
-        deps.process.ensureRunning({
-          chatroomId: ctx.chatroomId,
-          role: ctx.role,
-          agentHarness: ctx.agentConfig.agentHarness as AgentHarness,
-          model: ctx.agentConfig.model,
-          workingDir: ctx.workingDir,
-          reason:
-            kind === 'wake'
-              ? AgentStartReasonEnum['platform.pending_task_wake']
-              : AgentStartReasonEnum['platform.task_monitor_nudge'],
-          wantResume: ctx.wantResume,
-          lifecycleRevision: ctx.agentConfig.configLifecycleRevision,
-          taskId: full.taskId,
-        } as EnsureRunningOpts)
+      const result = await deps.runSerializedForAgent(
+        { chatroomId: ctx.chatroomId, role: ctx.role },
+        { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
+        (ops, context) =>
+          ops.startAgent(
+            {
+              chatroomId: ctx.chatroomId,
+              role: ctx.role,
+              agentHarness: ctx.agentConfig.agentHarness as AgentHarness,
+              model: ctx.agentConfig.model,
+              workingDir: ctx.workingDir,
+              reason:
+                kind === 'wake'
+                  ? AgentStartReasonEnum['platform.pending_task_wake']
+                  : AgentStartReasonEnum['platform.task_monitor_nudge'],
+              wantResume: ctx.wantResume,
+              lifecycleRevision: ctx.agentConfig.configLifecycleRevision,
+              taskId: full.taskId,
+            } as EnsureRunningOpts,
+            context.signal
+          )
       );
       if (!result.success) {
         console.warn(
