@@ -405,6 +405,9 @@ export default defineSchema({
     // Written when start-agent or stop-agent use cases change desiredState.
     // Prefer reading desiredState directly from chatroom_teamAgentConfigs.
     lastDesiredState: v.optional(v.string()),
+    // @deprecated Retained for compatibility with existing participant documents.
+    // New code no longer writes this native-harness task correlation field.
+    lastInFlightTaskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),
