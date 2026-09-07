@@ -63,10 +63,9 @@ introduced.
 - [x] Replace `turn-end-queue.ts` with the shared per-agent serialization
       boundary; the dedicated queue and its tests were deleted. A future
       command-message representation is not required for this internal event.
-- [ ] Remove backend `participant.lastInFlightTaskId` and its tests after
-      token-activity handling is migrated to the daemon task-state model.
-      Do not remove it as part of the daemon-only cleanup because it remains
-      an active backend dependency.
+- [x] Remove backend `participant.lastInFlightTaskId` and its tests. Native
+      delivery/task state owns live task identity; token-activity handling now
+      uses explicit participant status/action signals only.
 
 ### Reimplementation around one decision path
 

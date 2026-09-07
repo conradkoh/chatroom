@@ -198,6 +198,5 @@ describe('Participant Join', () => {
     const participant = await t.query(api.participants.getByRole, { sessionId, chatroomId, role: 'builder' });
     expect(participant!.lastSeenAction).toBe('native:task-injected');
     expect(participant!.lastStatus).toBe('task.acknowledged');
-    expect(participant!.lastInFlightTaskId).toBe(taskId);
   });
 });

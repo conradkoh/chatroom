@@ -17,7 +17,6 @@ import { transitionTask } from '../task/transition-task';
 type ParticipantSnapshot = {
   lastStatus?: string | null | undefined;
   lastSeenAction?: string | null | undefined;
-  lastInFlightTaskId?: Id<'chatroom_tasks'> | null | undefined;
 };
 
 function isStaleInFlightParticipantStatus(lastStatus?: string | null): boolean {
@@ -63,8 +62,7 @@ async function maybeStartAcknowledgedTaskFromTokenActivity(
       participant.lastStatus === 'agent.started' ||
       participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION ||
       participant.lastSeenAction === NATIVE_WAITING_ACTION ||
-      participant.lastSeenAction === GET_NEXT_TASK_STOPPED_ACTION ||
-      participant.lastInFlightTaskId === acknowledgedTask._id);
+      participant.lastSeenAction === GET_NEXT_TASK_STOPPED_ACTION);
 
   if (!shouldStartTask) {
     return false;

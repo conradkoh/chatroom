@@ -62,9 +62,5 @@ export async function applyAgentActivityHeartbeat(
     });
     if (acknowledged)
       await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
-    if (args.taskId && args.participantId)
-      await ctx.db.patch('chatroom_participants', args.participantId, {
-        lastInFlightTaskId: args.taskId,
-      });
   }
 }
