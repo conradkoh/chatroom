@@ -57,6 +57,16 @@
   - [ ] Route resume-storm abort stops through the service or document why manager ownership makes direct execution safe.
   - [ ] Audit automatic crash/exit restart paths for coordination with queued start/stop/restart commands.
   - [ ] Review enhancer/native harness stop paths and classify them as agent lifecycle or child-process cleanup.
+
+## Recovery-boundary review
+
+- [ ] Review session recovery and decide whether it remains an Agent Process Manager responsibility or should be removed from the lifecycle scope.
+- [ ] Review crash recovery and decide whether automatic restart, retry/backoff, and crash-loop handling remain manager responsibilities or should be removed from the lifecycle scope.
+- [ ] Review resume-storm recovery and decide whether the manager-owned stop/suppression behavior remains necessary or should be removed.
+- [ ] Review daemon-startup recovery and separate daemon state discovery from the process manager's agent recreation/start responsibilities; remove anything outside that boundary.
+- [ ] Review task delivery recovery/reinjection and keep pending-task retry and injection outside the process manager; remove any duplicated delivery logic from lifecycle recovery.
+- [ ] For each retained recovery case, define its completion notification, cancellation behavior, timeout, and interaction with the shared per-agent serialization mechanism.
+
 - [ ] Audit all optional compatibility paths.
   - [ ] Remove `task-inbox-delivery` registry fallback after its required service dependency is wired everywhere.
   - [ ] Remove `native-task-delivery-coordinator` registry fallback after its required service dependency is wired everywhere.
