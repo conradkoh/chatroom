@@ -20,7 +20,7 @@ export interface TurnEndInput {
   pid: number;
 }
 
-export type TurnEndOutcome = 'storm_aborted' | 'killed' | 'killed_terminal_provider_error';
+export type TurnEndOutcome = 'killed' | 'killed_terminal_provider_error';
 
 export interface TurnEndResult {
   outcome: TurnEndOutcome;

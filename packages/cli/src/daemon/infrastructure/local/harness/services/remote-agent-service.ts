@@ -100,7 +100,7 @@ export interface SpawnResult {
    */
   activityEmitter?: HarnessActivityEmitter | undefined;
   /**
-   * Human-readable log lines for resume-storm reason classification.
+   * Human-readable log lines for provider failure classification.
    * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §3.5).
    */
   onLogLine?:( (cb: (line: string) => void) => void) | undefined;

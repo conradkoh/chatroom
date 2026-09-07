@@ -107,7 +107,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
 
         if (spawnHandle) {
           spawnHandle.onAgentEnd(() => {
-            // Phase 3: emit turn-completed, check for resume-storm
+            // Phase 3: emit turn-completed.
           });
         }
 

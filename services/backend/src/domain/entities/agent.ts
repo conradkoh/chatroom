@@ -209,7 +209,6 @@ export const AGENT_STOP_REASONS = [
   'user.restart',
   'platform.dedup',
   'platform.team_switch',
-  'platform.resume_storm',
   'platform.task_monitor_nudge',
   'platform.task_start_in_new_session',
   'daemon.respawn',

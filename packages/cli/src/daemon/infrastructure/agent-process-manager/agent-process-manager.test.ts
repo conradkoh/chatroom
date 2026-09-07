@@ -6,7 +6,6 @@ import {
   type EnsureRunningOpts,
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
-import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
@@ -129,7 +128,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
     },
     convexUrl: 'http://test:3210',
-    resumeStormTracker: new RapidResumeTracker(),
     ...overrides,
   };
 }

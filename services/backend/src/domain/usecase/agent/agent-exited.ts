@@ -104,19 +104,14 @@ export async function agentExited(
     config.machineId === machineId; // Config belongs to same machine
 
   if (shouldUpdateParticipant) {
-    const isResumeStorm = stopReason === AgentStopReasonEnum['platform.resume_storm'];
     const isOrchestratedRestart =
       stopReason === AgentStopReasonEnum['platform.task_start_in_new_session'] ||
       stopReason === AgentStopReasonEnum['daemon.respawn'] ||
       stopReason === AgentStopReasonEnum['user.restart'];
-    const participantStatus = isResumeStorm
-      ? 'agent.resumeStormAborted'
-      : isOrchestratedRestart
+    const participantStatus = isOrchestratedRestart
         ? 'agent.restart'
         : 'agent.exited';
-    const participantDesiredState = isResumeStorm
-      ? 'stopped'
-      : isOrchestratedRestart
+    const participantDesiredState = isOrchestratedRestart
         ? 'running'
         : undefined;
     await transitionAgentStatus(ctx, chatroomId, role, participantStatus, participantDesiredState);

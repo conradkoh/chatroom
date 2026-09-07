@@ -28,11 +28,9 @@ import { Effect } from 'effect';
 import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
 import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js';
-import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
-import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import { type AgentLifecyclePortAdapterDeps } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.js';
 import type { AgentLifecycleRuntime } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
@@ -67,7 +65,6 @@ import {
 } from '../../domain/usecase/classify-provider-error.js';
 import {
   handleTurnCompleted,
-  type ResumeStormTracker,
 } from '../../domain/usecase/handle-turn-completed.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import { getNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
@@ -134,7 +131,7 @@ export interface AgentSlot {
   startedAt?: number | undefined;
   /** Promise that resolves when a pending spawn or stop completes */
   pendingOperation?: Promise<OperationResult> | undefined;
-  /** Recent harness log lines for resume-storm reason classification. */
+  /** Recent harness log lines for provider failure classification. */
   recentLogLines?: string[] | undefined;
   /** User's persisted reconnect-on-start preference for this run. */
   wantResume?: boolean | undefined;
@@ -204,7 +201,6 @@ export interface AgentProcessManagerDeps {
     ) => { allowed: boolean; retryAfterMs?: number | undefined };
   };
   convexUrl: string;
-  resumeStormTracker?: ResumeStormTracker | undefined;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -229,9 +225,7 @@ export const STOPPING_TIMEOUT_MS = 30_000;
 
 // ─── Manager ──────────────────────────────────────────────────────────────────
 
-type ResolvedAgentProcessManagerDeps = AgentProcessManagerDeps & {
-  resumeStormTracker: ResumeStormTracker;
-};
+type ResolvedAgentProcessManagerDeps = AgentProcessManagerDeps;
 
 export class AgentProcessManager {
   private readonly deps: ResolvedAgentProcessManagerDeps;
@@ -253,7 +247,6 @@ export class AgentProcessManager {
   constructor(deps: AgentProcessManagerDeps) {
     this.deps = {
       ...deps,
-      resumeStormTracker: deps.resumeStormTracker ?? new RapidResumeTracker(),
     };
 
     // Create lifecycle runtime — delegates slot state machine to AgentLifecycleService
@@ -691,14 +684,6 @@ export class AgentProcessManager {
 
     const result = await handleTurnCompleted(
       {
-        resumeStormTracker: this.deps.resumeStormTracker,
-        backend: createTurnCompletedBackend({
-          sessionId: this.deps.sessionId,
-          machineId: this.deps.machineId,
-          logEvent: this.deps.logEvent,
-          backend: this.deps.backend,
-        }),
-        now: () => this.deps.clock.now(),
         killProcess: (pid) => {
           try {
             this.deps.processes.kill(-pid, 'SIGTERM');
@@ -708,19 +693,15 @@ export class AgentProcessManager {
         },
         // runHandleAgentEnd already executes inside the per-agent serialized
         // section. Re-entering that section here would wait on itself.
-        stopAgent: (args) => this.stop(args),
       },
       {
         chatroomId: opts.chatroomId,
         role: opts.role,
         pid: opts.pid,
-      },
-      slot
+      }
     );
 
-    if (result.outcome === 'storm_aborted') {
-      console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
-    } else if (result.outcome === 'killed') {
+    if (result.outcome === 'killed') {
       console.log(
         `[AgentProcessManager] lifecycle.turn.completed: killed process for ${opts.role}`
       );
@@ -1369,7 +1350,6 @@ export class AgentProcessManager {
     slot.pendingOperation = undefined;
     slot.recentLogLines = [];
     slot.providerUnavailableEmitted = false;
-    this.deps.resumeStormTracker.reset(opts.chatroomId, opts.role);
   }
 
   private emitSpawnedAgentUpdate(

@@ -441,9 +441,10 @@ be completed before treating the cleanup as finished.
       pending-task activation flow, not the retired recovery helpers.
 - [x] Remove obsolete session-monitor recovery types and no-op registrations
       introduced solely to replace deleted recovery behavior.
-- [ ] Audit `resumeStormTracker`, resume-storm handling, crash/restart stop
-      reasons, and recovery-related lifecycle events for remaining production
-      behavior or dead compatibility surface.
+- [x] Audit `resumeStormTracker`, resume-storm handling, crash/restart stop
+      reasons, and recovery-related lifecycle events. Rapid-resume tracking,
+      `platform.resume_storm`, the backend event/mutation, and their tests were
+      removed; ordinary exit and provider-failure handling remain separate.
 - [ ] Audit backend exit handling and task-release paths for automatic restart,
       revive, wake, or requeue behavior that conflicts with the current
       shutdown-and-clear policy.
