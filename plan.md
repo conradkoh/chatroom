@@ -79,9 +79,10 @@
   - [x] Remove wake/revive recovery triggers, recovery suppression from reconciliation, and recovery assertions from orchestration tests.
   - [x] Retain normal pending-task delivery when explicitly requested.
   - [ ] Delete the now-orphaned wake/revive helper implementations and cooldown artifacts in Phase 6.
-- [ ] Phase 5 — Remove native harness/session recovery.
-  - [ ] Remove session-exit recovery, session reinjection, proactive recovery triggers, and recovery-only native delivery paths.
-  - [ ] Retain explicit task injection and lifecycle operations.
+- [x] Phase 5 — Remove native harness/session recovery.
+  - [x] Remove session-exit recovery, session reinjection, proactive recovery triggers, and recovery-only native delivery paths.
+  - [x] Retain explicit task injection and lifecycle operations.
+  - [ ] Delete orphaned daemon-memory session helpers and their legacy tests in Phase 6.
 - [ ] Phase 6 — Remove orphaned recovery artifacts.
   - [ ] Remove recovery-only domain entities, policies, trackers, use cases, adapters, and tests after production callers are gone.
   - [ ] Update comments, READMEs, discovery documentation, and plan status.

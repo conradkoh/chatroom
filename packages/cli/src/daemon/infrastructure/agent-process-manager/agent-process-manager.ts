@@ -71,7 +71,6 @@ import {
   hasHarnessOutputStalled,
   providerUnavailableRecoverable,
 } from '../../domain/usecase/classify-provider-error.js';
-import { decideResumePathOnRestart } from '../../domain/usecase/decide-resume-path.js';
 import {
   handleTurnCompleted,
   type ResumeStormTracker,
@@ -1726,7 +1725,6 @@ export class AgentProcessManager {
   }
 
   private async spawnAgentForEnsureRunning(
-    key: string,
     slot: AgentSlot,
     opts: EnsureRunningOpts,
     initPrompt: { initialMessage: string; rolePrompt: string },
@@ -1744,33 +1742,12 @@ export class AgentProcessManager {
     let spawnResult: SpawnResult | undefined;
     const initialMessage = opts.initPrompt ?? initPrompt.initialMessage;
     const systemPrompt = opts.systemPrompt ?? initPrompt.rolePrompt;
-    const resumePath = decideResumePathOnRestart({
-      supportsDaemonMemoryResume: typeof service.resumeFromDaemonMemory === 'function',
-      wantResume,
-      hasStoredSnapshot: this.lastHarnessSessions.has(key),
-    });
-    if (resumePath === 'daemon_memory') {
-      spawnResult =
-        (await this.tryDaemonMemoryResume({
-          key,
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-          agentHarness: opts.agentHarness,
-          workingDir: opts.workingDir,
-          model: opts.model,
-          initPrompt: initialMessage,
-          systemPrompt,
-          service,
-        })) ?? undefined;
-    }
-
-    if (!spawnResult) {
-      const { deferInitialTurn, prompt } = resolveNativeSpawnPolicy(
-        opts.agentHarness,
-        initialMessage
-      );
-      try {
-        spawnResult = await service.spawn({
+    const { deferInitialTurn, prompt } = resolveNativeSpawnPolicy(
+      opts.agentHarness,
+      initialMessage
+    );
+    try {
+      spawnResult = await service.spawn({
           workingDir: opts.workingDir,
           prompt,
           systemPrompt,
@@ -1782,14 +1759,13 @@ export class AgentProcessManager {
           },
           resolvedConvexUrl: this.deps.convexUrl,
           deferInitialTurn,
-        });
-      } catch (e) {
-        this.resetSlotIdle(slot);
-        return {
-          ok: false,
-          result: { success: false, error: `Failed to spawn agent: ${(e as Error).message}` },
-        };
-      }
+      });
+    } catch (e) {
+      this.resetSlotIdle(slot);
+      return {
+        ok: false,
+        result: { success: false, error: `Failed to spawn agent: ${(e as Error).message}` },
+      };
     }
 
     return { ok: true, spawnResult };
@@ -2051,7 +2027,7 @@ export class AgentProcessManager {
       const initPrompt = await this.fetchInitPromptResult(opts, slot);
       if (!initPrompt.ok) return initPrompt.result;
 
-      const spawn = await this.spawnAgentForEnsureRunning(key, slot, opts, initPrompt, wantResume);
+      const spawn = await this.spawnAgentForEnsureRunning(slot, opts, initPrompt, wantResume);
       if (!spawn.ok) return spawn.result;
 
       await this.finalizeRunningSlot(key, slot, opts, spawn.spawnResult, wantResume);
