@@ -21,31 +21,64 @@ introduced.
 
 ### Removal of the current implementation
 
-- [ ] Delete the local inbox handoff decision path, including
+- [x] Delete the local inbox handoff decision path, including
       `native-turn-end-inbox.ts` and its tests.
-- [ ] Delete the agent process manager's backend fallback and reminder-specific
+- [x] Delete the agent process manager's backend fallback and reminder-specific
       turn-end branches, including their tests.
-- [ ] Remove obsolete handoff-reminder constants, mocks, fixtures, and assertions.
-- [ ] Remove or update tests that assume `lastInFlightTaskId`, local task snapshots,
+- [x] Remove obsolete handoff-reminder constants, mocks, fixtures, and assertions.
+- [x] Remove or update tests that assume `lastInFlightTaskId`, local task snapshots,
       or participant state independently prove that a handoff occurred.
-- [ ] Verify that native `agent_end` no longer injects a reminder through the
+- [x] Verify that native `agent_end` no longer injects a reminder through the
       legacy multi-path implementation.
+
+### Cleanup completed
+
+- [x] Remove disabled legacy recovery assertions from
+      `agent-process-manager.test.ts`, including obsolete Cursor retry
+      constants and unreachable test bodies.
+- [x] Run the focused agent process manager tests and monorepo typecheck after
+      the cleanup.
+
+### Remaining cleanup candidates
+
+- [ ] Replace the dedicated `turn-end-queue.ts` with the shared command queue
+      once turn-end handling is migrated into the serialized command path.
+- [ ] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
+      related manager setters, clearers, and slot-based duplicate checks.
+- [ ] Simplify native task injection duplicate detection to use the centralized
+      daemon task-state store.
+- [ ] Migrate or remove backend recovery readers such as
+      `find-native-harness-in-progress-work.ts` so the daemon does not rebuild
+      live task state from participant snapshots.
+- [ ] Reassess `native-stale-turn-phase` and other fallback guards after the
+      command queue and task-state store enforce the lifecycle invariant.
+- [ ] Remove obsolete recovery-focused integration tests after their behavior
+      has been replaced by serialized task-state tests.
 
 ### Reimplementation around one decision path
 
-- [ ] Define the backend task state as the authoritative source for whether the
-      current task was handed off.
-- [ ] Add one coordinator-owned turn-end operation that resolves the task outcome
-      atomically: handed off, reminder required, or no active work.
-- [ ] Keep `NativeTaskDeliveryCoordinator` responsible for handoff policy and
-      task-delivery decisions; keep `AgentProcessManager` responsible for process
-      events and `resumeTurn` transport.
-- [ ] Have the coordinator request reminder injection through the manager only
-      when the backend explicitly returns `reminder required`.
-- [ ] Reintroduce focused tests for the authoritative backend outcomes, including
-      handoff/turn-end races, idempotency, missing task correlation, and reminder
-      injection failure.
-- [ ] Update the native delivery documentation and run the focused CLI tests plus
+- [ ] Define a daemon-owned `ActiveTaskStateStore` keyed by chatroom and role,
+      with task identity/generation, lifecycle status, handoff status, and
+      reminder-attempt state.
+- [ ] Add a coordinator-owned `handleAgentTurnEnded` use case that reads the
+      active task state and resolves one of: no active work, already handed off,
+      or reminder required.
+- [ ] Make task delivery and successful handoff update the store through one
+      state-transition interface; keep the backend as durable persistence, not
+      the synchronous source for the live turn-end decision.
+- [ ] Route `AgentProcessManager` `onAgentEnd` events into the command queue
+      instead of embedding handoff policy in the process callback.
+- [ ] Serialize turn-end handling, task delivery, handoff updates, and lifecycle
+      commands with the same chatroom/role key.
+- [ ] Add an injected `HandoffReminder` port; issue at most one idempotent
+      reminder command per state transition and track its attempt number.
+- [ ] Validate task identity/generation before acting so stale `agent_end` events
+      cannot affect a later task for the same agent.
+- [ ] Keep `AgentProcessManager` responsible for process lifecycle and transport;
+      keep the coordinator responsible for task outcome and reminder policy.
+- [ ] Add focused tests for state transitions, handoff/turn-end races, duplicate
+      events, stale generations, missing active tasks, and reminder failures.
+- [ ] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
 
 ---
@@ -431,3 +464,10 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
 - [ ] `consolidate.md` inventory fully executed (Phases 5–8)
 - [ ] `pnpm turbo run typecheck test --filter=chatroom-cli` green
 - [ ] Fallow baselines current
+      cannot affect a later task for the same agent.
+- [ ] Keep `AgentProcessManager` responsible for process lifecycle and transport;
+      keep the coordinator responsible for task outcome and reminder policy.
+- [ ] Add focused tests for state transitions, handoff/turn-end races, duplicate
+      events, stale generations, missing active tasks, and reminder failures.
+- [ ] Update the native delivery documentation and run focused CLI tests plus
+      typecheck before committing the reimplementation.
