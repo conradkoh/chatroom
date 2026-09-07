@@ -65,20 +65,29 @@
 
 ## Recovery-boundary review
 
-- [ ] Remove session, crash, resume-storm, retry/backoff, and automatic restart recovery from `AgentProcessManager`; retain only explicit lifecycle commands and normal process exit handling.
-- [ ] Remove the `recover` command, recovery dispatcher path, and recovery API from `AgentProcessManagerService` and the command queue.
-- [ ] Remove daemon-startup state recovery from the daemon entry/handlers/bridge; on shutdown, clear managed agent state and start the next daemon with no recovered agents.
-- [ ] Remove recovery-specific wake/revive/retry behavior from task delivery and orchestration; retain only normal pending-task delivery when explicitly requested.
-- [ ] Remove native harness/session-exit recovery and recovery-triggered reinjection from native delivery; retain explicit task injection and lifecycle operations.
-- [ ] Remove recovery-only domain entities, policies, trackers, use cases, adapters, and tests once their production callers are removed.
-- [ ] Define and test shutdown state clearing across in-memory slots, persisted agent state, session registries, task ledgers, and recovery timers.
-
-- [ ] Audit all optional compatibility paths.
-  - [ ] Remove `task-inbox-delivery` registry fallback after its required service dependency is wired everywhere.
-  - [ ] Remove `native-task-delivery-coordinator` registry fallback after its required service dependency is wired everywhere.
-  - [ ] Make the service restart executor dependency mandatory once restart orchestration is fully owned by the service.
-- [ ] Add regression coverage for competing start/stop/restart/recovery commands from each entry path.
-- [ ] Update READMEs and discovery documentation to reflect the final service boundary and migration status.
+- [ ] Phase 1 — Remove automatic recovery from `AgentProcessManager` and the lifecycle runtime.
+  - [ ] Remove automatic process-exit restart, session-reopen retry, resume-storm recovery, crash-loop gating, and recovery backoff.
+  - [ ] Retain explicit start, stop, restart, normal process-exit bookkeeping, and process cleanup.
+  - [ ] Remove the manager's recovery-only state, dependencies, adapters, and tests.
+- [ ] Phase 2 — Remove the explicit `recover` command from the queue-backed service.
+  - [ ] Remove the command entity, dispatcher branch, service API, execution-port method, and service tests.
+  - [ ] Keep explicit lifecycle commands as the only queue-managed operations.
+- [ ] Phase 3 — Remove daemon-startup state recovery.
+  - [ ] Remove the startup recovery handler, bridge, use case, initialization call, and recovery-specific tests.
+  - [ ] Ensure daemon startup begins with no recovered agents; shutdown/reset clears managed state instead.
+- [ ] Phase 4 — Remove recovery-specific task delivery and orchestration.
+  - [ ] Remove wake/revive recovery sequencing, recovery suppression, retry loops, and recovery-only cooldown behavior.
+  - [ ] Retain normal pending-task delivery when explicitly requested.
+- [ ] Phase 5 — Remove native harness/session recovery.
+  - [ ] Remove session-exit recovery, session reinjection, proactive recovery triggers, and recovery-only native delivery paths.
+  - [ ] Retain explicit task injection and lifecycle operations.
+- [ ] Phase 6 — Remove orphaned recovery artifacts.
+  - [ ] Remove recovery-only domain entities, policies, trackers, use cases, adapters, and tests after production callers are gone.
+  - [ ] Update comments, READMEs, discovery documentation, and plan status.
+- [ ] Phase 7 — Verify state clearing and remaining lifecycle boundaries.
+  - [ ] Test shutdown/reset clearing across in-memory slots, persisted agent state, session registries, task ledgers, and timers.
+  - [ ] Audit optional compatibility paths and make remaining service dependencies mandatory.
+  - [ ] Add regression coverage for competing explicit start/stop/restart commands.
 
 ## Cleanup
 
