@@ -6,6 +6,7 @@ import Script from 'next/script';
 import './globals.css';
 import { AppMain } from '@/app/AppMain';
 import { ConvexClientProvider } from '@/app/ConvexClientProvider';
+import { MacPageNavigation } from '@/components/MacPageNavigation';
 import { Navigation } from '@/components/Navigation';
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
 import { Toaster } from '@/components/ui/sonner';
@@ -83,6 +84,7 @@ export default function RootLayout({
                     <PwaInstallProvider>
                       <HeaderPortalProvider>
                         <div className="flex h-dvh flex-col overflow-hidden bg-background dark:bg-zinc-950">
+                          <MacPageNavigation />
                           <Navigation />
                           <AppMain>
                             <InstallAppMobileBanner />
