@@ -9,6 +9,7 @@
 
 import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
+import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
@@ -178,7 +179,8 @@ export const DaemonAgentProcessManagerServiceLive = (
     sessionId: string;
     machineId: string;
     backend: DaemonSessionServiceShape['backend'];
-  }
+  },
+  processManagerService?: AgentProcessManagerService
 ): Layer.Layer<DaemonAgentProcessManagerService> =>
   Layer.succeed(DaemonAgentProcessManagerService, {
     executeScopedStopForCommand: (args) =>
@@ -199,25 +201,39 @@ export const DaemonAgentProcessManagerServiceLive = (
           ? event.reason
           : (legacyReason[event.reason] ?? 'user.stop');
         if (Date.now() > event.deadline) return;
-        const result = await runRoleScopedStop({
-          apm: mgr,
-          confirmedDeps: mgr.getConfirmedStopAdapterDeps(),
-          chatroomId: event.chatroomId as string,
-          role: event.role,
-          reason: reason as AgentStopReason,
-        });
-        if (result.targets.length === 0 && result.failures.length === 0 && event.pid)
-          await mgr.stop({
+        const execute = async () => {
+          const result = await runRoleScopedStop({
+            apm: mgr,
+            confirmedDeps: mgr.getConfirmedStopAdapterDeps(),
             chatroomId: event.chatroomId as string,
             role: event.role,
-            reason: reason as never,
-            pid: event.pid,
+            reason: reason as AgentStopReason,
           });
-        for (const failure of result.failures)
-          console.warn(
-            `[daemon] scoped stop failed for ${failure.target.targetKey}`,
-            failure.error
+          if (result.targets.length === 0 && result.failures.length === 0 && event.pid)
+            await mgr.stop({
+              chatroomId: event.chatroomId as string,
+              role: event.role,
+              reason: reason as never,
+              pid: event.pid,
+            });
+          for (const failure of result.failures)
+            console.warn(
+              `[daemon] scoped stop failed for ${failure.target.targetKey}`,
+              failure.error
+            );
+        };
+        if (processManagerService) {
+          await processManagerService.runSerializedForAgent(
+            { chatroomId: event.chatroomId as string, role: event.role },
+            { timeoutMs: SCOPE_TARGET_STOP_TIMEOUT_MS },
+            async (_ops, context) => {
+              if (context.signal.aborted) throw context.signal.reason;
+              await execute();
+            }
           );
+        } else {
+          await execute();
+        }
       }),
     runInboxScopedStop: (event) =>
       Effect.promise(async () => {

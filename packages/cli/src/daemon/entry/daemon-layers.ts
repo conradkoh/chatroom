@@ -47,11 +47,15 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
     DaemonMachineServiceLive(init.machine),
     AgentLifecycleOutboxServiceLive(init.agentLifecycleOutbox, init.machineId),
     DaemonSpawningServiceLive(init.spawning),
-    DaemonAgentProcessManagerServiceLive(init.agentProcessManager, {
-      sessionId: init.sessionId,
-      machineId: init.machineId,
-      backend: init.backend,
-    }),
+    DaemonAgentProcessManagerServiceLive(
+      init.agentProcessManager,
+      {
+        sessionId: init.sessionId,
+        machineId: init.machineId,
+        backend: init.backend,
+      },
+      init.agentProcessManagerService
+    ),
     DaemonAgentProcessManagerCommandServiceLive(init.agentProcessManagerService),
     DaemonMutableStateServiceLive({
       lastPushedGitState: init.lastPushedGitState,
