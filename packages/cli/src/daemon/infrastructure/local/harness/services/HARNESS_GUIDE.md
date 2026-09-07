@@ -43,7 +43,7 @@ Native SDK harnesses with a typed activity emitter report once per turn via `wir
 
 | Path         | Trigger                                                                               | Log prefix                  |
 | ------------ | ------------------------------------------------------------------------------------- | --------------------------- |
-| **Primary**  | Harness `agent_end` → slot idle → `notifyNativeTurnIdle`                              | `[NativeDelivery:primary]`  |
+| **Primary**  | Harness `agent_end` → manager event → constructed native delivery service               | `[NativeDelivery:fallback] operational-status` |
 | **Fallback** | Signal/presence feed reconcile, subscribed snapshot store + 10s local reconcile timer | `[NativeDelivery:fallback]` |
 
 Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). Fallback paths exist for daemon restart mid-turn or missed events — monitor logs to measure how often they fire before removing.

@@ -4,10 +4,8 @@ import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   logNativeDeliveryInjecting,
   logNativeDeliveryMutexSkip,
-  logNativeDeliveryPrimary,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
-import { getNativeDeliverySession } from './native-delivery-session-registry.js';
 import {
   explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
@@ -35,7 +33,6 @@ import type {
 } from '../daemon-services.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
-  isRestartOrchestratorInFlight,
 } from '../restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
@@ -50,10 +47,6 @@ export interface NativeTaskDeliverySessionDeps extends NativeDeliverySessionHand
 export class NativeTaskDeliveryCoordinator {
   resetRoleDeliveryState(chatroomId: string, role: string): void {
     getRoleDeliveryState().resetDeliveryState(chatroomId, role);
-  }
-
-  tryInjectNextForRole(chatroomId: string, role: string): void {
-    reconcileDeliverableWorkForRole(chatroomId, role);
   }
 
   // fallow-ignore-next-line complexity
@@ -237,37 +230,6 @@ export function getNativeTaskDeliveryCoordinator(): NativeTaskDeliveryCoordinato
   return coordinator;
 }
 
-/** Single delivery entry for a role — inbox SSOT + local readiness gates. */
-export function reconcileDeliverableWorkForRole(chatroomId: string, role: string): void {
-  if (isRestartOrchestratorInFlight(chatroomId, role)) return;
-  const session = getNativeDeliverySession();
-  if (!session) return;
-  const { runtime, effectContext, agentMgr, sessionDeps, machineId, taskSnapshotState } = session;
-  const tasks = taskSnapshotState?.listForRole(chatroomId, role) ?? [];
-  if (tasks.length === 0) return;
-  if (!session.lifecycleOutbox || !session.agentOperationalReadModel) return;
-  getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
-    tasks,
-    runtime,
-    effectContext,
-    agentMgr,
-    runSerializedForAgent: session.runSerializedForAgent,
-    sessionDeps,
-    lifecycleOutbox: session.lifecycleOutbox,
-    operationalModel: session.agentOperationalReadModel,
-    machineId,
-    onTaskDelivered: session.nativeDelivery
-      ? (args) => session.nativeDelivery?.recordTaskDelivered(args)
-      : undefined,
-  });
-}
-
 export function resetRoleDeliveryState(chatroomId: string, role: string): void {
   getRoleDeliveryState().resetDeliveryState(chatroomId, role);
-}
-
-export function notifyNativeTurnIdle(params: { chatroomId: string; role: string }): void {
-  if (isRestartOrchestratorInFlight(params.chatroomId, params.role)) return;
-  logNativeDeliveryPrimary(params.role, params.chatroomId);
-  reconcileDeliverableWorkForRole(params.chatroomId, params.role);
 }
