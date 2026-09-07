@@ -1,6 +1,5 @@
 import { AGENT_HARNESSES } from '@workspace/backend/src/domain/entities/agent.js';
 
-import { cursorSdkSessionMonitor } from './cursor-sdk-session-monitor.js';
 import { noOpSessionMonitor } from './no-op-session-monitor.js';
 import { getSessionMonitor, registerSessionMonitor } from './session-monitor-registry.js';
 import { getAllHarnesses } from '../services/registry.js';
@@ -13,10 +12,7 @@ export function initSessionMonitorRegistry(): void {
   if (initialized) return;
 
   for (const harness of AGENT_HARNESSES) {
-    registerSessionMonitor(
-      harness,
-      harness === 'cursor-sdk' ? cursorSdkSessionMonitor : noOpSessionMonitor
-    );
+    registerSessionMonitor(harness, noOpSessionMonitor);
   }
 
   for (const service of getAllHarnesses()) {

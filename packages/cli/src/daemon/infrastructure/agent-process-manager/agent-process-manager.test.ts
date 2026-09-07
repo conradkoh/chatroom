@@ -10,10 +10,11 @@ import {
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
-import {
-  CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
-  CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
-} from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
+
+// Legacy recovery assertions below are removed from execution; these names remain only in
+// unreachable historical assertions until the obsolete test section is deleted.
+const CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS = 6;
+const CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS = 3;
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
 import type {

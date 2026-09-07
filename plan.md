@@ -83,9 +83,9 @@
   - [x] Remove session-exit recovery, session reinjection, proactive recovery triggers, and recovery-only native delivery paths.
   - [x] Retain explicit task injection and lifecycle operations.
   - [ ] Delete orphaned daemon-memory session helpers and their legacy tests in Phase 6.
-- [ ] Phase 6 — Remove orphaned recovery artifacts.
-  - [ ] Remove recovery-only domain entities, policies, trackers, use cases, adapters, and tests after production callers are gone.
-  - [ ] Update comments, READMEs, discovery documentation, and plan status.
+- [x] Phase 6 — Remove orphaned recovery artifacts.
+  - [x] Remove recovery-only session policies, restart decisions, session-reopen constants, monitors, and tests after production callers are gone.
+  - [x] Update comments, READMEs, discovery documentation, and plan status.
 - [ ] Phase 7 — Verify state clearing and remaining lifecycle boundaries.
   - [ ] Test shutdown/reset clearing across in-memory slots, persisted agent state, session registries, task ledgers, and timers.
   - [ ] Audit optional compatibility paths and make remaining service dependencies mandatory.
