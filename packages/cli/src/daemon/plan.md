@@ -46,8 +46,10 @@ introduced.
       cannot race lifecycle commands for the same agent.
 - [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
       related manager setters, clearers, and slot-based duplicate checks.
-- [ ] Simplify native task injection duplicate detection to use the centralized
-      daemon task-state store.
+- [x] Simplify native task injection duplicate detection to use the centralized
+      daemon task-state store. The delivery ledger and orphaned task
+      orchestration coordinator were removed after all production delivery
+      paths moved behind the constructed service.
 - [x] Migrate or remove backend recovery readers such as
       `find-native-harness-in-progress-work.ts` so the daemon does not rebuild
       live task state from participant snapshots.
@@ -112,7 +114,7 @@ introduced.
       service while retaining registry adapters for legacy callers.
 - [x] Extend the service boundary to bootstrap, periodic reconciliation, and
       operational updates.
-- [ ] Extend the service boundary to restart delivery paths.
+- [x] Extend the service boundary to restart delivery paths.
 - [x] Make `handleTaskInboxUpdate` consume required dependencies directly and
       remove its remaining compatibility branch and session-registry fallbacks.
 - [x] Move production task-state transition calls behind the service API and
