@@ -430,9 +430,8 @@ be completed before treating the cleanup as finished.
 - [ ] Remove the remaining agent-process-manager recovery state and helpers,
       including daemon-memory session resume, harness-session snapshots, resume
       event emission, and related fields that no longer have production callers.
-- [ ] Remove the orphaned Cursor SDK run-error/reopen detection module and tests,
-      or explicitly document and test the one remaining supported consumer if it
-      is still required.
+- [x] Remove the orphaned Cursor SDK run-error/reopen detection module and tests;
+      repository search found no production consumer.
 - [x] Delete commented-out recovery blocks from task orchestration and task
       delivery code; comments must not preserve retired control flow as an
       implied compatibility path.
@@ -440,7 +439,7 @@ be completed before treating the cleanup as finished.
       tests that only existed to support automatic task recovery. The remaining
       `platform.pending_task_wake` start reason belongs to the explicit native
       pending-task activation flow, not the retired recovery helpers.
-- [ ] Remove obsolete session-monitor recovery types and no-op registrations
+- [x] Remove obsolete session-monitor recovery types and no-op registrations
       introduced solely to replace deleted recovery behavior.
 - [ ] Audit `resumeStormTracker`, resume-storm handling, crash/restart stop
       reasons, and recovery-related lifecycle events for remaining production
