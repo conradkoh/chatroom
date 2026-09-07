@@ -3,14 +3,12 @@ import type { Runtime, Context } from 'effect';
 import type { NativeDeliveryService } from './native-delivery-service.js';
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
-import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
   SerializedAgentOperationOptions,
   SerializedAgentOperationContext,
 } from '../../infrastructure/agent-process-manager/service/index.js';
-import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
@@ -31,29 +29,18 @@ export type NativeDeliverySessionRegistration = {
   ) => Promise<T>;
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
-  taskSnapshotState?: MachineTaskSnapshotState | undefined;
-  agentOperationalReadModel?: AgentOperationalReadModel | undefined;
-  nativeDelivery?: NativeDeliveryService | undefined;
-  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
-};
-
-export type NativeDeliverySessionContext = Omit<
-  NativeDeliverySessionRegistration,
-  'taskSnapshotState' | 'agentOperationalReadModel'
-> & {
   taskSnapshotState: MachineTaskSnapshotState;
   agentOperationalReadModel: AgentOperationalReadModel;
   nativeDelivery?: NativeDeliveryService | undefined;
+  lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
 };
+
+export type NativeDeliverySessionContext = NativeDeliverySessionRegistration;
 
 let registered: NativeDeliverySessionContext | null = null;
 
 export function registerNativeDeliverySession(ctx: NativeDeliverySessionRegistration): void {
-  registered = {
-    ...ctx,
-    taskSnapshotState: ctx.taskSnapshotState ?? new MachineTaskSnapshotState(),
-    agentOperationalReadModel: ctx.agentOperationalReadModel ?? new AgentOperationalReadModel(),
-  };
+  registered = ctx;
 }
 
 export function unregisterNativeDeliverySession(): void {

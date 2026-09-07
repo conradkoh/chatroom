@@ -43,11 +43,12 @@ export function createOperationalReadModel(
 export function registerTestNativeDeliverySession(
   ctx: Omit<
     NativeDeliverySessionRegistration,
-    'agentOperationalReadModel' | 'taskSnapshotState' | 'runSerializedForAgent'
+    'agentOperationalReadModel' | 'taskSnapshotState' | 'runSerializedForAgent' | 'lifecycleOutbox'
   > & {
     operationalRows?: MachineAgentOperationalRow[] | undefined;
     taskSnapshotState?: MachineTaskSnapshotState | undefined;
     runSerializedForAgent?: NativeInjectorDeps['runSerializedForAgent'];
+    lifecycleOutbox?: NativeDeliverySessionRegistration['lifecycleOutbox'];
   }
 ): void {
   registerNativeDeliverySession({

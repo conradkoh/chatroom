@@ -7,6 +7,8 @@ import {
   unregisterNativeDeliverySession,
   type NativeDeliverySessionRegistration,
 } from './native-delivery-session-registry.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 
 describe('native-delivery-session-registry', () => {
   test('returns null when not registered', () => {
@@ -28,10 +30,13 @@ describe('native-delivery-session-registry', () => {
         backend: { mutation: vi.fn(), query: vi.fn() },
       },
       machineId: 'm',
+      taskSnapshotState: new MachineTaskSnapshotState(),
+      agentOperationalReadModel: new AgentOperationalReadModel(),
+      lifecycleOutbox: { enqueue: async () => undefined },
     };
     registerNativeDeliverySession(ctx);
     expect(getNativeDeliverySession()).toMatchObject(ctx);
-    expect(getNativeDeliverySession()?.taskSnapshotState).toBeDefined();
+    expect(getNativeDeliverySession()?.taskSnapshotState).toBe(ctx.taskSnapshotState);
     unregisterNativeDeliverySession();
     expect(getNativeDeliverySession()).toBeNull();
   });
