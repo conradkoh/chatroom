@@ -41,8 +41,9 @@ introduced.
 
 ### Remaining cleanup candidates
 
-- [ ] Replace the dedicated `turn-end-queue.ts` with the shared command queue
-      once turn-end handling is migrated into the serialized command path.
+- [x] Replace the dedicated `turn-end-queue.ts` with the manager's shared
+      per-agent serialization boundary. Turn-end callbacks now wait behind and
+      cannot race lifecycle commands for the same agent.
 - [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
       related manager setters, clearers, and slot-based duplicate checks.
 - [ ] Simplify native task injection duplicate detection to use the centralized
@@ -57,9 +58,9 @@ introduced.
 
 ### Deferred until the new implementation
 
-- [ ] Replace `turn-end-queue.ts` with the shared command queue after the
-      daemon-owned turn-end use case is wired in; it still coordinates active
-      non-native turn completion and daemon shutdown.
+- [x] Replace `turn-end-queue.ts` with the shared per-agent serialization
+      boundary; the dedicated queue and its tests were deleted. A future
+      command-message representation is not required for this internal event.
 - [ ] Remove backend `participant.lastInFlightTaskId` and its tests after
       token-activity handling is migrated to the daemon task-state model.
       Do not remove it as part of the daemon-only cleanup because it remains
