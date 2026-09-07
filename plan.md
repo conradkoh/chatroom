@@ -34,4 +34,50 @@
   - [x] Verify remaining direct manager references are limited to compatibility adapters and the
         process-manager implementation, with active lifecycle entry points using the queue-backed service.
 
-Next: deprecate and remove the remaining compatibility adapters once downstream consumers are migrated.
+## Pre-cleanup audit
+
+- [x] Inventory every remaining agent lifecycle caller and classify it as migrated, internal, or compatibility-only.
+  - [x] Search UI, command-inbox, event-listener, task-delivery, restart, recovery, shutdown, and enhancer flows.
+  - [x] Confirm active production entry points use the queue-backed service or serialized capability.
+  - [ ] Decide whether manager-internal restart/crash handling is intentionally below the service boundary.
+  - [ ] Audit manager-internal `maybeRestartAgent` and resume-storm stop calls for races with queued commands.
+- [ ] Verify every service dependency is mandatory in production wiring.
+  - [ ] Remove optional `processManagerService` dependencies and inline serialized-operation fallbacks in daemon services.
+  - [ ] Make task-inbox delivery and native task-delivery coordinator serialization dependencies mandatory.
+  - [ ] Confirm daemon initialization starts the queue consumer before recovery commands can be awaited.
+- [x] Define and verify completion semantics for every migrated caller.
+  - [x] Confirm callers that require ordering await service promises.
+  - [x] Confirm intentional fire-and-forget callers handle rejection or subscribe to notifications.
+  - [ ] Confirm operation timeouts and cancellation signals are present for every compound operation, including internal recovery paths.
+- [x] Audit per-key coverage for multi-agent operations.
+  - [x] Verify chatroom-scoped stops serialize independently per role.
+  - [x] Verify UI start, stop, and restart actions use the same service boundary.
+  - [x] Verify native delivery, recovery, and restart flows use the per-agent key.
+- [ ] Audit secondary lifecycle-triggering use cases that were not part of the first migration.
+  - [ ] Route resume-storm abort stops through the service or document why manager ownership makes direct execution safe.
+  - [ ] Audit automatic crash/exit restart paths for coordination with queued start/stop/restart commands.
+  - [ ] Review enhancer/native harness stop paths and classify them as agent lifecycle or child-process cleanup.
+- [ ] Audit all optional compatibility paths.
+  - [ ] Remove `task-inbox-delivery` registry fallback after its required service dependency is wired everywhere.
+  - [ ] Remove `native-task-delivery-coordinator` registry fallback after its required service dependency is wired everywhere.
+  - [ ] Make the service restart executor dependency mandatory once restart orchestration is fully owned by the service.
+- [ ] Add regression coverage for competing start/stop/restart/recovery commands from each entry path.
+- [ ] Update READMEs and discovery documentation to reflect the final service boundary and migration status.
+
+## Cleanup
+
+- [ ] Remove the unused `EnsureRunningResult` type from the start use case.
+- [ ] Remove the unused restart session-wait PID parameter.
+- [ ] Remove `NativeInjectorAgentMgr.stop()` and `.ensureRunning()` after all injector callers use serialized operations.
+- [ ] Remove obsolete lifecycle adapter properties from restart, native delivery, and task orchestration wiring.
+- [ ] Replace the empty-target stop fallback with `processManagerService.stopAgent()`.
+- [ ] Make `processManagerService` mandatory in `DaemonAgentProcessManagerServiceLive`.
+- [ ] Remove inline no-op serialized-operation fallbacks from scoped stop wiring.
+- [ ] Extract shared lifecycle timeout values into named constants.
+- [ ] Remove legacy lifecycle methods from the Effect manager boundary once downstream consumers are migrated.
+- [ ] Remove transitional tests, casts, and compatibility-only test fixtures.
+- [ ] Remove or redesign direct lifecycle adapters used only to satisfy the legacy native injector contract.
+- [ ] Resolve the daemon-runtime readonly SQLite test failure and rerun the complete runtime suite.
+- [ ] Run the complete CLI test suite, typecheck, lint, and audit before declaring cleanup complete.
+
+Next: complete the pre-cleanup audit, then remove compatibility adapters in small reviewable commits.
