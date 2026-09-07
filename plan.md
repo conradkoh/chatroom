@@ -45,10 +45,10 @@
   - [x] Search UI, command-inbox, event-listener, task-delivery, restart, recovery, shutdown, and enhancer flows.
   - [x] Confirm active production entry points use the queue-backed service or serialized capability.
   - [x] Keep process-exit bookkeeping below the service boundary; automatic crash/restart recovery is removed.
-  - [ ] Ensure manager-internal safety stops, including resume-storm stops, share the per-agent serialization boundary.
+  - [x] Ensure manager-internal safety stops, including resume-storm stops, share the per-agent serialization boundary.
 - [ ] Verify every service dependency is mandatory in production wiring.
-  - [ ] Remove optional `processManagerService` dependencies and inline serialized-operation fallbacks in daemon services.
-  - [ ] Make task-inbox delivery and native task-delivery coordinator serialization dependencies mandatory.
+  - [x] Remove optional `processManagerService` dependencies and inline serialized-operation fallbacks in daemon services.
+  - [x] Make task-inbox delivery and native task-delivery coordinator serialization dependencies mandatory.
   - [ ] Confirm daemon initialization starts the queue consumer before lifecycle commands can be awaited.
 - [x] Define and verify completion semantics for every migrated caller.
   - [x] Confirm callers that require ordering await service promises.
@@ -59,7 +59,7 @@
   - [x] Verify UI start, stop, and restart actions use the same service boundary.
   - [x] Verify native delivery, recovery, and restart flows use the per-agent key.
 - [ ] Audit secondary lifecycle-triggering use cases that were not part of the first migration.
-  - [ ] Route resume-storm abort stops through the shared per-agent serialization boundary.
+  - [x] Route resume-storm abort stops through the shared per-agent serialization boundary.
   - [x] Verify automatic crash/exit restart recovery has been removed; retain exit bookkeeping inside the manager.
   - [ ] Review enhancer/native harness stop paths and classify them as agent lifecycle or child-process cleanup.
 
@@ -99,7 +99,7 @@
 - [ ] Remove obsolete lifecycle adapter properties from restart, native delivery, and task orchestration wiring.
 - [ ] Replace the empty-target stop fallback with `processManagerService.stopAgent()`.
 - [ ] Make `processManagerService` mandatory in `DaemonAgentProcessManagerServiceLive`.
-- [ ] Remove inline no-op serialized-operation fallbacks from scoped stop wiring.
+- [x] Remove inline no-op serialized-operation fallbacks from scoped stop wiring.
 - [ ] Extract shared lifecycle timeout values into named constants.
 - [ ] Remove legacy lifecycle methods from the Effect manager boundary once downstream consumers are migrated.
 - [ ] Remove transitional tests, casts, and compatibility-only test fixtures.

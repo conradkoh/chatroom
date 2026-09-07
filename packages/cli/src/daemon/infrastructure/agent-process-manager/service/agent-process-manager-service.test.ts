@@ -13,6 +13,7 @@ import { InMemoryCommandNotifier } from '../components/command-notifier/index.js
 
 function createExecution(events: string[]): AgentProcessManagerExecutionPort {
   return {
+    runSerializedForAgent: async (_key, operation) => operation(),
     ensureRunning: vi.fn(async (input) => {
       events.push(`start:${input.chatroomId}:${input.role}`);
       return { success: true };

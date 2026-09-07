@@ -74,7 +74,7 @@ export class NativeTaskDeliveryCoordinator {
     runtime: TaskDeliveryRuntime;
     effectContext: TaskDeliveryContext;
     agentMgr: DaemonAgentProcessManagerServiceShape;
-    runSerializedForAgent?: <T>(
+    runSerializedForAgent: <T>(
       key: AgentKey,
       options: SerializedAgentOperationOptions,
       operation: (
@@ -95,11 +95,7 @@ export class NativeTaskDeliveryCoordinator {
   }): void {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
-    const serializedOperation =
-      params.runSerializedForAgent ?? getNativeDeliverySession()?.runSerializedForAgent;
-    if (!serializedOperation) {
-      throw new Error('Native delivery requires AgentProcessManagerService coordination');
-    }
+    const serializedOperation = params.runSerializedForAgent;
     const { runtime, effectContext, agentMgr, sessionDeps, machineId, onTaskDelivered } = params;
     const deliveryState = getRoleDeliveryState();
     const ledger = getNativeDeliveryLedger();

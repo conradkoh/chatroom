@@ -110,6 +110,15 @@ describe('native duplicate task injection', () => {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          {
+            startAgent: async () => ({ success: true }),
+            stopAgent: async () => ({ success: true }),
+          } as never,
+          { signal: new AbortController().signal }
+        )
+      ) as never,
       sessionDeps: {
         sessionId: 'session_dup',
         machineId: 'machine_dup',

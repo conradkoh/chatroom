@@ -56,6 +56,10 @@ export type AgentProcessManagerCommand =
 export type AgentOperationResult = CommandNotification<AgentProcessManagerCommand>;
 
 export interface AgentProcessManagerExecutionPort {
+  runSerializedForAgent<T>(
+    key: AgentKey,
+    operation: () => Promise<T>
+  ): Promise<T>;
   ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult>;
   stop(opts: StopOpts): Promise<{ success: boolean }>;
   handleExit(opts: HandleExitOpts): Promise<void>;
@@ -174,25 +178,13 @@ export function createAgentProcessManagerService(
 ): AgentProcessManagerService {
   const queue = createCommandQueue<AgentProcessManagerCommand>();
   const pendingOperations = new Map<string, PendingOperation>();
-  const agentOperationTails = new Map<string, Promise<void>>();
   let processingStarted = false;
   let resetting = false;
 
   const keyFor = (key: AgentKey): string => messageGroupId(key);
 
   const runExclusive = <T>(key: AgentKey, operation: () => Promise<T>): Promise<T> => {
-    const groupId = keyFor(key);
-    const previous = agentOperationTails.get(groupId) ?? Promise.resolve();
-    const current = previous.catch(() => undefined).then(operation);
-    const tail = current.then(
-      () => undefined,
-      () => undefined
-    );
-    agentOperationTails.set(groupId, tail);
-    void tail.finally(() => {
-      if (agentOperationTails.get(groupId) === tail) agentOperationTails.delete(groupId);
-    });
-    return current;
+    return deps.execution.runSerializedForAgent(key, operation);
   };
 
   const runSerializedForAgent = <T>(

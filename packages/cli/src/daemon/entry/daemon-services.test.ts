@@ -137,7 +137,11 @@ describe('DaemonAgentProcessManagerService', () => {
       clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
     } as any;
 
-    const layer = DaemonAgentProcessManagerServiceLive(mockMgr);
+    const layer = DaemonAgentProcessManagerServiceLive(mockMgr, {
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation({} as never, { signal: new AbortController().signal })
+      ),
+    } as never);
     const slot = Effect.runSync(
       Effect.gen(function* () {
         const svc = yield* DaemonAgentProcessManagerService;

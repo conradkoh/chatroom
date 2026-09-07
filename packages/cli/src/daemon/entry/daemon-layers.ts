@@ -49,12 +49,12 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
     DaemonSpawningServiceLive(init.spawning),
     DaemonAgentProcessManagerServiceLive(
       init.agentProcessManager,
+      init.agentProcessManagerService,
       {
         sessionId: init.sessionId,
         machineId: init.machineId,
         backend: init.backend,
       },
-      init.agentProcessManagerService
     ),
     DaemonAgentProcessManagerCommandServiceLive(init.agentProcessManagerService),
     DaemonMutableStateServiceLive({

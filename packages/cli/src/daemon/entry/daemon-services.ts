@@ -166,12 +166,12 @@ export class DaemonAgentProcessManagerService extends Context.Tag(
 
 export const DaemonAgentProcessManagerServiceLive = (
   mgr: AgentProcessManager,
+  processManagerService: AgentProcessManagerService,
   sessionDeps?: {
     sessionId: string;
     machineId: string;
     backend: DaemonSessionServiceShape['backend'];
-  },
-  processManagerService?: AgentProcessManagerService
+  }
 ): Layer.Layer<DaemonAgentProcessManagerService> =>
   Layer.succeed(DaemonAgentProcessManagerService, {
     executeScopedStopForCommand: (args) =>
@@ -180,10 +180,7 @@ export const DaemonAgentProcessManagerServiceLive = (
         return executeScopedStopForCommand({
           ...sessionDeps,
           apm: mgr,
-          runSerializedForAgent:
-            processManagerService?.runSerializedForAgent ??
-            (async (_key, _options, operation) =>
-              operation({} as never, { signal: new AbortController().signal })),
+          runSerializedForAgent: processManagerService.runSerializedForAgent,
           ...args,
         });
       }),
@@ -221,18 +218,14 @@ export const DaemonAgentProcessManagerServiceLive = (
               failure.error
             );
         };
-        if (processManagerService) {
-          await processManagerService.runSerializedForAgent(
-            { chatroomId: event.chatroomId as string, role: event.role },
-            { timeoutMs: SCOPE_TARGET_STOP_TIMEOUT_MS },
-            async (_ops, context) => {
-              if (context.signal.aborted) throw context.signal.reason;
-              await execute();
-            }
-          );
-        } else {
-          await execute();
-        }
+        await processManagerService.runSerializedForAgent(
+          { chatroomId: event.chatroomId as string, role: event.role },
+          { timeoutMs: SCOPE_TARGET_STOP_TIMEOUT_MS },
+          async (_ops, context) => {
+            if (context.signal.aborted) throw context.signal.reason;
+            await execute();
+          }
+        );
       }),
     runInboxScopedStop: (event) =>
       Effect.promise(async () => {
@@ -249,10 +242,7 @@ export const DaemonAgentProcessManagerServiceLive = (
           scope: event.scope,
           reason: reason as AgentStopReason,
           inboxCommandId,
-          runSerializedForAgent:
-            processManagerService?.runSerializedForAgent ??
-            (async (_key, _options, operation) =>
-              operation({} as never, { signal: new AbortController().signal })),
+          runSerializedForAgent: processManagerService.runSerializedForAgent,
         });
       }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),

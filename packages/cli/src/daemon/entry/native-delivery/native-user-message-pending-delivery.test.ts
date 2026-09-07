@@ -155,6 +155,15 @@ describe('user message pending delivery path', () => {
         NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
       >[0]['effectContext'],
       agentMgr,
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          {
+            startAgent: async () => ({ success: true }),
+            stopAgent: async () => ({ success: true }),
+          } as never,
+          { signal: new AbortController().signal }
+        )
+      ) as never,
       sessionDeps: {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
@@ -230,6 +239,7 @@ describe('user message pending delivery path', () => {
         getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ nativeTurnPhase: 'turn_in_flight' })),
         resumeTurnForSlot,
       } as unknown as DaemonAgentProcessManagerServiceShape,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps: {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
@@ -269,6 +279,7 @@ describe('user message pending delivery path', () => {
         getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ harnessSessionId: undefined })),
         resumeTurnForSlot,
       } as unknown as DaemonAgentProcessManagerServiceShape,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps: {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
@@ -311,6 +322,7 @@ describe('user message pending delivery path', () => {
           .mockReturnValue(makeIdleNativeSlot({ pid: SPAWNED_PID + 1, state: 'spawning' })),
         resumeTurnForSlot,
       } as unknown as DaemonAgentProcessManagerServiceShape,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps: {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',

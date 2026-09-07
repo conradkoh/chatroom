@@ -261,6 +261,8 @@ export class AgentProcessManager {
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
   private agentEndEventSequence = 0;
   private readonly turnEndQueue = new TurnEndQueue();
+  /** Shared per-agent serialization boundary for public and internal operations. */
+  private readonly serializedOperationTails = new Map<string, Promise<void>>();
   /** Effect-native lifecycle service runtime (Phase 3). */
   private readonly lifecycle: AgentLifecycleRuntime;
 
@@ -280,6 +282,26 @@ export class AgentProcessManager {
       onAgentEnd: (args) => void this.runHandleAgentEnd(args),
     };
     this.lifecycle = createAgentLifecycleRuntime(portAdapterDeps);
+  }
+
+  runSerializedForAgent<T>(
+    key: { chatroomId: string; role: string },
+    operation: () => Promise<T>
+  ): Promise<T> {
+    const serializedKey = agentKey(key.chatroomId, key.role);
+    const previous = this.serializedOperationTails.get(serializedKey) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    const tail = current.then(
+      () => undefined,
+      () => undefined
+    );
+    this.serializedOperationTails.set(serializedKey, tail);
+    void tail.finally(() => {
+      if (this.serializedOperationTails.get(serializedKey) === tail) {
+        this.serializedOperationTails.delete(serializedKey);
+      }
+    });
+    return current;
   }
 
   private updateSlotsMirror(chatroomId: string, role: string, slot: AgentLifecycleSlot): void {
@@ -706,7 +728,11 @@ export class AgentProcessManager {
             // Process may already be dead
           }
         },
-        stopAgent: (args) => this.stop(args),
+        stopAgent: (args) =>
+          this.runSerializedForAgent(
+            { chatroomId: args.chatroomId, role: args.role },
+            () => this.stop(args)
+          ),
       },
       {
         chatroomId: opts.chatroomId,
