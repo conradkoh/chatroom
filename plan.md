@@ -1,6 +1,6 @@
 # Agent lifecycle coordination plan
 
-- [ ] Integrate the agent process manager command queue as the single entry point for serial execution of chatroom + role agent operations.
+- [x] Integrate the agent process manager command queue as the single entry point for serial execution of chatroom + role agent operations.
   - [x] Define FIFO command messages and lifecycle command entities.
   - [x] Implement per-group ordering, receipt handles, visibility timeouts, retries, and deduplication support.
   - [x] Add the in-memory command-queue store strategy and component constructor.
@@ -11,7 +11,7 @@
   - [x] Add the in-process command completion notifier and filtered subscriptions.
   - [x] Make notifier dependencies mandatory and add serialization/completion tests.
   - [x] Add cancellable, timeout-bounded compound operations for one agent key.
-  - [ ] Route start, stop, restart, recovery, and legacy daemon flows through the queue.
+  - [x] Route start, stop, restart, recovery, and legacy daemon flows through the queue.
 
 ## Next goal
 
@@ -30,7 +30,8 @@
   - [x] Coordinate chatroom-scoped exact-target stops per agent key.
   - [x] Migrate recovery and shutdown lifecycle calls to the queue-backed service.
   - [x] Migrate canonical task-orchestration wake/revive recovery starts.
-  - [ ] Migrate additional start, stop, restart, recovery, and shutdown callers.
-  - [ ] Remove legacy direct lifecycle calls after each path is covered.
+  - [x] Migrate the remaining active start, stop, restart, recovery, and shutdown callers.
+  - [x] Verify remaining direct manager references are limited to compatibility adapters and the
+        process-manager implementation, with active lifecycle entry points using the queue-backed service.
 
-Next: gradually deprecate and remove the legacy lifecycle flows as each path is migrated.
+Next: deprecate and remove the remaining compatibility adapters once downstream consumers are migrated.
