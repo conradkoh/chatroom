@@ -151,10 +151,7 @@ interface FakeProcess extends TaskOrchestrationProcessPort {
   slots: Map<string, AgentSlot>;
   ensureRunningCalls: EnsureRunningOpts[];
   resumeCalls: { chatroomId: string; role: string; prompt: string }[];
-  setLastInFlightCalls: { chatroomId: string; role: string; taskId: string }[];
-  clearLastInFlightCalls: { chatroomId: string; role: string; taskId: string }[];
   clearStuckCalls: { chatroomId: string; role: string; clearStopIntent: boolean }[];
-  reconcileTurnCalls: { chatroomId: string; role: string }[];
 }
 
 function slotKey(chatroomId: string, role: string): string {
@@ -168,10 +165,7 @@ function createFakeProcess(opts?: {
     slots: new Map(),
     ensureRunningCalls: [],
     resumeCalls: [],
-    setLastInFlightCalls: [],
-    clearLastInFlightCalls: [],
     clearStuckCalls: [],
-    reconcileTurnCalls: [],
     getSlot: (chatroomId, role) => fake.slots.get(slotKey(chatroomId, role)),
     clearStuckStoppingSlot: async (chatroomId, role, options) => {
       fake.clearStuckCalls.push({ chatroomId, role, clearStopIntent: options.clearStopIntent });
@@ -189,20 +183,6 @@ function createFakeProcess(opts?: {
     resumeTurnForSlot: (args) =>
       Effect.sync(() => {
         fake.resumeCalls.push(args);
-      }),
-    setLastInFlightTask: (chatroomId, role, taskId) =>
-      Effect.sync(() => {
-        fake.setLastInFlightCalls.push({ chatroomId, role, taskId });
-      }),
-    clearLastInFlightTaskIfMatches: (chatroomId, role, taskId) =>
-      Effect.sync(() => {
-        fake.clearLastInFlightCalls.push({ chatroomId, role, taskId });
-      }),
-    reconcileNativeTurnPhaseIdle: (chatroomId, role) =>
-      Effect.sync(() => {
-        fake.reconcileTurnCalls.push({ chatroomId, role });
-        const slot = fake.slots.get(slotKey(chatroomId, role));
-        if (slot) slot.nativeTurnPhase = 'idle';
       }),
   };
   return fake;
@@ -724,37 +704,11 @@ describe('task-orchestration-coordinator', () => {
     taskSnapshotState.replace([ack, pending]);
     agentOperationalReadModel.replace([makeOperational(room, 'builder')]);
 
-    await coordinator.accept({ type: 'turn-idle', chatroomId: room, role: 'builder' });
-    // Pending sorts before acknowledged; exactly one injection per pass.
-    expect(proc.setLastInFlightCalls).toEqual([
-      { chatroomId: room, role: 'builder', taskId: 'task_pending_new' },
-    ]);
-    expect(proc.resumeCalls.length).toBe(1);
+   await coordinator.accept({ type: 'turn-idle', chatroomId: room, role: 'builder' });
+   // Pending sorts before acknowledged; exactly one injection per pass.
+   expect(proc.resumeCalls.length).toBe(1);
   });
 
-  test('stale turn phase is repaired before delivery', async () => {
-    silenceConsole();
-    const room = nextRoom();
-    const row = makeRow({ chatroomId: room, taskId: 'task_stale_turn' });
-    const proc = createFakeProcess();
-    proc.slots.set(slotKey(room, 'builder'), {
-      state: 'running',
-      pid: 42_424,
-      harnessSessionId: 'sess_stale',
-      nativeTurnPhase: 'turn_in_flight',
-    });
-    const backend = createFakeBackend(new Map([[row.taskId, makeFull(row)]]));
-    const { coordinator, taskSnapshotState, agentOperationalReadModel } = setupCoordinator({
-      process: proc,
-      backend,
-    });
-    taskSnapshotState.replace([row]);
-    agentOperationalReadModel.replace([makeOperational(room, 'builder')]);
-
-    await coordinator.accept({ type: 'turn-idle', chatroomId: room, role: 'builder' });
-    expect(proc.reconcileTurnCalls).toEqual([{ chatroomId: room, role: 'builder' }]);
-    expect(proc.resumeCalls.length).toBe(1);
-  });
 
   test('ledger block skips injection without losing the task', async () => {
     silenceConsole();

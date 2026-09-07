@@ -58,7 +58,6 @@ describe('pending task on manual agent start', () => {
         nativeTurnPhase: 'idle',
       }),
       resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     };
     const sessionDeps = {
       sessionId: 'manual-start-session',

@@ -26,8 +26,6 @@ function layer(runInboxScopedStop: ReturnType<typeof vi.fn>) {
     clearStuckStoppingSlot: vi.fn(),
     whenTurnEndsIdle: vi.fn(),
     resumeTurnForSlot: vi.fn(),
-    setLastInFlightTask: vi.fn(),
-    clearLastInFlightTaskIfMatches: vi.fn(),
   });
 }
 describe('onStopScopeAgentEffect', () => {

@@ -212,7 +212,6 @@ async function deliverOneTask(
       onTaskDelivered: ({ chatroomId, role, taskId, harnessSessionId: resolvedSessionId }) => {
         deliveredToHarness = true;
         ledger.markDelivered(taskId, resolvedSessionId);
-        void deps.agentMgr.setLastInFlightTask(chatroomId, role, taskId);
       },
     });
     return true;

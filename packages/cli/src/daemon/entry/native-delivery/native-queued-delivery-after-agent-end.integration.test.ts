@@ -90,7 +90,6 @@ describe('native queued delivery after agent_end', () => {
         nativeTurnPhase: 'idle',
       }),
       resumeTurnForSlot,
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     const coordinator = new NativeTaskDeliveryCoordinator();
@@ -212,7 +211,6 @@ describe('native queued delivery after agent_end', () => {
         nativeTurnPhase: 'idle' as const,
       }),
       resumeTurnForSlot,
-      setLastInFlightTask: vi.fn().mockReturnValue(Runtime.defaultRuntime),
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     registerNativeDeliverySession({

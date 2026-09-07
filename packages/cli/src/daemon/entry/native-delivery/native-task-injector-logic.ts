@@ -46,23 +46,7 @@ export function explainNativeDeliveryBlock(
       return `acknowledged_wrong_role (assignedTo=${assignedTo ?? 'none'}, role=${role})`;
     }
   }
-  const inFlightBlock = explainInFlightDeliveryBlock(task, opts.slot);
-  if (inFlightBlock) return inFlightBlock;
-  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.operational);
-}
-
-/** Block re-inject when this slot already delivered the task but harness has not started it. */
-// fallow-ignore-next-line unused-export
-export function explainInFlightDeliveryBlock(
-  task: AssignedTaskSnapshotView,
-  slot: AgentSlot | undefined
-): string | null {
-  if (!slot?.lastInFlightTaskId || slot.lastInFlightTaskId !== task.taskId) return null;
-  if (task.status === 'pending') return null;
-  if (task.status === 'acknowledged') {
-    return 'already_delivered_to_slot (lastInFlightTaskId match, status=acknowledged)';
-  }
-  return null;
+ return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.operational);
 }
 
 /** Skip re-injecting a task that was already delivered in this harness session. */

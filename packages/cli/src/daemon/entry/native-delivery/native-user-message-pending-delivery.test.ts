@@ -143,7 +143,6 @@ describe('user message pending delivery path', () => {
     const agentMgr = {
       getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot()),
       resumeTurnForSlot,
-      setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     const coordinator = new NativeTaskDeliveryCoordinator();
@@ -230,7 +229,6 @@ describe('user message pending delivery path', () => {
       agentMgr: {
         getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ nativeTurnPhase: 'turn_in_flight' })),
         resumeTurnForSlot,
-        setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
       } as unknown as DaemonAgentProcessManagerServiceShape,
       sessionDeps: {
         sessionId: SESSION_ID,
@@ -270,7 +268,6 @@ describe('user message pending delivery path', () => {
       agentMgr: {
         getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ harnessSessionId: undefined })),
         resumeTurnForSlot,
-        setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
       } as unknown as DaemonAgentProcessManagerServiceShape,
       sessionDeps: {
         sessionId: SESSION_ID,
@@ -313,7 +310,6 @@ describe('user message pending delivery path', () => {
           .fn()
           .mockReturnValue(makeIdleNativeSlot({ pid: SPAWNED_PID + 1, state: 'spawning' })),
         resumeTurnForSlot,
-        setLastInFlightTask: vi.fn(() => Effect.succeed(undefined)),
       } as unknown as DaemonAgentProcessManagerServiceShape,
       sessionDeps: {
         sessionId: SESSION_ID,

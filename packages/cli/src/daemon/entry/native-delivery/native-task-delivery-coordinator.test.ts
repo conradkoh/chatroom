@@ -113,7 +113,6 @@ describe('NativeTaskDeliveryCoordinator', () => {
         nativeTurnPhase: 'idle' as const,
       }),
       resumeTurnForSlot,
-      setLastInFlightTask: vi.fn().mockReturnValue(Runtime.defaultRuntime),
     };
     const taskSnapshotState = new MachineTaskSnapshotState();
     taskSnapshotState.replace([row]);
@@ -156,7 +155,6 @@ describe('NativeTaskDeliveryCoordinator', () => {
       agentMgr: {
         getSlot: vi.fn(),
         resumeTurnForSlot,
-        setLastInFlightTask: vi.fn(),
       } as never,
       runSerializedForAgent: vi.fn() as never,
       sessionDeps: {

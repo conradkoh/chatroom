@@ -68,8 +68,6 @@ function registerListeners(
         whenTurnEndsIdle: () => Effect.promise(() => init.agentProcessManager.whenTurnEndsIdle()),
         resumeTurnForSlot: (args) =>
           Effect.promise(() => init.agentProcessManager.resumeTurnForSlot(args)),
-        setLastInFlightTask: () => Effect.void,
-        clearLastInFlightTaskIfMatches: () => Effect.void,
       })
     )
   );

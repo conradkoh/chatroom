@@ -54,7 +54,6 @@ function createAgentMgrMock(overrides: Record<string, unknown> = {}): never {
     }),
     ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 42 }),
     clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
-    setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     ...overrides,
   } as never;
 }

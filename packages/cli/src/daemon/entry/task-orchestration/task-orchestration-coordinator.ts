@@ -66,7 +66,6 @@ import {
   logNativeDeliveryPrimary,
   logNativeDeliverySkip,
 } from '../native-delivery/native-delivery-log.js';
-import { isStaleTurnInFlightWhileWaiting } from '../native-delivery/native-stale-turn-phase.js';
 import {
   explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
@@ -95,8 +94,8 @@ export type TaskOrchestrationEvent =
 export interface TaskOrchestrationProcessPort {
   getSlot(chatroomId: string, role: string): AgentSlot | undefined;
   clearStuckStoppingSlot(
-    chatroomId: string,
-    role: string,
+   chatroomId: string,
+   role: string,
     options: { clearStopIntent: boolean }
   ): Promise<boolean>;
   ensureRunning(opts: EnsureRunningOpts): Effect.Effect<OperationResult>;
@@ -106,14 +105,6 @@ export interface TaskOrchestrationProcessPort {
     role: string;
     prompt: string;
   }): Effect.Effect<void>;
-  setLastInFlightTask(chatroomId: string, role: string, taskId: string): Effect.Effect<void>;
-  clearLastInFlightTaskIfMatches(
-    chatroomId: string,
-    role: string,
-    taskId: string
-  ): Effect.Effect<void>;
-  reconcileNativeTurnPhaseIdle?:
-    ((chatroomId: string, role: string) => Effect.Effect<void>) | undefined;
 }
 
 export interface TaskOrchestrationSessionDeps extends NativeDeliverySessionHandles {
@@ -352,28 +343,7 @@ export function createTaskOrchestrationCoordinator(
 
     for (const row of pendingFirst) {
       const roleName = row.agentConfig.role;
-      let slot = deps.process.getSlot(row.chatroomId, roleName);
-      if (row.status === 'pending' && slot?.lastInFlightTaskId === row.taskId) {
-        await runPort(
-          deps.process.clearLastInFlightTaskIfMatches(row.chatroomId, roleName, row.taskId)
-        ).catch((err: unknown) =>
-          console.warn(
-            `[NativeTaskDelivery] clear last-in-flight failed for ${roleName}@${row.chatroomId}: ${getErrorMessage(err)}`
-          )
-        );
-      }
-      if (isStaleTurnInFlightWhileWaiting(row, slot)) {
-        if (deps.process.reconcileNativeTurnPhaseIdle) {
-          await runPort(deps.process.reconcileNativeTurnPhaseIdle(row.chatroomId, roleName)).catch(
-            (err: unknown) =>
-              console.warn(
-                `[NativeTaskDelivery] stale turn repair failed for ${roleName}@${row.chatroomId}: ${getErrorMessage(err)}`
-              )
-          );
-        }
-        logNativeDeliveryFallback('stale-turn-phase', roleName, row.chatroomId, row.taskId);
-        slot = deps.process.getSlot(row.chatroomId, roleName) ?? undefined;
-      }
+      const slot = deps.process.getSlot(row.chatroomId, roleName);
       const operational = deps.agentOperationalReadModel.get(row.chatroomId, roleName);
       const blockReason = explainNativeDeliveryBlock(row, { slot, operational });
       if (blockReason) {
@@ -453,17 +423,6 @@ export function createTaskOrchestrationCoordinator(
           const delivered = deliveryResult.args;
           if (delivered) {
             ledger.markDelivered(delivered.taskId, delivered.harnessSessionId);
-            await runPort(
-              deps.process.setLastInFlightTask(
-                delivered.chatroomId,
-                delivered.role,
-                delivered.taskId
-              )
-            ).catch((err: unknown) =>
-              console.warn(
-                `[NativeTaskDelivery] set last-in-flight failed for ${delivered?.role}@${delivered?.chatroomId}: ${getErrorMessage(err)}`
-              )
-            );
             deliveryState.clearNativeNudgeFailures(delivered.chatroomId, delivered.role);
           }
         }

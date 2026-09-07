@@ -9,7 +9,6 @@ import {
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import { getNativeDeliverySession } from './native-delivery-session-registry.js';
-import { isStaleTurnInFlightWhileWaiting } from './native-stale-turn-phase.js';
 import {
   explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
@@ -107,17 +106,7 @@ export class NativeTaskDeliveryCoordinator {
 
     for (const row of pendingFirst) {
       const { role } = row.agentConfig;
-      let slot = agentMgr.getSlot(row.chatroomId, role);
-      if (row.status === 'pending' && slot?.lastInFlightTaskId === row.taskId) {
-        Effect.runSync(agentMgr.clearLastInFlightTaskIfMatches(row.chatroomId, role, row.taskId));
-      }
-      if (isStaleTurnInFlightWhileWaiting(row, slot)) {
-        if (agentMgr.reconcileNativeTurnPhaseIdle) {
-          Effect.runSync(agentMgr.reconcileNativeTurnPhaseIdle(row.chatroomId, role));
-        }
-        logNativeDeliveryFallback('stale-turn-phase', role, row.chatroomId, row.taskId);
-        slot = agentMgr.getSlot(row.chatroomId, role) ?? undefined;
-      }
+      const slot = agentMgr.getSlot(row.chatroomId, role);
       const blockReason = explainNativeDeliveryBlock(row, {
         slot,
       });
@@ -203,7 +192,6 @@ export class NativeTaskDeliveryCoordinator {
             }) => {
               deliveredToHarness = true;
               ledger.markDelivered(deliveredTaskId, resolvedSessionId);
-              Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, deliveredTaskId));
               deliveryState.clearNativeNudgeFailures(chatroomId, role);
             },
           });

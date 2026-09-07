@@ -49,7 +49,6 @@ function createMockDeps(overrides?: {
           : { harnessSessionId: 'test-harness-session' }
       ),
     resumeTurnForSlot: vi.fn(),
-    setLastInFlightTask: vi.fn(),
   } as any;
 
   return {

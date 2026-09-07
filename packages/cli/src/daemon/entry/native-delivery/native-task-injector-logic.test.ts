@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
 import {
   buildNativeInjectionPrompt,
-  explainInFlightDeliveryBlock,
   explainNativeDeliveryBlock,
   isNativeHarness,
   shouldDeliverNativeTask,
@@ -78,28 +77,7 @@ describe('isNativeHarness', () => {
 });
 
 describe('shouldDeliverNativeTask', () => {
-  test('blocks acknowledged task already delivered to this slot', () => {
-    expect(
-      explainInFlightDeliveryBlock(makeTask({ status: 'acknowledged' }), {
-        ...runningSlot,
-        lastInFlightTaskId: 'task_1',
-      })
-    ).toContain('already_delivered_to_slot');
-    expect(
-      shouldDeliverNativeTask(makeTask({ status: 'acknowledged' }), {
-        slot: { ...runningSlot, lastInFlightTaskId: 'task_1' },
-      })
-    ).toBe(false);
-  });
-
-  test('allows pending task reclaim when last in-flight task matches', () => {
-    expect(
-      shouldDeliverNativeTask(makeTask({ status: 'pending' }), {
-        slot: { ...runningSlot, lastInFlightTaskId: 'task_1' },
-      })
-    ).toBe(true);
-  });
-  test('delivers when native + pending + ready invariant satisfied', () => {
+ test('delivers when native + pending + ready invariant satisfied', () => {
     expect(
       shouldDeliverNativeTask(makeTask(), {
         slot: runningSlot,

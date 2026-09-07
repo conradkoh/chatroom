@@ -86,9 +86,6 @@ function createStatefulAgentMgr() {
       resumeCalls.push(args);
       return Effect.void;
     }),
-    setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-    clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
-    reconcileNativeTurnPhaseIdle: vi.fn().mockReturnValue(Effect.void),
   } as never;
 }
 

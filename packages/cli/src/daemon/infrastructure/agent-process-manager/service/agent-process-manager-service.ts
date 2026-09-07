@@ -70,9 +70,6 @@ export interface AgentProcessManagerExecutionPort {
   ): Promise<boolean>;
   whenTurnEndsIdle(): Promise<void>;
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
-  setLastInFlightTask(chatroomId: string, role: string, taskId: string): void;
-  clearLastInFlightTaskIfMatches(chatroomId: string, role: string, taskId: string): void;
-  reconcileNativeTurnPhaseIdle(chatroomId: string, role: string): void;
 }
 
 export interface AgentProcessManagerService {
@@ -121,9 +118,6 @@ export interface AgentProcessManagerService {
   ): Promise<boolean>;
   whenTurnEndsIdle(): Promise<void>;
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
-  setLastInFlightTask(chatroomId: string, role: string, taskId: string): void;
-  clearLastInFlightTaskIfMatches(chatroomId: string, role: string, taskId: string): void;
-  reconcileNativeTurnPhaseIdle(chatroomId: string, role: string): void;
 }
 
 export interface AgentProcessManagerResetResult {
@@ -393,11 +387,5 @@ export function createAgentProcessManagerService(
       deps.execution.clearStuckStoppingSlot(chatroomId, role, options),
     whenTurnEndsIdle: () => deps.execution.whenTurnEndsIdle(),
     resumeTurnForSlot: (input) => deps.execution.resumeTurnForSlot(input),
-    setLastInFlightTask: (chatroomId, role, taskId) =>
-      deps.execution.setLastInFlightTask(chatroomId, role, taskId),
-    clearLastInFlightTaskIfMatches: (chatroomId, role, taskId) =>
-      deps.execution.clearLastInFlightTaskIfMatches(chatroomId, role, taskId),
-    reconcileNativeTurnPhaseIdle: (chatroomId, role) =>
-      deps.execution.reconcileNativeTurnPhaseIdle(chatroomId, role),
   };
 }

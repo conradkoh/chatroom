@@ -158,7 +158,6 @@ export interface AgentSlot {
   providerUnavailableEmitted?: boolean | undefined;
   lastOutputAt?: number | undefined;
   /** Task last delivered to this native harness slot — sent on agent_end. */
-  lastInFlightTaskId?: string | undefined;
   /** Native harness turn lifecycle — delivery control plane (not UI participant state). */
   nativeTurnPhase?: NativeTurnPhase | undefined;
   /** When the slot entered stopping — used to detect hung stop. */
@@ -654,7 +653,7 @@ export class AgentProcessManager {
     );
 
     if (capabilities.supportsNativeIntegration) {
-      await this.runHandleNativeTurnEnd(opts, slot);
+      this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
       return;
     }
 
@@ -696,25 +695,6 @@ export class AgentProcessManager {
         `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
       );
     }
-  }
-
-  // fallow-ignore-next-line complexity
-  private async runHandleNativeTurnEnd(
-    opts: {
-      chatroomId: string;
-      role: string;
-      pid: number;
-      harness: AgentHarness;
-    },
-    slot: AgentSlot | undefined
-  ): Promise<void> {
-    this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
-    // Native turn-end handoff resolution is intentionally disabled while the
-    // split inbox/backend reminder flow is being replaced by one coordinator-owned
-    // decision path. Keep the slot in its current turn-in-flight state so the
-    // delivery coordinator cannot make a second task decision during the gap.
-    void opts;
-    void slot;
   }
 
   async handleExit(opts: HandleExitOpts): Promise<void> {
@@ -901,26 +881,6 @@ export class AgentProcessManager {
 
   getSlot(chatroomId: string, role: string): AgentSlot | undefined {
     return this.getSlotFromMirror(chatroomId, role);
-  }
-
-  setLastInFlightTask(chatroomId: string, role: string, taskId: string): void {
-    const slot = this.getOrCreateSlot(agentKey(chatroomId, role));
-    slot.lastInFlightTaskId = taskId;
-  }
-
-  clearLastInFlightTaskIfMatches(chatroomId: string, role: string, taskId: string): void {
-    const slot = this.slots.get(agentKey(chatroomId, role));
-    if (slot?.lastInFlightTaskId === taskId) slot.lastInFlightTaskId = undefined;
-  }
-
-  reconcileNativeTurnPhaseIdle(chatroomId: string, role: string): void {
-    const slot = this.getSlot(chatroomId, role);
-    if (slot) setNativeTurnPhase(slot, defaultNativeTurnPhase());
-  }
-
-  clearLastInFlightTask(chatroomId: string, role: string): void {
-    const slot = this.slots.get(agentKey(chatroomId, role));
-    if (slot) slot.lastInFlightTaskId = undefined;
   }
 
   listActive(): { chatroomId: string; role: string; slot: AgentSlot }[] {
