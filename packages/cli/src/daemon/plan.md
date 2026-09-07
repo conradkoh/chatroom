@@ -99,7 +99,10 @@ introduced.
       policy.
 - [x] Add focused tests for state transitions, duplicate events, stale
       generations, and missing active tasks.
-- [ ] Add integration tests for handoff/turn-end races and reminder failures.
+- [x] Add integration coverage for the constructed native delivery service:
+      manager turn-end events consult daemon task state, reminder failures
+      preserve reminder-attempt state, and successful handoff state remains the
+      decision boundary.
 - [x] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
 
