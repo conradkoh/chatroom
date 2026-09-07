@@ -4,7 +4,6 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { handleLegacyTaskInboxUpdate as handleTaskInboxUpdate } from './legacy-task-inbox-delivery.js';
 import { unregisterNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
-import { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
 import {
   operationalRow,
   registerTestNativeDeliverySession,
@@ -99,7 +98,6 @@ describe('Phase E — pending task after agent restart', () => {
       {
         runtime: Runtime.defaultRuntime as never,
         effectContext: Context.empty() as never,
-        cooldown: new RecoveryCooldown(0),
         agentMgr,
         sessionDeps,
         machineId: MACHINE_ID,
@@ -120,7 +118,6 @@ describe('Phase E — pending task after agent restart', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr: agentMgrStopped,
       sessionDeps,
       machineId: MACHINE_ID,

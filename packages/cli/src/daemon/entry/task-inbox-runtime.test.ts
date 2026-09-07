@@ -243,12 +243,11 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     const nativeDelivery = makeNativeDelivery();
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      cooldown: {} as never,
       nativeDelivery: nativeDelivery as never,
     });
     expect(mutation).toHaveBeenCalledTimes(2);
     expect(nativeDelivery.processSnapshots).toHaveBeenCalledOnce();
-    expect(nativeDelivery.processSnapshots.mock.calls[0]?.[1]).toBe('bootstrap');
+    expect(nativeDelivery.processSnapshots.mock.calls[0]?.[0]).toBe('bootstrap');
   });
 
   it('syncs and does not deliver when no snapshots exist', async () => {
@@ -256,7 +255,6 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     const query = vi.fn().mockResolvedValue({ tasks: [] });
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      cooldown: undefined as never,
       nativeDelivery: makeNativeDelivery() as never,
     });
     expect(mutation).toHaveBeenCalledTimes(2);
@@ -298,7 +296,6 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     });
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      cooldown: {} as never,
       nativeDelivery: nativeDelivery as never,
       onDiscoveredChatrooms,
     });
@@ -767,14 +764,14 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     } as never);
 
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(processTasksUpdate.mock.calls.some((call) => call[7] === 'periodic-reconcile')).toBe(
+    expect(processTasksUpdate.mock.calls.some((call) => call[6] === 'periodic-reconcile')).toBe(
       false
     );
 
     release?.();
     await Promise.all([first, second]);
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(processTasksUpdate.mock.calls.some((call) => call[7] === 'periodic-reconcile')).toBe(
+    expect(processTasksUpdate.mock.calls.some((call) => call[6] === 'periodic-reconcile')).toBe(
       true
     );
 

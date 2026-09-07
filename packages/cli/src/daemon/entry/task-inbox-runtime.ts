@@ -17,7 +17,6 @@ import {
   unregisterNativeDeliverySession,
 } from './native-delivery/native-delivery-session-registry.js';
 import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
-import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
 import {
   registerTaskInboxRoomMembershipRefresh,
   unregisterTaskInboxRoomMembershipRefresh,
@@ -50,7 +49,6 @@ const NATIVE_HANDOFF_REMINDER =
 
 type TaskInboxDependencies = {
   sessionDeps: NativeTaskDeliverySessionDeps;
-  cooldown: RecoveryCooldown;
   nativeDelivery: NativeDeliveryService;
   /** Invoked with the assigned-task chatroom IDs after task state replace and before first delivery. */
   onDiscoveredChatrooms?: (chatroomIds: string[]) => Promise<void>;
@@ -78,7 +76,7 @@ export async function bootstrapMachineAssignedTaskSnapshots(
     await deps.onDiscoveredChatrooms?.(chatroomIds);
   }
   if (!tasks.length) return;
-  await deps.nativeDelivery.processSnapshots(deps.cooldown, 'bootstrap', tasks);
+  await deps.nativeDelivery.processSnapshots('bootstrap', tasks);
 }
 
 function isAbortError(error: unknown): boolean {
@@ -219,7 +217,6 @@ export const startTaskInboxEffect = (
       nativeDelivery,
       lifecycleOutbox,
     });
-    const cooldown = new RecoveryCooldown();
     let inboxUpdatesInFlight = 0;
     let reconcileInFlight = false;
     const bootstrapSucceeded = yield* Effect.tryPromise(async () => {
@@ -243,7 +240,7 @@ export const startTaskInboxEffect = (
           taskSnapshotState.listForRole(roomId, role)
         );
         if (snapshots.length > 0) {
-          await nativeDelivery.processSnapshots(cooldown, 'operational-status', snapshots);
+          await nativeDelivery.processSnapshots('operational-status', snapshots);
         }
         inboxStore.save(
           {
@@ -385,7 +382,6 @@ export const startTaskInboxEffect = (
           inboxUpdatesInFlight += 1;
           try {
             await handleTaskInboxUpdate(update, {
-              cooldown,
               nativeDelivery,
             });
             inboxStore.save(taskRoomKey, { afterSignalKey: update.throughSignalKey });
@@ -455,7 +451,6 @@ export const startTaskInboxEffect = (
     yield* Effect.tryPromise(() =>
       bootstrapMachineAssignedTaskSnapshots({
         sessionDeps,
-        cooldown,
         nativeDelivery,
         onDiscoveredChatrooms: async (chatroomIds) => {
           await Promise.all(chatroomIds.map((chatroomId) => ensureRoomInboxes(chatroomId)));
@@ -473,7 +468,7 @@ export const startTaskInboxEffect = (
       if (stopped || inboxUpdatesInFlight > 0 || reconcileInFlight) return;
       reconcileInFlight = true;
       void nativeDelivery
-        .processSnapshots(cooldown, 'periodic-reconcile', taskSnapshotState.listAll())
+        .processSnapshots('periodic-reconcile', taskSnapshotState.listAll())
         .catch((error) => {
           console.warn('[TaskInbox] local delivery reconciliation failed:', error);
         })

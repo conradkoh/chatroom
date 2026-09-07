@@ -40,8 +40,7 @@ describe('NativeDeliveryService', () => {
           },
         ],
         snapshots: [],
-      } as never,
-      {} as never
+      } as never
     );
 
     expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toMatchObject({

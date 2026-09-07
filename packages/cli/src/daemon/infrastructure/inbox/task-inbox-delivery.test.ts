@@ -43,7 +43,6 @@ describe('task inbox delivery', () => {
       {
         runtime: {},
         effectContext: {},
-        cooldown: {},
         agentMgr: {},
         runSerializedForAgent: vi.fn(),
         sessionDeps: {},
@@ -52,7 +51,6 @@ describe('task inbox delivery', () => {
       } as never
     );
     expect(processTasksUpdate).toHaveBeenCalledWith(
-      expect.anything(),
       expect.anything(),
       expect.anything(),
       expect.anything(),

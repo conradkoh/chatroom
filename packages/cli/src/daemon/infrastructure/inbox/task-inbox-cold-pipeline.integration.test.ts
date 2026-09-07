@@ -17,7 +17,6 @@ import {
   resetNativeDeliveryLedgerForTests,
 } from '../../entry/native-delivery/native-delivery-ledger.js';
 import { unregisterNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
-import { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
 import {
   operationalRow,
   registerTestNativeDeliverySession,
@@ -129,7 +128,6 @@ describe('cold-session real pipeline', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -222,7 +220,6 @@ describe('cold-session real pipeline', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',

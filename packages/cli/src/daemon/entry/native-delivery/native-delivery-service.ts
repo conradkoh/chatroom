@@ -10,7 +10,6 @@ import type { AgentProcessManagerService } from '../../infrastructure/agent-proc
 import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import type { RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
 
 export type NativeDeliveryPass =
   'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
@@ -44,7 +43,7 @@ export class NativeDeliveryService {
     return this.deps.agentTaskState;
   }
 
-  async handleTaskInboxUpdate(update: TaskInboxUpdate, cooldown: RecoveryCooldown): Promise<void> {
+  async handleTaskInboxUpdate(update: TaskInboxUpdate): Promise<void> {
     for (const signal of update.signals) {
       if (signal.taskStatus === 'completed') {
         this.recordTaskHandedOff({
@@ -56,11 +55,10 @@ export class NativeDeliveryService {
     }
 
     this.deps.taskSnapshotState.applySignalPage(update.signals, update.snapshots);
-    await this.processSnapshots(cooldown, 'inbox-signal', update.snapshots);
+    await this.processSnapshots('inbox-signal', update.snapshots);
   }
 
   async processSnapshots(
-    cooldown: RecoveryCooldown,
     pass: NativeDeliveryPass,
     snapshots: readonly AssignedTaskSnapshotView[]
   ): Promise<void> {
@@ -68,7 +66,6 @@ export class NativeDeliveryService {
     await processTasksUpdate(
       this.deps.runtime,
       this.deps.effectContext,
-      cooldown,
       this.deps.agentMgr,
       this.deps.runSerializedForAgent,
       this.deps.sessionDeps,

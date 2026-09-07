@@ -28,7 +28,7 @@
   - [x] Verify same-key ordering for service operations and competing queued commands.
   - [x] Add focused tests for the migrated flow and timeout/cancellation behavior.
   - [x] Remove compatibility fallbacks and verify competing legacy-path behavior.
-  - [x] Migrate native pending-task wake and revive start operations through serialized coordination.
+  - [ ] Migrate native pending-task activation to explicit `startAgent` calls through serialized coordination.
   - [x] Migrate `agent.requestStart` through the queue-backed process manager service.
   - [x] Migrate restart stop/start orchestration through one serialized agent operation.
   - [x] Coordinate role-scoped stop target execution through the process manager service.
@@ -68,7 +68,7 @@
 - [x] Phase 1 — Remove automatic recovery from `AgentProcessManager` and the lifecycle runtime.
   - [x] Remove automatic process-exit restart, session-reopen retry, resume-storm recovery, crash-loop gating, and recovery backoff.
   - [x] Retain explicit start, stop, restart, normal process-exit bookkeeping, and process cleanup.
-  - [ ] Remove the manager's remaining recovery-only state, dependencies, adapters, and tests in the later native/session cleanup phase.
+  - [ ] Remove the manager's remaining session-retention state, dependencies, adapters, and tests in the native/session cleanup phase.
 - [x] Phase 2 — Remove the explicit `recover` command from the queue-backed service.
   - [x] Remove the command entity, dispatcher branch, service API, execution-port method, and service tests.
   - [x] Keep explicit lifecycle commands as the only queue-managed operations.
@@ -78,11 +78,11 @@
 - [x] Phase 4 — Remove recovery-specific task delivery and orchestration.
   - [x] Remove wake/revive recovery triggers, recovery suppression from reconciliation, and recovery assertions from orchestration tests.
   - [x] Retain normal pending-task delivery when explicitly requested.
-  - [ ] Delete the now-orphaned wake/revive helper implementations and cooldown artifacts in Phase 6.
+  - [x] Delete the orphaned wake/revive helper implementations, cooldown state, and cooldown tests.
 - [x] Phase 5 — Remove native harness/session recovery.
   - [x] Remove session-exit recovery, session reinjection, proactive recovery triggers, and recovery-only native delivery paths.
   - [x] Retain explicit task injection and lifecycle operations.
-  - [ ] Delete orphaned daemon-memory session helpers and their legacy tests in Phase 6.
+  - [ ] Delete daemon-memory session retention/resume helpers and their legacy tests.
 - [x] Phase 6 — Remove orphaned recovery artifacts.
   - [x] Remove recovery-only session policies, restart decisions, session-reopen constants, monitors, and tests after production callers are gone.
   - [x] Update comments, READMEs, discovery documentation, and plan status.

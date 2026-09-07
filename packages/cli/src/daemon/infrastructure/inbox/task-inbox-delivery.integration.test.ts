@@ -5,7 +5,6 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { handleLegacyTaskInboxUpdate as handleTaskInboxUpdate } from './legacy-task-inbox-delivery.js';
 import { unregisterNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
-import { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
 import {
   operationalRow,
   registerTestNativeDeliverySession,
@@ -94,7 +93,6 @@ describe('task inbox delivery integration', () => {
       {
         runtime: Runtime.defaultRuntime as never,
         effectContext: Context.empty() as never,
-        cooldown: new RecoveryCooldown(60_000),
         agentMgr,
         sessionDeps,
         machineId: 'machine-1',
@@ -125,7 +123,6 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(60_000),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -183,7 +180,6 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -222,7 +218,6 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -278,7 +273,6 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -332,7 +326,6 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -390,7 +383,6 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -457,7 +449,6 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -525,7 +516,6 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',

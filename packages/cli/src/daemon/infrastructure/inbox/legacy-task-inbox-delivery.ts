@@ -8,7 +8,6 @@ import {
   type TaskDeliveryContext,
   type TaskDeliveryRuntime,
 } from '../../entry/native-delivery/task-delivery-processor.js';
-import type { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
 import { enrichSnapshotsWithOperational } from '../agent-operational/enrich-snapshot-with-operational.js';
 import type { AgentProcessManagerService } from '../agent-process-manager/service/index.js';
 
@@ -16,7 +15,6 @@ import type { AgentProcessManagerService } from '../agent-process-manager/servic
 export type LegacyTaskInboxDeliveryDeps = {
   runtime: TaskDeliveryRuntime;
   effectContext: TaskDeliveryContext;
-  cooldown: RecoveryCooldown;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   runSerializedForAgent?: AgentProcessManagerService['runSerializedForAgent'];
   sessionDeps: NativeTaskDeliverySessionDeps;
@@ -39,7 +37,6 @@ export async function handleLegacyTaskInboxUpdate(
   await processTasksUpdate(
     deps.runtime,
     deps.effectContext,
-    deps.cooldown,
     deps.agentMgr,
     runSerializedForAgent,
     deps.sessionDeps,
