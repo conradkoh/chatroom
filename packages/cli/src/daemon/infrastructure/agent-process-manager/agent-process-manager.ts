@@ -29,7 +29,6 @@ import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
 import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js';
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
-import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
@@ -246,7 +245,6 @@ export class AgentProcessManager {
   /** Active retry interval timer handle, or null if queue is empty. */
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
   private agentEndEventSequence = 0;
-  private readonly turnEndQueue = new TurnEndQueue();
   /** Shared per-agent serialization boundary for public and internal operations. */
   private readonly serializedOperationTails = new Map<string, Promise<void>>();
   /** Effect-native lifecycle service runtime (Phase 3). */
@@ -313,7 +311,11 @@ export class AgentProcessManager {
   }
 
   whenTurnEndsIdle(): Promise<void> {
-    return this.turnEndQueue.whenIdle();
+    return (async () => {
+      while (this.serializedOperationTails.size > 0) {
+        await Promise.all([...this.serializedOperationTails.values()]);
+      }
+    })();
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -704,11 +706,9 @@ export class AgentProcessManager {
             // Process may already be dead
           }
         },
-        stopAgent: (args) =>
-          this.runSerializedForAgent(
-            { chatroomId: args.chatroomId, role: args.role },
-            () => this.stop(args)
-          ),
+        // runHandleAgentEnd already executes inside the per-agent serialized
+        // section. Re-entering that section here would wait on itself.
+        stopAgent: (args) => this.stop(args),
       },
       {
         chatroomId: opts.chatroomId,
@@ -1472,14 +1472,20 @@ export class AgentProcessManager {
 
     if (spawnResult.onAgentEnd) {
       spawnResult.onAgentEnd(() => {
-        this.turnEndQueue.enqueue(() =>
-          this.runHandleAgentEnd({
-            chatroomId: opts.chatroomId,
-            role: opts.role,
-            pid,
-            harness: opts.agentHarness,
-          })
-        );
+        void this.runSerializedForAgent(
+          { chatroomId: opts.chatroomId, role: opts.role },
+          () =>
+            this.runHandleAgentEnd({
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              pid,
+              harness: opts.agentHarness,
+            })
+        ).catch((error: unknown) => {
+          console.warn(
+            `[AgentProcessManager] turn-end handling failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        });
       });
     }
 
