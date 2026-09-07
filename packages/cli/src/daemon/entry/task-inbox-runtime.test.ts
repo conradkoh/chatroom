@@ -246,7 +246,7 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     });
     expect(mutation).toHaveBeenCalledTimes(2);
     expect(processTasksUpdate).toHaveBeenCalledOnce();
-    expect(processTasksUpdate.mock.calls[0]?.[6]).toBe('bootstrap');
+    expect(processTasksUpdate.mock.calls[0]?.[7]).toBe('bootstrap');
   });
 
   it('syncs and does not deliver when no snapshots exist', async () => {
@@ -772,14 +772,14 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     } as never);
 
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(processTasksUpdate.mock.calls.some((call) => call[6] === 'periodic-reconcile')).toBe(
+    expect(processTasksUpdate.mock.calls.some((call) => call[7] === 'periodic-reconcile')).toBe(
       false
     );
 
     release?.();
     await Promise.all([first, second]);
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(processTasksUpdate.mock.calls.some((call) => call[6] === 'periodic-reconcile')).toBe(
+    expect(processTasksUpdate.mock.calls.some((call) => call[7] === 'periodic-reconcile')).toBe(
       true
     );
 

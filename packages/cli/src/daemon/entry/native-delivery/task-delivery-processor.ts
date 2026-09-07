@@ -58,6 +58,7 @@ export type ProcessTasksUpdateOptions = {
 };
 
 type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
+const NATIVE_START_OPERATION_TIMEOUT_MS = 30_000;
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
@@ -98,7 +99,7 @@ function runNativeReviveEffect(
   task: AssignedTaskWithContent,
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent']
 ): void {
   const ctx = resolveTaskRunnerContextFromFull(task);
   if (!ctx) return;
@@ -110,24 +111,35 @@ function runNativeReviveEffect(
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
-      const result = yield* agentMgr.ensureRunning({
-        chatroomId,
-        role,
-        agentHarness: agentConfig.agentHarness as AgentHarness,
-        model: agentConfig.model,
-        workingDir,
-        reason: AgentStartReasonEnum['platform.task_monitor_nudge'],
-        wantResume,
-        lifecycleRevision: task.agentConfig.configLifecycleRevision,
-        taskId: task.taskId,
-      });
-      if (!result.success) {
-        yield* Effect.sync(() =>
-          console.warn(
-            `[TaskMonitor] native revive rejected for ${role}@${chatroomId}: ${result.error ?? 'unknown error'}`
+      yield* Effect.tryPromise(() =>
+        runSerializedForAgent(
+          { chatroomId, role },
+          { timeoutMs: NATIVE_START_OPERATION_TIMEOUT_MS },
+          (ops, context) =>
+            ops.startAgent(
+              {
+                chatroomId,
+                role,
+                agentHarness: agentConfig.agentHarness as AgentHarness,
+                model: agentConfig.model,
+                workingDir,
+                reason: AgentStartReasonEnum['platform.task_monitor_nudge'],
+                wantResume,
+                lifecycleRevision: task.agentConfig.configLifecycleRevision,
+                taskId: task.taskId,
+              },
+              context.signal
+            )
+        )
+      ).pipe(
+        Effect.catchAll((error) =>
+          Effect.sync(() =>
+            console.warn(
+              `[TaskMonitor] native revive rejected for ${role}@${chatroomId}: ${getErrorMessage(error)}`
+            )
           )
-        );
-      }
+        )
+      );
     }).pipe(
       Effect.provide(effectContext),
       Effect.catchAll((err) =>
@@ -145,7 +157,7 @@ function runNativeWakeEffect(
   task: AssignedTaskWithContent,
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent']
 ): void {
   const ctx = resolveTaskRunnerContextFromFull(task);
   if (!ctx) return;
@@ -155,24 +167,35 @@ function runNativeWakeEffect(
   );
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
-      const result = yield* agentMgr.ensureRunning({
-        chatroomId,
-        role,
-        agentHarness: agentConfig.agentHarness as AgentHarness,
-        model: agentConfig.model,
-        workingDir,
-        reason: AgentStartReasonEnum['platform.pending_task_wake'],
-        wantResume,
-        lifecycleRevision: task.agentConfig.configLifecycleRevision,
-        taskId: task.taskId,
-      });
-      if (!result.success) {
-        yield* Effect.sync(() =>
-          console.warn(
-            `[TaskMonitor] native wake rejected for ${role}@${chatroomId}: ${result.error ?? 'unknown error'}`
+      yield* Effect.tryPromise(() =>
+        runSerializedForAgent(
+          { chatroomId, role },
+          { timeoutMs: NATIVE_START_OPERATION_TIMEOUT_MS },
+          (ops, context) =>
+            ops.startAgent(
+              {
+                chatroomId,
+                role,
+                agentHarness: agentConfig.agentHarness as AgentHarness,
+                model: agentConfig.model,
+                workingDir,
+                reason: AgentStartReasonEnum['platform.pending_task_wake'],
+                wantResume,
+                lifecycleRevision: task.agentConfig.configLifecycleRevision,
+                taskId: task.taskId,
+              },
+              context.signal
+            )
+        )
+      ).pipe(
+        Effect.catchAll((error) =>
+          Effect.sync(() =>
+            console.warn(
+              `[TaskMonitor] native wake rejected for ${role}@${chatroomId}: ${getErrorMessage(error)}`
+            )
           )
-        );
-      }
+        )
+      );
     }).pipe(
       Effect.provide(effectContext),
       Effect.catchAll((err) =>
@@ -252,7 +275,7 @@ async function reviveNativeTasks(
   cooldown: RecoveryCooldown,
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
 ): Promise<void> {
@@ -260,7 +283,7 @@ async function reviveNativeTasks(
     if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
-    runNativeReviveEffect(full, runtime, effectContext, agentMgr);
+    runNativeReviveEffect(full, runtime, effectContext, runSerializedForAgent);
   }
 }
 
@@ -270,7 +293,7 @@ async function wakeStoppedAgentsForPendingTasks(
   cooldown: RecoveryCooldown,
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
 ): Promise<void> {
@@ -278,7 +301,7 @@ async function wakeStoppedAgentsForPendingTasks(
     if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
-    runNativeWakeEffect(full, runtime, effectContext, agentMgr);
+    runNativeWakeEffect(full, runtime, effectContext, runSerializedForAgent);
   }
 }
 
@@ -311,7 +334,7 @@ export async function processTasksUpdate(
     cooldown,
     runtime,
     effectContext,
-    agentMgr,
+    runSerializedForAgent,
     sessionDeps,
     machineId
   );
@@ -323,7 +346,7 @@ export async function processTasksUpdate(
     cooldown,
     runtime,
     effectContext,
-    agentMgr,
+    runSerializedForAgent,
     sessionDeps,
     machineId
   );

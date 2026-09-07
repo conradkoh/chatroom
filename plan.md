@@ -23,6 +23,7 @@
   - [x] Verify same-key ordering for service operations and competing queued commands.
   - [x] Add focused tests for the migrated flow and timeout/cancellation behavior.
   - [x] Remove compatibility fallbacks and verify competing legacy-path behavior.
+  - [x] Migrate native pending-task wake and revive start operations through serialized coordination.
   - [ ] Migrate additional start, stop, restart, recovery, and shutdown callers.
   - [ ] Remove legacy direct lifecycle calls after each path is covered.
 
