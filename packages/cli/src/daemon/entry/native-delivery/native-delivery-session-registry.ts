@@ -1,5 +1,6 @@
 import type { Runtime, Context } from 'effect';
 
+import type { NativeDeliveryService } from './native-delivery-service.js';
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
@@ -35,6 +36,7 @@ export type NativeDeliverySessionRegistration = {
   agentOperationalReadModel?: AgentOperationalReadModel | undefined;
   /** Daemon-owned live task state used by native turn-end handling. */
   agentTaskState?: AgentTaskStateService | undefined;
+  nativeDelivery?: NativeDeliveryService | undefined;
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
 };
 
@@ -45,6 +47,7 @@ export type NativeDeliverySessionContext = Omit<
   taskSnapshotState: MachineTaskSnapshotState;
   agentOperationalReadModel: AgentOperationalReadModel;
   agentTaskState?: AgentTaskStateService | undefined;
+  nativeDelivery?: NativeDeliveryService | undefined;
 };
 
 let registered: NativeDeliverySessionContext | null = null;

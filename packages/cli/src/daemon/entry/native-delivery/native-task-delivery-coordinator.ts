@@ -87,6 +87,14 @@ export class NativeTaskDeliveryCoordinator {
     ) => Promise<T>;
     sessionDeps: NativeTaskDeliverySessionDeps;
     machineId: string;
+    onTaskDelivered?:
+      | ((args: {
+          chatroomId: string;
+          role: string;
+          taskId: string;
+          harnessSessionId: string;
+        }) => void)
+      | undefined;
   }): void {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
@@ -95,7 +103,7 @@ export class NativeTaskDeliveryCoordinator {
     if (!serializedOperation) {
       throw new Error('Native delivery requires AgentProcessManagerService coordination');
     }
-    const { runtime, effectContext, agentMgr, sessionDeps, machineId } = params;
+    const { runtime, effectContext, agentMgr, sessionDeps, machineId, onTaskDelivered } = params;
     const deliveryState = getRoleDeliveryState();
     const ledger = getNativeDeliveryLedger();
 
@@ -193,11 +201,20 @@ export class NativeTaskDeliveryCoordinator {
             }) => {
               deliveredToHarness = true;
               ledger.markDelivered(deliveredTaskId, resolvedSessionId);
-              recordNativeTaskDelivered({
-                chatroomId,
-                role,
-                taskId: deliveredTaskId,
-              });
+              if (onTaskDelivered) {
+                onTaskDelivered({
+                  chatroomId,
+                  role,
+                  taskId: deliveredTaskId,
+                  harnessSessionId: resolvedSessionId,
+                });
+              } else {
+                recordNativeTaskDelivered({
+                  chatroomId,
+                  role,
+                  taskId: deliveredTaskId,
+                });
+              }
               deliveryState.clearNativeNudgeFailures(chatroomId, role);
             },
           });

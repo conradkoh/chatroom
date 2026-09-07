@@ -1,6 +1,7 @@
 import type { MachineTaskSnapshotState } from './task-snapshot-state.js';
 import type { TaskInboxUpdate } from './task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../entry/daemon-services.js';
+import type { NativeDeliveryService } from '../../entry/native-delivery/native-delivery-service.js';
 import {
   getNativeDeliverySession,
   recordNativeTaskHandedOff,
@@ -24,12 +25,17 @@ export type TaskInboxDeliveryDeps = {
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
   taskSnapshotState?: MachineTaskSnapshotState | undefined;
+  nativeDelivery?: NativeDeliveryService | undefined;
 };
 
 export async function handleTaskInboxUpdate(
   update: TaskInboxUpdate,
   deps: TaskInboxDeliveryDeps
 ): Promise<void> {
+  if (deps.nativeDelivery) {
+    await deps.nativeDelivery.handleTaskInboxUpdate(update, deps.cooldown);
+    return;
+  }
   const taskSnapshotState = deps.taskSnapshotState ?? getNativeDeliverySession()?.taskSnapshotState;
   for (const signal of update.signals) {
     if (signal.taskStatus === 'completed') {

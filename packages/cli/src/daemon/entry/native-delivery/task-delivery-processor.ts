@@ -10,28 +10,21 @@
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
-import { Effect, Runtime, type Context } from 'effect';
+import type { Runtime, type Context } from 'effect';
 
-import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
-import type {
-  AssignedTaskSnapshotView,
-  AssignedTaskWithContent,
-} from '../../domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
+import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
   DaemonAgentProcessManagerServiceShape,
 } from '../daemon-services.js';
-import {
-  filterSnapshotsExcludingRestartInFlight,
-  isRestartOrchestratorInFlight,
-} from '../restart-orchestrator-in-flight.js';
+import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 import type { RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
@@ -42,10 +35,15 @@ export type TaskDeliveryContext = Context.Context<
 >;
 export type ProcessTasksUpdateOptions = {
   snapshots: readonly AssignedTaskSnapshotView[];
+  onTaskDelivered?: (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+    harnessSessionId: string;
+  }) => void;
 };
 
 type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
-const NATIVE_START_OPERATION_TIMEOUT_MS = 30_000;
 
 /* Recovery wake/revive helpers removed; retained below temporarily for the cleanup phase. */
 /*
@@ -283,5 +281,6 @@ export async function processTasksUpdate(
     runSerializedForAgent,
     sessionDeps,
     machineId,
+    onTaskDelivered: options.onTaskDelivered,
   });
 }

@@ -12,6 +12,7 @@ import {
 import { AgentLifecycleOutboxService } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { api } from '../../api.js';
+import { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
 import {
   registerNativeDeliverySession,
   unregisterNativeDeliverySession,
@@ -211,6 +212,16 @@ export const startTaskInboxEffect = (
         },
       },
     });
+    const nativeDelivery = new NativeDeliveryService({
+      runtime,
+      effectContext,
+      agentMgr,
+      runSerializedForAgent: commandService.runSerializedForAgent,
+      sessionDeps,
+      machineId: session.machineId,
+      taskSnapshotState,
+      agentTaskState,
+    });
     const knownRoomIds = new Set<string>();
     const roomWatchers = new Map<
       string,
@@ -226,6 +237,7 @@ export const startTaskInboxEffect = (
       taskSnapshotState,
       agentOperationalReadModel,
       agentTaskState,
+      nativeDelivery,
       lifecycleOutbox,
     });
     const cooldown = new RecoveryCooldown();
@@ -412,6 +424,7 @@ export const startTaskInboxEffect = (
               sessionDeps,
               machineId: session.machineId,
               taskSnapshotState,
+              nativeDelivery,
             });
             inboxStore.save(taskRoomKey, { afterSignalKey: update.throughSignalKey });
           } finally {

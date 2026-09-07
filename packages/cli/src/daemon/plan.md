@@ -98,11 +98,15 @@ introduced.
 
 ### Native delivery service boundary
 
-- [ ] Introduce a constructed, daemon-scoped `NativeDeliveryService` to own
-      native task snapshots, operational state, task state, serialized process
-      operations, lifecycle output, and delivery coordination.
-- [ ] Construct the service during daemon/task-inbox initialization and pass
-      it explicitly to delivery handlers and coordinators.
+- [x] Introduce a constructed, daemon-scoped `NativeDeliveryService` owning
+      native task snapshots, task state, serialized process operations, and
+      delivery coordination for the production inbox path.
+- [x] Construct the service during daemon/task-inbox initialization and pass
+      it explicitly to the production inbox handler and task delivery processor.
+- [x] Route production task delivery and handoff state transitions through the
+      service while retaining registry adapters for legacy callers.
+- [ ] Extend the service boundary to bootstrap, periodic reconciliation,
+      operational updates, and restart delivery paths.
 - [ ] Make `handleTaskInboxUpdate` consume required dependencies directly and
       remove its session-registry fallbacks.
 - [ ] Move task-state transition calls behind the service API and remove the
