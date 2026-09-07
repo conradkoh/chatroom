@@ -8,7 +8,6 @@ import {
 } from './agent-process-manager.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
-import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
@@ -138,14 +137,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
 async function triggerAgentEnd(manager: AgentProcessManager, cb: () => void): Promise<void> {
   cb();
   await manager.whenTurnEndsIdle();
-}
-
-function getLastHarnessSessions(manager: AgentProcessManager): Map<string, HarnessSessionSnapshot> {
-  return (
-    manager as unknown as {
-      lastHarnessSessions: Map<string, HarnessSessionSnapshot>;
-    }
-  ).lastHarnessSessions;
 }
 
 function createOpts(overrides?: Partial<EnsureRunningOpts>): EnsureRunningOpts {
@@ -614,77 +605,12 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
 
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe(provisionalId);
-      expect(getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.harnessSessionId).toBe(
-        provisionalId
-      );
-
       expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'spawned',
           harnessSessionId: provisionalId,
         })
       );
-    });
-
-    test('claude-sdk onHarnessSessionIdUpdated updates slot and emits backend event', async () => {
-      const provisionalId = 'b9a4f2e1-3c7d-4a5b-9e8f-1a2b3c4d5e6f';
-      const providerId = 'claude-provider-sess-abc';
-      let sessionIdUpdatedCb:
-        | ((info: {
-            correlationId: string;
-            resumableId: string;
-            source: 'provider_allocated' | 'provider_rotated';
-            previousResumableId?: string | undefined;
-          }) => void)
-        | undefined;
-      const claudeSdkService = {
-        ...createMockService(),
-        id: 'claude-sdk',
-        spawn: vi.fn().mockImplementation(async () => ({
-          pid: PID,
-          harnessSessionId: provisionalId,
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-          onHarnessSessionIdUpdated: (
-            cb: (info: {
-              correlationId: string;
-              resumableId: string;
-              source: 'provider_allocated' | 'provider_rotated';
-              previousResumableId?: string | undefined;
-            }) => void
-          ) => {
-            sessionIdUpdatedCb = cb;
-          },
-        })),
-      };
-      deps.agentServices = new Map([['claude-sdk', claudeSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
-
-      sessionIdUpdatedCb!({
-        correlationId: provisionalId,
-        resumableId: providerId,
-        source: 'provider_allocated',
-      });
-
-      expect(manager.getSlot(CHATROOM_ID, ROLE)!.resumableHarnessSessionId).toBe(providerId);
-      expect(
-        getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.resumableHarnessSessionId
-      ).toBe(providerId);
-
-      const harnessSessionIdUpdatedCalls = getLogEventCallsByArgs(
-        deps,
-        (args) => args.correlationId === provisionalId && args.resumableId === providerId
-      );
-      expect(harnessSessionIdUpdatedCalls).toHaveLength(1);
-      expect(harnessSessionIdUpdatedCalls[0]).toMatchObject({
-        type: 'agent.harnessSessionIdUpdated',
-        correlationId: provisionalId,
-        resumableId: providerId,
-        source: 'provider_allocated',
-      });
     });
 
 
@@ -955,100 +881,6 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
-    });
-
-    test('user.stop with harnessSessionId passes preserveForResume to harness stop', async () => {
-      const resumableService = {
-        ...createMockService(),
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'sess-opencode-1',
-          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'build',
-          model: TEST_MODEL_OPENCODE,
-        }),
-        resumeFromDaemonMemory: vi.fn(),
-      };
-      const localDeps = {
-        ...createDeps(),
-        agentServices: new Map([['opencode-sdk', resumableService]]),
-      };
-      (
-        localDeps.processes.kill as typeof localDeps.processes.kill & {
-          markAlive: (pid: number) => void;
-        }
-      ).markAlive(PID);
-      (resumableService.stop as ReturnType<typeof vi.fn>).mockImplementation(
-        async (pid: number) => {
-          (
-            localDeps.processes.kill as typeof localDeps.processes.kill & {
-              markDead: (pid: number) => void;
-            }
-          ).markDead(pid);
-        }
-      );
-      const localManager = new AgentProcessManager(localDeps);
-
-      await localManager.ensureRunning({
-        ...createOpts(),
-        agentHarness: 'opencode-sdk',
-      });
-
-      await localManager.stop({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        reason: 'user.stop',
-      });
-
-      expect(resumableService.stop).toHaveBeenCalledWith(PID, { preserveForResume: true });
-      expect(resumableService.getHarnessReconnectContext).toHaveBeenCalledWith(PID);
-      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
-      expect(getLastHarnessSessions(localManager).get(key)).toEqual({
-        harnessSessionId: 'sess-opencode-1',
-        harness: 'opencode-sdk',
-        agentName: 'build',
-        workingDir: '/tmp/test',
-        model: 'gpt-4',
-      });
-    });
-
-    test('platform stop clears daemon memory session context', async () => {
-      const resumableService = {
-        ...createMockService(),
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'sess-opencode-1',
-          harnessReconnect: { agentName: 'build' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-      };
-      const localDeps = {
-        ...createDeps(),
-        agentServices: new Map([['opencode-sdk', resumableService]]),
-      };
-      const localManager = new AgentProcessManager(localDeps);
-
-      await localManager.ensureRunning({
-        ...createOpts(),
-        agentHarness: 'opencode-sdk',
-      });
-      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
-      expect(getLastHarnessSessions(localManager).has(key)).toBe(true);
-
-      await localManager.stop({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        reason: 'daemon.shutdown',
-      });
-
-      expect(getLastHarnessSessions(localManager).has(key)).toBe(false);
     });
 
     test('doStop falls back to direct kill when harness service is not registered', async () => {

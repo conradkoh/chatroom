@@ -68,7 +68,8 @@
 - [x] Phase 1 — Remove automatic recovery from `AgentProcessManager` and the lifecycle runtime.
   - [x] Remove automatic process-exit restart, session-reopen retry, resume-storm recovery, crash-loop gating, and recovery backoff.
   - [x] Retain explicit start, stop, restart, normal process-exit bookkeeping, and process cleanup.
-  - [ ] Remove the manager's remaining session-retention state, dependencies, adapters, and tests in the native/session cleanup phase.
+  - [x] Remove the manager's daemon-memory session-retention state, resume path, and manager tests.
+  - [ ] Remove provider adapter resume APIs, reconnect metadata, preserve-for-resume stop options, and their tests.
 - [x] Phase 2 — Remove the explicit `recover` command from the queue-backed service.
   - [x] Remove the command entity, dispatcher branch, service API, execution-port method, and service tests.
   - [x] Keep explicit lifecycle commands as the only queue-managed operations.
@@ -82,7 +83,8 @@
 - [x] Phase 5 — Remove native harness/session recovery.
   - [x] Remove session-exit recovery, session reinjection, proactive recovery triggers, and recovery-only native delivery paths.
   - [x] Retain explicit task injection and lifecycle operations.
-  - [ ] Delete daemon-memory session retention/resume helpers and their legacy tests.
+  - [x] Delete daemon-memory session retention/resume helpers and native session-loss recovery gating.
+  - [ ] Delete remaining provider-specific resume/reconnect adapter implementations and tests.
 - [x] Phase 6 — Remove orphaned recovery artifacts.
   - [x] Remove recovery-only session policies, restart decisions, session-reopen constants, monitors, and tests after production callers are gone.
   - [x] Update comments, READMEs, discovery documentation, and plan status.
