@@ -38,6 +38,7 @@ export type {
 export type { LifecycleCommand } from './entities/lifecycle-command.js';
 export type {
   CommandQueue,
+  PurgeCommandMessagesInput,
   ReceiveCommandMessagesOptions,
   SendCommandMessageInput,
 } from './interfaces/command-queue.js';

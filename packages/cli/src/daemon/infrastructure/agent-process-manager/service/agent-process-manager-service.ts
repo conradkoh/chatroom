@@ -25,6 +25,10 @@ export interface RestartAgentInput {
   readonly role: string;
 }
 
+export type AgentProcessManagerResetInput =
+  | { readonly scope: 'chatroom'; readonly chatroomId: string }
+  | { readonly scope: 'chatroom-role'; readonly chatroomId: string; readonly role: string };
+
 export interface AgentKey {
   readonly chatroomId: string;
   readonly role: string;
@@ -60,6 +64,7 @@ export interface AgentProcessManagerExecutionPort {
   stop(opts: StopOpts): Promise<{ success: boolean }>;
   handleExit(opts: HandleExitOpts): Promise<void>;
   recover(): Promise<void>;
+  reset(input: AgentProcessManagerResetInput): Promise<void>;
 
   getSlot(chatroomId: string, role: string): AgentSlot | undefined;
   listActive(): { chatroomId: string; role: string; slot: AgentSlot }[];
@@ -84,6 +89,11 @@ export interface AgentProcessManagerService {
   restartAgent(input: RestartAgentInput): Promise<AgentOperationResult>;
   /** Enqueue the manager recovery operation. */
   recoverAgents(): Promise<AgentOperationResult>;
+  /**
+   * Stop command processing, cancel queued callers, and restore the manager to
+   * a known empty state. Processing resumes if it was active before reset.
+   */
+  reset(input: AgentProcessManagerResetInput): Promise<AgentProcessManagerResetResult>;
   /**
    * Run a compound operation exclusively for one agent key. The supplied
    * lifecycle operations execute inside the same serialized section; callers
@@ -121,6 +131,12 @@ export interface AgentProcessManagerService {
   setLastInFlightTask(chatroomId: string, role: string, taskId: string): void;
   clearLastInFlightTaskIfMatches(chatroomId: string, role: string, taskId: string): void;
   reconcileNativeTurnPhaseIdle(chatroomId: string, role: string): void;
+}
+
+export interface AgentProcessManagerResetResult {
+  readonly input: AgentProcessManagerResetInput;
+  readonly cancelledOperationIds: readonly string[];
+  readonly purgedMessageCount: number;
 }
 
 export interface AgentProcessManagerServiceDependencies {
@@ -176,6 +192,8 @@ export function createAgentProcessManagerService(
   const queue = createCommandQueue<AgentProcessManagerCommand>();
   const pendingOperations = new Map<string, PendingOperation>();
   const agentOperationTails = new Map<string, Promise<void>>();
+  let processingStarted = false;
+  let resetting = false;
 
   const keyFor = (key: AgentKey): string => messageGroupId(key);
 
@@ -293,17 +311,99 @@ export function createAgentProcessManagerService(
   };
 
   return {
-    startAgent: (input) =>
-      runExclusive(input, () => submit((operationId) => ({ operationId, type: 'start', input }))),
-    stopAgent: (input) =>
-      runExclusive(input, () => submit((operationId) => ({ operationId, type: 'stop', input }))),
-    restartAgent: (input) =>
-      runExclusive(input, () => submit((operationId) => ({ operationId, type: 'restart', input }))),
-    recoverAgents: () => submit((operationId) => ({ operationId, type: 'recover', input: {} })),
+    startAgent: (input) => {
+      if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
+      return runExclusive(input, () =>
+        submit((operationId) => ({ operationId, type: 'start', input }))
+      );
+    },
+    stopAgent: (input) => {
+      if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
+      return runExclusive(input, () =>
+        submit((operationId) => ({ operationId, type: 'stop', input }))
+      );
+    },
+    restartAgent: (input) => {
+      if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
+      return runExclusive(input, () =>
+        submit((operationId) => ({ operationId, type: 'restart', input }))
+      );
+    },
+    recoverAgents: () => {
+      if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
+      return submit((operationId) => ({ operationId, type: 'recover', input: {} }));
+    },
+    reset: async (input) => {
+      if (resetting) throw new Error('Agent process manager reset is already in progress');
+      resetting = true;
+      const wasProcessing = processingStarted;
+      // Allow lifecycle calls accepted immediately before reset to enqueue
+      // before the purge boundary is reached.
+      await Promise.resolve();
+      if (wasProcessing) await consumer.stop();
+
+      try {
+        await deps.execution.reset(input);
+        const messageGroupPrefix =
+          input.scope === 'chatroom'
+            ? `${input.chatroomId}:`
+            : `${input.chatroomId}:${input.role.toLowerCase()}`;
+        const purgedMessages = await queue.purge({
+          scope: 'message-group-prefix',
+          messageGroupPrefix,
+        });
+        const cancelledOperationIds = new Set<string>();
+        const cancellationError = new Error('Agent process manager reset cancelled the command');
+
+        for (const message of purgedMessages) {
+          const operationId =
+            typeof message.body === 'object' &&
+            message.body !== null &&
+            'operationId' in message.body &&
+            typeof message.body.operationId === 'string'
+              ? message.body.operationId
+              : message.messageId;
+          cancelledOperationIds.add(operationId);
+          deps.notifier.publish({
+            eventId: randomUUID(),
+            operationId,
+            messageId: message.messageId,
+            messageGroupId: message.messageGroupId,
+            body: message.body,
+            status: 'cancelled',
+            completedAt: Date.now(),
+            receiveCount: message.receiveCount,
+            error: cancellationError,
+          });
+        }
+
+        for (const [operationId, pending] of pendingOperations) {
+          if (!cancelledOperationIds.has(operationId)) continue;
+          pendingOperations.delete(operationId);
+          pending.reject(cancellationError);
+        }
+
+        if (wasProcessing) consumer.start();
+
+        return {
+          input,
+          cancelledOperationIds: [...cancelledOperationIds],
+          purgedMessageCount: purgedMessages.length,
+        };
+      } finally {
+        resetting = false;
+      }
+    },
     runSerializedForAgent,
     subscribe: (filter, listener) => deps.notifier.subscribe(filter, listener),
-    startProcessing: () => consumer.start(),
-    stopProcessing: () => consumer.stop(),
+    startProcessing: () => {
+      processingStarted = true;
+      consumer.start();
+    },
+    stopProcessing: async () => {
+      processingStarted = false;
+      await consumer.stop();
+    },
     handleExit: (input) => deps.execution.handleExit(input),
     getSlot: (chatroomId, role) => deps.execution.getSlot(chatroomId, role),
     listActive: () => deps.execution.listActive(),

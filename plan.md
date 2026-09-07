@@ -15,6 +15,11 @@
 
 ## Next goal
 
+- [x] Add a scoped Agent Process Manager reset operation that restores a known state by stopping/clearing selected managed agent state, purging commands in the selected queue scope, and notifying affected callers that their operations were cancelled.
+  - [x] Support chatroom-wide reset across all roles.
+  - [x] Support chatroom-role reset for one role.
+  - [x] Make queue purge scope explicit with an input union instead of optional arguments.
+  - [x] Add cancellation notifications, completion rejection, documentation, and focused tests.
 - [x] Wire `AgentProcessManagerService` into daemon startup and shutdown.
 - [ ] Migrate the first lifecycle flow.
   - [x] Expose `AgentProcessManagerService` through the runtime dependency graph.
@@ -60,12 +65,13 @@
 
 ## Recovery-boundary review
 
-- [ ] Review session recovery and decide whether it remains an Agent Process Manager responsibility or should be removed from the lifecycle scope.
-- [ ] Review crash recovery and decide whether automatic restart, retry/backoff, and crash-loop handling remain manager responsibilities or should be removed from the lifecycle scope.
-- [ ] Review resume-storm recovery and decide whether the manager-owned stop/suppression behavior remains necessary or should be removed.
-- [ ] Review daemon-startup recovery and separate daemon state discovery from the process manager's agent recreation/start responsibilities; remove anything outside that boundary.
-- [ ] Review task delivery recovery/reinjection and keep pending-task retry and injection outside the process manager; remove any duplicated delivery logic from lifecycle recovery.
-- [ ] For each retained recovery case, define its completion notification, cancellation behavior, timeout, and interaction with the shared per-agent serialization mechanism.
+- [ ] Remove session, crash, resume-storm, retry/backoff, and automatic restart recovery from `AgentProcessManager`; retain only explicit lifecycle commands and normal process exit handling.
+- [ ] Remove the `recover` command, recovery dispatcher path, and recovery API from `AgentProcessManagerService` and the command queue.
+- [ ] Remove daemon-startup state recovery from the daemon entry/handlers/bridge; on shutdown, clear managed agent state and start the next daemon with no recovered agents.
+- [ ] Remove recovery-specific wake/revive/retry behavior from task delivery and orchestration; retain only normal pending-task delivery when explicitly requested.
+- [ ] Remove native harness/session-exit recovery and recovery-triggered reinjection from native delivery; retain explicit task injection and lifecycle operations.
+- [ ] Remove recovery-only domain entities, policies, trackers, use cases, adapters, and tests once their production callers are removed.
+- [ ] Define and test shutdown state clearing across in-memory slots, persisted agent state, session registries, task ledgers, and recovery timers.
 
 - [ ] Audit all optional compatibility paths.
   - [ ] Remove `task-inbox-delivery` registry fallback after its required service dependency is wired everywhere.

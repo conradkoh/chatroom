@@ -2,6 +2,8 @@ export {
   createAgentProcessManagerService,
   type AgentOperationResult,
   type AgentProcessManagerService,
+  type AgentProcessManagerResetResult,
+  type AgentProcessManagerResetInput,
   type AgentKey,
   type SerializedAgentOperations,
   type SerializedAgentOperationOptions,

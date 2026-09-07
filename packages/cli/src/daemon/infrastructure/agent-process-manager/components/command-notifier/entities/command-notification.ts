@@ -1,4 +1,4 @@
-export type CommandNotificationStatus = 'succeeded' | 'failed';
+export type CommandNotificationStatus = 'succeeded' | 'failed' | 'cancelled';
 
 /** Event emitted after a queue message has finished an execution attempt. */
 export interface CommandNotification<T = unknown> {

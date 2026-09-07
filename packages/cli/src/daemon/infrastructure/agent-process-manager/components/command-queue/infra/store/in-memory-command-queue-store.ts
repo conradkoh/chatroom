@@ -23,7 +23,11 @@ export class InMemoryCommandQueueStore<T> implements CommandQueueStore<T> {
     this.messages.set(messageId, { ...existing, ...patch });
   }
 
-  clear(): void {
-    this.messages.clear();
+  drain(predicate?: (message: CommandMessage<T>) => boolean): CommandMessage<T>[] {
+    const messages = [...this.messages.values()]
+      .map(({ message }) => message)
+      .filter((message) => predicate?.(message) ?? true);
+    for (const message of messages) this.messages.delete(message.messageId);
+    return messages;
   }
 }

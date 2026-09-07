@@ -1,6 +1,11 @@
-import type { ReceivedCommandMessage, SentCommandMessage } from '../entities/command-message.js';
+import type {
+  CommandMessage,
+  ReceivedCommandMessage,
+  SentCommandMessage,
+} from '../entities/command-message.js';
 import type {
   CommandQueue,
+  PurgeCommandMessagesInput,
   ReceiveCommandMessagesOptions,
   SendCommandMessageInput,
 } from '../interfaces/command-queue.js';
@@ -126,5 +131,23 @@ export class InMemoryCommandQueue<T> implements CommandQueue<T> {
     this.options.store.update(stored.message.messageId, {
       visibilityExpiresAt: this.now() + Math.max(0, visibilityTimeoutMs),
     });
+  }
+
+  async purge(input: PurgeCommandMessagesInput): Promise<CommandMessage<T>[]> {
+    if (input.scope === 'all') {
+      const messages = this.options.store.drain();
+      this.deduplicated.clear();
+      return messages;
+    }
+
+    const messages = this.options.store.drain((message) =>
+      message.messageGroupId.startsWith(input.messageGroupPrefix)
+    );
+    for (const [deduplicationId, message] of this.deduplicated) {
+      if (message.messageGroupId.startsWith(input.messageGroupPrefix)) {
+        this.deduplicated.delete(deduplicationId);
+      }
+    }
+    return messages;
   }
 }

@@ -14,6 +14,10 @@ import type { SpawnPrompt } from '../../../daemon/infrastructure/local/harness/s
 import type { AgentHarness } from '../../machine/types.js';
 import type { TryConsumeResult } from '../harness-spawning/index.js';
 
+export type AgentLifecycleResetInput =
+  | { readonly scope: 'chatroom'; readonly chatroomId: string }
+  | { readonly scope: 'chatroom-role'; readonly chatroomId: string; readonly role: string };
+
 // ─── Runtime Slot ──────────────────────────────────────────────────────────────
 
 /** Extended slot — domain snapshot + harness metadata APM tracks. */
@@ -92,7 +96,7 @@ export interface HarnessSpawnPort {
       pid: number;
       harnessSessionId?: string | undefined;
       onAgentEnd: (cb: () => void) => void;
-      onLogLine?:( (cb: (line: string) => void) => void) | undefined;
+      onLogLine?: ((cb: (line: string) => void) => void) | undefined;
     },
     Error
   >;
@@ -130,6 +134,7 @@ export interface AgentLifecycleServiceShape {
       slot: AgentLifecycleSlot;
     }[]
   >;
+  reset: (input: AgentLifecycleResetInput) => Effect.Effect<void>;
 }
 
 export class AgentLifecycleService extends Context.Tag('AgentLifecycleService')<

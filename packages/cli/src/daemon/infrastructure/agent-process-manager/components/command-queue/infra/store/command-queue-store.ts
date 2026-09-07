@@ -12,5 +12,5 @@ export interface CommandQueueStore<T> {
   list(): StoredCommandMessage<T>[];
   delete(messageId: string): boolean;
   update(messageId: string, patch: Partial<StoredCommandMessage<T>>): void;
-  clear(): void;
+  drain(predicate?: (message: CommandMessage<T>) => boolean): CommandMessage<T>[];
 }

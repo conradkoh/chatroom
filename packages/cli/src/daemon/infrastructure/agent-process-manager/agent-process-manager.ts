@@ -141,6 +141,10 @@ export type { NativeTurnPhase } from '../../entry/native-delivery/native-turn-ph
 
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
+type AgentProcessManagerResetInput =
+  | { readonly scope: 'chatroom'; readonly chatroomId: string }
+  | { readonly scope: 'chatroom-role'; readonly chatroomId: string; readonly role: string };
+
 interface ExitContext {
   harness: AgentHarness | undefined;
   model: string | undefined;
@@ -1454,6 +1458,83 @@ export class AgentProcessManager {
     if (clearedCount > 0) {
       console.log(`[AgentProcessManager] Recovery: cleared ${clearedCount} stuck stopping slot(s)`);
     }
+  }
+
+  /**
+   * Stop all known agent processes and clear manager/runtime state.
+   *
+   * Reset is deliberately explicit and destructive to in-memory coordination
+   * state: the next command starts from an empty manager rather than inheriting
+   * stale slots, session snapshots, or retry work from the previous state.
+   */
+  async reset(input: AgentProcessManagerResetInput): Promise<void> {
+    const roleKey = input.scope === 'chatroom-role' ? input.role.toLowerCase() : undefined;
+    const matchesScope = (candidateChatroomId: string, candidateRole: string): boolean =>
+      candidateChatroomId === input.chatroomId &&
+      (roleKey === undefined || candidateRole.toLowerCase() === roleKey);
+    const knownEntries = new Map<
+      string,
+      { chatroomId: string; role: string; pid: number; harness: AgentHarness }
+    >();
+
+    for (const { chatroomId: slotChatroomId, role, slot } of this.listAllSlots()) {
+      if (!matchesScope(slotChatroomId, role)) continue;
+      if (slot.pid && slot.harness) {
+        knownEntries.set(agentKey(slotChatroomId, role), {
+          chatroomId: slotChatroomId,
+          role,
+          pid: slot.pid,
+          harness: slot.harness,
+        });
+      }
+    }
+
+    try {
+      for (const {
+        chatroomId: entryChatroomId,
+        role,
+        entry,
+      } of await this.deps.persistence.listAgentEntries(this.deps.machineId)) {
+        if (!matchesScope(entryChatroomId, role)) continue;
+        knownEntries.set(agentKey(entryChatroomId, role), {
+          chatroomId: entryChatroomId,
+          role,
+          pid: entry.pid,
+          harness: entry.harness,
+        });
+      }
+    } catch {
+      // In-memory state can still be reset when persistence is unavailable.
+    }
+
+    for (const { chatroomId, role, pid, harness } of knownEntries.values()) {
+      await this.stopPersistedProcess(pid, harness);
+      await this.clearAgentPidQuietly(chatroomId, role);
+    }
+
+    for (const key of [...this.sessionRecoveryRetryInFlight]) {
+      const [keyChatroomId, keyRole] = key.split(':');
+      if (matchesScope(keyChatroomId, keyRole)) this.sessionRecoveryRetryInFlight.delete(key);
+    }
+    for (const key of [...this.lastHarnessSessions.keys()]) {
+      const [keyChatroomId, keyRole] = key.split(':');
+      if (matchesScope(keyChatroomId, keyRole)) this.lastHarnessSessions.delete(key);
+    }
+    for (let i = this.exitRetryQueue.length - 1; i >= 0; i--) {
+      const item = this.exitRetryQueue[i];
+      if (item && matchesScope(item.args.chatroomId, item.role)) this.exitRetryQueue.splice(i, 1);
+    }
+    if (this.exitRetryQueue.length === 0) this.stopExitRetryTimer();
+    for (const key of [...this.slots.keys()]) {
+      const [keyChatroomId, keyRole] = key.split(':');
+      if (matchesScope(keyChatroomId, keyRole)) this.slots.delete(key);
+    }
+    await this.lifecycle.runPromise(
+      Effect.gen(function* () {
+        const svc = yield* AgentLifecycleService;
+        yield* svc.reset(input);
+      })
+    );
   }
 
   // ── Private ─────────────────────────────────────────────────────────────

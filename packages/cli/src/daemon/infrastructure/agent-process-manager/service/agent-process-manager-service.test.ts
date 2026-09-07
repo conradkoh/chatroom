@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createAgentProcessManagerService,
+  type AgentProcessManagerCommand,
   type AgentProcessManagerExecutionPort,
 } from './agent-process-manager-service.js';
 import type {
@@ -22,6 +23,7 @@ function createExecution(events: string[]): AgentProcessManagerExecutionPort {
     }),
     handleExit: vi.fn(async () => undefined),
     recover: vi.fn(async () => undefined),
+    reset: vi.fn(async () => undefined),
     getSlot: vi.fn(() => undefined),
     listActive: vi.fn(() => []),
     clearStuckStoppingSlot: vi.fn(async () => false),
@@ -51,6 +53,88 @@ async function waitForEventCount(events: string[], count: number): Promise<void>
 }
 
 describe('AgentProcessManagerService', () => {
+  it('purges queued commands and notifies their callers when reset is requested', async () => {
+    const events: string[] = [];
+    const notifier = new InMemoryCommandNotifier<AgentProcessManagerCommand>();
+    const service = createAgentProcessManagerService({
+      execution: createExecution(events),
+      notifier,
+      consumer: { pollIntervalMs: 1, visibilityTimeoutMs: 100 },
+    });
+    const notifications: string[] = [];
+    service.subscribe({}, (notification) => {
+      notifications.push(`${notification.operationId}:${notification.status}`);
+    });
+
+    const pending = service.stopAgent(stopInput('room-1', 'builder'));
+    const result = await service.reset({ scope: 'chatroom', chatroomId: 'room-1' });
+
+    await expect(pending).rejects.toThrow('reset cancelled');
+    expect(result.purgedMessageCount).toBe(1);
+    expect(result.cancelledOperationIds).toHaveLength(1);
+    expect(notifications).toEqual([`${result.cancelledOperationIds[0]}:cancelled`]);
+    expect(events).toEqual([]);
+  });
+
+  it('resumes polling after resetting an active service', async () => {
+    const events: string[] = [];
+    const service = createAgentProcessManagerService({
+      execution: createExecution(events),
+      notifier: new InMemoryCommandNotifier(),
+      consumer: { pollIntervalMs: 1, visibilityTimeoutMs: 100 },
+    });
+
+    service.startProcessing();
+    await service.reset({ scope: 'chatroom', chatroomId: 'room-1' });
+    await expect(service.startAgent(startInput('room-1', 'builder'))).resolves.toMatchObject({
+      status: 'succeeded',
+    });
+    await waitForEventCount(events, 1);
+    await service.stopProcessing();
+
+    expect(events).toEqual(['start:room-1:builder']);
+  });
+
+  it('leaves another chatroom queue intact during reset', async () => {
+    const events: string[] = [];
+    const service = createAgentProcessManagerService({
+      execution: createExecution(events),
+      notifier: new InMemoryCommandNotifier(),
+      consumer: { pollIntervalMs: 1, visibilityTimeoutMs: 100 },
+    });
+
+    const roomOne = service.stopAgent(stopInput('room-1', 'builder'));
+    const roomTwo = service.stopAgent(stopInput('room-2', 'builder'));
+    await service.reset({ scope: 'chatroom', chatroomId: 'room-1' });
+
+    await expect(roomOne).rejects.toThrow('reset cancelled');
+    service.startProcessing();
+    await expect(roomTwo).resolves.toMatchObject({ status: 'succeeded' });
+    await service.stopProcessing();
+
+    expect(events).toEqual(['stop:room-2:builder']);
+  });
+
+  it('can reset one role without purging the other roles in the chatroom', async () => {
+    const events: string[] = [];
+    const service = createAgentProcessManagerService({
+      execution: createExecution(events),
+      notifier: new InMemoryCommandNotifier(),
+      consumer: { pollIntervalMs: 1, visibilityTimeoutMs: 100 },
+    });
+
+    const builder = service.stopAgent(stopInput('room-1', 'builder'));
+    const reviewer = service.stopAgent(stopInput('room-1', 'reviewer'));
+    await service.reset({ scope: 'chatroom-role', chatroomId: 'room-1', role: 'BUILDER' });
+
+    await expect(builder).rejects.toThrow('reset cancelled');
+    service.startProcessing();
+    await expect(reviewer).resolves.toMatchObject({ status: 'succeeded' });
+    await service.stopProcessing();
+
+    expect(events).toEqual(['stop:room-1:reviewer']);
+  });
+
   it('serializes a compound operation with lifecycle commands for the same agent key', async () => {
     const events: string[] = [];
     const service = createAgentProcessManagerService({

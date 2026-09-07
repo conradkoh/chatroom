@@ -374,12 +374,33 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         })
       );
 
+    const reset = (input: {
+      readonly scope: 'chatroom' | 'chatroom-role';
+      readonly chatroomId: string;
+      readonly role?: string;
+    }): Effect.Effect<void> =>
+      Ref.update(slotsRef, (map) => {
+        const next = new Map(map);
+        const prefix = `${input.chatroomId}:`;
+        const exactKey =
+          input.scope === 'chatroom-role' && input.role
+            ? `${input.chatroomId}:${input.role.toLowerCase()}`
+            : undefined;
+        for (const key of next.keys()) {
+          if (input.scope === 'chatroom' ? key.startsWith(prefix) : key === exactKey) {
+            next.delete(key);
+          }
+        }
+        return next;
+      });
+
     return {
       ensureRunning,
       stop,
       handleExit,
       getSlot,
       listActive,
+      reset,
     };
   })
 );

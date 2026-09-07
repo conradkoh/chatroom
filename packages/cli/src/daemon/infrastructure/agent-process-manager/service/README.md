@@ -1,58 +1,33 @@
 # Agent Process Manager Service
 
-This folder contains the primary interface for consuming the agent process
-manager. Callers should use `AgentProcessManagerService` instead of depending
-directly on the concrete `AgentProcessManager` or the command queue.
+`AgentProcessManagerService` is the application-facing API for controlling
+agents. Callers should depend on this interface rather than on
+`AgentProcessManager`, `CommandQueue`, or `CommandQueueConsumer` directly.
 
-## Lifecycle commands
+The service owns command submission, per-agent FIFO ordering, command
+completion, notifications, and reset coordination.
 
-The imperative lifecycle methods submit commands to the internal FIFO queue:
+## Composition
+
+Construct one service during daemon initialization. The concrete manager is
+provided as the execution port, and the notifier is provided separately:
 
 ```ts
 import { createCommandNotifier } from '../components/command-notifier/index.js';
+import { createAgentProcessManagerService } from './index.js';
 
-const notifier = createCommandNotifier();
+const notifier = createCommandNotifier<AgentProcessManagerCommand>();
 
 const service = createAgentProcessManagerService({
   execution: agentProcessManager,
-  restartAgent: async ({ chatroomId, role }) => {
-    // Delegate to the existing restart orchestration during migration.
-    await restartExistingAgent({ chatroomId, role });
-  },
   notifier,
-});
-
-const unsubscribe = service.subscribe({ messageGroupId: `${chatroomId}:${role}` }, (event) => {
-  console.log(`Lifecycle command ${event.status}`);
-});
-
-await service.startAgent({
-  chatroomId,
-  role,
-  agentHarness,
-  workingDir,
-  reason: 'user.start',
-  wantResume: false,
-});
-
-await service.stopAgent({
-  chatroomId,
-  role,
-  reason: 'user.stop',
+  restartAgent: async (input) => {
+    await restartExistingAgent(input);
+  },
 });
 ```
 
-These methods resolve after the consumer finishes processing the command. Use
-`void service.stopAgent(...)` when the caller intentionally wants
-fire-and-forget behavior. A failed lifecycle operation rejects the promise.
-
-Commands for the same `chatroomId` and `role` share a FIFO message group and
-are processed serially. Commands for different agents may be processed in
-parallel.
-
-## Starting the consumer
-
-The daemon owns the consumer lifecycle:
+The daemon starts and stops processing once for the lifetime of the service:
 
 ```ts
 service.startProcessing();
@@ -60,16 +35,97 @@ service.startProcessing();
 try {
   await runDaemon();
 } finally {
-  service.stopProcessing();
+  await service.stopProcessing();
 }
 ```
 
-The service constructor currently assembles the in-memory queue and consumer.
-The notifier is constructed separately and injected explicitly. This keeps
-notification delivery replaceable and makes it impossible to omit accidentally.
+Do not create a service per request or start a separate consumer for each
+caller.
 
-## Migration rule
+## Lifecycle commands
 
-New lifecycle callers should use this service. Existing flows can continue to
-use the concrete manager temporarily while they are migrated behind the
-service boundary.
+Use the imperative methods to request lifecycle work:
+
+```ts
+const completion = await service.stopAgent({
+  chatroomId,
+  role,
+  reason: 'user.stop',
+});
+```
+
+`startAgent`, `stopAgent`, and `restartAgent` resolve after the command has
+finished executing. The resolved value is a `CommandNotification` with a
+`succeeded` status. Failed execution rejects the promise with the command
+failure. Use `void` only when the caller intentionally wants fire-and-forget
+behavior:
+
+```ts
+void service.stopAgent({ chatroomId, role, reason: 'user.stop' });
+```
+
+Commands for the same chatroom and role are serialized. Commands for different
+roles may execute concurrently.
+
+## Notifications
+
+Subscribe when a caller needs an event-driven completion signal or needs to
+observe commands issued by other callers:
+
+```ts
+const unsubscribe = service.subscribe(
+  { messageGroupId: `${chatroomId}:${role.toLowerCase()}` },
+  (notification) => {
+    if (notification.status === 'succeeded') {
+      console.log('Agent command completed');
+    } else if (notification.status === 'failed') {
+      console.error('Agent command failed', notification.error);
+    } else {
+      console.log('Agent command was cancelled');
+    }
+  }
+);
+
+unsubscribe();
+```
+
+Notifications are in-memory and are not replayed to late subscribers. A
+command caller should await the returned promise when it owns the command;
+subscriptions are for decoupled observation.
+
+## Resetting state
+
+Reset is a control-plane operation, not a queued lifecycle command. It stops
+polling, allows an already-dispatched command to settle, stops and clears the
+selected manager state, purges queued commands in the selected scope, and
+publishes `cancelled` notifications for purged commands. Processing resumes if
+it was running before the reset.
+
+Reset an entire chatroom:
+
+```ts
+const result = await service.reset({
+  scope: 'chatroom',
+  chatroomId,
+});
+```
+
+Reset one role without affecting other roles in the chatroom:
+
+```ts
+const result = await service.reset({
+  scope: 'chatroom-role',
+  chatroomId,
+  role,
+});
+```
+
+Awaiters for purged commands receive a cancellation rejection. Calls made
+after reset begins are rejected until reset completes. Other chatrooms retain
+their queued commands and state.
+
+## Migration guidance
+
+New lifecycle callers must use this service. Existing direct manager callers
+should be migrated incrementally behind this boundary. The queue and notifier
+are implementation components, not alternate lifecycle entry points.
