@@ -15,26 +15,21 @@ import type { AgentProcessManagerService } from '../../infrastructure/agent-proc
 import { runRestartOrchestrator } from '../restart-orchestrator.js';
 
 export function createStartAgentDeps(
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  session: DaemonSessionServiceShape
+  session: DaemonSessionServiceShape,
+  processManagerService: AgentProcessManagerService
 ): StartAgentDeps {
   return {
     agentProcessManager: {
-      ensureRunning: async (args) => {
-        const result = await Effect.runPromise(
-          agentMgr.ensureRunning({
-            chatroomId: args.chatroomId as Id<'chatroom_rooms'>,
-            role: args.role,
-            agentHarness: args.agentHarness as AgentHarness,
-            model: args.model,
-            workingDir: args.workingDir,
-            reason: args.reason as StartAgentReason,
-            wantResume: args.wantResume,
-          })
-        );
-        if (!result.success) {
-        }
-        return result;
+      startAgent: async (args) => {
+        await processManagerService.startAgent({
+          chatroomId: args.chatroomId as Id<'chatroom_rooms'>,
+          role: args.role,
+          agentHarness: args.agentHarness as AgentHarness,
+          model: args.model,
+          workingDir: args.workingDir,
+          reason: args.reason as StartAgentReason,
+          wantResume: args.wantResume,
+        });
       },
     },
     session: {

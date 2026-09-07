@@ -19,7 +19,7 @@ export interface EnsureRunningResult {
 }
 
 export interface AgentProcessManagerPort {
-  ensureRunning(args: {
+  startAgent(args: {
     chatroomId: string;
     role: string;
     agentHarness: AgentHarness;
@@ -28,7 +28,7 @@ export interface AgentProcessManagerPort {
     reason: string;
     wantResume: boolean;
     lifecycleRevision?: number | undefined;
-  }): Promise<EnsureRunningResult>;
+  }): Promise<void>;
 }
 
 export interface StartAgentSessionPort {
@@ -46,8 +46,8 @@ export interface StartAgentSessionPort {
 export interface StartAgentDeps {
   agentProcessManager: AgentProcessManagerPort;
   session: StartAgentSessionPort;
-  now?:( () => number) | undefined;
-  log?:( (message: string) => void) | undefined;
+  now?: (() => number) | undefined;
+  log?: ((message: string) => void) | undefined;
 }
 
 export async function startAgent(deps: StartAgentDeps, input: StartAgentInput): Promise<void> {
@@ -60,24 +60,31 @@ export async function startAgent(deps: StartAgentDeps, input: StartAgentInput): 
     return;
   }
   log(`[daemon] Processing agent.requestStart (id: ${input.commandId})`);
-  const result = await deps.agentProcessManager.ensureRunning({
-    chatroomId: input.chatroomId,
-    role: input.role,
-    agentHarness: input.agentHarness,
-    model: input.model,
-    workingDir: input.workingDir,
-    reason: input.reason,
-    wantResume: input.wantResume,
-    ...(input.lifecycleRevision !== undefined
-      ? { lifecycleRevision: input.lifecycleRevision }
-      : {}),
-  });
-  if (!result.success) {
-    log(`[daemon] Agent start rejected for role=${input.role}: ${result.error ?? 'unknown'}`);
+  try {
+    await deps.agentProcessManager.startAgent({
+      chatroomId: input.chatroomId,
+      role: input.role,
+      agentHarness: input.agentHarness,
+      model: input.model,
+      workingDir: input.workingDir,
+      reason: input.reason,
+      wantResume: input.wantResume,
+      ...(input.lifecycleRevision !== undefined
+        ? { lifecycleRevision: input.lifecycleRevision }
+        : {}),
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error !== null && 'error' in error
+          ? String(error.error)
+          : 'unknown';
+    log(`[daemon] Agent start rejected for role=${input.role}: ${message}`);
     await deps.session.emitAgentStartFailed({
       chatroomId: input.chatroomId,
       role: input.role,
-      error: result.error ?? 'unknown',
+      error: message,
     });
     return;
   }

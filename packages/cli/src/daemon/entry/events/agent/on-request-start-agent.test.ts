@@ -3,7 +3,11 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { AgentRequestStartEventPayload } from './on-request-start-agent.js';
 import { onRequestStartAgentEffect } from './on-request-start-agent.js';
-import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
+import {
+  DaemonAgentProcessManagerCommandService,
+  DaemonSessionService,
+} from '../../daemon-services.js';
+import type { AgentProcessManagerService } from '../../../infrastructure/agent-process-manager/service/index.js';
 import { DaemonEventBus } from '../event-bus.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -48,7 +52,7 @@ describe('onRequestStartAgentEffect', () => {
 
   function runEffect(
     event: AgentRequestStartEventPayload,
-    apmLayer: Layer.Layer<DaemonAgentProcessManagerService>,
+    apmLayer: Layer.Layer<DaemonAgentProcessManagerCommandService>,
     sessionLayer: Layer.Layer<DaemonSessionService>
   ) {
     return Effect.runPromise(
@@ -56,50 +60,32 @@ describe('onRequestStartAgentEffect', () => {
     );
   }
 
-  test('skips expired events without calling ensureRunning', async () => {
-    const ensureSpy = vi.fn().mockReturnValue(Effect.succeed({ success: true }));
-    const apmLayer = Layer.succeed(DaemonAgentProcessManagerService, {
-      ensureRunning: ensureSpy,
-      stop: vi.fn().mockReturnValue(Effect.succeed({ success: true })),
-      handleExit: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      recover: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      getSlot: vi.fn().mockReturnValue(undefined),
-      listActive: vi.fn().mockReturnValue([]),
-      clearStuckStoppingSlot: vi.fn().mockReturnValue(Effect.succeed(false)),
-      whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
-    });
+  function makeCommandLayer(startAgent: ReturnType<typeof vi.fn>) {
+    return Layer.succeed(DaemonAgentProcessManagerCommandService, {
+      startAgent,
+    } as unknown as AgentProcessManagerService);
+  }
+
+  test('skips expired events without calling startAgent', async () => {
+    const startSpy = vi.fn().mockResolvedValue({ status: 'succeeded' });
+    const apmLayer = makeCommandLayer(startSpy);
     const sessionLayer = makeSessionLayer();
     const event = createEvent({ deadline: Date.now() - 1000 });
 
     await runEffect(event, apmLayer, sessionLayer);
 
-    expect(ensureSpy).not.toHaveBeenCalled();
+    expect(startSpy).not.toHaveBeenCalled();
   });
 
-  test('calls ensureRunning for valid (non-expired) events', async () => {
-    const ensureSpy = vi.fn().mockReturnValue(Effect.succeed({ success: true, pid: 42 }));
-    const apmLayer = Layer.succeed(DaemonAgentProcessManagerService, {
-      ensureRunning: ensureSpy,
-      stop: vi.fn().mockReturnValue(Effect.succeed({ success: true })),
-      handleExit: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      recover: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      getSlot: vi.fn().mockReturnValue(undefined),
-      listActive: vi.fn().mockReturnValue([]),
-      clearStuckStoppingSlot: vi.fn().mockReturnValue(Effect.succeed(false)),
-      whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
-    });
+  test('calls startAgent for valid (non-expired) events', async () => {
+    const startSpy = vi.fn().mockResolvedValue({ status: 'succeeded' });
+    const apmLayer = makeCommandLayer(startSpy);
     const sessionLayer = makeSessionLayer();
     const event = createEvent();
 
     await runEffect(event, apmLayer, sessionLayer);
 
-    expect(ensureSpy).toHaveBeenCalledWith(
+    expect(startSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         chatroomId: event.chatroomId,
         role: event.role,
@@ -108,23 +94,9 @@ describe('onRequestStartAgentEffect', () => {
     );
   });
 
-  test('calls emitAgentStartFailed mutation when ensureRunning fails', async () => {
-    const ensureSpy = vi
-      .fn()
-      .mockReturnValue(Effect.succeed({ success: false, error: 'rate_limited' }));
-    const apmLayer = Layer.succeed(DaemonAgentProcessManagerService, {
-      ensureRunning: ensureSpy,
-      stop: vi.fn().mockReturnValue(Effect.succeed({ success: true })),
-      handleExit: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      recover: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      getSlot: vi.fn().mockReturnValue(undefined),
-      listActive: vi.fn().mockReturnValue([]),
-      clearStuckStoppingSlot: vi.fn().mockReturnValue(Effect.succeed(false)),
-      whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
-    });
+  test('calls emitAgentStartFailed mutation when startAgent fails', async () => {
+    const startSpy = vi.fn().mockRejectedValue(new Error('rate_limited'));
+    const apmLayer = makeCommandLayer(startSpy);
     const backendMutation = vi.fn().mockResolvedValue(undefined);
     const sessionLayer = makeSessionLayer(backendMutation);
     const event = createEvent();
