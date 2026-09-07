@@ -36,6 +36,7 @@ describe('onRequestStopAgentEffect', () => {
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       subscribeAgentTurnEnded: () => () => undefined,
       subscribeAgentStarted: () => () => undefined,
+      subscribeAgentSessionLost: () => () => undefined,
     });
     const event = createEvent({ deadline: Date.now() - 1000 });
 
@@ -58,6 +59,7 @@ describe('onRequestStopAgentEffect', () => {
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       subscribeAgentTurnEnded: () => () => undefined,
       subscribeAgentStarted: () => () => undefined,
+      subscribeAgentSessionLost: () => () => undefined,
     });
     const event = createEvent();
 

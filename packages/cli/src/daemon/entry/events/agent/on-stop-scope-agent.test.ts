@@ -28,6 +28,7 @@ function layer(runInboxScopedStop: ReturnType<typeof vi.fn>) {
     resumeTurnForSlot: vi.fn(),
     subscribeAgentTurnEnded: () => () => undefined,
     subscribeAgentStarted: () => () => undefined,
+    subscribeAgentSessionLost: () => () => undefined,
   });
 }
 describe('onStopScopeAgentEffect', () => {

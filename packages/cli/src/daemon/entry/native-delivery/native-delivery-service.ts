@@ -8,6 +8,7 @@ import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-ta
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import type {
   AgentStartedEvent,
+  AgentSessionLostEvent,
   AgentTurnEndedEvent,
 } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { AgentTaskStateService } from '../../infrastructure/agent-process-manager/components/agent-task-state/index.js';
@@ -16,6 +17,8 @@ import type { AgentOperationalReadModel } from '../../infrastructure/agent-opera
 import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
+import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
+import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 export type NativeDeliveryPass =
   'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
@@ -45,6 +48,7 @@ export interface NativeDeliveryServiceDependencies {
 export class NativeDeliveryService {
   private readonly unsubscribeAgentTurnEnded: () => void;
   private readonly unsubscribeAgentStarted: () => void;
+  private readonly unsubscribeAgentSessionLost: () => void;
 
   constructor(private readonly deps: NativeDeliveryServiceDependencies) {
     this.unsubscribeAgentTurnEnded = deps.agentMgr.subscribeAgentTurnEnded((event) =>
@@ -53,11 +57,21 @@ export class NativeDeliveryService {
     this.unsubscribeAgentStarted = deps.agentMgr.subscribeAgentStarted((event) =>
       this.handleAgentStarted(event)
     );
+    this.unsubscribeAgentSessionLost = deps.agentMgr.subscribeAgentSessionLost((event) =>
+      this.handleAgentSessionLost(event)
+    );
   }
 
   async handleAgentStarted(event: AgentStartedEvent): Promise<void> {
     const tasks = this.deps.taskSnapshotState.listForRole(event.chatroomId, event.role);
     await this.processSnapshots('operational-status', tasks);
+  }
+
+  handleAgentSessionLost(event: AgentSessionLostEvent): void {
+    getRoleDeliveryState().resetDeliveryState(event.chatroomId, event.role);
+    if (event.harnessSessionId) {
+      getNativeDeliveryLedger().clearSession(event.harnessSessionId);
+    }
   }
 
   async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<'reminder_requested' | void> {
@@ -102,6 +116,7 @@ export class NativeDeliveryService {
   dispose(): void {
     this.unsubscribeAgentTurnEnded();
     this.unsubscribeAgentStarted();
+    this.unsubscribeAgentSessionLost();
   }
 
   get taskSnapshotState(): MachineTaskSnapshotState {

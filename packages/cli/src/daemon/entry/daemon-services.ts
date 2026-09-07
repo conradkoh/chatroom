@@ -27,6 +27,7 @@ import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type {
   AgentProcessManager,
   AgentSlot,
+  AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
   EnsureRunningOpts,
@@ -162,6 +163,7 @@ export interface DaemonAgentProcessManagerServiceShape {
   }) => Effect.Effect<void>;
   subscribeAgentTurnEnded: (handler: AgentTurnEndedHandler) => () => void;
   subscribeAgentStarted: (handler: AgentStartedHandler) => () => void;
+  subscribeAgentSessionLost: (handler: AgentSessionLostHandler) => () => void;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -267,6 +269,7 @@ export const DaemonAgentProcessManagerServiceLive = (
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
     subscribeAgentTurnEnded: (handler) => processManagerService.subscribeAgentTurnEnded(handler),
     subscribeAgentStarted: (handler) => processManagerService.subscribeAgentStarted(handler),
+    subscribeAgentSessionLost: (handler) => processManagerService.subscribeAgentSessionLost(handler),
   });
 
 /**

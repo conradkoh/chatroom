@@ -13,6 +13,7 @@ function createService(): NativeDeliveryService {
     agentMgr: {
       subscribeAgentTurnEnded: () => () => undefined,
       subscribeAgentStarted: () => () => undefined,
+      subscribeAgentSessionLost: () => () => undefined,
     } as never,
     runSerializedForAgent: (async (_key: never, _options: never, operation: any) =>
       operation({ startAgent: vi.fn(), stopAgent: vi.fn() }, { signal: new AbortController().signal })) as never,

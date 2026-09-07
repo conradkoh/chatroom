@@ -67,7 +67,6 @@ import {
   handleTurnCompleted,
 } from '../../domain/usecase/handle-turn-completed.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
-import { notifyNativeHarnessSessionLostOnExit } from '../../entry/native-delivery/native-harness-session-exit.js';
 import {
   defaultNativeTurnPhase,
   setNativeTurnPhase,
@@ -172,6 +171,14 @@ export interface AgentStartedEvent {
 
 export type AgentStartedHandler = (event: AgentStartedEvent) => Promise<void>;
 
+export interface AgentSessionLostEvent {
+  readonly chatroomId: string;
+  readonly role: string;
+  readonly harnessSessionId?: string | undefined;
+}
+
+export type AgentSessionLostHandler = (event: AgentSessionLostEvent) => void;
+
 export interface AgentProcessManagerDeps {
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult> };
   logEvent: (event: Record<string, unknown>) => Promise<void>;
@@ -255,6 +262,7 @@ export class AgentProcessManager {
   private readonly agentTurnEndedHandlers = new Set<AgentTurnEndedHandler>();
   private agentTurnEndedSequence = 0;
   private readonly agentStartedHandlers = new Set<AgentStartedHandler>();
+  private readonly agentSessionLostHandlers = new Set<AgentSessionLostHandler>();
   /** Shared per-agent serialization boundary for public and internal operations. */
   private readonly serializedOperationTails = new Map<string, Promise<void>>();
   /** Effect-native lifecycle service runtime (Phase 3). */
@@ -335,6 +343,11 @@ export class AgentProcessManager {
   subscribeAgentStarted(handler: AgentStartedHandler): () => void {
     this.agentStartedHandlers.add(handler);
     return () => this.agentStartedHandlers.delete(handler);
+  }
+
+  subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void {
+    this.agentSessionLostHandlers.add(handler);
+    return () => this.agentSessionLostHandlers.delete(handler);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -748,12 +761,19 @@ export class AgentProcessManager {
     }
     this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
     if (slot.harness && getHarnessCapabilities(slot.harness).supportsNativeIntegration) {
-      notifyNativeHarnessSessionLostOnExit({
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        harness: ctx.harness,
-        harnessSessionId: ctx.harnessSessionId,
-      });
+      for (const handler of this.agentSessionLostHandlers) {
+        try {
+          handler({
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            harnessSessionId: ctx.harnessSessionId,
+          });
+        } catch (error) {
+          console.warn(
+            `[AgentProcessManager] native session-loss cleanup failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
     }
 
     const lifecyclePromise = this.lifecycle.runPromise(

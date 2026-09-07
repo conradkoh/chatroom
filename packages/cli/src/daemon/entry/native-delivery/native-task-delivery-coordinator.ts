@@ -46,21 +46,8 @@ export interface NativeTaskDeliverySessionDeps extends NativeDeliverySessionHand
   convexUrl: string;
 }
 
-export interface NativeSessionLostParams {
-  chatroomId: string;
-  role: string;
-  harnessSessionId?: string | undefined;
-}
-
 // fallow-ignore-next-line unused-export
 export class NativeTaskDeliveryCoordinator {
-  onSessionLost(params: NativeSessionLostParams): void {
-    getRoleDeliveryState().resetDeliveryState(params.chatroomId, params.role);
-    if (params.harnessSessionId) {
-      getNativeDeliveryLedger().clearSession(params.harnessSessionId);
-    }
-  }
-
   resetRoleDeliveryState(chatroomId: string, role: string): void {
     getRoleDeliveryState().resetDeliveryState(chatroomId, role);
   }
@@ -273,10 +260,6 @@ export function reconcileDeliverableWorkForRole(chatroomId: string, role: string
       ? (args) => session.nativeDelivery?.recordTaskDelivered(args)
       : undefined,
   });
-}
-
-export function notifyNativeSessionLost(params: NativeSessionLostParams): void {
-  getNativeTaskDeliveryCoordinator().onSessionLost(params);
 }
 
 export function resetRoleDeliveryState(chatroomId: string, role: string): void {

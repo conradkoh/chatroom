@@ -52,21 +52,6 @@ describe('NativeTaskDeliveryCoordinator', () => {
     resetNativeDeliveryLedgerForTests();
   });
 
-  test('onSessionLost resets role delivery generation', () => {
-    const coordinator = new NativeTaskDeliveryCoordinator();
-    const state = getRoleDeliveryState();
-    const ledger = getNativeDeliveryLedger();
-    ledger.markDelivered('task_1', 'sess_1');
-    const before = state.getGeneration('room_1', 'builder');
-    coordinator.onSessionLost({
-      chatroomId: 'room_1',
-      role: 'builder',
-      harnessSessionId: 'sess_1',
-    });
-    expect(state.getGeneration('room_1', 'builder')).toBe(before + 1);
-    expect(ledger.isDelivered('task_1', 'sess_1')).toBe(false);
-  });
-
   test('tryInjectNextForRole no-ops when session not registered', () => {
     unregisterNativeDeliverySession();
     const coordinator = new NativeTaskDeliveryCoordinator();

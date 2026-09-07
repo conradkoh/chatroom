@@ -8,6 +8,7 @@ import type {
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type {
   AgentSlot,
+  AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
 } from '../agent-process-manager.js';
@@ -80,6 +81,7 @@ export interface AgentProcessManagerExecutionPort {
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
+  subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
 }
 
 export interface AgentProcessManagerService {
@@ -130,6 +132,7 @@ export interface AgentProcessManagerService {
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
+  subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
 }
 
 export interface AgentProcessManagerResetResult {
@@ -389,5 +392,6 @@ export function createAgentProcessManagerService(
     resumeTurnForSlot: (input) => deps.execution.resumeTurnForSlot(input),
     subscribeAgentTurnEnded: (handler) => deps.execution.subscribeAgentTurnEnded(handler),
     subscribeAgentStarted: (handler) => deps.execution.subscribeAgentStarted(handler),
+    subscribeAgentSessionLost: (handler) => deps.execution.subscribeAgentSessionLost(handler),
   };
 }
