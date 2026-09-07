@@ -37,6 +37,7 @@ import {
   runOperationalInbox,
   type OperationalInboxUpdate,
 } from '../infrastructure/agent-operational/operational-inbox.js';
+import { createAgentTaskStateService } from '../infrastructure/agent-process-manager/components/agent-task-state/index.js';
 import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
@@ -51,6 +52,8 @@ import {
 const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 const INBOX_RESTART_INITIAL_MS = 1_000;
 const INBOX_RESTART_MAX_MS = 30_000;
+const NATIVE_HANDOFF_REMINDER =
+  'Reminder: Use the handoff command to send your response to the team.';
 
 type TaskInboxDependencies = {
   sessionDeps: NativeTaskDeliverySessionDeps;
@@ -195,6 +198,19 @@ export const startTaskInboxEffect = (
     let stopped = false;
     const taskSnapshotState = new MachineTaskSnapshotState();
     const agentOperationalReadModel = new AgentOperationalReadModel();
+    const agentTaskState = createAgentTaskStateService({
+      reminder: {
+        remind: async ({ chatroomId, role }) => {
+          await Effect.runPromise(
+            agentMgr.resumeTurnForSlot({
+              chatroomId,
+              role,
+              prompt: NATIVE_HANDOFF_REMINDER,
+            })
+          );
+        },
+      },
+    });
     const knownRoomIds = new Set<string>();
     const roomWatchers = new Map<
       string,
@@ -209,6 +225,7 @@ export const startTaskInboxEffect = (
       machineId: session.machineId,
       taskSnapshotState,
       agentOperationalReadModel,
+      agentTaskState,
       lifecycleOutbox,
     });
     const cooldown = new RecoveryCooldown();
@@ -513,6 +530,7 @@ export const startTaskInboxEffect = (
         clearInterval(reconcileTimer);
         unregisterTaskInboxRoomMembershipRefresh();
         unregisterNativeDeliverySession();
+        agentTaskState.clearAll();
         inboxStore.close();
       },
     };

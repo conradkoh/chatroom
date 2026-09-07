@@ -63,7 +63,6 @@ import type { HarnessSessionSnapshot } from '../../domain/entities/session-snaps
 import { resolveStopReason } from '../../domain/entities/stop-reason.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
 import { resolveNativeSpawnPolicy } from '../../domain/native-integration/spawn-policy.js';
-import { tryAbortResumeStorm } from '../../domain/usecase/abort-resume-storm.js';
 import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line.js';
 import {
   classifyProviderErrorFromLogs,
@@ -79,9 +78,11 @@ import {
   shouldRetainHarnessSessionForReconnect,
 } from '../../domain/usecase/preserve-harness-session.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
+import { getNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import { notifyNativeHarnessSessionLostOnExit } from '../../entry/native-delivery/native-harness-session-exit.js';
 import {
   getNativeTaskDeliveryCoordinator,
+  notifyNativeTurnIdle,
 } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
 import {
   defaultNativeTurnPhase,
@@ -258,6 +259,7 @@ export class AgentProcessManager {
   private readonly exitRetryQueue: RetryQueueItem[] = [];
   /** Active retry interval timer handle, or null if queue is empty. */
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
+  private agentEndEventSequence = 0;
   private readonly turnEndQueue = new TurnEndQueue();
   /** Effect-native lifecycle service runtime (Phase 3). */
   private readonly lifecycle: AgentLifecycleRuntime;
@@ -654,6 +656,36 @@ export class AgentProcessManager {
 
     if (capabilities.supportsNativeIntegration) {
       this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
+
+      const taskState = getNativeDeliverySession()?.agentTaskState;
+      const activeTask = taskState?.get({
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+      });
+      if (taskState && activeTask) {
+        const result = await taskState.handleAgentTurnEnded({
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          version: {
+            taskId: activeTask.taskId,
+            generation: activeTask.generation,
+          },
+          eventId: `${opts.pid}:${++this.agentEndEventSequence}`,
+        });
+
+        if (result.outcome === 'reminder_requested') {
+          console.log(
+            `[AgentProcessManager] ⏩ Handoff reminder requested for ${opts.role} (attempt ${result.attempt})`
+          );
+          return;
+        }
+        if (result.outcome === 'already_handed_off') {
+          setNativeTurnPhase(slot, defaultNativeTurnPhase());
+          notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
+          console.log(`[AgentProcessManager] ✅ Native agent_end completed for ${opts.role}`);
+          return;
+        }
+      }
       return;
     }
 
@@ -1603,8 +1635,7 @@ export class AgentProcessManager {
   private async spawnAgentForEnsureRunning(
     slot: AgentSlot,
     opts: EnsureRunningOpts,
-    initPrompt: { initialMessage: string; rolePrompt: string },
-    wantResume: boolean
+    initPrompt: { initialMessage: string; rolePrompt: string }
   ): Promise<{ ok: true; spawnResult: SpawnResult } | { ok: false; result: OperationResult }> {
     const service = this.deps.agentServices.get(opts.agentHarness);
     if (!service) {
@@ -1624,17 +1655,17 @@ export class AgentProcessManager {
     );
     try {
       spawnResult = await service.spawn({
-          workingDir: opts.workingDir,
-          prompt,
-          systemPrompt,
-          model: opts.model,
-          context: {
-            machineId: this.deps.machineId,
-            chatroomId: opts.chatroomId,
-            role: opts.role,
-          },
-          resolvedConvexUrl: this.deps.convexUrl,
-          deferInitialTurn,
+        workingDir: opts.workingDir,
+        prompt,
+        systemPrompt,
+        model: opts.model,
+        context: {
+          machineId: this.deps.machineId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+        },
+        resolvedConvexUrl: this.deps.convexUrl,
+        deferInitialTurn,
       });
     } catch (e) {
       this.resetSlotIdle(slot);
@@ -1903,7 +1934,7 @@ export class AgentProcessManager {
       const initPrompt = await this.fetchInitPromptResult(opts, slot);
       if (!initPrompt.ok) return initPrompt.result;
 
-      const spawn = await this.spawnAgentForEnsureRunning(slot, opts, initPrompt, wantResume);
+      const spawn = await this.spawnAgentForEnsureRunning(slot, opts, initPrompt);
       if (!spawn.ok) return spawn.result;
 
       await this.finalizeRunningSlot(key, slot, opts, spawn.spawnResult, wantResume);

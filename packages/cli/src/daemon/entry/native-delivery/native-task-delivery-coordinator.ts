@@ -3,12 +3,14 @@ import { Effect, Runtime, type Context } from 'effect';
 import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   logNativeDeliveryInjecting,
-  logNativeDeliveryFallback,
   logNativeDeliveryMutexSkip,
   logNativeDeliveryPrimary,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
-import { getNativeDeliverySession } from './native-delivery-session-registry.js';
+import {
+  getNativeDeliverySession,
+  recordNativeTaskDelivered,
+} from './native-delivery-session-registry.js';
 import {
   explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
@@ -93,8 +95,7 @@ export class NativeTaskDeliveryCoordinator {
     if (!serializedOperation) {
       throw new Error('Native delivery requires AgentProcessManagerService coordination');
     }
-    const { runtime, effectContext, agentMgr, runSerializedForAgent, sessionDeps, machineId } =
-      params;
+    const { runtime, effectContext, agentMgr, sessionDeps, machineId } = params;
     const deliveryState = getRoleDeliveryState();
     const ledger = getNativeDeliveryLedger();
 
@@ -192,6 +193,11 @@ export class NativeTaskDeliveryCoordinator {
             }) => {
               deliveredToHarness = true;
               ledger.markDelivered(deliveredTaskId, resolvedSessionId);
+              recordNativeTaskDelivered({
+                chatroomId,
+                role,
+                taskId: deliveredTaskId,
+              });
               deliveryState.clearNativeNudgeFailures(chatroomId, role);
             },
           });

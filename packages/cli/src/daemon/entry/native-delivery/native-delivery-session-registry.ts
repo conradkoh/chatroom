@@ -3,6 +3,7 @@ import type { Runtime, Context } from 'effect';
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import type { AgentTaskStateService } from '../../infrastructure/agent-process-manager/components/agent-task-state/index.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
@@ -32,6 +33,8 @@ export type NativeDeliverySessionRegistration = {
   machineId: string;
   taskSnapshotState?: MachineTaskSnapshotState | undefined;
   agentOperationalReadModel?: AgentOperationalReadModel | undefined;
+  /** Daemon-owned live task state used by native turn-end handling. */
+  agentTaskState?: AgentTaskStateService | undefined;
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
 };
 
@@ -41,6 +44,7 @@ export type NativeDeliverySessionContext = Omit<
 > & {
   taskSnapshotState: MachineTaskSnapshotState;
   agentOperationalReadModel: AgentOperationalReadModel;
+  agentTaskState?: AgentTaskStateService | undefined;
 };
 
 let registered: NativeDeliverySessionContext | null = null;
@@ -59,4 +63,35 @@ export function unregisterNativeDeliverySession(): void {
 
 export function getNativeDeliverySession(): NativeDeliverySessionContext | null {
   return registered;
+}
+
+/** Records a task entering a native harness in the daemon-owned task state. */
+export function recordNativeTaskDelivered(args: {
+  chatroomId: string;
+  role: string;
+  taskId: string;
+}): void {
+  const taskState = registered?.agentTaskState;
+  if (!taskState) return;
+
+  const key = { chatroomId: args.chatroomId, role: args.role };
+  taskState.start({ ...key, taskId: args.taskId });
+}
+
+/** Applies an explicit completed-task signal to the active daemon state. */
+export function recordNativeTaskHandedOff(args: {
+  chatroomId: string;
+  role: string;
+  taskId: string;
+}): void {
+  const taskState = registered?.agentTaskState;
+  if (!taskState) return;
+
+  const key = { chatroomId: args.chatroomId, role: args.role };
+  const active = taskState.get(key);
+  if (!active || active.taskId !== args.taskId) return;
+  taskState.markHandedOff(key, {
+    taskId: active.taskId,
+    generation: active.generation,
+  });
 }

@@ -76,15 +76,16 @@ introduced.
       required.
 - [x] Expose the state transitions through a single `AgentTaskStateService`
       façade with a composition-root constructor.
-- [ ] Make task delivery and successful handoff update the store through one
-      state-transition interface; keep the backend as durable persistence, not
-      the synchronous source for the live turn-end decision.
+- [x] Make task delivery and successful handoff update the store through one
+      state-transition interface; task delivery starts state and explicit
+      completed-task signals mark handoff. Keep the backend as durable
+      persistence, not the synchronous source for the live turn-end decision.
 - [ ] Route `AgentProcessManager` `onAgentEnd` events into the command queue
       instead of embedding handoff policy in the process callback.
 - [ ] Serialize turn-end handling, task delivery, handoff updates, and lifecycle
       commands with the same chatroom/role key.
-- [ ] Add an injected `HandoffReminder` port; issue at most one idempotent
-      reminder command per state transition and track its attempt number.
+- [x] Add an injected `HandoffReminder` port; issue a reminder through the
+      agent manager and track its attempt number in daemon state.
 - [x] Validate task identity/generation before acting so stale `agent_end` events
       cannot affect a later task for the same agent.
 - [ ] Keep `AgentProcessManager` responsible for process lifecycle and transport;
@@ -94,6 +95,21 @@ introduced.
 - [ ] Add integration tests for handoff/turn-end races and reminder failures.
 - [ ] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
+
+### Native delivery service boundary
+
+- [ ] Introduce a constructed, daemon-scoped `NativeDeliveryService` to own
+      native task snapshots, operational state, task state, serialized process
+      operations, lifecycle output, and delivery coordination.
+- [ ] Construct the service during daemon/task-inbox initialization and pass
+      it explicitly to delivery handlers and coordinators.
+- [ ] Make `handleTaskInboxUpdate` consume required dependencies directly and
+      remove its session-registry fallbacks.
+- [ ] Move task-state transition calls behind the service API and remove the
+      registry-level `recordNativeTaskDelivered` and
+      `recordNativeTaskHandedOff` helpers.
+- [ ] Remove the module-level native-delivery session singleton after all
+      callers use the constructed service.
 
 ---
 
