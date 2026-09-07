@@ -1,7 +1,7 @@
 /**
  * Canonical task orchestration coordinator.
  *
- * Unifies recovery-before-delivery sequencing behind one daemon-scoped,
+ * Unifies pending-task delivery sequencing behind one daemon-scoped,
  * dependency-injected instance:
  *
  * - Exactly one public orchestration API: `accept(event)` + `stop()`.
@@ -10,7 +10,6 @@
  *   trailing pass, so no event is lost. Different roles drain concurrently.
  * - `turn-idle` is immediate/high-priority (primary delivery logging);
  *   `periodic-reconcile` remains a safety net, not a time-based debounce.
- * - Recovery (wake/revive) runs before native delivery within every role pass.
  * - AgentProcessManager stays authoritative for process and slot lifecycle.
  *   This coordinator never owns slots, PIDs, spawning, stopping, or native
  *   turn-phase mutation — it only calls the narrow process port below.
@@ -18,7 +17,7 @@
  * Constraints (ported from the legacy processor/coordinator, do not remove):
  * - restart suppression, stale-turn correction, task status/assignment checks,
  *   native harness + nativeTurnPhase readiness gates, cold-session policy,
- *   RecoveryCooldown, full action hydration, claim/resume/inject behavior,
+ *   full action hydration, claim/resume/inject behavior,
  *   lifecycle outbox requirement, NativeDeliveryLedger, RoleDeliveryState,
  *   last-in-flight tracking, finalizer release, one injection at a time/role.
  *
@@ -30,17 +29,10 @@
  */
 // fallow-ignore-file complexity code-duplication unused-file
 
-import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
-import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
-import {
-  resolveSessionAugmentationForTask,
-  sessionAugmentationToWantResume,
-} from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { ChatroomRole } from '@workspace/shared/domain/chatroom-role';
 import { Effect, Runtime, type Context } from 'effect';
 
 import { api } from '../../../api.js';
-import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
@@ -89,11 +81,6 @@ import {
   isRestartOrchestratorInFlight,
 } from '../restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
-import {
-  listNativePendingTasksNeedingWake,
-  listNativeTasksNeedingRevive,
-  type RecoveryCooldown,
-} from '../task-delivery/task-delivery-logic.js';
 
 export type TaskOrchestrationEvent =
   | { type: 'bootstrap'; snapshots: readonly AssignedTaskSnapshotView[] }
@@ -141,9 +128,7 @@ export interface TaskOrchestrationCoordinatorDeps {
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
   taskSnapshotState: MachineTaskSnapshotState;
   agentOperationalReadModel: AgentOperationalReadModel;
-  cooldown: RecoveryCooldown;
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
-  isPidAlive?: (pid: number) => boolean;
 }
 
 export interface TaskOrchestrationCoordinator {
@@ -174,41 +159,6 @@ function roleKey(chatroomId: string, role: string): string {
   return JSON.stringify([chatroomId, role.toLowerCase()]);
 }
 
-function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
-  return sessionAugmentationToWantResume(
-    resolveSessionAugmentationForTask(
-      {
-        content: task.taskContent ?? '',
-        taskEnvelope: task.taskEnvelope,
-        startInNewSession: task.startInNewSession,
-      },
-      task.agentConfig.role
-    )
-  );
-}
-
-function resolveTaskRunnerContextFromFull(task: AssignedTaskWithContent):
-  | {
-      chatroomId: string;
-      agentConfig: AssignedTaskWithContent['agentConfig'];
-      role: string;
-      workingDir: string;
-      wantResume: boolean;
-    }
-  | undefined {
-  const { chatroomId, agentConfig } = task;
-  const { role } = agentConfig;
-  const workingDir = agentConfig.workingDir;
-  if (!workingDir) return undefined;
-  return {
-    chatroomId,
-    agentConfig,
-    role,
-    workingDir,
-    wantResume: resolveTaskWantResume(task),
-  };
-}
-
 export function createTaskOrchestrationCoordinator(
   deps: TaskOrchestrationCoordinatorDeps
 ): TaskOrchestrationCoordinator {
@@ -216,9 +166,6 @@ export function createTaskOrchestrationCoordinator(
   const ledger: NativeDeliveryLedger = getNativeDeliveryLedger();
   const deliveryState = getRoleDeliveryState();
   let stopped = false;
-
-  const isPidAlive =
-    deps.isPidAlive ?? ((pid: number) => isProcessAlive((p) => process.kill(p, 0), pid));
 
   function runPort<A>(effect: Effect.Effect<A, unknown, unknown>): Promise<A> {
     const provided = Effect.provide(
@@ -271,7 +218,7 @@ export function createTaskOrchestrationCoordinator(
         state.dirty = false;
         const waiters = state.waiters.splice(0, state.waiters.length);
         try {
-          await reconcileRole(state.chatroomId, state.role, reasons);
+      await reconcileRole(state.chatroomId, state.role, reasons);
         } catch (err) {
           // A failed pass releases scheduler state and permits a later retry.
           console.warn(
@@ -303,6 +250,7 @@ export function createTaskOrchestrationCoordinator(
     return result ? mapAssignedTaskView(result as Parameters<typeof mapAssignedTaskView>[0]) : null;
   }
 
+  /* Recovery wake/revive orchestration removed; retained temporarily for the cleanup phase.
   async function runRecoveryEnsureRunning(
     kind: 'wake' | 'revive',
     full: AssignedTaskWithContent
@@ -383,6 +331,7 @@ export function createTaskOrchestrationCoordinator(
       await runRecoveryEnsureRunning('revive', full);
     }
   }
+  */
 
   function buildInjectorAgentMgr(): NativeInjectorAgentMgr {
     return {
@@ -580,8 +529,6 @@ export function createTaskOrchestrationCoordinator(
 
     const now = Date.now();
     // Recovery runs before delivery.
-    await recoverWake(tasks, now);
-    await recoverRevive(tasks, now);
     await deliverNativeForRole(tasks);
   }
 

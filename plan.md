@@ -75,9 +75,10 @@
 - [x] Phase 3 — Remove daemon-startup state recovery.
   - [x] Remove the startup recovery handler, bridge, use case, initialization call, and recovery-specific tests.
   - [x] Ensure daemon startup begins with no recovered agents; shutdown/reset clears managed state instead.
-- [ ] Phase 4 — Remove recovery-specific task delivery and orchestration.
-  - [ ] Remove wake/revive recovery sequencing, recovery suppression, retry loops, and recovery-only cooldown behavior.
-  - [ ] Retain normal pending-task delivery when explicitly requested.
+- [x] Phase 4 — Remove recovery-specific task delivery and orchestration.
+  - [x] Remove wake/revive recovery triggers, recovery suppression from reconciliation, and recovery assertions from orchestration tests.
+  - [x] Retain normal pending-task delivery when explicitly requested.
+  - [ ] Delete the now-orphaned wake/revive helper implementations and cooldown artifacts in Phase 6.
 - [ ] Phase 5 — Remove native harness/session recovery.
   - [ ] Remove session-exit recovery, session reinjection, proactive recovery triggers, and recovery-only native delivery paths.
   - [ ] Retain explicit task injection and lifecycle operations.

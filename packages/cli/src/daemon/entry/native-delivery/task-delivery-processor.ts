@@ -10,23 +10,14 @@
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
-import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
-import {
-  resolveSessionAugmentationForTask,
-  sessionAugmentationToWantResume,
-} from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect, Runtime, type Context } from 'effect';
 
 import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
-import type { AgentHarness } from '../daemon-types.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { api } from '../../../api.js';
-import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
   AssignedTaskSnapshotView,
@@ -41,10 +32,6 @@ import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
 } from '../restart-orchestrator-in-flight.js';
-import {
-  listNativeTasksNeedingRevive,
-  listNativePendingTasksNeedingWake,
-} from '../task-delivery/task-delivery-logic.js';
 import type { RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
@@ -60,41 +47,8 @@ export type ProcessTasksUpdateOptions = {
 type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
 const NATIVE_START_OPERATION_TIMEOUT_MS = 30_000;
 
-function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
-  return sessionAugmentationToWantResume(
-    resolveSessionAugmentationForTask(
-      {
-        content: task.taskContent ?? '',
-        taskEnvelope: task.taskEnvelope,
-        startInNewSession: task.startInNewSession,
-      },
-      task.agentConfig.role
-    )
-  );
-}
-
-function resolveTaskRunnerContextFromFull(task: AssignedTaskWithContent):
-  | {
-      chatroomId: string;
-      agentConfig: AssignedTaskWithContent['agentConfig'];
-      role: string;
-      workingDir: string;
-      wantResume: boolean;
-    }
-  | undefined {
-  const { chatroomId, agentConfig } = task;
-  const { role } = agentConfig;
-  const workingDir = agentConfig.workingDir;
-  if (!workingDir) return undefined;
-  return {
-    chatroomId,
-    agentConfig,
-    role,
-    workingDir,
-    wantResume: resolveTaskWantResume(task),
-  };
-}
-
+/* Recovery wake/revive helpers removed; retained below temporarily for the cleanup phase. */
+/*
 function runNativeReviveEffect(
   task: AssignedTaskWithContent,
   runtime: TaskDeliveryRuntime,
@@ -237,12 +191,8 @@ async function clearStuckStoppingSlotIfNeeded(
   }
 }
 
-/**
- * Normalize expired stopping slots before ownership selection, so a cold
- * delivery decision and recovery suppression observe the same lifecycle.
- * Restart-in-flight roles are excluded; local process-manager stop intent
- * remains authoritative elsewhere.
- */
+// Normalize expired stopping slots before ownership selection, so a cold
+// delivery decision and recovery suppression observe the same lifecycle.
 async function normalizeStuckStoppingSlots(
   tasks: AssignedTaskSnapshotView[],
   agentMgr: DaemonAgentProcessManagerServiceShape
@@ -304,6 +254,7 @@ async function wakeStoppedAgentsForPendingTasks(
     runNativeWakeEffect(full, runtime, effectContext, runSerializedForAgent);
   }
 }
+*/
 
 export async function processTasksUpdate(
   runtime: TaskDeliveryRuntime,
@@ -320,36 +271,6 @@ export async function processTasksUpdate(
   const filteredTasks = filterSnapshotsExcludingRestartInFlight(tasks);
   if (filteredTasks.length === 0) return;
 
-  const now = Date.now();
-  const localHealth = {
-    getSlot: (chatroomId: string, role: string) => agentMgr.getSlot(chatroomId, role),
-    isPidAlive: (pid: number) => isProcessAlive((p) => process.kill(p, 0), pid),
-  };
-
-  await normalizeStuckStoppingSlots(filteredTasks, agentMgr);
-
-  await wakeStoppedAgentsForPendingTasks(
-    filteredTasks,
-    now,
-    cooldown,
-    runtime,
-    effectContext,
-    runSerializedForAgent,
-    sessionDeps,
-    machineId
-  );
-
-  await reviveNativeTasks(
-    filteredTasks,
-    localHealth,
-    now,
-    cooldown,
-    runtime,
-    effectContext,
-    runSerializedForAgent,
-    sessionDeps,
-    machineId
-  );
   if (filteredTasks.length > 0) {
     const first = filteredTasks[0];
     logNativeDeliveryFallback(_pass, first.agentConfig.role, first.chatroomId, first.taskId);
