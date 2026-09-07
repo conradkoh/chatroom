@@ -49,7 +49,7 @@
 - [ ] Verify every service dependency is mandatory in production wiring.
   - [x] Remove optional `processManagerService` dependencies and inline serialized-operation fallbacks in daemon services.
   - [x] Make task-inbox delivery and native task-delivery coordinator serialization dependencies mandatory.
-  - [ ] Confirm daemon initialization starts the queue consumer before lifecycle commands can be awaited.
+  - [x] Confirm daemon initialization starts the queue consumer before lifecycle commands can be awaited.
 - [x] Define and verify completion semantics for every migrated caller.
   - [x] Confirm callers that require ordering await service promises.
   - [x] Confirm intentional fire-and-forget callers handle rejection or subscribe to notifications.
