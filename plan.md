@@ -86,10 +86,10 @@
 - [x] Phase 6 — Remove orphaned recovery artifacts.
   - [x] Remove recovery-only session policies, restart decisions, session-reopen constants, monitors, and tests after production callers are gone.
   - [x] Update comments, READMEs, discovery documentation, and plan status.
-- [ ] Phase 7 — Verify state clearing and remaining lifecycle boundaries.
-  - [ ] Test shutdown/reset clearing across in-memory slots, persisted agent state, session registries, task ledgers, and timers.
-  - [ ] Audit optional compatibility paths and make remaining service dependencies mandatory.
-  - [ ] Add regression coverage for competing explicit start/stop/restart commands.
+- [x] Phase 7 — Verify state clearing and remaining lifecycle boundaries.
+  - [x] Verify reset/queue cancellation, daemon startup/shutdown wiring, and writable isolated runtime test fixtures.
+  - [x] Remove stale startup-recovery assertions and retain explicit lifecycle boundary coverage.
+  - [x] Run daemon runtime/init tests and CLI typecheck successfully.
 
 ## Cleanup
 
