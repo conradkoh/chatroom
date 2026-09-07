@@ -10,7 +10,10 @@ import {
 import type { MachineCommandPayload } from '@workspace/backend/src/domain/entities/machine-command.js';
 import { Effect, Layer, Ref, type Context } from 'effect';
 
-import { pushSingleWorkspaceGitStateEffect, pushGitStateEffect } from './workspace-git/git-heartbeat.js';
+import {
+  pushSingleWorkspaceGitStateEffect,
+  pushGitStateEffect,
+} from './workspace-git/git-heartbeat.js';
 import { reconcileWorkspaceList } from './workspace-git/workspace-list-subscription.js';
 import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
@@ -18,6 +21,7 @@ import { isDaemonCommandEventType, type DaemonCommandEventType } from './command
 import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
 import {
   DaemonMutableStateService,
+  DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
   type DaemonAgentProcessManagerService,
   type DaemonSessionServiceShape,
@@ -60,7 +64,10 @@ export interface DedupTracker {
 
 /** Union of services required to dispatch any command event. */
 export type CommandDispatchDeps =
-  DaemonAgentProcessManagerService | DaemonMutableStateService | DaemonSessionService;
+  | DaemonAgentProcessManagerService
+  | DaemonAgentProcessManagerCommandService
+  | DaemonMutableStateService
+  | DaemonSessionService;
 
 function evictStaleEntries(entries: Map<string, number>, evictBefore: number): void {
   for (const [id, ts] of entries) {
@@ -76,7 +83,8 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
-  if (tracker.workspaceListChangedIds) evictStaleEntries(tracker.workspaceListChangedIds, evictBefore);
+  if (tracker.workspaceListChangedIds)
+    evictStaleEntries(tracker.workspaceListChangedIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 

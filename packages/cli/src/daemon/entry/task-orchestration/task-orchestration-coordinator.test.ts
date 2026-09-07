@@ -268,6 +268,7 @@ function setupCoordinator(opts?: {
     effectContext: Context.empty() as unknown as TaskOrchestrationCoordinatorDeps['effectContext'],
     sessionDeps,
     process,
+    runSerializedForAgent: {} as never,
     taskSnapshotState,
     agentOperationalReadModel,
     cooldown,

@@ -22,7 +22,7 @@
   - [x] Preserve completion-dependent follow-up work and failure handling.
   - [x] Verify same-key ordering for service operations and competing queued commands.
   - [x] Add focused tests for the migrated flow and timeout/cancellation behavior.
-  - [ ] Remove compatibility fallbacks and verify competing legacy-path behavior.
+  - [x] Remove compatibility fallbacks and verify competing legacy-path behavior.
   - [ ] Migrate additional start, stop, restart, recovery, and shutdown callers.
   - [ ] Remove legacy direct lifecycle calls after each path is covered.
 

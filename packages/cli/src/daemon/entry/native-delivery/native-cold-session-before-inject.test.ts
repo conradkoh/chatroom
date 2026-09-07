@@ -129,6 +129,39 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     });
   });
 
+  test('does not bypass the serialized lifecycle capability', async () => {
+    const legacyStop = vi.fn(() => {
+      throw new Error('legacy stop must not be called');
+    });
+    const legacyStart = vi.fn(() => {
+      throw new Error('legacy start must not be called');
+    });
+    const serializedStop = vi.fn().mockResolvedValue(undefined);
+    const serializedStart = vi.fn().mockResolvedValue(undefined);
+    const deps = createDeps({
+      agentMgr: {
+        ...createDeps().agentMgr,
+        stop: legacyStop,
+        ensureRunning: legacyStart,
+      },
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          { startAgent: serializedStart, stopAgent: serializedStop },
+          { signal: new AbortController().signal }
+        )
+      ),
+    });
+
+    await expect(
+      ensureColdSessionBeforeNativeInject(makeTask({ startInNewSession: true }), deps)
+    ).resolves.toBe('sess_after_cold');
+
+    expect(legacyStop).not.toHaveBeenCalled();
+    expect(legacyStart).not.toHaveBeenCalled();
+    expect(serializedStop).toHaveBeenCalledOnce();
+    expect(serializedStart).toHaveBeenCalledOnce();
+  });
+
   test('returns null when cold spawn fails', async () => {
     const deps = createDeps({
       agentMgr: {

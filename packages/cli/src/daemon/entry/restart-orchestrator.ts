@@ -13,6 +13,7 @@ import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/use
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
+import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 import type { AgentHarness } from './daemon-types.js';
 import { api } from '../../api.js';
 import { getNativeDeliveryLedger } from './native-delivery/native-delivery-ledger.js';
@@ -61,6 +62,7 @@ export interface RestartOrchestratorSession {
 interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
 }
 
 async function emitPhase(
@@ -215,6 +217,7 @@ async function deliverOneTask(
           ensureRunning: (opts) => Effect.runPromise(deps.agentMgr.ensureRunning(opts)),
           getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
         },
+        runSerializedForAgent: deps.runSerializedForAgent,
         onTaskDelivered: ({ chatroomId, role, taskId, harnessSessionId: resolvedSessionId }) => {
           deliveredToHarness = true;
           ledger.markDelivered(taskId, resolvedSessionId);

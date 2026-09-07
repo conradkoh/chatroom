@@ -30,12 +30,17 @@ export async function handleTaskInboxUpdate(
   const taskSnapshotState = deps.taskSnapshotState ?? getNativeDeliverySession()?.taskSnapshotState;
   taskSnapshotState?.applySignalPage(update.signals, update.snapshots);
   if (update.snapshots.length === 0) return;
+  const runSerializedForAgent =
+    deps.runSerializedForAgent ?? getNativeDeliverySession()?.runSerializedForAgent;
+  if (!runSerializedForAgent) {
+    throw new Error('Task inbox delivery requires AgentProcessManagerService coordination');
+  }
   await processTasksUpdate(
     deps.runtime,
     deps.effectContext,
     deps.cooldown,
     deps.agentMgr,
-    deps.runSerializedForAgent,
+    runSerializedForAgent,
     deps.sessionDeps,
     deps.machineId,
     'inbox-signal',

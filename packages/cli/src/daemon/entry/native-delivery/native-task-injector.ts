@@ -59,7 +59,7 @@ export interface NativeDeliverySessionHandles {
 export interface NativeInjectorDeps extends NativeDeliverySessionHandles {
   agentMgr: NativeInjectorAgentMgr;
   /** Narrow coordination capability used by the cold-session flow. */
-  runSerializedForAgent?: <T>(
+  runSerializedForAgent: <T>(
     key: AgentKey,
     options: { timeoutMs: number },
     operation: (ops: SerializedAgentOperations, context: { signal: AbortSignal }) => Promise<T>

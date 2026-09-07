@@ -67,43 +67,8 @@ export async function ensureColdSessionBeforeNativeInject(
     return null;
   }
   let harnessSessionId: string | null;
-  const runSerializedForAgent =
-    deps.runSerializedForAgent ??
-    (async <T>(
-      _key: { chatroomId: string; role: string },
-      _options: { timeoutMs: number },
-      operation: (
-        ops: {
-          startAgent(
-            input: Parameters<NativeInjectorDeps['agentMgr']['ensureRunning']>[0],
-            signal: AbortSignal
-          ): Promise<void>;
-          stopAgent(
-            input: Parameters<NativeInjectorDeps['agentMgr']['stop']>[0],
-            signal: AbortSignal
-          ): Promise<void>;
-        },
-        context: { signal: AbortSignal }
-      ) => Promise<T>
-    ) =>
-      operation(
-        {
-          startAgent: async (input, signal) => {
-            if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
-            const result = await deps.agentMgr.ensureRunning(input);
-            if (!result.success) throw new Error('agent start failed');
-          },
-          stopAgent: async (input, signal) => {
-            if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
-            const result = await deps.agentMgr.stop(input);
-            if (!result.success) throw new Error('agent stop failed');
-          },
-        },
-        { signal: new AbortController().signal }
-      ));
-
   try {
-    harnessSessionId = await runSerializedForAgent(
+    harnessSessionId = await deps.runSerializedForAgent(
       { chatroomId, role },
       { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
       async (ops, context) => {

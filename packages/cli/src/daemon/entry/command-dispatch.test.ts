@@ -19,6 +19,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
 import type {
+  DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonMutableStateService,
   DaemonSessionService,
@@ -199,7 +200,10 @@ vi.mock('./events/agent/on-request-stop-agent.js', async () => {
 function makeDispatchLayers(
   overrides?: Partial<DaemonSessionInit>
 ): Layer.Layer<
-  DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+  | DaemonSessionService
+  | DaemonAgentProcessManagerService
+  | DaemonAgentProcessManagerCommandService
+  | DaemonMutableStateService
 > {
   const init = createMockDaemonSessionInit(overrides);
   return daemonSessionToLayers(init);
@@ -209,7 +213,10 @@ async function runDispatch<A>(
   effect: Effect.Effect<
     A,
     never,
-    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+    | DaemonSessionService
+    | DaemonAgentProcessManagerService
+    | DaemonAgentProcessManagerCommandService
+    | DaemonMutableStateService
   >,
   overrides?: Partial<DaemonSessionInit>
 ) {

@@ -11,6 +11,7 @@ import type {
   DaemonSessionServiceShape,
 } from '../daemon-services.js';
 import type { AgentHarness, StartAgentReason } from '../daemon-types.js';
+import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import { runRestartOrchestrator } from '../restart-orchestrator.js';
 
 export function createStartAgentDeps(
@@ -80,7 +81,8 @@ export function createStartAgentDeps(
 
 export function createRestartAgentDeps(
   agentMgr: DaemonAgentProcessManagerServiceShape,
-  session: DaemonSessionServiceShape
+  session: DaemonSessionServiceShape,
+  processManagerService: AgentProcessManagerService
 ): RestartAgentDeps {
   return {
     restartOrchestrator: {
@@ -95,6 +97,7 @@ export function createRestartAgentDeps(
               backend: session.backend,
             },
             agentMgr,
+            runSerializedForAgent: processManagerService.runSerializedForAgent,
           },
           {
             chatroomId: input.chatroomId as Id<'chatroom_rooms'>,

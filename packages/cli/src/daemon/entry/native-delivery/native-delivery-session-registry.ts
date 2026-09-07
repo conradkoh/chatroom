@@ -20,7 +20,7 @@ export type NativeDeliverySessionRegistration = {
   runtime: Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
   effectContext: Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
   agentMgr: DaemonAgentProcessManagerServiceShape;
-  runSerializedForAgent?: <T>(
+  runSerializedForAgent: <T>(
     key: AgentKey,
     options: SerializedAgentOperationOptions,
     operation: (

@@ -126,6 +126,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
         NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
       >[0]['effectContext'],
       agentMgr: agentMgr as never,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps,
       machineId: 'm',
       taskSnapshotState,
@@ -157,6 +158,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
         resumeTurnForSlot,
         setLastInFlightTask: vi.fn(),
       } as never,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps: {
         sessionId: 's',
         machineId: 'm',
@@ -185,6 +187,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr: { getSlot: vi.fn() } as never,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps: {
         sessionId: 's',
         machineId: 'm',

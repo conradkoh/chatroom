@@ -68,6 +68,7 @@ describe('createDaemonRuntime', () => {
       AgentLifecycleOutboxService,
       DaemonSessionService,
       DaemonMutableStateService,
+      DaemonAgentProcessManagerCommandService,
       DaemonAgentProcessManagerService,
     } = await import('./daemon-services.js');
     const { createDaemonRuntime } = await import('./daemon-runtime.js');
@@ -86,6 +87,9 @@ describe('createDaemonRuntime', () => {
         lastPushedGitState: { get: vi.fn(), set: vi.fn() },
       } as never),
       Layer.succeed(DaemonAgentProcessManagerService, {} as never),
+      Layer.succeed(DaemonAgentProcessManagerCommandService, {
+        runSerializedForAgent: vi.fn(),
+      } as never),
       Layer.succeed(AgentLifecycleOutboxService, {
         enqueue: () => Effect.succeed({ success: true }),
         stopAll: () => Effect.void,

@@ -61,6 +61,7 @@ import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-s
 import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
 import type { AgentHarness } from '../daemon-types.js';
+import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import {
   getNativeDeliveryLedger,
   type NativeDeliveryLedger,
@@ -136,6 +137,7 @@ export interface TaskOrchestrationCoordinatorDeps {
   effectContext: Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
   sessionDeps: TaskOrchestrationSessionDeps;
   process: TaskOrchestrationProcessPort;
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
   taskSnapshotState: MachineTaskSnapshotState;
   agentOperationalReadModel: AgentOperationalReadModel;
   cooldown: RecoveryCooldown;
@@ -484,6 +486,7 @@ export function createTaskOrchestrationCoordinator(
               backend: deps.sessionDeps.backend,
               lifecycleOutbox: deps.lifecycleOutbox,
               agentMgr: buildInjectorAgentMgr(),
+              runSerializedForAgent: deps.runSerializedForAgent,
               convexUrl: deps.sessionDeps.convexUrl,
               onTaskDelivered: (args) => {
                 deliveredToHarness = true;

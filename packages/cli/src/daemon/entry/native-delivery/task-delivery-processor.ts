@@ -287,7 +287,7 @@ export async function processTasksUpdate(
   effectContext: TaskDeliveryContext,
   cooldown: RecoveryCooldown,
   agentMgr: DaemonAgentProcessManagerServiceShape,
-  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'] | undefined,
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   _pass: TaskDeliveryPass,
@@ -336,7 +336,7 @@ export async function processTasksUpdate(
     runtime,
     effectContext,
     agentMgr,
-    ...(runSerializedForAgent ? { runSerializedForAgent } : {}),
+    runSerializedForAgent,
     sessionDeps,
     machineId,
   });

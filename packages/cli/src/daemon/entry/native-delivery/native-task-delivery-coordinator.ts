@@ -89,6 +89,11 @@ export class NativeTaskDeliveryCoordinator {
   }): void {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
+    const serializedOperation =
+      params.runSerializedForAgent ?? getNativeDeliverySession()?.runSerializedForAgent;
+    if (!serializedOperation) {
+      throw new Error('Native delivery requires AgentProcessManagerService coordination');
+    }
     const { runtime, effectContext, agentMgr, runSerializedForAgent, sessionDeps, machineId } =
       params;
     const deliveryState = getRoleDeliveryState();
@@ -188,7 +193,7 @@ export class NativeTaskDeliveryCoordinator {
               ensureRunning: (opts) => Effect.runPromise(agentMgr.ensureRunning(opts)),
               getSlot: (chatroomId, role) => agentMgr.getSlot(chatroomId, role),
             },
-            ...(runSerializedForAgent ? { runSerializedForAgent } : {}),
+            runSerializedForAgent: serializedOperation,
             convexUrl: sessionDeps.convexUrl,
             onTaskDelivered: ({
               chatroomId,
@@ -250,9 +255,7 @@ export function reconcileDeliverableWorkForRole(chatroomId: string, role: string
     runtime,
     effectContext,
     agentMgr,
-    ...(session.runSerializedForAgent
-      ? { runSerializedForAgent: session.runSerializedForAgent }
-      : {}),
+    runSerializedForAgent: session.runSerializedForAgent,
     sessionDeps,
     machineId,
   });

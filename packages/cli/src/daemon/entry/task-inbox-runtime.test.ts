@@ -241,6 +241,7 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
       effectContext: {} as never,
       cooldown: {} as never,
       agentMgr: {} as never,
+      runSerializedForAgent: {} as never,
       machineId: 'machine-1',
     });
     expect(mutation).toHaveBeenCalledTimes(2);
@@ -257,6 +258,7 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
       effectContext: undefined as never,
       cooldown: undefined as never,
       agentMgr: undefined as never,
+      runSerializedForAgent: undefined as never,
       machineId: 'machine-1',
     });
     expect(mutation).toHaveBeenCalledTimes(2);
@@ -301,6 +303,7 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
       effectContext: {} as never,
       cooldown: {} as never,
       agentMgr: {} as never,
+      runSerializedForAgent: {} as never,
       machineId: 'machine-1',
       onDiscoveredChatrooms,
     });

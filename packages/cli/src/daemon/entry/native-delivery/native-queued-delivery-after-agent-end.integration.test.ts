@@ -103,6 +103,7 @@ describe('native queued delivery after agent_end', () => {
         NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
       >[0]['effectContext'],
       agentMgr,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps: {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
@@ -222,6 +223,7 @@ describe('native queued delivery after agent_end', () => {
         NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
       >[0]['effectContext'],
       agentMgr,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps: {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',

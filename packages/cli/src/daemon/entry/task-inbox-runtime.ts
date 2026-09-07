@@ -58,7 +58,7 @@ type TaskInboxDependencies = {
   effectContext: TaskDeliveryContext;
   cooldown: RecoveryCooldown;
   agentMgr: DaemonAgentProcessManagerServiceShape;
-  runSerializedForAgent?: AgentProcessManagerService['runSerializedForAgent'];
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
   machineId: string;
   taskSnapshotState?: MachineTaskSnapshotState | undefined;
   /** Invoked with the assigned-task chatroom IDs after task state replace and before first delivery. */
@@ -391,6 +391,7 @@ export const startTaskInboxEffect = (
               effectContext,
               cooldown,
               agentMgr,
+              runSerializedForAgent: commandService.runSerializedForAgent,
               sessionDeps,
               machineId: session.machineId,
               taskSnapshotState,
