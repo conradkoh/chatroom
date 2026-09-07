@@ -1,23 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
+import { describe, expect, it } from 'vitest';
 import { explainAgentReadyForNativeDeliveryBlock } from './native-ready-invariant.js';
-import {
-  operationalRow,
-  registerTestNativeDeliverySession,
-} from '../../infrastructure/agent-operational/test-support.js';
-
-beforeEach(() =>
-  registerTestNativeDeliverySession({
-    runtime: undefined as never,
-    effectContext: undefined as never,
-    agentMgr: {} as never,
-    sessionDeps: {} as never,
-    machineId: 'machine-1',
-    operationalRows: [operationalRow('room-1', 'builder', 'running')],
-  })
-);
-afterEach(() => unregisterNativeDeliverySession());
+import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
 
 const task = (overrides: Record<string, unknown> = {}) =>
   ({
@@ -48,37 +31,39 @@ const idleSlot = (overrides: Record<string, unknown> = {}) =>
     ...overrides,
   }) as never;
 
+const runningOperational = operationalRow('room-1', 'builder', 'running');
+
 describe('native-ready-invariant', () => {
   it('allows delivery-owned cold spawn when slot is down and operational is starting', () => {
     expect(
-      explainAgentReadyForNativeDeliveryBlock(task({ requestsNativeColdSession: true }), undefined)
+      explainAgentReadyForNativeDeliveryBlock(
+        task({ requestsNativeColdSession: true }),
+        undefined,
+        runningOperational
+      )
     ).toBeNull();
   });
 
   it('blocks a stopped task when no local slot exists', () => {
-    registerTestNativeDeliverySession({
-      runtime: undefined as never,
-      effectContext: undefined as never,
-      agentMgr: {} as never,
-      sessionDeps: {} as never,
-      machineId: 'machine-1',
-      operationalRows: [operationalRow('room-1', 'builder', 'stopped')],
-    });
-    expect(explainAgentReadyForNativeDeliveryBlock(task(), undefined)).toBe(
+    expect(
+      explainAgentReadyForNativeDeliveryBlock(
+        task(),
+        undefined,
+        operationalRow('room-1', 'builder', 'stopped')
+      )
+    ).toBe(
       'operational_state_not_running (state=stopped)'
     );
   });
 
   it('blocks a pending task when its fresh snapshot says stopped', () => {
-    registerTestNativeDeliverySession({
-      runtime: undefined as never,
-      effectContext: undefined as never,
-      agentMgr: {} as never,
-      sessionDeps: {} as never,
-      machineId: 'machine-1',
-      operationalRows: [operationalRow('room-1', 'builder', 'stopped')],
-    });
-    expect(explainAgentReadyForNativeDeliveryBlock(task(), idleSlot())).toBe(
+    expect(
+      explainAgentReadyForNativeDeliveryBlock(
+        task(),
+        idleSlot(),
+        operationalRow('room-1', 'builder', 'stopped')
+      )
+    ).toBe(
       'operational_state_not_running (state=stopped)'
     );
   });
@@ -96,7 +81,8 @@ describe('native-ready-invariant', () => {
             desiredState: 'running',
           },
         }),
-        idleSlot({ pid: 42, nativeTurnPhase: 'turn_in_flight' })
+        idleSlot({ pid: 42, nativeTurnPhase: 'turn_in_flight' }),
+        runningOperational
       )
     ).toBe('turn_not_idle (nativeTurnPhase=turn_in_flight)');
   });
@@ -113,7 +99,8 @@ describe('native-ready-invariant', () => {
             desiredState: 'running',
           },
         }),
-        idleSlot({ pid: 123 })
+        idleSlot({ pid: 123 }),
+        runningOperational
       )
     ).toBeNull();
   });
@@ -130,7 +117,8 @@ describe('native-ready-invariant', () => {
             spawnedAgentPid: 42,
           },
         }),
-        idleSlot({ pid: 99 })
+        idleSlot({ pid: 99 }),
+        runningOperational
       )
     ).toBeNull();
   });
@@ -147,7 +135,8 @@ describe('native-ready-invariant', () => {
             spawnedAgentPid: 42,
           },
         }),
-        idleSlot({ pid: 99, state: 'spawning' })
+        idleSlot({ pid: 99, state: 'spawning' }),
+        runningOperational
       )
     ).toContain('pid_mismatch');
   });

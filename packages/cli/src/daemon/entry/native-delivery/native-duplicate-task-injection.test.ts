@@ -8,37 +8,26 @@
 
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { Context, Effect, Runtime } from 'effect';
-import { afterEach, describe, expect, test, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
   getNativeDeliveryLedger,
   resetNativeDeliveryLedgerForTests,
 } from './native-delivery-ledger.js';
-import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
-import {
-  operationalRow,
-  registerTestNativeDeliverySession,
-} from '../../infrastructure/agent-operational/test-support.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';
-beforeEach(() =>
-  registerTestNativeDeliverySession({
-    runtime: undefined as never,
-    effectContext: undefined as never,
-    agentMgr: {} as never,
-    sessionDeps: {} as never,
-    machineId: 'machine_1',
-    operationalRows: [operationalRow(CHATROOM_ID, ROLE)],
-  })
-);
-afterEach(() => unregisterNativeDeliverySession());
 const CHATROOM_ID = 'room_dup';
 const ROLE = 'planner';
+
+afterEach(() => {
+  resetNativeDeliveryLedgerForTests();
+});
 
 function makeAcknowledgedRow() {
   return {
@@ -105,6 +94,8 @@ describe('native duplicate task injection', () => {
 
     const coordinator = new NativeTaskDeliveryCoordinator();
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const operationalModel = new AgentOperationalReadModel();
+    operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
 
     const reconcileParams = {
       tasks: [row],
@@ -129,7 +120,7 @@ describe('native duplicate task injection', () => {
       },
       machineId: 'machine_dup',
       lifecycleOutbox: { enqueue: async () => undefined },
-      operationalModel: new AgentOperationalReadModel(),
+      operationalModel,
     };
 
     coordinator.reconcileAssignedTasks(reconcileParams);

@@ -19,12 +19,8 @@ import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entit
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-import {
-  getNativeDeliverySession,
-  unregisterNativeDeliverySession,
-} from './native-delivery-session-registry.js';
 import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
@@ -36,24 +32,19 @@ import {
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import {
   operationalRow,
-  registerTestNativeDeliverySession,
 } from '../../infrastructure/agent-operational/test-support.js';
 
-beforeEach(() =>
-  registerTestNativeDeliverySession({
-    runtime: undefined as never,
-    effectContext: undefined as never,
-    agentMgr: {} as never,
-    sessionDeps: {} as never,
-    machineId: 'machine-1',
-    operationalRows: [operationalRow('room_1', 'builder')],
-  })
-);
-afterEach(() => unregisterNativeDeliverySession());
+const operationalModel = new AgentOperationalReadModel();
+const lifecycleOutbox = { enqueue: vi.fn().mockResolvedValue(undefined) };
+
+beforeEach(() => {
+  operationalModel.replace([operationalRow('room_1', 'builder')]);
+  lifecycleOutbox.enqueue.mockClear();
+});
 
 const HARNESS_SESSION_ID = 'harness-user-message';
 const MACHINE_ID = 'machine-user-message-pending';
@@ -128,6 +119,7 @@ describe('user message pending delivery path', () => {
     expect(
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot(),
+        operational: operationalRow('room_1', 'builder'),
       })
     ).toBe(true);
   });
@@ -184,8 +176,8 @@ describe('user message pending delivery path', () => {
         },
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
-      lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
-      operationalModel: new AgentOperationalReadModel(),
+      lifecycleOutbox,
+      operationalModel,
     });
 
     await vi.waitFor(() => {
@@ -200,7 +192,7 @@ describe('user message pending delivery path', () => {
         taskId: row!.taskId,
       })
     );
-    expect(getNativeDeliverySession()!.lifecycleOutbox!.enqueue).toHaveBeenCalledWith(
+    expect(lifecycleOutbox.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'activity',
         action: NATIVE_TASK_INJECTED_ACTION,
@@ -254,8 +246,8 @@ describe('user message pending delivery path', () => {
         },
       },
       machineId: MACHINE_ID,
-      lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
-      operationalModel: new AgentOperationalReadModel(),
+      lifecycleOutbox,
+      operationalModel,
     });
 
     await new Promise((r) => setTimeout(r, 50));
@@ -296,8 +288,8 @@ describe('user message pending delivery path', () => {
         },
       },
       machineId: MACHINE_ID,
-      lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
-      operationalModel: new AgentOperationalReadModel(),
+      lifecycleOutbox,
+      operationalModel,
     });
 
     await new Promise((r) => setTimeout(r, 50));
@@ -341,8 +333,8 @@ describe('user message pending delivery path', () => {
         },
       },
       machineId: MACHINE_ID,
-      lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
-      operationalModel: new AgentOperationalReadModel(),
+      lifecycleOutbox,
+      operationalModel,
     });
 
     await new Promise((r) => setTimeout(r, 50));

@@ -12,10 +12,6 @@ import {
 import { formatTimestamp } from './daemon-utils.js';
 import { api } from '../../api.js';
 import { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
-import {
-  registerNativeDeliverySession,
-  unregisterNativeDeliverySession,
-} from './native-delivery/native-delivery-session-registry.js';
 import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
 import {
   registerTaskInboxRoomMembershipRefresh,
@@ -207,18 +203,6 @@ export const startTaskInboxEffect = (
       string,
       { controller: AbortController; startPromise: Promise<void> }
     >();
-    registerNativeDeliverySession({
-      runtime,
-      effectContext,
-      agentMgr,
-      runSerializedForAgent: commandService.runSerializedForAgent,
-      sessionDeps,
-      machineId: session.machineId,
-      taskSnapshotState,
-      agentOperationalReadModel,
-      nativeDelivery,
-      lifecycleOutbox,
-    });
     let inboxUpdatesInFlight = 0;
     let reconcileInFlight = false;
     const bootstrapSucceeded = yield* Effect.tryPromise(async () => {
@@ -487,7 +471,6 @@ export const startTaskInboxEffect = (
         }
         clearInterval(reconcileTimer);
         unregisterTaskInboxRoomMembershipRefresh();
-        unregisterNativeDeliverySession();
         nativeDelivery.dispose();
         nativeDelivery.agentTaskState.clearAll();
         inboxStore.close();

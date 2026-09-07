@@ -4,7 +4,6 @@ import {
   explainColdSessionDeliveryBlock,
   isNativeColdSessionDeliveryOwnedSpawn,
 } from './native-cold-session-delivery.js';
-import { getNativeDeliverySession } from './native-delivery-session-registry.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../daemon/domain/usecase/check-agent-slot.js';
@@ -34,11 +33,9 @@ export function explainAgentReadyForNativeDeliveryBlock(
   if (!isNativeHarness(agentConfig.agentHarness)) {
     return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
-  // Prefer the explicit operational row; fall back to the delivery-session
-  // registry lookup for legacy callers during the coordinator migration.
-  const operational =
-    explicitOperational ??
-    getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, agentConfig.role);
+  // Readiness is evaluated from the caller's explicit operational snapshot.
+  // The delivery-session registry is intentionally not consulted here.
+  const operational = explicitOperational;
   // Explicit cold-session tasks: apply stop/circuit/transition guards first.
   // When the slot is down (missing/idle) and unblocked, delivery owns the
   // cold start and bypasses the running-slot gates below; a running slot

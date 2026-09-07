@@ -3,32 +3,16 @@ import {
   NATIVE_WAITING_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 
-import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
 import {
   buildNativeInjectionPrompt,
   explainNativeDeliveryBlock,
   isNativeHarness,
   shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
-import {
-  operationalRow,
-  registerTestNativeDeliverySession,
-} from '../../infrastructure/agent-operational/test-support.js';
+import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
-
-beforeEach(() =>
-  registerTestNativeDeliverySession({
-    runtime: undefined as never,
-    effectContext: undefined as never,
-    agentMgr: {} as never,
-    sessionDeps: {} as never,
-    machineId: 'machine_1',
-    operationalRows: [operationalRow('room_1', 'builder')],
-  })
-);
-afterEach(() => unregisterNativeDeliverySession());
 
 const runningSlot: AgentSlot = {
   state: 'running',
@@ -36,6 +20,7 @@ const runningSlot: AgentSlot = {
   harnessSessionId: 'sess_1',
   nativeTurnPhase: 'idle',
 };
+const runningOperational = operationalRow('room_1', 'builder');
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
   return {
@@ -81,6 +66,7 @@ describe('shouldDeliverNativeTask', () => {
     expect(
       shouldDeliverNativeTask(makeTask(), {
         slot: runningSlot,
+        operational: runningOperational,
       })
     ).toBe(true);
   });
@@ -89,6 +75,7 @@ describe('shouldDeliverNativeTask', () => {
     expect(
       shouldDeliverNativeTask(makeTask(), {
         slot: { ...runningSlot, harnessSessionId: undefined },
+        operational: runningOperational,
       })
     ).toBe(false);
   });
@@ -104,7 +91,7 @@ describe('shouldDeliverNativeTask', () => {
             lastStatus: 'task.acknowledged',
           },
         }),
-        { slot: runningSlot }
+        { slot: runningSlot, operational: runningOperational }
       )
     ).toBe(true);
   });
@@ -119,7 +106,7 @@ describe('shouldDeliverNativeTask', () => {
             lastStatus: 'task.completed',
           },
         }),
-        { slot: runningSlot }
+        { slot: runningSlot, operational: runningOperational }
       )
     ).toBe(true);
   });
@@ -135,7 +122,7 @@ describe('shouldDeliverNativeTask', () => {
             lastStatus: 'task.inProgress',
           },
         }),
-        { slot: runningSlot }
+        { slot: runningSlot, operational: runningOperational }
       )
     ).toBe(false);
   });
@@ -144,6 +131,7 @@ describe('shouldDeliverNativeTask', () => {
     expect(
       shouldDeliverNativeTask(makeTask({ status: 'in_progress' }), {
         slot: runningSlot,
+        operational: runningOperational,
       })
     ).toBe(false);
   });
@@ -155,7 +143,7 @@ describe('shouldDeliverNativeTask', () => {
           status: 'acknowledged',
           assignedTo: 'builder',
         }),
-        { slot: runningSlot }
+        { slot: runningSlot, operational: runningOperational }
       )
     ).toBe(true);
   });
@@ -164,11 +152,13 @@ describe('shouldDeliverNativeTask', () => {
     expect(
       shouldDeliverNativeTask(makeTask(), {
         slot: { ...runningSlot, nativeTurnPhase: 'turn_in_flight' },
+        operational: runningOperational,
       })
     ).toBe(false);
     expect(
       explainNativeDeliveryBlock(makeTask(), {
         slot: { ...runningSlot, nativeTurnPhase: 'turn_in_flight' },
+        operational: runningOperational,
       })
     ).toContain('turn_not_idle');
   });
@@ -177,6 +167,7 @@ describe('shouldDeliverNativeTask', () => {
     expect(
       shouldDeliverNativeTask(makeTask(), {
         slot: { ...runningSlot, nativeTurnPhase: 'injecting' },
+        operational: runningOperational,
       })
     ).toBe(false);
   });
@@ -191,7 +182,10 @@ describe('shouldDeliverNativeTask', () => {
             lastStatus: 'agent.waiting',
           },
         }),
-        { slot: { ...runningSlot, nativeTurnPhase: 'turn_in_flight' } }
+        {
+          slot: { ...runningSlot, nativeTurnPhase: 'turn_in_flight' },
+          operational: runningOperational,
+        }
       )
     ).toBe(false);
   });
@@ -208,7 +202,7 @@ describe('shouldDeliverNativeTask', () => {
             lastStatus: 'task.acknowledged',
           },
         }),
-        { slot: runningSlot }
+        { slot: runningSlot, operational: runningOperational }
       )
     ).toBe(true);
   });
