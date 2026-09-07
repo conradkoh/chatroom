@@ -25,6 +25,24 @@ export interface RestartAgentInput {
   readonly role: string;
 }
 
+export interface AgentKey {
+  readonly chatroomId: string;
+  readonly role: string;
+}
+
+export interface SerializedAgentOperations {
+  startAgent(input: EnsureRunningOpts, signal: AbortSignal): Promise<void>;
+  stopAgent(input: StopOpts, signal: AbortSignal): Promise<void>;
+}
+
+export interface SerializedAgentOperationOptions {
+  readonly timeoutMs: number;
+}
+
+export interface SerializedAgentOperationContext {
+  readonly signal: AbortSignal;
+}
+
 export type AgentProcessManagerCommand =
   | { readonly operationId: string; readonly type: 'start'; readonly input: EnsureRunningOpts }
   | { readonly operationId: string; readonly type: 'stop'; readonly input: StopOpts }
@@ -66,6 +84,19 @@ export interface AgentProcessManagerService {
   restartAgent(input: RestartAgentInput): Promise<AgentOperationResult>;
   /** Enqueue the manager recovery operation. */
   recoverAgents(): Promise<AgentOperationResult>;
+  /**
+   * Run a compound operation exclusively for one agent key. The supplied
+   * lifecycle operations execute inside the same serialized section; callers
+   * must use them instead of calling the service lifecycle methods recursively.
+   */
+  runSerializedForAgent<T>(
+    key: AgentKey,
+    options: SerializedAgentOperationOptions,
+    operation: (
+      ops: SerializedAgentOperations,
+      context: SerializedAgentOperationContext
+    ) => Promise<T>
+  ): Promise<T>;
   /** Subscribe to execution outcomes from lifecycle commands. */
   subscribe(
     filter: CommandNotificationFilter,
@@ -144,6 +175,66 @@ export function createAgentProcessManagerService(
 ): AgentProcessManagerService {
   const queue = createCommandQueue<AgentProcessManagerCommand>();
   const pendingOperations = new Map<string, PendingOperation>();
+  const agentOperationTails = new Map<string, Promise<void>>();
+
+  const keyFor = (key: AgentKey): string => messageGroupId(key);
+
+  const runExclusive = <T>(key: AgentKey, operation: () => Promise<T>): Promise<T> => {
+    const groupId = keyFor(key);
+    const previous = agentOperationTails.get(groupId) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    const tail = current.then(
+      () => undefined,
+      () => undefined
+    );
+    agentOperationTails.set(groupId, tail);
+    void tail.finally(() => {
+      if (agentOperationTails.get(groupId) === tail) agentOperationTails.delete(groupId);
+    });
+    return current;
+  };
+
+  const runSerializedForAgent = <T>(
+    key: AgentKey,
+    options: SerializedAgentOperationOptions,
+    operation: (
+      ops: SerializedAgentOperations,
+      context: SerializedAgentOperationContext
+    ) => Promise<T>
+  ): Promise<T> => {
+    if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) {
+      return Promise.reject(new Error('Serialized agent operation timeout must be positive'));
+    }
+
+    const controller = new AbortController();
+    const timeoutError = new Error('Serialized agent operation timed out');
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const serializedPromise = runExclusive(key, async () => {
+      if (controller.signal.aborted) throw controller.signal.reason ?? timeoutError;
+      return operation(
+        {
+          startAgent: async (input, signal) => {
+            if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
+            assertStartSucceeded(await deps.execution.ensureRunning(input));
+          },
+          stopAgent: async (input, signal) => {
+            if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
+            assertStopSucceeded(await deps.execution.stop(input));
+          },
+        },
+        { signal: controller.signal }
+      );
+    });
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        controller.abort(timeoutError);
+        reject(timeoutError);
+      }, options.timeoutMs);
+    });
+    return Promise.race([serializedPromise, timeoutPromise]).finally(() => {
+      if (timeoutId) clearTimeout(timeoutId);
+    });
+  };
 
   deps.notifier.subscribe({}, (notification) => {
     const pending = pendingOperations.get(notification.operationId);
@@ -198,10 +289,14 @@ export function createAgentProcessManagerService(
   };
 
   return {
-    startAgent: (input) => submit((operationId) => ({ operationId, type: 'start', input })),
-    stopAgent: (input) => submit((operationId) => ({ operationId, type: 'stop', input })),
-    restartAgent: (input) => submit((operationId) => ({ operationId, type: 'restart', input })),
+    startAgent: (input) =>
+      runExclusive(input, () => submit((operationId) => ({ operationId, type: 'start', input }))),
+    stopAgent: (input) =>
+      runExclusive(input, () => submit((operationId) => ({ operationId, type: 'stop', input }))),
+    restartAgent: (input) =>
+      runExclusive(input, () => submit((operationId) => ({ operationId, type: 'restart', input }))),
     recoverAgents: () => submit((operationId) => ({ operationId, type: 'recover', input: {} })),
+    runSerializedForAgent,
     subscribe: (filter, listener) => deps.notifier.subscribe(filter, listener),
     startProcessing: () => consumer.start(),
     stopProcessing: () => consumer.stop(),

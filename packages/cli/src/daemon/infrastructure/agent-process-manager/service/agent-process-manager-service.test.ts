@@ -4,11 +4,11 @@ import {
   createAgentProcessManagerService,
   type AgentProcessManagerExecutionPort,
 } from './agent-process-manager-service.js';
-import { InMemoryCommandNotifier } from '../components/command-notifier/index.js';
 import type {
   EnsureRunningOpts,
   StopOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
+import { InMemoryCommandNotifier } from '../components/command-notifier/index.js';
 
 function createExecution(events: string[]): AgentProcessManagerExecutionPort {
   return {
@@ -51,6 +51,83 @@ async function waitForEventCount(events: string[], count: number): Promise<void>
 }
 
 describe('AgentProcessManagerService', () => {
+  it('serializes a compound operation with lifecycle commands for the same agent key', async () => {
+    const events: string[] = [];
+    const service = createAgentProcessManagerService({
+      execution: createExecution(events),
+      notifier: new InMemoryCommandNotifier(),
+      consumer: { pollIntervalMs: 1, visibilityTimeoutMs: 100 },
+    });
+
+    service.startProcessing();
+    const compound = service.runSerializedForAgent(
+      { chatroomId: 'room-1', role: 'builder' },
+      { timeoutMs: 1_000 },
+      async (ops, context) => {
+        await ops.stopAgent(stopInput('room-1', 'builder'), context.signal);
+        await ops.startAgent(startInput('room-1', 'builder'), context.signal);
+        return 'complete';
+      }
+    );
+    const competing = service.stopAgent(stopInput('room-1', 'builder'));
+
+    await expect(compound).resolves.toBe('complete');
+    await expect(competing).resolves.toMatchObject({ status: 'succeeded' });
+    service.stopProcessing();
+
+    expect(events).toEqual(['stop:room-1:builder', 'start:room-1:builder', 'stop:room-1:builder']);
+  });
+
+  it('aborts a timed-out operation but holds the key until the operation settles', async () => {
+    const events: string[] = [];
+    const service = createAgentProcessManagerService({
+      execution: createExecution(events),
+      notifier: new InMemoryCommandNotifier(),
+      consumer: { pollIntervalMs: 1, visibilityTimeoutMs: 100 },
+    });
+
+    service.startProcessing();
+    let aborted = false;
+    const timedOut = service.runSerializedForAgent(
+      { chatroomId: 'room-1', role: 'builder' },
+      { timeoutMs: 10 },
+      async (_ops, context) =>
+        new Promise<void>((resolve) => {
+          context.signal.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              resolve();
+            },
+            { once: true }
+          );
+        })
+    );
+    const competing = service.stopAgent(stopInput('room-1', 'builder'));
+
+    await expect(timedOut).rejects.toThrow('timed out');
+    await expect(competing).resolves.toMatchObject({ status: 'succeeded' });
+    service.stopProcessing();
+
+    expect(aborted).toBe(true);
+    expect(events).toEqual(['stop:room-1:builder']);
+  });
+
+  it('rejects serialized operations without a positive timeout', async () => {
+    const service = createAgentProcessManagerService({
+      execution: createExecution([]),
+      notifier: new InMemoryCommandNotifier(),
+    });
+
+    await expect(
+      service.runSerializedForAgent(
+        { chatroomId: 'room-1', role: 'builder' },
+        { timeoutMs: 0 },
+        async () => undefined
+      )
+    ).rejects.toThrow('timeout must be positive');
+  });
+
   it('serializes lifecycle commands for the same agent key', async () => {
     const events: string[] = [];
     const notifications: string[] = [];
