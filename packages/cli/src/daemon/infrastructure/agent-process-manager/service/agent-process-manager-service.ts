@@ -18,10 +18,11 @@ export interface RestartAgentInput {
   readonly role: string;
 }
 
-export interface AgentProcessManagerCommand {
-  readonly type: 'start' | 'stop' | 'restart' | 'recover';
-  readonly input: EnsureRunningOpts | StopOpts | RestartAgentInput | Record<string, never>;
-}
+export type AgentProcessManagerCommand =
+  | { readonly type: 'start'; readonly input: EnsureRunningOpts }
+  | { readonly type: 'stop'; readonly input: StopOpts }
+  | { readonly type: 'restart'; readonly input: RestartAgentInput }
+  | { readonly type: 'recover'; readonly input: Record<string, never> };
 
 export interface AgentProcessManagerExecutionPort {
   ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult>;
@@ -101,6 +102,12 @@ function assertStartSucceeded(result: OperationResult): void {
   }
 }
 
+function assertStopSucceeded(result: { success: boolean }): void {
+  if (!result.success) {
+    throw new Error('Agent stop failed');
+  }
+}
+
 /**
  * Composes the imperative service API with the FIFO command queue.
  *
@@ -119,13 +126,13 @@ export function createAgentProcessManagerService(
       const { type, input } = message.body;
       switch (type) {
         case 'start':
-          assertStartSucceeded(await deps.execution.ensureRunning(input as EnsureRunningOpts));
+          assertStartSucceeded(await deps.execution.ensureRunning(input));
           return;
         case 'stop':
-          await deps.execution.stop(input as StopOpts);
+          assertStopSucceeded(await deps.execution.stop(input));
           return;
         case 'restart':
-          await deps.restartAgent(input as RestartAgentInput);
+          await deps.restartAgent(input);
           return;
         case 'recover':
           await deps.execution.recover();
