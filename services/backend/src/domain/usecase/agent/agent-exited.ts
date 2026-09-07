@@ -33,7 +33,7 @@ export interface AgentExitedInput {
   machineId: string;
   /** The PID of the exited agent process. */
   pid: number;
-  /** Optional reason for the stop (e.g. 'user.stop', 'platform.crash_recovery'). */
+  /** Optional reason for the stop (e.g. 'user.stop' or 'daemon.shutdown'). */
   stopReason?: string | undefined;
   /** Optional exit code of the process. */
   exitCode?: number | undefined;
@@ -104,19 +104,14 @@ export async function agentExited(
     config.machineId === machineId; // Config belongs to same machine
 
   if (shouldUpdateParticipant) {
-    const isResumeStorm = stopReason === AgentStopReasonEnum['platform.resume_storm'];
     const isOrchestratedRestart =
       stopReason === AgentStopReasonEnum['platform.task_start_in_new_session'] ||
       stopReason === AgentStopReasonEnum['daemon.respawn'] ||
       stopReason === AgentStopReasonEnum['user.restart'];
-    const participantStatus = isResumeStorm
-      ? 'agent.resumeStormAborted'
-      : isOrchestratedRestart
+    const participantStatus = isOrchestratedRestart
         ? 'agent.restart'
         : 'agent.exited';
-    const participantDesiredState = isResumeStorm
-      ? 'stopped'
-      : isOrchestratedRestart
+    const participantDesiredState = isOrchestratedRestart
         ? 'running'
         : undefined;
     await transitionAgentStatus(ctx, chatroomId, role, participantStatus, participantDesiredState);

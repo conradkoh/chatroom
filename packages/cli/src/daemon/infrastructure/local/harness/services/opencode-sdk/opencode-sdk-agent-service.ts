@@ -17,7 +17,7 @@ import type { ChildProcess } from 'node:child_process';
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
+import { requireHarnessModel } from '../require-harness-model.js';
 import { withTimeout } from '../with-timeout.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
 import { fetchOpencodeProviderModelCatalog } from './opencode-model-catalog.js';
@@ -43,9 +43,6 @@ import {
 import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
 import type {
   SpawnContext,
-  AgentStopOptions,
-  DaemonHarnessSessionContext,
-  HarnessReconnectMetadata,
   SpawnOptions,
   SpawnResult,
 } from '../remote-agent-service.js';
@@ -58,7 +55,6 @@ const SERVE_STARTUP_TIMEOUT_MS = 10000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
 const SESSION_ABORT_TIMEOUT_MS = 5_000;
-const SESSION_GET_TIMEOUT_MS = 10_000;
 const AGENTS_LIST_TIMEOUT_MS = 10_000;
 
 type OpencodeClient = ReturnType<typeof createOpencodeClient>;
@@ -140,34 +136,30 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     return super.listModels();
   }
 
-  override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
+  override async stop(pid: number): Promise<void> {
     const forwarder = this.forwarders.get(pid);
     if (forwarder) {
       forwarder.stop();
       this.forwarders.delete(pid);
     }
 
-    const preserveForResume = options?.preserveForResume === true;
     const meta = this.sessionStore.findByPid(pid);
     if (meta) {
-      if (!preserveForResume) {
-        try {
-          const client = createOpencodeClient({ baseUrl: meta.baseUrl });
-          await withTimeout(
-            client.session.abort({ path: { id: meta.sessionId } }),
-            SESSION_ABORT_TIMEOUT_MS,
-            'session.abort'
-          );
-        } catch (err) {
-          console.warn(
-            `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
-            err instanceof Error ? err.message : err
-          );
-        }
-        // Eager cleanup: doStop may kill before the child exit handler runs; stale
-        // pid-keyed metadata would otherwise block resumeTurn.
-        this.sessionStore.remove(meta.sessionId);
+      try {
+        const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+        await withTimeout(
+          client.session.abort({ path: { id: meta.sessionId } }),
+          SESSION_ABORT_TIMEOUT_MS,
+          'session.abort'
+        );
+      } catch (err) {
+        console.warn(
+          `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
+          err instanceof Error ? err.message : err
+        );
       }
+      // Eager cleanup: doStop may kill before the child exit handler runs.
+      this.sessionStore.remove(meta.sessionId);
     }
     await super.stop(pid);
   }
@@ -346,10 +338,6 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     return {
       pid,
       harnessSessionId: sessionId,
-      harnessReconnect: {
-        agentName,
-        ...(model ? { model } : {}),
-      },
       activityEmitter: args.activityEmitter,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
@@ -565,91 +553,6 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     );
   }
 
-  async resumeFromDaemonMemory(
-    options: SpawnOptions,
-    session: DaemonHarnessSessionContext
-  ): Promise<SpawnResult> {
-    const { prompt, systemPrompt, model, context } = options;
-    const sessionId = session.harnessSessionId;
-    const agentName = session.agentName;
-    const modelForSession = resolveHarnessResumeModel(
-      model,
-      session.model,
-      'opencode-sdk resumeFromDaemonMemory'
-    );
-    const workingDir = session.workingDir;
-
-    const { childProcess, pid, baseUrl, client } = await this.startServeAndClient(
-      workingDir,
-      options.resolvedConvexUrl
-    );
-
-    let forwarder: SessionEventForwarderHandle | undefined;
-    const activityEmitter = createHarnessActivityEmitter();
-    const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
-    const { assistantTextCallbacks, emitAssistantText } = this.createAssistantTextEmitter();
-    const outputCallbacks: (() => void)[] = [];
-    try {
-      const sessionInfo = await withTimeout(
-        client.session.get({ path: { id: sessionId } }),
-        SESSION_GET_TIMEOUT_MS,
-        'session.get'
-      );
-      if (!sessionInfo.data?.id) {
-        throw new Error(
-          `OpenCode session ${sessionId} not found (sessions may not survive serve restart)`
-        );
-      }
-
-      forwarder = this.createSessionForwarder(
-        client as SessionEventForwarderClient,
-        sessionId,
-        context,
-        emitLogLine,
-        emitAssistantText,
-        outputCallbacks,
-        activityEmitter
-      );
-
-      const availableAgents = await this.listAvailableAgents(client);
-      const agentDef = availableAgents.find((a) => a.name === agentName);
-      const composedSystem = composeSystemPrompt(agentDef?.prompt, systemPrompt);
-
-      activityEmitter.beginTurn();
-      await this.promptSessionAsync(
-        client,
-        sessionId,
-        buildDisabledToolsPromptBody({
-          agentName,
-          prompt,
-          composedSystem,
-          model: modelForSession,
-        })
-      );
-    } catch (err) {
-      this.writeRoleError(context.role, 'daemon-resume-fallback', err, '— cold spawning');
-      forwarder?.stop();
-      childProcess.kill();
-      return this.spawn(options);
-    }
-
-    return this.registerRunningSession({
-      childProcess,
-      pid,
-      sessionId,
-      context,
-      forwarder,
-      baseUrl,
-      agentName,
-      model: modelForSession,
-      workingDir,
-      logLineCallbacks,
-      assistantTextCallbacks,
-      outputCallbacks,
-      activityEmitter,
-    });
-  }
-
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const { prompt, systemPrompt, context } = options;
     const model = requireHarnessModel(options.model, 'opencode-sdk spawn');
@@ -746,17 +649,6 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       outputCallbacks,
       activityEmitter,
     });
-  }
-
-  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
-    const meta = this.sessionStore.findByPid(pid);
-    if (!meta) {
-      return undefined;
-    }
-    return {
-      agentName: meta.agentName,
-      ...(meta.model ? { model: meta.model } : {}),
-    };
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {

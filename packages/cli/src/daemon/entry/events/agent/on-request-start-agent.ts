@@ -8,7 +8,10 @@ import { Effect } from 'effect';
 import type { Id } from '../../../../api.js';
 import { startAgent } from '../../../../daemon/domain/usecase/start-agent.js';
 import { createStartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
-import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
+import {
+  DaemonAgentProcessManagerCommandService,
+  DaemonSessionService,
+} from '../../daemon-services.js';
 import type { AgentHarness } from '../../daemon-types.js';
 import { drainPendingEnhancerJobsIfRegistered } from '../../enhancer/enhancer-drain-registry.js';
 
@@ -27,13 +30,13 @@ export interface AgentRequestStartEventPayload {
 
 export const onRequestStartAgentEffect = (
   event: AgentRequestStartEventPayload
-): Effect.Effect<void, never, DaemonAgentProcessManagerService | DaemonSessionService> =>
+): Effect.Effect<void, never, DaemonAgentProcessManagerCommandService | DaemonSessionService> =>
   Effect.gen(function* () {
-    const agentPm = yield* DaemonAgentProcessManagerService;
+    const processManagerService = yield* DaemonAgentProcessManagerCommandService;
     const session = yield* DaemonSessionService;
 
     yield* Effect.promise(async () => {
-      await startAgent(createStartAgentDeps(agentPm, session), {
+      await startAgent(createStartAgentDeps(session, processManagerService), {
         commandId: event._id.toString(),
         chatroomId: event.chatroomId as string,
         role: event.role,

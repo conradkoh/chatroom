@@ -15,28 +15,6 @@ describe('getHarnessCapabilities', () => {
     }
   });
 
-  test('cursor-sdk, opencode-sdk, claude-sdk, and codex-sdk support daemon-memory resume on start', () => {
-    const withDaemonMemory = AGENT_HARNESSES.filter(
-      (h) => getHarnessCapabilities(h).supportsDaemonMemoryResume
-    );
-    expect(withDaemonMemory.sort()).toEqual([
-      'claude-sdk',
-      'codex-sdk',
-      'cursor-sdk',
-      'opencode-sdk',
-    ]);
-  });
-
-  test('cursor-sdk declares onSessionFailure crash recovery policy', () => {
-    const policy = getHarnessCapabilities('cursor-sdk').crashRecovery?.onSessionFailure;
-    expect(policy).toEqual({
-      maxAttempts: 6,
-      intervalMs: 10_000,
-      resumeFirstAttempts: 3,
-      recoveryReason: 'platform.cursor_sdk_session_reopen',
-    });
-  });
-
   test('cursor-sdk, opencode-sdk, pi-sdk, claude-sdk, and codex-sdk support native integration', () => {
     expect(getHarnessCapabilities('cursor-sdk').supportsNativeIntegration).toBe(true);
     expect(getHarnessCapabilities('opencode-sdk').supportsNativeIntegration).toBe(true);

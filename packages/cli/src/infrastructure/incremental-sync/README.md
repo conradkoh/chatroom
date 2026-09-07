@@ -149,7 +149,7 @@ Do not run the same handler logic on signal and reconcile. Split by what each ch
 Example (task monitor):
 
 - **Signal pass** — revive + native inject (needs `lastSeenAction`, status, PID; compares with local agent slots).
-- **Reconcile pass** — native wake/revive and coordinator reconciliation over the full snapshot.
+- **Reconcile pass** — native pending-task activation and coordinator reconciliation over the full snapshot.
 
 Define `pass: 'signal' | 'reconcile'` on your processor and gate branches explicitly.
 

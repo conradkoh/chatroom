@@ -228,6 +228,7 @@ export const stripParticipantStaleFields = migrations.define({
       'statusReason',
       'desiredStatus',
       'pendingCommand',
+      'lastInFlightTaskId',
     ] as const;
 
     const doc = participant as Record<string, unknown>;

@@ -17,7 +17,7 @@ export interface SessionEventForwarderOptions {
   target?: Writable | undefined;
   errorTarget?: Writable | undefined;
   now?:( () => string) | undefined;
-  /** Human-readable log lines for resume-storm reason classification. */
+  /** Human-readable log lines for provider failure classification. */
   onLogLine?:( (line: string) => void) | undefined;
   /** Raw assistant text deltas for missed-handoff delivery. */
   onAssistantText?:( (text: string) => void) | undefined;

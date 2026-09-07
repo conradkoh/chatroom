@@ -2,12 +2,17 @@ import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { runRestartOrchestrator } from './restart-orchestrator.js';
+import type {
+  EnsureRunningOpts,
+  StopOpts,
+} from '../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 
 vi.mock('../../api.js', () => ({
   api: {
     machines: {
       syncMachineAssignedTaskSnapshotsMutation: 'syncMachineAssignedTaskSnapshotsMutation',
       listMachineAssignedTaskSnapshots: 'listMachineAssignedTaskSnapshots',
+      listMachineAgentOperationalStatus: 'listMachineAgentOperationalStatus',
       getAssignedTaskForAction: 'getAssignedTaskForAction',
     },
     participants: {
@@ -16,17 +21,22 @@ vi.mock('../../api.js', () => ({
   },
 }));
 
-function createMockDeps(overrides?: { spawnSuccess?: boolean | undefined; harnessSessionId?: string | null | undefined }) {
+function createMockDeps(overrides?: {
+  spawnSuccess?: boolean | undefined;
+  harnessSessionId?: string | null | undefined;
+}) {
   const auditLog: Record<string, unknown>[] = [];
   const logEvent = vi.fn(async (event: Record<string, unknown>) => {
     auditLog.push(event);
   });
   const backend = {
     mutation: vi.fn(async () => undefined),
-    query: vi.fn(async () => ({ tasks: [] })),
+    query: vi.fn(async (fn: unknown) =>
+      fn === 'listMachineAgentOperationalStatus' ? [] : { tasks: [] }
+    ),
   };
   const agentMgr = {
-    stop: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue({ success: true }),
     ensureRunning: vi.fn().mockReturnValue(
       Effect.succeed({
         success: overrides?.spawnSuccess ?? true,
@@ -42,7 +52,6 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean | undefined; harnes
           : { harnessSessionId: 'test-harness-session' }
       ),
     resumeTurnForSlot: vi.fn(),
-    setLastInFlightTask: vi.fn(),
   } as any;
 
   return {
@@ -55,6 +64,22 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean | undefined; harnes
         backend,
       },
       agentMgr,
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          {
+            stopAgent: async (input: StopOpts) => {
+              const result = await agentMgr.stop(input);
+              return result ?? { success: true };
+            },
+            startAgent: async (input: EnsureRunningOpts) =>
+              Effect.runPromise(agentMgr.ensureRunning(input)),
+          },
+          { signal: new AbortController().signal }
+        )
+      ),
+      nativeDelivery: {
+        processSnapshots: vi.fn(async () => undefined),
+      },
     },
     auditLog,
     agentMgrMock: agentMgr,

@@ -3,7 +3,7 @@ import { Effect } from 'effect';
 
 import { api } from '../../api.js';
 import {
-  DaemonAgentProcessManagerService,
+  DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
 } from '../../daemon/entry/daemon-services.js';
 import { formatTimestamp } from '../../daemon/entry/daemon-utils.js';
@@ -12,9 +12,9 @@ import { shutdownAllCommandsEffect } from '../../daemon/entry/handlers/command-r
 export const onDaemonShutdownEffect: Effect.Effect<
   void,
   never,
-  DaemonAgentProcessManagerService | DaemonSessionService
+  DaemonAgentProcessManagerCommandService | DaemonSessionService
 > = Effect.gen(function* () {
-  const agentPm = yield* DaemonAgentProcessManagerService;
+  const agentPm = yield* DaemonAgentProcessManagerCommandService;
   const session = yield* DaemonSessionService;
 
   // Kill all running command processes before stopping agents
@@ -22,7 +22,7 @@ export const onDaemonShutdownEffect: Effect.Effect<
 
   // Wait for any in-progress agent turn to end gracefully
   yield* Effect.race(
-    agentPm.whenTurnEndsIdle(),
+    Effect.promise(() => agentPm.whenTurnEndsIdle()),
     Effect.sleep(SCOPE_TARGET_STOP_TIMEOUT_MS).pipe(
       Effect.tap(() => Effect.sync(() => console.log('[shutdown] idle wait timed out, proceeding')))
     )
@@ -37,8 +37,14 @@ export const onDaemonShutdownEffect: Effect.Effect<
     let totalFailed = 0;
     yield* Effect.all(
       activeAgents.map(({ chatroomId, role }) =>
-        agentPm.stop({ chatroomId, role, reason: 'daemon.shutdown' }).pipe(
-          Effect.tap(() => Effect.sync(() => { totalStopped += 1; })),
+        Effect.promise(() =>
+          agentPm.stopAgent({ chatroomId, role, reason: 'daemon.shutdown' })
+        ).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              totalStopped += 1;
+            })
+          ),
           Effect.catchAll((e) =>
             Effect.sync(() => {
               totalFailed += 1;

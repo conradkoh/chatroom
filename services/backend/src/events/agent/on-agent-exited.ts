@@ -16,8 +16,8 @@ export interface OnAgentExitedArgs {
 /**
  * Handles the `agent.exited` event (backend side).
  *
- * Crash recovery restarts are owned by the daemon. On unexpected exit, release
- * in-flight tasks for this role so get-next-task can reclaim them immediately.
+ * On unexpected exit, release in-flight tasks for this role so get-next-task can
+ * reclaim them immediately. Process restart decisions are not made here.
  *
  * `platform.team_switch` reassigns tasks to the new team entry point instead of
  * releasing them unassigned. `user.stop` and `daemon.shutdown` release to pending.

@@ -8,7 +8,12 @@ import { Effect } from 'effect';
 import type { Id } from '../../../../api.js';
 import { restartAgent } from '../../../../daemon/domain/usecase/restart-agent.js';
 import { createRestartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
-import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
+import type { NativeDeliveryService } from '../../../../daemon/entry/native-delivery/native-delivery-service.js';
+import {
+  DaemonAgentProcessManagerCommandService,
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+} from '../../daemon-services.js';
 
 export interface AgentRestartEventPayload {
   _id: Id<'chatroom_machineCommandInbox'>;
@@ -25,14 +30,20 @@ export interface AgentRestartEventPayload {
 }
 
 export const onRequestRestartAgentEffect = (
-  event: AgentRestartEventPayload
-): Effect.Effect<void, never, DaemonAgentProcessManagerService | DaemonSessionService> =>
+  event: AgentRestartEventPayload,
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
+): Effect.Effect<
+  void,
+  never,
+  DaemonAgentProcessManagerService | DaemonAgentProcessManagerCommandService | DaemonSessionService
+> =>
   Effect.gen(function* () {
     const agentMgr = yield* DaemonAgentProcessManagerService;
+    const processManagerService = yield* DaemonAgentProcessManagerCommandService;
     const session = yield* DaemonSessionService;
 
     yield* Effect.promise(() =>
-      restartAgent(createRestartAgentDeps(agentMgr, session), {
+      restartAgent(createRestartAgentDeps(agentMgr, session, processManagerService, nativeDelivery), {
         commandId: event._id.toString(),
         chatroomId: event.chatroomId as string,
         machineId: event.machineId,

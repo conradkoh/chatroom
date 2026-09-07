@@ -48,10 +48,10 @@ export function createStopAgentConfirmedDeps(
   return {
     liveness: { isAlive: (pid) => isProcessAlive(deps.processes.kill, pid) },
     harnessStop: {
-      stop: async (target, opts) => {
+      stop: async (target) => {
         const service = deps.agentServices.get(target.agentHarness);
         if (service) {
-          await service.stop(target.pid, opts);
+          await service.stop(target.pid);
           service.untrack(target.pid);
           return;
         }
@@ -97,7 +97,6 @@ export async function runConfirmedStop(args: {
   deps: ConfirmedStopAdapterDeps;
   target: AgentStopTargetDescriptor;
   reason: AgentStopReason;
-  preserveForResume: boolean;
 }): Promise<unknown> {
   const exitArgs: AgentExitAuditArgs = {
     sessionId: args.deps.sessionId,
@@ -113,6 +112,5 @@ export async function runConfirmedStop(args: {
     target: args.target,
     reason: args.reason,
     revisionKey,
-    preserveForResume: args.preserveForResume,
   });
 }

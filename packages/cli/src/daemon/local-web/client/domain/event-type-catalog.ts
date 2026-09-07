@@ -17,7 +17,6 @@ const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = 
   'agent.sessionReopenRetry': ['Session Reopen Retry', 'info'],
   'agent.sessionCompacted': ['Session Compacted', 'info'],
   'agent.sessionAugmented': ['Session Augmented', 'info'],
-  'agent.resumeStormAborted': ['Resume Storm Aborted', 'error'],
   'agent.restart': ['Agent Restarting', 'info'],
   'agent.restartCompleted': ['Agent Restarted', 'success'],
   'agent.restartPhase': ['Agent Restart Progress', 'info'],

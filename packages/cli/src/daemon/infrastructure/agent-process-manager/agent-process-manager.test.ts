@@ -1,4 +1,3 @@
-import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -7,31 +6,15 @@ import {
   type EnsureRunningOpts,
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
-import {
-  CRASH_LOOP_MAX_RESTARTS,
-  CrashLoopTracker,
-} from '../../../infrastructure/machine/crash-loop-tracker.js';
-import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
-import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
-import {
-  CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
-  CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
-} from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
+
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
-import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
-import type {
-  decideNativeTurnEndFromInbox,
-  NativeTurnEndInboxDecision,
-} from '../../entry/native-delivery/native-turn-end-inbox.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
 import type {
   RemoteAgentService,
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { DEFAULT_TRIGGER_PROMPT } from '../local/harness/services/spawn-prompt.js';
-import { initSessionMonitorRegistry } from '../local/harness/session-monitors/init-session-monitors.js';
-import { getAllSessionMonitors } from '../local/harness/session-monitors/session-monitor-registry.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
 
@@ -39,28 +22,6 @@ vi.mock('../../entry/handlers/orphan-tracker.js', () => ({
   trackChildPid: vi.fn(),
   untrackChildPid: vi.fn(),
 }));
-
-const mockNotifyNativeTurnIdle = vi.hoisted(() => vi.fn());
-const mockDecideNativeTurnEndFromInbox = vi.hoisted(() =>
-  vi.fn<(params: Parameters<typeof decideNativeTurnEndFromInbox>[0]) => NativeTurnEndInboxDecision>(
-    () => 'unknown'
-  )
-);
-vi.mock('../../entry/native-delivery/native-task-delivery-coordinator.js', async () => {
-  const actual = await vi.importActual<typeof NativeTaskDeliveryCoordinatorModule>(
-    '../../entry/native-delivery/native-task-delivery-coordinator.js'
-  );
-  return {
-    ...actual,
-    notifyNativeTurnIdle: mockNotifyNativeTurnIdle,
-  };
-});
-vi.mock('../../entry/native-delivery/native-turn-end-inbox.js', async () => {
-  const actual = await vi.importActual<{
-    decideNativeTurnEndFromInbox: typeof decideNativeTurnEndFromInbox;
-  }>('../../entry/native-delivery/native-turn-end-inbox.js');
-  return { ...actual, decideNativeTurnEndFromInbox: mockDecideNativeTurnEndFromInbox };
-});
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -104,10 +65,7 @@ function createMockService() {
 }
 
 function mockBackendMutation(
-  defaultResult: Record<string, unknown> = {
-    needsHandoffReminder: false,
-    transitionedToWaiting: true,
-  }
+  defaultResult: Record<string, unknown> = {}
 ) {
   return vi.fn().mockImplementation((endpoint: unknown, args?: Record<string, unknown>) => {
     if (
@@ -130,7 +88,6 @@ function mockBackendMutation(
 }
 
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
-  initSessionMonitorRegistry();
   const liveness = createLivenessAwareProcessKill();
   const mockService = createMockService();
   mockService.stop.mockImplementation(async (pid: number) => {
@@ -143,7 +100,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
   return {
     logEvent: vi.fn().mockResolvedValue(undefined),
     agentServices: new Map([['opencode', mockService]]),
-    sessionMonitors: getAllSessionMonitors(),
     backend: {
       query: vi.fn().mockResolvedValue({
         prompt: true,
@@ -171,9 +127,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     spawning: {
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
     },
-    crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',
-    resumeStormTracker: new RapidResumeTracker(),
     ...overrides,
   };
 }
@@ -181,14 +135,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
 async function triggerAgentEnd(manager: AgentProcessManager, cb: () => void): Promise<void> {
   cb();
   await manager.whenTurnEndsIdle();
-}
-
-function getLastHarnessSessions(manager: AgentProcessManager): Map<string, HarnessSessionSnapshot> {
-  return (
-    manager as unknown as {
-      lastHarnessSessions: Map<string, HarnessSessionSnapshot>;
-    }
-  ).lastHarnessSessions;
 }
 
 function createOpts(overrides?: Partial<EnsureRunningOpts>): EnsureRunningOpts {
@@ -241,21 +187,6 @@ function createNativeSdkService(harness: NativeSdkHarness) {
   return { service, resumeTurn, onAgentEndRegistrar };
 }
 
-function getHandleNativeAgentEndCalls(deps: AgentProcessManagerDeps): Record<string, unknown>[] {
-  const matches = getMutationCallsByArgs(
-    deps,
-    (args) =>
-      'sessionId' in args &&
-      'chatroomId' in args &&
-      'role' in args &&
-      !('action' in args) &&
-      !('pid' in args) &&
-      !('machineId' in args) &&
-      !('model' in args) &&
-      !('reason' in args)
-  );
-  return matches.length > 0 ? [matches[matches.length - 1]!] : [];
-}
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -265,7 +196,6 @@ describe('AgentProcessManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDecideNativeTurnEndFromInbox.mockReturnValue('unknown');
     deps = createDeps();
     manager = new AgentProcessManager(deps);
   });
@@ -352,7 +282,6 @@ describe('AgentProcessManager', () => {
         role: ROLE,
         model: 'gpt-5.6-luna[reasoning=low]',
         message: '[codex-sdk:builder run-error] Selected model is at capacity',
-        recoverable: true,
       });
       expect(getMutationCallsByArgs(deps, (args) => typeof args.error === 'string')).toHaveLength(
         0
@@ -402,31 +331,6 @@ describe('AgentProcessManager', () => {
         )
       ).toHaveLength(0);
     });
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s calls handleNativeAgentEnd without resumeTurn when idle',
-      async (harness) => {
-        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        mockNotifyNativeTurnIdle.mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(resumeTurn).not.toHaveBeenCalled();
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-        });
-      }
-    );
 
     test('ignores stale agent_end callback after role slot is replaced by a newer process', async () => {
       const STALE_PID = 42;
@@ -484,144 +388,14 @@ describe('AgentProcessManager', () => {
       expect(slot?.state).toBe('running');
 
       (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-      mockNotifyNativeTurnIdle.mockClear();
-
       await triggerAgentEnd(manager, staleAgentEndCb);
 
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
-      expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
       expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBe(CURRENT_PID);
       expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('running');
 
       const currentAgentEndCb = currentOnAgentEndRegistrar.mock.calls[0][0] as () => void;
       await triggerAgentEnd(manager, currentAgentEndCb);
-
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-      expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-      });
     });
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s injects handoff reminder when backend signals missed handoff',
-      async (harness) => {
-        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-          needsHandoffReminder: true,
-          transitionedToWaiting: false,
-        });
-        vi.mocked(deps.lifecycleOutbox.enqueue).mockClear();
-        mockNotifyNativeTurnIdle.mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-        expect(getHandleNativeAgentEndCalls(deps)[0]).not.toHaveProperty('bufferedContent');
-        expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
-        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
-        const nativeWaitingEnqueues = vi
-          .mocked(deps.lifecycleOutbox.enqueue)
-          .mock.calls.filter(
-            ([fact]) => fact.kind === 'activity' && fact.action === 'native:waiting'
-          );
-        expect(nativeWaitingEnqueues).toHaveLength(0);
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s injects handoff reminder from inbox without backend mutation',
-      async (harness) => {
-        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-in-progress');
-        mockDecideNativeTurnEndFromInbox.mockReturnValue('needs-handoff-reminder');
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
-        expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
-        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s accepts inbox-observed handoff without backend mutation',
-      async (harness) => {
-        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-completed');
-        mockDecideNativeTurnEndFromInbox.mockReturnValue('handoff-completed');
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
-        expect(resumeTurn).not.toHaveBeenCalled();
-        expect(manager.getSlot(CHATROOM_ID, ROLE)?.lastInFlightTaskId).toBeUndefined();
-        expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).toBe('idle');
-        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-        });
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'onAgentEnd for %s still calls handleNativeAgentEnd when wantResume is false',
-      async (harness) => {
-        const resumeTurn = vi.fn().mockResolvedValue(undefined);
-        const onAgentEndRegistrar = vi.fn();
-        const resumableService = {
-          ...createMockService(),
-          id: harness,
-          resumeTurn,
-          spawn: vi.fn().mockResolvedValue({
-            pid: PID,
-            harnessSessionId: `sess-${harness}-1`,
-            onExit: vi.fn(),
-            onOutput: vi.fn(),
-            onAgentEnd: onAgentEndRegistrar,
-          }),
-        };
-        deps.agentServices = new Map([[harness, resumableService]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({
-            agentHarness: harness as EnsureRunningOpts['agentHarness'],
-            wantResume: false,
-          })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(resumeTurn).not.toHaveBeenCalled();
-        expect(deps.processes.kill).not.toHaveBeenCalled();
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-      }
-    );
 
     test('onAgentEnd kills process for non-resumable harness', async () => {
       const onAgentEndRegistrar = vi.fn();
@@ -674,344 +448,6 @@ describe('AgentProcessManager', () => {
       expect(spawnArgs.systemPrompt).toBe('You are a builder');
     });
 
-    // Harness-specific resume / daemon-memory behavior — not shared across all native SDKs.
-    // pi (CLI) cold-spawns on wantResume; cursor-sdk has session-reopen retry on crash.
-    test('wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
-      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
-        pid: PID,
-        harnessSessionId: 'sess-1',
-        harnessReconnect: { agentName: 'build', model: 'gpt-4' },
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
-      const opencodeSdkService = {
-        ...createMockService(),
-        id: 'opencode-sdk',
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'sess-1',
-          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'build' }),
-      };
-      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(createOpts({ agentHarness: 'opencode-sdk', wantResume: false }));
-      await manager.stop({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        reason: 'user.stop',
-      });
-
-      const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
-      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
-      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('sess-1');
-
-      const sessionResumeRequestedArgs = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          args.chatroomId === CHATROOM_ID &&
-          args.role === ROLE &&
-          args.agentHarness === 'opencode-sdk' &&
-          args.reason === undefined
-      );
-      expect(sessionResumeRequestedArgs.some((args) => args.harnessSessionId === 'sess-1')).toBe(
-        true
-      );
-
-      const sessionResumedArgs = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          args.chatroomId === CHATROOM_ID &&
-          args.role === ROLE &&
-          args.reason === undefined &&
-          args.harnessSessionId === 'sess-1' &&
-          args.agentHarness === undefined
-      );
-      expect(sessionResumedArgs).toHaveLength(1);
-    });
-
-    test('cursor-sdk wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
-      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
-        pid: PID,
-        harnessSessionId: 'cursor-agent-1',
-        harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'cursor-agent-1',
-          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'builder@c1',
-          model: 'composer-2.5',
-        }),
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(createOpts({ agentHarness: 'cursor-sdk', wantResume: false }));
-      await manager.stop({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        reason: 'user.stop',
-      });
-
-      const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk', wantResume: true })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(cursorSdkService.spawn).toHaveBeenCalledOnce();
-      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
-      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('cursor-agent-1');
-
-      const sessionResumeRequestedArgs = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          args.chatroomId === CHATROOM_ID &&
-          args.role === ROLE &&
-          args.agentHarness === 'cursor-sdk' &&
-          args.reason === undefined
-      );
-      expect(
-        sessionResumeRequestedArgs.some((args) => args.harnessSessionId === 'cursor-agent-1')
-      ).toBe(true);
-
-      const sessionResumedArgs = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          args.chatroomId === CHATROOM_ID &&
-          args.role === ROLE &&
-          args.reason === undefined &&
-          args.harnessSessionId === 'cursor-agent-1' &&
-          args.agentHarness === undefined
-      );
-      expect(sessionResumedArgs).toHaveLength(1);
-    });
-
-    test('wantResume preserves this when calling harness resumeFromDaemonMemory', async () => {
-      const harnessSessionId = 'agent-resume-this-binding';
-      const mockSpawnResult = (): SpawnResult => ({
-        pid: PID,
-        harnessSessionId,
-        harnessReconnect: { agentName: 'planner@c1', model: 'composer-2.5' },
-        onExit: vi.fn() as SpawnResult['onExit'],
-        onOutput: vi.fn() as SpawnResult['onOutput'],
-        onAgentEnd: vi.fn() as SpawnResult['onAgentEnd'],
-      });
-      const cursorSdkService: RemoteAgentService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi.fn().mockResolvedValue(mockSpawnResult()),
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'planner@c1',
-          model: 'composer-2.5',
-        }),
-        async resumeFromDaemonMemory(_options, stored) {
-          // Harness implementations use `this` (e.g. cursor-sdk spawnKeeper). Detached calls lose it.
-          if (this.id !== 'cursor-sdk') {
-            throw new Error("Cannot read properties of undefined (reading 'spawnKeeper')");
-          }
-          return {
-            ...mockSpawnResult(),
-            harnessSessionId: stored.harnessSessionId,
-          };
-        },
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk', wantResume: false, role: 'planner' })
-      );
-      await manager.stop({
-        chatroomId: CHATROOM_ID,
-        role: 'planner',
-        reason: 'user.stop',
-      });
-
-      const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk', wantResume: true, role: 'planner' })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(manager.getSlot(CHATROOM_ID, 'planner')!.harnessSessionId).toBe(harnessSessionId);
-    });
-
-    test('pi wantResume cold spawns after user.stop (no daemon-memory resume)', async () => {
-      const piService = {
-        ...createMockService(),
-        id: 'pi',
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'pi-sess-1',
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-      };
-      deps.agentServices = new Map([['pi', piService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(createOpts({ agentHarness: 'pi', wantResume: false }));
-      await manager.stop({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        reason: 'user.stop',
-      });
-
-      const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'pi', wantResume: true })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(piService.spawn).toHaveBeenCalledTimes(2);
-      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('pi-sess-1');
-    });
-
-    test('wantResume with no daemon memory spawns fresh without sessionResumeFailed', async () => {
-      const opencodeSdkService = {
-        ...createMockService(),
-        id: 'opencode-sdk',
-        resumeFromDaemonMemory: vi.fn(),
-      };
-      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
-      expect(opencodeSdkService.resumeFromDaemonMemory).not.toHaveBeenCalled();
-      const sessionResumeFailedCalls = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          typeof args.reason === 'string' && args.pid === undefined && args.stopReason === undefined
-      );
-      expect(sessionResumeFailedCalls).toHaveLength(0);
-    });
-
-    test('wantResume clears daemon memory and emits sessionResumeFailed when workingDir changed', async () => {
-      const resumeFromDaemonMemory = vi.fn();
-      const opencodeSdkService = {
-        ...createMockService(),
-        id: 'opencode-sdk',
-        resumeFromDaemonMemory,
-      };
-      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
-      getLastHarnessSessions(manager).set(key, {
-        harnessSessionId: 'sess-1',
-        harness: 'opencode-sdk',
-        agentName: 'build',
-        workingDir: '/tmp/other',
-      });
-
-      const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'opencode-sdk', wantResume: true, workingDir: '/tmp/test' })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(resumeFromDaemonMemory).not.toHaveBeenCalled();
-      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
-      expect(getLastHarnessSessions(manager).has(key)).toBe(false);
-
-      const sessionResumeRequestedArgs = getMutationCallsByArgs(
-        deps,
-        (args) => args.agentHarness !== undefined && args.reason === undefined
-      );
-      expect(sessionResumeRequestedArgs).toHaveLength(0);
-
-      const resumeFailedCalls = getMutationCallsByArgs(
-        deps,
-        (args) => args.reason === 'working directory changed'
-      );
-      expect(resumeFailedCalls).toHaveLength(1);
-      expect(resumeFailedCalls[0]).toMatchObject({
-        harnessSessionId: 'sess-1',
-      });
-    });
-
-    test('wantResume falls back to spawn when resumeFromDaemonMemory fails', async () => {
-      const resumeFromDaemonMemory = vi
-        .fn()
-        .mockRejectedValue(new Error('OpenCode session sess-1 not found'));
-      const opencodeSdkService = {
-        ...createMockService(),
-        id: 'opencode-sdk',
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'build' }),
-      };
-      deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
-      getLastHarnessSessions(manager).set(key, {
-        harnessSessionId: 'sess-1',
-        harness: 'opencode-sdk',
-        agentName: 'build',
-        workingDir: '/tmp/test',
-      });
-
-      const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'opencode-sdk', wantResume: true })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
-      expect(opencodeSdkService.spawn).toHaveBeenCalledOnce();
-
-      const sessionResumeRequestedArgs = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          args.chatroomId === CHATROOM_ID &&
-          args.role === ROLE &&
-          args.agentHarness === 'opencode-sdk' &&
-          args.reason === undefined
-      );
-      expect(sessionResumeRequestedArgs).toHaveLength(1);
-      expect(sessionResumeRequestedArgs[0]).toMatchObject({
-        harnessSessionId: 'sess-1',
-      });
-
-      const resumeFailedCalls = (
-        deps.backend.mutation as ReturnType<typeof vi.fn>
-      ).mock.calls.filter(
-        (call: unknown[]) =>
-          call.length >= 2 &&
-          (call[1] as Record<string, unknown>)?.reason === 'OpenCode session sess-1 not found'
-      );
-      expect(resumeFailedCalls).toHaveLength(1);
-      expect(resumeFailedCalls[0][1]).toMatchObject({
-        harnessSessionId: 'sess-1',
-      });
-    });
 
     test('opencode-sdk spawn passes harnessSessionId to lifecycle outbox', async () => {
       const opencodeSdkService = {
@@ -1020,7 +456,6 @@ describe('AgentProcessManager', () => {
         spawn: vi.fn().mockResolvedValue({
           pid: PID,
           harnessSessionId: 'sess-opencode-start',
-          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
           onExit: vi.fn(),
           onOutput: vi.fn(),
           onAgentEnd: vi.fn(),
@@ -1059,10 +494,6 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
 
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe(provisionalId);
-      expect(getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.harnessSessionId).toBe(
-        provisionalId
-      );
-
       expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'spawned',
@@ -1071,143 +502,6 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('claude-sdk onHarnessSessionIdUpdated updates slot and emits backend event', async () => {
-      const provisionalId = 'b9a4f2e1-3c7d-4a5b-9e8f-1a2b3c4d5e6f';
-      const providerId = 'claude-provider-sess-abc';
-      let sessionIdUpdatedCb:
-        | ((info: {
-            correlationId: string;
-            resumableId: string;
-            source: 'provider_allocated' | 'provider_rotated';
-            previousResumableId?: string | undefined;
-          }) => void)
-        | undefined;
-      const claudeSdkService = {
-        ...createMockService(),
-        id: 'claude-sdk',
-        spawn: vi.fn().mockImplementation(async () => ({
-          pid: PID,
-          harnessSessionId: provisionalId,
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-          onHarnessSessionIdUpdated: (
-            cb: (info: {
-              correlationId: string;
-              resumableId: string;
-              source: 'provider_allocated' | 'provider_rotated';
-              previousResumableId?: string | undefined;
-            }) => void
-          ) => {
-            sessionIdUpdatedCb = cb;
-          },
-        })),
-      };
-      deps.agentServices = new Map([['claude-sdk', claudeSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
-
-      sessionIdUpdatedCb!({
-        correlationId: provisionalId,
-        resumableId: providerId,
-        source: 'provider_allocated',
-      });
-
-      expect(manager.getSlot(CHATROOM_ID, ROLE)!.resumableHarnessSessionId).toBe(providerId);
-      expect(
-        getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.resumableHarnessSessionId
-      ).toBe(providerId);
-
-      const harnessSessionIdUpdatedCalls = getLogEventCallsByArgs(
-        deps,
-        (args) => args.correlationId === provisionalId && args.resumableId === providerId
-      );
-      expect(harnessSessionIdUpdatedCalls).toHaveLength(1);
-      expect(harnessSessionIdUpdatedCalls[0]).toMatchObject({
-        type: 'agent.harnessSessionIdUpdated',
-        correlationId: provisionalId,
-        resumableId: providerId,
-        source: 'provider_allocated',
-      });
-    });
-
-    test('claude-sdk wantResume uses resumableHarnessSessionId for daemon-memory reconnect', async () => {
-      const provisionalId = 'b9a4f2e1-3c7d-4a5b-9e8f-1a2b3c4d5e6f';
-      const providerId = 'claude-provider-sess-abc';
-      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
-        pid: PID,
-        harnessSessionId: 'new-correlation-uuid',
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
-      let sessionIdUpdatedCb:
-        | ((info: {
-            correlationId: string;
-            resumableId: string;
-            source: 'provider_allocated' | 'provider_rotated';
-          }) => void)
-        | undefined;
-      const claudeSdkService = {
-        ...createMockService(),
-        id: 'claude-sdk',
-        spawn: vi.fn().mockImplementation(async () => ({
-          pid: PID,
-          harnessSessionId: provisionalId,
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-          onHarnessSessionIdUpdated: (
-            cb: (info: {
-              correlationId: string;
-              resumableId: string;
-              source: 'provider_allocated' | 'provider_rotated';
-            }) => void
-          ) => {
-            sessionIdUpdatedCb = cb;
-          },
-        })),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'claude-sdk',
-          model: 'gpt-4',
-        }),
-      };
-      deps.agentServices = new Map([['claude-sdk', claudeSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
-      sessionIdUpdatedCb!({
-        correlationId: provisionalId,
-        resumableId: providerId,
-        source: 'provider_allocated',
-      });
-      await manager.stop({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        reason: 'user.stop',
-      });
-      expect(
-        getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.resumableHarnessSessionId
-      ).toBe(providerId);
-
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-      const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'claude-sdk', wantResume: true })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
-      expect(resumeFromDaemonMemory.mock.calls[0][1]).toMatchObject({
-        harnessSessionId: providerId,
-      });
-      const sessionResumeRequestedCalls = getMutationCallsByArgs(
-        deps,
-        (args) => args.harnessSessionId === providerId
-      );
-      expect(sessionResumeRequestedCalls.length).toBeGreaterThanOrEqual(1);
-    });
 
     test('second start while running replaces PID', async () => {
       await manager.ensureRunning(createOpts());
@@ -1227,7 +521,7 @@ describe('AgentProcessManager', () => {
       const result = await manager.ensureRunning(createOpts());
 
       expect(result).toEqual({ success: true, pid: NEW_PID });
-      expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
+      expect(service.stop).toHaveBeenCalledWith(PID);
       expect(service.spawn).toHaveBeenCalledOnce();
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.pid).toBe(NEW_PID);
 
@@ -1332,41 +626,6 @@ describe('AgentProcessManager', () => {
       expect(slot!.state).toBe('idle');
     });
 
-    test('crash loop: returns failure, emits restartLimitReached', async () => {
-      // Fill the window to max successful restarts: spacing must satisfy backoff (30s then 60s)
-      // and keep all timestamps within CRASH_LOOP_WINDOW_MS so the limit check applies.
-      const base = 1_700_000_000_000;
-      const now = vi.mocked(deps.clock.now);
-      now.mockReturnValue(base);
-      deps.crashLoop.record(CHATROOM_ID, ROLE, base);
-      let t = base + 30_000;
-      for (let i = 1; i < CRASH_LOOP_MAX_RESTARTS; i++) {
-        now.mockReturnValue(t);
-        deps.crashLoop.record(CHATROOM_ID, ROLE, t);
-        t += 60_000;
-      }
-      now.mockReturnValue(t);
-
-      const result = await manager.ensureRunning(createOpts({ reason: 'platform.crash_recovery' }));
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('crash_loop');
-
-      // Should have logged restart limit audit event
-      expect(deps.logEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'agent.restartLimitReached',
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-          restartCount: expect.any(Number),
-          windowMs: expect.any(Number),
-        })
-      );
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE);
-      expect(slot!.state).toBe('idle');
-    });
-
     test('spawn fails: returns failure, slot transitions back to idle', async () => {
       const service = deps.agentServices.get('opencode')!;
       (service.spawn as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('spawn error'));
@@ -1450,17 +709,6 @@ describe('AgentProcessManager', () => {
   });
 
   describe('stop intent fencing', () => {
-    test('markStopIntent blocks ensureRunning for non-explicit start reasons', async () => {
-      await manager.ensureRunning(createOpts());
-      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);
-
-      const result = await manager.ensureRunning(
-        createOpts({ reason: 'platform.cursor_sdk_session_reopen' })
-      );
-
-      expect(result).toEqual({ success: false, error: 'stop_requested' });
-    });
-
     test('explicit user.start clears stop intent and allows ensureRunning', async () => {
       await manager.ensureRunning(createOpts());
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);
@@ -1470,19 +718,7 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(true);
     });
 
-    test('markStopIntent prevents dispatchRestartAfterExit from spawning', async () => {
-      await manager.ensureRunning(createOpts());
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
-      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);
-
-      manager.handleExit({ chatroomId: CHATROOM_ID, role: ROLE, pid: PID, code: 0, signal: null });
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      expect(service.spawn).not.toHaveBeenCalled();
-    });
-
-    test('markChatroomStopIntent marks idle slots (post-recovery reset)', async () => {
+    test('markChatroomStopIntent marks idle slots after stale-state reset', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       slot.state = 'idle';
@@ -1509,7 +745,7 @@ describe('AgentProcessManager', () => {
       });
 
       expect(result).toEqual({ success: true });
-      expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
+      expect(service.stop).toHaveBeenCalledWith(PID);
       expect(service.untrack).toHaveBeenCalledWith(PID);
       const killCalls = vi.mocked(deps.processes.kill).mock.calls.filter(([, sig]) => sig !== 0);
       expect(killCalls).toHaveLength(0);
@@ -1523,100 +759,6 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
-    });
-
-    test('user.stop with harnessSessionId passes preserveForResume to harness stop', async () => {
-      const resumableService = {
-        ...createMockService(),
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'sess-opencode-1',
-          harnessReconnect: { agentName: 'build', model: 'gpt-4' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'build',
-          model: TEST_MODEL_OPENCODE,
-        }),
-        resumeFromDaemonMemory: vi.fn(),
-      };
-      const localDeps = {
-        ...createDeps(),
-        agentServices: new Map([['opencode-sdk', resumableService]]),
-      };
-      (
-        localDeps.processes.kill as typeof localDeps.processes.kill & {
-          markAlive: (pid: number) => void;
-        }
-      ).markAlive(PID);
-      (resumableService.stop as ReturnType<typeof vi.fn>).mockImplementation(
-        async (pid: number) => {
-          (
-            localDeps.processes.kill as typeof localDeps.processes.kill & {
-              markDead: (pid: number) => void;
-            }
-          ).markDead(pid);
-        }
-      );
-      const localManager = new AgentProcessManager(localDeps);
-
-      await localManager.ensureRunning({
-        ...createOpts(),
-        agentHarness: 'opencode-sdk',
-      });
-
-      await localManager.stop({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        reason: 'user.stop',
-      });
-
-      expect(resumableService.stop).toHaveBeenCalledWith(PID, { preserveForResume: true });
-      expect(resumableService.getHarnessReconnectContext).toHaveBeenCalledWith(PID);
-      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
-      expect(getLastHarnessSessions(localManager).get(key)).toEqual({
-        harnessSessionId: 'sess-opencode-1',
-        harness: 'opencode-sdk',
-        agentName: 'build',
-        workingDir: '/tmp/test',
-        model: 'gpt-4',
-      });
-    });
-
-    test('platform stop clears daemon memory session context', async () => {
-      const resumableService = {
-        ...createMockService(),
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'sess-opencode-1',
-          harnessReconnect: { agentName: 'build' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-      };
-      const localDeps = {
-        ...createDeps(),
-        agentServices: new Map([['opencode-sdk', resumableService]]),
-      };
-      const localManager = new AgentProcessManager(localDeps);
-
-      await localManager.ensureRunning({
-        ...createOpts(),
-        agentHarness: 'opencode-sdk',
-      });
-      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
-      expect(getLastHarnessSessions(localManager).has(key)).toBe(true);
-
-      await localManager.stop({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        reason: 'daemon.shutdown',
-      });
-
-      expect(getLastHarnessSessions(localManager).has(key)).toBe(false);
     });
 
     test('doStop falls back to direct kill when harness service is not registered', async () => {
@@ -1825,7 +967,7 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('can clear stale stop intent for task-delivery recovery', async () => {
+    test('can clear stale stop intent before task delivery', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
@@ -1936,509 +1078,6 @@ describe('AgentProcessManager', () => {
   // ── handleExit ────────────────────────────────────────────────────────
 
   describe('handleExit', () => {
-    test('unexpected exit triggers auto restart', async () => {
-      await manager.ensureRunning(createOpts());
-
-      const service = deps.agentServices.get('opencode')!;
-
-      // Reset spawn mock for the restart call
-      (service.spawn as ReturnType<typeof vi.fn>).mockResolvedValue({
-        pid: 100,
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
-
-      // Simulate process exit directly via handleExit
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      // Allow async restart to run
-      await vi.waitFor(() => {
-        expect(service.spawn).toHaveBeenCalledTimes(2); // original + restart
-      });
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE);
-      expect(slot!.state).toBe('running');
-      expect(slot!.pid).toBe(100);
-    });
-
-    // cursor-sdk uses session monitor + unified recovery loop on session-level failure.
-    test('cursor-sdk crash retries session reopen 6 times with event stream logging', async () => {
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi
-          .fn()
-          .mockResolvedValueOnce({
-            pid: PID,
-            harnessSessionId: 'cursor-agent-1',
-            harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-            onExit: vi.fn(),
-            onOutput: vi.fn(),
-            onAgentEnd: vi.fn(),
-          })
-          .mockRejectedValue(new Error('resume failed')),
-        resumeFromDaemonMemory: vi.fn().mockRejectedValue(new Error('Agent.resume failed')),
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'builder@c1',
-          model: 'composer-2.5',
-        }),
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.recentLogLines = [
-        '[cursor-sdk:builder@c1 run-error] run abc failed: no error detail from SDK',
-      ];
-
-      (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
-      let delayCalls = 0;
-      deps.clock.delay = vi.fn().mockImplementation(async () => {
-        delayCalls += 1;
-      });
-
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      await vi.waitFor(() => {
-        const startFailed = getMutationCallsByArgs(
-          deps,
-          (args) => typeof args.error === 'string' && args.error.includes('session recovery failed')
-        );
-        expect(startFailed).toHaveLength(1);
-      });
-
-      const reopenRetryCalls = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          args.attempt !== undefined && args.maxAttempts === CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS
-      );
-      expect(reopenRetryCalls).toHaveLength(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS);
-      expect(reopenRetryCalls.map((args) => args.attempt)).toEqual(
-        Array.from({ length: CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS }, (_, i) => i + 1)
-      );
-      expect(delayCalls).toBe(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS - 1);
-    });
-
-    test('cursor-sdk run-error resumes existing session before cold restart', async () => {
-      const resumeFromDaemonMemory = vi.fn().mockRejectedValue(new Error('resume failed'));
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'cursor-agent-1',
-          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'builder@c1',
-          model: 'composer-2.5',
-        }),
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.recentLogLines = [
-        '[cursor-sdk:builder@c1 run-error] run abc failed: no error detail from SDK',
-      ];
-
-      const ensureRunningSpy = vi.spyOn(manager, 'ensureRunning').mockResolvedValue({
-        success: false,
-        error: 'resume failed',
-      });
-      deps.clock.delay = vi.fn().mockResolvedValue(undefined);
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      await vi.waitFor(() => {
-        expect(ensureRunningSpy.mock.calls.length).toBeGreaterThanOrEqual(
-          CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS + 1
-        );
-      });
-
-      const wantResumeValues = ensureRunningSpy.mock.calls.map(
-        (call) => (call[0] as EnsureRunningOpts).wantResume
-      );
-      expect(wantResumeValues.slice(0, CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS)).toEqual([
-        true,
-        true,
-        true,
-      ]);
-      expect(wantResumeValues[CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS]).toBe(false);
-
-      const sessions = getLastHarnessSessions(manager);
-      expect(sessions.has(`${CHATROOM_ID}:${ROLE}`)).toBe(false);
-
-      ensureRunningSpy.mockRestore();
-    });
-
-    test('cursor-sdk spawn auth error resumes existing session before cold restart', async () => {
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'cursor-agent-1',
-          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory: vi.fn().mockRejectedValue(new Error('resume failed')),
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'builder@c1',
-          model: 'composer-2.5',
-        }),
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.recentLogLines = ['[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error'];
-
-      const ensureRunningSpy = vi.spyOn(manager, 'ensureRunning').mockResolvedValue({
-        success: false,
-        error: 'resume failed',
-      });
-      deps.clock.delay = vi.fn().mockResolvedValue(undefined);
-
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      await vi.waitFor(() => {
-        expect(ensureRunningSpy.mock.calls.length).toBeGreaterThanOrEqual(4);
-      });
-
-      const wantResumeValues = ensureRunningSpy.mock.calls.map(
-        (call) => (call[0] as EnsureRunningOpts).wantResume
-      );
-      expect(wantResumeValues.slice(0, CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS)).toEqual([
-        true,
-        true,
-        true,
-      ]);
-      expect(wantResumeValues[CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS]).toBe(false);
-
-      ensureRunningSpy.mockRestore();
-    });
-
-    test('cursor-sdk auth release clears task and waits for exit lifecycle before reopening', async () => {
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'cursor-agent-1',
-          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory: vi.fn().mockRejectedValue(new Error('resume failed')),
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'builder@c1',
-          model: 'composer-2.5',
-        }),
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.recentLogLines = ['[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error'];
-      manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-1');
-
-      let resolveLifecycle!: () => void;
-      const lifecycleEnqueued = new Promise<void>((resolve) => {
-        resolveLifecycle = resolve;
-      });
-      deps.lifecycleOutbox.enqueue = vi.fn().mockReturnValue(lifecycleEnqueued);
-      const clearTaskSpy = vi.spyOn(manager, 'clearLastInFlightTask');
-      const ensureRunningSpy = vi
-        .spyOn(manager, 'ensureRunning')
-        .mockResolvedValueOnce({ success: false, error: 'resume failed' })
-        .mockResolvedValue({ success: true });
-
-      await manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-      await Promise.resolve();
-
-      expect(clearTaskSpy).toHaveBeenCalledWith(CHATROOM_ID, ROLE);
-      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledTimes(1);
-      expect(ensureRunningSpy).not.toHaveBeenCalled();
-
-      resolveLifecycle();
-      await vi.waitFor(() => expect(ensureRunningSpy).toHaveBeenCalledTimes(2));
-
-      clearTaskSpy.mockRestore();
-      ensureRunningSpy.mockRestore();
-    });
-
-    test('cursor-sdk run-error onLogLine triggers proactive recovery while process is still running', async () => {
-      let onLogLineHandler!: (line: string) => void;
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi.fn().mockImplementationOnce(async () => ({
-          pid: PID,
-          harnessSessionId: 'cursor-agent-1',
-          harnessReconnect: { agentName: 'planner@c1', model: 'composer-2.5' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-          onLogLine: (cb: (line: string) => void) => {
-            onLogLineHandler = cb;
-          },
-        })),
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.nativeTurnPhase = 'turn_in_flight';
-      const kill = deps.processes.kill as ReturnType<typeof vi.fn>;
-      kill.mockClear();
-
-      onLogLineHandler(
-        '[cursor-sdk:builder@c1 run-error] run abc failed: no error detail from SDK'
-      );
-
-      expect(kill).toHaveBeenCalledWith(PID, 'SIGTERM');
-      expect(slot.nativeTurnPhase).toBe('idle');
-
-      // A second terminal line from the same process must not issue another kill.
-      onLogLineHandler(
-        '[cursor-sdk:builder@c1 run-error] run def failed: no error detail from SDK'
-      );
-      expect(kill).toHaveBeenCalledTimes(1);
-    });
-
-    test('cursor-sdk auth failure releases task before proactive recovery', async () => {
-      let onLogLineHandler!: (line: string) => void;
-      let onExitHandler!: Parameters<SpawnResult['onExit']>[0];
-      const resumeFromDaemonMemory = vi.fn().mockRejectedValue(new Error('resume failed'));
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi
-          .fn()
-          .mockImplementationOnce(async () => ({
-            pid: PID,
-            harnessSessionId: 'cursor-agent-1',
-            harnessReconnect: { agentName: 'planner@c1', model: 'composer-2.5' },
-            onExit: (cb: Parameters<SpawnResult['onExit']>[0]) => {
-              onExitHandler = cb;
-            },
-            onOutput: vi.fn(),
-            onAgentEnd: vi.fn(),
-            onLogLine: (cb: (line: string) => void) => {
-              onLogLineHandler = cb;
-            },
-          }))
-          .mockRejectedValue(new Error('reopen failed')),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'planner@c1',
-          model: 'composer-2.5',
-        }),
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.nativeTurnPhase = 'turn_in_flight';
-      manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-1');
-      const clearTaskSpy = vi.spyOn(manager, 'clearLastInFlightTask');
-      const kill = deps.processes.kill as ReturnType<typeof vi.fn>;
-      kill.mockClear();
-
-      onLogLineHandler('[cursor-sdk:planner@7z81x2 status] RUNNING');
-      onLogLineHandler(
-        '[cursor-sdk:planner@7z81x2 status] ERROR: Authentication error If you are logged in, try logging out and back in.'
-      );
-      onLogLineHandler(
-        '[cursor-sdk:planner@7z81x2 run-error] run run-24d02306 failed: no error detail from SDK'
-      );
-
-      expect(clearTaskSpy).toHaveBeenCalledWith(CHATROOM_ID, ROLE);
-      expect(slot.lastInFlightTaskId).toBeUndefined();
-      expect(slot.nativeTurnPhase).toBe('idle');
-      expect(kill).toHaveBeenCalledWith(PID, 'SIGTERM');
-      expect(clearTaskSpy.mock.invocationCallOrder[0]).toBeLessThan(
-        kill.mock.invocationCallOrder[0]
-      );
-
-      onExitHandler({
-        code: 1,
-        signal: null,
-        context: { machineId: 'test-machine', chatroomId: CHATROOM_ID, role: ROLE },
-      });
-
-      await vi.waitFor(() => {
-        const startFailed = getMutationCallsByArgs(
-          deps,
-          (args) => typeof args.error === 'string' && args.error.includes('session recovery failed')
-        );
-        expect(startFailed).toHaveLength(1);
-      });
-
-      const reopenRetryCalls = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          args.attempt !== undefined && args.maxAttempts === CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS
-      );
-      expect(reopenRetryCalls).toHaveLength(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS);
-      expect(resumeFromDaemonMemory).toHaveBeenCalledWith(
-        expect.objectContaining({ prompt: 'continue' }),
-        expect.anything()
-      );
-      clearTaskSpy.mockRestore();
-    });
-
-    test('cursor-sdk Authentication error retries instead of permanent startFailed', async () => {
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'cursor-agent-1',
-          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory: vi.fn().mockRejectedValue(new Error('resume failed')),
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'builder@c1',
-          model: 'composer-2.5',
-        }),
-      };
-      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.recentLogLines = [
-        '[cursor-sdk:planner@882x8x agent_end]',
-        '[cursor-sdk:planner@882x8x status] RUNNING',
-        '[cursor-sdk:planner@882x8x status] ERROR: Authentication error If you are logged in, try logging out and back in.',
-        '[cursor-sdk:planner@882x8x run-error] run run-0dd4d14b-8955-4999-bb4b-f6f8067a6077 failed: no error detail from SDK (run run-0dd4d14b-8955-4999-bb4b-f6f8067a6077)',
-      ];
-
-      const ensureRunningSpy = vi.spyOn(manager, 'ensureRunning').mockResolvedValue({
-        success: false,
-        error: 'resume failed',
-      });
-      deps.clock.delay = vi.fn().mockResolvedValue(undefined);
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      await vi.waitFor(() => {
-        expect(ensureRunningSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      });
-
-      await vi.waitFor(() => {
-        expect(ensureRunningSpy.mock.calls.length).toBe(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS);
-      });
-
-      const permanentStartFailed = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          typeof args.error === 'string' &&
-          args.error.includes('Permanent harness error (auth_error)')
-      );
-      expect(permanentStartFailed).toHaveLength(0);
-
-      ensureRunningSpy.mockRestore();
-    });
-
-    test('signal exit (SIGTERM) triggers restart (no stale reason leak)', async () => {
-      await manager.ensureRunning(createOpts());
-
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
-
-      // SIGTERM exit → agent_process.signal → should trigger restart
-      // This verifies no stale state from prior stops leaks into the reason
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 0,
-        signal: 'SIGTERM',
-      });
-
-      // Should restart because agent_process.signal is a restartable reason
-      await vi.waitFor(() => {
-        expect(service.spawn).toHaveBeenCalledTimes(1);
-      });
-    });
-
     test('stale PID is ignored', async () => {
       await manager.ensureRunning(createOpts());
 
@@ -2528,90 +1167,8 @@ describe('AgentProcessManager', () => {
       });
     });
 
-    test('clean exit triggers restart', async () => {
-      await manager.ensureRunning(createOpts());
 
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
 
-      // Clean exit with code 0 → agent_process.exited_clean → triggers restart
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 0,
-        signal: null,
-      });
-
-      // Should restart (exited_clean is not intentional)
-      await vi.waitFor(() => {
-        expect(service.spawn).toHaveBeenCalledTimes(1);
-      });
-    });
-
-    test('crash with config error still attempts restart via crash recovery', async () => {
-      await manager.ensureRunning(createOpts());
-
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.recentLogLines = [
-        'Error: 400 {"error":{"message":"The requested model is not supported.","code":"model_not_supported","param":"model","type":"invalid_request_error"}}',
-      ];
-
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      await vi.waitFor(() => {
-        expect(service.spawn).toHaveBeenCalledTimes(1);
-      });
-
-      expect(
-        getMutationCallsByArgs(
-          deps,
-          (args) => typeof args.error === 'string' && args.error.includes('config_error')
-        )
-      ).toHaveLength(0);
-    });
-
-    test('crash with provider rate limit attempts restart instead of immediate startFailed', async () => {
-      await manager.ensureRunning(createOpts());
-
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.recentLogLines = [
-        '[ts] role:builder error] AI_APICallError: Rate limit exceeded. Please try again later.',
-      ];
-
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      await vi.waitFor(() => {
-        expect(service.spawn).toHaveBeenCalledTimes(1);
-      });
-
-      expect(
-        getMutationCallsByArgs(
-          deps,
-          (args) => typeof args.error === 'string' && args.error.includes('non-retryable')
-        )
-      ).toHaveLength(0);
-    });
 
     test('onAgentEnd with rate-limit logs still completes native turn end', async () => {
       const resumeTurn = vi.fn();
@@ -2646,7 +1203,6 @@ describe('AgentProcessManager', () => {
       await triggerAgentEnd(manager, agentEndCb!);
 
       expect(resumeTurn).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
       expect(
         getMutationCallsByArgs(
           deps,
@@ -2688,7 +1244,6 @@ describe('AgentProcessManager', () => {
       await triggerAgentEnd(manager, agentEndCb!);
 
       expect(resumeTurn).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
       expect(
         getMutationCallsByArgs(
           deps,
@@ -2697,275 +1252,8 @@ describe('AgentProcessManager', () => {
       ).toHaveLength(0);
     });
 
-    test('exited_clean retains daemon memory and reconnects cursor-sdk via resumeFromDaemonMemory', async () => {
-      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
-        pid: 100,
-        harnessSessionId: 'cursor-agent-1',
-        harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
-      const cursorSdkService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'cursor-agent-1',
-          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'builder@c1',
-          model: 'composer-2.5',
-        }),
-      };
-      const localDeps = {
-        ...createDeps(),
-        agentServices: new Map([['cursor-sdk', cursorSdkService]]),
-      };
-      const localManager = new AgentProcessManager(localDeps);
 
-      await localManager.ensureRunning({
-        ...createOpts(),
-        agentHarness: 'cursor-sdk',
-      });
-      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
 
-      localManager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 0,
-        signal: null,
-      });
-
-      await vi.waitFor(() => {
-        expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
-      });
-
-      expect(cursorSdkService.spawn).toHaveBeenCalledOnce();
-      expect(getLastHarnessSessions(localManager).get(key)).toEqual({
-        harnessSessionId: 'cursor-agent-1',
-        harness: 'cursor-sdk',
-        agentName: 'builder@c1',
-        workingDir: '/tmp/test',
-        model: 'gpt-4',
-      });
-      expect(localManager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('cursor-agent-1');
-    });
-
-    test('crash-recovery does not resume when wantResume is false', async () => {
-      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
-        pid: 100,
-        harnessSessionId: 'sess-opencode-2',
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
-      const opencodeSdkService = {
-        ...createMockService(),
-        id: 'opencode-sdk',
-        resumeTurn: vi.fn(),
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'sess-opencode-1',
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'build' }),
-      };
-      const localDeps = {
-        ...createDeps(),
-        agentServices: new Map([['opencode-sdk', opencodeSdkService]]),
-      };
-      const localManager = new AgentProcessManager(localDeps);
-
-      // Spawn with wantResume: false
-      await localManager.ensureRunning({
-        ...createOpts(),
-        agentHarness: 'opencode-sdk',
-        wantResume: false,
-      });
-
-      // Simulate a crash (SIGKILL — non-intentional exit)
-      localManager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: null,
-        signal: 'SIGKILL',
-      });
-
-      // Restart should happen (crash recovery triggers ensureRunning)
-      await vi.waitFor(() => {
-        expect(opencodeSdkService.spawn).toHaveBeenCalledTimes(2);
-      });
-
-      // But since wantResume was false, daemon-memory resume must NOT be used
-      expect(resumeFromDaemonMemory).not.toHaveBeenCalled();
-    });
-
-    test('end-to-end: wantResume=false prevents both turn-resume and crash-recovery resume', async () => {
-      const resumeTurn = vi.fn().mockResolvedValue(undefined);
-      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
-        pid: 200,
-        harnessSessionId: 'sess-resumed',
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
-      const onAgentEndRegistrar = vi.fn();
-      const opencodeSdkService = {
-        ...createMockService(),
-        id: 'opencode-sdk',
-        resumeTurn,
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'sess-1',
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: onAgentEndRegistrar,
-        }),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'test' }),
-      };
-      const localDeps = {
-        ...createDeps(),
-        agentServices: new Map([['opencode-sdk', opencodeSdkService]]),
-      };
-      const localManager = new AgentProcessManager(localDeps);
-
-      // 1. Spawn with wantResume=false
-      await localManager.ensureRunning({
-        ...createOpts(),
-        agentHarness: 'opencode-sdk',
-        wantResume: false,
-      });
-
-      const slot = localManager.getSlot(CHATROOM_ID, ROLE)!;
-      expect(slot.wantResume).toBe(false);
-
-      (localDeps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-      // 2. Trigger agent_end (turn completion)
-      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-      await triggerAgentEnd(localManager, agentEndCb);
-
-      // 3. Verify: resumeTurn was NOT called; native harness idles in-process
-      expect(resumeTurn).not.toHaveBeenCalled();
-      expect(localDeps.processes.kill).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(localDeps)).toHaveLength(1);
-
-      // 4. Clear mocks for next phase
-      (localDeps.processes.kill as ReturnType<typeof vi.fn>).mockClear();
-      (opencodeSdkService.spawn as ReturnType<typeof vi.fn>).mockClear();
-
-      // 5. Simulate crash (non-intentional exit)
-      localManager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      // 6. Wait for restart
-      await vi.waitFor(() => {
-        expect(opencodeSdkService.spawn).toHaveBeenCalledTimes(1);
-      });
-
-      // 7. Verify: daemon-memory resume was NOT used (crash-recovery respects wantResume=false)
-      expect(resumeFromDaemonMemory).not.toHaveBeenCalled();
-
-      // 8. Verify: fresh spawn happened instead (cold-start)
-      expect(opencodeSdkService.spawn).toHaveBeenCalledWith(
-        expect.objectContaining({
-          context: expect.objectContaining({ role: ROLE }),
-          model: expect.any(String),
-          workingDir: expect.any(String),
-        })
-      );
-    });
-  });
-
-  // ── recover ───────────────────────────────────────────────────────────
-
-  describe('recover', () => {
-    test('alive PIDs are killed and cleaned up (not restored as running)', async () => {
-      (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
-        { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: 1234, harness: 'opencode' } },
-      ]);
-
-      // process.kill(pid, 0) succeeds → alive
-      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(() => {});
-
-      await manager.recover();
-
-      expect(deps.processes.kill).toHaveBeenCalledWith(1234, 0);
-      const service = deps.agentServices.get('opencode')!;
-      expect(service.stop).toHaveBeenCalledWith(1234);
-      expect(untrackChildPid).toHaveBeenCalledWith(1234);
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE);
-      expect(slot).toBeUndefined();
-
-      expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
-        'test-machine',
-        CHATROOM_ID,
-        ROLE
-      );
-
-      expect(deps.logEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-          pid: 1234,
-          stopReason: 'daemon.shutdown',
-          agentHarness: 'opencode',
-        })
-      );
-    });
-
-    test('dead PIDs are cleaned up', async () => {
-      (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
-        { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: 9999, harness: 'opencode' } },
-      ]);
-
-      // process.kill(pid, 0) throws → dead
-      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(() => {
-        throw new Error('ESRCH');
-      });
-
-      await manager.recover();
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE);
-      expect(slot).toBeUndefined(); // No slot created for dead process
-
-      expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
-        'test-machine',
-        CHATROOM_ID,
-        ROLE
-      );
-    });
-
-    test('recover clears stuck stopping slots', async () => {
-      await manager.ensureRunning(createOpts());
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.state = 'stopping';
-      slot.stoppingSince = Date.now() - STOPPING_TIMEOUT_MS - 1_000;
-
-      await manager.recover();
-
-      expect(slot.state).toBe('idle');
-      expect(slot.pid).toBeUndefined();
-      expect(slot.stoppingSince).toBeUndefined();
-    });
   });
 
   // ── listActive ────────────────────────────────────────────────────────
@@ -3080,64 +1368,6 @@ describe('AgentProcessManager', () => {
 
         const slot = manager.getSlot(CHATROOM_ID, ROLE);
         expect(slot?.nativeTurnPhase).toBe('idle');
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'agent_end sets nativeTurnPhase to idle for %s (non-reminder path)',
-      async (harness) => {
-        const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        mockNotifyNativeTurnIdle.mockClear();
-
-        // Simulate turn_in_flight
-        const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-        slot.nativeTurnPhase = 'turn_in_flight';
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(slot.nativeTurnPhase).toBe('idle');
-        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-        });
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'agent_end does NOT set nativeTurnPhase idle on handoff reminder path for %s',
-      async (harness) => {
-        const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-          needsHandoffReminder: true,
-          transitionedToWaiting: false,
-        });
-        mockNotifyNativeTurnIdle.mockClear();
-
-        // Simulate turn_in_flight
-        const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-        slot.nativeTurnPhase = 'turn_in_flight';
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        // After handoff reminder, phase should be turn_in_flight (reminder injected, harness working)
-        expect(slot.nativeTurnPhase).toBe('turn_in_flight');
-        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
       }
     );
 

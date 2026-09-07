@@ -414,7 +414,7 @@ describe('PiAgentService', () => {
       ).rejects.toThrow('exited immediately');
     });
 
-    it('returns pid, harnessSessionId, harnessReconnect, and lifecycle callbacks on success', async () => {
+    it('returns pid, harnessSessionId, and lifecycle callbacks on success', async () => {
       const child = makeChildProcess(99);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -430,7 +430,6 @@ describe('PiAgentService', () => {
 
       expect(result.pid).toBe(99);
       expect(result.harnessSessionId).toBe(SAMPLE_SESSION_ID);
-      expect(result.harnessReconnect).toBeUndefined();
       expect(typeof result.onExit).toBe('function');
       expect(typeof result.onOutput).toBe('function');
     });

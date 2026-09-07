@@ -14,12 +14,7 @@ import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import {
-  registerNativeDeliverySession,
-  unregisterNativeDeliverySession,
-} from './native-delivery-session-registry.js';
-import {
   NativeTaskDeliveryCoordinator,
-  notifyNativeTurnIdle,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
 import {
@@ -30,6 +25,7 @@ import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
@@ -90,7 +86,6 @@ describe('native queued delivery after agent_end', () => {
         nativeTurnPhase: 'idle',
       }),
       resumeTurnForSlot,
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     const coordinator = new NativeTaskDeliveryCoordinator();
@@ -103,6 +98,7 @@ describe('native queued delivery after agent_end', () => {
         NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
       >[0]['effectContext'],
       agentMgr,
+      runSerializedForAgent: vi.fn() as never,
       sessionDeps: {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
@@ -122,6 +118,9 @@ describe('native queued delivery after agent_end', () => {
         },
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
+      lifecycleOutbox: { enqueue: async () => undefined },
+      operationalModel: new AgentOperationalReadModel(),
+      isTaskActive: () => false,
     });
 
     await vi.waitFor(() => {
@@ -163,111 +162,4 @@ describe('native queued delivery after agent_end', () => {
     expect(shouldDeliverNativeTask(row!, { slot })).toBe(true);
   });
 
-  test('notifyNativeTurnIdle injects promoted pending task via event path', async () => {
-    unregisterNativeDeliverySession();
-    const now = 1_700_000_000_000;
-
-    const baseRow = {
-      taskId: 'task_promoted' as never,
-      chatroomId: 'room_1' as never,
-      status: 'pending' as const,
-      assignedTo: 'builder',
-      updatedAt: now,
-      createdAt: now,
-      agentConfig: {
-        role: 'builder',
-        machineId: MACHINE_ID,
-        agentHarness: 'cursor-sdk',
-        workingDir: '/test/workspace',
-      },
-      participant: {
-        lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
-        lastSeenAt: now - 1_000,
-        lastStatus: 'task.completed',
-      },
-    };
-
-    const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
-      const a = args as Record<string, unknown>;
-      if (a && 'machineId' in a && !('taskId' in a)) {
-        return { tasks: [baseRow] };
-      }
-      if (a && 'chatroomId' in a && 'taskId' in a) {
-        return { fullCliOutput: 'EVENT DRIVEN OUTPUT' };
-      }
-      if (a && 'taskId' in a) {
-        return { ...baseRow, taskContent: '## Goal\nQueued follow-up after agent_end' };
-      }
-      throw new Error(`Unexpected query: ${String(_fn)}`);
-    });
-
-    const backendMutation = vi.fn().mockResolvedValue(undefined);
-    const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
-    const agentMgr = {
-      getSlot: vi.fn().mockReturnValue({
-        state: 'running',
-        pid: 42_424,
-        harnessSessionId: HARNESS_SESSION_ID,
-        nativeTurnPhase: 'idle' as const,
-      }),
-      resumeTurnForSlot,
-      setLastInFlightTask: vi.fn().mockReturnValue(Runtime.defaultRuntime),
-    } as unknown as DaemonAgentProcessManagerServiceShape;
-
-    registerNativeDeliverySession({
-      runtime: Runtime.defaultRuntime as Parameters<
-        NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
-      >[0]['runtime'],
-      effectContext: Context.empty() as Parameters<
-        NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
-      >[0]['effectContext'],
-      agentMgr,
-      sessionDeps: {
-        sessionId: SESSION_ID,
-        convexUrl: 'http://test:3210',
-        machineId: MACHINE_ID,
-        logEvent: async () => undefined,
-        backend: {
-          mutation: backendMutation,
-          query: backendQuery,
-        },
-      } satisfies NativeTaskDeliverySessionDeps,
-      machineId: MACHINE_ID,
-    });
-
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    try {
-      notifyNativeTurnIdle({ chatroomId: 'room_1', role: 'builder' });
-
-      await vi.waitFor(() => {
-        expect(resumeTurnForSlot).toHaveBeenCalled();
-      });
-
-      expect(resumeTurnForSlot).toHaveBeenCalledWith({
-        chatroomId: 'room_1',
-        role: 'builder',
-        prompt: buildNativeInjectionPrompt({
-          taskDeliveryOutput: 'EVENT DRIVEN OUTPUT',
-          augmentationMode: resolveSessionAugmentationForTask(
-            { content: '## Goal\nQueued follow-up after agent_end', startInNewSession: undefined },
-            'builder'
-          ),
-        }),
-      });
-      expect(backendMutation).toHaveBeenCalledWith(
-        api.participants.join,
-        expect.objectContaining({
-          action: NATIVE_TASK_INJECTED_ACTION,
-          taskId: 'task_promoted',
-        })
-      );
-      expect(logSpy).toHaveBeenCalledWith(
-        '[NativeDelivery:primary] turn idle builder@room_1 — trying inject'
-      );
-    } finally {
-      logSpy.mockRestore();
-      unregisterNativeDeliverySession();
-    }
-  });
 });

@@ -43,7 +43,6 @@ export async function releaseEphemeralAgentRole(
   if (participant) {
     await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAction: PARTICIPANT_EXITED_ACTION,
-      lastInFlightTaskId: undefined,
     });
     await transitionAgentStatus(ctx, args.chatroomId, role, 'agent.exited');
     return;

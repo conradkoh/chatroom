@@ -19,7 +19,6 @@ export * from './native-turn.js';
 export * from './native-turn-phase.js';
 export * from './outbound-event.js';
 export * from './resume-path.js';
-export * from './resume-storm.js';
 export * from './session-snapshot.js';
 export * from './stop-reason.js';
 export * from './turn-chunk.js';

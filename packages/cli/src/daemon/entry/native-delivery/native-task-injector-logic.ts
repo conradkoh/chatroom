@@ -1,20 +1,30 @@
 import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
-import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import type { MachineAgentOperationalRow } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
 export { isNativeHarness } from '../../domain/native-integration/index.js';
+
+/**
+ * Readiness inputs for native delivery gating. Callers with an explicit
+ * operational read model should pass the row directly; legacy callers omit it
+ * and fall back to the delivery-session registry lookup.
+ */
+export type NativeDeliveryReadinessOptions = {
+  slot: AgentSlot | undefined;
+  operational?: MachineAgentOperationalRow | undefined;
+};
 
 /** True when daemon should deliver a task into a live native harness session. */
 // fallow-ignore-next-line unused-export
 export function shouldDeliverNativeTask(
   task: AssignedTaskSnapshotView,
-  opts: { slot: AgentSlot | undefined }
+  opts: NativeDeliveryReadinessOptions
 ): boolean {
   return explainNativeDeliveryBlock(task, opts) === null;
 }
@@ -23,7 +33,7 @@ export function shouldDeliverNativeTask(
 // fallow-ignore-next-line complexity
 export function explainNativeDeliveryBlock(
   task: AssignedTaskSnapshotView,
-  opts: { slot: AgentSlot | undefined }
+  opts: NativeDeliveryReadinessOptions
 ): string | null {
   if (!isDeliverableNativeTaskStatus(task.status)) {
     return `task_status_not_deliverable (status=${task.status})`;
@@ -35,37 +45,7 @@ export function explainNativeDeliveryBlock(
       return `acknowledged_wrong_role (assignedTo=${assignedTo ?? 'none'}, role=${role})`;
     }
   }
-  const inFlightBlock = explainInFlightDeliveryBlock(task, opts.slot);
-  if (inFlightBlock) return inFlightBlock;
-  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot);
-}
-
-/** Block re-inject when this slot already delivered the task but harness has not started it. */
-export function explainInFlightDeliveryBlock(
-  task: AssignedTaskSnapshotView,
-  slot: AgentSlot | undefined
-): string | null {
-  if (!slot?.lastInFlightTaskId || slot.lastInFlightTaskId !== task.taskId) return null;
-  if (task.status === 'pending') return null;
-  if (task.status === 'acknowledged') {
-    return 'already_delivered_to_slot (lastInFlightTaskId match, status=acknowledged)';
-  }
-  return null;
-}
-
-/** Skip re-injecting a task that was already delivered in this harness session. */
-export function explainLedgerDeliveryBlock(
-  taskId: string,
-  harnessSessionId: string | undefined,
-  ledger: NativeDeliveryLedger
-): string | null {
-  if (ledger.isAttemptInFlight(taskId)) {
-    return 'delivery_ledger_busy (duplicate inject in flight)';
-  }
-  if (harnessSessionId && ledger.isDelivered(taskId, harnessSessionId)) {
-    return 'already_delivered_this_session';
-  }
-  return null;
+ return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.operational);
 }
 
 const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {

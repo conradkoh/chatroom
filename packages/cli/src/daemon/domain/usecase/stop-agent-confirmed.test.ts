@@ -39,7 +39,7 @@ describe('stopAgentConfirmed', () => {
     const d = deps();
     d.liveness.isAlive.mockReturnValueOnce(true).mockReturnValueOnce(false);
     await stopAgentConfirmed(d, { target, reason: 'user.stop', revisionKey: 'r' });
-    expect(d.harnessStop.stop).toHaveBeenCalledWith(target, { preserveForResume: false });
+    expect(d.harnessStop.stop).toHaveBeenCalledWith(target);
   });
   it('rejects and does not deliver when still alive', async () => {
     const d = deps();

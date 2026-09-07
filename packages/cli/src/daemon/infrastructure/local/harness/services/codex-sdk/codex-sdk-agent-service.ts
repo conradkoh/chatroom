@@ -50,16 +50,13 @@ import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js'
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
-  AgentStopOptions,
-  DaemonHarnessSessionContext,
-  HarnessReconnectMetadata,
-  HarnessSessionIdUpdatedInfo,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
   VersionInfo,
+  HarnessSessionIdUpdatedInfo,
 } from '../remote-agent-service.js';
-import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
+import { requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
 
@@ -303,7 +300,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
   }
 
   // fallow-ignore-next-line complexity
-  override async stop(pid: number, _options?: AgentStopOptions): Promise<void> {
+  override async stop(pid: number): Promise<void> {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;
@@ -321,17 +318,6 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       this.sessions.delete(pid);
     }
     await super.stop(pid);
-  }
-
-  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
-    const session = this.sessions.get(pid);
-    if (!session) {
-      return undefined;
-    }
-    return {
-      agentName: session.agentName,
-      ...(session.model ? { model: session.model } : {}),
-    };
   }
 
   private spawnKeeper(workingDir: string): ChildProcess {
@@ -769,47 +755,4 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     });
   }
 
-  async resumeFromDaemonMemory(
-    options: SpawnOptions,
-    stored: DaemonHarnessSessionContext
-  ): Promise<SpawnResult> {
-    try {
-      const keeper = this.spawnKeeper(stored.workingDir);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
-      const pid = keeper.pid!;
-
-      const model = resolveHarnessResumeModel(
-        options.model,
-        stored.model,
-        'codex-sdk resumeFromDaemonMemory'
-      );
-      const variant = decodeCodexVariant(model);
-      const { Codex } = await loadSdk();
-      const codexPath = resolveCodexExecutablePath();
-      const codex = new Codex({
-        codexPathOverride: codexPath,
-        env: buildCodexEnv(options.resolvedConvexUrl),
-      });
-      const thread = codex.resumeThread(
-        stored.harnessSessionId,
-        buildThreadOptions(stored.workingDir, variant)
-      );
-
-      return this.startRunningSession({
-        pid,
-        keeper,
-        codex,
-        thread,
-        context: options.context,
-        workingDir: stored.workingDir,
-        model,
-        initialPrompt: options.prompt,
-        storedSystemPrompt: options.systemPrompt,
-        resumedThreadId: stored.harnessSessionId,
-      });
-    } catch (err) {
-      writeSpawnError(buildAgentLogPrefix('codex-sdk', options.context), err);
-      return this.spawn(options);
-    }
-  }
 }

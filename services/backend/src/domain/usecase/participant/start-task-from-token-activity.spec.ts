@@ -238,26 +238,6 @@ describe('startTaskFromTokenActivity — acknowledged path', () => {
     expect(await getTaskStatus(taskId)).toBe('acknowledged');
   });
 
-  test('starts acknowledged task on token activity via lastInFlightTaskId match', async () => {
-    const { sessionId } = await createTestSession('stta-inflight');
-    const chatroomId = await createChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-    const taskId = await seedAcknowledgedTask(chatroomId, 'builder');
-
-    await t.run(async (ctx) => {
-      await startTaskFromTokenActivity(
-        ctx,
-        { chatroomId, role: 'builder' },
-        {
-          lastStatus: 'agent.exited',
-          lastSeenAction: 'agent.turn-completed',
-          lastInFlightTaskId: taskId,
-        }
-      );
-    });
-
-    expect(await getTaskStatus(taskId)).toBe('in_progress');
-  });
 });
 
 describe('startTaskFromTokenActivity — pending path', () => {

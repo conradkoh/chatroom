@@ -42,7 +42,7 @@ Documented in master `memory/migrations/task-inbox-machine-level-migration.md` �
 
 ### Task snapshot embeds agent metadata
 
-`chatroom_machineAssignedTaskSnapshots` projection denormalizes `desiredState`, `spawnedAgentPid`, harness, workingDir, participant status into each task row. Delivery logic (`task-delivery-logic.ts`, `native-ready-invariant.ts`) reads **`task.agentConfig.desiredState`** to decide wake / revive / nudge / inject.
+`chatroom_machineAssignedTaskSnapshots` projection denormalizes `desiredState`, `spawnedAgentPid`, harness, workingDir, participant status into each task row. Delivery uses the daemon's operational read model and the constructed native delivery service to decide whether pending work should activate an agent or be injected into an existing session.
 
 ## Edge case — pending task not picked up on agent restart
 
@@ -53,11 +53,11 @@ Documented in master `memory/migrations/task-inbox-machine-level-migration.md` �
 3. Task-status signal hydrates snapshot, but agent metadata on the snapshot may be **stale** (`desiredState: stopped`, `spawnedAgentPid: null`) until the next config patch or full re-sync.
 4. Daemon restarts or agent restarts; pending task exists but delivery skips it because snapshot says agent is stopped.
 
-**Master mitigation:**
+**Current handling:**
 
-- `listNativePendingTasksNeedingWake` — pending native task + `desiredState: stopped` on snapshot → call `ensureRunning` with reason `platform.pending_task_wake`.
-- `setDesiredState('running')` on start so delivery doesn't wait for backend snapshot refresh.
-- `native-ready-invariant` trusts **local slot PID** over snapshot PID when slot is healthy (backend lag tolerance).
+- The native delivery service evaluates pending snapshots using the daemon's operational state and requests `startAgent` through the serialized process-manager boundary when activation is required.
+- The process manager owns lifecycle execution; there is no separate wake/revive recovery loop.
+- `native-ready-invariant` trusts **local slot PID** over snapshot PID when a slot is healthy (backend lag tolerance).
 
 **User concern:** Storing `desiredState` inside the task snapshot store is a workaround. With authoritative agent operational status + proper status transitions, the daemon should react to operational state changes instead of denormalizing agent config into task rows.
 
@@ -118,7 +118,7 @@ flowchart LR
 ### Phase C — Decouple delivery from snapshot `desiredState` (complete)
 
 - [x] `task-delivery-logic.ts` / `native-ready-invariant.ts`: read operational state from `AgentOperationalReadModel`
-- [x] `listNativePendingTasksNeedingWake`: wake when operational model says stopped/none but pending task exists
+- [x] Pending native work activates through the native delivery service and serialized `startAgent` boundary
 - [x] Remove `MachineTaskSnapshotState.setDesiredState` and bridge optimistic patches
 - [x] On operational status transition → trigger targeted `processTasksUpdate` reconcile (Convex subscription)
 

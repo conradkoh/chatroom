@@ -48,7 +48,6 @@
 | `git-heartbeat.ts`                    | —      | delete-shim | Re-exports `daemon/entry/workspace-git/git-heartbeat.ts`                      |
 | `git-subscription.ts`                 | —      | delete-shim | Re-exports `daemon/entry/workspace-git/git-subscription.ts`                   |
 | `task-monitor.ts`                     | —      | delete-shim | Re-exports `daemon/entry/task-monitor-runtime.ts`                             |
-| `native-harness-session-exit.ts`      | —      | delete-shim | Re-exports `daemon/entry/native-delivery/native-harness-session-exit.ts`      |
 | `native-task-delivery-coordinator.ts` | —      | delete-shim | Re-exports `daemon/entry/native-delivery/native-task-delivery-coordinator.ts` |
 | `native-turn-phase.ts`                | —      | delete-shim | Re-exports `daemon/entry/native-delivery/native-turn-phase.ts`                |
 | `command-loop.ts`                     | —      | delete-shim | Re-exports `daemon/entry/command-dispatch.ts`                                 |

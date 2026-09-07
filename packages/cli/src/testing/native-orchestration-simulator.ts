@@ -11,7 +11,10 @@ import { Effect } from 'effect';
 import { RecordingHarness } from './recording-harness.js';
 import { api } from '../api.js';
 import { buildNativeInjectionPrompt } from '../daemon/entry/native-delivery/native-task-injector-logic.js';
-import { runNativeInjectionEffect } from '../daemon/entry/native-delivery/native-task-injector.js';
+import {
+  runNativeInjectionEffect,
+  type NativeInjectorDeps,
+} from '../daemon/entry/native-delivery/native-task-injector.js';
 
 export interface SimulateInjectionOptions {
   task: AssignedTaskView;
@@ -74,7 +77,11 @@ export class NativeOrchestrationSimulator {
   readonly sessionId: string;
   readonly convexUrl: string;
 
-  constructor(options?: { sessionId?: string | undefined; convexUrl?: string | undefined; harnessSessionId?: string | undefined }) {
+  constructor(options?: {
+    sessionId?: string | undefined;
+    convexUrl?: string | undefined;
+    harnessSessionId?: string | undefined;
+  }) {
     this.sessionId = options?.sessionId ?? 'test-session';
     this.convexUrl = options?.convexUrl ?? 'http://127.0.0.1:3210';
     this.harnessSessionId = options?.harnessSessionId ?? 'test-harness-session';
@@ -110,6 +117,24 @@ export class NativeOrchestrationSimulator {
         backend,
         lifecycleOutbox: { enqueue: async () => ({ success: true }) },
         agentMgr: this.harness,
+        runSerializedForAgent: (async (_key, _options, operation) =>
+          operation(
+            {
+              startAgent: async (input, signal) => {
+                if (signal.aborted) throw signal.reason;
+                const result = await this.harness.ensureRunning(input as never);
+                if (!result.success) throw new Error('start failed');
+                return result;
+              },
+              stopAgent: async (input, signal) => {
+                if (signal.aborted) throw signal.reason;
+                const result = await this.harness.stop(input);
+                if (!result.success) throw new Error('stop failed');
+                return result;
+              },
+            },
+            { signal: new AbortController().signal }
+          )) as NativeInjectorDeps['runSerializedForAgent'],
       })
     );
 

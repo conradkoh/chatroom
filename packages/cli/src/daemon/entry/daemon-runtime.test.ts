@@ -49,6 +49,10 @@ vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
 vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: () => ({ stop: vi.fn() }),
 }));
+vi.mock('./task-inbox-runtime.js', async () => {
+  const { Effect } = await import('effect');
+  return { startTaskInboxEffect: () => Effect.succeed({ stop: vi.fn() }) };
+});
 vi.mock('../../commands/machine/pid.js', () => ({
   releaseLock: vi.fn(),
 }));
@@ -68,6 +72,7 @@ describe('createDaemonRuntime', () => {
       AgentLifecycleOutboxService,
       DaemonSessionService,
       DaemonMutableStateService,
+      DaemonAgentProcessManagerCommandService,
       DaemonAgentProcessManagerService,
     } = await import('./daemon-services.js');
     const { createDaemonRuntime } = await import('./daemon-runtime.js');
@@ -86,6 +91,9 @@ describe('createDaemonRuntime', () => {
         lastPushedGitState: { get: vi.fn(), set: vi.fn() },
       } as never),
       Layer.succeed(DaemonAgentProcessManagerService, {} as never),
+      Layer.succeed(DaemonAgentProcessManagerCommandService, {
+        runSerializedForAgent: vi.fn(),
+      } as never),
       Layer.succeed(AgentLifecycleOutboxService, {
         enqueue: () => Effect.succeed({ success: true }),
         stopAll: () => Effect.void,
@@ -94,6 +102,12 @@ describe('createDaemonRuntime', () => {
 
     const runtime = createDaemonRuntime({
       wsClient: { onUpdate: vi.fn() } as never,
+      agentLifecycleOutbox: {
+        stopAll: vi.fn().mockResolvedValue(undefined),
+      } as never,
+      agentProcessManagerService: {
+        stopProcessing: vi.fn().mockResolvedValue(undefined),
+      } as never,
       layers,
     });
 
