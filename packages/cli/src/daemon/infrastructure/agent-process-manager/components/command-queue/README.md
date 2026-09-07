@@ -91,3 +91,22 @@ The use-case layer mirrors the queue protocol:
 
 The queue itself does not start or stop agents. A consumer dispatches the
 received lifecycle command to the agent process manager.
+
+## Consumer
+
+Create one consumer for the daemon and inject the queue plus a lifecycle
+dispatcher:
+
+```ts
+const consumer = new CommandQueueConsumer<LifecycleCommand>({
+  queue: commandQueue,
+  dispatch: async (message) => lifecycleDispatcher(message.body),
+});
+
+consumer.start();
+```
+
+The consumer processes messages from different groups concurrently, renews
+visibility while a command is running, deletes successful messages, and leaves
+failed messages undeleted for retry. Call `consumer.stop()` during daemon
+shutdown.

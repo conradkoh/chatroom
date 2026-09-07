@@ -5,6 +5,16 @@ import type { CommandQueueStore } from './infra/store/command-queue-store.js';
 import { InMemoryCommandQueueStore } from './infra/store/in-memory-command-queue-store.js';
 import type { CommandQueue } from './interfaces/command-queue.js';
 
+export { CommandQueueConsumer } from './consumer/command-queue-consumer.js';
+export {
+  createLifecycleCommandDispatcher,
+  type LifecycleCommandHandler,
+} from './consumer/command-dispatcher.js';
+export type {
+  CommandQueueConsumerDependencies,
+  CommandQueueConsumerOptions,
+} from './consumer/types.js';
+
 export interface CommandQueueOptions<T> {
   store?: CommandQueueStore<T>;
   now?: () => number;
