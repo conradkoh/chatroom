@@ -486,6 +486,7 @@ export const startTaskInboxEffect = (
         clearInterval(reconcileTimer);
         unregisterTaskInboxRoomMembershipRefresh();
         unregisterNativeDeliverySession();
+        nativeDelivery.dispose();
         nativeDelivery.agentTaskState.clearAll();
         inboxStore.close();
       },

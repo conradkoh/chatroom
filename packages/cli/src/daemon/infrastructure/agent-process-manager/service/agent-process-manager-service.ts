@@ -6,7 +6,10 @@ import type {
   OperationResult,
   StopOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
-import type { AgentSlot } from '../agent-process-manager.js';
+import type {
+  AgentSlot,
+  AgentTurnEndedHandler,
+} from '../agent-process-manager.js';
 import type {
   CommandNotification,
   CommandNotificationFilter,
@@ -74,6 +77,7 @@ export interface AgentProcessManagerExecutionPort {
   ): Promise<boolean>;
   whenTurnEndsIdle(): Promise<void>;
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
+  subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
 }
 
 export interface AgentProcessManagerService {
@@ -122,6 +126,7 @@ export interface AgentProcessManagerService {
   ): Promise<boolean>;
   whenTurnEndsIdle(): Promise<void>;
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
+  subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
 }
 
 export interface AgentProcessManagerResetResult {
@@ -379,5 +384,6 @@ export function createAgentProcessManagerService(
       deps.execution.clearStuckStoppingSlot(chatroomId, role, options),
     whenTurnEndsIdle: () => deps.execution.whenTurnEndsIdle(),
     resumeTurnForSlot: (input) => deps.execution.resumeTurnForSlot(input),
+    subscribeAgentTurnEnded: (handler) => deps.execution.subscribeAgentTurnEnded(handler),
   };
 }

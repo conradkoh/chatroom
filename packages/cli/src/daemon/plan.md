@@ -81,16 +81,20 @@ introduced.
       state-transition interface; task delivery starts state and explicit
       completed-task signals mark handoff. Keep the backend as durable
       persistence, not the synchronous source for the live turn-end decision.
-- [ ] Route `AgentProcessManager` `onAgentEnd` events into the command queue
-      instead of embedding handoff policy in the process callback.
-- [ ] Serialize turn-end handling, task delivery, handoff updates, and lifecycle
-      commands with the same chatroom/role key.
+- [x] Route `AgentProcessManager` `onAgentEnd` events through a constructed
+      `NativeDeliveryService` subscription instead of embedding task-state and
+      handoff policy in the process callback. The event is emitted only after
+      manager validation and remains inside the shared per-agent serialized path.
+- [x] Serialize turn-end handling, task delivery, handoff updates, and lifecycle
+      commands with the same chatroom/role key. Handoff state updates now use
+      the service's operation boundary with an operation-level timeout.
 - [x] Add an injected `HandoffReminder` port; issue a reminder through the
       agent manager and track its attempt number in daemon state.
 - [x] Validate task identity/generation before acting so stale `agent_end` events
       cannot affect a later task for the same agent.
-- [ ] Keep `AgentProcessManager` responsible for process lifecycle and transport;
-      keep the coordinator responsible for task outcome and reminder policy.
+- [x] Keep `AgentProcessManager` responsible for process lifecycle and transport;
+      keep `NativeDeliveryService` responsible for task outcome and reminder
+      policy.
 - [x] Add focused tests for state transitions, duplicate events, stale
       generations, and missing active tasks.
 - [ ] Add integration tests for handoff/turn-end races and reminder failures.

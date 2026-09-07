@@ -27,6 +27,7 @@ import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type {
   AgentProcessManager,
   AgentSlot,
+  AgentTurnEndedHandler,
   EnsureRunningOpts,
   HandleExitOpts,
   OperationResult,
@@ -158,6 +159,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     role: string;
     prompt: string;
   }) => Effect.Effect<void>;
+  subscribeAgentTurnEnded: (handler: AgentTurnEndedHandler) => () => void;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -261,6 +263,7 @@ export const DaemonAgentProcessManagerServiceLive = (
       Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role, options)),
     whenTurnEndsIdle: () => Effect.promise(() => mgr.whenTurnEndsIdle()),
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
+    subscribeAgentTurnEnded: (handler) => processManagerService.subscribeAgentTurnEnded(handler),
   });
 
 /**

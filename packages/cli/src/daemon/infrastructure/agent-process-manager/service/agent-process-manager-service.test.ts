@@ -29,6 +29,7 @@ function createExecution(events: string[]): AgentProcessManagerExecutionPort {
     clearStuckStoppingSlot: vi.fn(async () => false),
     whenTurnEndsIdle: vi.fn(async () => undefined),
     resumeTurnForSlot: vi.fn(async () => undefined),
+    subscribeAgentTurnEnded: () => () => undefined,
   };
 }
 

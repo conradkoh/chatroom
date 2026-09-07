@@ -67,7 +67,6 @@ import {
   handleTurnCompleted,
 } from '../../domain/usecase/handle-turn-completed.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
-import { getNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import { notifyNativeHarnessSessionLostOnExit } from '../../entry/native-delivery/native-harness-session-exit.js';
 import {
   getNativeTaskDeliveryCoordinator,
@@ -157,6 +156,19 @@ export interface AgentSlot {
   stopTargetKey?: string | undefined;
 }
 
+export interface AgentTurnEndedEvent {
+  readonly chatroomId: string;
+  readonly role: string;
+  readonly pid: number;
+  readonly harness: AgentHarness;
+  readonly slot: AgentSlot;
+  readonly eventId: string;
+}
+
+export type AgentTurnEndedHandler = (
+  event: AgentTurnEndedEvent
+) => Promise<'reminder_requested' | void>;
+
 export interface AgentProcessManagerDeps {
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult> };
   logEvent: (event: Record<string, unknown>) => Promise<void>;
@@ -237,7 +249,8 @@ export class AgentProcessManager {
   private readonly exitRetryQueue: RetryQueueItem[] = [];
   /** Active retry interval timer handle, or null if queue is empty. */
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
-  private agentEndEventSequence = 0;
+  private readonly agentTurnEndedHandlers = new Set<AgentTurnEndedHandler>();
+  private agentTurnEndedSequence = 0;
   /** Shared per-agent serialization boundary for public and internal operations. */
   private readonly serializedOperationTails = new Map<string, Promise<void>>();
   /** Effect-native lifecycle service runtime (Phase 3). */
@@ -308,6 +321,11 @@ export class AgentProcessManager {
         await Promise.all([...this.serializedOperationTails.values()]);
       }
     })();
+  }
+
+  subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void {
+    this.agentTurnEndedHandlers.add(handler);
+    return () => this.agentTurnEndedHandlers.delete(handler);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -649,35 +667,26 @@ export class AgentProcessManager {
     if (capabilities.supportsNativeIntegration) {
       this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
 
-      const taskState = getNativeDeliverySession()?.nativeDelivery?.agentTaskState;
-      const activeTask = taskState?.get({
+      const event: AgentTurnEndedEvent = {
         chatroomId: opts.chatroomId,
         role: opts.role,
-      });
-      if (taskState && activeTask) {
-        const result = await taskState.handleAgentTurnEnded({
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-          version: {
-            taskId: activeTask.taskId,
-            generation: activeTask.generation,
-          },
-          eventId: `${opts.pid}:${++this.agentEndEventSequence}`,
-        });
-
-        if (result.outcome === 'reminder_requested') {
-          console.log(
-            `[AgentProcessManager] ⏩ Handoff reminder requested for ${opts.role} (attempt ${result.attempt})`
-          );
-          return;
-        }
-        if (result.outcome === 'already_handed_off') {
-          setNativeTurnPhase(slot, defaultNativeTurnPhase());
-          notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
-          console.log(`[AgentProcessManager] ✅ Native agent_end completed for ${opts.role}`);
-          return;
-        }
+        pid: opts.pid,
+        harness: opts.harness,
+        slot,
+        eventId: `${opts.pid}:${++this.agentTurnEndedSequence}`,
+      };
+      const outcomes = await Promise.all(
+        [...this.agentTurnEndedHandlers].map((handler) => handler(event))
+      );
+      if (outcomes.includes('reminder_requested')) {
+        console.log(
+          `[AgentProcessManager] ⏩ Handoff reminder requested for ${opts.role}`
+        );
+        return;
       }
+      setNativeTurnPhase(slot, defaultNativeTurnPhase());
+      notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
+      console.log(`[AgentProcessManager] ✅ Native agent_end completed for ${opts.role}`);
       return;
     }
 

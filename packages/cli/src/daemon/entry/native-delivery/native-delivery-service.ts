@@ -5,6 +5,7 @@ import {
   type TaskDeliveryRuntime,
 } from './task-delivery-processor.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
+import type { AgentTurnEndedEvent } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { AgentTaskStateService } from '../../infrastructure/agent-process-manager/components/agent-task-state/index.js';
 import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
@@ -13,6 +14,8 @@ import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.j
 
 export type NativeDeliveryPass =
   'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
+
+const TASK_STATE_UPDATE_TIMEOUT_MS = 30_000;
 
 export interface NativeDeliveryServiceDependencies {
   readonly runtime: TaskDeliveryRuntime;
@@ -33,7 +36,36 @@ export interface NativeDeliveryServiceDependencies {
  * module-level session registry.
  */
 export class NativeDeliveryService {
-  constructor(private readonly deps: NativeDeliveryServiceDependencies) {}
+  private readonly unsubscribeAgentTurnEnded: () => void;
+
+  constructor(private readonly deps: NativeDeliveryServiceDependencies) {
+    this.unsubscribeAgentTurnEnded = deps.agentMgr.subscribeAgentTurnEnded((event) =>
+      this.handleAgentTurnEnded(event)
+    );
+  }
+
+  async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<'reminder_requested' | void> {
+    const activeTask = this.deps.agentTaskState.get({
+      chatroomId: event.chatroomId,
+      role: event.role,
+    });
+    if (!activeTask) return;
+
+    const result = await this.deps.agentTaskState.handleAgentTurnEnded({
+      chatroomId: event.chatroomId,
+      role: event.role,
+      version: {
+        taskId: activeTask.taskId,
+        generation: activeTask.generation,
+      },
+      eventId: event.eventId,
+    });
+    if (result.outcome === 'reminder_requested') return 'reminder_requested';
+  }
+
+  dispose(): void {
+    this.unsubscribeAgentTurnEnded();
+  }
 
   get taskSnapshotState(): MachineTaskSnapshotState {
     return this.deps.taskSnapshotState;
@@ -46,11 +78,17 @@ export class NativeDeliveryService {
   async handleTaskInboxUpdate(update: TaskInboxUpdate): Promise<void> {
     for (const signal of update.signals) {
       if (signal.taskStatus === 'completed') {
-        this.recordTaskHandedOff({
-          chatroomId: signal.chatroomId,
-          role: signal.targetRole,
-          taskId: signal.taskId,
-        });
+        await this.deps.runSerializedForAgent(
+          { chatroomId: signal.chatroomId, role: signal.targetRole },
+          { timeoutMs: TASK_STATE_UPDATE_TIMEOUT_MS },
+          async () => {
+            this.recordTaskHandedOff({
+              chatroomId: signal.chatroomId,
+              role: signal.targetRole,
+              taskId: signal.taskId,
+            });
+          }
+        );
       }
     }
 

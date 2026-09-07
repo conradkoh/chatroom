@@ -9,8 +9,9 @@ function createService(): NativeDeliveryService {
   return new NativeDeliveryService({
     runtime: {} as never,
     effectContext: {} as never,
-    agentMgr: {} as never,
-    runSerializedForAgent: async <T>() => undefined as T,
+    agentMgr: { subscribeAgentTurnEnded: () => () => undefined } as never,
+    runSerializedForAgent: async <T>(_key, _options, operation) =>
+      operation({ startAgent: vi.fn(), stopAgent: vi.fn() }, { signal: new AbortController().signal }) as Promise<T>,
     sessionDeps: {} as never,
     machineId: 'machine-1',
     taskSnapshotState: new MachineTaskSnapshotState(),
