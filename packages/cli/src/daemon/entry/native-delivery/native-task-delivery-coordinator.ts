@@ -83,6 +83,11 @@ export class NativeTaskDeliveryCoordinator {
       ) => Promise<T>
     ) => Promise<T>;
     sessionDeps: NativeTaskDeliverySessionDeps;
+    lifecycleOutbox: {
+      enqueue: (
+        fact: import('../../domain/entities/agent-lifecycle-fact.js').AgentLifecycleFact
+      ) => Promise<unknown>;
+    };
     machineId: string;
     onTaskDelivered?:
       | ((args: {
@@ -96,7 +101,15 @@ export class NativeTaskDeliveryCoordinator {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
     const serializedOperation = params.runSerializedForAgent;
-    const { runtime, effectContext, agentMgr, sessionDeps, machineId, onTaskDelivered } = params;
+    const {
+      runtime,
+      effectContext,
+      agentMgr,
+      sessionDeps,
+      lifecycleOutbox,
+      machineId,
+      onTaskDelivered,
+    } = params;
     const deliveryState = getRoleDeliveryState();
     const ledger = getNativeDeliveryLedger();
 
@@ -169,15 +182,12 @@ export class NativeTaskDeliveryCoordinator {
           }
 
           const full = mapAssignedTaskView(backend);
-          const deliverySession = getNativeDeliverySession();
-          if (!deliverySession?.lifecycleOutbox) return;
-
           yield* runNativeInjectionEffect(full, harnessSessionId, {
             sessionId: sessionDeps.sessionId,
             machineId: sessionDeps.machineId,
             logEvent: sessionDeps.logEvent,
             backend: sessionDeps.backend,
-            lifecycleOutbox: deliverySession.lifecycleOutbox,
+            lifecycleOutbox,
             agentMgr: {
               resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
               getSlot: (chatroomId, role) => agentMgr.getSlot(chatroomId, role),
@@ -244,6 +254,7 @@ export function reconcileDeliverableWorkForRole(chatroomId: string, role: string
   const { runtime, effectContext, agentMgr, sessionDeps, machineId, taskSnapshotState } = session;
   const tasks = taskSnapshotState?.listForRole(chatroomId, role) ?? [];
   if (tasks.length === 0) return;
+  if (!session.lifecycleOutbox) return;
   getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks,
     runtime,
@@ -251,6 +262,7 @@ export function reconcileDeliverableWorkForRole(chatroomId: string, role: string
     agentMgr,
     runSerializedForAgent: session.runSerializedForAgent,
     sessionDeps,
+    lifecycleOutbox: session.lifecycleOutbox,
     machineId,
     onTaskDelivered: session.nativeDelivery
       ? (args) => session.nativeDelivery?.recordTaskDelivered(args)

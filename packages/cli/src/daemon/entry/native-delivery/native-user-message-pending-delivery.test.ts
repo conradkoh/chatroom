@@ -183,6 +183,7 @@ describe('user message pending delivery path', () => {
         },
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
+      lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
     });
 
     await vi.waitFor(() => {
@@ -251,6 +252,7 @@ describe('user message pending delivery path', () => {
         },
       },
       machineId: MACHINE_ID,
+      lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
     });
 
     await new Promise((r) => setTimeout(r, 50));
@@ -291,6 +293,7 @@ describe('user message pending delivery path', () => {
         },
       },
       machineId: MACHINE_ID,
+      lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
     });
 
     await new Promise((r) => setTimeout(r, 50));
@@ -334,6 +337,7 @@ describe('user message pending delivery path', () => {
         },
       },
       machineId: MACHINE_ID,
+      lifecycleOutbox: getNativeDeliverySession()!.lifecycleOutbox!,
     });
 
     await new Promise((r) => setTimeout(r, 50));

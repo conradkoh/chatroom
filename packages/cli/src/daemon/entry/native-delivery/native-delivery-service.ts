@@ -5,6 +5,7 @@ import {
   type TaskDeliveryRuntime,
 } from './task-delivery-processor.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
+import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import type {
   AgentStartedEvent,
   AgentTurnEndedEvent,
@@ -29,6 +30,7 @@ export interface NativeDeliveryServiceDependencies {
   readonly machineId: string;
   readonly taskSnapshotState: MachineTaskSnapshotState;
   readonly agentTaskState: AgentTaskStateService;
+  readonly lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
 }
 
 /**
@@ -142,6 +144,7 @@ export class NativeDeliveryService {
       this.deps.sessionDeps,
       this.deps.machineId,
       pass,
+      this.deps.lifecycleOutbox,
       {
         snapshots,
         onTaskDelivered: ({ chatroomId, role, taskId }) =>

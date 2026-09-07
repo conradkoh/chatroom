@@ -122,6 +122,7 @@ describe('native queued delivery after agent_end', () => {
         },
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
+      lifecycleOutbox: { enqueue: async () => undefined },
     });
 
     await vi.waitFor(() => {

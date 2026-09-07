@@ -21,6 +21,7 @@ function createService(): NativeDeliveryService {
     agentTaskState: createAgentTaskStateService({
       reminder: { remind: async () => undefined },
     }),
+    lifecycleOutbox: { enqueue: async () => undefined },
   });
 }
 

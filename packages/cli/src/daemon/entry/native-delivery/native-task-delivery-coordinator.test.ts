@@ -129,6 +129,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       sessionDeps,
       machineId: 'm',
       taskSnapshotState,
+      lifecycleOutbox: { enqueue: async () => undefined },
     });
 
     const coordinator = new NativeTaskDeliveryCoordinator();
@@ -194,6 +195,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       },
       machineId: 'm',
       taskSnapshotState,
+      lifecycleOutbox: { enqueue: async () => undefined },
     });
     const coordinator = getNativeTaskDeliveryCoordinator();
     const spy = vi.spyOn(coordinator, 'reconcileAssignedTasks');

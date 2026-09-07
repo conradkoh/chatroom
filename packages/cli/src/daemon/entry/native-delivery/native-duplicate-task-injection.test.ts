@@ -127,6 +127,7 @@ describe('native duplicate task injection', () => {
         backend: { mutation: backendMutation, query: backendQuery },
       },
       machineId: 'machine_dup',
+      lifecycleOutbox: { enqueue: async () => undefined },
     };
 
     coordinator.reconcileAssignedTasks(reconcileParams);

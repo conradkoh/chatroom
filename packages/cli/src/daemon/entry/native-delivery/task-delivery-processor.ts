@@ -33,6 +33,7 @@ import { isSlotIdle } from '../../domain/usecase/check-agent-slot.js';
 import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
 import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
 import type { AgentHarness } from '../daemon-types.js';
+import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
   DaemonSessionService | DaemonAgentProcessManagerService
@@ -122,6 +123,7 @@ export async function processTasksUpdate(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   pass: TaskDeliveryPass,
+  lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> },
   options: ProcessTasksUpdateOptions
 ): Promise<void> {
   const filteredTasks = filterSnapshotsExcludingRestartInFlight([...options.snapshots]);
@@ -138,6 +140,7 @@ export async function processTasksUpdate(
     agentMgr,
     runSerializedForAgent,
     sessionDeps,
+    lifecycleOutbox,
     machineId,
     onTaskDelivered: options.onTaskDelivered,
   });
