@@ -7,7 +7,7 @@ import type {
 import { AgentStopError } from '../entities/agent-stop.js';
 
 export interface HarnessStopPort {
-  stop(target: AgentStopTargetDescriptor, opts: { preserveForResume: boolean }): Promise<void>;
+  stop(target: AgentStopTargetDescriptor): Promise<void>;
 }
 export interface ProcessLivenessPort {
   isAlive(pid: number): boolean;
@@ -32,7 +32,6 @@ export async function stopAgentConfirmed(
     target: AgentStopTargetDescriptor;
     reason: AgentStopReason;
     revisionKey: string;
-    preserveForResume?: boolean | undefined;
     timeoutMs?: number | undefined;
   }
 ): Promise<AgentStopOutcome> {
@@ -62,7 +61,7 @@ export async function stopAgentConfirmed(
     if (args.timeoutMs && forceKill) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([
-        deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false }),
+        deps.harnessStop.stop(target),
         new Promise<void>((_, reject) => {
           timer = setTimeout(
             () => reject(new AgentStopError('stop_timed_out', `Timed out stopping ${target.role}`)),
@@ -79,7 +78,7 @@ export async function stopAgentConfirmed(
           await forceKill.forceKill(target);
         });
     } else
-      await deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false });
+      await deps.harnessStop.stop(target);
   } catch (cause) {
     if (!deps.forceKill) {
       throw new AgentStopError(

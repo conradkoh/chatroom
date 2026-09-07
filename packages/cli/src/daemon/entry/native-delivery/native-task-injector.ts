@@ -11,33 +11,20 @@ import { ensureColdSessionBeforeNativeInject } from './native-cold-session-befor
 import { buildNativeInjectionPrompt } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
-import type { OperationResult } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import {
   buildActivityLifecycleFact,
   type AgentLifecycleFact,
 } from '../../domain/entities/agent-lifecycle-fact.js';
-import type { StopReason } from '../../domain/entities/stop-reason.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import type {
+  AgentKey,
+  SerializedAgentOperations,
+} from '../../infrastructure/agent-process-manager/service/index.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
-import type { AgentHarness } from '../daemon-types.js';
 
 export interface NativeInjectorAgentMgr {
   resumeTurnForSlot: (args: { chatroomId: string; role: string; prompt: string }) => Promise<void>;
-  stop: (opts: {
-    chatroomId: string;
-    role: string;
-    reason: StopReason;
-  }) => Promise<{ success: boolean }>;
-  ensureRunning: (opts: {
-    chatroomId: string;
-    role: string;
-    agentHarness: AgentHarness;
-    model: string;
-    workingDir: string;
-    reason: string;
-    wantResume: boolean;
-  }) => Promise<OperationResult>;
   getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
 }
 
@@ -54,6 +41,12 @@ export interface NativeDeliverySessionHandles {
 
 export interface NativeInjectorDeps extends NativeDeliverySessionHandles {
   agentMgr: NativeInjectorAgentMgr;
+  /** Narrow coordination capability used by the cold-session flow. */
+  runSerializedForAgent: <T>(
+    key: AgentKey,
+    options: { timeoutMs: number },
+    operation: (ops: SerializedAgentOperations, context: { signal: AbortSignal }) => Promise<T>
+  ) => Promise<T>;
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
   convexUrl?: string | undefined;
   onTaskDelivered?:

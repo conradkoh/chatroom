@@ -1,10 +1,12 @@
 import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
+import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 import { api } from '../../api.js';
 import { abortEnhancerSpawnsForChatroom } from './enhancer/enhancer-spawn-registry.js';
 import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { runExactTargetsStop as runExactTargetsStopType } from '../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
+import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 
 export interface ScopedStopExecutionSummary {
   stoppedCount: number;
@@ -22,9 +24,10 @@ export async function executeScopedStopForCommand(args: {
   scope: AgentStopScope;
   reason: AgentStopReason;
   inboxCommandId: string;
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
 }): Promise<ScopedStopExecutionSummary> {
   // Claim daemon-local stop intent before any backend/network await. This
-  // invalidates already-running crash/session-reopen recovery immediately.
+  // invalidates already-running task activation immediately.
   args.apm.markChatroomStopIntent(args.chatroomId, args.reason);
   if (args.scope.kind === 'chatroom') {
     await abortEnhancerSpawnsForChatroom(args.chatroomId);
@@ -52,14 +55,35 @@ export async function executeScopedStopForCommand(args: {
   let result: Awaited<ReturnType<typeof runExactTargetsStopType>> = { targets: [], failures: [] };
   let executionError: unknown;
   try {
-    result = await runExactTargetsStop({
-      apm: args.apm,
-      confirmedDeps: args.apm.getConfirmedStopAdapterDeps(),
-      stopCommandId: args.stopCommandId,
-      chatroomId: args.chatroomId,
-      targets: begun.targets as Parameters<typeof runExactTargetsStopType>[0]['targets'],
-      reason: args.reason,
-    });
+    const targetsByRole = new Map<string, typeof begun.targets>();
+    for (const target of begun.targets) {
+      const roleTargets = targetsByRole.get(target.role) ?? [];
+      roleTargets.push(target);
+      targetsByRole.set(target.role, roleTargets);
+    }
+    const roleResults = await Promise.all(
+      [...targetsByRole.entries()].map(([role, targets]) =>
+        args.runSerializedForAgent(
+          { chatroomId: args.chatroomId, role },
+          { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
+          async (_ops, context) => {
+            if (context.signal.aborted) throw context.signal.reason;
+            return runExactTargetsStop({
+              apm: args.apm,
+              confirmedDeps: args.apm.getConfirmedStopAdapterDeps(),
+              stopCommandId: args.stopCommandId,
+              chatroomId: args.chatroomId,
+              targets: targets as Parameters<typeof runExactTargetsStopType>[0]['targets'],
+              reason: args.reason,
+            });
+          }
+        )
+      )
+    );
+    result = {
+      targets: roleResults.flatMap((roleResult) => roleResult.targets),
+      failures: roleResults.flatMap((roleResult) => roleResult.failures),
+    };
   } catch (error) {
     executionError = error;
     console.warn('[daemon] scoped stop execution failed', error);

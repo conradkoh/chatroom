@@ -4,7 +4,12 @@ export function logNativeDeliveryPrimary(role: string, chatroomId: string): void
 
 export function logNativeDeliveryFallback(
   reason:
-    'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status' | 'stale-turn-phase',
+    | 'inbox-signal'
+    | 'periodic-reconcile'
+    | 'bootstrap'
+    | 'operational-status'
+    | 'restart'
+    | 'agent-started',
   role: string,
   chatroomId: string,
   taskId?: string
@@ -32,6 +37,7 @@ export function logNativeDeliveryInjecting(role: string, chatroomId: string, tas
   console.log(`[NativeDelivery:inject] ${role}@${chatroomId} task ${taskId} — starting injection`);
 }
 
+// fallow-ignore-next-line unused-export
 export function logNativeDeliveryNoTasks(role: string, chatroomId: string): void {
   console.log(`[NativeDelivery:skip] ${role}@${chatroomId} — no pending tasks for role`);
 }

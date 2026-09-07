@@ -9,6 +9,7 @@
 
 import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
+import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
@@ -26,6 +27,9 @@ import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type {
   AgentProcessManager,
   AgentSlot,
+  AgentSessionLostHandler,
+  AgentStartedHandler,
+  AgentTurnEndedHandler,
   EnsureRunningOpts,
   HandleExitOpts,
   OperationResult,
@@ -36,6 +40,7 @@ import type {
   AgentLifecycleOutboxRegistry,
   AgentLifecycleOutboxResult,
 } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
+import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 
 export interface AgentLifecycleOutboxServiceShape {
   enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
@@ -141,7 +146,6 @@ export interface DaemonAgentProcessManagerServiceShape {
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
-  recover: () => Effect.Effect<void>;
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
   getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
   listActive: () => { chatroomId: string; role: string; slot: AgentSlot }[];
@@ -157,14 +161,9 @@ export interface DaemonAgentProcessManagerServiceShape {
     role: string;
     prompt: string;
   }) => Effect.Effect<void>;
-  setLastInFlightTask: (chatroomId: string, role: string, taskId: string) => Effect.Effect<void>;
-  clearLastInFlightTaskIfMatches: (
-    chatroomId: string,
-    role: string,
-    taskId: string
-  ) => Effect.Effect<void>;
-  reconcileNativeTurnPhaseIdle?:
-    ((chatroomId: string, role: string) => Effect.Effect<void>) | undefined;
+  subscribeAgentTurnEnded: (handler: AgentTurnEndedHandler) => () => void;
+  subscribeAgentStarted: (handler: AgentStartedHandler) => () => void;
+  subscribeAgentSessionLost: (handler: AgentSessionLostHandler) => () => void;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -173,6 +172,7 @@ export class DaemonAgentProcessManagerService extends Context.Tag(
 
 export const DaemonAgentProcessManagerServiceLive = (
   mgr: AgentProcessManager,
+  processManagerService: AgentProcessManagerService,
   sessionDeps?: {
     sessionId: string;
     machineId: string;
@@ -183,7 +183,12 @@ export const DaemonAgentProcessManagerServiceLive = (
     executeScopedStopForCommand: (args) =>
       Effect.promise(async () => {
         if (!sessionDeps) return { stoppedCount: 0, failedCount: 0 };
-        return executeScopedStopForCommand({ ...sessionDeps, apm: mgr, ...args });
+        return executeScopedStopForCommand({
+          ...sessionDeps,
+          apm: mgr,
+          runSerializedForAgent: processManagerService.runSerializedForAgent,
+          ...args,
+        });
       }),
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
@@ -198,25 +203,42 @@ export const DaemonAgentProcessManagerServiceLive = (
           ? event.reason
           : (legacyReason[event.reason] ?? 'user.stop');
         if (Date.now() > event.deadline) return;
-        const result = await runRoleScopedStop({
-          apm: mgr,
-          confirmedDeps: mgr.getConfirmedStopAdapterDeps(),
-          chatroomId: event.chatroomId as string,
-          role: event.role,
-          reason: reason as AgentStopReason,
-        });
-        if (result.targets.length === 0 && result.failures.length === 0 && event.pid)
-          await mgr.stop({
+        const execute = async (
+          stopAgent: (opts: StopOpts, signal: AbortSignal) => Promise<{ success: boolean }>,
+          signal: AbortSignal
+        ) => {
+          const result = await runRoleScopedStop({
+            apm: mgr,
+            confirmedDeps: mgr.getConfirmedStopAdapterDeps(),
             chatroomId: event.chatroomId as string,
             role: event.role,
-            reason: reason as never,
-            pid: event.pid,
+            reason: reason as AgentStopReason,
           });
-        for (const failure of result.failures)
-          console.warn(
-            `[daemon] scoped stop failed for ${failure.target.targetKey}`,
-            failure.error
-          );
+          if (result.targets.length === 0 && result.failures.length === 0 && event.pid) {
+            await stopAgent(
+              {
+                chatroomId: event.chatroomId as string,
+                role: event.role,
+                reason: reason as never,
+                pid: event.pid,
+              },
+              signal
+            );
+          }
+          for (const failure of result.failures)
+            console.warn(
+              `[daemon] scoped stop failed for ${failure.target.targetKey}`,
+              failure.error
+            );
+        };
+        await processManagerService.runSerializedForAgent(
+          { chatroomId: event.chatroomId as string, role: event.role },
+          { timeoutMs: SCOPE_TARGET_STOP_TIMEOUT_MS },
+          async (ops, context) => {
+            if (context.signal.aborted) throw context.signal.reason;
+            await execute(ops.stopAgent, context.signal);
+          }
+        );
       }),
     runInboxScopedStop: (event) =>
       Effect.promise(async () => {
@@ -233,25 +255,36 @@ export const DaemonAgentProcessManagerServiceLive = (
           scope: event.scope,
           reason: reason as AgentStopReason,
           inboxCommandId,
+          runSerializedForAgent: processManagerService.runSerializedForAgent,
         });
       }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),
-    recover: () => Effect.promise(() => mgr.recover()),
     getSlot: (chatroomId, role) => mgr.getSlot(chatroomId, role),
     listActive: () => mgr.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>
       Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role, options)),
     whenTurnEndsIdle: () => Effect.promise(() => mgr.whenTurnEndsIdle()),
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
-    setLastInFlightTask: (chatroomId, role, taskId) =>
-      Effect.sync(() => mgr.setLastInFlightTask(chatroomId, role, taskId)),
-    clearLastInFlightTaskIfMatches: (chatroomId, role, taskId) =>
-      Effect.sync(() => mgr.clearLastInFlightTaskIfMatches(chatroomId, role, taskId)),
-    reconcileNativeTurnPhaseIdle: (chatroomId, role) =>
-      Effect.sync(() => mgr.reconcileNativeTurnPhaseIdle(chatroomId, role)),
+    subscribeAgentTurnEnded: (handler) => processManagerService.subscribeAgentTurnEnded(handler),
+    subscribeAgentStarted: (handler) => processManagerService.subscribeAgentStarted(handler),
+    subscribeAgentSessionLost: (handler) => processManagerService.subscribeAgentSessionLost(handler),
   });
+
+/**
+ * Transitional Effect boundary for the queue-backed process manager service.
+ * Existing callers continue using DaemonAgentProcessManagerService until they
+ * are migrated to this interface.
+ */
+export class DaemonAgentProcessManagerCommandService extends Context.Tag(
+  'DaemonAgentProcessManagerCommandService'
+)<DaemonAgentProcessManagerCommandService, AgentProcessManagerService>() {}
+
+export const DaemonAgentProcessManagerCommandServiceLive = (
+  service: AgentProcessManagerService
+): Layer.Layer<DaemonAgentProcessManagerCommandService> =>
+  Layer.succeed(DaemonAgentProcessManagerCommandService, service);
 
 // ─── DaemonSessionService ────────────────────────────────────────────────────
 

@@ -15,7 +15,6 @@ export type ProviderUnavailableReason = 'model_capacity' | 'rate_limit' | 'quota
 export interface ProviderUnavailableClassification {
   reason: ProviderUnavailableReason;
   message: string;
-  recoverable: boolean;
 }
 
 // fallow-ignore-next-line unused-export
@@ -51,7 +50,7 @@ function classification(
   reason: ProviderUnavailableReason,
   message: string
 ): ProviderUnavailableClassification {
-  return { reason, message: message.trim(), recoverable: providerUnavailableRecoverable(reason) };
+  return { reason, message: message.trim() };
 }
 
 /** Classify a structured provider error message. */
@@ -102,8 +101,4 @@ export function isProviderUnavailableAgentEndReason(
   if (normalized.includes('provider_rate_limit')) return 'rate_limit';
   if (normalized.includes('provider_quota')) return 'quota';
   return null;
-}
-
-export function providerUnavailableRecoverable(reason: ProviderUnavailableReason): boolean {
-  return reason !== 'quota';
 }

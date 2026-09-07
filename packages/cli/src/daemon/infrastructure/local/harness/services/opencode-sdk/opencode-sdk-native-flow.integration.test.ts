@@ -109,9 +109,6 @@ describe.skipIf(SKIP)(
 
       spawnedPid = result.pid;
       expect(result.pid).toBeGreaterThan(0);
-      expect(result.harnessReconnect).toEqual(
-        expect.objectContaining({ agentName: 'build', model: MODEL })
-      );
 
       result.onLogLine?.((line) => logLines.push(line));
 

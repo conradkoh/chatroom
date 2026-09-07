@@ -16,6 +16,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
 import {
+  DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerServiceLive,
   DaemonMachineService,
@@ -126,40 +127,21 @@ describe('DaemonSpawningService', () => {
 // ---------------------------------------------------------------------------
 
 describe('DaemonAgentProcessManagerService', () => {
-  it('recover() completes without error', async () => {
-    const mockMgr = {
-      ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 1 }),
-      stop: vi.fn().mockResolvedValue({ success: true }),
-      handleExit: vi.fn().mockResolvedValue(undefined),
-      recover: vi.fn().mockResolvedValue(undefined),
-      getSlot: vi.fn().mockReturnValue(undefined),
-      listActive: vi.fn().mockReturnValue([]),
-      clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
-    } as any;
-
-    const layer = DaemonAgentProcessManagerServiceLive(mockMgr);
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const svc = yield* DaemonAgentProcessManagerService;
-        yield* svc.recover();
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(mockMgr.recover).toHaveBeenCalledOnce();
-  });
-
   it('getSlot returns undefined for unknown agent', () => {
     const mockMgr = {
       ensureRunning: vi.fn(),
       stop: vi.fn(),
       handleExit: vi.fn(),
-      recover: vi.fn(),
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
     } as any;
 
-    const layer = DaemonAgentProcessManagerServiceLive(mockMgr);
+    const layer = DaemonAgentProcessManagerServiceLive(mockMgr, {
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation({} as never, { signal: new AbortController().signal })
+      ),
+    } as never);
     const slot = Effect.runSync(
       Effect.gen(function* () {
         const svc = yield* DaemonAgentProcessManagerService;
@@ -272,6 +254,25 @@ describe('DaemonSessionService', () => {
 // ---------------------------------------------------------------------------
 
 describe('daemonSessionToLayers', () => {
+  it('exposes the queue-backed agent process manager service', async () => {
+    const deps = createMockDaemonDeps();
+    const init = createMockDaemonSessionInit({
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
+    });
+
+    const service = await Effect.runPromise(
+      Effect.gen(function* () {
+        return yield* DaemonAgentProcessManagerCommandService;
+      }).pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    expect(service).toBe(init.agentProcessManagerService);
+  });
+
   it('builds a layer that provides DaemonSessionService with init identity fields', async () => {
     const deps = createMockDaemonDeps();
     const init = createMockDaemonSessionInit({

@@ -21,14 +21,14 @@ function layer(runInboxScopedStop: ReturnType<typeof vi.fn>) {
     ensureRunning: vi.fn(),
     stop: vi.fn(),
     handleExit: vi.fn(),
-    recover: vi.fn(),
     getSlot: vi.fn(),
     listActive: () => [],
     clearStuckStoppingSlot: vi.fn(),
     whenTurnEndsIdle: vi.fn(),
     resumeTurnForSlot: vi.fn(),
-    setLastInFlightTask: vi.fn(),
-    clearLastInFlightTaskIfMatches: vi.fn(),
+    subscribeAgentTurnEnded: () => () => undefined,
+    subscribeAgentStarted: () => () => undefined,
+    subscribeAgentSessionLost: () => () => undefined,
   });
 }
 describe('onStopScopeAgentEffect', () => {

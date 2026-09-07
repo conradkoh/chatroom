@@ -96,6 +96,10 @@ describe('startDaemon', () => {
       client: {},
       sessionId: 'session-1',
       machineId: 'machine-1',
+      agentProcessManagerService: {
+        startProcessing: vi.fn(),
+        stopProcessing: vi.fn().mockResolvedValue(undefined),
+      },
     });
 
     createPersistenceStore.mockReturnValue({ close: persistenceClose });

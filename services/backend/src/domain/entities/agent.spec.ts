@@ -45,7 +45,6 @@ describe('agent reason predicates', () => {
   test('isUserExplicitStart accepts user.start and user.restart only', () => {
     expect(isUserExplicitStart('user.start')).toBe(true);
     expect(isUserExplicitStart('user.restart')).toBe(true);
-    expect(isUserExplicitStart('platform.crash_recovery')).toBe(false);
     expect(isUserExplicitStart('user.manual_spawn')).toBe(false);
   });
 
@@ -53,7 +52,6 @@ describe('agent reason predicates', () => {
     expect(isExplicitDaemonStart('user.start')).toBe(true);
     expect(isExplicitDaemonStart('platform.task_monitor_nudge')).toBe(true);
     expect(isExplicitDaemonStart('daemon.respawn')).toBe(true);
-    expect(isExplicitDaemonStart('platform.crash_recovery')).toBe(false);
   });
 });
 

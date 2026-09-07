@@ -12,6 +12,119 @@ This plan completes consolidation in four phases (5–8), following the same dis
 
 **Estimated scope:** ~125 consolidate moves + ~26 consolidate+shim re-exports + enhancer rename sub-step.
 
+## Native handoff-reminder simplification
+
+The current missed-handoff flow is split between the native delivery inbox, the
+agent process manager, participant state, and backend task state. Replace it in
+two deliberate stages so the old behavior is removed before the new behavior is
+introduced.
+
+### Removal of the current implementation
+
+- [x] Delete the local inbox handoff decision path, including
+      `native-turn-end-inbox.ts` and its tests.
+- [x] Delete the agent process manager's backend fallback and reminder-specific
+      turn-end branches, including their tests.
+- [x] Remove obsolete handoff-reminder constants, mocks, fixtures, and assertions.
+- [x] Remove or update tests that assume `lastInFlightTaskId`, local task snapshots,
+      or participant state independently prove that a handoff occurred.
+- [x] Verify that native `agent_end` no longer injects a reminder through the
+      legacy multi-path implementation.
+
+### Cleanup completed
+
+- [x] Remove disabled legacy recovery assertions from
+      `agent-process-manager.test.ts`, including obsolete Cursor retry
+      constants and unreachable test bodies.
+- [x] Run the focused agent process manager tests and monorepo typecheck after
+      the cleanup.
+
+### Remaining cleanup candidates
+
+- [x] Replace the dedicated `turn-end-queue.ts` with the manager's shared
+      per-agent serialization boundary. Turn-end callbacks now wait behind and
+      cannot race lifecycle commands for the same agent.
+- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
+      related manager setters, clearers, and slot-based duplicate checks.
+- [x] Simplify native task injection duplicate detection to use the centralized
+      daemon task-state store. The delivery ledger and orphaned task
+      orchestration coordinator were removed after all production delivery
+      paths moved behind the constructed service.
+- [x] Migrate or remove backend recovery readers such as
+      `find-native-harness-in-progress-work.ts` so the daemon does not rebuild
+      live task state from participant snapshots.
+- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
+      command queue and task-state store enforce the lifecycle invariant.
+- [x] Remove obsolete recovery-focused integration tests after their behavior
+      has been replaced by serialized task-state tests.
+
+### Deferred until the new implementation
+
+- [x] Replace `turn-end-queue.ts` with the shared per-agent serialization
+      boundary; the dedicated queue and its tests were deleted. A future
+      command-message representation is not required for this internal event.
+- [x] Remove backend `participant.lastInFlightTaskId` and its tests. Native
+      delivery/task state owns live task identity; token-activity handling now
+      uses explicit participant status/action signals only.
+
+### Reimplementation around one decision path
+
+- [x] Define a daemon-owned `ActiveTaskStateStore` keyed by chatroom and role,
+      with task identity/generation, lifecycle status, handoff status, and
+      reminder-attempt state. The in-memory implementation owns generation
+      assignment so callers cannot fabricate task generations.
+- [x] Add a `handleAgentTurnEnded` use case that reads the active task state
+      and resolves one of: no active work, already handed off, or reminder
+      required.
+- [x] Expose the state transitions through a single `AgentTaskStateService`
+      façade with a composition-root constructor.
+- [x] Make task delivery and successful handoff update the store through one
+      state-transition interface; task delivery starts state and explicit
+      completed-task signals mark handoff. Keep the backend as durable
+      persistence, not the synchronous source for the live turn-end decision.
+- [x] Route `AgentProcessManager` `onAgentEnd` events through a constructed
+      `NativeDeliveryService` subscription instead of embedding task-state and
+      handoff policy in the process callback. The event is emitted only after
+      manager validation and remains inside the shared per-agent serialized path.
+- [x] Serialize turn-end handling, task delivery, handoff updates, and lifecycle
+      commands with the same chatroom/role key. Handoff state updates now use
+      the service's operation boundary with an operation-level timeout.
+- [x] Add an injected `HandoffReminder` port; issue a reminder through the
+      agent manager and track its attempt number in daemon state.
+- [x] Validate task identity/generation before acting so stale `agent_end` events
+      cannot affect a later task for the same agent.
+- [x] Keep `AgentProcessManager` responsible for process lifecycle and transport;
+      keep `NativeDeliveryService` responsible for task outcome and reminder
+      policy.
+- [x] Add focused tests for state transitions, duplicate events, stale
+      generations, and missing active tasks.
+- [x] Add integration coverage for the constructed native delivery service:
+      manager turn-end events consult daemon task state, reminder failures
+      preserve reminder-attempt state, and successful handoff state remains the
+      decision boundary.
+- [x] Update the native delivery documentation and run focused CLI tests plus
+      typecheck before committing the reimplementation.
+
+### Native delivery service boundary
+
+- [x] Introduce a constructed, daemon-scoped `NativeDeliveryService` owning
+      native task snapshots, task state, serialized process operations, and
+      delivery coordination for the production inbox path.
+- [x] Construct the service during daemon/task-inbox initialization and pass
+      it explicitly to the production inbox handler and task delivery processor.
+- [x] Route production task delivery and handoff state transitions through the
+      service while retaining registry adapters for legacy callers.
+- [x] Extend the service boundary to bootstrap, periodic reconciliation, and
+      operational updates.
+- [x] Extend the service boundary to restart delivery paths.
+- [x] Make `handleTaskInboxUpdate` consume required dependencies directly and
+      remove its remaining compatibility branch and session-registry fallbacks.
+- [x] Move production task-state transition calls behind the service API and
+      remove the registry-level `recordNativeTaskDelivered` and
+      `recordNativeTaskHandedOff` helpers.
+- [x] Remove the module-level native-delivery session singleton after all
+      callers use the constructed service.
+
 ---
 
 ## Resolved decisions
@@ -315,6 +428,48 @@ Co-located `*.test.ts` and `*.integration.test.ts` move with sources.
 
 ---
 
+## Recent recovery-cleanup follow-ups
+
+These items were discovered after the recent recovery-removal phases and should
+be completed before treating the cleanup as finished.
+
+- [x] Delete bypassed or obsolete recovery tests rather than leaving early
+      returns, temporary constants, or unreachable historical assertions.
+- [x] Remove the remaining agent-process-manager recovery state and helpers,
+      including daemon-memory session resume, harness-session snapshots, resume
+      event emission, and related fields that no longer have production callers.
+      Native `resumeTurn` remains because it is the active task-delivery API.
+- [x] Remove the orphaned Cursor SDK run-error/reopen detection module and tests;
+      repository search found no production consumer.
+- [x] Delete commented-out recovery blocks from task orchestration and task
+      delivery code; comments must not preserve retired control flow as an
+      implied compatibility path.
+- [x] Remove `RecoveryCooldown`, native wake/revive helpers, and all callers and
+      tests that only existed to support automatic task recovery. The remaining
+      `platform.pending_task_wake` start reason belongs to the explicit native
+      pending-task activation flow, not the retired recovery helpers.
+- [x] Remove obsolete session-monitor recovery types and no-op registrations
+      introduced solely to replace deleted recovery behavior.
+- [x] Audit `resumeStormTracker`, resume-storm handling, crash/restart stop
+      reasons, and recovery-related lifecycle events. Rapid-resume tracking,
+      `platform.resume_storm`, the backend event/mutation, and their tests were
+      removed; ordinary exit and provider-failure handling remain separate.
+- [x] Audit backend exit handling and task-release paths for automatic restart,
+      revive, wake, or requeue behavior. Exit handling only releases durable
+      acknowledged/in-progress work to `pending`; token-activity handling only
+      activates that pending work. Neither path restarts a process, and both
+      remain required for task durability outside daemon-local reset/shutdown.
+- [x] Run repository-wide searches for recovery terminology and update stale
+      agent-process recovery comments, README guidance, and tests. Remaining
+      `recovery` references are generic outbox/file-sync recovery semantics or
+      explicit backend task release after process exit; they are not automatic
+      agent restart/wake/revive paths.
+- [x] Re-run focused tests, CLI typecheck, and the relevant backend tests after
+      each cleanup phase. The final CLI gate passes 318 files / 2,419 tests;
+      the final backend gate passes 296 files / 1,972 tests.
+
+---
+
 ## Post-Phases 5–8 cleanup
 
 ### `consolidate.md` header
@@ -356,7 +511,21 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
 ## Success criteria
 
 - [x] Zero production imports from `commands/machine/daemon-start/` except `index.ts`
-- [ ] `daemon/` is SSOT for daemon runtime, handlers, subscriptions, harness services
-- [ ] `consolidate.md` inventory fully executed (Phases 5–8)
-- [ ] `pnpm turbo run typecheck test --filter=chatroom-cli` green
-- [ ] Fallow baselines current
+- [x] `daemon/` is the source of truth for the migrated daemon runtime,
+      handlers, subscriptions, and harness services; shared infrastructure
+      explicitly marked `defer` in `consolidate.md` remains outside it.
+- [x] Reconcile the `consolidate.md` inventory: Phases 5–8 and the two
+      post-consolidation shim slices are complete, with only documented shared
+      infrastructure deferred.
+- [x] `pnpm turbo run typecheck test --filter=chatroom-cli` green (318 files /
+      2,419 tests).
+- [x] Fallow dead-code baseline refreshed after cleanup; `pnpm find-deadcode`
+      passes with no regressions. The broader `pnpm fallow` audit still reports
+      the repository's pre-existing health/duplication backlog separately.
+- [x] Keep `AgentProcessManager` responsible for process lifecycle and
+      transport; keep `NativeDeliveryService` responsible for task outcome and
+      reminder policy.
+- [x] Add focused tests for state transitions, handoff/turn-end races, duplicate
+      events, stale generations, missing active tasks, and reminder failures.
+- [x] Update the native delivery documentation and run focused CLI tests plus
+      typecheck before committing the reimplementation.

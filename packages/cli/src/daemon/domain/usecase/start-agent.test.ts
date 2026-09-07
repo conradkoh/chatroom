@@ -17,7 +17,7 @@ const baseInput: StartAgentInput = {
 function makeDeps(overrides?: Partial<StartAgentDeps>): StartAgentDeps {
   return {
     agentProcessManager: {
-      ensureRunning: vi.fn().mockResolvedValue({ success: true }),
+      startAgent: vi.fn().mockResolvedValue(undefined),
     },
     session: {
       sessionId: 'sess-1',
@@ -35,12 +35,12 @@ function makeDeps(overrides?: Partial<StartAgentDeps>): StartAgentDeps {
 describe('startAgent', () => {
   it('skips ensureRunning when deadline expired', async () => {
     const deps = makeDeps({ now: () => Date.now() + 1000 });
-    const ensureRunning = vi.fn();
-    deps.agentProcessManager.ensureRunning = ensureRunning;
+    const startSpy = vi.fn();
+    deps.agentProcessManager.startAgent = startSpy;
 
     await startAgent(deps, { ...baseInput, deadline: Date.now() - 1 });
 
-    expect(ensureRunning).not.toHaveBeenCalled();
+    expect(startSpy).not.toHaveBeenCalled();
   });
 
   it('registers workspace on success', async () => {
@@ -48,7 +48,7 @@ describe('startAgent', () => {
 
     await startAgent(deps, baseInput);
 
-    expect(deps.agentProcessManager.ensureRunning).toHaveBeenCalledWith(
+    expect(deps.agentProcessManager.startAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         chatroomId: 'room-1',
         role: 'builder',
@@ -63,11 +63,9 @@ describe('startAgent', () => {
     expect(deps.session.emitAgentStartFailed).not.toHaveBeenCalled();
   });
 
-  it('emits startFailed when ensureRunning fails', async () => {
+  it('emits startFailed when startAgent fails', async () => {
     const deps = makeDeps();
-    deps.agentProcessManager.ensureRunning = vi
-      .fn()
-      .mockResolvedValue({ success: false, error: 'rate limited' });
+    deps.agentProcessManager.startAgent = vi.fn().mockRejectedValue(new Error('rate limited'));
 
     await startAgent(deps, baseInput);
 

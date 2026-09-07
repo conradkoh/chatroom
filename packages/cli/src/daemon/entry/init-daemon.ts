@@ -1,5 +1,5 @@
 /**
- * Daemon Initialization — validates auth, connects to Convex, recovers state.
+ * Daemon Initialization — validates auth and connects to Convex.
  */
 
 import { stat } from 'node:fs/promises';
@@ -27,13 +27,11 @@ import {
 import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
-import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
 import { formatConvexUrlMismatchWarning } from '../../infrastructure/convex/spawn-env.js';
 import type { AgentLogSink } from '../../infrastructure/log-server/index.js';
-import { CrashLoopTracker } from '../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
   ensureMachineRegistered,
@@ -51,13 +49,15 @@ import {
 import { formatAuthLoginCommand } from '../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
-import type { HarnessSessionMonitor } from '../domain/entities/session-monitor.js';
 import { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
+import { createCommandNotifier } from '../infrastructure/agent-process-manager/components/command-notifier/index.js';
+import {
+  createAgentProcessManagerService,
+  type AgentProcessManagerCommand,
+} from '../infrastructure/agent-process-manager/service/index.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
 import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
-import { initSessionMonitorRegistry } from '../infrastructure/local/harness/session-monitors/init-session-monitors.js';
-import { getAllSessionMonitors } from '../infrastructure/local/harness/session-monitors/session-monitor-registry.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -332,7 +332,6 @@ type ConnectOnceResult = {
   config: MachineConfig;
   machineId: string;
   agentServices: Map<string, RemoteAgentService>;
-  sessionMonitors: Map<string, HarnessSessionMonitor>;
   cachedModels: Record<string, string[]>;
 };
 
@@ -347,17 +346,15 @@ const connectOnceEffect = (
     const { machineId } = config;
 
     initHarnessRegistry();
-    initSessionMonitorRegistry();
     const agentServices = new Map<string, RemoteAgentService>(
       getAllHarnesses().map((s) => [s.id, s])
     );
-    const sessionMonitors = getAllSessionMonitors();
 
     yield* registerMachineEffect(client, typedSessionId, config);
     const cachedModels = yield* fetchCachedMachineModelsEffect(client, typedSessionId, machineId);
     yield* connectDaemonEffect(client, typedSessionId, machineId);
 
-    return { typedSessionId, config, machineId, agentServices, sessionMonitors, cachedModels };
+    return { typedSessionId, config, machineId, agentServices, cachedModels };
   });
 
 let activeLogSink: AgentLogSink | undefined;
@@ -370,7 +367,6 @@ function assembleDaemonSessionInit(args: {
   config: MachineConfig;
   convexUrl: string;
   agentServices: Map<string, RemoteAgentService>;
-  sessionMonitors: Map<string, HarnessSessionMonitor>;
   cachedModels: Record<string, string[]>;
   deps: DaemonDeps;
 }): DaemonSessionInit {
@@ -381,7 +377,6 @@ function assembleDaemonSessionInit(args: {
     config,
     convexUrl,
     agentServices,
-    sessionMonitors,
     cachedModels,
     deps,
   } = args;
@@ -397,7 +392,6 @@ function assembleDaemonSessionInit(args: {
     logEvent: activeLogEvent ?? (async () => undefined),
     logSink: activeLogSink,
     agentServices,
-    sessionMonitors,
     backend: deps.backend,
     sessionId: typedSessionId,
     machineId,
@@ -406,11 +400,14 @@ function assembleDaemonSessionInit(args: {
     fs: deps.fs,
     persistence: deps.machine,
     spawning: deps.spawning,
-    crashLoop: new CrashLoopTracker(),
     convexUrl,
     lifecycleOutbox: {
       enqueue: (fact) => enqueueAgentLifecycleFact(agentLifecycleOutbox, machineId, fact),
     },
+  });
+  const agentProcessManagerService = createAgentProcessManagerService({
+    execution: deps.agentProcessManager,
+    notifier: createCommandNotifier<AgentProcessManagerCommand>(),
   });
 
   return {
@@ -424,6 +421,7 @@ function assembleDaemonSessionInit(args: {
     machine: deps.machine,
     spawning: deps.spawning,
     agentProcessManager: deps.agentProcessManager,
+    agentProcessManagerService,
     agentLifecycleOutbox,
     events: new DaemonEventBus(),
     agentServices,
@@ -466,19 +464,8 @@ const connectDaemonEffect = (
     })
   );
 
-const recoverStateEffect = (init: DaemonSessionInit): Effect.Effect<void, never, never> =>
+const cleanPreviousDaemonStateEffect = (init: DaemonSessionInit): Effect.Effect<void, never, never> =>
   Effect.gen(function* () {
-    console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
-
-    yield* Effect.catchAllCause(
-      recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init))),
-      (cause) =>
-        Effect.sync(() => {
-          console.log(`   ⚠️  Recovery failed: ${getErrorMessage(Cause.squash(cause))}`);
-          console.log(`   Continuing with fresh state`);
-        })
-    );
-
     yield* Effect.catchAllCause(
       Effect.gen(function* () {
         const clearedCount = yield* clearStaleSpawnedPidsEffect().pipe(
@@ -594,7 +581,7 @@ const connectWithRetryEffect = (
 // ─── Initialization ─────────────────────────────────────────────────────────
 
 /**
- * Initialize the daemon: validate auth, connect to Convex, recover state.
+ * Initialize the daemon: validate auth and connect to Convex.
  * Retries with a fixed 1-second interval on network errors.
  * Returns the DaemonSessionInit if successful, or exits the process on fatal failure.
  */
@@ -633,7 +620,7 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
       catch: (e) => e,
     });
 
-    const { typedSessionId, config, machineId, agentServices, sessionMonitors, cachedModels } =
+    const { typedSessionId, config, machineId, agentServices, cachedModels } =
       yield* connectWithRetryEffect(client, sessionId, convexUrl);
 
     const init = assembleDaemonSessionInit({
@@ -643,14 +630,14 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
       config,
       convexUrl,
       agentServices,
-      sessionMonitors,
       cachedModels,
       deps: createDefaultDeps(),
     });
 
     yield* registerEventListenersEffect().pipe(Effect.provide(daemonSessionToLayers(init)));
     yield* logStartupEffect(cachedModels).pipe(Effect.provide(daemonSessionToLayers(init)));
-    yield* recoverStateEffect(init);
+    init.agentProcessManagerService.startProcessing();
+    yield* cleanPreviousDaemonStateEffect(init);
 
     return init;
   }
@@ -659,7 +646,7 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
 /** Thin wrapper — daemon-start/index.ts and tests still import this. */
 export type InitDaemonOptions = {
   logSink?: AgentLogSink | undefined;
-  logEvent?:( (event: Record<string, unknown>) => Promise<void>) | undefined;
+  logEvent?: ((event: Record<string, unknown>) => Promise<void>) | undefined;
 };
 export function getActiveLogSink(): AgentLogSink | undefined {
   return activeLogSink;

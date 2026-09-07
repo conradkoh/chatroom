@@ -19,10 +19,12 @@ function sleep(ms: number): Promise<void> {
 async function waitForHarnessSessionId(
   agentMgr: NativeInjectorDeps['agentMgr'],
   chatroomId: string,
-  role: string
+  role: string,
+  signal: AbortSignal
 ): Promise<string | null> {
   const deadline = Date.now() + HARNESS_SESSION_READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
+    if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
     const id = agentMgr.getSlot(chatroomId, role)?.harnessSessionId;
     if (id) return id;
     await sleep(100);
@@ -64,27 +66,42 @@ export async function ensureColdSessionBeforeNativeInject(
   if (slotState === 'spawning' || slotState === 'stopping') {
     return null;
   }
-  if (slotState === 'running') {
-    const stopped = await deps.agentMgr.stop({
-      chatroomId,
-      role,
-      reason: AgentStopReasonEnum['platform.task_start_in_new_session'],
-    });
-    if (!stopped?.success) return null;
+  let harnessSessionId: string | null;
+  try {
+    harnessSessionId = await deps.runSerializedForAgent(
+      { chatroomId, role },
+      { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
+      async (ops, context) => {
+        if (slotState === 'running') {
+          await ops.stopAgent(
+            {
+              chatroomId,
+              role,
+              reason: AgentStopReasonEnum['platform.task_start_in_new_session'],
+            },
+            context.signal
+          );
+        }
+
+        await ops.startAgent(
+          {
+            chatroomId,
+            role,
+            agentHarness: agentHarness as AgentHarness,
+            model,
+            workingDir,
+            reason: AgentStartReasonEnum['platform.task_start_in_new_session'],
+            wantResume: false,
+          },
+          context.signal
+        );
+
+        return waitForHarnessSessionId(deps.agentMgr, chatroomId, role, context.signal);
+      }
+    );
+  } catch {
+    return null;
   }
-
-  const spawn = await deps.agentMgr.ensureRunning({
-    chatroomId,
-    role,
-    agentHarness: agentHarness as AgentHarness,
-    model,
-    workingDir,
-    reason: AgentStartReasonEnum['platform.task_start_in_new_session'],
-    wantResume: false,
-  });
-  if (!spawn.success) return null;
-
-  const harnessSessionId = await waitForHarnessSessionId(deps.agentMgr, chatroomId, role);
   if (!harnessSessionId) return null;
 
   await deps.backend.mutation(api.participants.join, {

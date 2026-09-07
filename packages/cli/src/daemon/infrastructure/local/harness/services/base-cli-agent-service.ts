@@ -19,7 +19,6 @@ import { Effect, Schedule, Duration } from 'effect';
 
 import { DetectionResult, isInstalled, DETECTION_RETRY_POLICY } from './detection-result.js';
 import type {
-  AgentStopOptions,
   RemoteAgentService,
   SpawnContext,
   SpawnOptions,
@@ -289,7 +288,7 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
    * Stop a spawned agent process. Sends SIGTERM to the entire process group,
    * polls until the process exits, then escalates to SIGKILL if it lingers.
    */
-  async stop(pid: number, _options?: AgentStopOptions): Promise<void> {
+  async stop(pid: number): Promise<void> {
     // SIGTERM → entire process group (negative PID)
     try {
       this.deps.kill(-pid, 'SIGTERM');

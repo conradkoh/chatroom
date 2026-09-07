@@ -22,7 +22,7 @@ describe('SpawnRateLimiter', () => {
         refillRateMs: 60_000,
       });
       const chatroomId = 'room-1';
-      const reason = 'platform.crash_recovery';
+      const reason = 'platform.task_monitor_nudge';
 
       // Consume all 3 tokens
       expect(limiter.tryConsume(chatroomId, reason)).toEqual({ allowed: true });
@@ -41,9 +41,9 @@ describe('SpawnRateLimiter', () => {
         initialTokens: 1,
         refillRateMs: 60_000,
       });
-      limiter.tryConsume('room-A', 'platform.crash_recovery');
+      limiter.tryConsume('room-A', 'platform.task_monitor_nudge');
 
-      const result = limiter.tryConsume('room-A', 'platform.crash_recovery');
+      const result = limiter.tryConsume('room-A', 'platform.task_monitor_nudge');
       expect(result.allowed).toBe(false);
     });
   });
@@ -70,7 +70,7 @@ describe('SpawnRateLimiter', () => {
         refillRateMs: 60_000,
       });
 
-      expect(limiter.tryConsume('room-1', 'platform.crash_recovery').allowed).toBe(false);
+      expect(limiter.tryConsume('room-1', 'platform.task_monitor_nudge').allowed).toBe(false);
       expect(limiter.tryConsume('room-1', 'system.restart').allowed).toBe(false);
     });
   });

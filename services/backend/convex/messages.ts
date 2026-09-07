@@ -1183,7 +1183,6 @@ export async function runHandoffHandler(
     await transitionAgentStatus(ctx, args.chatroomId, args.senderRole, 'agent.waiting');
     await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAt: Date.now(),
-      lastInFlightTaskId: undefined,
     });
   }
 
@@ -1220,11 +1219,6 @@ export async function runHandoffHandler(
     if (promotedTaskId === null) {
       const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
       if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;
-    }
-    if (participant) {
-      await ctx.db.patch('chatroom_participants', participant._id, {
-        lastInFlightTaskId: undefined,
-      });
     }
   }
 

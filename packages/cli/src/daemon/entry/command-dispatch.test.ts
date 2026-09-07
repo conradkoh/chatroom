@@ -19,6 +19,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
 import type {
+  DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonMutableStateService,
   DaemonSessionService,
@@ -195,11 +196,16 @@ vi.mock('./events/agent/on-request-stop-agent.js', async () => {
 // Helpers
 // ---------------------------------------------------------------------------
 
+const nativeDelivery = { processSnapshots: vi.fn(async () => undefined) };
+
 /** Combined DaemonSessionService + DaemonAgentProcessManagerService + DaemonMutableStateService layers — used by dispatchCommandEventEffect and createDaemonRuntime. */
 function makeDispatchLayers(
   overrides?: Partial<DaemonSessionInit>
 ): Layer.Layer<
-  DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+  | DaemonSessionService
+  | DaemonAgentProcessManagerService
+  | DaemonAgentProcessManagerCommandService
+  | DaemonMutableStateService
 > {
   const init = createMockDaemonSessionInit(overrides);
   return daemonSessionToLayers(init);
@@ -209,7 +215,10 @@ async function runDispatch<A>(
   effect: Effect.Effect<
     A,
     never,
-    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+    | DaemonSessionService
+    | DaemonAgentProcessManagerService
+    | DaemonAgentProcessManagerCommandService
+    | DaemonMutableStateService
   >,
   overrides?: Partial<DaemonSessionInit>
 ) {
@@ -351,7 +360,10 @@ describe('dispatchCommandEventEffect', () => {
     const event = { _id: 'evt-d5-ping-1', type: 'daemon.ping' } as any;
     const tracker = createDedupTracker();
 
-    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps, { logEvent }));
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
+      withDeps(deps, { logEvent })
+    );
 
     expect(logEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -370,7 +382,7 @@ describe('dispatchCommandEventEffect', () => {
     const tracker = createDedupTracker();
 
     await runDispatch(
-      dispatchCommandEventEffect(event, tracker),
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
       withDeps(deps, { machineId: 'machine-dispatch', logEvent })
     );
 
@@ -387,7 +399,7 @@ describe('dispatchCommandEventEffect', () => {
     const event = { _id: 'evt-d5-pick-folder-1', type: 'daemon.pickFolder', requestId } as any;
     const tracker = createDedupTracker();
 
-    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps));
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
 
     expect(pickFolderDialog).toHaveBeenCalled();
     expect(deps.backend.mutation).toHaveBeenCalledWith(
@@ -415,7 +427,7 @@ describe('dispatchCommandEventEffect', () => {
     const tracker = createDedupTracker();
     tracker.pickFolderIds.set('evt-d5-pick-folder-dup', Date.now());
 
-    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps));
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
 
     expect(pickFolderDialog).not.toHaveBeenCalled();
     expect(deps.backend.mutation).not.toHaveBeenCalledWith(

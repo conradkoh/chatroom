@@ -8,34 +8,15 @@
 
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { Context, Effect, Runtime } from 'effect';
-import { afterEach, describe, expect, test, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import {
-  getNativeDeliveryLedger,
-  resetNativeDeliveryLedgerForTests,
-} from './native-delivery-ledger.js';
-import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
-import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
-import {
-  operationalRow,
-  registerTestNativeDeliverySession,
-} from '../../infrastructure/agent-operational/test-support.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';
-beforeEach(() =>
-  registerTestNativeDeliverySession({
-    runtime: undefined as never,
-    effectContext: undefined as never,
-    agentMgr: {} as never,
-    sessionDeps: {} as never,
-    machineId: 'machine_1',
-    operationalRows: [operationalRow(CHATROOM_ID, ROLE)],
-  })
-);
-afterEach(() => unregisterNativeDeliverySession());
 const CHATROOM_ID = 'room_dup';
 const ROLE = 'planner';
 
@@ -72,23 +53,12 @@ function makeAgentMgr(resumeTurnForSlot: ReturnType<typeof vi.fn>) {
       nativeTurnPhase: 'idle' as const,
     }),
     resumeTurnForSlot,
-    setLastInFlightTask: vi.fn().mockImplementation(() => Effect.void),
   } as unknown as DaemonAgentProcessManagerServiceShape;
 }
 
 describe('native duplicate task injection', () => {
   afterEach(() => {
-    resetNativeDeliveryLedgerForTests();
     vi.restoreAllMocks();
-  });
-
-  test('explainLedgerDeliveryBlock blocks after markDelivered', () => {
-    const ledger = getNativeDeliveryLedger();
-    expect(explainLedgerDeliveryBlock(TASK_ID, HARNESS_SESSION_ID, ledger)).toBeNull();
-    ledger.markDelivered(TASK_ID, HARNESS_SESSION_ID);
-    expect(explainLedgerDeliveryBlock(TASK_ID, HARNESS_SESSION_ID, ledger)).toBe(
-      'already_delivered_this_session'
-    );
   });
 
   test('second reconcile pass skips already-delivered task in same harness session', async () => {
@@ -105,12 +75,24 @@ describe('native duplicate task injection', () => {
 
     const coordinator = new NativeTaskDeliveryCoordinator();
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const operationalModel = new AgentOperationalReadModel();
+    operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
+    const activeTaskIds = new Set<string>();
 
     const reconcileParams = {
       tasks: [row],
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          {
+            startAgent: async () => ({ success: true }),
+            stopAgent: async () => ({ success: true }),
+          } as never,
+          { signal: new AbortController().signal }
+        )
+      ) as never,
       sessionDeps: {
         sessionId: 'session_dup',
         machineId: 'machine_dup',
@@ -119,11 +101,15 @@ describe('native duplicate task injection', () => {
         backend: { mutation: backendMutation, query: backendQuery },
       },
       machineId: 'machine_dup',
+      lifecycleOutbox: { enqueue: async () => undefined },
+      operationalModel,
+      isTaskActive: ({ taskId }: { taskId: string }) => activeTaskIds.has(taskId),
+      onTaskDelivered: ({ taskId }: { taskId: string }) => activeTaskIds.add(taskId),
     };
 
     coordinator.reconcileAssignedTasks(reconcileParams);
     await vi.waitFor(() => {
-      expect(getNativeDeliveryLedger().isDelivered(TASK_ID, HARNESS_SESSION_ID)).toBe(true);
+      expect(activeTaskIds.has(TASK_ID)).toBe(true);
     });
 
     resumeTurnForSlot.mockClear();
@@ -134,64 +120,8 @@ describe('native duplicate task injection', () => {
 
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
-      `[NativeDelivery:skip] ${ROLE}@${CHATROOM_ID} task ${TASK_ID} — already_delivered_this_session`
+      `[NativeDelivery:skip] ${ROLE}@${CHATROOM_ID} task ${TASK_ID} — task_state_active`
     );
   });
 
-  test('second reconcile pass skips acknowledged task after harness session changes', async () => {
-    const resumeTurnForSlot = vi.fn().mockReturnValue(Effect.succeed(undefined));
-    const slot = {
-      state: 'running' as const,
-      pid: 42_001,
-      harnessSessionId: HARNESS_SESSION_ID,
-      nativeTurnPhase: 'idle' as const,
-      lastInFlightTaskId: undefined as string | undefined,
-    };
-    const agentMgr = {
-      getSlot: vi.fn().mockReturnValue(slot),
-      resumeTurnForSlot,
-      setLastInFlightTask: vi.fn().mockImplementation((_chatroomId, _role, taskId) => {
-        slot.lastInFlightTaskId = taskId;
-        return Effect.void;
-      }),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
-    } as unknown as DaemonAgentProcessManagerServiceShape;
-    const row = makeAcknowledgedRow();
-    const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
-      if (args && typeof args === 'object' && 'chatroomId' in args) {
-        return { fullCliOutput: 'TASK PROMPT' };
-      }
-      return { ...row, taskContent: '## Goal\nDuplicate restart test' };
-    });
-    const coordinator = new NativeTaskDeliveryCoordinator();
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const params = {
-      tasks: [row],
-      runtime: Runtime.defaultRuntime as never,
-      effectContext: Context.empty() as never,
-      agentMgr,
-      sessionDeps: {
-        sessionId: 'session_dup',
-        machineId: 'machine_dup',
-        convexUrl: 'http://test:3210',
-        logEvent: async () => undefined,
-        backend: { mutation: vi.fn().mockResolvedValue(undefined), query: backendQuery },
-      },
-      machineId: 'machine_dup',
-    };
-    coordinator.reconcileAssignedTasks(params);
-    await vi.waitFor(() => expect(slot.lastInFlightTaskId).toBe(TASK_ID));
-    coordinator.onSessionLost({
-      chatroomId: CHATROOM_ID,
-      role: ROLE,
-      harnessSessionId: HARNESS_SESSION_ID,
-    });
-    slot.harnessSessionId = 'harness-new';
-    resumeTurnForSlot.mockClear();
-    logSpy.mockClear();
-    coordinator.reconcileAssignedTasks(params);
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    expect(resumeTurnForSlot).not.toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('already_delivered_to_slot'));
-  });
 });

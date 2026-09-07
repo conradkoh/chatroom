@@ -21,11 +21,14 @@ function setup() {
     markChatroomStopIntent: vi.fn(),
     markStopIntent: vi.fn(),
   };
+  const runSerializedForAgent = vi.fn(async (_key, _options, operation) =>
+    operation({} as never, { signal: new AbortController().signal })
+  );
   backend.mutation.mockResolvedValue({
     shouldExecute: true,
     targets: [{ targetKey: 'target', role: 'builder', pid: 42 }],
   });
-  return { backend, apm };
+  return { backend, apm, runSerializedForAgent };
 }
 
 describe('executeScopedStopForCommand', () => {
@@ -35,7 +38,7 @@ describe('executeScopedStopForCommand', () => {
   });
 
   test('finalizes and syncs when target execution throws', async () => {
-    const { backend, apm } = setup();
+    const { backend, apm, runSerializedForAgent } = setup();
     const error = new Error('executor failed');
     runExactTargetsStop.mockRejectedValue(error);
 
@@ -49,6 +52,7 @@ describe('executeScopedStopForCommand', () => {
       scope: { kind: 'chatroom' },
       reason: 'user.stop',
       inboxCommandId: 'inbox',
+      runSerializedForAgent,
     });
 
     expect(summary.failedCount).toBe(1);
@@ -59,7 +63,7 @@ describe('executeScopedStopForCommand', () => {
   });
 
   test('passes successful results to finalization', async () => {
-    const { backend, apm } = setup();
+    const { backend, apm, runSerializedForAgent } = setup();
     const result = {
       targets: [{ target: { targetKey: 'target' }, outcome: { kind: 'stopped' } }],
       failures: [],
@@ -76,6 +80,7 @@ describe('executeScopedStopForCommand', () => {
       scope: { kind: 'chatroom' },
       reason: 'user.stop',
       inboxCommandId: 'inbox',
+      runSerializedForAgent,
     });
 
     expect(summary).toEqual({ stoppedCount: 1, failedCount: 0, executionError: undefined });
@@ -83,7 +88,7 @@ describe('executeScopedStopForCommand', () => {
   });
 
   test('does not execute a command rejected by begin', async () => {
-    const { backend, apm } = setup();
+    const { backend, apm, runSerializedForAgent } = setup();
     backend.mutation.mockResolvedValue({ shouldExecute: false, targets: [] });
 
     await expect(
@@ -97,6 +102,7 @@ describe('executeScopedStopForCommand', () => {
         scope: { kind: 'chatroom' },
         reason: 'user.stop',
         inboxCommandId: 'inbox',
+        runSerializedForAgent,
       })
     ).resolves.toEqual({ stoppedCount: 0, failedCount: 0 });
     expect(runExactTargetsStop).not.toHaveBeenCalled();

@@ -36,15 +36,12 @@ import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js'
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
-  AgentStopOptions,
-  DaemonHarnessSessionContext,
-  HarnessReconnectMetadata,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
-import { resolveHarnessResumeModel, requireHarnessModel } from '../require-harness-model.js';
+import { requireHarnessModel } from '../require-harness-model.js';
 import { tapProcessStreamWrites } from '../tap-process-stream-writes.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
@@ -105,7 +102,6 @@ interface SdkSession {
   keeper: ChildProcess;
   aborted: boolean;
   agentClosed: boolean;
-  preserveForResume: boolean;
   agentName: string;
   model?: string | undefined;
   workingDir: string;
@@ -232,13 +228,10 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     session.pendingResumePrompt = prompt;
   }
 
-  override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
+  override async stop(pid: number): Promise<void> {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;
-      if (options?.preserveForResume) {
-        session.preserveForResume = true;
-      }
       session.abortResolve?.();
       const run = session.run;
       if (run?.supports('cancel')) {
@@ -251,7 +244,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
           );
         }
       }
-      if (!session.preserveForResume && !session.agentClosed) {
+      if (!session.agentClosed) {
         try {
           session.agent.close();
           session.agentClosed = true;
@@ -262,75 +255,6 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       this.sessions.delete(pid);
     }
     await super.stop(pid);
-  }
-
-  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
-    const session = this.sessions.get(pid);
-    if (!session) {
-      return undefined;
-    }
-    return {
-      agentName: session.agentName,
-      ...(session.model ? { model: session.model } : {}),
-    };
-  }
-
-  async resumeFromDaemonMemory(
-    options: SpawnOptions,
-    stored: DaemonHarnessSessionContext
-  ): Promise<SpawnResult> {
-    const apiKey = process.env.CURSOR_API_KEY?.trim();
-    if (!apiKey) {
-      throw new Error('CURSOR_API_KEY is not set');
-    }
-
-    const keeper = this.spawnKeeper(options.workingDir);
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
-    const pid = keeper.pid!;
-    const context = options.context;
-    const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
-    const agentName = stored.agentName;
-    const model = resolveHarnessResumeModel(
-      options.model,
-      stored.model,
-      'cursor-sdk resumeFromDaemonMemory'
-    );
-    const modelSelection = resolveCursorSdkSpawnModelSelection(model);
-    const systemPrompt = options.systemPrompt
-      ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
-      : NO_SUBAGENT_DIRECTIVE;
-    const fullPrompt = `${systemPrompt}\n\n${options.prompt}`;
-
-    let agent: SDKAgent;
-    try {
-      const { Agent } = await loadSdk();
-      agent = await withTimeout(
-        Agent.resume(stored.harnessSessionId, {
-          apiKey,
-          model: modelSelection,
-          local: buildLocalAgentOptions(stored.workingDir),
-        }),
-        AGENT_CREATE_TIMEOUT_MS,
-        'Agent.resume'
-      );
-    } catch (err) {
-      writeSpawnError(logPrefix, err);
-      keeper.kill();
-      this.deleteProcess(pid);
-      return this.spawn(options);
-    }
-
-    return this.startRunningSession({
-      pid,
-      keeper,
-      agent,
-      context,
-      agentName,
-      model,
-      workingDir: stored.workingDir,
-      initialPrompt: fullPrompt,
-      forceFirstTurn: true,
-    });
   }
 
   private spawnKeeper(workingDir: string): ChildProcess {
@@ -385,7 +309,6 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       keeper,
       aborted: false,
       agentClosed: false,
-      preserveForResume: false,
       agentName,
       model,
       workingDir,
@@ -435,10 +358,6 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     return {
       pid,
       harnessSessionId: agent.agentId,
-      harnessReconnect: {
-        agentName,
-        ...(model ? { model } : {}),
-      },
       onExit: (cb) => {
         exitCallbacks.push(cb);
       },

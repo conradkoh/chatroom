@@ -3,7 +3,7 @@
  *
  * OpenCode does NOT emit session.idle after such errors — the agent would otherwise
  * hang in STARTING while the SDK retries internally. These errors must not be
- * retried via resumeTurn or crash_recovery.
+ * retried via resumeTurn or automatic process restart.
  */
 
 const FATAL_HARNESS_PHRASES = [

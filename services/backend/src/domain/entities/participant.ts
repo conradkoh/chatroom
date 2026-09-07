@@ -24,10 +24,6 @@ export const NATIVE_TASK_INJECTED_ACTION = 'native:task-injected';
 export const GET_NEXT_TASK_STARTED_ACTION = 'get-next-task:started';
 export const GET_NEXT_TASK_STOPPED_ACTION = 'get-next-task:stopped';
 
-/** Injected into native harness when agent_end fires without handoff. */
-export const NATIVE_HANDOFF_REMINDER =
-  'Reminder: Use the handoff command to send your response to the team.';
-
 /**
  * Returns true if the participant is in an active (non-exited) state.
  * Use this to filter participant lists for routing, handoff, and queue promotion.

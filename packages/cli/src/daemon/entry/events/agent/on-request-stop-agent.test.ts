@@ -29,14 +29,14 @@ describe('onRequestStopAgentEffect', () => {
       runInboxRoleScopedStop: stopSpy,
       ensureRunning: vi.fn(),
       handleExit: vi.fn(),
-      recover: vi.fn(),
       getSlot: vi.fn(),
       listActive: vi.fn().mockReturnValue([]),
       clearStuckStoppingSlot: vi.fn().mockReturnValue(Effect.succeed(false)),
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
+      subscribeAgentTurnEnded: () => () => undefined,
+      subscribeAgentStarted: () => () => undefined,
+      subscribeAgentSessionLost: () => () => undefined,
     });
     const event = createEvent({ deadline: Date.now() - 1000 });
 
@@ -52,14 +52,14 @@ describe('onRequestStopAgentEffect', () => {
       runInboxRoleScopedStop: stopSpy,
       ensureRunning: vi.fn(),
       handleExit: vi.fn(),
-      recover: vi.fn(),
       getSlot: vi.fn(),
       listActive: vi.fn().mockReturnValue([]),
       clearStuckStoppingSlot: vi.fn().mockReturnValue(Effect.succeed(false)),
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
+      subscribeAgentTurnEnded: () => () => undefined,
+      subscribeAgentStarted: () => () => undefined,
+      subscribeAgentSessionLost: () => () => undefined,
     });
     const event = createEvent();
 

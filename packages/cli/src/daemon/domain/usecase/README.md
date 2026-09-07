@@ -18,14 +18,6 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | Effect layers / daemon-layers | Replaced by `entry/deps.ts`          |
 | Harness SDK implementations   | `infrastructure/local/harness/`      |
 
-## Port co-location (turn-completion slice)
-
-| Port                   | daemon home                |
-| ---------------------- | -------------------------- |
-| `ResumeStormTracker`   | `handle-turn-completed.ts` |
-| `ResumeStormCheck`     | `handle-turn-completed.ts` |
-| `TurnCompletedBackend` | `handle-turn-completed.ts` |
-
 ## Port co-location (direct-harness slice)
 
 | Port                    | daemon home                      |

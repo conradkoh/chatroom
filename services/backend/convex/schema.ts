@@ -405,7 +405,8 @@ export default defineSchema({
     // Written when start-agent or stop-agent use cases change desiredState.
     // Prefer reading desiredState directly from chatroom_teamAgentConfigs.
     lastDesiredState: v.optional(v.string()),
-    // Task last delivered to a native harness session — used to correlate agent_end recovery.
+    // @deprecated Retained for compatibility with existing participant documents.
+    // New code no longer writes this native-harness task correlation field.
     lastInFlightTaskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])

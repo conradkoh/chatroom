@@ -27,6 +27,14 @@ describe('native-delivery-log', () => {
     );
   });
 
+  test('logNativeDeliveryFallback accepts agent-started as a fallback reason', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    logNativeDeliveryFallback('agent-started', 'builder', 'room_1', 'task_1');
+    expect(spy).toHaveBeenCalledWith(
+      '[NativeDelivery:fallback] agent-started builder@room_1 task task_1 — reconcile'
+    );
+  });
+
   test('logNativeDeliverySkip includes block reason', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     logNativeDeliverySkip(

@@ -58,27 +58,10 @@ export interface SpawnOptions {
   deferInitialTurn?: boolean | undefined;
 }
 
-/** Harness-specific metadata needed to reconnect after stop (daemon memory only). */
-export interface HarnessReconnectMetadata {
-  agentName: string;
-  model?: string | undefined;
-}
-
-/** Daemon-memory session context for stop→start resume (same daemon process). */
-export interface DaemonHarnessSessionContext {
-  harnessSessionId: string;
-  agentName: string;
-  workingDir: string;
-  model?: string | undefined;
-}
-
-/** When the harness learns or rotates its provider-native session ID. */
+/** Provider session identity notifications are retained for active SDK diagnostics. */
 export interface HarnessSessionIdUpdatedInfo {
-  /** Immutable correlation ID returned at spawn (UUID for deferred-start harnesses). */
   correlationId: string;
-  /** Previous resumable ID, if any. */
   previousResumableId?: string | undefined;
-  /** Latest provider-native session ID for daemon-memory resume. */
   resumableId: string;
   source: 'provider_allocated' | 'provider_rotated';
 }
@@ -103,7 +86,7 @@ export interface SpawnResult {
    */
   activityEmitter?: HarnessActivityEmitter | undefined;
   /**
-   * Human-readable log lines for resume-storm reason classification.
+   * Human-readable log lines for provider failure classification.
    * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §3.5).
    */
   onLogLine?:( (cb: (line: string) => void) => void) | undefined;
@@ -124,12 +107,9 @@ export interface SpawnResult {
   onAgentEnd?:( (cb: () => void) => void) | undefined;
   /** Raw assistant text deltas for missed-handoff delivery on native turn-end. */
   onAssistantText?:( (cb: (text: string) => void) => void) | undefined;
-  /** Harness session ID for daemon-memory reconnect metadata. Undefined if not applicable. */
+  /** Harness session ID used for native delivery correlation. */
   harnessSessionId?: string | undefined;
-  /** Fired when the provider-native resumable session ID is allocated or changes. */
-  onHarnessSessionIdUpdated?:( (cb: (info: HarnessSessionIdUpdatedInfo) => void) => void) | undefined;
-  /** Extra fields for daemon-memory resume (e.g. opencode-sdk agent name). */
-  harnessReconnect?: HarnessReconnectMetadata | undefined;
+  onHarnessSessionIdUpdated?: ((cb: (info: HarnessSessionIdUpdatedInfo) => void) => void) | undefined;
 }
 
 export interface ProcessInfo {
@@ -139,11 +119,6 @@ export interface ProcessInfo {
 }
 
 /** Optional flags for harness-specific stop behavior (e.g. resume-friendly user stop). */
-export interface AgentStopOptions {
-  /** When true, preserve session state for a later stop→start daemon-memory resume instead of aborting. */
-  preserveForResume?: boolean | undefined;
-}
-
 // ─── Interface ────────────────────────────────────────────────────────────────
 
 export interface RemoteAgentService {
@@ -183,23 +158,8 @@ export interface RemoteAgentService {
    */
   resumeTurn?(pid: number, prompt: string): Promise<void>;
 
-  /**
-   * Reconnect after user.stop preserved session state (daemon memory only).
-   * Implement when `supportsDaemonMemoryResume` is true (e.g. opencode-sdk, cursor-sdk).
-   */
-  resumeFromDaemonMemory?(
-    options: SpawnOptions,
-    session: DaemonHarnessSessionContext
-  ): Promise<SpawnResult>;
-
-  /**
-   * Read harness session metadata for reconnect before stop removes it.
-   * Only implement on harnesses that support daemon-memory resume (e.g. opencode-sdk).
-   */
-  getHarnessReconnectContext?(pid: number): HarnessReconnectMetadata | undefined;
-
   /** Stop an agent by PID (SIGTERM → wait → SIGKILL). */
-  stop(pid: number, options?: AgentStopOptions): Promise<void>;
+  stop(pid: number): Promise<void>;
 
   /** Is this PID still alive? */
   isAlive(pid: number): boolean;

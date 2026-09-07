@@ -459,7 +459,6 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
       if (participant) {
         await ctx.db.patch('chatroom_participants', participant._id, {
           lastStatus: 'task.inProgress',
-          lastInFlightTaskId: builderTaskId,
         });
       }
     });
@@ -497,7 +496,6 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
         .unique()
     );
     expect(participant?.lastStatus).toBe('agent.waiting');
-    expect(participant?.lastInFlightTaskId).toBeUndefined();
   });
 
   test('when handing off to user and queued tasks exist, promotes first queued task to pending', async () => {

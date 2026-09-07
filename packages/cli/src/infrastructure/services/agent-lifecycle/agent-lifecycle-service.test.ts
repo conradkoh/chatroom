@@ -52,7 +52,7 @@ function createMockHarnessPort(): HarnessSpawnPort {
       },
       onLogLine: undefined,
     });
-  const stop = (_pid: number, _opts?: { preserveForResume?: boolean | undefined }) => Effect.void;
+  const stop = (_pid: number) => Effect.void;
   const isAlive = (_pid: number) => Effect.succeed(true);
   return { spawn, stop, isAlive };
 }
@@ -109,7 +109,7 @@ describe('AgentLifecycleService — ensureRunning', () => {
         role: 'builder',
         agentHarness: 'opencode',
         workingDir: '/tmp/work',
-        reason: 'platform.crash_recovery',
+        reason: 'platform.task_monitor_nudge',
         wantResume: false,
       });
     });
@@ -236,36 +236,6 @@ describe('AgentLifecycleService — stop', () => {
     expect(exit._tag).toBe('Success');
     expect((exit as { _tag: 'Success'; value: { success: boolean } }).value).toEqual({
       success: true,
-    });
-  });
-});
-
-describe('AgentLifecycleService — crash recovery spawn', () => {
-  it('platform.crash_recovery spawn succeeds when rate limit allows', async () => {
-    const spawnState: MockSpawnPortState = { allowSpawn: true };
-    const program = Effect.gen(function* () {
-      const service = yield* AgentLifecycleService;
-      return yield* service.ensureRunning({
-        chatroomId: 'chat-1',
-        role: 'builder',
-        agentHarness: 'opencode',
-        workingDir: '/tmp/work',
-        reason: 'platform.crash_recovery',
-        wantResume: false,
-      });
-    });
-
-    const exit: Exit.Exit<OperationResult, unknown> = await Effect.runPromiseExit(
-      program.pipe(Effect.provide(createTestLayer(spawnState)), Effect.scoped) as Effect.Effect<
-        OperationResult,
-        unknown,
-        never
-      >
-    );
-    expect(exit._tag).toBe('Success');
-    expect((exit as { _tag: 'Success'; value: OperationResult }).value).toEqual({
-      success: true,
-      pid: 100,
     });
   });
 });

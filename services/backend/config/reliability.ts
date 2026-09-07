@@ -106,6 +106,9 @@ export const AGENT_STOP_TERMINAL_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /** Per-target budget for scoped stop fan-out before force-kill (ms). */
 export const SCOPE_TARGET_STOP_TIMEOUT_MS = 10_000;
 
+/** Maximum time allowed for a serialized compound agent lifecycle operation. */
+export const AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS = 120_000;
+
 /** Rolling window for counting exits. Circuit trips if agent exits ≥ MAX_EXITS in this window. */
 export const CIRCUIT_WINDOW_MS = 300_000; // 5 minutes
 

@@ -88,11 +88,11 @@ export function createHarnessSpawnPort(deps: AgentLifecyclePortAdapterDeps): Har
         },
         catch: (e) => (e instanceof Error ? e : new Error(String(e))),
       }),
-    stop: (pid, opts, harness) =>
+    stop: (pid, harness) =>
       Effect.tryPromise({
         try: async () => {
           const service = harness ? deps.agentServices.get(harness) : undefined;
-          if (service) await service.stop(pid, opts);
+          if (service) await service.stop(pid);
         },
         catch: (e) => (e instanceof Error ? e : new Error(String(e))),
       }),

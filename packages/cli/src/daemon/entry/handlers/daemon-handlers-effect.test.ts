@@ -2,21 +2,17 @@
  * Daemon Handler Effect Tests
  *
  * Tests for the Effect twins of daemon handlers:
- * handlePingEffect, handleStatusEffect, and recoverAgentStateEffect.
+ * handlePingEffect and handleStatusEffect.
  */
 
 import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { handlePingEffect } from './ping.js';
-import { recoverAgentStateEffect } from './state-recovery.js';
 import { handleStatusEffect } from './status.js';
-import { daemonSessionToLayers } from '../daemon-layers.js';
 import { DaemonSessionService } from '../daemon-services.js';
-import type { DaemonSessionInit, MachineConfig, ConvexClient } from '../daemon-types.js';
+import type { MachineConfig, ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
-import { createMockDaemonSessionInit } from '../testing/index.js';
-import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -65,14 +61,6 @@ async function runWithSession<A>(
   config: MachineConfig | null = null
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(config))));
-}
-
-// Helper for recoverAgentStateEffect (E5.3) — builds DaemonSessionService + DaemonAgentProcessManagerService
-async function runRecovery(overrides?: Partial<DaemonSessionInit>) {
-  const init = createMockDaemonSessionInit(overrides);
-  return Effect.runPromise(
-    recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -144,43 +132,5 @@ describe('handleStatusEffect', () => {
 
     expect(parsed.availableHarnesses).toEqual([]);
     expect(result.failed).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// recoverAgentStateEffect
-// ---------------------------------------------------------------------------
-
-describe('recoverAgentStateEffect', () => {
-  it('calls agentProcessManager.recover() and completes', async () => {
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.agentProcessManager.listActive).mockReturnValue([]);
-
-    await runRecovery({
-      backend: deps.backend,
-      fs: deps.fs,
-      machine: deps.machine,
-      spawning: deps.spawning,
-      agentProcessManager: deps.agentProcessManager,
-    });
-
-    expect(deps.agentProcessManager.recover).toHaveBeenCalledOnce();
-  });
-
-  it('completes even when backend.query throws (non-critical path)', async () => {
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.agentProcessManager.listActive).mockReturnValue([]);
-    vi.mocked(deps.backend.query).mockRejectedValue(new Error('Network error'));
-
-    // Should resolve without throwing
-    await expect(
-      runRecovery({
-        backend: deps.backend,
-        fs: deps.fs,
-        machine: deps.machine,
-        spawning: deps.spawning,
-        agentProcessManager: deps.agentProcessManager,
-      })
-    ).resolves.toBeUndefined();
   });
 });

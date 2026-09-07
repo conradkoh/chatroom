@@ -10,27 +10,20 @@ import {
   type AgentRestartPhase,
 } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
 import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-contract.js';
-import { Effect } from 'effect';
-
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
+import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
+import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
+import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
+import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
 import type { AgentHarness } from './daemon-types.js';
 import { api } from '../../api.js';
-import { getNativeDeliveryLedger } from './native-delivery/native-delivery-ledger.js';
 import { isAgentReadyForNativeDelivery } from './native-delivery/native-ready-invariant.js';
 import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
-import {
-  explainLedgerDeliveryBlock,
-  explainNativeDeliveryBlock,
-} from './native-delivery/native-task-injector-logic.js';
-import { runNativeInjectionEffect } from './native-delivery/native-task-injector.js';
 import {
   markRestartOrchestratorInFlight,
   clearRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
-import {
-  mapAssignedTaskSnapshotList,
-  mapAssignedTaskView,
-} from '../../infrastructure/mappers/map-assigned-task.js';
+import { mapAssignedTaskSnapshotList } from '../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isDeliverableTaskStatus } from '../domain/entities/assigned-task.js';
 import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
@@ -61,6 +54,8 @@ export interface RestartOrchestratorSession {
 interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>;
 }
 
 async function emitPhase(
@@ -92,8 +87,7 @@ function sleep(ms: number): Promise<void> {
 
 async function waitForHarnessSessionId(
   deps: RestartOrchestratorDeps,
-  event: RestartOrchestratorEvent,
-  pid: number
+  event: RestartOrchestratorEvent
 ): Promise<string | null> {
   const initial = deps.agentMgr.getSlot(event.chatroomId, event.role);
   if (initial?.harnessSessionId) {
@@ -108,13 +102,6 @@ async function waitForHarnessSessionId(
     }
     await sleep(100);
   }
-
-  await deps.agentMgr.stop({
-    chatroomId: event.chatroomId,
-    role: event.role,
-    reason: 'user.restart',
-    pid,
-  });
 
   return null;
 }
@@ -146,93 +133,31 @@ async function listDeliverableSnapshots(
     machineId: deps.session.machineId,
   })) as { tasks?: unknown | undefined };
 
+  const operationalRows = await fetchMachineAgentOperationalStatus(
+    {
+      sessionId: deps.session.sessionId,
+      machineId: deps.session.machineId,
+      convexUrl: deps.session.convexUrl,
+      logEvent: deps.session.logEvent,
+      backend: deps.session.backend,
+    } satisfies NativeTaskDeliverySessionDeps,
+    deps.session.machineId
+  );
+
   const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
+  const operational = operationalRows.find(
+    (row) =>
+      row.chatroomId === event.chatroomId && row.role.toLowerCase() === event.role.toLowerCase()
+  );
   return mapAssignedTaskSnapshotList(parseAssignedTaskSnapshotRows(result.tasks ?? []))
     .filter(
       (t) =>
         t.chatroomId === event.chatroomId &&
         t.agentConfig.role.toLowerCase() === event.role.toLowerCase() &&
         isDeliverableTaskStatus(t.status) &&
-        isAgentReadyForNativeDelivery(t, slot)
+        isAgentReadyForNativeDelivery(t, slot, operational)
     )
     .sort((a, b) => a.createdAt - b.createdAt);
-}
-
-async function deliverOneTask(
-  deps: RestartOrchestratorDeps,
-  event: RestartOrchestratorEvent,
-  snapshot: AssignedTaskSnapshotView
-): Promise<boolean> {
-  const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
-  const harnessSessionId = slot?.harnessSessionId;
-  if (!harnessSessionId) return false;
-
-  const backend = (await deps.session.backend.query(api.machines.getAssignedTaskForAction, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-    taskId: snapshot.taskId,
-    role: event.role,
-  })) as Parameters<typeof mapAssignedTaskView>[0] | null;
-
-  if (!backend) return false;
-
-  const full = mapAssignedTaskView(backend);
-
-  const ledger = getNativeDeliveryLedger();
-  const ledgerBlock = explainLedgerDeliveryBlock(
-    snapshot.taskId as string,
-    harnessSessionId,
-    ledger
-  );
-  if (ledgerBlock) {
-    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${ledgerBlock}`);
-    return false;
-  }
-  const deliveryBlock = explainNativeDeliveryBlock(snapshot, { slot });
-  if (deliveryBlock) {
-    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${deliveryBlock}`);
-    return false;
-  }
-  if (!ledger.tryAcquire(snapshot.taskId as string, harnessSessionId)) {
-    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — delivery_ledger_busy`);
-    return false;
-  }
-
-  let deliveredToHarness = false;
-  try {
-    await Effect.runPromise(
-      runNativeInjectionEffect(full, harnessSessionId, {
-        sessionId: deps.session.sessionId,
-        machineId: deps.session.machineId,
-        logEvent: deps.session.logEvent,
-        backend: deps.session.backend,
-        convexUrl: deps.session.convexUrl,
-        agentMgr: {
-          resumeTurnForSlot: async (args) => {
-            await Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args));
-          },
-          stop: (opts) => Effect.runPromise(deps.agentMgr.stop(opts)),
-          ensureRunning: (opts) => Effect.runPromise(deps.agentMgr.ensureRunning(opts)),
-          getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
-        },
-        onTaskDelivered: ({ chatroomId, role, taskId, harnessSessionId: resolvedSessionId }) => {
-          deliveredToHarness = true;
-          ledger.markDelivered(taskId, resolvedSessionId);
-          void deps.agentMgr.setLastInFlightTask(chatroomId, role, taskId);
-        },
-      })
-    );
-    return true;
-  } catch (err) {
-    console.warn(
-      `[RestartOrchestrator] deliver failed for task ${snapshot.taskId}: ${getErrorMessage(err)}`
-    );
-    return false;
-  } finally {
-    if (!deliveredToHarness) {
-      ledger.releaseAttempt(snapshot.taskId as string);
-    }
-  }
 }
 
 async function deliverPendingTasks(
@@ -241,14 +166,9 @@ async function deliverPendingTasks(
 ): Promise<string[]> {
   const delivered: string[] = [];
   const snapshots = await listDeliverableSnapshots(deps, event);
-
-  for (const snapshot of snapshots) {
-    if (snapshot.status !== 'pending') continue;
-    const ok = await deliverOneTask(deps, event, snapshot);
-    if (ok) {
-      delivered.push(snapshot.taskId as string);
-    }
-  }
+  await deps.nativeDelivery.processSnapshots('restart', snapshots, ({ taskId }) => {
+    delivered.push(taskId);
+  });
 
   return delivered;
 }
@@ -264,23 +184,26 @@ export async function runRestartOrchestrator(
     resetRoleDeliveryState(chatroomId, role);
 
     await emitPhase(deps, event, 'reset');
-    await deps.agentMgr.stop({
-      chatroomId,
-      role,
-      reason: 'user.restart',
-    });
 
     await emitPhase(deps, event, 'spawn');
-    const spawnResult = await Effect.runPromise(
-      deps.agentMgr.ensureRunning({
-        chatroomId,
-        role,
-        agentHarness: event.agentHarness as AgentHarness,
-        model: event.model,
-        workingDir: event.workingDir,
-        reason: 'user.restart',
-        wantResume: event.wantResume,
-      })
+    const spawnResult = await deps.runSerializedForAgent(
+      { chatroomId, role },
+      { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
+      async (ops, context) => {
+        await ops.stopAgent({ chatroomId, role, reason: 'user.restart' }, context.signal);
+        return ops.startAgent(
+          {
+            chatroomId,
+            role,
+            agentHarness: event.agentHarness as AgentHarness,
+            model: event.model,
+            workingDir: event.workingDir,
+            reason: 'user.restart',
+            wantResume: event.wantResume,
+          },
+          context.signal
+        );
+      }
     );
 
     if (!spawnResult.success || !spawnResult.pid) {
@@ -289,8 +212,17 @@ export async function runRestartOrchestrator(
     }
 
     await emitPhase(deps, event, 'await_session');
-    const harnessSessionId = await waitForHarnessSessionId(deps, event, spawnResult.pid);
+    const harnessSessionId = await waitForHarnessSessionId(deps, event);
     if (!harnessSessionId) {
+      await deps.runSerializedForAgent(
+        { chatroomId, role },
+        { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
+        (ops, context) =>
+          ops.stopAgent(
+            { chatroomId, role, reason: 'user.restart', pid: spawnResult.pid },
+            context.signal
+          )
+      );
       await emitPhase(deps, event, 'failed', 'harnessSessionId timeout');
       return;
     }

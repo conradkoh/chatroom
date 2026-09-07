@@ -158,10 +158,19 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   taskInboxHandlers: () => Map<string, (update: never) => Promise<void>>;
 }> {
   const { Effect, Layer } = await import('effect');
-  const { AgentLifecycleOutboxService, DaemonAgentProcessManagerService, DaemonSessionService } =
-    await import('./daemon-services.js');
+  const {
+    AgentLifecycleOutboxService,
+    DaemonAgentProcessManagerCommandService,
+    DaemonAgentProcessManagerService,
+    DaemonSessionService,
+  } = await import('./daemon-services.js');
   const backendQuery = vi.fn().mockResolvedValue({ tasks: options.tasks ?? [] });
   const workspaceQuery = vi.fn().mockResolvedValue(options.workspaces ?? []);
+  const agentProcessManager = {
+    subscribeAgentTurnEnded: vi.fn(() => () => undefined),
+    subscribeAgentStarted: vi.fn(() => () => undefined),
+    subscribeAgentSessionLost: vi.fn(() => () => undefined),
+  };
   const session = {
     sessionId: 'session-1',
     machineId: 'machine-1',
@@ -174,7 +183,11 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   };
   const layers = Layer.mergeAll(
     Layer.succeed(DaemonSessionService, session as never),
-    Layer.succeed(DaemonAgentProcessManagerService, {} as never),
+    Layer.succeed(DaemonAgentProcessManagerService, agentProcessManager as never),
+    Layer.succeed(DaemonAgentProcessManagerCommandService, {
+      runSerializedForAgent: async (_key: never, operation: (ops: never) => Promise<unknown>) =>
+        operation({} as never),
+    } as never),
     Layer.succeed(AgentLifecycleOutboxService, {
       enqueue: () => Effect.succeed({ success: true }),
       stopAll: () => Effect.void,
@@ -204,6 +217,11 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
 }
 
 describe('bootstrapMachineAssignedTaskSnapshots', () => {
+  const makeNativeDelivery = (processSnapshots = vi.fn().mockResolvedValue(undefined)) => ({
+    taskSnapshotState: { replace: vi.fn() },
+    processSnapshots,
+  });
+
   it('delivers pending snapshots via processTasksUpdate on restart bootstrap', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const query = vi.fn().mockResolvedValue({
@@ -227,17 +245,14 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
         },
       ],
     });
+    const nativeDelivery = makeNativeDelivery();
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      runtime: {} as never,
-      effectContext: {} as never,
-      cooldown: {} as never,
-      agentMgr: {} as never,
-      machineId: 'machine-1',
+      nativeDelivery: nativeDelivery as never,
     });
     expect(mutation).toHaveBeenCalledTimes(2);
-    expect(processTasksUpdate).toHaveBeenCalledOnce();
-    expect(processTasksUpdate.mock.calls[0]?.[6]).toBe('bootstrap');
+    expect(nativeDelivery.processSnapshots).toHaveBeenCalledOnce();
+    expect(nativeDelivery.processSnapshots.mock.calls[0]?.[0]).toBe('bootstrap');
   });
 
   it('syncs and does not deliver when no snapshots exist', async () => {
@@ -245,11 +260,7 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     const query = vi.fn().mockResolvedValue({ tasks: [] });
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      runtime: undefined as never,
-      effectContext: undefined as never,
-      cooldown: undefined as never,
-      agentMgr: undefined as never,
-      machineId: 'machine-1',
+      nativeDelivery: makeNativeDelivery() as never,
     });
     expect(mutation).toHaveBeenCalledTimes(2);
     expect(query).toHaveBeenCalledOnce();
@@ -284,16 +295,13 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     onDiscoveredChatrooms.mockImplementation(async () => {
       order.push('discover');
     });
-    processTasksUpdate.mockImplementation(async () => {
+    const nativeDelivery = makeNativeDelivery();
+    nativeDelivery.processSnapshots.mockImplementation(async () => {
       order.push('deliver');
     });
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      runtime: {} as never,
-      effectContext: {} as never,
-      cooldown: {} as never,
-      agentMgr: {} as never,
-      machineId: 'machine-1',
+      nativeDelivery: nativeDelivery as never,
       onDiscoveredChatrooms,
     });
     expect(onDiscoveredChatrooms).toHaveBeenCalledWith(['room-1']);

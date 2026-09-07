@@ -47,14 +47,6 @@ export type HarnessWireEventKind =
   | 'sdk.claude.message'
   | 'sdk.codex.event';
 
-/** Crash recovery policy when a session monitor detects session-level failure at exit. */
-export interface HarnessCrashRecoveryPolicyConfig {
-  maxAttempts: number;
-  intervalMs: number;
-  resumeFirstAttempts: number;
-  recoveryReason: string;
-}
-
 /** Which lifecycle callbacks a harness implements on `SpawnResult`. */
 export interface HarnessLifecycleCapabilities {
   /** Maps to `SpawnResult.onAgentEnd` / `lifecycle.turn.completed`. */
@@ -68,21 +60,10 @@ export interface HarnessLifecycleCapabilities {
 export interface HarnessCapabilities {
   /** CLI subprocess vs in-process SDK (+ keeper PID). */
   runtimeKind: HarnessRuntimeKind;
-  /**
-   * Whether stop→start can reconnect via `resumeFromDaemonMemory` when `wantResume`
-   * is true and the daemon retained session metadata from the prior run.
-   */
-  supportsDaemonMemoryResume: boolean;
   /** Daemon injects tasks into session context — no get-next-task loop. */
   supportsNativeIntegration: boolean;
   /** Lifecycle events this harness surfaces at the integration boundary. */
   lifecycle: HarnessLifecycleCapabilities;
-  /** Per-harness crash recovery policy when session monitor detects session-level failure. */
-  crashRecovery?:
-    | {
-        onSessionFailure: HarnessCrashRecoveryPolicyConfig;
-      }
-    | undefined;
   /**
    * Wire/protocol events this harness may emit before adaptation.
    * SDK harnesses must not list any `cliOnly` kinds (enforced in types.test.ts).
