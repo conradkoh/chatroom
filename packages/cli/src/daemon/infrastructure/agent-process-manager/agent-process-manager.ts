@@ -69,10 +69,6 @@ import {
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import { notifyNativeHarnessSessionLostOnExit } from '../../entry/native-delivery/native-harness-session-exit.js';
 import {
-  getNativeTaskDeliveryCoordinator,
-  notifyNativeTurnIdle,
-} from '../../entry/native-delivery/native-task-delivery-coordinator.js';
-import {
   defaultNativeTurnPhase,
   setNativeTurnPhase,
   type NativeTurnPhase,
@@ -169,6 +165,13 @@ export type AgentTurnEndedHandler = (
   event: AgentTurnEndedEvent
 ) => Promise<'reminder_requested' | void>;
 
+export interface AgentStartedEvent {
+  readonly chatroomId: string;
+  readonly role: string;
+}
+
+export type AgentStartedHandler = (event: AgentStartedEvent) => Promise<void>;
+
 export interface AgentProcessManagerDeps {
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult> };
   logEvent: (event: Record<string, unknown>) => Promise<void>;
@@ -251,6 +254,7 @@ export class AgentProcessManager {
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
   private readonly agentTurnEndedHandlers = new Set<AgentTurnEndedHandler>();
   private agentTurnEndedSequence = 0;
+  private readonly agentStartedHandlers = new Set<AgentStartedHandler>();
   /** Shared per-agent serialization boundary for public and internal operations. */
   private readonly serializedOperationTails = new Map<string, Promise<void>>();
   /** Effect-native lifecycle service runtime (Phase 3). */
@@ -326,6 +330,11 @@ export class AgentProcessManager {
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void {
     this.agentTurnEndedHandlers.add(handler);
     return () => this.agentTurnEndedHandlers.delete(handler);
+  }
+
+  subscribeAgentStarted(handler: AgentStartedHandler): () => void {
+    this.agentStartedHandlers.add(handler);
+    return () => this.agentStartedHandlers.delete(handler);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -685,7 +694,6 @@ export class AgentProcessManager {
         return;
       }
       setNativeTurnPhase(slot, defaultNativeTurnPhase());
-      notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
       console.log(`[AgentProcessManager] ✅ Native agent_end completed for ${opts.role}`);
       return;
     }
@@ -1518,9 +1526,13 @@ export class AgentProcessManager {
     }
     await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
     if (getHarnessCapabilities(opts.agentHarness).supportsNativeIntegration) {
-      const coordinator = getNativeTaskDeliveryCoordinator();
-      coordinator.tryInjectNextForRole(opts.chatroomId, opts.role);
-      queueMicrotask(() => coordinator.tryInjectNextForRole(opts.chatroomId, opts.role));
+      for (const handler of this.agentStartedHandlers) {
+        void handler({ chatroomId: opts.chatroomId, role: opts.role }).catch((error: unknown) => {
+          console.warn(
+            `[AgentProcessManager] native delivery after start failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        });
+      }
     }
   }
 

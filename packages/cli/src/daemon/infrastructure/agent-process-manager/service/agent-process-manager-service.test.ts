@@ -30,6 +30,7 @@ function createExecution(events: string[]): AgentProcessManagerExecutionPort {
     whenTurnEndsIdle: vi.fn(async () => undefined),
     resumeTurnForSlot: vi.fn(async () => undefined),
     subscribeAgentTurnEnded: () => () => undefined,
+    subscribeAgentStarted: () => () => undefined,
   };
 }
 

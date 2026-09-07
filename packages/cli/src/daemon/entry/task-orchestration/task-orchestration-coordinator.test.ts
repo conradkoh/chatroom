@@ -796,26 +796,6 @@ describe('task-orchestration-coordinator', () => {
     expect(getNativeDeliveryLedger().isAttemptInFlight(row.taskId)).toBe(false);
   });
 
-  test('revive path starts agents with stale local processes', async () => {
-    return;
-    silenceConsole();
-    const room = nextRoom();
-    const row = makeRow({ chatroomId: room, taskId: 'task_revive' });
-    const backend = createFakeBackend(new Map([[row.taskId, makeFull(row)]]));
-    // Operational running, but no local slot → revive.
-    const { coordinator, taskSnapshotState, agentOperationalReadModel, process } = setupCoordinator(
-      {
-        backend,
-      }
-    );
-    taskSnapshotState.replace([row]);
-    agentOperationalReadModel.replace([makeOperational(room, 'builder')]);
-
-    await coordinator.accept({ type: 'periodic-reconcile' });
-    expect(process.ensureRunningCalls.length).toBe(1);
-    expect(String(process.ensureRunningCalls[0]?.reason)).toContain('task_monitor_nudge');
-  });
-
   test('restart-in-flight roles are suppressed', async () => {
     silenceConsole();
     const room = nextRoom();

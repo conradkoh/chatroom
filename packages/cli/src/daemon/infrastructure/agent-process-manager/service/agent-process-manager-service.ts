@@ -8,6 +8,7 @@ import type {
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type {
   AgentSlot,
+  AgentStartedHandler,
   AgentTurnEndedHandler,
 } from '../agent-process-manager.js';
 import type {
@@ -78,6 +79,7 @@ export interface AgentProcessManagerExecutionPort {
   whenTurnEndsIdle(): Promise<void>;
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
+  subscribeAgentStarted(handler: AgentStartedHandler): () => void;
 }
 
 export interface AgentProcessManagerService {
@@ -127,6 +129,7 @@ export interface AgentProcessManagerService {
   whenTurnEndsIdle(): Promise<void>;
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
+  subscribeAgentStarted(handler: AgentStartedHandler): () => void;
 }
 
 export interface AgentProcessManagerResetResult {
@@ -385,5 +388,6 @@ export function createAgentProcessManagerService(
     whenTurnEndsIdle: () => deps.execution.whenTurnEndsIdle(),
     resumeTurnForSlot: (input) => deps.execution.resumeTurnForSlot(input),
     subscribeAgentTurnEnded: (handler) => deps.execution.subscribeAgentTurnEnded(handler),
+    subscribeAgentStarted: (handler) => deps.execution.subscribeAgentStarted(handler),
   };
 }

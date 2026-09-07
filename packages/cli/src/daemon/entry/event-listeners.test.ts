@@ -69,6 +69,7 @@ function registerListeners(
         resumeTurnForSlot: (args) =>
           Effect.promise(() => init.agentProcessManager.resumeTurnForSlot(args)),
         subscribeAgentTurnEnded: () => () => undefined,
+        subscribeAgentStarted: () => () => undefined,
       })
     )
   );
