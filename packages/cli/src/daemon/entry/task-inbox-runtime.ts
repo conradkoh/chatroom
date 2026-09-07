@@ -199,6 +199,7 @@ export const startTaskInboxEffect = (
       machineId: session.machineId,
       taskSnapshotState,
       agentTaskState,
+      lifecycleOutbox,
     });
     const knownRoomIds = new Set<string>();
     const roomWatchers = new Map<
