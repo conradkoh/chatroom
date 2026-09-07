@@ -27,6 +27,7 @@
   - [x] Migrate `agent.requestStart` through the queue-backed process manager service.
   - [x] Migrate restart stop/start orchestration through one serialized agent operation.
   - [x] Coordinate role-scoped stop target execution through the process manager service.
+  - [x] Coordinate chatroom-scoped exact-target stops per agent key.
   - [ ] Migrate additional start, stop, restart, recovery, and shutdown callers.
   - [ ] Remove legacy direct lifecycle calls after each path is covered.
 

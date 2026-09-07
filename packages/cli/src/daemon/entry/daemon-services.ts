@@ -186,7 +186,15 @@ export const DaemonAgentProcessManagerServiceLive = (
     executeScopedStopForCommand: (args) =>
       Effect.promise(async () => {
         if (!sessionDeps) return { stoppedCount: 0, failedCount: 0 };
-        return executeScopedStopForCommand({ ...sessionDeps, apm: mgr, ...args });
+        return executeScopedStopForCommand({
+          ...sessionDeps,
+          apm: mgr,
+          runSerializedForAgent:
+            processManagerService?.runSerializedForAgent ??
+            (async (_key, _options, operation) =>
+              operation({} as never, { signal: new AbortController().signal })),
+          ...args,
+        });
       }),
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
@@ -250,6 +258,10 @@ export const DaemonAgentProcessManagerServiceLive = (
           scope: event.scope,
           reason: reason as AgentStopReason,
           inboxCommandId,
+          runSerializedForAgent:
+            processManagerService?.runSerializedForAgent ??
+            (async (_key, _options, operation) =>
+              operation({} as never, { signal: new AbortController().signal })),
         });
       }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
