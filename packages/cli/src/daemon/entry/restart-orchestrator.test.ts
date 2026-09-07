@@ -2,6 +2,10 @@ import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { runRestartOrchestrator } from './restart-orchestrator.js';
+import type {
+  EnsureRunningOpts,
+  StopOpts,
+} from '../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 
 vi.mock('../../api.js', () => ({
   api: {
@@ -16,7 +20,10 @@ vi.mock('../../api.js', () => ({
   },
 }));
 
-function createMockDeps(overrides?: { spawnSuccess?: boolean | undefined; harnessSessionId?: string | null | undefined }) {
+function createMockDeps(overrides?: {
+  spawnSuccess?: boolean | undefined;
+  harnessSessionId?: string | null | undefined;
+}) {
   const auditLog: Record<string, unknown>[] = [];
   const logEvent = vi.fn(async (event: Record<string, unknown>) => {
     auditLog.push(event);
@@ -26,7 +33,7 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean | undefined; harnes
     query: vi.fn(async () => ({ tasks: [] })),
   };
   const agentMgr = {
-    stop: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue({ success: true }),
     ensureRunning: vi.fn().mockReturnValue(
       Effect.succeed({
         success: overrides?.spawnSuccess ?? true,
@@ -55,6 +62,19 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean | undefined; harnes
         backend,
       },
       agentMgr,
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          {
+            stopAgent: async (input: StopOpts) => {
+              const result = await agentMgr.stop(input);
+              return result ?? { success: true };
+            },
+            startAgent: async (input: EnsureRunningOpts) =>
+              Effect.runPromise(agentMgr.ensureRunning(input)),
+          },
+          { signal: new AbortController().signal }
+        )
+      ),
     },
     auditLog,
     agentMgrMock: agentMgr,

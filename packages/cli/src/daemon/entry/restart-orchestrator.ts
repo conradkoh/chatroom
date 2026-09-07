@@ -11,7 +11,6 @@ import {
 } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
 import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-contract.js';
 import { Effect } from 'effect';
-
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 import type { AgentHarness } from './daemon-types.js';
@@ -95,7 +94,7 @@ function sleep(ms: number): Promise<void> {
 async function waitForHarnessSessionId(
   deps: RestartOrchestratorDeps,
   event: RestartOrchestratorEvent,
-  pid: number
+  _pid: number
 ): Promise<string | null> {
   const initial = deps.agentMgr.getSlot(event.chatroomId, event.role);
   if (initial?.harnessSessionId) {
@@ -110,13 +109,6 @@ async function waitForHarnessSessionId(
     }
     await sleep(100);
   }
-
-  await deps.agentMgr.stop({
-    chatroomId: event.chatroomId,
-    role: event.role,
-    reason: 'user.restart',
-    pid,
-  });
 
   return null;
 }
@@ -202,29 +194,27 @@ async function deliverOneTask(
 
   let deliveredToHarness = false;
   try {
-    await Effect.runPromise(
-      runNativeInjectionEffect(full, harnessSessionId, {
-        sessionId: deps.session.sessionId,
-        machineId: deps.session.machineId,
-        logEvent: deps.session.logEvent,
-        backend: deps.session.backend,
-        convexUrl: deps.session.convexUrl,
-        agentMgr: {
-          resumeTurnForSlot: async (args) => {
-            await Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args));
-          },
-          stop: (opts) => Effect.runPromise(deps.agentMgr.stop(opts)),
-          ensureRunning: (opts) => Effect.runPromise(deps.agentMgr.ensureRunning(opts)),
-          getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
+    await runNativeInjectionEffect(full, harnessSessionId, {
+      sessionId: deps.session.sessionId,
+      machineId: deps.session.machineId,
+      logEvent: deps.session.logEvent,
+      backend: deps.session.backend,
+      convexUrl: deps.session.convexUrl,
+      agentMgr: {
+        resumeTurnForSlot: async (args) => {
+          await Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args));
         },
-        runSerializedForAgent: deps.runSerializedForAgent,
-        onTaskDelivered: ({ chatroomId, role, taskId, harnessSessionId: resolvedSessionId }) => {
-          deliveredToHarness = true;
-          ledger.markDelivered(taskId, resolvedSessionId);
-          void deps.agentMgr.setLastInFlightTask(chatroomId, role, taskId);
-        },
-      })
-    );
+        stop: (opts) => Effect.runPromise(deps.agentMgr.stop(opts)),
+        ensureRunning: (opts) => Effect.runPromise(deps.agentMgr.ensureRunning(opts)),
+        getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
+      },
+      runSerializedForAgent: deps.runSerializedForAgent,
+      onTaskDelivered: ({ chatroomId, role, taskId, harnessSessionId: resolvedSessionId }) => {
+        deliveredToHarness = true;
+        ledger.markDelivered(taskId, resolvedSessionId);
+        void deps.agentMgr.setLastInFlightTask(chatroomId, role, taskId);
+      },
+    });
     return true;
   } catch (err) {
     console.warn(
@@ -267,23 +257,26 @@ export async function runRestartOrchestrator(
     resetRoleDeliveryState(chatroomId, role);
 
     await emitPhase(deps, event, 'reset');
-    await deps.agentMgr.stop({
-      chatroomId,
-      role,
-      reason: 'user.restart',
-    });
 
     await emitPhase(deps, event, 'spawn');
-    const spawnResult = await Effect.runPromise(
-      deps.agentMgr.ensureRunning({
-        chatroomId,
-        role,
-        agentHarness: event.agentHarness as AgentHarness,
-        model: event.model,
-        workingDir: event.workingDir,
-        reason: 'user.restart',
-        wantResume: event.wantResume,
-      })
+    const spawnResult = await deps.runSerializedForAgent(
+      { chatroomId, role },
+      { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
+      async (ops, context) => {
+        await ops.stopAgent({ chatroomId, role, reason: 'user.restart' }, context.signal);
+        return ops.startAgent(
+          {
+            chatroomId,
+            role,
+            agentHarness: event.agentHarness as AgentHarness,
+            model: event.model,
+            workingDir: event.workingDir,
+            reason: 'user.restart',
+            wantResume: event.wantResume,
+          },
+          context.signal
+        );
+      }
     );
 
     if (!spawnResult.success || !spawnResult.pid) {
@@ -294,6 +287,15 @@ export async function runRestartOrchestrator(
     await emitPhase(deps, event, 'await_session');
     const harnessSessionId = await waitForHarnessSessionId(deps, event, spawnResult.pid);
     if (!harnessSessionId) {
+      await deps.runSerializedForAgent(
+        { chatroomId, role },
+        { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
+        (ops, context) =>
+          ops.stopAgent(
+            { chatroomId, role, reason: 'user.restart', pid: spawnResult.pid },
+            context.signal
+          )
+      );
       await emitPhase(deps, event, 'failed', 'harnessSessionId timeout');
       return;
     }

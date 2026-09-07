@@ -60,8 +60,8 @@ export function registerTestNativeDeliverySession(
       (async (_key, _options, operation) =>
         operation(
           {
-            startAgent: async () => undefined,
-            stopAgent: async () => undefined,
+            startAgent: async () => ({ success: true }),
+            stopAgent: async () => ({ success: true }),
           },
           { signal: new AbortController().signal }
         )),

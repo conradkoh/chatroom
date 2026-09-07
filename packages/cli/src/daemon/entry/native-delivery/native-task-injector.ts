@@ -17,13 +17,13 @@ import {
   buildActivityLifecycleFact,
   type AgentLifecycleFact,
 } from '../../domain/entities/agent-lifecycle-fact.js';
-import type { StopReason } from '../../domain/entities/stop-reason.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
 } from '../../infrastructure/agent-process-manager/service/index.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
+import type { StopReason } from '../../domain/entities/stop-reason.js';
 import type { AgentHarness } from '../daemon-types.js';
 
 export interface NativeInjectorAgentMgr {

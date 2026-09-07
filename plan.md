@@ -25,6 +25,7 @@
   - [x] Remove compatibility fallbacks and verify competing legacy-path behavior.
   - [x] Migrate native pending-task wake and revive start operations through serialized coordination.
   - [x] Migrate `agent.requestStart` through the queue-backed process manager service.
+  - [x] Migrate restart stop/start orchestration through one serialized agent operation.
   - [ ] Migrate additional start, stop, restart, recovery, and shutdown callers.
   - [ ] Remove legacy direct lifecycle calls after each path is covered.
 

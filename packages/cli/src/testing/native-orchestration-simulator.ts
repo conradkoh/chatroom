@@ -124,11 +124,13 @@ export class NativeOrchestrationSimulator {
                 if (signal.aborted) throw signal.reason;
                 const result = await this.harness.ensureRunning(input as never);
                 if (!result.success) throw new Error('start failed');
+                return result;
               },
               stopAgent: async (input, signal) => {
                 if (signal.aborted) throw signal.reason;
                 const result = await this.harness.stop(input);
                 if (!result.success) throw new Error('stop failed');
+                return result;
               },
             },
             { signal: new AbortController().signal }

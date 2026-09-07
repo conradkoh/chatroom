@@ -31,8 +31,8 @@ export interface AgentKey {
 }
 
 export interface SerializedAgentOperations {
-  startAgent(input: EnsureRunningOpts, signal: AbortSignal): Promise<void>;
-  stopAgent(input: StopOpts, signal: AbortSignal): Promise<void>;
+  startAgent(input: EnsureRunningOpts, signal: AbortSignal): Promise<OperationResult>;
+  stopAgent(input: StopOpts, signal: AbortSignal): Promise<{ success: boolean }>;
 }
 
 export interface SerializedAgentOperationOptions {
@@ -215,11 +215,15 @@ export function createAgentProcessManagerService(
         {
           startAgent: async (input, signal) => {
             if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
-            assertStartSucceeded(await deps.execution.ensureRunning(input));
+            const result = await deps.execution.ensureRunning(input);
+            assertStartSucceeded(result);
+            return result;
           },
           stopAgent: async (input, signal) => {
             if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
-            assertStopSucceeded(await deps.execution.stop(input));
+            const result = await deps.execution.stop(input);
+            assertStopSucceeded(result);
+            return result;
           },
         },
         { signal: controller.signal }
