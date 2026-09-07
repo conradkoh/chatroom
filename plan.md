@@ -86,6 +86,7 @@
   - [x] Retain explicit task injection and lifecycle operations.
   - [x] Delete daemon-memory session retention/resume helpers and native session-loss recovery gating.
   - [ ] Delete remaining provider-specific resume/reconnect adapter implementations and tests.
+  - [x] Delete the unused session-monitor recovery registry and no-op monitor.
 - [x] Phase 6 — Remove orphaned recovery artifacts.
   - [x] Remove recovery-only session policies, restart decisions, session-reopen constants, monitors, and tests after production callers are gone.
   - [x] Update comments, READMEs, discovery documentation, and plan status.
