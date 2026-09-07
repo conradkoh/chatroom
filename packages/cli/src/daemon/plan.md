@@ -98,7 +98,7 @@ introduced.
 - [x] Add focused tests for state transitions, duplicate events, stale
       generations, and missing active tasks.
 - [ ] Add integration tests for handoff/turn-end races and reminder failures.
-- [ ] Update the native delivery documentation and run focused CLI tests plus
+- [x] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
 
 ### Native delivery service boundary
@@ -113,12 +113,12 @@ introduced.
 - [x] Extend the service boundary to bootstrap, periodic reconciliation, and
       operational updates.
 - [ ] Extend the service boundary to restart delivery paths.
-- [ ] Make `handleTaskInboxUpdate` consume required dependencies directly and
+- [x] Make `handleTaskInboxUpdate` consume required dependencies directly and
       remove its remaining compatibility branch and session-registry fallbacks.
 - [x] Move production task-state transition calls behind the service API and
       remove the registry-level `recordNativeTaskDelivered` and
       `recordNativeTaskHandedOff` helpers.
-- [ ] Remove the module-level native-delivery session singleton after all
+- [x] Remove the module-level native-delivery session singleton after all
       callers use the constructed service.
 
 ---
