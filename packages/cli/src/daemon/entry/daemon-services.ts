@@ -143,7 +143,6 @@ export interface DaemonAgentProcessManagerServiceShape {
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
-  recover: () => Effect.Effect<void>;
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
   getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
   listActive: () => { chatroomId: string; role: string; slot: AgentSlot }[];
@@ -267,7 +266,6 @@ export const DaemonAgentProcessManagerServiceLive = (
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),
-    recover: () => Effect.promise(() => mgr.recover()),
     getSlot: (chatroomId, role) => mgr.getSlot(chatroomId, role),
     listActive: () => mgr.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>

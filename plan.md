@@ -72,9 +72,9 @@
 - [x] Phase 2 — Remove the explicit `recover` command from the queue-backed service.
   - [x] Remove the command entity, dispatcher branch, service API, execution-port method, and service tests.
   - [x] Keep explicit lifecycle commands as the only queue-managed operations.
-- [ ] Phase 3 — Remove daemon-startup state recovery.
-  - [ ] Remove the startup recovery handler, bridge, use case, initialization call, and recovery-specific tests.
-  - [ ] Ensure daemon startup begins with no recovered agents; shutdown/reset clears managed state instead.
+- [x] Phase 3 — Remove daemon-startup state recovery.
+  - [x] Remove the startup recovery handler, bridge, use case, initialization call, and recovery-specific tests.
+  - [x] Ensure daemon startup begins with no recovered agents; shutdown/reset clears managed state instead.
 - [ ] Phase 4 — Remove recovery-specific task delivery and orchestration.
   - [ ] Remove wake/revive recovery sequencing, recovery suppression, retry loops, and recovery-only cooldown behavior.
   - [ ] Retain normal pending-task delivery when explicitly requested.

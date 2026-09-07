@@ -21,7 +21,6 @@ function layer(runInboxScopedStop: ReturnType<typeof vi.fn>) {
     ensureRunning: vi.fn(),
     stop: vi.fn(),
     handleExit: vi.fn(),
-    recover: vi.fn(),
     getSlot: vi.fn(),
     listActive: () => [],
     clearStuckStoppingSlot: vi.fn(),

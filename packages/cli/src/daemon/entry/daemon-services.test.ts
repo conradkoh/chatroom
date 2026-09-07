@@ -127,34 +127,11 @@ describe('DaemonSpawningService', () => {
 // ---------------------------------------------------------------------------
 
 describe('DaemonAgentProcessManagerService', () => {
-  it('recover() completes without error', async () => {
-    const mockMgr = {
-      ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 1 }),
-      stop: vi.fn().mockResolvedValue({ success: true }),
-      handleExit: vi.fn().mockResolvedValue(undefined),
-      recover: vi.fn().mockResolvedValue(undefined),
-      getSlot: vi.fn().mockReturnValue(undefined),
-      listActive: vi.fn().mockReturnValue([]),
-      clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
-    } as any;
-
-    const layer = DaemonAgentProcessManagerServiceLive(mockMgr);
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const svc = yield* DaemonAgentProcessManagerService;
-        yield* svc.recover();
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(mockMgr.recover).toHaveBeenCalledOnce();
-  });
-
   it('getSlot returns undefined for unknown agent', () => {
     const mockMgr = {
       ensureRunning: vi.fn(),
       stop: vi.fn(),
       handleExit: vi.fn(),
-      recover: vi.fn(),
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),

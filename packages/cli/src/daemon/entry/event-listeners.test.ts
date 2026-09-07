@@ -15,7 +15,6 @@ function createTestInit() {
     ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
     stop: vi.fn().mockResolvedValue({ success: true }),
     handleExit: vi.fn().mockResolvedValue(undefined),
-    recover: vi.fn().mockResolvedValue(undefined),
     getSlot: vi.fn().mockReturnValue(undefined),
     listActive: vi.fn().mockReturnValue([]),
     clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
@@ -58,7 +57,6 @@ function registerListeners(
         handleExit: (opts) => Effect.sync(() => init.agentProcessManager.handleExit(opts)),
         ensureRunning: (opts) => Effect.promise(() => init.agentProcessManager.ensureRunning(opts)),
         stop: (opts) => Effect.promise(() => init.agentProcessManager.stop(opts)),
-        recover: () => Effect.promise(() => init.agentProcessManager.recover()),
         getSlot: (chatroomId, role) => init.agentProcessManager.getSlot(chatroomId, role),
         listActive: () => init.agentProcessManager.listActive(),
         clearStuckStoppingSlot: (chatroomId, role) =>

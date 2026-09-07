@@ -1,5 +1,5 @@
 /**
- * Daemon Initialization — validates auth, connects to Convex, recovers state.
+ * Daemon Initialization — validates auth and connects to Convex.
  */
 
 import { stat } from 'node:fs/promises';
@@ -27,7 +27,6 @@ import {
 import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
-import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
@@ -472,19 +471,8 @@ const connectDaemonEffect = (
     })
   );
 
-const recoverStateEffect = (init: DaemonSessionInit): Effect.Effect<void, never, never> =>
+const cleanPreviousDaemonStateEffect = (init: DaemonSessionInit): Effect.Effect<void, never, never> =>
   Effect.gen(function* () {
-    console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
-
-    yield* Effect.catchAllCause(
-      recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init))),
-      (cause) =>
-        Effect.sync(() => {
-          console.log(`   ⚠️  Recovery failed: ${getErrorMessage(Cause.squash(cause))}`);
-          console.log(`   Continuing with fresh state`);
-        })
-    );
-
     yield* Effect.catchAllCause(
       Effect.gen(function* () {
         const clearedCount = yield* clearStaleSpawnedPidsEffect().pipe(
@@ -600,7 +588,7 @@ const connectWithRetryEffect = (
 // ─── Initialization ─────────────────────────────────────────────────────────
 
 /**
- * Initialize the daemon: validate auth, connect to Convex, recover state.
+ * Initialize the daemon: validate auth and connect to Convex.
  * Retries with a fixed 1-second interval on network errors.
  * Returns the DaemonSessionInit if successful, or exits the process on fatal failure.
  */
@@ -656,10 +644,8 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
 
     yield* registerEventListenersEffect().pipe(Effect.provide(daemonSessionToLayers(init)));
     yield* logStartupEffect(cachedModels).pipe(Effect.provide(daemonSessionToLayers(init)));
-    // Recovery submits through the queue-backed process-manager service, so
-    // its consumer must be running before the recovery command is awaited.
     init.agentProcessManagerService.startProcessing();
-    yield* recoverStateEffect(init);
+    yield* cleanPreviousDaemonStateEffect(init);
 
     return init;
   }

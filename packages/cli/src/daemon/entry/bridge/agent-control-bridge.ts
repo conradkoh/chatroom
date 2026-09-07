@@ -2,7 +2,6 @@ import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
-import type { RecoverAgentStateDeps } from '../../domain/usecase/recover-agent-state.js';
 import type { RestartAgentDeps } from '../../domain/usecase/restart-agent.js';
 import type { StartAgentDeps } from '../../domain/usecase/start-agent.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
@@ -104,47 +103,6 @@ export function createRestartAgentDeps(
             wantResume: input.wantResume,
           }
         ),
-    },
-  };
-}
-
-export function createRecoverAgentStateDeps(
-  processManagerService: AgentProcessManagerService,
-  session: DaemonSessionServiceShape
-): RecoverAgentStateDeps {
-  return {
-    agentProcessManager: {
-      recover: async () => {
-        await processManagerService.recoverAgents();
-      },
-      listActive: () =>
-        processManagerService.listActive().map((slot) => ({
-          chatroomId: slot.chatroomId,
-          role: slot.role,
-        })),
-    },
-    backend: {
-      getMachineAgentConfigs: async (chatroomId) =>
-        session.backend.query(api.machines.getMachineAgentConfigs, {
-          sessionId: session.sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        }) as Promise<{
-          configs: { machineId: string; workingDir?: string | undefined; role: string }[];
-        }>,
-      registerWorkspace: async (args) =>
-        session.backend.mutation(api.workspaces.registerWorkspace, {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-          chatroomId: args.chatroomId as Id<'chatroom_rooms'>,
-          workingDir: args.workingDir,
-          hostname: session.config?.hostname ?? 'unknown',
-          registeredBy: args.registeredBy,
-        }),
-    },
-    session: {
-      sessionId: session.sessionId,
-      machineId: session.machineId,
-      hostname: session.config?.hostname ?? 'unknown',
     },
   };
 }
