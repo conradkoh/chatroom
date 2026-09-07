@@ -36,6 +36,7 @@ import type {
   AgentLifecycleOutboxRegistry,
   AgentLifecycleOutboxResult,
 } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
+import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 
 export interface AgentLifecycleOutboxServiceShape {
   enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
@@ -252,6 +253,20 @@ export const DaemonAgentProcessManagerServiceLive = (
     reconcileNativeTurnPhaseIdle: (chatroomId, role) =>
       Effect.sync(() => mgr.reconcileNativeTurnPhaseIdle(chatroomId, role)),
   });
+
+/**
+ * Transitional Effect boundary for the queue-backed process manager service.
+ * Existing callers continue using DaemonAgentProcessManagerService until they
+ * are migrated to this interface.
+ */
+export class DaemonAgentProcessManagerCommandService extends Context.Tag(
+  'DaemonAgentProcessManagerCommandService'
+)<DaemonAgentProcessManagerCommandService, AgentProcessManagerService>() {}
+
+export const DaemonAgentProcessManagerCommandServiceLive = (
+  service: AgentProcessManagerService
+): Layer.Layer<DaemonAgentProcessManagerCommandService> =>
+  Layer.succeed(DaemonAgentProcessManagerCommandService, service);
 
 // ─── DaemonSessionService ────────────────────────────────────────────────────
 

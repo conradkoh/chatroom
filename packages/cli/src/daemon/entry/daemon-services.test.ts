@@ -16,6 +16,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
 import {
+  DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerServiceLive,
   DaemonMachineService,
@@ -272,6 +273,25 @@ describe('DaemonSessionService', () => {
 // ---------------------------------------------------------------------------
 
 describe('daemonSessionToLayers', () => {
+  it('exposes the queue-backed agent process manager service', async () => {
+    const deps = createMockDaemonDeps();
+    const init = createMockDaemonSessionInit({
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
+    });
+
+    const service = await Effect.runPromise(
+      Effect.gen(function* () {
+        return yield* DaemonAgentProcessManagerCommandService;
+      }).pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    expect(service).toBe(init.agentProcessManagerService);
+  });
+
   it('builds a layer that provides DaemonSessionService with init identity fields', async () => {
     const deps = createMockDaemonDeps();
     const init = createMockDaemonSessionInit({

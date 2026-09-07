@@ -8,6 +8,7 @@ import { Layer } from 'effect';
 
 import {
   DaemonAgentProcessManagerServiceLive,
+  DaemonAgentProcessManagerCommandServiceLive,
   DaemonMachineServiceLive,
   AgentLifecycleOutboxServiceLive,
   DaemonMutableStateServiceLive,
@@ -51,6 +52,7 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
       machineId: init.machineId,
       backend: init.backend,
     }),
+    DaemonAgentProcessManagerCommandServiceLive(init.agentProcessManagerService),
     DaemonMutableStateServiceLive({
       lastPushedGitState: init.lastPushedGitState,
       lastPushedModels: init.lastPushedModels,
