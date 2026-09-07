@@ -178,6 +178,7 @@ describe('user message pending delivery path', () => {
       machineId: MACHINE_ID,
       lifecycleOutbox,
       operationalModel,
+      isTaskActive: () => false,
     });
 
     await vi.waitFor(() => {
@@ -248,6 +249,7 @@ describe('user message pending delivery path', () => {
       machineId: MACHINE_ID,
       lifecycleOutbox,
       operationalModel,
+      isTaskActive: () => false,
     });
 
     await new Promise((r) => setTimeout(r, 50));
@@ -290,6 +292,7 @@ describe('user message pending delivery path', () => {
       machineId: MACHINE_ID,
       lifecycleOutbox,
       operationalModel,
+      isTaskActive: () => false,
     });
 
     await new Promise((r) => setTimeout(r, 50));
@@ -335,6 +338,7 @@ describe('user message pending delivery path', () => {
       machineId: MACHINE_ID,
       lifecycleOutbox,
       operationalModel,
+      isTaskActive: () => false,
     });
 
     await new Promise((r) => setTimeout(r, 50));

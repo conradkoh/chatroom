@@ -17,7 +17,6 @@ import type { AgentOperationalReadModel } from '../../infrastructure/agent-opera
 import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 export type NativeDeliveryPass =
@@ -69,9 +68,7 @@ export class NativeDeliveryService {
 
   handleAgentSessionLost(event: AgentSessionLostEvent): void {
     getRoleDeliveryState().resetDeliveryState(event.chatroomId, event.role);
-    if (event.harnessSessionId) {
-      getNativeDeliveryLedger().clearSession(event.harnessSessionId);
-    }
+    this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
   }
 
   async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<'reminder_requested' | void> {
@@ -163,6 +160,8 @@ export class NativeDeliveryService {
       pass,
       this.deps.lifecycleOutbox,
       this.deps.agentOperationalReadModel,
+      ({ chatroomId, role, taskId }) =>
+        this.deps.agentTaskState.get({ chatroomId, role })?.taskId === taskId,
       {
         snapshots,
         onTaskDelivered: ({ chatroomId, role, taskId }) =>

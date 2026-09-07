@@ -10,12 +10,7 @@ import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entit
 import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import {
-  getNativeDeliveryLedger,
-  resetNativeDeliveryLedgerForTests,
-} from './native-delivery-ledger.js';
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
-import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
 import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
@@ -24,10 +19,6 @@ const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';
 const CHATROOM_ID = 'room_dup';
 const ROLE = 'planner';
-
-afterEach(() => {
-  resetNativeDeliveryLedgerForTests();
-});
 
 function makeAcknowledgedRow() {
   return {
@@ -67,17 +58,7 @@ function makeAgentMgr(resumeTurnForSlot: ReturnType<typeof vi.fn>) {
 
 describe('native duplicate task injection', () => {
   afterEach(() => {
-    resetNativeDeliveryLedgerForTests();
     vi.restoreAllMocks();
-  });
-
-  test('explainLedgerDeliveryBlock blocks after markDelivered', () => {
-    const ledger = getNativeDeliveryLedger();
-    expect(explainLedgerDeliveryBlock(TASK_ID, HARNESS_SESSION_ID, ledger)).toBeNull();
-    ledger.markDelivered(TASK_ID, HARNESS_SESSION_ID);
-    expect(explainLedgerDeliveryBlock(TASK_ID, HARNESS_SESSION_ID, ledger)).toBe(
-      'already_delivered_this_session'
-    );
   });
 
   test('second reconcile pass skips already-delivered task in same harness session', async () => {
@@ -96,6 +77,7 @@ describe('native duplicate task injection', () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const operationalModel = new AgentOperationalReadModel();
     operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
+    const activeTaskIds = new Set<string>();
 
     const reconcileParams = {
       tasks: [row],
@@ -121,11 +103,13 @@ describe('native duplicate task injection', () => {
       machineId: 'machine_dup',
       lifecycleOutbox: { enqueue: async () => undefined },
       operationalModel,
+      isTaskActive: ({ taskId }: { taskId: string }) => activeTaskIds.has(taskId),
+      onTaskDelivered: ({ taskId }: { taskId: string }) => activeTaskIds.add(taskId),
     };
 
     coordinator.reconcileAssignedTasks(reconcileParams);
     await vi.waitFor(() => {
-      expect(getNativeDeliveryLedger().isDelivered(TASK_ID, HARNESS_SESSION_ID)).toBe(true);
+      expect(activeTaskIds.has(TASK_ID)).toBe(true);
     });
 
     resumeTurnForSlot.mockClear();
@@ -136,7 +120,7 @@ describe('native duplicate task injection', () => {
 
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
-      `[NativeDelivery:skip] ${ROLE}@${CHATROOM_ID} task ${TASK_ID} — already_delivered_this_session`
+      `[NativeDelivery:skip] ${ROLE}@${CHATROOM_ID} task ${TASK_ID} — task_state_active`
     );
   });
 

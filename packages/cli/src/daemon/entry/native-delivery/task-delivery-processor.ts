@@ -125,6 +125,7 @@ export async function processTasksUpdate(
   pass: TaskDeliveryPass,
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> },
   operationalModel: AgentOperationalReadModel,
+  isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean,
   options: ProcessTasksUpdateOptions
 ): Promise<void> {
   const filteredTasks = filterSnapshotsExcludingRestartInFlight([...options.snapshots]);
@@ -143,6 +144,7 @@ export async function processTasksUpdate(
     sessionDeps,
     lifecycleOutbox,
     operationalModel,
+    isTaskActive,
     machineId,
     onTaskDelivered: options.onTaskDelivered,
   });

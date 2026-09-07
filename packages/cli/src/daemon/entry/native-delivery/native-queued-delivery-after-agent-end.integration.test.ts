@@ -120,6 +120,7 @@ describe('native queued delivery after agent_end', () => {
       machineId: MACHINE_ID,
       lifecycleOutbox: { enqueue: async () => undefined },
       operationalModel: new AgentOperationalReadModel(),
+      isTaskActive: () => false,
     });
 
     await vi.waitFor(() => {

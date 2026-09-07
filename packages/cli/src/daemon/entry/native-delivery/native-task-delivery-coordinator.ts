@@ -1,13 +1,11 @@
 import { Effect, Runtime, type Context } from 'effect';
 
-import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   logNativeDeliveryInjecting,
   logNativeDeliveryMutexSkip,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import {
-  explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
 } from './native-task-injector-logic.js';
 import {
@@ -70,6 +68,7 @@ export class NativeTaskDeliveryCoordinator {
       ) => Promise<unknown>;
     };
     operationalModel: AgentOperationalReadModel;
+    isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean;
     machineId: string;
     onTaskDelivered?:
       | ((args: {
@@ -90,11 +89,11 @@ export class NativeTaskDeliveryCoordinator {
       sessionDeps,
       lifecycleOutbox,
       operationalModel,
+      isTaskActive,
       machineId,
       onTaskDelivered,
     } = params;
     const deliveryState = getRoleDeliveryState();
-    const ledger = getNativeDeliveryLedger();
 
     const pendingFirst = [...tasks].sort((a, b) => {
       if (a.status === 'pending' && b.status !== 'pending') return -1;
@@ -116,36 +115,22 @@ export class NativeTaskDeliveryCoordinator {
         continue;
       }
 
+      if (isTaskActive({ chatroomId: row.chatroomId, role, taskId: row.taskId as string })) {
+        logNativeDeliverySkip(role, row.chatroomId, row.taskId, 'task_state_active');
+        continue;
+      }
+
       // Absent harness id is represented as absent (never a pretend
       // session). Cold policy creates a real session inside the injector;
       // continue policy without a session fails before receipt/injection.
       const harnessSessionId = slot?.harnessSessionId;
 
-      const ledgerBlock = explainLedgerDeliveryBlock(row.taskId, harnessSessionId, ledger);
-      if (ledgerBlock) {
-        logNativeDeliverySkip(role, row.chatroomId, row.taskId, ledgerBlock);
-        continue;
-      }
-      if (!ledger.tryAcquire(row.taskId, harnessSessionId)) {
-        logNativeDeliverySkip(
-          role,
-          row.chatroomId,
-          row.taskId,
-          'delivery_ledger_busy (duplicate inject in flight)'
-        );
-        continue;
-      }
-
       if (!deliveryState.tryAcquireDelivery(row.chatroomId, role)) {
-        ledger.releaseAttempt(row.taskId);
         logNativeDeliveryMutexSkip(role, row.chatroomId, row.taskId);
         continue;
       }
 
       logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
-
-      const taskId = row.taskId;
-      let deliveredToHarness = false;
 
       Runtime.runFork(runtime)(
         Effect.gen(function* () {
@@ -184,8 +169,6 @@ export class NativeTaskDeliveryCoordinator {
               taskId: deliveredTaskId,
               harnessSessionId: resolvedSessionId,
             }) => {
-              deliveredToHarness = true;
-              ledger.markDelivered(deliveredTaskId, resolvedSessionId);
               onTaskDelivered?.({
                 chatroomId,
                 role,
@@ -207,12 +190,6 @@ export class NativeTaskDeliveryCoordinator {
           Effect.ensuring(
             Effect.sync(() => {
               deliveryState.releaseDelivery(row.chatroomId, row.agentConfig.role);
-              // Finalizer always releases the attempt, including success
-              // (markDelivered already released), missing hydrate/outbox,
-              // claim/start/prompt failure, and interruption.
-              if (!deliveredToHarness) {
-                ledger.releaseAttempt(taskId);
-              }
             })
           )
         )
