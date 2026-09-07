@@ -13,11 +13,6 @@ export interface StartAgentInput {
   lifecycleRevision?: number | undefined;
 }
 
-export interface EnsureRunningResult {
-  success: boolean;
-  error?: string | undefined;
-}
-
 export interface AgentProcessManagerPort {
   startAgent(args: {
     chatroomId: string;

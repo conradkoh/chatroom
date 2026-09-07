@@ -327,8 +327,6 @@ export function createTaskOrchestrationCoordinator(
   function buildInjectorAgentMgr(): NativeInjectorAgentMgr {
     return {
       resumeTurnForSlot: (args) => runPort(deps.process.resumeTurnForSlot(args)),
-      stop: (opts) => runPort(deps.process.stop(opts)),
-      ensureRunning: (opts) => runPort(deps.process.ensureRunning(opts)),
       getSlot: (chatroomId, role) => deps.process.getSlot(chatroomId, role),
     };
   }

@@ -36,24 +36,14 @@ function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTas
 function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps {
   const agentMgr: NativeInjectorDeps['agentMgr'] = {
     resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
-    stop: vi.fn().mockResolvedValue({ success: true }),
-    ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 99_001 }),
     getSlot: vi.fn().mockReturnValue({ state: 'running', harnessSessionId: 'sess_after_cold' }),
   };
   const runSerializedForAgent: NativeInjectorDeps['runSerializedForAgent'] = vi.fn(
     async (_key, _options, operation) =>
       operation(
         {
-          startAgent: async (
-            input: Parameters<NativeInjectorDeps['agentMgr']['ensureRunning']>[0]
-          ) => {
-            const result = await agentMgr.ensureRunning(input);
-            if (!result.success) throw new Error('start failed');
-          },
-          stopAgent: async (input: Parameters<NativeInjectorDeps['agentMgr']['stop']>[0]) => {
-            const result = await agentMgr.stop(input);
-            if (!result.success) throw new Error('stop failed');
-          },
+          startAgent: async () => undefined,
+          stopAgent: async () => undefined,
         },
         { signal: new AbortController().signal }
       )
@@ -78,7 +68,7 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     const result = await ensureColdSessionBeforeNativeInject(makeTask(), deps);
 
     expect(result).toBeNull();
-    expect(deps.agentMgr.stop).not.toHaveBeenCalled();
+    expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
     expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
@@ -97,19 +87,7 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     const result = await ensureColdSessionBeforeNativeInject(task, deps);
 
     expect(result).toBe('sess_after_cold');
-    expect(deps.agentMgr.stop).toHaveBeenCalledWith({
-      chatroomId: 'room_1',
-      role: 'planner',
-      reason: 'platform.task_start_in_new_session',
-    });
-    expect(deps.agentMgr.ensureRunning).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chatroomId: 'room_1',
-        role: 'planner',
-        wantResume: false,
-        reason: 'platform.task_start_in_new_session',
-      })
-    );
+    expect(deps.runSerializedForAgent).toHaveBeenCalledOnce();
 
     const waitingJoin = mutationCalls.find((call) => call.args.action === NATIVE_WAITING_ACTION);
     expect(waitingJoin?.args).toMatchObject({
@@ -130,19 +108,11 @@ describe('ensureColdSessionBeforeNativeInject', () => {
   });
 
   test('does not bypass the serialized lifecycle capability', async () => {
-    const legacyStop = vi.fn(() => {
-      throw new Error('legacy stop must not be called');
-    });
-    const legacyStart = vi.fn(() => {
-      throw new Error('legacy start must not be called');
-    });
     const serializedStop = vi.fn().mockResolvedValue(undefined);
     const serializedStart = vi.fn().mockResolvedValue(undefined);
     const deps = createDeps({
       agentMgr: {
         ...createDeps().agentMgr,
-        stop: legacyStop,
-        ensureRunning: legacyStart,
       },
       runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
         operation(
@@ -156,8 +126,6 @@ describe('ensureColdSessionBeforeNativeInject', () => {
       ensureColdSessionBeforeNativeInject(makeTask({ startInNewSession: true }), deps)
     ).resolves.toBe('sess_after_cold');
 
-    expect(legacyStop).not.toHaveBeenCalled();
-    expect(legacyStart).not.toHaveBeenCalled();
     expect(serializedStop).toHaveBeenCalledOnce();
     expect(serializedStart).toHaveBeenCalledOnce();
   });
@@ -166,7 +134,6 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     const deps = createDeps({
       agentMgr: {
         ...createDeps().agentMgr,
-        ensureRunning: vi.fn().mockResolvedValue({ success: false }),
       },
       runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
         operation(
@@ -200,14 +167,7 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     const result = await ensureColdSessionBeforeNativeInject(task, deps);
 
     expect(result).toBe('sess_after_cold');
-    expect(deps.agentMgr.stop).toHaveBeenCalledWith({
-      chatroomId: 'room_1',
-      role: 'planner',
-      reason: 'platform.task_start_in_new_session',
-    });
-    expect(deps.agentMgr.ensureRunning).toHaveBeenCalledWith(
-      expect.objectContaining({ wantResume: false, reason: 'platform.task_start_in_new_session' })
-    );
+    expect(deps.runSerializedForAgent).toHaveBeenCalledOnce();
   });
 
   test('explicit envelope continue plus stale scalar true does not cold-restart', async () => {
@@ -220,7 +180,7 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     const result = await ensureColdSessionBeforeNativeInject(task, deps);
 
     expect(result).toBeNull();
-    expect(deps.agentMgr.stop).not.toHaveBeenCalled();
+    expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
     expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 });

@@ -93,10 +93,10 @@
 
 ## Cleanup
 
-- [ ] Remove the unused `EnsureRunningResult` type from the start use case.
+- [x] Remove the unused `EnsureRunningResult` type from the start use case.
 - [ ] Remove the unused restart session-wait PID parameter.
-- [ ] Remove `NativeInjectorAgentMgr.stop()` and `.ensureRunning()` after all injector callers use serialized operations.
-- [ ] Remove obsolete lifecycle adapter properties from restart, native delivery, and task orchestration wiring.
+- [x] Remove `NativeInjectorAgentMgr.stop()` and `.ensureRunning()` after all injector callers use serialized operations.
+- [x] Remove obsolete lifecycle adapter properties from restart, native delivery, and task orchestration wiring.
 - [ ] Replace the empty-target stop fallback with `processManagerService.stopAgent()`.
 - [ ] Make `processManagerService` mandatory in `DaemonAgentProcessManagerServiceLive`.
 - [x] Remove inline no-op serialized-operation fallbacks from scoped stop wiring.

@@ -200,14 +200,12 @@ async function deliverOneTask(
       logEvent: deps.session.logEvent,
       backend: deps.session.backend,
       convexUrl: deps.session.convexUrl,
-      agentMgr: {
-        resumeTurnForSlot: async (args) => {
-          await Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args));
+        agentMgr: {
+          resumeTurnForSlot: async (args) => {
+            await Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args));
+          },
+          getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
         },
-        stop: (opts) => Effect.runPromise(deps.agentMgr.stop(opts)),
-        ensureRunning: (opts) => Effect.runPromise(deps.agentMgr.ensureRunning(opts)),
-        getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
-      },
       runSerializedForAgent: deps.runSerializedForAgent,
       onTaskDelivered: ({ chatroomId, role, taskId, harnessSessionId: resolvedSessionId }) => {
         deliveredToHarness = true;

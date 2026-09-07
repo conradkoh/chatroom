@@ -180,8 +180,6 @@ export class NativeTaskDeliveryCoordinator {
             lifecycleOutbox: deliverySession.lifecycleOutbox,
             agentMgr: {
               resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
-              stop: (opts) => Effect.runPromise(agentMgr.stop(opts)),
-              ensureRunning: (opts) => Effect.runPromise(agentMgr.ensureRunning(opts)),
               getSlot: (chatroomId, role) => agentMgr.getSlot(chatroomId, role),
             },
             runSerializedForAgent: serializedOperation,

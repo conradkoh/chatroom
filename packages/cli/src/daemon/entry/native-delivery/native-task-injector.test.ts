@@ -39,8 +39,6 @@ function createAgentMgrMocks(
 ): NativeInjectorDeps['agentMgr'] {
   return {
     resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
-    stop: vi.fn().mockResolvedValue({ success: true }),
-    ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
     // Existing running session with old context: cold path must stop it first.
     getSlot: vi.fn().mockReturnValue({
       state: 'running',
@@ -58,16 +56,8 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
     async (_key, _options, operation) =>
       operation(
         {
-          startAgent: async (
-            input: Parameters<NativeInjectorDeps['agentMgr']['ensureRunning']>[0]
-          ) => {
-            const result = await agentMgr.ensureRunning(input);
-            if (!result.success) throw new Error('start failed');
-          },
-          stopAgent: async (input: Parameters<NativeInjectorDeps['agentMgr']['stop']>[0]) => {
-            const result = await agentMgr.stop(input);
-            if (!result.success) throw new Error('stop failed');
-          },
+          startAgent: async () => undefined,
+          stopAgent: async () => undefined,
         },
         { signal: new AbortController().signal }
       )
@@ -198,24 +188,26 @@ describe('runNativeInjectionEffect', () => {
         return undefined;
       }
     );
-    (deps.agentMgr.stop as ReturnType<typeof vi.fn>).mockImplementation(async () => {
-      order.push('stop');
-      return { success: true };
-    });
-    (deps.agentMgr.ensureRunning as ReturnType<typeof vi.fn>).mockImplementation(async () => {
-      order.push('ensureRunning');
-      return { success: true, pid: 12345 };
-    });
+    deps.runSerializedForAgent = vi.fn(async (_key, _options, operation) =>
+      operation(
+        {
+          startAgent: async () => {
+            order.push('ensureRunning');
+          },
+          stopAgent: async () => {
+            order.push('stop');
+          },
+        },
+        { signal: new AbortController().signal }
+      )
+    );
     (deps.agentMgr.resumeTurnForSlot as ReturnType<typeof vi.fn>).mockImplementation(async () => {
       order.push('resume');
     });
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    expect(deps.agentMgr.stop).toHaveBeenCalled();
-    expect(deps.agentMgr.ensureRunning).toHaveBeenCalledWith(
-      expect.objectContaining({ wantResume: false, role: 'planner' })
-    );
+    expect(deps.runSerializedForAgent).toHaveBeenCalledOnce();
     expect(augmentedCalls).toHaveLength(1);
     expect(augmentedCalls[0]).toMatchObject({
       mode: 'new_session',
@@ -237,8 +229,7 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    expect(deps.agentMgr.stop).not.toHaveBeenCalled();
-    expect(deps.agentMgr.ensureRunning).not.toHaveBeenCalled();
+    expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
   });
 
@@ -264,10 +255,7 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    expect(deps.agentMgr.stop).toHaveBeenCalled();
-    expect(deps.agentMgr.ensureRunning).toHaveBeenCalledWith(
-      expect.objectContaining({ wantResume: false, role: 'planner' })
-    );
+    expect(deps.runSerializedForAgent).toHaveBeenCalledOnce();
     expect(augmentedCalls).toHaveLength(1);
     expect(augmentedCalls[0]).toMatchObject({
       mode: 'new_session',
@@ -290,8 +278,7 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    expect(deps.agentMgr.stop).not.toHaveBeenCalled();
-    expect(deps.agentMgr.ensureRunning).not.toHaveBeenCalled();
+    expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
   });
 });
