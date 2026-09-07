@@ -8,7 +8,7 @@
  * Standalone — no AgentProcessManager wiring (Phase 3).
  */
 
-import { Layer, Effect, Ref, Duration } from 'effect';
+import { Layer, Effect, Ref } from 'effect';
 
 import type {
   AgentLifecycleSlot,
@@ -19,8 +19,6 @@ import type {
 } from './agent-lifecycle-types.js';
 import { AgentLifecycleService, AgentLifecyclePorts } from './agent-lifecycle-types.js';
 import { agentKey, idleSlot } from '../../../daemon/domain/entities/agent-slot.js';
-import { resolveStopReason } from '../../../daemon/domain/entities/stop-reason.js';
-import { decideRestartAfterExit } from '../../../daemon/domain/usecase/decide-restart-after-exit.js';
 import {
   transitionSlot,
   shouldIgnoreProcessExit,
@@ -205,103 +203,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
 
     // ── handleExit ───────────────────────────────────────────────────────────
 
-    const executeRestart = (
-      slot: AgentLifecycleSlot,
-      chatroomId: string,
-      role: string
-    ): Effect.Effect<void> =>
-      Effect.gen(function* () {
-        const restartOutcome = decideRestartAfterExit({
-          stopReason: resolveStopReason(slot._stopReasonCode ?? 0, slot._stopReasonSignal ?? null),
-          harness: slot.harness,
-          workingDir: slot.workingDir,
-          wantResume: slot.wantResume ?? false,
-          isPermanentFailure: false,
-        });
-
-        yield* dispatchRestartOutcome(restartOutcome, slot, chatroomId, role);
-      });
-
-    const dispatchRestartOutcome = (
-      outcome: ReturnType<typeof decideRestartAfterExit>,
-      slot: AgentLifecycleSlot,
-      chatroomId: string,
-      role: string
-    ): Effect.Effect<void> =>
-      Effect.gen(function* () {
-        switch (outcome._tag) {
-          case 'RestartNow': {
-            yield* handleRestartNow(slot, chatroomId, role, outcome);
-            break;
-          }
-          case 'ScheduleRetry': {
-            yield* handleScheduleRetry(slot, chatroomId, role, outcome);
-            break;
-          }
-          case 'NoRestart': {
-            break;
-          }
-        }
-      });
-
-    const handleRestartNow = (
-      slot: AgentLifecycleSlot,
-      chatroomId: string,
-      role: string,
-      outcome: Extract<ReturnType<typeof decideRestartAfterExit>, { _tag: 'RestartNow' }>
-    ): Effect.Effect<void> =>
-      Effect.gen(function* () {
-        if (!slot.harness) {
-          yield* Effect.logError(`Agent restart failed for ${chatroomId}:${role}: missing harness`);
-          return;
-        }
-        const restartResult = yield* ensureRunning({
-          chatroomId,
-          role,
-          agentHarness: slot.harness,
-          workingDir: slot.workingDir ?? '',
-          reason: outcome.spawnReason,
-          wantResume: outcome.wantResume,
-          initPrompt: slot._initPrompt,
-          systemPrompt: slot._systemPrompt,
-        });
-
-        if (!restartResult.success && restartResult.error) {
-          yield* Effect.logError(
-            `Agent restart failed for ${chatroomId}:${role}: ${restartResult.error}`
-          );
-        }
-      });
-
-    const handleScheduleRetry = (
-      slot: AgentLifecycleSlot,
-      chatroomId: string,
-      role: string,
-      outcome: Extract<ReturnType<typeof decideRestartAfterExit>, { _tag: 'ScheduleRetry' }>
-    ): Effect.Effect<void> =>
-      Effect.gen(function* () {
-        if (!slot.harness) {
-          yield* Effect.logError(`Agent restart failed for ${chatroomId}:${role}: missing harness`);
-          return;
-        }
-        yield* Effect.forkDaemon(
-          Effect.sleep(Duration.millis(outcome.waitMs)).pipe(
-            Effect.as(
-              ensureRunning({
-                chatroomId,
-                role,
-                agentHarness: slot.harness,
-                workingDir: slot.workingDir ?? '',
-                reason: outcome.spawnReason,
-                wantResume: outcome.wantResume,
-                initPrompt: slot._initPrompt,
-                systemPrompt: slot._systemPrompt,
-              })
-            )
-          )
-        );
-      });
-
     const handleExit = (opts: HandleExitOpts): Effect.Effect<void> =>
       Effect.gen(function* () {
         const key = agentKey(opts.chatroomId, opts.role);
@@ -314,8 +215,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         if (shouldIgnoreProcessExit(slot, opts.pid)) {
           return;
         }
-
-        const stopReason = resolveStopReason(opts.code, opts.signal);
 
         const transitionResult = transitionSlot(slot, {
           type: 'process_exited',
@@ -337,20 +236,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           _systemPrompt: slot._systemPrompt,
         } as AgentLifecycleSlot;
         yield* setSlotInRef(key, exitedSlot);
-
-        yield* executeRestart(exitedSlot, opts.chatroomId, opts.role);
-
-        const restartOutcome = decideRestartAfterExit({
-          stopReason,
-          harness: slot.harness,
-          workingDir: slot.workingDir,
-          wantResume: slot.wantResume ?? false,
-          isPermanentFailure: false,
-        });
-
-        if (restartOutcome._tag === 'NoRestart') {
-          yield* removeSlotFromRef(key);
-        }
+        yield* removeSlotFromRef(key);
       });
 
     // ── Public API ───────────────────────────────────────────────────────────

@@ -5,10 +5,7 @@ import {
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
-import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
-import { initSessionMonitorRegistry } from '../../infrastructure/local/harness/session-monitors/init-session-monitors.js';
-import { getAllSessionMonitors } from '../../infrastructure/local/harness/session-monitors/session-monitor-registry.js';
 
 const CHATROOM_ID = 'test-chatroom';
 const ROLE = 'builder';
@@ -37,7 +34,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
   return {
     logEvent: vi.fn().mockResolvedValue(undefined),
     agentServices: new Map([['pi', mockService]]),
-    sessionMonitors: getAllSessionMonitors(),
     backend: {
       query: vi.fn().mockResolvedValue({
         prompt: true,
@@ -82,7 +78,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     spawning: {
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
     },
-    crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',
     resumeStormTracker: new RapidResumeTracker(),
     ...overrides,

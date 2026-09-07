@@ -33,7 +33,6 @@ import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/sto
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
 import { formatConvexUrlMismatchWarning } from '../../infrastructure/convex/spawn-env.js';
 import type { AgentLogSink } from '../../infrastructure/log-server/index.js';
-import { CrashLoopTracker } from '../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
   ensureMachineRegistered,
@@ -386,7 +385,6 @@ function assembleDaemonSessionInit(args: {
     config,
     convexUrl,
     agentServices,
-    sessionMonitors,
     cachedModels,
     deps,
   } = args;
@@ -402,7 +400,6 @@ function assembleDaemonSessionInit(args: {
     logEvent: activeLogEvent ?? (async () => undefined),
     logSink: activeLogSink,
     agentServices,
-    sessionMonitors,
     backend: deps.backend,
     sessionId: typedSessionId,
     machineId,
@@ -411,7 +408,6 @@ function assembleDaemonSessionInit(args: {
     fs: deps.fs,
     persistence: deps.machine,
     spawning: deps.spawning,
-    crashLoop: new CrashLoopTracker(),
     convexUrl,
     lifecycleOutbox: {
       enqueue: (fact) => enqueueAgentLifecycleFact(agentLifecycleOutbox, machineId, fact),
