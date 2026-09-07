@@ -104,6 +104,7 @@
 - [ ] Remove legacy lifecycle methods from the Effect manager boundary once downstream consumers are migrated.
 - [ ] Remove transitional tests, casts, and compatibility-only test fixtures.
 - [x] Remove the compatibility branch from production `handleTaskInboxUpdate`; keep remaining legacy coverage behind an explicitly named temporary adapter.
+- [ ] Assess full deprecation of `handleLegacyTaskInboxUpdate` and delete the adapter and its legacy-only tests when all callers use `NativeDeliveryService`.
 - [ ] Migrate tests off `legacy-task-inbox-delivery.ts` and delete the temporary adapter.
 - [ ] Remove or redesign direct lifecycle adapters used only to satisfy the legacy native injector contract.
 - [ ] Resolve the daemon-runtime readonly SQLite test failure and rerun the complete runtime suite.
