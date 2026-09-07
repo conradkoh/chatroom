@@ -109,8 +109,8 @@ introduced.
       operational updates, and restart delivery paths.
 - [ ] Make `handleTaskInboxUpdate` consume required dependencies directly and
       remove its session-registry fallbacks.
-- [ ] Move task-state transition calls behind the service API and remove the
-      registry-level `recordNativeTaskDelivered` and
+- [x] Move production task-state transition calls behind the service API and
+      remove the registry-level `recordNativeTaskDelivered` and
       `recordNativeTaskHandedOff` helpers.
 - [ ] Remove the module-level native-delivery session singleton after all
       callers use the constructed service.

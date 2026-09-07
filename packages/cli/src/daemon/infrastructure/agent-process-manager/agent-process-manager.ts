@@ -657,7 +657,7 @@ export class AgentProcessManager {
     if (capabilities.supportsNativeIntegration) {
       this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
 
-      const taskState = getNativeDeliverySession()?.agentTaskState;
+      const taskState = getNativeDeliverySession()?.nativeDelivery?.agentTaskState;
       const activeTask = taskState?.get({
         chatroomId: opts.chatroomId,
         role: opts.role,

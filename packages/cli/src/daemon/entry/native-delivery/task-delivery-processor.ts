@@ -10,7 +10,7 @@
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
-import type { Runtime, type Context } from 'effect';
+import type { Runtime, Context } from 'effect';
 
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import {

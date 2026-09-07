@@ -236,7 +236,6 @@ export const startTaskInboxEffect = (
       machineId: session.machineId,
       taskSnapshotState,
       agentOperationalReadModel,
-      agentTaskState,
       nativeDelivery,
       lifecycleOutbox,
     });
@@ -543,7 +542,7 @@ export const startTaskInboxEffect = (
         clearInterval(reconcileTimer);
         unregisterTaskInboxRoomMembershipRefresh();
         unregisterNativeDeliverySession();
-        agentTaskState.clearAll();
+        nativeDelivery.agentTaskState.clearAll();
         inboxStore.close();
       },
     };

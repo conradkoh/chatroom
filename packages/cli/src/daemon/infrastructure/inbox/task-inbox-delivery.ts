@@ -2,10 +2,7 @@ import type { MachineTaskSnapshotState } from './task-snapshot-state.js';
 import type { TaskInboxUpdate } from './task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../entry/daemon-services.js';
 import type { NativeDeliveryService } from '../../entry/native-delivery/native-delivery-service.js';
-import {
-  getNativeDeliverySession,
-  recordNativeTaskHandedOff,
-} from '../../entry/native-delivery/native-delivery-session-registry.js';
+import { getNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import type { NativeTaskDeliverySessionDeps } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
 import {
   processTasksUpdate,
@@ -37,15 +34,6 @@ export async function handleTaskInboxUpdate(
     return;
   }
   const taskSnapshotState = deps.taskSnapshotState ?? getNativeDeliverySession()?.taskSnapshotState;
-  for (const signal of update.signals) {
-    if (signal.taskStatus === 'completed') {
-      recordNativeTaskHandedOff({
-        chatroomId: signal.chatroomId,
-        role: signal.targetRole,
-        taskId: signal.taskId,
-      });
-    }
-  }
   taskSnapshotState?.applySignalPage(update.signals, update.snapshots);
   if (update.snapshots.length === 0) return;
   const runSerializedForAgent =

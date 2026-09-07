@@ -7,10 +7,7 @@ import {
   logNativeDeliveryPrimary,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
-import {
-  getNativeDeliverySession,
-  recordNativeTaskDelivered,
-} from './native-delivery-session-registry.js';
+import { getNativeDeliverySession } from './native-delivery-session-registry.js';
 import {
   explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
@@ -201,20 +198,12 @@ export class NativeTaskDeliveryCoordinator {
             }) => {
               deliveredToHarness = true;
               ledger.markDelivered(deliveredTaskId, resolvedSessionId);
-              if (onTaskDelivered) {
-                onTaskDelivered({
-                  chatroomId,
-                  role,
-                  taskId: deliveredTaskId,
-                  harnessSessionId: resolvedSessionId,
-                });
-              } else {
-                recordNativeTaskDelivered({
-                  chatroomId,
-                  role,
-                  taskId: deliveredTaskId,
-                });
-              }
+              onTaskDelivered?.({
+                chatroomId,
+                role,
+                taskId: deliveredTaskId,
+                harnessSessionId: resolvedSessionId,
+              });
               deliveryState.clearNativeNudgeFailures(chatroomId, role);
             },
           });
@@ -269,6 +258,9 @@ export function reconcileDeliverableWorkForRole(chatroomId: string, role: string
     runSerializedForAgent: session.runSerializedForAgent,
     sessionDeps,
     machineId,
+    onTaskDelivered: session.nativeDelivery
+      ? (args) => session.nativeDelivery?.recordTaskDelivered(args)
+      : undefined,
   });
 }
 
