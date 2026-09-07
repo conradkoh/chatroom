@@ -28,7 +28,6 @@ function createMockService() {
 }
 
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
-  initSessionMonitorRegistry();
   const now = 1_000_000;
   const mockService = createMockService();
   return {

@@ -1068,58 +1068,6 @@ export class AgentProcessManager {
     return cleared;
   }
 
-  async recover(): Promise<void> {
-    let entries: {
-      chatroomId: string;
-      role: string;
-      entry: { pid: number; harness: AgentHarness };
-    }[] = [];
-    try {
-      entries = await this.deps.persistence.listAgentEntries(this.deps.machineId);
-    } catch (err) {
-      console.warn(
-        `[AgentProcessManager] ⚠️ Failed to load persisted agent entries: ${(err as Error).message}`
-      );
-    }
-
-    let killed = 0;
-    let cleaned = 0;
-
-    for (const { chatroomId, role, entry } of entries) {
-      if (isProcessAlive(this.deps.processes.kill, entry.pid)) {
-        // Stale process from a previous daemon — kill the process group and clear
-        // backend state instead of adopting as "running" (no onExit handlers).
-        await this.stopPersistedProcess(entry.pid, entry.harness);
-
-        const exitArgs = {
-          sessionId: this.deps.sessionId,
-          machineId: this.deps.machineId,
-          chatroomId,
-          role,
-          pid: entry.pid,
-          stopReason: 'daemon.shutdown' as const,
-          exitCode: undefined as number | undefined,
-          signal: undefined as string | undefined,
-          agentHarness: entry.harness,
-        };
-        this.recordAgentExit(role, exitArgs, 'Failed to record agent exit on recovery');
-
-        await this.clearAgentPidQuietly(chatroomId, role);
-        killed++;
-      } else {
-        await this.clearAgentPidQuietly(chatroomId, role);
-        cleaned++;
-      }
-    }
-
-    console.log(`[AgentProcessManager] Recovery: ${killed} killed, ${cleaned} cleaned up`);
-
-    const clearedCount = await this.clearAllStuckStoppingSlots();
-    if (clearedCount > 0) {
-      console.log(`[AgentProcessManager] Recovery: cleared ${clearedCount} stuck stopping slot(s)`);
-    }
-  }
-
   /**
    * Stop all known agent processes and clear manager/runtime state.
    *
