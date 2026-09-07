@@ -41,6 +41,7 @@ import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
 import { makeGitStateKey } from '../infrastructure/git/types.js';
+import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
 
 /** Event shape delivered from the machine command inbox (formerly machines.getCommandEvents). */
 type CommandEvent = {
@@ -130,13 +131,15 @@ function handleRequestStartEffect(
 
 function handleRequestRestartEffect(
   event: CommandEvent,
-  tracker: DedupTracker
+  tracker: DedupTracker,
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
 ): Effect.Effect<void, never, CommandDispatchDeps> {
   return Effect.gen(function* () {
     const eventId = event._id.toString();
     if (tracker.commandIds.has(eventId)) return;
     yield* onRequestRestartAgentEffect(
-      event as unknown as Parameters<typeof onRequestRestartAgentEffect>[0]
+      event as unknown as Parameters<typeof onRequestRestartAgentEffect>[0],
+      nativeDelivery
     );
     tracker.commandIds.set(eventId, Date.now());
   });
@@ -307,7 +310,8 @@ function handleRefreshCapabilitiesEffect(
 const commandEventHandlers: {
   [K in DaemonCommandEventType]?: (
     event: CommandEvent,
-    tracker: DedupTracker
+    tracker: DedupTracker,
+    nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
   ) => Effect.Effect<void, never, CommandDispatchDeps>;
 } = {
   'agent.requestStart': handleRequestStartEffect,
@@ -330,11 +334,12 @@ const commandEventHandlers: {
 
 export const dispatchCommandEventEffect = (
   event: CommandEvent,
-  tracker: DedupTracker
+  tracker: DedupTracker,
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
 ): Effect.Effect<void, never, CommandDispatchDeps> => {
   if (!isDaemonCommandEventType(event.type)) return Effect.void;
   const factory = commandEventHandlers[event.type];
-  return factory != null ? factory(event, tracker) : Effect.void;
+  return factory != null ? factory(event, tracker, nativeDelivery) : Effect.void;
 };
 
 export async function handleInboundCommandEvent(
@@ -342,7 +347,8 @@ export async function handleInboundCommandEvent(
   tracker: DedupTracker,
   effectContext: Context.Context<CommandDispatchDeps>,
   session: DaemonSessionServiceShape,
-  claimedCommand: ClaimedMachineCommand
+  claimedCommand: ClaimedMachineCommand,
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
 ): Promise<void> {
   if (claimedCommand.commandId !== commandId) return;
   const renewTimer = setInterval(() => {
@@ -358,7 +364,8 @@ export async function handleInboundCommandEvent(
     await Effect.runPromise(
       dispatchCommandEventEffect(
         { _id, machineId, deadline, timestamp, ...rest } as unknown as CommandEvent,
-        tracker
+        tracker,
+        nativeDelivery
       ).pipe(Effect.provide(effectContext))
     );
     await session.backend.mutation(api.daemon.machineCommandInbox.acknowledge, {

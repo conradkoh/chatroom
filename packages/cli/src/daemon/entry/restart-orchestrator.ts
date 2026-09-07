@@ -10,29 +10,20 @@ import {
   type AgentRestartPhase,
 } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
 import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-contract.js';
-import { Effect } from 'effect';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
+import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
 import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
 import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
 import type { AgentHarness } from './daemon-types.js';
 import { api } from '../../api.js';
-import { getNativeDeliveryLedger } from './native-delivery/native-delivery-ledger.js';
 import { isAgentReadyForNativeDelivery } from './native-delivery/native-ready-invariant.js';
 import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
-import {
-  explainLedgerDeliveryBlock,
-  explainNativeDeliveryBlock,
-} from './native-delivery/native-task-injector-logic.js';
-import { runNativeInjectionEffect } from './native-delivery/native-task-injector.js';
 import {
   markRestartOrchestratorInFlight,
   clearRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
-import {
-  mapAssignedTaskSnapshotList,
-  mapAssignedTaskView,
-} from '../../infrastructure/mappers/map-assigned-task.js';
+import { mapAssignedTaskSnapshotList } from '../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isDeliverableTaskStatus } from '../domain/entities/assigned-task.js';
 import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
@@ -64,6 +55,7 @@ interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>;
 }
 
 async function emitPhase(
@@ -168,93 +160,15 @@ async function listDeliverableSnapshots(
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
-async function deliverOneTask(
-  deps: RestartOrchestratorDeps,
-  event: RestartOrchestratorEvent,
-  snapshot: AssignedTaskSnapshotView
-): Promise<boolean> {
-  const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
-  const harnessSessionId = slot?.harnessSessionId;
-  if (!harnessSessionId) return false;
-
-  const backend = (await deps.session.backend.query(api.machines.getAssignedTaskForAction, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-    taskId: snapshot.taskId,
-    role: event.role,
-  })) as Parameters<typeof mapAssignedTaskView>[0] | null;
-
-  if (!backend) return false;
-
-  const full = mapAssignedTaskView(backend);
-
-  const ledger = getNativeDeliveryLedger();
-  const ledgerBlock = explainLedgerDeliveryBlock(
-    snapshot.taskId as string,
-    harnessSessionId,
-    ledger
-  );
-  if (ledgerBlock) {
-    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${ledgerBlock}`);
-    return false;
-  }
-  const deliveryBlock = explainNativeDeliveryBlock(snapshot, { slot });
-  if (deliveryBlock) {
-    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${deliveryBlock}`);
-    return false;
-  }
-  if (!ledger.tryAcquire(snapshot.taskId as string, harnessSessionId)) {
-    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — delivery_ledger_busy`);
-    return false;
-  }
-
-  let deliveredToHarness = false;
-  try {
-    await runNativeInjectionEffect(full, harnessSessionId, {
-      sessionId: deps.session.sessionId,
-      machineId: deps.session.machineId,
-      logEvent: deps.session.logEvent,
-      backend: deps.session.backend,
-      convexUrl: deps.session.convexUrl,
-        agentMgr: {
-          resumeTurnForSlot: async (args) => {
-            await Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args));
-          },
-          getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
-        },
-      runSerializedForAgent: deps.runSerializedForAgent,
-      onTaskDelivered: ({ chatroomId, role, taskId, harnessSessionId: resolvedSessionId }) => {
-        deliveredToHarness = true;
-        ledger.markDelivered(taskId, resolvedSessionId);
-      },
-    });
-    return true;
-  } catch (err) {
-    console.warn(
-      `[RestartOrchestrator] deliver failed for task ${snapshot.taskId}: ${getErrorMessage(err)}`
-    );
-    return false;
-  } finally {
-    if (!deliveredToHarness) {
-      ledger.releaseAttempt(snapshot.taskId as string);
-    }
-  }
-}
-
 async function deliverPendingTasks(
   deps: RestartOrchestratorDeps,
   event: RestartOrchestratorEvent
 ): Promise<string[]> {
   const delivered: string[] = [];
   const snapshots = await listDeliverableSnapshots(deps, event);
-
-  for (const snapshot of snapshots) {
-    if (snapshot.status !== 'pending') continue;
-    const ok = await deliverOneTask(deps, event, snapshot);
-    if (ok) {
-      delivered.push(snapshot.taskId as string);
-    }
-  }
+  await deps.nativeDelivery.processSnapshots('restart', snapshots, ({ taskId }) => {
+    delivered.push(taskId);
+  });
 
   return delivered;
 }

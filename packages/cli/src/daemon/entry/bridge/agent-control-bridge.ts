@@ -12,6 +12,7 @@ import type {
 import type { AgentHarness, StartAgentReason } from '../daemon-types.js';
 import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
 import { runRestartOrchestrator } from '../restart-orchestrator.js';
+import type { NativeDeliveryService } from '../native-delivery/native-delivery-service.js';
 
 export function createStartAgentDeps(
   session: DaemonSessionServiceShape,
@@ -76,7 +77,8 @@ export function createStartAgentDeps(
 export function createRestartAgentDeps(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   session: DaemonSessionServiceShape,
-  processManagerService: AgentProcessManagerService
+  processManagerService: AgentProcessManagerService,
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
 ): RestartAgentDeps {
   return {
     restartOrchestrator: {
@@ -92,6 +94,7 @@ export function createRestartAgentDeps(
             },
             agentMgr,
             runSerializedForAgent: processManagerService.runSerializedForAgent,
+            nativeDelivery,
           },
           {
             chatroomId: input.chatroomId as Id<'chatroom_rooms'>,

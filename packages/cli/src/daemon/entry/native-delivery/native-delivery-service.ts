@@ -20,7 +20,14 @@ import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.j
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 export type NativeDeliveryPass =
-  'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
+  'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status' | 'restart';
+
+export type NativeTaskDeliveredHandler = (args: {
+  chatroomId: string;
+  role: string;
+  taskId: string;
+  harnessSessionId: string;
+}) => void;
 
 const TASK_STATE_UPDATE_TIMEOUT_MS = 30_000;
 
@@ -147,7 +154,8 @@ export class NativeDeliveryService {
 
   async processSnapshots(
     pass: NativeDeliveryPass,
-    snapshots: readonly AssignedTaskSnapshotView[]
+    snapshots: readonly AssignedTaskSnapshotView[],
+    onTaskDelivered?: NativeTaskDeliveredHandler
   ): Promise<void> {
     if (snapshots.length === 0) return;
     await processTasksUpdate(
@@ -164,8 +172,10 @@ export class NativeDeliveryService {
         this.deps.agentTaskState.get({ chatroomId, role })?.taskId === taskId,
       {
         snapshots,
-        onTaskDelivered: ({ chatroomId, role, taskId }) =>
-          this.recordTaskDelivered({ chatroomId, role, taskId }),
+        onTaskDelivered: (args) => {
+          this.recordTaskDelivered(args);
+          onTaskDelivered?.(args);
+        },
       }
     );
   }

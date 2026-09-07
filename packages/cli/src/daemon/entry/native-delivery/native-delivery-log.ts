@@ -8,6 +8,7 @@ export function logNativeDeliveryFallback(
     | 'periodic-reconcile'
     | 'bootstrap'
     | 'operational-status'
+    | 'restart'
     | 'agent-started',
   role: string,
   chatroomId: string,

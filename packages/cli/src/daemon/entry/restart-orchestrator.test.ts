@@ -77,6 +77,9 @@ function createMockDeps(overrides?: {
           { signal: new AbortController().signal }
         )
       ),
+      nativeDelivery: {
+        processSnapshots: vi.fn(async () => undefined),
+      },
     },
     auditLog,
     agentMgrMock: agentMgr,

@@ -48,7 +48,7 @@ export class NativeTaskDeliveryCoordinator {
   }
 
   // fallow-ignore-next-line complexity
-  reconcileAssignedTasks(params: {
+  async reconcileAssignedTasks(params: {
     tasks: AssignedTaskSnapshotView[];
     runtime: TaskDeliveryRuntime;
     effectContext: TaskDeliveryContext;
@@ -78,7 +78,7 @@ export class NativeTaskDeliveryCoordinator {
           harnessSessionId: string;
         }) => void)
       | undefined;
-  }): void {
+  }): Promise<void> {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
     const serializedOperation = params.runSerializedForAgent;
@@ -132,7 +132,7 @@ export class NativeTaskDeliveryCoordinator {
 
       logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
 
-      Runtime.runFork(runtime)(
+      await Runtime.runPromise(runtime)(
         Effect.gen(function* () {
           const backend = (yield* Effect.tryPromise(() =>
             sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {

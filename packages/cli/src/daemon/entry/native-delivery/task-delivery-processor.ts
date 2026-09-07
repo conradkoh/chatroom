@@ -51,7 +51,12 @@ export type ProcessTasksUpdateOptions = {
   }) => void;
 };
 
-type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
+type TaskDeliveryPass =
+  | 'inbox-signal'
+  | 'periodic-reconcile'
+  | 'bootstrap'
+  | 'operational-status'
+  | 'restart';
 
 /**
  * Activate pending native work through the process-manager serialization
@@ -135,7 +140,7 @@ export async function processTasksUpdate(
 
   const first = filteredTasks[0];
   logNativeDeliveryFallback(pass, first.agentConfig.role, first.chatroomId, first.taskId);
-  getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
+  await getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks: filteredTasks,
     runtime,
     effectContext,

@@ -41,6 +41,7 @@ import { drainActionableCommandRuns } from './handlers/process/command-run-subsc
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { getActiveLogSink } from './init-daemon.js';
 import { startTaskInboxEffect } from './task-inbox-runtime.js';
+import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
 import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
@@ -88,7 +89,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let enhancerWorkerHandle: { stop: () => void } | null = null;
-  let taskInboxHandle: { stop: () => void } | null = null;
+  let taskInboxHandle: { stop: () => void; nativeDelivery: NativeDeliveryService } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
@@ -315,7 +316,8 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
           dedupTracker,
           effectContext,
           session,
-          event.claimedCommand
+          event.claimedCommand,
+          taskInboxHandle!.nativeDelivery
         );
       } else {
         await drainActionableCommandRuns(session, commandRunRuntime);

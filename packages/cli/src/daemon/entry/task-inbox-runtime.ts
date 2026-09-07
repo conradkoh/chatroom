@@ -132,7 +132,7 @@ async function runOperationalInboxLoopWithRestart(
 export const startTaskInboxEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<
-  { stop: () => void },
+  { stop: () => void; nativeDelivery: NativeDeliveryService },
   never,
   | DaemonSessionService
   | DaemonAgentProcessManagerService
@@ -463,6 +463,7 @@ export const startTaskInboxEffect = (
         });
     }, NATIVE_DELIVERY_RECONCILE_MS);
     return {
+      nativeDelivery,
       stop() {
         stopped = true;
         abort.abort();
