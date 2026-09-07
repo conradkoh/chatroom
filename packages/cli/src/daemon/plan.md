@@ -67,12 +67,15 @@ introduced.
 
 ### Reimplementation around one decision path
 
-- [ ] Define a daemon-owned `ActiveTaskStateStore` keyed by chatroom and role,
+- [x] Define a daemon-owned `ActiveTaskStateStore` keyed by chatroom and role,
       with task identity/generation, lifecycle status, handoff status, and
-      reminder-attempt state.
-- [ ] Add a coordinator-owned `handleAgentTurnEnded` use case that reads the
-      active task state and resolves one of: no active work, already handed off,
-      or reminder required.
+      reminder-attempt state. The in-memory implementation owns generation
+      assignment so callers cannot fabricate task generations.
+- [x] Add a `handleAgentTurnEnded` use case that reads the active task state
+      and resolves one of: no active work, already handed off, or reminder
+      required.
+- [x] Expose the state transitions through a single `AgentTaskStateService`
+      façade with a composition-root constructor.
 - [ ] Make task delivery and successful handoff update the store through one
       state-transition interface; keep the backend as durable persistence, not
       the synchronous source for the live turn-end decision.
@@ -82,12 +85,13 @@ introduced.
       commands with the same chatroom/role key.
 - [ ] Add an injected `HandoffReminder` port; issue at most one idempotent
       reminder command per state transition and track its attempt number.
-- [ ] Validate task identity/generation before acting so stale `agent_end` events
+- [x] Validate task identity/generation before acting so stale `agent_end` events
       cannot affect a later task for the same agent.
 - [ ] Keep `AgentProcessManager` responsible for process lifecycle and transport;
       keep the coordinator responsible for task outcome and reminder policy.
-- [ ] Add focused tests for state transitions, handoff/turn-end races, duplicate
-      events, stale generations, missing active tasks, and reminder failures.
+- [x] Add focused tests for state transitions, duplicate events, stale
+      generations, and missing active tasks.
+- [ ] Add integration tests for handoff/turn-end races and reminder failures.
 - [ ] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
 
@@ -481,11 +485,11 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
       events, stale generations, missing active tasks, and reminder failures.
 - [ ] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
-+- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
+      +- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
 - [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
-+- [x] Migrate or remove backend recovery readers such as
+      +- [x] Migrate or remove backend recovery readers such as
 - [x] Migrate or remove backend recovery readers such as
-+- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
+      +- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
 - [x] Reassess `native-stale-turn-phase` and other fallback guards after the
-+- [x] Remove obsolete recovery-focused integration tests after their behavior
+      +- [x] Remove obsolete recovery-focused integration tests after their behavior
 - [x] Remove obsolete recovery-focused integration tests after their behavior
