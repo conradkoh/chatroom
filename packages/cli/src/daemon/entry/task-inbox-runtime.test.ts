@@ -166,6 +166,11 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   } = await import('./daemon-services.js');
   const backendQuery = vi.fn().mockResolvedValue({ tasks: options.tasks ?? [] });
   const workspaceQuery = vi.fn().mockResolvedValue(options.workspaces ?? []);
+  const agentProcessManager = {
+    subscribeAgentTurnEnded: vi.fn(() => () => undefined),
+    subscribeAgentStarted: vi.fn(() => () => undefined),
+    subscribeAgentSessionLost: vi.fn(() => () => undefined),
+  };
   const session = {
     sessionId: 'session-1',
     machineId: 'machine-1',
@@ -178,7 +183,7 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   };
   const layers = Layer.mergeAll(
     Layer.succeed(DaemonSessionService, session as never),
-    Layer.succeed(DaemonAgentProcessManagerService, {} as never),
+    Layer.succeed(DaemonAgentProcessManagerService, agentProcessManager as never),
     Layer.succeed(DaemonAgentProcessManagerCommandService, {
       runSerializedForAgent: async (_key: never, operation: (ops: never) => Promise<unknown>) =>
         operation({} as never),

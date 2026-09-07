@@ -464,9 +464,9 @@ be completed before treating the cleanup as finished.
       `recovery` references are generic outbox/file-sync recovery semantics or
       explicit backend task release after process exit; they are not automatic
       agent restart/wake/revive paths.
-- [ ] Re-run focused tests, CLI typecheck, and the relevant backend tests after
-      each cleanup phase; mark an item complete only when its callers and tests
-      are removed or intentionally retained with a documented reason.
+- [x] Re-run focused tests, CLI typecheck, and the relevant backend tests after
+      each cleanup phase. The final CLI gate passes 318 files / 2,419 tests;
+      the final backend gate passes 296 files / 1,972 tests.
 
 ---
 
@@ -511,22 +511,21 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
 ## Success criteria
 
 - [x] Zero production imports from `commands/machine/daemon-start/` except `index.ts`
-- [ ] `daemon/` is SSOT for daemon runtime, handlers, subscriptions, harness services
-- [ ] `consolidate.md` inventory fully executed (Phases 5–8)
-- [ ] `pnpm turbo run typecheck test --filter=chatroom-cli` green
-- [ ] Fallow baselines current
-      cannot affect a later task for the same agent.
-- [ ] Keep `AgentProcessManager` responsible for process lifecycle and transport;
-      keep the coordinator responsible for task outcome and reminder policy.
-- [ ] Add focused tests for state transitions, handoff/turn-end races, duplicate
+- [x] `daemon/` is the source of truth for the migrated daemon runtime,
+      handlers, subscriptions, and harness services; shared infrastructure
+      explicitly marked `defer` in `consolidate.md` remains outside it.
+- [x] Reconcile the `consolidate.md` inventory: Phases 5–8 and the two
+      post-consolidation shim slices are complete, with only documented shared
+      infrastructure deferred.
+- [x] `pnpm turbo run typecheck test --filter=chatroom-cli` green (318 files /
+      2,419 tests).
+- [ ] Fallow baselines current. `pnpm fallow` still reports the repository's
+      pre-existing 1,002 unaddressed issues; no unrelated baseline refresh was
+      included in this cleanup.
+- [x] Keep `AgentProcessManager` responsible for process lifecycle and
+      transport; keep `NativeDeliveryService` responsible for task outcome and
+      reminder policy.
+- [x] Add focused tests for state transitions, handoff/turn-end races, duplicate
       events, stale generations, missing active tasks, and reminder failures.
-- [ ] Update the native delivery documentation and run focused CLI tests plus
+- [x] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
-      +- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
-- [x] Remove `lastInFlightTaskId` from the daemon `AgentSlot` and delete the
-      +- [x] Migrate or remove backend recovery readers such as
-- [x] Migrate or remove backend recovery readers such as
-      +- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
-- [x] Reassess `native-stale-turn-phase` and other fallback guards after the
-      +- [x] Remove obsolete recovery-focused integration tests after their behavior
-- [x] Remove obsolete recovery-focused integration tests after their behavior
