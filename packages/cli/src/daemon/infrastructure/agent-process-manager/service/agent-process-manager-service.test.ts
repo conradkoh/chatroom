@@ -22,7 +22,6 @@ function createExecution(events: string[]): AgentProcessManagerExecutionPort {
       return { success: true };
     }),
     handleExit: vi.fn(async () => undefined),
-    recover: vi.fn(async () => undefined),
     reset: vi.fn(async () => undefined),
     getSlot: vi.fn(() => undefined),
     listActive: vi.fn(() => []),

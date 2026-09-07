@@ -51,11 +51,7 @@ export type AgentProcessManagerCommand =
   | { readonly operationId: string; readonly type: 'start'; readonly input: EnsureRunningOpts }
   | { readonly operationId: string; readonly type: 'stop'; readonly input: StopOpts }
   | { readonly operationId: string; readonly type: 'restart'; readonly input: RestartAgentInput }
-  | {
-      readonly operationId: string;
-      readonly type: 'recover';
-      readonly input: Record<string, never>;
-    };
+  ;
 
 export type AgentOperationResult = CommandNotification<AgentProcessManagerCommand>;
 
@@ -63,7 +59,6 @@ export interface AgentProcessManagerExecutionPort {
   ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult>;
   stop(opts: StopOpts): Promise<{ success: boolean }>;
   handleExit(opts: HandleExitOpts): Promise<void>;
-  recover(): Promise<void>;
   reset(input: AgentProcessManagerResetInput): Promise<void>;
 
   getSlot(chatroomId: string, role: string): AgentSlot | undefined;
@@ -87,8 +82,6 @@ export interface AgentProcessManagerService {
   stopAgent(input: StopOpts): Promise<AgentOperationResult>;
   /** Enqueue a restart operation for one chatroom/role agent. */
   restartAgent(input: RestartAgentInput): Promise<AgentOperationResult>;
-  /** Enqueue the manager recovery operation. */
-  recoverAgents(): Promise<AgentOperationResult>;
   /**
    * Stop command processing, cancel queued callers, and restore the manager to
    * a known empty state. Processing resumes if it was active before reset.
@@ -154,10 +147,6 @@ function commandMessage(command: AgentProcessManagerCommand): {
   body: AgentProcessManagerCommand;
   messageGroupId: string;
 } {
-  if (command.type === 'recover') {
-    return { body: command, messageGroupId: 'machine' };
-  }
-
   const input = command.input as { chatroomId: string; role: string };
   return { body: command, messageGroupId: messageGroupId(input) };
 }
@@ -285,9 +274,6 @@ export function createAgentProcessManagerService(
           }
           await deps.restartAgent(input);
           return;
-        case 'recover':
-          await deps.execution.recover();
-          return;
       }
     },
   });
@@ -328,10 +314,6 @@ export function createAgentProcessManagerService(
       return runExclusive(input, () =>
         submit((operationId) => ({ operationId, type: 'restart', input }))
       );
-    },
-    recoverAgents: () => {
-      if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
-      return submit((operationId) => ({ operationId, type: 'recover', input: {} }));
     },
     reset: async (input) => {
       if (resetting) throw new Error('Agent process manager reset is already in progress');

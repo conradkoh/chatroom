@@ -19,8 +19,4 @@ export type LifecycleCommand =
       role: string;
       lifecycleRevision?: number;
     }
-  | {
-      type: 'recover';
-      chatroomId: string;
-      role: string;
-    };
+  ;

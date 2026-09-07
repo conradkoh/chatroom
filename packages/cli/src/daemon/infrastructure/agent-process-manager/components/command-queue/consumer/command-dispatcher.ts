@@ -4,7 +4,6 @@ export interface LifecycleCommandHandler {
   start(command: Extract<LifecycleCommand, { type: 'start' }>): Promise<void>;
   stop(command: Extract<LifecycleCommand, { type: 'stop' }>): Promise<void>;
   restart(command: Extract<LifecycleCommand, { type: 'restart' }>): Promise<void>;
-  recover(command: Extract<LifecycleCommand, { type: 'recover' }>): Promise<void>;
 }
 
 export function createLifecycleCommandDispatcher(
@@ -18,8 +17,6 @@ export function createLifecycleCommandDispatcher(
         return handler.stop(command);
       case 'restart':
         return handler.restart(command);
-      case 'recover':
-        return handler.recover(command);
     }
   };
 }

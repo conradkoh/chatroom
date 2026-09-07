@@ -69,9 +69,9 @@
   - [x] Remove automatic process-exit restart, session-reopen retry, resume-storm recovery, crash-loop gating, and recovery backoff.
   - [x] Retain explicit start, stop, restart, normal process-exit bookkeeping, and process cleanup.
   - [ ] Remove the manager's remaining recovery-only state, dependencies, adapters, and tests in the later native/session cleanup phase.
-- [ ] Phase 2 — Remove the explicit `recover` command from the queue-backed service.
-  - [ ] Remove the command entity, dispatcher branch, service API, execution-port method, and service tests.
-  - [ ] Keep explicit lifecycle commands as the only queue-managed operations.
+- [x] Phase 2 — Remove the explicit `recover` command from the queue-backed service.
+  - [x] Remove the command entity, dispatcher branch, service API, execution-port method, and service tests.
+  - [x] Keep explicit lifecycle commands as the only queue-managed operations.
 - [ ] Phase 3 — Remove daemon-startup state recovery.
   - [ ] Remove the startup recovery handler, bridge, use case, initialization call, and recovery-specific tests.
   - [ ] Ensure daemon startup begins with no recovered agents; shutdown/reset clears managed state instead.
