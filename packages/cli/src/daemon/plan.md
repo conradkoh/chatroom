@@ -519,9 +519,9 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
       infrastructure deferred.
 - [x] `pnpm turbo run typecheck test --filter=chatroom-cli` green (318 files /
       2,419 tests).
-- [ ] Fallow baselines current. `pnpm fallow` still reports the repository's
-      pre-existing 1,002 unaddressed issues; no unrelated baseline refresh was
-      included in this cleanup.
+- [x] Fallow dead-code baseline refreshed after cleanup; `pnpm find-deadcode`
+      passes with no regressions. The broader `pnpm fallow` audit still reports
+      the repository's pre-existing health/duplication backlog separately.
 - [x] Keep `AgentProcessManager` responsible for process lifecycle and
       transport; keep `NativeDeliveryService` responsible for task outcome and
       reminder policy.
