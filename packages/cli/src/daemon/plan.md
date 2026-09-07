@@ -446,9 +446,11 @@ be completed before treating the cleanup as finished.
       reasons, and recovery-related lifecycle events. Rapid-resume tracking,
       `platform.resume_storm`, the backend event/mutation, and their tests were
       removed; ordinary exit and provider-failure handling remain separate.
-- [ ] Audit backend exit handling and task-release paths for automatic restart,
-      revive, wake, or requeue behavior that conflicts with the current
-      shutdown-and-clear policy.
+- [x] Audit backend exit handling and task-release paths for automatic restart,
+      revive, wake, or requeue behavior. Exit handling only releases durable
+      acknowledged/in-progress work to `pending`; token-activity handling only
+      activates that pending work. Neither path restarts a process, and both
+      remain required for task durability outside daemon-local reset/shutdown.
 - [ ] Run repository-wide searches for recovery terminology and update stale
       comments, README guidance, tests, and plan entries after the code is
       removed.
