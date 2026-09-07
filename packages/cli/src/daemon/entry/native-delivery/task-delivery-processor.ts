@@ -11,7 +11,6 @@ import type { Runtime, Context } from 'effect';
 
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import { snapshotRequestsNativeColdSession } from './native-cold-session-delivery.js';
-import { getNativeDeliverySession } from './native-delivery-session-registry.js';
 import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
@@ -28,6 +27,7 @@ import { isNativeHarness } from './native-task-injector-logic.js';
 import {
   isOperationalCircuitOpen,
   isOperationalStopIntentActive,
+  type AgentOperationalReadModel,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { isSlotIdle } from '../../domain/usecase/check-agent-slot.js';
 import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
@@ -61,9 +61,9 @@ type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'o
 export async function startPendingNativeAgents(
   tasks: readonly AssignedTaskSnapshotView[],
   agentMgr: DaemonAgentProcessManagerServiceShape,
-  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent']
+  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
+  operationalModel: AgentOperationalReadModel
 ): Promise<void> {
-  const operationalModel = getNativeDeliverySession()?.agentOperationalReadModel;
   const started = new Set<string>();
   await Promise.all(
     tasks.map(async (task) => {
@@ -124,12 +124,13 @@ export async function processTasksUpdate(
   machineId: string,
   pass: TaskDeliveryPass,
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> },
+  operationalModel: AgentOperationalReadModel,
   options: ProcessTasksUpdateOptions
 ): Promise<void> {
   const filteredTasks = filterSnapshotsExcludingRestartInFlight([...options.snapshots]);
   if (filteredTasks.length === 0) return;
 
-  await startPendingNativeAgents(filteredTasks, agentMgr, runSerializedForAgent);
+  await startPendingNativeAgents(filteredTasks, agentMgr, runSerializedForAgent, operationalModel);
 
   const first = filteredTasks[0];
   logNativeDeliveryFallback(pass, first.agentConfig.role, first.chatroomId, first.taskId);

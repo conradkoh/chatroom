@@ -4,6 +4,7 @@ import { NativeDeliveryService } from './native-delivery-service.js';
 import { startPendingNativeAgents } from './task-delivery-processor.js';
 import { createAgentTaskStateService } from '../../infrastructure/agent-process-manager/components/agent-task-state/index.js';
 import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 
 function createService(): NativeDeliveryService {
   return new NativeDeliveryService({
@@ -21,6 +22,7 @@ function createService(): NativeDeliveryService {
     agentTaskState: createAgentTaskStateService({
       reminder: { remind: async () => undefined },
     }),
+    agentOperationalReadModel: new AgentOperationalReadModel(),
     lifecycleOutbox: { enqueue: async () => undefined },
   });
 }
@@ -50,7 +52,8 @@ describe('NativeDeliveryService', () => {
         },
       ] as never,
       { getSlot: () => undefined } as never,
-      runSerializedForAgent as never
+      runSerializedForAgent as never,
+      new AgentOperationalReadModel()
     );
     expect(startAgent).toHaveBeenCalledWith(
       expect.objectContaining({
