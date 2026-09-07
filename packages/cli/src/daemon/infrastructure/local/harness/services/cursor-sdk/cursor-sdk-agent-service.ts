@@ -36,7 +36,6 @@ import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js'
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
-  AgentStopOptions,
   DaemonHarnessSessionContext,
   HarnessReconnectMetadata,
   SpawnContext,
@@ -105,7 +104,6 @@ interface SdkSession {
   keeper: ChildProcess;
   aborted: boolean;
   agentClosed: boolean;
-  preserveForResume: boolean;
   agentName: string;
   model?: string | undefined;
   workingDir: string;
@@ -232,13 +230,10 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     session.pendingResumePrompt = prompt;
   }
 
-  override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
+  override async stop(pid: number): Promise<void> {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;
-      if (options?.preserveForResume) {
-        session.preserveForResume = true;
-      }
       session.abortResolve?.();
       const run = session.run;
       if (run?.supports('cancel')) {
@@ -251,7 +246,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
           );
         }
       }
-      if (!session.preserveForResume && !session.agentClosed) {
+      if (!session.agentClosed) {
         try {
           session.agent.close();
           session.agentClosed = true;
@@ -385,7 +380,6 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       keeper,
       aborted: false,
       agentClosed: false,
-      preserveForResume: false,
       agentName,
       model,
       workingDir,

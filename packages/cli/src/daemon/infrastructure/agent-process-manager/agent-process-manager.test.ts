@@ -631,7 +631,7 @@ describe('AgentProcessManager', () => {
       const result = await manager.ensureRunning(createOpts());
 
       expect(result).toEqual({ success: true, pid: NEW_PID });
-      expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
+      expect(service.stop).toHaveBeenCalledWith(PID);
       expect(service.spawn).toHaveBeenCalledOnce();
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.pid).toBe(NEW_PID);
 
@@ -866,7 +866,7 @@ describe('AgentProcessManager', () => {
       });
 
       expect(result).toEqual({ success: true });
-      expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
+      expect(service.stop).toHaveBeenCalledWith(PID);
       expect(service.untrack).toHaveBeenCalledWith(PID);
       const killCalls = vi.mocked(deps.processes.kill).mock.calls.filter(([, sig]) => sig !== 0);
       expect(killCalls).toHaveLength(0);

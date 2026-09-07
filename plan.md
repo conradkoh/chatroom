@@ -69,7 +69,8 @@
   - [x] Remove automatic process-exit restart, session-reopen retry, resume-storm recovery, crash-loop gating, and recovery backoff.
   - [x] Retain explicit start, stop, restart, normal process-exit bookkeeping, and process cleanup.
   - [x] Remove the manager's daemon-memory session-retention state, resume path, and manager tests.
-  - [ ] Remove provider adapter resume APIs, reconnect metadata, preserve-for-resume stop options, and their tests.
+  - [ ] Remove provider adapter resume APIs and reconnect metadata and their tests.
+  - [x] Remove preserve-for-resume stop options from lifecycle ports and harness stop implementations.
 - [x] Phase 2 — Remove the explicit `recover` command from the queue-backed service.
   - [x] Remove the command entity, dispatcher branch, service API, execution-port method, and service tests.
   - [x] Keep explicit lifecycle commands as the only queue-managed operations.

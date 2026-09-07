@@ -4,13 +4,12 @@ type SDKAgent = CursorSdkModule.SDKAgent;
 
 export interface CursorSdkSessionCleanupState {
   agentClosed: boolean;
-  preserveForResume: boolean;
   aborted: boolean;
 }
 
 /**
  * Close the Cursor SDK agent after an error or abort.
- * Graceful natural exit (code 0, not aborted) keeps the agent open for resumeFromDaemonMemory.
+ * Graceful natural exit (code 0, not aborted) leaves the agent open.
  */
 // fallow-ignore-next-line complexity
 export function closeCursorAgentOnFailure(
@@ -19,7 +18,7 @@ export function closeCursorAgentOnFailure(
   exitCode: number | null,
   force = false
 ): void {
-  if (session.agentClosed || session.preserveForResume) return;
+  if (session.agentClosed) return;
   if (!force && exitCode === 0 && !session.aborted) return;
 
   try {

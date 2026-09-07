@@ -30,7 +30,6 @@ import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent
 import { decodeClaudeVariant } from '../claude/claude-models.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
-  AgentStopOptions,
   DaemonHarnessSessionContext,
   SpawnContext,
   SpawnOptions,
@@ -220,7 +219,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
   }
 
   // fallow-ignore-next-line complexity
-  override async stop(pid: number, _options?: AgentStopOptions): Promise<void> {
+  override async stop(pid: number): Promise<void> {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;

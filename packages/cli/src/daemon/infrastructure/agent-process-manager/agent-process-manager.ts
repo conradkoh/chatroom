@@ -535,19 +535,18 @@ export class AgentProcessManager {
   // fallow-ignore-next-line unused-class-member
   async withScopedRoleStop<T>(
     opts: StopOpts,
-    fn: (args: { preserveForResume: boolean }) => Promise<T>
+    fn: () => Promise<T>
   ): Promise<{ ok: true; value: T } | { ok: false; reason: 'concurrent' | 'no_slot' }> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
     if (!slot || !slot.pid || slot.state === 'idle') return { ok: false, reason: 'no_slot' };
     if (slot.state === 'stopping' || slot.pendingOperation)
       return { ok: false, reason: 'concurrent' };
-    const preserveForResume = false;
     this.markStopIntent(opts.chatroomId, opts.role, opts.reason, slot.pid);
     slot.state = 'stopping';
     slot.stoppingSince = this.deps.clock.now();
     try {
-      const value = await fn({ preserveForResume });
+      const value = await fn();
       this.resetSlotAfterStop(slot);
       await this.clearAgentPidQuietly(opts.chatroomId, opts.role);
       return { ok: true, value };
@@ -1737,7 +1736,6 @@ export class AgentProcessManager {
   ): Promise<OperationResult> {
     try {
       const harness = slot.harness;
-      const preserveForResume = false;
 
       if (!harness) {
         await this.killProcessWithFallback(pid);
@@ -1762,7 +1760,6 @@ export class AgentProcessManager {
             agentHarness: harness,
           }),
           reason: opts.reason as AgentStopReason,
-          preserveForResume,
         });
       }
     } catch (error) {

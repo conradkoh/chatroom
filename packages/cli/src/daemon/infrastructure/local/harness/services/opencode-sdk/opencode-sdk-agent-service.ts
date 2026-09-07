@@ -43,7 +43,6 @@ import {
 import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
 import type {
   SpawnContext,
-  AgentStopOptions,
   DaemonHarnessSessionContext,
   HarnessReconnectMetadata,
   SpawnOptions,
@@ -140,34 +139,30 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     return super.listModels();
   }
 
-  override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
+  override async stop(pid: number): Promise<void> {
     const forwarder = this.forwarders.get(pid);
     if (forwarder) {
       forwarder.stop();
       this.forwarders.delete(pid);
     }
 
-    const preserveForResume = options?.preserveForResume === true;
     const meta = this.sessionStore.findByPid(pid);
     if (meta) {
-      if (!preserveForResume) {
-        try {
-          const client = createOpencodeClient({ baseUrl: meta.baseUrl });
-          await withTimeout(
-            client.session.abort({ path: { id: meta.sessionId } }),
-            SESSION_ABORT_TIMEOUT_MS,
-            'session.abort'
-          );
-        } catch (err) {
-          console.warn(
-            `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
-            err instanceof Error ? err.message : err
-          );
-        }
-        // Eager cleanup: doStop may kill before the child exit handler runs; stale
-        // pid-keyed metadata would otherwise block resumeTurn.
-        this.sessionStore.remove(meta.sessionId);
+      try {
+        const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+        await withTimeout(
+          client.session.abort({ path: { id: meta.sessionId } }),
+          SESSION_ABORT_TIMEOUT_MS,
+          'session.abort'
+        );
+      } catch (err) {
+        console.warn(
+          `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
+          err instanceof Error ? err.message : err
+        );
       }
+      // Eager cleanup: doStop may kill before the child exit handler runs.
+      this.sessionStore.remove(meta.sessionId);
     }
     await super.stop(pid);
   }

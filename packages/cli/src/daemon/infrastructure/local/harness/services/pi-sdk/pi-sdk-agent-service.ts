@@ -36,7 +36,6 @@ import { DetectionResult } from '../detection-result.js';
 import { getPiSessionDir } from '../pi/pi-agent-service.js';
 import { parsePiSpawnModel, resolvePiThinkingLevel } from '../pi/pure.js';
 import type {
-  AgentStopOptions,
   DaemonHarnessSessionContext,
   HarnessReconnectMetadata,
   SpawnContext,
@@ -301,7 +300,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     session.pendingResumePrompt = prompt;
   }
 
-  override async stop(pid: number, _options?: AgentStopOptions): Promise<void> {
+  override async stop(pid: number): Promise<void> {
     const session = this.sessions.get(pid);
     if (session) {
       session.aborted = true;

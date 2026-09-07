@@ -337,39 +337,6 @@ describe('OpenCodeSdkAgentService', () => {
       expect(kill).toHaveBeenCalledTimes(1);
     });
 
-    it('preserveForResume: skips session.abort', async () => {
-      const sessionStore = new InMemorySessionMetadataStore();
-      sessionStore.upsert({
-        sessionId: 'sess-1',
-        machineId: 'm1',
-        chatroomId: 'c1',
-        role: 'builder',
-        agentName: 'build',
-        pid: 4321,
-        createdAt: new Date().toISOString(),
-        baseUrl: 'http://127.0.0.1:5678',
-      });
-
-      const kill = vi
-        .fn()
-        .mockImplementationOnce(() => {})
-        .mockImplementationOnce(() => {
-          throw new Error('ESRCH');
-        });
-      const deps = createMockDeps({
-        kill,
-        sessionMetadataStore: sessionStore,
-      });
-      const service = new OpenCodeSdkAgentService(deps);
-
-      const { abort } = stubSdkClientForStop();
-
-      await service.stop(4321, { preserveForResume: true });
-
-      expect(abort).not.toHaveBeenCalled();
-      expect(sessionStore.get('sess-1')).toBeDefined();
-    });
-
     it('calls session.abort with the correct sessionId before SIGTERM', async () => {
       const store = new InMemorySessionMetadataStore();
       store.upsert({

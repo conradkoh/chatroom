@@ -7,7 +7,6 @@ describe('closeCursorAgentOnFailure', () => {
     const close = vi.fn();
     const session = {
       agentClosed: false,
-      preserveForResume: false,
       aborted: false,
     };
 
@@ -21,7 +20,6 @@ describe('closeCursorAgentOnFailure', () => {
     const close = vi.fn();
     const session = {
       agentClosed: false,
-      preserveForResume: false,
       aborted: false,
     };
 
@@ -31,24 +29,10 @@ describe('closeCursorAgentOnFailure', () => {
     expect(session.agentClosed).toBe(false);
   });
 
-  it('skips close when preserveForResume is set', () => {
-    const close = vi.fn();
-    const session = {
-      agentClosed: false,
-      preserveForResume: true,
-      aborted: true,
-    };
-
-    closeCursorAgentOnFailure({ close } as never, session, 1);
-
-    expect(close).not.toHaveBeenCalled();
-  });
-
   it('force closes even when exit code is 0', () => {
     const close = vi.fn();
     const session = {
       agentClosed: false,
-      preserveForResume: false,
       aborted: false,
     };
 

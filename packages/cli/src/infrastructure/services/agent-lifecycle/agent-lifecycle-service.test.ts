@@ -52,7 +52,7 @@ function createMockHarnessPort(): HarnessSpawnPort {
       },
       onLogLine: undefined,
     });
-  const stop = (_pid: number, _opts?: { preserveForResume?: boolean | undefined }) => Effect.void;
+  const stop = (_pid: number) => Effect.void;
   const isAlive = (_pid: number) => Effect.succeed(true);
   return { spawn, stop, isAlive };
 }

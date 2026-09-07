@@ -312,33 +312,6 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentCloseFn).toHaveBeenCalled();
     });
 
-    it('preserveForResume skips agent.close()', async () => {
-      stubSdkAgent();
-      const child = makeFakeChild(5556);
-      const deps = createMockDeps({
-        spawn: vi.fn().mockReturnValue(child),
-        kill: vi.fn((_pid: number, signal: number | string) => {
-          if (signal === 0) throw new Error('process not found');
-          return true;
-        }),
-      });
-      const service = new CursorSdkAgentService(deps);
-
-      const result = await service.spawn({
-        workingDir: '/tmp/work',
-        prompt: createSpawnPrompt('do work'),
-        systemPrompt: 'system',
-        model: TEST_MODEL_CURSOR,
-        context: SPAWN_CONTEXT,
-        resolvedConvexUrl: 'http://test:3210',
-      });
-
-      sharedAgentCloseFn.mockClear();
-      await service.stop(result.pid, { preserveForResume: true });
-
-      expect(sharedAgentCloseFn).not.toHaveBeenCalled();
-    });
-
     it('skips run.wait when aborted during stream', async () => {
       const runWait = vi.fn().mockImplementation(() => new Promise(() => {}));
       const run = {
