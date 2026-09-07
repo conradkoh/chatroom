@@ -13,7 +13,7 @@ import type { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-l
 import { enrichSnapshotsWithOperational } from '../agent-operational/enrich-snapshot-with-operational.js';
 import type { AgentProcessManagerService } from '../agent-process-manager/service/index.js';
 
-export type TaskInboxDeliveryDeps = {
+type LegacyTaskInboxDeliveryDeps = {
   runtime: TaskDeliveryRuntime;
   effectContext: TaskDeliveryContext;
   cooldown: RecoveryCooldown;
@@ -22,14 +22,20 @@ export type TaskInboxDeliveryDeps = {
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
   taskSnapshotState?: MachineTaskSnapshotState | undefined;
-  nativeDelivery?: NativeDeliveryService | undefined;
+  nativeDelivery?: never;
 };
 
+export type TaskInboxDeliveryDeps =
+  | LegacyTaskInboxDeliveryDeps
+  | {
+      cooldown: RecoveryCooldown;
+      nativeDelivery: NativeDeliveryService;
+    };
 export async function handleTaskInboxUpdate(
   update: TaskInboxUpdate,
   deps: TaskInboxDeliveryDeps
 ): Promise<void> {
-  if (deps.nativeDelivery) {
+  if ('nativeDelivery' in deps) {
     await deps.nativeDelivery.handleTaskInboxUpdate(update, deps.cooldown);
     return;
   }

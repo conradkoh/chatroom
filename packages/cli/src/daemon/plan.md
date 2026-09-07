@@ -105,10 +105,11 @@ introduced.
       it explicitly to the production inbox handler and task delivery processor.
 - [x] Route production task delivery and handoff state transitions through the
       service while retaining registry adapters for legacy callers.
-- [ ] Extend the service boundary to bootstrap, periodic reconciliation,
-      operational updates, and restart delivery paths.
+- [x] Extend the service boundary to bootstrap, periodic reconciliation, and
+      operational updates.
+- [ ] Extend the service boundary to restart delivery paths.
 - [ ] Make `handleTaskInboxUpdate` consume required dependencies directly and
-      remove its session-registry fallbacks.
+      remove its remaining compatibility branch and session-registry fallbacks.
 - [x] Move production task-state transition calls behind the service API and
       remove the registry-level `recordNativeTaskDelivered` and
       `recordNativeTaskHandedOff` helpers.

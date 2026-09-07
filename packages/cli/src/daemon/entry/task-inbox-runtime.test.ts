@@ -212,6 +212,11 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
 }
 
 describe('bootstrapMachineAssignedTaskSnapshots', () => {
+  const makeNativeDelivery = (processSnapshots = vi.fn().mockResolvedValue(undefined)) => ({
+    taskSnapshotState: { replace: vi.fn() },
+    processSnapshots,
+  });
+
   it('delivers pending snapshots via processTasksUpdate on restart bootstrap', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const query = vi.fn().mockResolvedValue({
@@ -235,18 +240,15 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
         },
       ],
     });
+    const nativeDelivery = makeNativeDelivery();
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      runtime: {} as never,
-      effectContext: {} as never,
       cooldown: {} as never,
-      agentMgr: {} as never,
-      runSerializedForAgent: {} as never,
-      machineId: 'machine-1',
+      nativeDelivery: nativeDelivery as never,
     });
     expect(mutation).toHaveBeenCalledTimes(2);
-    expect(processTasksUpdate).toHaveBeenCalledOnce();
-    expect(processTasksUpdate.mock.calls[0]?.[7]).toBe('bootstrap');
+    expect(nativeDelivery.processSnapshots).toHaveBeenCalledOnce();
+    expect(nativeDelivery.processSnapshots.mock.calls[0]?.[1]).toBe('bootstrap');
   });
 
   it('syncs and does not deliver when no snapshots exist', async () => {
@@ -254,12 +256,8 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     const query = vi.fn().mockResolvedValue({ tasks: [] });
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      runtime: undefined as never,
-      effectContext: undefined as never,
       cooldown: undefined as never,
-      agentMgr: undefined as never,
-      runSerializedForAgent: undefined as never,
-      machineId: 'machine-1',
+      nativeDelivery: makeNativeDelivery() as never,
     });
     expect(mutation).toHaveBeenCalledTimes(2);
     expect(query).toHaveBeenCalledOnce();
@@ -294,17 +292,14 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
     onDiscoveredChatrooms.mockImplementation(async () => {
       order.push('discover');
     });
-    processTasksUpdate.mockImplementation(async () => {
+    const nativeDelivery = makeNativeDelivery();
+    nativeDelivery.processSnapshots.mockImplementation(async () => {
       order.push('deliver');
     });
     await bootstrapMachineAssignedTaskSnapshots({
       sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      runtime: {} as never,
-      effectContext: {} as never,
       cooldown: {} as never,
-      agentMgr: {} as never,
-      runSerializedForAgent: {} as never,
-      machineId: 'machine-1',
+      nativeDelivery: nativeDelivery as never,
       onDiscoveredChatrooms,
     });
     expect(onDiscoveredChatrooms).toHaveBeenCalledWith(['room-1']);

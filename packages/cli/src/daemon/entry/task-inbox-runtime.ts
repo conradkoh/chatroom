@@ -7,9 +7,8 @@ import {
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
-  type DaemonAgentProcessManagerServiceShape,
+  AgentLifecycleOutboxService,
 } from './daemon-services.js';
-import { AgentLifecycleOutboxService } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { api } from '../../api.js';
 import { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
@@ -18,11 +17,6 @@ import {
   unregisterNativeDeliverySession,
 } from './native-delivery/native-delivery-session-registry.js';
 import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
-import {
-  processTasksUpdate,
-  type TaskDeliveryContext,
-  type TaskDeliveryRuntime,
-} from './native-delivery/task-delivery-processor.js';
 import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
 import {
   registerTaskInboxRoomMembershipRefresh,
@@ -31,7 +25,6 @@ import {
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import { ackMachineOperationalSignals } from '../infrastructure/agent-operational/ack-machine-operational-signals.js';
 import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
-import { enrichSnapshotsWithOperational } from '../infrastructure/agent-operational/enrich-snapshot-with-operational.js';
 import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
 import {
   operationalSignalCursorAt,
@@ -39,7 +32,6 @@ import {
   type OperationalInboxUpdate,
 } from '../infrastructure/agent-operational/operational-inbox.js';
 import { createAgentTaskStateService } from '../infrastructure/agent-process-manager/components/agent-task-state/index.js';
-import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
@@ -58,13 +50,8 @@ const NATIVE_HANDOFF_REMINDER =
 
 type TaskInboxDependencies = {
   sessionDeps: NativeTaskDeliverySessionDeps;
-  runtime: TaskDeliveryRuntime;
-  effectContext: TaskDeliveryContext;
   cooldown: RecoveryCooldown;
-  agentMgr: DaemonAgentProcessManagerServiceShape;
-  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
-  machineId: string;
-  taskSnapshotState?: MachineTaskSnapshotState | undefined;
+  nativeDelivery: NativeDeliveryService;
   /** Invoked with the assigned-task chatroom IDs after task state replace and before first delivery. */
   onDiscoveredChatrooms?: (chatroomIds: string[]) => Promise<void>;
 };
@@ -75,30 +62,23 @@ export async function bootstrapMachineAssignedTaskSnapshots(
 ): Promise<void> {
   await deps.sessionDeps.backend.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
     sessionId: deps.sessionDeps.sessionId,
-    machineId: deps.machineId,
+    machineId: deps.sessionDeps.machineId,
   });
   await deps.sessionDeps.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
     sessionId: deps.sessionDeps.sessionId,
-    machineId: deps.machineId,
+    machineId: deps.sessionDeps.machineId,
   });
-  const tasks = await fetchMachineAssignedTaskSnapshots(deps.sessionDeps, deps.machineId);
-  deps.taskSnapshotState?.replace(tasks);
+  const tasks = await fetchMachineAssignedTaskSnapshots(
+    deps.sessionDeps,
+    deps.sessionDeps.machineId
+  );
+  deps.nativeDelivery.taskSnapshotState.replace(tasks);
   const chatroomIds = [...new Set(tasks.map((task) => task.chatroomId))];
   if (chatroomIds.length > 0) {
     await deps.onDiscoveredChatrooms?.(chatroomIds);
   }
   if (!tasks.length) return;
-  await processTasksUpdate(
-    deps.runtime,
-    deps.effectContext,
-    deps.cooldown,
-    deps.agentMgr,
-    deps.runSerializedForAgent,
-    deps.sessionDeps,
-    deps.machineId,
-    'bootstrap',
-    { snapshots: enrichSnapshotsWithOperational(tasks) }
-  );
+  await deps.nativeDelivery.processSnapshots(deps.cooldown, 'bootstrap', tasks);
 }
 
 function isAbortError(error: unknown): boolean {
@@ -263,17 +243,7 @@ export const startTaskInboxEffect = (
           taskSnapshotState.listForRole(roomId, role)
         );
         if (snapshots.length > 0) {
-          await processTasksUpdate(
-            runtime,
-            effectContext,
-            cooldown,
-            agentMgr,
-            commandService.runSerializedForAgent,
-            sessionDeps,
-            session.machineId,
-            'operational-status',
-            { snapshots: enrichSnapshotsWithOperational(snapshots) }
-          );
+          await nativeDelivery.processSnapshots(cooldown, 'operational-status', snapshots);
         }
         inboxStore.save(
           {
@@ -415,14 +385,7 @@ export const startTaskInboxEffect = (
           inboxUpdatesInFlight += 1;
           try {
             await handleTaskInboxUpdate(update, {
-              runtime,
-              effectContext,
               cooldown,
-              agentMgr,
-              runSerializedForAgent: commandService.runSerializedForAgent,
-              sessionDeps,
-              machineId: session.machineId,
-              taskSnapshotState,
               nativeDelivery,
             });
             inboxStore.save(taskRoomKey, { afterSignalKey: update.throughSignalKey });
@@ -492,13 +455,8 @@ export const startTaskInboxEffect = (
     yield* Effect.tryPromise(() =>
       bootstrapMachineAssignedTaskSnapshots({
         sessionDeps,
-        runtime,
-        effectContext,
         cooldown,
-        agentMgr,
-        runSerializedForAgent: commandService.runSerializedForAgent,
-        machineId: session.machineId,
-        taskSnapshotState,
+        nativeDelivery,
         onDiscoveredChatrooms: async (chatroomIds) => {
           await Promise.all(chatroomIds.map((chatroomId) => ensureRoomInboxes(chatroomId)));
         },
@@ -514,17 +472,8 @@ export const startTaskInboxEffect = (
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdatesInFlight > 0 || reconcileInFlight) return;
       reconcileInFlight = true;
-      void processTasksUpdate(
-        runtime,
-        effectContext,
-        cooldown,
-        agentMgr,
-        commandService.runSerializedForAgent,
-        sessionDeps,
-        session.machineId,
-        'periodic-reconcile',
-        { snapshots: enrichSnapshotsWithOperational(taskSnapshotState.listAll()) }
-      )
+      void nativeDelivery
+        .processSnapshots(cooldown, 'periodic-reconcile', taskSnapshotState.listAll())
         .catch((error) => {
           console.warn('[TaskInbox] local delivery reconciliation failed:', error);
         })
