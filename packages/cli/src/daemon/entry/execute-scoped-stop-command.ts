@@ -27,7 +27,7 @@ export async function executeScopedStopForCommand(args: {
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
 }): Promise<ScopedStopExecutionSummary> {
   // Claim daemon-local stop intent before any backend/network await. This
-  // invalidates already-running crash/session-reopen recovery immediately.
+  // invalidates already-running task activation immediately.
   args.apm.markChatroomStopIntent(args.chatroomId, args.reason);
   if (args.scope.kind === 'chatroom') {
     await abortEnhancerSpawnsForChatroom(args.chatroomId);

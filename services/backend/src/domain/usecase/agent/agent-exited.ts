@@ -33,7 +33,7 @@ export interface AgentExitedInput {
   machineId: string;
   /** The PID of the exited agent process. */
   pid: number;
-  /** Optional reason for the stop (e.g. 'user.stop', 'platform.crash_recovery'). */
+  /** Optional reason for the stop (e.g. 'user.stop' or 'daemon.shutdown'). */
   stopReason?: string | undefined;
   /** Optional exit code of the process. */
   exitCode?: number | undefined;

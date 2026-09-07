@@ -718,7 +718,7 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(true);
     });
 
-    test('markChatroomStopIntent marks idle slots (post-recovery reset)', async () => {
+    test('markChatroomStopIntent marks idle slots after stale-state reset', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       slot.state = 'idle';
@@ -967,7 +967,7 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('can clear stale stop intent for task-delivery recovery', async () => {
+    test('can clear stale stop intent before task delivery', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);

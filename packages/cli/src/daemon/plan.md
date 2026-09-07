@@ -457,9 +457,11 @@ be completed before treating the cleanup as finished.
       acknowledged/in-progress work to `pending`; token-activity handling only
       activates that pending work. Neither path restarts a process, and both
       remain required for task durability outside daemon-local reset/shutdown.
-- [ ] Run repository-wide searches for recovery terminology and update stale
-      comments, README guidance, tests, and plan entries after the code is
-      removed.
+- [x] Run repository-wide searches for recovery terminology and update stale
+      agent-process recovery comments, README guidance, and tests. Remaining
+      `recovery` references are generic outbox/file-sync recovery semantics or
+      explicit backend task release after process exit; they are not automatic
+      agent restart/wake/revive paths.
 - [ ] Re-run focused tests, CLI typecheck, and the relevant backend tests after
       each cleanup phase; mark an item complete only when its callers and tests
       are removed or intentionally retained with a documented reason.

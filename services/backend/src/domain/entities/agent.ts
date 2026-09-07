@@ -130,7 +130,7 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
 //
 // Actors:
 //   user      — human-initiated via UI or CLI
-//   platform  — server-side automation (dedup, team switch, crash recovery)
+//   platform  — server-side automation (task activation, team switch)
 //   daemon    — machine daemon lifecycle (respawn)
 
 /**
@@ -138,7 +138,6 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
  *
  * - `user.start`: User explicitly started the agent via UI or CLI
  * - `user.restart`: User restarted the agent via atomic restart-agent (releases in-flight tasks, resets delivery)
- * - `platform.crash_recovery`: Daemon restart after agent exit (all harnesses)
  * - `platform.auto_restart_on_new_context`: @deprecated — historical events only; no longer emitted
  * - `platform.team_switch`: Target-team agents started automatically after a chatroom team change
  * - `test`: Used in integration and unit tests only
@@ -150,7 +149,6 @@ export const AGENT_START_REASONS = [
   'platform.task_monitor_nudge',
   'platform.task_start_in_new_session',
   'platform.pending_task_wake',
-  'platform.crash_recovery',
   'platform.auto_restart_on_new_context',
   'platform.team_switch',
   'test',

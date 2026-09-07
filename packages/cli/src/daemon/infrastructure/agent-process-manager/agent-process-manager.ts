@@ -254,7 +254,6 @@ export class AgentProcessManager {
   private readonly slots = new Map<string, AgentSlot>();
   /** Latest harness session reconnect context per chatroom+role — in-memory only. */
 
-  /** Active multi-attempt session recovery loops per chatroom+role. */
   /** Queue of failed agent.exited log events awaiting retry. */
   private readonly exitRetryQueue: RetryQueueItem[] = [];
   /** Active retry interval timer handle, or null if queue is empty. */

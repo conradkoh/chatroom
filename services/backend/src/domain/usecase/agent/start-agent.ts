@@ -56,7 +56,7 @@ export interface StartAgentInput {
   /**
    * Human-readable reason for this start command.
    * Stored in the command record and logged by the daemon to aid tracing.
-   * Examples: 'user.start', 'user.restart', 'platform.crash_recovery'
+   * Examples: 'user.start', 'user.restart', 'platform.task_monitor_nudge'
    */
   reason: AgentStartReason;
   /**
