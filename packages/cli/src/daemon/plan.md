@@ -12,6 +12,42 @@ This plan completes consolidation in four phases (5–8), following the same dis
 
 **Estimated scope:** ~125 consolidate moves + ~26 consolidate+shim re-exports + enhancer rename sub-step.
 
+## Native handoff-reminder simplification
+
+The current missed-handoff flow is split between the native delivery inbox, the
+agent process manager, participant state, and backend task state. Replace it in
+two deliberate stages so the old behavior is removed before the new behavior is
+introduced.
+
+### Removal of the current implementation
+
+- [ ] Delete the local inbox handoff decision path, including
+      `native-turn-end-inbox.ts` and its tests.
+- [ ] Delete the agent process manager's backend fallback and reminder-specific
+      turn-end branches, including their tests.
+- [ ] Remove obsolete handoff-reminder constants, mocks, fixtures, and assertions.
+- [ ] Remove or update tests that assume `lastInFlightTaskId`, local task snapshots,
+      or participant state independently prove that a handoff occurred.
+- [ ] Verify that native `agent_end` no longer injects a reminder through the
+      legacy multi-path implementation.
+
+### Reimplementation around one decision path
+
+- [ ] Define the backend task state as the authoritative source for whether the
+      current task was handed off.
+- [ ] Add one coordinator-owned turn-end operation that resolves the task outcome
+      atomically: handed off, reminder required, or no active work.
+- [ ] Keep `NativeTaskDeliveryCoordinator` responsible for handoff policy and
+      task-delivery decisions; keep `AgentProcessManager` responsible for process
+      events and `resumeTurn` transport.
+- [ ] Have the coordinator request reminder injection through the manager only
+      when the backend explicitly returns `reminder required`.
+- [ ] Reintroduce focused tests for the authoritative backend outcomes, including
+      handoff/turn-end races, idempotency, missing task correlation, and reminder
+      injection failure.
+- [ ] Update the native delivery documentation and run the focused CLI tests plus
+      typecheck before committing the reimplementation.
+
 ---
 
 ## Resolved decisions
@@ -312,6 +348,41 @@ Co-located `*.test.ts` and `*.integration.test.ts` move with sources.
 
 - `infrastructure/harnesses/` directory empty or removed
 - Zero imports to deleted shim paths
+
+---
+
+## Recent recovery-cleanup follow-ups
+
+These items were discovered after the recent recovery-removal phases and should
+be completed before treating the cleanup as finished.
+
+- [ ] Delete bypassed or obsolete recovery tests rather than leaving early
+      returns, temporary constants, or unreachable historical assertions.
+- [ ] Remove the remaining agent-process-manager recovery state and helpers,
+      including daemon-memory session resume, harness-session snapshots, resume
+      event emission, and related fields that no longer have production callers.
+- [ ] Remove the orphaned Cursor SDK run-error/reopen detection module and tests,
+      or explicitly document and test the one remaining supported consumer if it
+      is still required.
+- [ ] Delete commented-out recovery blocks from task orchestration and task
+      delivery code; comments must not preserve retired control flow as an
+      implied compatibility path.
+- [ ] Remove `RecoveryCooldown`, native wake/revive helpers, and all callers and
+      tests that only existed to support automatic task recovery.
+- [ ] Remove obsolete session-monitor recovery types and no-op registrations
+      introduced solely to replace deleted recovery behavior.
+- [ ] Audit `resumeStormTracker`, resume-storm handling, crash/restart stop
+      reasons, and recovery-related lifecycle events for remaining production
+      behavior or dead compatibility surface.
+- [ ] Audit backend exit handling and task-release paths for automatic restart,
+      revive, wake, or requeue behavior that conflicts with the current
+      shutdown-and-clear policy.
+- [ ] Run repository-wide searches for recovery terminology and update stale
+      comments, README guidance, tests, and plan entries after the code is
+      removed.
+- [ ] Re-run focused tests, CLI typecheck, and the relevant backend tests after
+      each cleanup phase; mark an item complete only when its callers and tests
+      are removed or intentionally retained with a documented reason.
 
 ---
 
