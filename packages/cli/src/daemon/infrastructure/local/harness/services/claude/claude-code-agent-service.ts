@@ -21,7 +21,7 @@ import { type ChildProcess } from 'node:child_process';
 
 import { decodeClaudeVariant } from './claude-models.js';
 import { ClaudeStreamReader } from './claude-stream-reader.js';
-import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import { createHarnessActivityEmitter } from '../../../../../services/agent-process-service/index.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,

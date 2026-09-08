@@ -10,12 +10,12 @@
 import { createMockDaemonDeps } from './mock-daemon-deps.js';
 import type { DaemonSessionInit, ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
-import { createCommandNotifier } from '../../infrastructure/agent-process-manager/components/command-notifier/index.js';
+import { createCommandNotifier } from '../../services/agent-process-service/index.js';
 import {
   createAgentProcessManagerService,
   type AgentProcessManagerCommand,
   type AgentProcessManagerExecutionPort,
-} from '../../infrastructure/agent-process-manager/service/index.js';
+} from '../../services/agent-process-service/index.js';
 
 /**
  * Creates a minimal DaemonSessionInit for unit tests (flat deps shape).

@@ -16,11 +16,11 @@ import {
   buildActivityLifecycleFact,
   type AgentLifecycleFact,
 } from '../../domain/entities/agent-lifecycle-fact.js';
-import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import type { AgentSlot } from '../../services/agent-process-service/index.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
-} from '../../infrastructure/agent-process-manager/service/index.js';
+} from '../../services/agent-process-service/index.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 
 export interface NativeInjectorAgentMgr {

@@ -6,7 +6,7 @@ import {
 } from './native-ready-invariant.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import type { MachineAgentOperationalRow } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import type { AgentSlot } from '../../services/agent-process-service/index.js';
 
 export { isNativeHarness } from '../../domain/native-integration/index.js';
 

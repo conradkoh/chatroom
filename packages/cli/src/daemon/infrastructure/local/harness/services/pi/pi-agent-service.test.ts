@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { getPiSessionDir, PiAgentService, type PiAgentServiceDeps } from './pi-agent-service.js';
 import { TEST_MODEL_PI } from '../../../../../../testing/test-models.js';
-import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivitySignal } from '../../../../../services/agent-process-service/index.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 const SAMPLE_SESSION_ID = '019e86d8-39ec-7ae8-8380-c5ee4c904c99';

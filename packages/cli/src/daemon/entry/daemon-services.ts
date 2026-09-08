@@ -34,13 +34,13 @@ import type {
   HandleExitOpts,
   OperationResult,
   StopOpts,
-} from '../infrastructure/agent-process-manager/agent-process-manager.js';
+} from '../services/agent-process-service/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type {
   AgentLifecycleOutboxRegistry,
   AgentLifecycleOutboxResult,
 } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
-import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManagerService } from '../services/agent-process-service/index.js';
 
 export interface AgentLifecycleOutboxServiceShape {
   enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
@@ -193,7 +193,7 @@ export const DaemonAgentProcessManagerServiceLive = (
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
         const { runRoleScopedStop } =
-          await import('../infrastructure/agent-process-manager/execute-stop-targets-adapter.js');
+          await import('../services/agent-process-service/index.js');
         const legacyReason: Record<string, string> = {
           'team.switch': 'platform.team_switch',
           dedup: 'platform.dedup',

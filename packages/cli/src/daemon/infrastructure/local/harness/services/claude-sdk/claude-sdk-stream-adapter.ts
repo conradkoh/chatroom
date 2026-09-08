@@ -5,7 +5,7 @@
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
-import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEmitter } from '../../../../../services/agent-process-service/index.js';
 import {
   BASH_TOOL_KIND,
   formatAgentLogLine,

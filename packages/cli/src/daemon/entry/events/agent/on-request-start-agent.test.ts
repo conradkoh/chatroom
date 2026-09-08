@@ -7,7 +7,7 @@ import {
   DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
 } from '../../daemon-services.js';
-import type { AgentProcessManagerService } from '../../../infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManagerService } from '../../../services/agent-process-service/index.js';
 import { DaemonEventBus } from '../event-bus.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────

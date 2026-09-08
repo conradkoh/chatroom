@@ -17,7 +17,7 @@ import {
   classifyProviderErrorMessage,
   providerUnavailableAgentEndReason,
 } from '../../../../../domain/usecase/classify-provider-error.js';
-import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEmitter } from '../../../../../services/agent-process-service/index.js';
 import {
   BASH_TOOL_KIND,
   formatAgentLogLine,

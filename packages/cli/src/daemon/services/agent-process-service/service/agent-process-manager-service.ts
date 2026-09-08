@@ -11,19 +11,19 @@ import type {
   AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
-} from '../agent-process-manager.js';
+} from '../infrastructure/agent-process-manager.js';
 import type {
   CommandNotification,
   CommandNotificationFilter,
   CommandNotificationListener,
   CommandNotifier,
-} from '../components/command-notifier/index.js';
+} from '../infrastructure/components/command-notifier/index.js';
 import {
   CommandQueueConsumer,
   createCommandQueue,
   type CommandQueueConsumerOptions,
   type ReceivedCommandMessage,
-} from '../components/command-queue/index.js';
+} from '../infrastructure/components/command-queue/index.js';
 
 export interface RestartAgentInput {
   readonly chatroomId: string;

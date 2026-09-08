@@ -8,7 +8,7 @@ import {
   type CodexSdkAgentServiceDeps,
 } from './codex-sdk-agent-service.js';
 import { TEST_MODEL_CODEX } from '../../../../../../testing/test-models.js';
-import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivitySignal } from '../../../../../services/agent-process-service/index.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 const mockStartThread = vi.fn();

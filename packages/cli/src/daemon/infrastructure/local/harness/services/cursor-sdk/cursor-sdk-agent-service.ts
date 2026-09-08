@@ -31,7 +31,7 @@ import {
 } from './cursor-sdk-package.js';
 import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
-import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import { createHarnessActivityEmitter } from '../../../../../services/agent-process-service/index.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';

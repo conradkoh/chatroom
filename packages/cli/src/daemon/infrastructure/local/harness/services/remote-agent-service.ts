@@ -7,7 +7,7 @@
  */
 
 import type { SpawnPrompt } from './spawn-prompt.js';
-import type { HarnessActivityEmitter } from '../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEmitter } from '../../../../services/agent-process-service/index.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

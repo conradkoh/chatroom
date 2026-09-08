@@ -9,11 +9,11 @@ import {
   createStopAgentConfirmedDeps,
   type ConfirmedStopAdapterDeps,
 } from './stop-agent-confirmed-adapter.js';
-import type { AgentHarness } from '../../../infrastructure/machine/types.js';
-import { buildExitedLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
-import type { AgentStopReason } from '../../domain/entities/agent-stop.js';
-import type { StopAgentTargetsDeps } from '../../domain/usecase/stop-agent-targets.js';
-import { stopAgentTargets } from '../../domain/usecase/stop-agent-targets.js';
+import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
+import { buildExitedLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
+import type { AgentStopReason } from '../../../domain/entities/agent-stop.js';
+import type { StopAgentTargetsDeps } from '../../../domain/usecase/stop-agent-targets.js';
+import { stopAgentTargets } from '../../../domain/usecase/stop-agent-targets.js';
 
 const activeChatroomScopeDepth = new Map<string, number>();
 export function isChatroomStopScopeActive(chatroomId: string): boolean {

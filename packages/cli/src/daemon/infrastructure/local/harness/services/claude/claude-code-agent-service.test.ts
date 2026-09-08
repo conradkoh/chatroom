@@ -6,7 +6,7 @@ import {
   ClaudeCodeAgentService,
   type ClaudeCodeAgentServiceDeps,
 } from './claude-code-agent-service.js';
-import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivitySignal } from '../../../../../services/agent-process-service/index.js';
 import { extractBashCommandFromToolInput } from '../agent-log-format.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 

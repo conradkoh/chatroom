@@ -19,4 +19,4 @@ export type {
   CommandNotificationFilter,
   CommandNotificationListener,
   CommandNotifier,
-} from '../components/command-notifier/index.js';
+} from '../infrastructure/components/command-notifier/index.js';

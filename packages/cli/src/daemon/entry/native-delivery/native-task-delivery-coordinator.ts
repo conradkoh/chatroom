@@ -23,7 +23,7 @@ import type {
   SerializedAgentOperations,
   SerializedAgentOperationOptions,
   SerializedAgentOperationContext,
-} from '../../infrastructure/agent-process-manager/service/index.js';
+} from '../../services/agent-process-service/index.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,

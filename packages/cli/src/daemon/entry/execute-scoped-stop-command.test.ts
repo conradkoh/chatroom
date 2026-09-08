@@ -6,7 +6,7 @@ import { api } from '../../api.js';
 const runExactTargetsStop = vi.fn();
 const finalizeScopedStopExecution = vi.fn();
 
-vi.mock('../infrastructure/agent-process-manager/execute-stop-targets-adapter.js', () => ({
+vi.mock('../services/agent-process-service/index.js', () => ({
   runExactTargetsStop,
 }));
 vi.mock('./finalize-scoped-stop-execution.js', () => ({

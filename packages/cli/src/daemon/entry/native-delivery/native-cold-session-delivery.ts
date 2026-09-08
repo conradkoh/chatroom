@@ -9,8 +9,8 @@ import {
   isOperationalStopIntentActive,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { MachineAgentOperationalRow } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
-import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
+import type { AgentSlot } from '../../services/agent-process-service/index.js';
+import { isChatroomStopScopeActive } from '../../services/agent-process-service/index.js';
 
 /**
  * Explicit cold-session intent is distinct from role-default augmentation.

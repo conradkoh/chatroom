@@ -1,24 +1,24 @@
 import { buildAgentStopTargetKey } from '@workspace/shared/domain/agent-stop-command';
 
-import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import type { AgentHarness } from '../../../infrastructure/machine/types.js';
-import type { Signals } from '../../../infrastructure/types/signals.js';
+import { isProcessAlive } from '../../../../infrastructure/deps/process.js';
+import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
+import type { Signals } from '../../../../infrastructure/types/signals.js';
 import {
   buildExitedLifecycleFact,
   type AgentExitAuditArgs,
   type AgentLifecycleFact,
-} from '../../domain/entities/agent-lifecycle-fact.js';
+} from '../../../domain/entities/agent-lifecycle-fact.js';
 import type {
   AgentStopReason,
   AgentStopTargetDescriptor,
-} from '../../domain/entities/agent-stop.js';
-import { AgentStopError } from '../../domain/entities/agent-stop.js';
+} from '../../../domain/entities/agent-stop.js';
+import { AgentStopError } from '../../../domain/entities/agent-stop.js';
 import {
   stopAgentConfirmed,
   type StopAgentConfirmedDeps,
-} from '../../domain/usecase/stop-agent-confirmed.js';
-import { logDaemonAuditEvent } from '../event-stream/daemon-event-emitter.js';
-import type { RemoteAgentService } from '../local/harness/services/remote-agent-service.js';
+} from '../../../domain/usecase/stop-agent-confirmed.js';
+import { logDaemonAuditEvent } from '../../../infrastructure/event-stream/daemon-event-emitter.js';
+import type { RemoteAgentService } from '../../../infrastructure/local/harness/services/remote-agent-service.js';
 
 export interface ConfirmedStopAdapterDeps {
   machineId: string;

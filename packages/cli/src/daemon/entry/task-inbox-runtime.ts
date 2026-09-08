@@ -26,7 +26,7 @@ import {
   runOperationalInbox,
   type OperationalInboxUpdate,
 } from '../infrastructure/agent-operational/operational-inbox.js';
-import { createAgentTaskStateService } from '../infrastructure/agent-process-manager/components/agent-task-state/index.js';
+import { createAgentTaskStateService } from '../services/agent-process-service/infrastructure/components/agent-task-state/index.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';

@@ -6,19 +6,19 @@ import {
   type EnsureRunningOpts,
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
-import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
+import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
 
-import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
-import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
+import { untrackChildPid } from '../../../entry/handlers/orphan-tracker.js';
+import { NATIVE_DIRECT_HARNESS_NAMES } from '../../../infrastructure/local/harness/bound-harness-registry.js';
 import type {
   RemoteAgentService,
   SpawnResult,
-} from '../local/harness/services/remote-agent-service.js';
-import { DEFAULT_TRIGGER_PROMPT } from '../local/harness/services/spawn-prompt.js';
+} from '../../../infrastructure/local/harness/services/remote-agent-service.js';
+import { DEFAULT_TRIGGER_PROMPT } from '../../../infrastructure/local/harness/services/spawn-prompt.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
 
-vi.mock('../../entry/handlers/orphan-tracker.js', () => ({
+vi.mock('../../../entry/handlers/orphan-tracker.js', () => ({
   trackChildPid: vi.fn(),
   untrackChildPid: vi.fn(),
 }));

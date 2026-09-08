@@ -28,13 +28,13 @@ import { Effect } from 'effect';
 import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
 import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js';
-import { api } from '../../../api.js';
-import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
-import type { AgentHarness } from '../../../infrastructure/machine/types.js';
-import { type AgentLifecyclePortAdapterDeps } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.js';
-import type { AgentLifecycleRuntime } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
-import { createAgentLifecycleRuntime } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
+import { api } from '../../../../api.js';
+import { isProcessAlive } from '../../../../infrastructure/deps/process.js';
+import type { AgentLogSink } from '../../../../infrastructure/log-server/index.js';
+import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
+import { type AgentLifecyclePortAdapterDeps } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.js';
+import type { AgentLifecycleRuntime } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
+import { createAgentLifecycleRuntime } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
 import {
   AgentLifecycleService,
   type AgentLifecycleSlot,
@@ -42,45 +42,45 @@ import {
   type HandleExitOpts,
   type OperationResult,
   type StopOpts,
-} from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
-import type { Signals } from '../../../infrastructure/types/signals.js';
+} from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
+import type { Signals } from '../../../../infrastructure/types/signals.js';
 import {
   buildAgentLifecycleRevisionKey,
   buildExitedLifecycleFact,
   type AgentExitAuditArgs,
   type AgentLifecycleFact,
-} from '../../domain/entities/agent-lifecycle-fact.js';
-import { AgentStopError } from '../../domain/entities/agent-stop.js';
+} from '../../../domain/entities/agent-lifecycle-fact.js';
+import { AgentStopError } from '../../../domain/entities/agent-stop.js';
 import type {
   AgentStopTargetDescriptor,
   AgentStopReason,
-} from '../../domain/entities/agent-stop.js';
-import { resolveStopReason } from '../../domain/entities/stop-reason.js';
-import type { StopReason } from '../../domain/entities/stop-reason.js';
-import { resolveNativeSpawnPolicy } from '../../domain/native-integration/spawn-policy.js';
-import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line.js';
+} from '../../../domain/entities/agent-stop.js';
+import { resolveStopReason } from '../../../domain/entities/stop-reason.js';
+import type { StopReason } from '../../../domain/entities/stop-reason.js';
+import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
+import { appendRecentLogLine } from '../../../domain/usecase/append-recent-log-line.js';
 import {
   classifyProviderErrorFromLogs,
   hasHarnessOutputStalled,
-} from '../../domain/usecase/classify-provider-error.js';
-import { handleTurnCompleted } from '../../domain/usecase/handle-turn-completed.js';
-import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
+} from '../../../domain/usecase/classify-provider-error.js';
+import { handleTurnCompleted } from '../../../domain/usecase/handle-turn-completed.js';
+import { untrackChildPid } from '../../../entry/handlers/orphan-tracker.js';
 import {
   defaultNativeTurnPhase,
   setNativeTurnPhase,
   type NativeTurnPhase,
-} from '../../entry/native-delivery/native-turn-phase.js';
-import { logDaemonAuditEvent } from '../event-stream/daemon-event-emitter.js';
+} from '../../../entry/native-delivery/native-turn-phase.js';
+import { logDaemonAuditEvent } from '../../../infrastructure/event-stream/daemon-event-emitter.js';
 import {
   emitNativeWaitingAfterSpawn,
   wireTokenActivityReporting,
-} from '../local/harness/services/native-spawn-presence.js';
+} from '../../../infrastructure/local/harness/services/native-spawn-presence.js';
 import type {
   AgentLogLine,
   RemoteAgentService,
   SpawnResult,
-} from '../local/harness/services/remote-agent-service.js';
-import type { AgentLifecycleOutboxResult } from '../outbox/agent-lifecycle-outbox.js';
+} from '../../../infrastructure/local/harness/services/remote-agent-service.js';
+import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,8 +91,8 @@ export type {
   EnsureRunningOpts,
   StopOpts,
   HandleExitOpts,
-} from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
-export type { NativeTurnPhase } from '../../entry/native-delivery/native-turn-phase.js';
+} from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
+export type { NativeTurnPhase } from '../../../entry/native-delivery/native-turn-phase.js';
 
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 

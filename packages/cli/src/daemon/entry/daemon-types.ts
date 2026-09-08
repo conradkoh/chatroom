@@ -13,8 +13,8 @@ import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { DaemonEventBus } from './events/event-bus.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
-import type { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
-import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManager } from '../services/agent-process-service/index.js';
+import type { AgentProcessManagerService } from '../services/agent-process-service/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────

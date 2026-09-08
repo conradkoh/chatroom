@@ -4,9 +4,9 @@ import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/
 import { api } from '../../api.js';
 import { abortEnhancerSpawnsForChatroom } from './enhancer/enhancer-spawn-registry.js';
 import type { AgentStopReason } from '../domain/entities/agent-stop.js';
-import type { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
-import type { runExactTargetsStop as runExactTargetsStopType } from '../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
-import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManager } from '../services/agent-process-service/index.js';
+import type { runExactTargetsStop as runExactTargetsStopType } from '../services/agent-process-service/index.js';
+import type { AgentProcessManagerService } from '../services/agent-process-service/index.js';
 
 export interface ScopedStopExecutionSummary {
   stoppedCount: number;
@@ -33,7 +33,7 @@ export async function executeScopedStopForCommand(args: {
     await abortEnhancerSpawnsForChatroom(args.chatroomId);
   }
   const { runExactTargetsStop } =
-    await import('../infrastructure/agent-process-manager/execute-stop-targets-adapter.js');
+    await import('../services/agent-process-service/index.js');
   const finalize = await import('./finalize-scoped-stop-execution.js');
   const begun = (await args.backend.mutation(api.agentStops.beginMachineExecution, {
     sessionId: args.sessionId,

@@ -9,7 +9,7 @@ import type {
   EnsureRunningOpts,
   StopOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
-import { InMemoryCommandNotifier } from '../components/command-notifier/index.js';
+import { InMemoryCommandNotifier } from '../infrastructure/components/command-notifier/index.js';
 
 function createExecution(events: string[]): AgentProcessManagerExecutionPort {
   return {

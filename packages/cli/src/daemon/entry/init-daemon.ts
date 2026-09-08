@@ -49,12 +49,12 @@ import {
 import { formatAuthLoginCommand } from '../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
-import { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
-import { createCommandNotifier } from '../infrastructure/agent-process-manager/components/command-notifier/index.js';
+import { AgentProcessManager } from '../services/agent-process-service/index.js';
+import { createCommandNotifier } from '../services/agent-process-service/index.js';
 import {
   createAgentProcessManagerService,
   type AgentProcessManagerCommand,
-} from '../infrastructure/agent-process-manager/service/index.js';
+} from '../services/agent-process-service/index.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
 import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';

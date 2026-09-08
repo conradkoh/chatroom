@@ -8,7 +8,7 @@ import { isTerminalProviderError } from '../../../../../domain/usecase/detect-te
 import type {
   HarnessActivityEvent,
   HarnessActivityKind,
-} from '../../../../agent-process-manager/harness-activity-emitter.js';
+} from '../../../../../services/agent-process-service/index.js';
 import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
 
 export interface SessionEventForwarderOptions {

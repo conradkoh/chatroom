@@ -11,9 +11,9 @@ import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
   AgentTurnEndedEvent,
-} from '../../infrastructure/agent-process-manager/agent-process-manager.js';
-import type { AgentTaskStateService } from '../../infrastructure/agent-process-manager/components/agent-task-state/index.js';
-import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
+} from '../../services/agent-process-service/index.js';
+import type { AgentTaskStateService } from '../../services/agent-process-service/infrastructure/components/agent-task-state/index.js';
+import type { AgentProcessManagerService } from '../../services/agent-process-service/index.js';
 import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';

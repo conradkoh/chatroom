@@ -39,7 +39,7 @@ import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spaw
 import {
   createHarnessActivityEmitter,
   type HarnessActivityEmitter,
-} from '../../../../agent-process-manager/harness-activity-emitter.js';
+} from '../../../../../services/agent-process-service/index.js';
 import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
 import type {
   SpawnContext,

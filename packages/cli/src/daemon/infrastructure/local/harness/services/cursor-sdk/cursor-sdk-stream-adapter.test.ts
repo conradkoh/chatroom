@@ -5,7 +5,7 @@ import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
 import {
   createHarnessActivityEmitter,
   type HarnessActivitySignal,
-} from '../../../../agent-process-manager/harness-activity-emitter.js';
+} from '../../../../../services/agent-process-service/index.js';
 
 const LOG_PREFIX = '[cursor-sdk:builder@test';
 

@@ -16,7 +16,7 @@
 
 import { vi } from 'vitest';
 
-import type { AgentProcessManager } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import type { AgentProcessManager } from '../../services/agent-process-service/index.js';
 import type { DaemonDeps } from '../daemon-deps.js';
 
 /**

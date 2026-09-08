@@ -11,7 +11,7 @@ import {
   isOperationalDesiredRunning,
   type MachineAgentOperationalRow,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import type { AgentSlot } from '../../services/agent-process-service/index.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(

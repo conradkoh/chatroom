@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { OpenCodeAgentService, type OpenCodeAgentServiceDeps } from './opencode-agent-service.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
-import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivitySignal } from '../../../../../services/agent-process-service/index.js';
 import * as opencodeCatalog from '../opencode-sdk/opencode-model-catalog.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 

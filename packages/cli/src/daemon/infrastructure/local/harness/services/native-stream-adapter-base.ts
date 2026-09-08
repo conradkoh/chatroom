@@ -2,7 +2,7 @@ import { createAssistantTextCapture } from './assistant-text-capture.js';
 import {
   createHarnessActivityEmitter,
   type HarnessActivityEmitter,
-} from '../../../agent-process-manager/harness-activity-emitter.js';
+} from '../../../../services/agent-process-service/index.js';
 
 type AgentEndCallback = () => void;
 type OutputCallback = () => void;

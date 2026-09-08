@@ -6,7 +6,7 @@ import {
   startSessionEventForwarder,
   type SessionEventForwarderOptions,
 } from './session-event-forwarder.js';
-import type { HarnessActivityEvent } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEvent } from '../../../../../services/agent-process-service/index.js';
 
 function makeWritable() {
   return {
