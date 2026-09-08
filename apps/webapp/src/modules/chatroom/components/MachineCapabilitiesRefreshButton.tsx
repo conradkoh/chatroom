@@ -228,6 +228,7 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
         type="button"
         onClick={handleClick}
         disabled={!canClick}
+        data-testid="machine-capabilities-refresh-button"
         className={buttonClassName}
         title={disabledTitle}
         aria-label={

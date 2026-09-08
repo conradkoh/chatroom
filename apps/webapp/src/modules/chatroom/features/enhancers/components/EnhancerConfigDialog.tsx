@@ -41,6 +41,7 @@ interface EnhancerConfigDialogProps {
 export function EnhancerConfigDialog({
   open,
   onOpenChange,
+  chatroomId,
   machineId,
   initialConfig,
   onConfirm,
@@ -135,6 +136,7 @@ export function EnhancerConfigDialog({
 
   const form = (
     <EnhancerConfigForm
+      chatroomId={chatroomId}
       targetId={targetId}
       onTargetIdChange={setTargetId}
       machineId={machineId}
