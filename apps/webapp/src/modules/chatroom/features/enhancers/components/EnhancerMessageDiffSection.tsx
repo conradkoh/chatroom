@@ -10,6 +10,7 @@ interface EnhancerMessageDiffSectionProps {
   message: Message;
   displayContent: string;
   hasEnhancerOriginal: boolean;
+  handoffDurationMs?: number;
 }
 
 /** Footer enhanced indicator + lazy-loaded diff panel for enhanced team messages. */
@@ -17,6 +18,7 @@ export function EnhancerMessageDiffSection({
   message,
   displayContent,
   hasEnhancerOriginal,
+  handoffDurationMs,
 }: EnhancerMessageDiffSectionProps) {
   const [diffPanelOpen, setDiffPanelOpen] = useState(false);
 
@@ -26,6 +28,7 @@ export function EnhancerMessageDiffSection({
         message={message}
         displayContent={displayContent}
         isEnhanced={hasEnhancerOriginal}
+        handoffDurationMs={handoffDurationMs}
         onEnhancedIconClick={() => setDiffPanelOpen(true)}
       />
 

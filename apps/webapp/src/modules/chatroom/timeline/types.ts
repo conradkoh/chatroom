@@ -23,6 +23,8 @@ export interface UserMessageTimelineEvent extends TimelineEventBase {
 export interface TeamMessageTimelineEvent extends TimelineEventBase {
   kind: 'team_message';
   message: Message;
+  /** Historical duration from the origin task start through this handoff. */
+  handoffDurationMs?: number;
 }
 
 /** Context boundary when a new context window is created. */

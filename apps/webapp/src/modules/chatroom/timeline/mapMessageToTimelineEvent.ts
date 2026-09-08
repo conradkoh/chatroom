@@ -9,7 +9,10 @@ import type { Message } from '../types/message';
  * - `senderRole=user` + `type=message` → user message
  * - everything else → team message
  */
-export function mapMessageToTimelineEvent(message: Message): TimelineEvent {
+export function mapMessageToTimelineEvent(
+  message: Message,
+  handoffDurationMs?: number
+): TimelineEvent {
   const base = {
     id: message._id,
     creationTime: message._creationTime,
@@ -25,5 +28,5 @@ export function mapMessageToTimelineEvent(message: Message): TimelineEvent {
     return { ...base, kind: 'user_message', message };
   }
 
-  return { ...base, kind: 'team_message', message };
+  return { ...base, kind: 'team_message', message, handoffDurationMs };
 }

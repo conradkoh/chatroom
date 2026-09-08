@@ -52,6 +52,8 @@ export interface TimelineTeamMessageProps {
   machineId?: string;
   /** When set, sticky header shows centered prev/current/next jump controls (All tab). */
   headerNavigation?: TimelineMessageHeaderNavigation;
+  /** Historical duration from the origin task start through this handoff. */
+  handoffDurationMs?: number;
 }
 
 // fallow-ignore-next-line complexity
@@ -61,6 +63,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   machines,
   machineId,
   headerNavigation,
+  handoffDurationMs,
 }: TimelineTeamMessageProps) {
   const hasEnhancerOriginal =
     typeof message.enhancerOriginalContent === 'string' &&
@@ -147,6 +150,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
           message={message}
           displayContent={originalContent}
           hasEnhancerOriginal={hasEnhancerOriginal}
+          handoffDurationMs={handoffDurationMs}
         />
       </div>
     </div>
