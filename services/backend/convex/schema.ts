@@ -391,6 +391,11 @@ export default defineSchema({
     //   "get-next-task:started" - written when the loop begins
     //   "get-next-task:stopped" - written just before the loop exits
     lastSeenAction: v.optional(v.string()),
+    /**
+     * @deprecated Retained only as migration tolerance for existing participant documents.
+     * New code no longer writes or reads token-activity timestamps.
+     */
+    lastSeenTokenAt: v.optional(v.number()),
     // @deprecated Denormalized mirror of the latest event stream event type for this participant.
     // Written alongside every event stream insert so the frontend can derive agent status
     // from the participant record alone (without querying the event stream).
