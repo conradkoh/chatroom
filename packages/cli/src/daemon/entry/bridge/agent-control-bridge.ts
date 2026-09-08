@@ -10,7 +10,7 @@ import type {
   DaemonSessionServiceShape,
 } from '../daemon-services.js';
 import type { AgentHarness, StartAgentReason } from '../daemon-types.js';
-import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManagerService } from '../../services/service-interfaces.js';
 import { runRestartOrchestrator } from '../restart-orchestrator.js';
 import type { NativeDeliveryService } from '../native-delivery/native-delivery-service.js';
 

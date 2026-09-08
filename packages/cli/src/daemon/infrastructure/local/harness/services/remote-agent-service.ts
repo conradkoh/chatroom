@@ -7,7 +7,8 @@
  */
 
 import type { SpawnPrompt } from './spawn-prompt.js';
-import type { HarnessActivityEmitter } from '../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEmitter } from '../../../../services/service-interfaces.js';
+import type { TurnCompletionResult } from './turn-completion.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,27 +90,29 @@ export interface SpawnResult {
    * Human-readable log lines for provider failure classification.
    * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §3.5).
    */
-  onLogLine?:( (cb: (line: string) => void) => void) | undefined;
+  onLogLine?: ((cb: (line: string) => void) => void) | undefined;
   /**
-   * `lifecycle.turn.completed` — one agent turn finished.
+   * Compatibility lifecycle notification for one agent turn finishing.
    *
    * Wire sources differ by runtime (see `HarnessCapabilities.wireEvents`):
    * - CLI: e.g. Pi NDJSON `wire.ndjson.agent_end` (SDK harnesses never emit this).
    * - SDK: e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`.
    *
-   * Native multi-turn invariant: each completed user/agent turn MUST invoke
-   * registered `onAgentEnd` callbacks exactly once. After `resumeTurn`, the
-   * harness MUST be able to emit a subsequent `onAgentEnd` for the new turn
-   * (e.g. new per-turn adapter/`finish()`, or re-arming a long-lived session
-   * forwarder). Sticky once-per-process latches that block later turns are a bug.
-   * AgentProcessManager owns post-end lifecycle (nativeTurnPhase → delivery).
+   * Native SDK harnesses should use `onTurnResult` as the authoritative channel.
+   * `onAgentEnd` is retained for CLI harnesses and compatibility observers; it must
+   * be derived from the same finalized result and must not independently drive state.
+   * After `resumeTurn`, the harness MUST be able to emit a subsequent notification
+   * for the new turn. Sticky once-per-process latches are a bug.
    */
-  onAgentEnd?:( (cb: () => void) => void) | undefined;
+  onAgentEnd?: ((cb: () => void) => void) | undefined;
+  /** Typed, exactly-once terminal result for each logical turn. */
+  onTurnResult?: ((cb: (result: TurnCompletionResult) => void) => void) | undefined;
   /** Raw assistant text deltas for missed-handoff delivery on native turn-end. */
-  onAssistantText?:( (cb: (text: string) => void) => void) | undefined;
+  onAssistantText?: ((cb: (text: string) => void) => void) | undefined;
   /** Harness session ID used for native delivery correlation. */
   harnessSessionId?: string | undefined;
-  onHarnessSessionIdUpdated?: ((cb: (info: HarnessSessionIdUpdatedInfo) => void) => void) | undefined;
+  onHarnessSessionIdUpdated?:
+    ((cb: (info: HarnessSessionIdUpdatedInfo) => void) => void) | undefined;
 }
 
 export interface ProcessInfo {

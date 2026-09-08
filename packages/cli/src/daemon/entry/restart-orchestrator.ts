@@ -11,13 +11,13 @@ import {
 } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
 import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-contract.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
-import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManagerService } from '../services/service-interfaces.js';
 import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
 import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
 import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
 import type { AgentHarness } from './daemon-types.js';
 import { api } from '../../api.js';
-import { isAgentReadyForNativeDelivery } from './native-delivery/native-ready-invariant.js';
+import { isAgentReadyForNativeDelivery } from '../services/service-interfaces.js';
 import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
 import {
   markRestartOrchestratorInFlight,

@@ -10,7 +10,7 @@ import {
   logUnhandledInteractionDelta,
   logUnhandledSdkMessage,
 } from './cursor-sdk-stream-fallback.js';
-import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
 import {
   BASH_TOOL_KIND,
   extractBashCommandFromToolInput,
@@ -191,10 +191,9 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
     this.flushText();
   }
 
-  /** Call when the run completes successfully (after stream + wait). */
+  /** Flush buffered output after the run result has been recorded. */
   finish(): void {
     this.flushText();
-    this.emitAgentEnd();
     this.sawTextDelta = false;
   }
 
@@ -270,13 +269,5 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
       if (line) this.writeLine(formatAgentLogLine(this.logPrefix, 'text', line));
     }
     this.textBuffer = '';
-  }
-
-  private emitAgentEnd(): void {
-    if (this.agentEndEmitted) return;
-    this.agentEndEmitted = true;
-    this.flushText();
-    this.writeLine(formatAgentLogLine(this.logPrefix, 'agent_end'));
-    for (const cb of this.agentEndCallbacks) cb();
   }
 }

@@ -58,7 +58,7 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import type { BoundHarness } from '../domain/entities/bound-harness.js';
 import type { SessionHandle } from '../domain/usecase/open-harness-session.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
-import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManagerService } from '../services/service-interfaces.js';
 
 const PROCESS_KILL_TIMEOUT_MS = 6_000;
 const CLOSE_TIMEOUT_MS = 3_000;

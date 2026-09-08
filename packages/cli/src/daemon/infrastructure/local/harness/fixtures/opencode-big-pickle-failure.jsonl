@@ -1,0 +1,3 @@
+{"type":"session.status","properties":{"sessionID":"opencode-session-2","status":{"type":"busy"}}}
+{"type":"session.error","properties":{"sessionID":"opencode-session-2","error":{"name":"AI_APICallError","data":{"message":"rate limit exceeded"}}}}
+{"type":"session.idle","properties":{"sessionID":"opencode-session-2"}}

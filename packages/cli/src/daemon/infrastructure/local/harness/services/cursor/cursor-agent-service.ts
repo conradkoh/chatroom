@@ -19,7 +19,7 @@
 import { type ChildProcess } from 'node:child_process';
 
 import { CursorStreamReader } from './cursor-stream-reader.js';
-import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import { createHarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,

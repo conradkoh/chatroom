@@ -319,6 +319,78 @@ export default [
     },
   },
 
+  // CLI service boundaries — consumers must use each service's public root
+  // module instead of reaching into its domain, service, or infrastructure
+  // implementation details. The service directories themselves are excluded
+  // from this rule so their composition code can wire internal components.
+  {
+    files: ['packages/cli/src/**/*.{ts,tsx}'],
+    ignores: [
+      'packages/cli/src/daemon/services/agent-process-service/**',
+      'packages/cli/src/daemon/services/task-service/**',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(?:\\.\\./)+(?:daemon/)?services/agent-process-service/(?:domain|infrastructure|service)(?:/|$)',
+              message:
+                'Import agent-process capabilities from daemon/services/agent-process-service/index.js.',
+            },
+            {
+              regex:
+                '^(?:\\.\\./)+(?:daemon/)?services/task-service/(?:domain|infrastructure|service)(?:/|$)',
+              message:
+                'Import task capabilities from daemon/services/task-service/index.js.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Service-to-service direction — agent process management is the lower
+  // runtime boundary; task delivery may depend on its public API, but the
+  // agent-process service must not depend on task-service internals or API.
+  {
+    files: ['packages/cli/src/daemon/services/agent-process-service/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?:\\.\\./)+task-service(?:/|$)',
+              message:
+                'Agent-process service must not depend on task-service. Keep task orchestration in task-service.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/cli/src/daemon/services/task-service/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(?:\\.\\./)+agent-process-service/(?:domain|infrastructure|service)(?:/|$)',
+              message:
+                'Task service must use the agent-process service public API at daemon/services/agent-process-service/index.js.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Backend (Convex) — enforce extensionless local imports
   // Convex functions use TypeScript compilation and don't need .js extensions.
   // CLI files explicitly need .js for Node.js ESM — that's handled separately.

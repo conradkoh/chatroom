@@ -9,7 +9,7 @@ import {
   type CursorAgentServiceDeps,
 } from './cursor-agent-service.js';
 import { TEST_MODEL_CURSOR } from '../../../../../../testing/test-models.js';
-import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivitySignal } from '../../../../../services/agent-process-service/index.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 vi.mock('@cursor/sdk', () => ({

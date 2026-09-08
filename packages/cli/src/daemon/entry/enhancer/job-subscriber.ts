@@ -15,7 +15,7 @@ import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
 import { api, type Id } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
-import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
+import { isChatroomStopScopeActive } from '../../services/service-interfaces.js';
 import type { RemoteAgentService } from '../../infrastructure/local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../../infrastructure/local/harness/services/spawn-prompt.js';
 import {

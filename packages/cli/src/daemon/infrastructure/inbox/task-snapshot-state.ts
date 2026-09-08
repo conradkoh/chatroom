@@ -81,3 +81,15 @@ export class MachineTaskSnapshotState {
     }
   }
 }
+
+/** Read-only view exposed to services that consume task notifications. */
+export interface TaskSnapshotStateReader {
+  listForRole(chatroomId: string, role: ChatroomRole): readonly AssignedTaskSnapshotView[];
+  listAll(): readonly AssignedTaskSnapshotView[];
+  isInitialized(): boolean;
+  getForRole(
+    chatroomId: string,
+    role: ChatroomRole,
+    taskId: string
+  ): AssignedTaskSnapshotView | null;
+}

@@ -5,34 +5,36 @@ import {
   logNativeDeliveryMutexSkip,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
-import {
-  explainNativeDeliveryBlock,
-} from './native-task-injector-logic.js';
-import {
-  runNativeInjectionEffect,
-  type NativeDeliverySessionHandles,
-} from './native-task-injector.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
-import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
+import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
   SerializedAgentOperationOptions,
   SerializedAgentOperationContext,
-} from '../../infrastructure/agent-process-manager/service/index.js';
+  NativeDeliverySessionHandles,
+  TaskService,
+} from '../../services/service-interfaces.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../daemon-services.js';
-import {
-  filterSnapshotsExcludingRestartInFlight,
-} from '../restart-orchestrator-in-flight.js';
+import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
+
+type TaskDeliveryService = Pick<
+  TaskService,
+  | 'deliverNativeTask'
+  | 'isNativeHarness'
+  | 'snapshotRequestsNativeColdSession'
+  | 'explainNativeDeliveryBlock'
+>;
 
 type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskDeliveryContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -61,11 +63,10 @@ export class NativeTaskDeliveryCoordinator {
         context: SerializedAgentOperationContext
       ) => Promise<T>
     ) => Promise<T>;
+    taskService: TaskDeliveryService;
     sessionDeps: NativeTaskDeliverySessionDeps;
     lifecycleOutbox: {
-      enqueue: (
-        fact: import('../../domain/entities/agent-lifecycle-fact.js').AgentLifecycleFact
-      ) => Promise<unknown>;
+      enqueue: (fact: AgentLifecycleFact) => Promise<unknown>;
     };
     operationalModel: AgentOperationalReadModel;
     isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean;
@@ -81,19 +82,18 @@ export class NativeTaskDeliveryCoordinator {
   }): Promise<void> {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
-    const serializedOperation = params.runSerializedForAgent;
     const {
       runtime,
       effectContext,
       agentMgr,
       sessionDeps,
-      lifecycleOutbox,
       operationalModel,
       isTaskActive,
       machineId,
       onTaskDelivered,
     } = params;
     const deliveryState = getRoleDeliveryState();
+    const taskService = params.taskService;
 
     const pendingFirst = [...tasks].sort((a, b) => {
       if (a.status === 'pending' && b.status !== 'pending') return -1;
@@ -104,7 +104,7 @@ export class NativeTaskDeliveryCoordinator {
     for (const row of pendingFirst) {
       const { role } = row.agentConfig;
       const slot = agentMgr.getSlot(row.chatroomId, role);
-      const blockReason = explainNativeDeliveryBlock(row, {
+      const blockReason = taskService.explainNativeDeliveryBlock(row, {
         slot,
         operational: operationalModel.get(row.chatroomId, role),
       });
@@ -151,33 +151,12 @@ export class NativeTaskDeliveryCoordinator {
           }
 
           const full = mapAssignedTaskView(backend);
-          yield* runNativeInjectionEffect(full, harnessSessionId, {
-            sessionId: sessionDeps.sessionId,
-            machineId: sessionDeps.machineId,
-            logEvent: sessionDeps.logEvent,
-            backend: sessionDeps.backend,
-            lifecycleOutbox,
-            agentMgr: {
-              resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
-              getSlot: (chatroomId, role) => agentMgr.getSlot(chatroomId, role),
-            },
-            runSerializedForAgent: serializedOperation,
-            convexUrl: sessionDeps.convexUrl,
-            onTaskDelivered: ({
-              chatroomId,
-              role,
-              taskId: deliveredTaskId,
-              harnessSessionId: resolvedSessionId,
-            }) => {
-              onTaskDelivered?.({
-                chatroomId,
-                role,
-                taskId: deliveredTaskId,
-                harnessSessionId: resolvedSessionId,
-              });
-              deliveryState.clearNativeNudgeFailures(chatroomId, role);
-            },
-          });
+          yield* Effect.tryPromise(() =>
+            taskService.deliverNativeTask(full, harnessSessionId, (delivered) => {
+              onTaskDelivered?.(delivered);
+              deliveryState.clearNativeNudgeFailures(delivered.chatroomId, delivered.role);
+            })
+          );
         }).pipe(
           Effect.provide(effectContext),
           Effect.catchAll((err) =>

@@ -3,7 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { NativeDeliveryService } from './native-delivery-service.js';
 import { startPendingNativeAgents } from './task-delivery-processor.js';
 import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import { createAgentTaskStateService } from '../../infrastructure/agent-process-manager/components/agent-task-state/index.js';
+import { createAgentTaskStateService } from '../../services/agent-process-service/infrastructure/components/agent-task-state/index.js';
 import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 
 function createService(
@@ -33,6 +33,12 @@ function createService(
     agentTaskState: createAgentTaskStateService(),
     agentOperationalReadModel: new AgentOperationalReadModel(),
     lifecycleOutbox: { enqueue: async () => undefined },
+    taskService: {
+      isNativeHarness: () => true,
+      snapshotRequestsNativeColdSession: () => false,
+      explainNativeDeliveryBlock: () => null,
+      deliverNativeTask: async () => undefined,
+    },
   });
 }
 
@@ -62,6 +68,7 @@ describe('NativeDeliveryService', () => {
       ] as never,
       { getSlot: () => undefined } as never,
       runSerializedForAgent as never,
+      { isNativeHarness: () => true, snapshotRequestsNativeColdSession: () => false } as never,
       new AgentOperationalReadModel()
     );
     expect(startAgent).toHaveBeenCalledWith(

@@ -24,7 +24,7 @@ import { ClaudeSdkStreamAdapter } from './claude-sdk-stream-adapter.js';
 import {
   createHarnessActivityEmitter,
   type HarnessActivityEmitter,
-} from '../../../../agent-process-manager/harness-activity-emitter.js';
+} from '../../../../../services/service-interfaces.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { decodeClaudeVariant } from '../claude/claude-models.js';
@@ -39,6 +39,7 @@ import type {
 import { requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
+import { turnCompletionFromError, type TurnCompletionResult } from '../turn-completion.js';
 
 type LoadedClaudeSdk = Awaited<ReturnType<typeof importBundledClaudeSdk>>;
 
@@ -47,7 +48,10 @@ const DEFAULT_MAX_TURNS = 200;
 const DEFAULT_EFFORT: EffortLevel = 'medium';
 const TURN_TIMEOUT_MS = 3_600_000;
 
-function decodeClaudeSdkModel(model: string): { model?: string | undefined; effort?: EffortLevel | undefined } {
+function decodeClaudeSdkModel(model: string): {
+  model?: string | undefined;
+  effort?: EffortLevel | undefined;
+} {
   const variant = decodeClaudeVariant(requireHarnessModel(model, 'claude-sdk'));
   return { model: variant?.model, effort: variant?.effort };
 }
@@ -90,8 +94,8 @@ interface SdkSession {
   sessionId?: string | undefined;
   resumeOnFirstQuery?: boolean | undefined;
   storedSystemPrompt?: string | undefined;
-  resumeResolve?:( (prompt: string) => void) | undefined;
-  abortResolve?:( () => void) | undefined;
+  resumeResolve?: ((prompt: string) => void) | undefined;
+  abortResolve?: (() => void) | undefined;
   pendingResumePrompt?: string | undefined;
 }
 
@@ -313,6 +317,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     const agentEndCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
     const assistantTextCallbacks: ((text: string) => void)[] = [];
+    const turnResultCallbacks: ((result: TurnCompletionResult) => void)[] = [];
     const sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[] = [];
     const emitLogLine = (line: string) => {
       for (const cb of logLineCallbacks) cb(line);
@@ -350,6 +355,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
     });
@@ -365,6 +371,9 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       },
       onAgentEnd: (cb) => {
         agentEndCallbacks.push(cb);
+      },
+      onTurnResult: (cb) => {
+        turnResultCallbacks.push(cb);
       },
       onLogLine: (cb) => {
         logLineCallbacks.push(cb);
@@ -403,6 +412,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
+    turnResultCallbacks: ((result: TurnCompletionResult) => void)[];
     emitLogLine: (line: string) => void;
     activityEmitter: HarnessActivityEmitter;
   }): void {
@@ -422,6 +432,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
     } = args;
@@ -444,6 +455,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
       isExited: () => exited,
@@ -480,6 +492,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
+    turnResultCallbacks: ((result: TurnCompletionResult) => void)[];
     emitLogLine: (line: string) => void;
     activityEmitter: HarnessActivityEmitter;
     isExited: () => boolean;
@@ -501,6 +514,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
       isExited,
@@ -511,6 +525,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     let exitSignal: string | null = null;
     let nextPrompt: string | null = deferInitialTurn ? null : initialPrompt;
     let isFirstQuery = true;
+    let activeAdapter: ClaudeSdkStreamAdapter | undefined;
 
     try {
       const { query } = await loadSdk();
@@ -531,11 +546,13 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
 
           activityEmitter.beginTurn();
           const adapter = new ClaudeSdkStreamAdapter(logPrefix, emitLogLine, activityEmitter);
+          activeAdapter = adapter;
           wireNativeStreamAdapter({
             adapter,
             assistantTextCallbacks,
             outputCallbacks,
             agentEndCallbacks,
+            turnResultCallbacks,
             entry,
           });
 
@@ -599,9 +616,19 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
             break;
           }
 
+          if (!adapter.turnCompletion.isComplete) {
+            adapter.completeTurn({
+              status: 'failed',
+              source: 'claude-sdk.iterator-ended-without-result',
+              error: 'Claude SDK query ended without a result message',
+            });
+          }
           adapter.finish();
         } catch (turnErr) {
           exitCode = 1;
+          // The adapter may have already accepted a provider result; the completion
+          // object makes this fallback harmless in that case.
+          activeAdapter?.completeTurn(turnCompletionFromError(turnErr, 'claude-sdk.query'));
           writeSpawnError(logPrefix, turnErr, emitLogLine);
           break;
         }
@@ -656,5 +683,4 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       executablePath,
     });
   }
-
 }

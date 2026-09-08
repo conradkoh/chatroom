@@ -14,7 +14,7 @@
 
 import { type ChildProcess } from 'node:child_process';
 
-import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import { createHarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { fetchOpencodeProviderModelCatalog } from '../opencode-sdk/opencode-model-catalog.js';
 import { parseOpencodeSpawnModel } from '../opencode-sdk/pure.js';

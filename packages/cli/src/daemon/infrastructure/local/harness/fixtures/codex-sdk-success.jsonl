@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"codex-thread-1"}
+{"type":"turn.started","turn_id":"codex-turn-1"}
+{"type":"item.completed","item":{"id":"reasoning-1","type":"reasoning","text":"plan"}}
+{"type":"item.completed","item":{"id":"message-1","type":"agent_message","text":"PICKLE\n"}}
+{"type":"turn.completed","turn_id":"codex-turn-1","usage":{"input_tokens":12,"output_tokens":4}}

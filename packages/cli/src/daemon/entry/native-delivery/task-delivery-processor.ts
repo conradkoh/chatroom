@@ -7,33 +7,39 @@
  * module only filters snapshots and delegates ready work to native delivery.
  */
 
+import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
 import type { Runtime, Context } from 'effect';
 
-import { logNativeDeliveryFallback } from './native-delivery-log.js';
-import { snapshotRequestsNativeColdSession } from './native-cold-session-delivery.js';
+import { logNativeDeliveryFallback, logNativeDeliveryTrigger } from './native-delivery-log.js';
 import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
+import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
-import type {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-  DaemonAgentProcessManagerServiceShape,
-} from '../daemon-services.js';
-import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
-import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
-import { isNativeHarness } from './native-task-injector-logic.js';
+import { isSlotIdle } from '../../domain/usecase/check-agent-slot.js';
 import {
   isOperationalCircuitOpen,
   isOperationalStopIntentActive,
   type AgentOperationalReadModel,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import { isSlotIdle } from '../../domain/usecase/check-agent-slot.js';
-import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
-import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
+import type { AgentProcessManagerService, TaskService } from '../../services/service-interfaces.js';
+import { isChatroomStopScopeActive } from '../../services/service-interfaces.js';
+import type {
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+  DaemonAgentProcessManagerServiceShape,
+} from '../daemon-services.js';
 import type { AgentHarness } from '../daemon-types.js';
-import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
+import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
+
+type TaskDeliveryService = Pick<
+  TaskService,
+  | 'deliverNativeTask'
+  | 'isNativeHarness'
+  | 'snapshotRequestsNativeColdSession'
+  | 'explainNativeDeliveryBlock'
+>;
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
   DaemonSessionService | DaemonAgentProcessManagerService
@@ -52,11 +58,7 @@ export type ProcessTasksUpdateOptions = {
 };
 
 type TaskDeliveryPass =
-  | 'inbox-signal'
-  | 'periodic-reconcile'
-  | 'bootstrap'
-  | 'operational-status'
-  | 'restart';
+  'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status' | 'restart';
 
 /**
  * Activate pending native work through the process-manager serialization
@@ -67,6 +69,7 @@ export async function startPendingNativeAgents(
   tasks: readonly AssignedTaskSnapshotView[],
   agentMgr: DaemonAgentProcessManagerServiceShape,
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
+  taskService: TaskDeliveryService,
   operationalModel: AgentOperationalReadModel
 ): Promise<void> {
   const started = new Set<string>();
@@ -74,8 +77,8 @@ export async function startPendingNativeAgents(
     tasks.map(async (task) => {
       if (
         task.status !== 'pending' ||
-        !isNativeHarness(task.agentConfig.agentHarness) ||
-        snapshotRequestsNativeColdSession(task) ||
+        !taskService.isNativeHarness(task.agentConfig.agentHarness) ||
+        taskService.snapshotRequestsNativeColdSession(task) ||
         !task.agentConfig.workingDir
       ) {
         return;
@@ -86,7 +89,8 @@ export async function startPendingNativeAgents(
       if (slot && !isSlotIdle(slot.state)) return;
       const operational = operationalModel?.get(task.chatroomId, task.agentConfig.role);
       if (isChatroomStopScopeActive(task.chatroomId)) return;
-      if (isOperationalCircuitOpen(operational) || isOperationalStopIntentActive(operational)) return;
+      if (isOperationalCircuitOpen(operational) || isOperationalStopIntentActive(operational))
+        return;
       started.add(key);
       try {
         await runSerializedForAgent(
@@ -125,6 +129,7 @@ export async function processTasksUpdate(
   effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
+  taskService: TaskDeliveryService,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   pass: TaskDeliveryPass,
@@ -136,16 +141,27 @@ export async function processTasksUpdate(
   const filteredTasks = filterSnapshotsExcludingRestartInFlight([...options.snapshots]);
   if (filteredTasks.length === 0) return;
 
-  await startPendingNativeAgents(filteredTasks, agentMgr, runSerializedForAgent, operationalModel);
+  await startPendingNativeAgents(
+    filteredTasks,
+    agentMgr,
+    runSerializedForAgent,
+    taskService,
+    operationalModel
+  );
 
   const first = filteredTasks[0];
-  logNativeDeliveryFallback(pass, first.agentConfig.role, first.chatroomId, first.taskId);
+  if (pass === 'periodic-reconcile') {
+    logNativeDeliveryFallback(pass, first.agentConfig.role, first.chatroomId, first.taskId);
+  } else {
+    logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
+  }
   await getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks: filteredTasks,
     runtime,
     effectContext,
     agentMgr,
     runSerializedForAgent,
+    taskService,
     sessionDeps,
     lifecycleOutbox,
     operationalModel,
