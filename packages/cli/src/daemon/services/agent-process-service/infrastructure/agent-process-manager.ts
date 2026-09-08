@@ -69,7 +69,7 @@ import {
   defaultNativeTurnPhase,
   setNativeTurnPhase,
   type NativeTurnPhase,
-} from '../../../entry/native-delivery/native-turn-phase.js';
+} from '../domain/usecase/native-turn-phase.js';
 import { logDaemonAuditEvent } from '../../../infrastructure/event-stream/daemon-event-emitter.js';
 import {
   emitNativeWaitingAfterSpawn,
@@ -92,8 +92,6 @@ export type {
   StopOpts,
   HandleExitOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
-export type { NativeTurnPhase } from '../../../entry/native-delivery/native-turn-phase.js';
-
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
 type AgentProcessManagerResetInput =
