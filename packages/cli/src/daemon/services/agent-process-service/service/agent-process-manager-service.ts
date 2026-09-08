@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
+import type { AgentProcessCommandBus } from './ports/agent-process-command-bus.js';
+import type {
+  AgentProcessNotification,
+  AgentProcessNotificationFilter,
+  AgentProcessNotificationListener,
+  AgentProcessNotifier,
+} from './ports/agent-process-notifier.js';
 import type {
   EnsureRunningOpts,
   HandleExitOpts,
@@ -12,13 +19,6 @@ import type {
   AgentStartedHandler,
   AgentTurnEndedHandler,
 } from '../domain/entities/agent-process.js';
-import type { AgentProcessCommandBus } from './ports/agent-process-command-bus.js';
-import type {
-  CommandNotification,
-  CommandNotificationFilter,
-  CommandNotificationListener,
-  CommandNotifier,
-} from '../infrastructure/components/command-notifier/index.js';
 
 export interface RestartAgentInput {
   readonly chatroomId: string;
@@ -53,7 +53,7 @@ export type AgentProcessManagerCommand =
   | { readonly operationId: string; readonly type: 'restart'; readonly input: RestartAgentInput }
   ;
 
-export type AgentOperationResult = CommandNotification<AgentProcessManagerCommand>;
+export type AgentOperationResult = AgentProcessNotification<AgentProcessManagerCommand>;
 
 export interface AgentProcessManagerExecutionPort {
   runSerializedForAgent<T>(
@@ -106,8 +106,8 @@ export interface AgentProcessManagerService {
   ): Promise<T>;
   /** Subscribe to execution outcomes from lifecycle commands. */
   subscribe(
-    filter: CommandNotificationFilter,
-    listener: CommandNotificationListener<AgentProcessManagerCommand>
+    filter: AgentProcessNotificationFilter,
+    listener: AgentProcessNotificationListener<AgentProcessManagerCommand>
   ): () => void;
 
   /** Start and stop the internal queue polling loop. */
@@ -139,7 +139,7 @@ export interface AgentProcessManagerResetResult {
 export interface AgentProcessManagerServiceDependencies {
   execution: AgentProcessManagerExecutionPort;
   commandBus: AgentProcessCommandBus;
-  notifier: CommandNotifier<AgentProcessManagerCommand>;
+  notifier: AgentProcessNotifier<AgentProcessManagerCommand>;
 }
 
 function messageGroupId(input: { chatroomId: string; role: string }): string {

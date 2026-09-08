@@ -4,7 +4,7 @@ import type {
   RestartAgentInput,
 } from '../../service/agent-process-manager-service.js';
 import type { AgentProcessCommandBus } from '../../service/ports/agent-process-command-bus.js';
-import type { CommandNotifier } from '../components/command-notifier/index.js';
+import type { AgentProcessNotifier } from '../../service/ports/agent-process-notifier.js';
 import {
   CommandQueueConsumer,
   createCommandQueue,
@@ -25,7 +25,7 @@ function assertStopSucceeded(result: { success: boolean }): void {
 export interface AgentProcessCommandBusDependencies {
   readonly execution: AgentProcessManagerExecutionPort;
   readonly restartAgent?: ((input: RestartAgentInput) => Promise<void>) | undefined;
-  readonly notifier: CommandNotifier<AgentProcessManagerCommand>;
+  readonly notifier: AgentProcessNotifier<AgentProcessManagerCommand>;
   readonly consumer?: CommandQueueConsumerOptions | undefined;
 }
 

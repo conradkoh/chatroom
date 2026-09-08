@@ -17,6 +17,13 @@ export type {
   AgentProcessCommandBus,
   AgentProcessCommandMessage,
 } from './ports/agent-process-command-bus.js';
+export type {
+  AgentProcessNotification,
+  AgentProcessNotificationFilter,
+  AgentProcessNotificationListener,
+  AgentProcessNotificationStatus,
+  AgentProcessNotifier,
+} from './ports/agent-process-notifier.js';
 
 export type {
   CommandNotification,
