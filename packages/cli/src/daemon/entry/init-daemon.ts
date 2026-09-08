@@ -49,15 +49,13 @@ import {
 import { formatAuthLoginCommand } from '../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
-import { AgentProcessManager } from '../services/agent-process-service/index.js';
-import { createCommandNotifier } from '../services/agent-process-service/index.js';
-import {
-  createAgentProcessManagerService,
-  type AgentProcessManagerCommand,
-} from '../services/agent-process-service/index.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
 import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
+import {
+  AgentProcessManager,
+  createAgentProcessService,
+} from '../services/agent-process-service/index.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -405,9 +403,8 @@ function assembleDaemonSessionInit(args: {
       enqueue: (fact) => enqueueAgentLifecycleFact(agentLifecycleOutbox, machineId, fact),
     },
   });
-  const agentProcessManagerService = createAgentProcessManagerService({
+  const agentProcessManagerService = createAgentProcessService({
     execution: deps.agentProcessManager,
-    notifier: createCommandNotifier<AgentProcessManagerCommand>(),
   });
 
   return {

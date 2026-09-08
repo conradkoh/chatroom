@@ -1,15 +1,41 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  createAgentProcessManagerService,
+  createAgentProcessManagerService as createApplicationService,
   type AgentProcessManagerCommand,
   type AgentProcessManagerExecutionPort,
+  type AgentProcessManagerService,
+  type AgentProcessManagerServiceDependencies,
 } from './agent-process-manager-service.js';
 import type {
   EnsureRunningOpts,
   StopOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import { InMemoryCommandNotifier } from '../infrastructure/components/command-notifier/index.js';
+import {
+  createAgentProcessCommandBus,
+} from '../infrastructure/adapters/agent-process-command-bus.js';
+import type { CommandQueueConsumerOptions } from '../infrastructure/components/command-queue/index.js';
+
+type TestServiceDependencies = Omit<AgentProcessManagerServiceDependencies, 'commandBus'> & {
+  consumer?: CommandQueueConsumerOptions;
+  restartAgent?: (input: { chatroomId: string; role: string }) => Promise<void>;
+};
+
+function createAgentProcessManagerService(
+  deps: TestServiceDependencies
+): AgentProcessManagerService {
+  return createApplicationService({
+    execution: deps.execution,
+    notifier: deps.notifier,
+    commandBus: createAgentProcessCommandBus({
+      execution: deps.execution,
+      notifier: deps.notifier,
+      restartAgent: deps.restartAgent,
+      consumer: deps.consumer,
+    }),
+  });
+}
 
 function createExecution(events: string[]): AgentProcessManagerExecutionPort {
   return {

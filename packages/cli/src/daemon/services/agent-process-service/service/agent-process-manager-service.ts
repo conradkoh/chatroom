@@ -12,18 +12,13 @@ import type {
   AgentStartedHandler,
   AgentTurnEndedHandler,
 } from '../infrastructure/agent-process-manager.js';
+import type { AgentProcessCommandBus } from './ports/agent-process-command-bus.js';
 import type {
   CommandNotification,
   CommandNotificationFilter,
   CommandNotificationListener,
   CommandNotifier,
 } from '../infrastructure/components/command-notifier/index.js';
-import {
-  CommandQueueConsumer,
-  createCommandQueue,
-  type CommandQueueConsumerOptions,
-  type ReceivedCommandMessage,
-} from '../infrastructure/components/command-queue/index.js';
 
 export interface RestartAgentInput {
   readonly chatroomId: string;
@@ -143,8 +138,7 @@ export interface AgentProcessManagerResetResult {
 
 export interface AgentProcessManagerServiceDependencies {
   execution: AgentProcessManagerExecutionPort;
-  restartAgent?: (input: RestartAgentInput) => Promise<void>;
-  consumer?: CommandQueueConsumerOptions;
+  commandBus: AgentProcessCommandBus;
   notifier: CommandNotifier<AgentProcessManagerCommand>;
 }
 
@@ -187,12 +181,9 @@ interface PendingOperation {
 export function createAgentProcessManagerService(
   deps: AgentProcessManagerServiceDependencies
 ): AgentProcessManagerService {
-  const queue = createCommandQueue<AgentProcessManagerCommand>();
   const pendingOperations = new Map<string, PendingOperation>();
   let processingStarted = false;
   let resetting = false;
-
-  const keyFor = (key: AgentKey): string => messageGroupId(key);
 
   const runExclusive = <T>(key: AgentKey, operation: () => Promise<T>): Promise<T> => {
     return deps.execution.runSerializedForAgent(key, operation);
@@ -252,29 +243,6 @@ export function createAgentProcessManagerService(
     else pending.reject(notification.error ?? new Error('Agent lifecycle command failed'));
   });
 
-  const consumer = new CommandQueueConsumer({
-    queue,
-    notifier: deps.notifier,
-    ...deps.consumer,
-    dispatch: async (message: ReceivedCommandMessage<AgentProcessManagerCommand>) => {
-      const { type, input } = message.body;
-      switch (type) {
-        case 'start':
-          assertStartSucceeded(await deps.execution.ensureRunning(input));
-          return;
-        case 'stop':
-          assertStopSucceeded(await deps.execution.stop(input));
-          return;
-        case 'restart':
-          if (!deps.restartAgent) {
-            throw new Error('Agent process manager restart execution is not wired yet');
-          }
-          await deps.restartAgent(input);
-          return;
-      }
-    },
-  });
-
   const submit = (
     commandFactory: (operationId: string) => AgentProcessManagerCommand
   ): Promise<AgentOperationResult> => {
@@ -284,7 +252,7 @@ export function createAgentProcessManagerService(
     });
     const command = commandFactory(operationId);
     const message = commandMessage(command);
-    void queue.sendMessage(message).catch((error: unknown) => {
+    void deps.commandBus.send(message).catch((error: unknown) => {
       const pending = pendingOperations.get(operationId);
       if (!pending) return;
       pendingOperations.delete(operationId);
@@ -319,7 +287,7 @@ export function createAgentProcessManagerService(
       // Allow lifecycle calls accepted immediately before reset to enqueue
       // before the purge boundary is reached.
       await Promise.resolve();
-      if (wasProcessing) await consumer.stop();
+      if (wasProcessing) await deps.commandBus.stop();
 
       try {
         await deps.execution.reset(input);
@@ -327,7 +295,7 @@ export function createAgentProcessManagerService(
           input.scope === 'chatroom'
             ? `${input.chatroomId}:`
             : `${input.chatroomId}:${input.role.toLowerCase()}`;
-        const purgedMessages = await queue.purge({
+        const purgedMessages = await deps.commandBus.purge({
           scope: 'message-group-prefix',
           messageGroupPrefix,
         });
@@ -362,7 +330,7 @@ export function createAgentProcessManagerService(
           pending.reject(cancellationError);
         }
 
-        if (wasProcessing) consumer.start();
+        if (wasProcessing) deps.commandBus.start();
 
         return {
           input,
@@ -377,11 +345,11 @@ export function createAgentProcessManagerService(
     subscribe: (filter, listener) => deps.notifier.subscribe(filter, listener),
     startProcessing: () => {
       processingStarted = true;
-      consumer.start();
+      deps.commandBus.start();
     },
     stopProcessing: async () => {
       processingStarted = false;
-      await consumer.stop();
+      await deps.commandBus.stop();
     },
     handleExit: (input) => deps.execution.handleExit(input),
     getSlot: (chatroomId, role) => deps.execution.getSlot(chatroomId, role),

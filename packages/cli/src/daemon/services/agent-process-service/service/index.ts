@@ -13,6 +13,10 @@ export {
   type AgentProcessManagerExecutionPort,
   type RestartAgentInput,
 } from './agent-process-manager-service.js';
+export type {
+  AgentProcessCommandBus,
+  AgentProcessCommandMessage,
+} from './ports/agent-process-command-bus.js';
 
 export type {
   CommandNotification,

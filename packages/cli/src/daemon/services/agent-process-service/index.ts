@@ -5,6 +5,9 @@
  * service implementation or its infrastructure adapters.
  */
 export * from './service/index.js';
+export { createAgentProcessService } from './composition/agent-process-service.js';
+export { createAgentProcessCommandBus } from './infrastructure/adapters/agent-process-command-bus.js';
+export * from './domain/usecase/native-turn-phase.js';
 export * from './infrastructure/agent-process-manager.js';
 export * from './infrastructure/execute-stop-targets-adapter.js';
 export * from './infrastructure/harness-activity-emitter.js';
