@@ -769,14 +769,14 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     } as never);
 
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(processTasksUpdate.mock.calls.some((call) => call[6] === 'periodic-reconcile')).toBe(
+    expect(processTasksUpdate.mock.calls.some((call) => call[7] === 'periodic-reconcile')).toBe(
       false
     );
 
     release?.();
     await Promise.all([first, second]);
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(processTasksUpdate.mock.calls.some((call) => call[6] === 'periodic-reconcile')).toBe(
+    expect(processTasksUpdate.mock.calls.some((call) => call[7] === 'periodic-reconcile')).toBe(
       true
     );
 
