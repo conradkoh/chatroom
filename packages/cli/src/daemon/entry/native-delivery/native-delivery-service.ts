@@ -17,6 +17,7 @@ import type { AgentProcessManagerService } from '../../services/agent-process-se
 import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
+import type { TaskService } from '../daemon-services.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 export type NativeDeliveryPass =
@@ -40,6 +41,7 @@ export interface NativeDeliveryServiceDependencies {
   readonly agentTaskState: AgentTaskStateService;
   readonly agentOperationalReadModel: AgentOperationalReadModel;
   readonly lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
+  readonly taskService?: TaskService | undefined;
 }
 
 /**
@@ -125,6 +127,7 @@ export class NativeDeliveryService {
       this.deps.effectContext,
       this.deps.agentMgr,
       this.deps.runSerializedForAgent,
+      this.deps.taskService!,
       this.deps.sessionDeps,
       this.deps.machineId,
       pass,

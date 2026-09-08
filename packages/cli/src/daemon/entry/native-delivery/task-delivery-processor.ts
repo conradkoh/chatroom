@@ -10,7 +10,6 @@
 import type { Runtime, Context } from 'effect';
 
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
-import { snapshotRequestsNativeColdSession } from '../../services/task-service/index.js';
 import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
@@ -23,7 +22,7 @@ import type {
 } from '../daemon-services.js';
 import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 import type { AgentProcessManagerService } from '../../services/agent-process-service/index.js';
-import { isNativeHarness } from '../../services/task-service/index.js';
+import type { TaskService } from '../daemon-services.js';
 import {
   isOperationalCircuitOpen,
   isOperationalStopIntentActive,
@@ -67,6 +66,7 @@ export async function startPendingNativeAgents(
   tasks: readonly AssignedTaskSnapshotView[],
   agentMgr: DaemonAgentProcessManagerServiceShape,
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
+  taskService: TaskService,
   operationalModel: AgentOperationalReadModel
 ): Promise<void> {
   const started = new Set<string>();
@@ -74,8 +74,8 @@ export async function startPendingNativeAgents(
     tasks.map(async (task) => {
       if (
         task.status !== 'pending' ||
-        !isNativeHarness(task.agentConfig.agentHarness) ||
-        snapshotRequestsNativeColdSession(task) ||
+        !taskService.isNativeHarness(task.agentConfig.agentHarness) ||
+        taskService.snapshotRequestsNativeColdSession(task) ||
         !task.agentConfig.workingDir
       ) {
         return;
@@ -125,6 +125,7 @@ export async function processTasksUpdate(
   effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
+  taskService: TaskService,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   pass: TaskDeliveryPass,
@@ -136,7 +137,7 @@ export async function processTasksUpdate(
   const filteredTasks = filterSnapshotsExcludingRestartInFlight([...options.snapshots]);
   if (filteredTasks.length === 0) return;
 
-  await startPendingNativeAgents(filteredTasks, agentMgr, runSerializedForAgent, operationalModel);
+  await startPendingNativeAgents(filteredTasks, agentMgr, runSerializedForAgent, taskService, operationalModel);
 
   const first = filteredTasks[0];
   logNativeDeliveryFallback(pass, first.agentConfig.role, first.chatroomId, first.taskId);
@@ -146,6 +147,7 @@ export async function processTasksUpdate(
     effectContext,
     agentMgr,
     runSerializedForAgent,
+    taskService,
     sessionDeps,
     lifecycleOutbox,
     operationalModel,

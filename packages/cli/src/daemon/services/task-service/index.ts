@@ -27,3 +27,4 @@ export {
   isNativeColdSessionDeliveryOwnedSpawn,
   explainColdSessionDeliveryBlock,
 } from './domain/usecase/native-cold-session-delivery.js';
+export { createTaskService, type TaskService, type TaskServiceCompositionDependencies } from './service/task-service.js';

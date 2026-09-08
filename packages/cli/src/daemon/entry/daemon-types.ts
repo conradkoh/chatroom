@@ -15,6 +15,7 @@ import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
 import type { AgentProcessManager } from '../services/agent-process-service/index.js';
 import type { AgentProcessManagerService } from '../services/agent-process-service/index.js';
+import type { TaskService } from '../services/task-service/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
@@ -125,6 +126,7 @@ export interface DaemonSessionInit {
   spawning: SpawningOps;
   agentProcessManager: AgentProcessManager;
   agentProcessManagerService: AgentProcessManagerService;
+  taskService: TaskService;
   agentLifecycleOutbox: AgentLifecycleOutboxRegistry;
 
   // ─── Shared data ──────────────────────────────────────────────────

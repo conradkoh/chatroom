@@ -41,6 +41,8 @@ import type {
   AgentLifecycleOutboxResult,
 } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type { AgentProcessManagerService } from '../services/agent-process-service/index.js';
+import type { TaskService } from '../services/task-service/index.js';
+export { createTaskService, type TaskService } from '../services/task-service/index.js';
 
 export interface AgentLifecycleOutboxServiceShape {
   enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
@@ -301,6 +303,8 @@ export interface DaemonSessionServiceShape {
   convexUrl: string;
   client: ConvexClient;
   config: MachineConfig | null;
+  /** Constructed once by the daemon composition root. */
+  taskService?: TaskService | undefined;
 
   // ─── Flat deps (no ctx.deps.xxx indirection) ──────────────────────
   /** Direct access to backend ops — same as ctx.deps.backend but without the .deps. layer. */

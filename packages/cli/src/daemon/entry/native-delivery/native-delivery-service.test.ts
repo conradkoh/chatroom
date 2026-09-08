@@ -62,6 +62,7 @@ describe('NativeDeliveryService', () => {
       ] as never,
       { getSlot: () => undefined } as never,
       runSerializedForAgent as never,
+      { isNativeHarness: () => true, snapshotRequestsNativeColdSession: () => false } as never,
       new AgentOperationalReadModel()
     );
     expect(startAgent).toHaveBeenCalledWith(

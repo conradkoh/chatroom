@@ -56,6 +56,7 @@ import {
   AgentProcessManager,
   createAgentProcessService,
 } from '../services/agent-process-service/index.js';
+import { createTaskService } from '../services/task-service/index.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -406,6 +407,17 @@ function assembleDaemonSessionInit(args: {
   const agentProcessManagerService = createAgentProcessService({
     execution: deps.agentProcessManager,
   });
+  const taskService = createTaskService({
+    sessionId: typedSessionId,
+    machineId,
+    convexUrl,
+    backend: deps.backend,
+    logEvent: activeLogEvent ?? (async () => undefined),
+    agentProcessService: agentProcessManagerService,
+    lifecycleOutbox: {
+      enqueue: (fact) => enqueueAgentLifecycleFact(agentLifecycleOutbox, machineId, fact),
+    },
+  });
 
   return {
     client,
@@ -419,6 +431,7 @@ function assembleDaemonSessionInit(args: {
     spawning: deps.spawning,
     agentProcessManager: deps.agentProcessManager,
     agentProcessManagerService,
+    taskService,
     agentLifecycleOutbox,
     events: new DaemonEventBus(),
     agentServices,
