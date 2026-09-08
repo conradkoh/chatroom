@@ -24,6 +24,7 @@ export interface MessagesPanelProps {
   // SendForm props
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
   onRegisterAllTabNavigation?: (actions: { goToLatestAnchor: () => void }) => void;
+  onRequestComposerFocus?: () => void;
   onMessageSent?: () => void;
   autocompleteFiles?: FileEntry[];
   refreshAutocompleteFiles?: () => void;
@@ -42,6 +43,7 @@ export function MessagesPanel({
   machines,
   onRegisterSendFormFocus,
   onRegisterAllTabNavigation,
+  onRequestComposerFocus,
   onMessageSent,
   autocompleteFiles,
   refreshAutocompleteFiles,
@@ -56,6 +58,7 @@ export function MessagesPanel({
         chatroomId={chatroomId}
         machines={machines}
         onRegisterAllTabNavigation={onRegisterAllTabNavigation}
+        onRequestComposerFocus={onRequestComposerFocus}
         footer={
           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
             <MessageInput

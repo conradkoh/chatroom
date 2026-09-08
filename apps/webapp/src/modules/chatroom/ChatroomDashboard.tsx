@@ -795,6 +795,10 @@ export function ChatroomDashboard({
     focusSendFormRef.current = fn;
   }, []);
 
+  const handleRequestComposerFocus = useCallback(() => {
+    setTimeout(() => focusSendFormRef.current?.(), 0);
+  }, []);
+
   useEffect(() => {
     return subscribeCommandDialogAnyClose(() => {
       const messageInputVisible =
@@ -1949,6 +1953,7 @@ export function ChatroomDashboard({
                                 machines: machineNameMap,
                                 onRegisterSendFormFocus: handleRegisterSendFormFocus,
                                 onRegisterAllTabNavigation: handleRegisterAllTabNavigation,
+                                onRequestComposerFocus: handleRequestComposerFocus,
                                 onMessageSent: handleAllTabMessageSent,
                                 autocompleteFiles,
                                 refreshAutocompleteFiles: handleAtTriggerActivate,
@@ -1966,6 +1971,7 @@ export function ChatroomDashboard({
                           chatroomId={chatroomId}
                           machines={machineNameMap}
                           onRegisterAllTabNavigation={handleRegisterAllTabNavigation}
+                          onRequestComposerFocus={handleRequestComposerFocus}
                           footer={
                             <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                               <MessageInput
