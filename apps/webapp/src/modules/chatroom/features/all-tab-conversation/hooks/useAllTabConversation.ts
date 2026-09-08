@@ -7,6 +7,7 @@ import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo, useState } from 'react';
 
 import { toMessage } from '../../../hooks/chatroomMessageStore';
+import { getHandoffDurationMs } from '../../../timeline/handoffTiming';
 import { mapMessageToTimelineEvent } from '../../../timeline/mapMessageToTimelineEvent';
 import type { TimelineEvent } from '../../../timeline/types';
 import type { Message } from '../../../types/message';
@@ -96,6 +97,11 @@ export function useAllTabConversation(chatroomId: string) {
     [paginatedMessages, tailMessages]
   );
 
+  const messagesById = useMemo(
+    () => new Map(messages.map((message) => [message._id, message] as const)),
+    [messages]
+  );
+
   // Loading until the current anchor's first page arrives. Convex resets the
   // paginated query to LoadingFirstPage synchronously when its args change, so
   // a stale slice from the previous anchor is never shown during transitions.
@@ -120,8 +126,11 @@ export function useAllTabConversation(chatroomId: string) {
   }, []);
 
   const events: TimelineEvent[] = useMemo(
-    () => messages.map((m) => mapMessageToTimelineEvent(m)),
-    [messages]
+    () =>
+      messages.map((message) =>
+        mapMessageToTimelineEvent(message, getHandoffDurationMs(message, messagesById))
+      ),
+    [messages, messagesById]
   );
 
   return {

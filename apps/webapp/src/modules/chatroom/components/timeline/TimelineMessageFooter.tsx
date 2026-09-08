@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
 import { useAttachments } from '../../attachments';
+import { formatHandoffDuration } from '../../timeline/handoffTiming';
 import type { Message } from '../../types/message';
 import { formatTimestamp, formatTimestampFull } from '../../utils/chatroomTimestamp';
 
@@ -56,17 +57,21 @@ export interface TimelineMessageFooterProps {
   isEnhanced?: boolean;
   /** Called when the user clicks the enhanced indicator. */
   onEnhancedIconClick?: () => void;
+  /** Historical duration from the origin task start through this handoff. */
+  handoffDurationMs?: number;
 }
 
 /**
  * Message footer: copy content, attach-as-context, and creation timestamp.
  * Matches pre-revamp MessageFeed footer UX; timestamp always in footer (not header).
  */
+// fallow-ignore-next-line complexity
 export const TimelineMessageFooter = memo(function TimelineMessageFooter({
   message,
   displayContent,
   isEnhanced = false,
   onEnhancedIconClick,
+  handoffDurationMs,
 }: TimelineMessageFooterProps) {
   const markdownContent = displayContent ?? message.content;
   const { add: addAttachment, isAttached } = useAttachments();
@@ -117,6 +122,15 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
           >
             <Sparkles size={12} />
           </button>
+        )}
+        {handoffDurationMs !== undefined && (
+          <span
+            data-testid="timeline-handoff-duration"
+            title={`Time since task started: ${formatHandoffDuration(handoffDurationMs)}`}
+            className="text-[10px] font-mono tabular-nums text-chatroom-text-muted"
+          >
+            {formatHandoffDuration(handoffDurationMs)}
+          </span>
         )}
         <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
           <span title={formatTimestampFull(message._creationTime)}>

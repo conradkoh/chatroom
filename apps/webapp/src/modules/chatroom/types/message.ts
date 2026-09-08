@@ -43,6 +43,12 @@ export interface Message {
   targetRole?: string;
   content: string;
   _creationTime: number;
+  /** Original user message that started this handoff/task chain. */
+  taskOriginMessageId?: string;
+  /** When the origin task was acknowledged and work started. */
+  acknowledgedAt?: number;
+  /** When the origin task completed and the handoff was emitted. */
+  completedAt?: number;
   taskId?: string;
   /**
    * Task status for UI display. Includes backend TaskStatus values plus 'cancelled'

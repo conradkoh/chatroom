@@ -87,13 +87,16 @@ const BASE_MESSAGE: Message = {
 
 describe('TimelineTeamMessage enhancer toggle', () => {
   it('shows no toggle when message has no enhancerOriginalContent', () => {
-    render(<TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" />);
+    render(
+      <TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" handoffDurationMs={62_000} />
+    );
 
     expect(screen.queryByTestId('enhancer-content-toggle')).not.toBeInTheDocument();
     expect(screen.queryByTestId('timeline-enhanced-indicator')).not.toBeInTheDocument();
     expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
       'Enhanced handoff content'
     );
+    expect(screen.getByTestId('timeline-handoff-duration')).toHaveTextContent('1m 2s');
   });
 
   it('does not show enhancer toggle in header when enhancerOriginalContent exists', () => {

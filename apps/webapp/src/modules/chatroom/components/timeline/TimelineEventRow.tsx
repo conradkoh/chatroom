@@ -40,6 +40,7 @@ export const TimelineEventRow = memo(function TimelineEventRow({
       return (
         <TimelineTeamMessage
           message={event.message}
+          handoffDurationMs={event.handoffDurationMs}
           chatroomId={chatroomId}
           machines={machines}
           machineId={machineId}

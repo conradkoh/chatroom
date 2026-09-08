@@ -42,7 +42,11 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
 
 function renderFooter(
   message: Message,
-  props: { isEnhanced?: boolean; onEnhancedIconClick?: () => void } = {}
+  props: {
+    isEnhanced?: boolean;
+    onEnhancedIconClick?: () => void;
+    handoffDurationMs?: number;
+  } = {}
 ) {
   return render(
     <AttachmentsProvider>
@@ -70,6 +74,22 @@ describe('TimelineMessageFooter', () => {
     expect(indicator.compareDocumentPosition(screen.getByText('TS:1700000000000'))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
+  });
+
+  it('shows handoff duration before the existing timestamp', () => {
+    renderFooter(makeMessage(), { handoffDurationMs: 62_000 });
+
+    const duration = screen.getByTestId('timeline-handoff-duration');
+    expect(duration).toHaveTextContent('1m 2s');
+    expect(duration).toHaveAttribute('title', 'Time since task started: 1m 2s');
+    expect(duration.compareDocumentPosition(screen.getByText('TS:1700000000000'))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+  });
+
+  it('hides handoff duration when no timing is supplied', () => {
+    renderFooter(makeMessage());
+    expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
   });
 
   it('calls onEnhancedIconClick when enhanced indicator is clicked', () => {
