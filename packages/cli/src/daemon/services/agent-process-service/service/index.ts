@@ -24,10 +24,3 @@ export type {
   AgentProcessNotificationStatus,
   AgentProcessNotifier,
 } from './ports/agent-process-notifier.js';
-
-export type {
-  CommandNotification,
-  CommandNotificationFilter,
-  CommandNotificationListener,
-  CommandNotifier,
-} from '../infrastructure/components/command-notifier/index.js';
