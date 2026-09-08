@@ -26,7 +26,7 @@ import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact
 import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type {
   AgentProcessManager,
-  AgentSlot,
+  AgentProcessSlotView,
   AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
@@ -147,8 +147,8 @@ export interface DaemonAgentProcessManagerServiceShape {
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
-  getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
-  listActive: () => { chatroomId: string; role: string; slot: AgentSlot }[];
+  getSlot: (chatroomId: string, role: string) => AgentProcessSlotView | undefined;
+  listActive: () => { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot: (
     chatroomId: string,
     role: string,

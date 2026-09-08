@@ -11,12 +11,12 @@ import {
   isOperationalDesiredRunning,
   type MachineAgentOperationalRow,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentSlot } from '../../services/agent-process-service/index.js';
+import type { AgentProcessSlotView } from '../../services/agent-process-service/index.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(
   task: AssignedTaskSnapshotView,
-  slot: AgentSlot | undefined,
+  slot: AgentProcessSlotView | undefined,
   operational?: MachineAgentOperationalRow | undefined
 ): boolean {
   return explainAgentReadyForNativeDeliveryBlock(task, slot, operational) === null;
@@ -26,7 +26,7 @@ export function isAgentReadyForNativeDelivery(
 // fallow-ignore-next-line complexity
 export function explainAgentReadyForNativeDeliveryBlock(
   task: AssignedTaskSnapshotView,
-  slot: AgentSlot | undefined,
+  slot: AgentProcessSlotView | undefined,
   explicitOperational?: MachineAgentOperationalRow | undefined
 ): string | null {
   const { agentConfig } = task;

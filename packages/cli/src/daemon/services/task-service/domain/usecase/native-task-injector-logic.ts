@@ -6,7 +6,7 @@ import {
   isDeliverableNativeTaskStatus,
 } from '../../../../entry/native-delivery/native-ready-invariant.js';
 import type { MachineAgentOperationalRow } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentSlot } from '../../../agent-process-service/index.js';
+import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';
 export { isDeliverableNativeTaskStatus } from '../../../../entry/native-delivery/native-ready-invariant.js';
@@ -17,7 +17,7 @@ export { isDeliverableNativeTaskStatus } from '../../../../entry/native-delivery
  * and fall back to the delivery-session registry lookup.
  */
 export type NativeDeliveryReadinessOptions = {
-  slot: AgentSlot | undefined;
+  slot: AgentProcessSlotView | undefined;
   operational?: MachineAgentOperationalRow | undefined;
 };
 

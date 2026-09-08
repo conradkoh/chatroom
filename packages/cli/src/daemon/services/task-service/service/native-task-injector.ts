@@ -18,14 +18,14 @@ import { ensureColdSessionBeforeNativeInject } from '../../../entry/native-deliv
 import { logDaemonAuditEvent } from '../../../infrastructure/event-stream/daemon-event-emitter.js';
 import type {
   AgentKey,
-  AgentSlot,
+  AgentProcessSlotView,
   SerializedAgentOperations,
 } from '../../agent-process-service/index.js';
 import { buildNativeInjectionPrompt } from '../domain/usecase/native-task-injector-logic.js';
 
 export interface NativeInjectorAgentMgr {
   resumeTurnForSlot: (args: { chatroomId: string; role: string; prompt: string }) => Promise<void>;
-  getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
+  getSlot: (chatroomId: string, role: string) => AgentProcessSlotView | undefined;
 }
 
 /** Shared daemon session + backend handles for native delivery. */

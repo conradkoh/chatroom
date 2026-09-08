@@ -9,7 +9,7 @@ import {
   isOperationalStopIntentActive,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { MachineAgentOperationalRow } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentSlot } from '../../services/agent-process-service/index.js';
+import type { AgentProcessSlotView } from '../../services/agent-process-service/index.js';
 import { isChatroomStopScopeActive } from '../../services/agent-process-service/index.js';
 
 /**
@@ -27,7 +27,7 @@ export function snapshotRequestsNativeColdSession(task: AssignedTaskSnapshotView
  * by the normal ready gates plus the injector's cold-replacement step.
  */
 // fallow-ignore-next-line unused-export
-export function isColdStartEligibleSlotState(slot: AgentSlot | undefined): boolean {
+export function isColdStartEligibleSlotState(slot: AgentProcessSlotView | undefined): boolean {
   if (!slot) return true;
   return isSlotIdle(slot.state);
 }
@@ -35,7 +35,7 @@ export function isColdStartEligibleSlotState(slot: AgentSlot | undefined): boole
 /** True when delivery's cold-session path should own the next spawn. */
 export function isNativeColdSessionDeliveryOwnedSpawn(
   task: AssignedTaskSnapshotView,
-  slot: AgentSlot | undefined
+  slot: AgentProcessSlotView | undefined
 ): boolean {
   return snapshotRequestsNativeColdSession(task) && isColdStartEligibleSlotState(slot);
 }
@@ -56,7 +56,7 @@ export function isNativeColdSessionDeliveryOwnedSpawn(
 // fallow-ignore-next-line complexity
 export function explainColdSessionDeliveryBlock(
   task: AssignedTaskSnapshotView,
-  slot: AgentSlot | undefined,
+  slot: AgentProcessSlotView | undefined,
   operational: MachineAgentOperationalRow | undefined
 ): string | null {
   if (!snapshotRequestsNativeColdSession(task)) return null;

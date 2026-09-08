@@ -25,6 +25,13 @@ import { isExplicitDaemonStart } from '@workspace/backend/src/domain/entities/ag
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { Effect } from 'effect';
 
+import type {
+  AgentProcessSlotState,
+  AgentSessionLostHandler,
+  AgentStartedHandler,
+  AgentTurnEndedEvent,
+  AgentTurnEndedHandler,
+} from '../domain/entities/agent-process.js';
 import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
 import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js';
@@ -92,7 +99,7 @@ export type {
   StopOpts,
   HandleExitOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
-export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
+export type AgentSlotState = AgentProcessSlotState;
 
 type AgentProcessManagerResetInput =
   | { readonly scope: 'chatroom'; readonly chatroomId: string }
@@ -147,31 +154,14 @@ export interface AgentSlot {
   stopTargetKey?: string | undefined;
 }
 
-export interface AgentTurnEndedEvent {
-  readonly chatroomId: string;
-  readonly role: string;
-  readonly pid: number;
-  readonly harness: AgentHarness;
-  readonly slot: AgentSlot;
-  readonly eventId: string;
-}
-
-export type AgentTurnEndedHandler = (event: AgentTurnEndedEvent) => Promise<void>;
-
-export interface AgentStartedEvent {
-  readonly chatroomId: string;
-  readonly role: string;
-}
-
-export type AgentStartedHandler = (event: AgentStartedEvent) => Promise<void>;
-
-export interface AgentSessionLostEvent {
-  readonly chatroomId: string;
-  readonly role: string;
-  readonly harnessSessionId?: string | undefined;
-}
-
-export type AgentSessionLostHandler = (event: AgentSessionLostEvent) => void;
+export type {
+  AgentSessionLostEvent,
+  AgentStartedEvent,
+  AgentTurnEndedEvent,
+  AgentSessionLostHandler,
+  AgentStartedHandler,
+  AgentTurnEndedHandler,
+} from '../domain/entities/agent-process.js';
 
 export interface AgentProcessManagerDeps {
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult> };

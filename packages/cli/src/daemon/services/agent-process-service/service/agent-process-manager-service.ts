@@ -7,11 +7,11 @@ import type {
   StopOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type {
-  AgentSlot,
+  AgentProcessSlotView,
   AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
-} from '../infrastructure/agent-process-manager.js';
+} from '../domain/entities/agent-process.js';
 import type { AgentProcessCommandBus } from './ports/agent-process-command-bus.js';
 import type {
   CommandNotification,
@@ -65,8 +65,8 @@ export interface AgentProcessManagerExecutionPort {
   handleExit(opts: HandleExitOpts): Promise<void>;
   reset(input: AgentProcessManagerResetInput): Promise<void>;
 
-  getSlot(chatroomId: string, role: string): AgentSlot | undefined;
-  listActive(): { chatroomId: string; role: string; slot: AgentSlot }[];
+  getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
+  listActive(): { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot(
     chatroomId: string,
     role: string,
@@ -116,8 +116,8 @@ export interface AgentProcessManagerService {
 
   /** Non-lifecycle manager operations exposed through the same boundary. */
   handleExit(opts: HandleExitOpts): Promise<void>;
-  getSlot(chatroomId: string, role: string): AgentSlot | undefined;
-  listActive(): { chatroomId: string; role: string; slot: AgentSlot }[];
+  getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
+  listActive(): { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot(
     chatroomId: string,
     role: string,
