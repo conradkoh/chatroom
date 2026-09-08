@@ -10,6 +10,7 @@ import { ENHANCER_TARGETS } from '../constants/enhancerTargets';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 
 export interface EnhancerConfigFormProps {
+  chatroomId: string;
   targetId: string;
   onTargetIdChange: (id: string) => void;
   machineId: string | null | undefined;
@@ -32,6 +33,7 @@ export interface EnhancerConfigFormProps {
 }
 
 export function EnhancerConfigForm({
+  chatroomId,
   targetId,
   onTargetIdChange,
   machineId,
@@ -90,6 +92,7 @@ export function EnhancerConfigForm({
       </div>
 
       <EnhancerHarnessModelSelect
+        chatroomId={chatroomId}
         machineId={machineId}
         agentHarness={agentHarness}
         model={model}

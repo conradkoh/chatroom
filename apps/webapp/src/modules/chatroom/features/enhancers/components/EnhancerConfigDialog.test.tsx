@@ -24,12 +24,20 @@ vi.mock('@/hooks/useMachineModels', () => ({
 }));
 
 vi.mock('./EnhancerHarnessModelSelect', () => ({
-  EnhancerHarnessModelSelect: ({ machineId }: { machineId?: string | null }) =>
+  EnhancerHarnessModelSelect: ({
+    chatroomId,
+    machineId,
+  }: {
+    chatroomId?: string;
+    machineId?: string | null;
+  }) =>
     !machineId ? (
       <p className="text-xs text-chatroom-text-muted">
         Select a workspace with a connected machine to choose a model.
       </p>
-    ) : null,
+    ) : (
+      <div data-testid="enhancer-harness-model-select" data-chatroom-id={chatroomId} />
+    ),
 }));
 
 const CHATROOM_ID = 'room-1';
@@ -248,6 +256,24 @@ describe('EnhancerConfigDialog', () => {
     expect(
       targetLabel.compareDocumentPosition(favoritesList) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+  });
+
+  it('threads chatroomId to the harness/model selector boundary', () => {
+    render(
+      <EnhancerConfigDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        chatroomId={CHATROOM_ID}
+        machineId="machine-1"
+        initialConfig={makeConfig()}
+        onConfirm={onConfirm}
+        {...mockFavoritesProps}
+      />
+    );
+
+    expect(
+      screen.getByTestId('enhancer-harness-model-select').getAttribute('data-chatroom-id')
+    ).toBe(CHATROOM_ID);
   });
 
   it('syncs form state when initialConfig arrives after open', () => {

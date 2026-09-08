@@ -4,15 +4,19 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo } from 'react';
 
+import { MachineCapabilitiesRefreshButton } from '../../../components/MachineCapabilitiesRefreshButton';
 import { formatHarnessLabel } from '../../../types/machine';
 import type { AgentHarness } from '../../../types/machine';
+import { useChatroomWorkspaces } from '../../../workspace/hooks/useChatroomWorkspaces';
 
+import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useMachineModels } from '@/hooks/useMachineModels';
 import { ModelPickerField } from '@/modules/chatroom/components/model-selection';
 import { HarnessHarnessSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 
 interface EnhancerHarnessModelSelectProps {
+  chatroomId: string;
   machineId: string | null | undefined;
   agentHarness: AgentHarness | null;
   model: string | null;
@@ -22,6 +26,7 @@ interface EnhancerHarnessModelSelectProps {
 }
 
 export function EnhancerHarnessModelSelect({
+  chatroomId,
   machineId,
   agentHarness,
   model,
@@ -70,6 +75,12 @@ export function EnhancerHarnessModelSelect({
     [onHarnessChange, onModelChange]
   );
 
+  const { isConnected: daemonConnected } = useDaemonConnected(machineId ?? null);
+  const { workspaces } = useChatroomWorkspaces(chatroomId);
+  const linkedToChatroom = Boolean(
+    machineId && workspaces.some((workspace) => workspace.machineId === machineId)
+  );
+
   if (!machineId) {
     return (
       <p className="text-xs text-chatroom-text-muted">
@@ -84,12 +95,22 @@ export function EnhancerHarnessModelSelect({
         <label className="block text-xs font-medium text-chatroom-text-secondary mb-1">
           Agent harness
         </label>
-        <HarnessHarnessSelect
-          harnesses={harnessOptions}
-          value={agentHarness ?? ''}
-          onValueChange={handleHarnessChange}
-          disabled={disabled || harnessOptions.length === 0}
-        />
+        <div className="flex items-stretch gap-1">
+          <div className="min-w-0 flex-1">
+            <HarnessHarnessSelect
+              harnesses={harnessOptions}
+              value={agentHarness ?? ''}
+              onValueChange={handleHarnessChange}
+              disabled={disabled || harnessOptions.length === 0}
+            />
+          </div>
+          <MachineCapabilitiesRefreshButton
+            chatroomId={chatroomId}
+            machineId={machineId}
+            daemonConnected={daemonConnected}
+            linkedToChatroom={linkedToChatroom}
+          />
+        </div>
       </div>
       <div>
         <label className="block text-xs font-medium text-chatroom-text-secondary mb-1">Model</label>
