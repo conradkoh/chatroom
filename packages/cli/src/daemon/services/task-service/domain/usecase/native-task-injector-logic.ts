@@ -1,10 +1,10 @@
 import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
 } from '../../../../entry/native-delivery/native-ready-invariant.js';
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { MachineAgentOperationalRow } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../../agent-process-service/index.js';
 
