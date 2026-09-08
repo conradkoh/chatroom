@@ -6,7 +6,7 @@ import {
   isNativeColdSessionDeliveryOwnedSpawn,
   snapshotRequestsNativeColdSession,
 } from './native-cold-session-delivery.js';
-import type { MachineAgentOperationalRow } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import type { MachineAgentOperationalRow } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 
 const coldTask = {
   taskId: 'task-1',

@@ -1,16 +1,16 @@
-import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import {
   isSlotIdle,
   isSlotSpawning,
   isSlotStopping,
-} from '../../domain/usecase/check-agent-slot.js';
+} from '../../../../domain/usecase/check-agent-slot.js';
 import {
   isOperationalCircuitOpen,
   isOperationalStopIntentActive,
-} from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { MachineAgentOperationalRow } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentProcessSlotView } from '../../services/agent-process-service/index.js';
-import { isChatroomStopScopeActive } from '../../services/agent-process-service/index.js';
+  type TaskOperationalAgent,
+} from '../entities/operational-agent.js';
+import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
+import { isChatroomStopScopeActive } from '../../../agent-process-service/index.js';
 
 /**
  * Explicit cold-session intent is distinct from role-default augmentation.
@@ -57,7 +57,7 @@ export function isNativeColdSessionDeliveryOwnedSpawn(
 export function explainColdSessionDeliveryBlock(
   task: AssignedTaskSnapshotView,
   slot: AgentProcessSlotView | undefined,
-  operational: MachineAgentOperationalRow | undefined
+  operational: TaskOperationalAgent | undefined
 ): string | null {
   if (!snapshotRequestsNativeColdSession(task)) return null;
   if (isChatroomStopScopeActive(task.chatroomId)) {

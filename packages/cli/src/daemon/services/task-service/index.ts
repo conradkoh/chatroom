@@ -18,3 +18,12 @@ export {
   shouldDeliverNativeTask,
   type NativeDeliveryReadinessOptions,
 } from './domain/usecase/native-task-injector-logic.js';
+export {
+  isAgentReadyForNativeDelivery,
+  explainAgentReadyForNativeDeliveryBlock,
+} from './domain/usecase/native-ready-invariant.js';
+export {
+  snapshotRequestsNativeColdSession,
+  isNativeColdSessionDeliveryOwnedSpawn,
+  explainColdSessionDeliveryBlock,
+} from './domain/usecase/native-cold-session-delivery.js';

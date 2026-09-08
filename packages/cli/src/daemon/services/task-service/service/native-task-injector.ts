@@ -7,32 +7,34 @@ import {
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect } from 'effect';
 
-import { api } from '../../../../api.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
 import {
   buildActivityLifecycleFact,
   type AgentLifecycleFact,
 } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
-import { ensureColdSessionBeforeNativeInject } from '../../../entry/native-delivery/native-cold-session-before-inject.js';
-import { logDaemonAuditEvent } from '../../../infrastructure/event-stream/daemon-event-emitter.js';
+import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
 import type {
   AgentKey,
   AgentProcessSlotView,
   SerializedAgentOperations,
 } from '../../agent-process-service/index.js';
 import { buildNativeInjectionPrompt } from '../domain/usecase/native-task-injector-logic.js';
+import type {
+  NativeTaskDeliveryAgentPort,
+  NativeTaskDeliveryAuditPort,
+  NativeTaskDeliveryGateway,
+  NativeTaskDeliverySerializationPort,
+} from './ports/native-task-delivery.js';
 
-export interface NativeInjectorAgentMgr {
-  resumeTurnForSlot: (args: { chatroomId: string; role: string; prompt: string }) => Promise<void>;
-  getSlot: (chatroomId: string, role: string) => AgentProcessSlotView | undefined;
-}
+export type NativeInjectorAgentMgr = NativeTaskDeliveryAgentPort;
 
 /** Shared daemon session + backend handles for native delivery. */
 export interface NativeDeliverySessionHandles {
   sessionId: string;
   machineId: string;
   logEvent?: ((event: Record<string, unknown>) => Promise<void>) | undefined;
+  /** Legacy transport handle retained for composition adapters. */
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -49,6 +51,8 @@ export interface NativeInjectorDeps extends NativeDeliverySessionHandles {
   ) => Promise<T>;
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
   convexUrl?: string | undefined;
+  taskGateway: NativeTaskDeliveryGateway;
+  audit: NativeTaskDeliveryAuditPort;
   onTaskDelivered?:
     | ((args: {
         chatroomId: string;
@@ -69,7 +73,7 @@ async function emitTaskDeliveryFailed(
   }
 ): Promise<void> {
   try {
-    await logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+    await deps.audit.emit({
       type: 'agent.taskDeliveryFailed',
       chatroomId: args.chatroomId,
       role: args.role,
@@ -134,7 +138,7 @@ function claimPendingTaskIfNeeded(
     const { role } = agentConfig;
     const claimResult = yield* Effect.tryPromise({
       try: () =>
-        deps.backend.mutation(api.tasks.claimTask, {
+        deps.taskGateway.claimPendingTask({
           sessionId: deps.sessionId,
           chatroomId,
           role,
@@ -230,7 +234,7 @@ function emitSessionAugmentationIfNeeded(
 
   return Effect.tryPromise({
     try: async () => {
-      await logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+      await deps.audit.emit({
         type: 'agent.sessionAugmented',
         chatroomId,
         role,
@@ -240,7 +244,7 @@ function emitSessionAugmentationIfNeeded(
         newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
         harnessSessionId,
       });
-      await deps.backend.mutation(api.daemon.agentEvents.sessionAugmented, {
+      await deps.taskGateway.recordSessionAugmentation({
         sessionId: deps.sessionId,
         machineId: deps.machineId,
         chatroomId,
@@ -284,7 +288,7 @@ function resumeHarnessWithPrompt(
 
     yield* Effect.tryPromise({
       try: () =>
-        logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+        deps.audit.emit({
           type: 'agent.taskDelivered',
           chatroomId,
           role,
@@ -317,12 +321,12 @@ function loadNativeInjectionPrompt(
 
     const deliveryResult = yield* Effect.tryPromise({
       try: () =>
-        deps.backend.query(api.messages.getTaskDeliveryPrompt, {
+        deps.taskGateway.loadDeliveryPrompt({
           sessionId: deps.sessionId,
           chatroomId,
           role,
           taskId,
-          convexUrl: deps.convexUrl,
+          ...(deps.convexUrl ? { convexUrl: deps.convexUrl } : {}),
         }) as Promise<{ fullCliOutput: string }>,
       catch: (err) => err,
     }).pipe(Effect.either);
@@ -384,12 +388,11 @@ function injectNativeTaskPrompt(
 
     yield* Effect.tryPromise({
       try: () =>
-        deps.backend.mutation(api.taskDeliveryReceipts.record, {
+        deps.taskGateway.recordReceipt({
           sessionId: deps.sessionId,
           chatroomId,
           taskId,
           role,
-          deliveryKind: 'native_inject',
           harnessSessionId,
         }),
       catch: (err) => err,

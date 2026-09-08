@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { explainAgentReadyForNativeDeliveryBlock } from './native-ready-invariant.js';
-import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
+import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 
 const task = (overrides: Record<string, unknown> = {}) =>
   ({

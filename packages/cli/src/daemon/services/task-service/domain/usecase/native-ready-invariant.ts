@@ -4,20 +4,17 @@ import {
   explainColdSessionDeliveryBlock,
   isNativeColdSessionDeliveryOwnedSpawn,
 } from './native-cold-session-delivery.js';
-import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
-import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
-import { isSlotRunning, isTurnPhaseIdle } from '../../../daemon/domain/usecase/check-agent-slot.js';
-import {
-  isOperationalDesiredRunning,
-  type MachineAgentOperationalRow,
-} from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentProcessSlotView } from '../../services/agent-process-service/index.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
+import { isSlotRunning, isTurnPhaseIdle } from '../../../../domain/usecase/check-agent-slot.js';
+import { isOperationalDesiredRunning, type TaskOperationalAgent } from '../entities/operational-agent.js';
+import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(
   task: AssignedTaskSnapshotView,
   slot: AgentProcessSlotView | undefined,
-  operational?: MachineAgentOperationalRow | undefined
+  operational?: TaskOperationalAgent | undefined
 ): boolean {
   return explainAgentReadyForNativeDeliveryBlock(task, slot, operational) === null;
 }
@@ -27,7 +24,7 @@ export function isAgentReadyForNativeDelivery(
 export function explainAgentReadyForNativeDeliveryBlock(
   task: AssignedTaskSnapshotView,
   slot: AgentProcessSlotView | undefined,
-  explicitOperational?: MachineAgentOperationalRow | undefined
+  explicitOperational?: TaskOperationalAgent | undefined
 ): string | null {
   const { agentConfig } = task;
   if (!isNativeHarness(agentConfig.agentHarness)) {

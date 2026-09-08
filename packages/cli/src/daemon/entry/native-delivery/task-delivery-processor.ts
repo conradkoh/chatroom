@@ -10,7 +10,7 @@
 import type { Runtime, Context } from 'effect';
 
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
-import { snapshotRequestsNativeColdSession } from './native-cold-session-delivery.js';
+import { snapshotRequestsNativeColdSession } from '../../services/task-service/index.js';
 import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,

@@ -12,6 +12,8 @@ import {
   runNativeInjectionEffect,
   type NativeDeliverySessionHandles,
 } from '../../services/task-service/index.js';
+import { createConvexNativeTaskDeliveryGateway } from '../../services/task-service/infrastructure/adapters/convex-native-task-delivery-gateway.js';
+import { createDaemonAuditPort } from '../../services/task-service/infrastructure/adapters/daemon-audit-port.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
@@ -156,6 +158,8 @@ export class NativeTaskDeliveryCoordinator {
             machineId: sessionDeps.machineId,
             logEvent: sessionDeps.logEvent,
             backend: sessionDeps.backend,
+            taskGateway: createConvexNativeTaskDeliveryGateway(sessionDeps.backend),
+            audit: createDaemonAuditPort(sessionDeps.logEvent ?? (async () => undefined)),
             lifecycleOutbox,
             agentMgr: {
               resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),

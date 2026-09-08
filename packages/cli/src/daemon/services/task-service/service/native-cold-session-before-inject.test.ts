@@ -3,8 +3,10 @@ import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { describe, expect, test, vi } from 'vitest';
 
 import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
-import type { NativeInjectorDeps } from '../../services/task-service/index.js';
-import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
+import type { NativeInjectorDeps } from './native-task-injector.js';
+import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
+import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
+import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
 
 function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTaskWithContent {
   return {
@@ -48,14 +50,15 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
         { signal: new AbortController().signal }
       )
   );
+  const backend = { mutation: vi.fn().mockResolvedValue(undefined), query: vi.fn() };
+  const logEvent = vi.fn().mockResolvedValue(undefined);
   return {
     sessionId: 'session_1',
     machineId: 'machine_1',
-    logEvent: vi.fn().mockResolvedValue(undefined),
-    backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn(),
-    },
+    logEvent,
+    backend,
+    taskGateway: createConvexNativeTaskDeliveryGateway(backend),
+    audit: createDaemonAuditPort(logEvent),
     agentMgr,
     runSerializedForAgent,
     ...overrides,

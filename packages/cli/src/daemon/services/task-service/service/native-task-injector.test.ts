@@ -3,6 +3,8 @@ import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { runNativeInjectionEffect, type NativeInjectorDeps } from './native-task-injector.js';
+import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
+import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
 import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 
 const HARNESS_SESSION_ID = 'sess_1';
@@ -62,14 +64,18 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
         { signal: new AbortController().signal }
       )
   );
+  const backend = {
+    mutation: vi.fn().mockResolvedValue(undefined),
+    query: vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY OUTPUT' }),
+  };
+  const logEvent = vi.fn().mockResolvedValue(undefined);
   return {
     sessionId: 'session_1',
     machineId: 'machine_1',
-    logEvent: vi.fn().mockResolvedValue(undefined),
-    backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY OUTPUT' }),
-    },
+    logEvent,
+    backend,
+    taskGateway: createConvexNativeTaskDeliveryGateway(backend),
+    audit: createDaemonAuditPort(logEvent),
     agentMgr,
     runSerializedForAgent,
     lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue(undefined) },

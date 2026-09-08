@@ -4,12 +4,12 @@ import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assig
 import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
-} from '../../../../entry/native-delivery/native-ready-invariant.js';
-import type { MachineAgentOperationalRow } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+} from './native-ready-invariant.js';
+import type { TaskOperationalAgent } from '../entities/operational-agent.js';
 import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';
-export { isDeliverableNativeTaskStatus } from '../../../../entry/native-delivery/native-ready-invariant.js';
+export { isDeliverableNativeTaskStatus } from './native-ready-invariant.js';
 
 /**
  * Readiness inputs for native delivery gating. Callers with an explicit
@@ -18,7 +18,7 @@ export { isDeliverableNativeTaskStatus } from '../../../../entry/native-delivery
  */
 export type NativeDeliveryReadinessOptions = {
   slot: AgentProcessSlotView | undefined;
-  operational?: MachineAgentOperationalRow | undefined;
+  operational?: TaskOperationalAgent | undefined;
 };
 
 /** True when daemon should deliver a task into a live native harness session. */

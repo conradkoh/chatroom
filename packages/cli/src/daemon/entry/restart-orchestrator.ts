@@ -17,7 +17,7 @@ import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-tas
 import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
 import type { AgentHarness } from './daemon-types.js';
 import { api } from '../../api.js';
-import { isAgentReadyForNativeDelivery } from './native-delivery/native-ready-invariant.js';
+import { isAgentReadyForNativeDelivery } from '../services/task-service/index.js';
 import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
 import {
   markRestartOrchestratorInFlight,

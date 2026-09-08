@@ -3,14 +3,11 @@ import {
   AgentStartReasonEnum,
   AgentStopReasonEnum,
 } from '@workspace/backend/src/domain/entities/agent.js';
-import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { taskRequestsNativeColdSession } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 
-import { api } from '../../../api.js';
-import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
-import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
-import type { AgentHarness } from '../daemon-types.js';
-import type { NativeInjectorDeps } from '../../services/task-service/index.js';
+import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
+import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
+import type { NativeInjectorDeps } from './native-task-injector.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,15 +101,14 @@ export async function ensureColdSessionBeforeNativeInject(
   }
   if (!harnessSessionId) return null;
 
-  await deps.backend.mutation(api.participants.join, {
+  await deps.taskGateway.joinWaitingParticipant({
     sessionId: deps.sessionId,
     chatroomId,
     role,
-    action: NATIVE_WAITING_ACTION,
     taskId,
   });
 
-  await logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+  await deps.audit.emit({
     type: 'agent.sessionAugmented',
     chatroomId,
     role,
@@ -122,7 +118,7 @@ export async function ensureColdSessionBeforeNativeInject(
     newSessionStarted: true,
     harnessSessionId,
   });
-  await deps.backend.mutation(api.daemon.agentEvents.sessionAugmented, {
+  await deps.taskGateway.recordSessionAugmentation({
     sessionId: deps.sessionId,
     machineId: deps.machineId,
     chatroomId,

@@ -15,6 +15,8 @@ import {
   runNativeInjectionEffect,
   type NativeInjectorDeps,
 } from '../daemon/services/task-service/index.js';
+import { createConvexNativeTaskDeliveryGateway } from '../daemon/services/task-service/infrastructure/adapters/convex-native-task-delivery-gateway.js';
+import { createDaemonAuditPort } from '../daemon/services/task-service/infrastructure/adapters/daemon-audit-port.js';
 
 export interface SimulateInjectionOptions {
   task: AssignedTaskView;
@@ -107,14 +109,17 @@ export class NativeOrchestrationSimulator {
     const convexUrl = options.convexUrl ?? this.convexUrl;
     const expected = this.expectedPrompt(task, deliveryOutput);
     const backend = createBackendMock(deliveryOutput);
+    const logEvent = async () => undefined;
 
     await Effect.runPromise(
       runNativeInjectionEffect(task, this.harnessSessionId, {
         sessionId,
         machineId: task.agentConfig.machineId,
-        logEvent: async () => undefined,
+        logEvent,
         convexUrl,
         backend,
+        taskGateway: createConvexNativeTaskDeliveryGateway(backend),
+        audit: createDaemonAuditPort(logEvent),
         lifecycleOutbox: { enqueue: async () => ({ success: true }) },
         agentMgr: this.harness,
         runSerializedForAgent: (async (_key, _options, operation) =>
