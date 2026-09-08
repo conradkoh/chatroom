@@ -2,17 +2,17 @@ import { randomUUID } from 'node:crypto';
 
 import type { AgentProcessCommandBus } from './ports/agent-process-command-bus.js';
 import type {
+  EnsureAgentProcessInput,
+  HandleAgentProcessExitInput,
+  AgentProcessOperationResult,
+  StopAgentProcessInput,
+} from './ports/agent-process-lifecycle.js';
+import type {
   AgentProcessNotification,
   AgentProcessNotificationFilter,
   AgentProcessNotificationListener,
   AgentProcessNotifier,
 } from './ports/agent-process-notifier.js';
-import type {
-  EnsureRunningOpts,
-  HandleExitOpts,
-  OperationResult,
-  StopOpts,
-} from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type {
   AgentProcessSlotView,
   AgentSessionLostHandler,
@@ -35,8 +35,8 @@ export interface AgentKey {
 }
 
 export interface SerializedAgentOperations {
-  startAgent(input: EnsureRunningOpts, signal: AbortSignal): Promise<OperationResult>;
-  stopAgent(input: StopOpts, signal: AbortSignal): Promise<{ success: boolean }>;
+  startAgent(input: EnsureAgentProcessInput, signal: AbortSignal): Promise<AgentProcessOperationResult>;
+  stopAgent(input: StopAgentProcessInput, signal: AbortSignal): Promise<{ success: boolean }>;
 }
 
 export interface SerializedAgentOperationOptions {
@@ -48,8 +48,8 @@ export interface SerializedAgentOperationContext {
 }
 
 export type AgentProcessManagerCommand =
-  | { readonly operationId: string; readonly type: 'start'; readonly input: EnsureRunningOpts }
-  | { readonly operationId: string; readonly type: 'stop'; readonly input: StopOpts }
+  | { readonly operationId: string; readonly type: 'start'; readonly input: EnsureAgentProcessInput }
+  | { readonly operationId: string; readonly type: 'stop'; readonly input: StopAgentProcessInput }
   | { readonly operationId: string; readonly type: 'restart'; readonly input: RestartAgentInput }
   ;
 
@@ -60,9 +60,9 @@ export interface AgentProcessManagerExecutionPort {
     key: AgentKey,
     operation: () => Promise<T>
   ): Promise<T>;
-  ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult>;
-  stop(opts: StopOpts): Promise<{ success: boolean }>;
-  handleExit(opts: HandleExitOpts): Promise<void>;
+  ensureRunning(opts: EnsureAgentProcessInput): Promise<AgentProcessOperationResult>;
+  stop(opts: StopAgentProcessInput): Promise<{ success: boolean }>;
+  handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
   reset(input: AgentProcessManagerResetInput): Promise<void>;
 
   getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
@@ -81,9 +81,9 @@ export interface AgentProcessManagerExecutionPort {
 
 export interface AgentProcessManagerService {
   /** Enqueue a start operation for one chatroom/role agent. */
-  startAgent(input: EnsureRunningOpts): Promise<AgentOperationResult>;
+  startAgent(input: EnsureAgentProcessInput): Promise<AgentOperationResult>;
   /** Enqueue a stop operation for one chatroom/role agent. */
-  stopAgent(input: StopOpts): Promise<AgentOperationResult>;
+  stopAgent(input: StopAgentProcessInput): Promise<AgentOperationResult>;
   /** Enqueue a restart operation for one chatroom/role agent. */
   restartAgent(input: RestartAgentInput): Promise<AgentOperationResult>;
   /**
@@ -115,7 +115,7 @@ export interface AgentProcessManagerService {
   stopProcessing(): Promise<void>;
 
   /** Non-lifecycle manager operations exposed through the same boundary. */
-  handleExit(opts: HandleExitOpts): Promise<void>;
+  handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
   getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
   listActive(): { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot(
@@ -154,7 +154,7 @@ function commandMessage(command: AgentProcessManagerCommand): {
   return { body: command, messageGroupId: messageGroupId(input) };
 }
 
-function assertStartSucceeded(result: OperationResult): void {
+function assertStartSucceeded(result: AgentProcessOperationResult): void {
   if (!result.success) {
     throw new Error(`Agent start failed${result.error ? `: ${result.error}` : ''}`);
   }

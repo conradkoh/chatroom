@@ -24,3 +24,9 @@ export type {
   AgentProcessNotificationStatus,
   AgentProcessNotifier,
 } from './ports/agent-process-notifier.js';
+export type {
+  AgentProcessOperationResult,
+  EnsureAgentProcessInput,
+  HandleAgentProcessExitInput,
+  StopAgentProcessInput,
+} from './ports/agent-process-lifecycle.js';
