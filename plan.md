@@ -20,6 +20,15 @@ frontend message
 The daemon must distinguish clearly between a task that is visible, a task that is
 blocked, and a task whose injection is actually in flight or complete.
 
+## Phase 0 — Establish service boundaries
+
+- [ ] Migrate `packages/cli/src/daemon/infrastructure/agent-process-manager` to
+      `packages/cli/src/daemon/services/agent-process-service` and establish the
+      agent-process service boundary.
+- [ ] Migrate `packages/cli/src/daemon/entry/native-delivery/native-task-injector.ts` to
+      `packages/cli/src/daemon/services/task-service` and establish the task service
+      boundary.
+
 ## Phase 1 — Document the current contract
 
 - [ ] Document the backend state transitions for native delivery:
