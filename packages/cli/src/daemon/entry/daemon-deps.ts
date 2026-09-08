@@ -14,7 +14,7 @@
 import type { BackendOps, ClockOps, FsOps, ProcessOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../infrastructure/machine/types.js';
 import type { TryConsumeResult } from '../../infrastructure/services/harness-spawning/index.js';
-import type { AgentProcessManager } from '../services/agent-process-service/index.js';
+import type { AgentProcessManager } from '../services/service-interfaces.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
 

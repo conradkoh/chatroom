@@ -56,7 +56,7 @@ import {
   AgentProcessManager,
   createAgentProcessService,
 } from '../services/agent-process-service/index.js';
-import { createTaskService } from '../services/task-service/index.js';
+import { createTaskService } from '../services/service-interfaces.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 

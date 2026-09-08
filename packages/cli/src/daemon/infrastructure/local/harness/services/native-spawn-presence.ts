@@ -10,7 +10,7 @@ import {
   type AgentLifecycleFact,
 } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import { isTeamAgentRole } from '../../../../domain/entities/execution-kind.js';
-import type { HarnessActivityEmitter } from '../../../../services/agent-process-service/index.js';
+import type { HarnessActivityEmitter } from '../../../../services/service-interfaces.js';
 
 export const NATIVE_TOKEN_ACTIVITY_THROTTLE_MS = 30_000;
 

@@ -6,4 +6,4 @@ export {
   defaultNativeTurnPhase,
   isNativeSlotIdleForDelivery,
   setNativeTurnPhase,
-} from '../../services/agent-process-service/index.js';
+} from '../../services/service-interfaces.js';

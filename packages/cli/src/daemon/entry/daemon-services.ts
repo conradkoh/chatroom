@@ -40,9 +40,9 @@ import type {
   AgentLifecycleOutboxRegistry,
   AgentLifecycleOutboxResult,
 } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
-import type { AgentProcessManagerService } from '../services/agent-process-service/index.js';
-import type { TaskService } from '../services/task-service/index.js';
-export { createTaskService, type TaskService } from '../services/task-service/index.js';
+import type { AgentProcessManagerService } from '../services/service-interfaces.js';
+import type { TaskService } from '../services/service-interfaces.js';
+export { createTaskService, type TaskService } from '../services/service-interfaces.js';
 
 export interface AgentLifecycleOutboxServiceShape {
   enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
@@ -195,7 +195,7 @@ export const DaemonAgentProcessManagerServiceLive = (
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
         const { runRoleScopedStop } =
-          await import('../services/agent-process-service/index.js');
+          await import('../services/service-interfaces.js');
         const legacyReason: Record<string, string> = {
           'team.switch': 'platform.team_switch',
           dedup: 'platform.dedup',

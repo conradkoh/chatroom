@@ -5,7 +5,7 @@ import {
   logNativeDeliveryMutexSkip,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
-import type { NativeDeliverySessionHandles } from '../../services/task-service/index.js';
+import type { NativeDeliverySessionHandles } from '../../services/service-interfaces.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
@@ -17,7 +17,7 @@ import type {
   SerializedAgentOperations,
   SerializedAgentOperationOptions,
   SerializedAgentOperationContext,
-} from '../../services/agent-process-service/index.js';
+} from '../../services/service-interfaces.js';
 import { createTaskService } from '../daemon-services.js';
 import type {
   DaemonAgentProcessManagerServiceShape,

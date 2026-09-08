@@ -21,7 +21,7 @@ import type {
   DaemonAgentProcessManagerServiceShape,
 } from '../daemon-services.js';
 import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
-import type { AgentProcessManagerService } from '../../services/agent-process-service/index.js';
+import type { AgentProcessManagerService } from '../../services/service-interfaces.js';
 import type { TaskService } from '../daemon-services.js';
 import {
   isOperationalCircuitOpen,
@@ -29,7 +29,7 @@ import {
   type AgentOperationalReadModel,
 } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { isSlotIdle } from '../../domain/usecase/check-agent-slot.js';
-import { isChatroomStopScopeActive } from '../../services/agent-process-service/index.js';
+import { isChatroomStopScopeActive } from '../../services/service-interfaces.js';
 import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
 import type { AgentHarness } from '../daemon-types.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';

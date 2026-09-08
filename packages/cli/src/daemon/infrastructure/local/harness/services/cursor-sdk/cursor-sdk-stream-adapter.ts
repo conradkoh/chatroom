@@ -10,7 +10,7 @@ import {
   logUnhandledInteractionDelta,
   logUnhandledSdkMessage,
 } from './cursor-sdk-stream-fallback.js';
-import type { HarnessActivityEmitter } from '../../../../../services/agent-process-service/index.js';
+import type { HarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
 import {
   BASH_TOOL_KIND,
   extractBashCommandFromToolInput,

@@ -45,7 +45,7 @@ import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spaw
 import {
   createHarnessActivityEmitter,
   type HarnessActivityEmitter,
-} from '../../../../../services/agent-process-service/index.js';
+} from '../../../../../services/service-interfaces.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';

@@ -12,4 +12,4 @@ export {
   reapOrphanedProcessGroupsEffect,
   trackChildPid,
   untrackChildPid,
-} from '../../services/agent-process-service/index.js';
+} from '../../services/service-interfaces.js';

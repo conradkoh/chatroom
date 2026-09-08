@@ -24,7 +24,7 @@ import { ClaudeSdkStreamAdapter } from './claude-sdk-stream-adapter.js';
 import {
   createHarnessActivityEmitter,
   type HarnessActivityEmitter,
-} from '../../../../../services/agent-process-service/index.js';
+} from '../../../../../services/service-interfaces.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { decodeClaudeVariant } from '../claude/claude-models.js';

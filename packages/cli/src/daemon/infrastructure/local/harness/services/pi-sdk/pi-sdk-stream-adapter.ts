@@ -4,7 +4,7 @@
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
-import type { HarnessActivityEmitter } from '../../../../../services/agent-process-service/index.js';
+import type { HarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
 import {
   BASH_TOOL_KIND,
   formatAgentLogLine,

@@ -13,9 +13,9 @@ import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { DaemonEventBus } from './events/event-bus.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
-import type { AgentProcessManager } from '../services/agent-process-service/index.js';
-import type { AgentProcessManagerService } from '../services/agent-process-service/index.js';
-import type { TaskService } from '../services/task-service/index.js';
+import type { AgentProcessManager } from '../services/service-interfaces.js';
+import type { AgentProcessManagerService } from '../services/service-interfaces.js';
+import type { TaskService } from '../services/service-interfaces.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────

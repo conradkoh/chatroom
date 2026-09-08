@@ -10,7 +10,7 @@
 import { createMockDaemonDeps } from './mock-daemon-deps.js';
 import {
   createAgentProcessService,
-} from '../../services/agent-process-service/index.js';
+} from '../../services/service-interfaces.js';
 import type { DaemonSessionInit, ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
 

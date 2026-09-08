@@ -30,8 +30,8 @@ import { join } from 'node:path';
 import { PiRpcReader } from './pi-rpc-reader.js';
 import { parsePiSpawnModel } from './pure.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
-import { createHarnessActivityEmitter } from '../../../../../services/agent-process-service/index.js';
-import type { HarnessActivityEmitter } from '../../../../../services/agent-process-service/index.js';
+import { createHarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
+import type { HarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
