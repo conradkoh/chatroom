@@ -31,7 +31,7 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 
 - **CLI harnesses:** `get-next-task:started` → WAITING; `get-next-task:stopped` when a task is delivered → ACKNOWLEDGED (`task.acknowledged`)
 - **Native harnesses:** `native:waiting` → WAITING; `native:task-injected` when a task is injected → ACKNOWLEDGED (`task.acknowledged`)
-- **All harnesses:** first stdout/stderr token via `updateTokenActivity` when the task is `acknowledged` → `readTask()` → `task.inProgress` / UI **WORKING**
+- **All harnesses:** first stdout/stderr activity via `recordHarnessActivity` when the task is `acknowledged` → `readTask()` → `task.inProgress` / UI **WORKING**
 
 Native SDK harnesses with a typed activity emitter report once per turn via `wireTokenActivityReporting`; legacy CLI harnesses fall back to `spawnResult.onOutput()` with a 30s throttle. Used by `AgentProcessManager` (multi-agent team roles only). The enhancer daemon is a one-off worker. It registers an ephemeral `enhancer` participant when `claimForSpawn` starts the job, then task `pending → in_progress` happens through the same task lifecycle use cases as team agents. Team agents do **not** need to run `task read` to mark work as in progress — producing harness output is the signal.
 
@@ -41,10 +41,10 @@ Native SDK harnesses with a typed activity emitter report once per turn via `wir
 
 **Delivery paths (native SDK harnesses):**
 
-| Path         | Trigger                                                                               | Log prefix                  |
-| ------------ | ------------------------------------------------------------------------------------- | --------------------------- |
-| **Primary**  | Harness `agent_end` → manager event → constructed native delivery service               | `[NativeDelivery:fallback] operational-status` |
-| **Fallback** | Signal/presence feed reconcile, subscribed snapshot store + 10s local reconcile timer | `[NativeDelivery:fallback]` |
+| Path         | Trigger                                                                               | Log prefix                                     |
+| ------------ | ------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **Primary**  | Harness `agent_end` → manager event → constructed native delivery service             | `[NativeDelivery:fallback] operational-status` |
+| **Fallback** | Signal/presence feed reconcile, subscribed snapshot store + 10s local reconcile timer | `[NativeDelivery:fallback]`                    |
 
 Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). Fallback paths exist for daemon restart mid-turn or missed events — monitor logs to measure how often they fire before removing.
 
@@ -434,7 +434,7 @@ A **requestStart replace** always kills via `doStop` regardless of resume state.
 Roles are split into two execution kinds, defined in `src/domain/execution-kind.ts`:
 
 <!-- prettier-ignore -->
-| Kind            | Roles                                  | `participants.join` / `updateTokenActivity` | Example                |
+| Kind            | Roles                                  | `participants.join` / `recordHarnessActivity` | Example                |
 | --------------- | -------------------------------------- | ------------------------------------------- | ---------------------- |
 | `team_agent`    | planner, builder, enhancer (default for unknown) | Yes — standard native presence wiring       | Persistent and ephemeral team roles |
 | `daemon_worker` | (none currently)                       | N/A                                         | Reserved for non-participant workers |

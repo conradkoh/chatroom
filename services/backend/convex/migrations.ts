@@ -213,8 +213,9 @@ export const migrateAvailableModelsToPerHarness = migrations.define({
 });
 
 /**
- * Migration: Strip stale FSM fields from chatroom_participants.
- * Removes status, readyUntil, activeUntil, cleanupDeadline, statusReason, etc.
+ * Migration: Strip stale fields from chatroom_participants.
+ * Removes status, readyUntil, activeUntil, cleanupDeadline, statusReason,
+ * lastSeenTokenAt, etc.
  * Idempotent: documents without stale fields are skipped.
  */
 export const stripParticipantStaleFields = migrations.define({
@@ -229,6 +230,7 @@ export const stripParticipantStaleFields = migrations.define({
       'desiredStatus',
       'pendingCommand',
       'lastInFlightTaskId',
+      'lastSeenTokenAt',
     ] as const;
 
     const doc = participant as Record<string, unknown>;

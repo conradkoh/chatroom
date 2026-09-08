@@ -259,10 +259,10 @@ These are high-churn orchestration writes — primary migration targets.
 
 **Presence** (`native-spawn-presence.ts`):
 
-| Mutation                           | Purpose               |
-| ---------------------------------- | --------------------- |
-| `participants.join`                | Register native agent |
-| `participants.updateTokenActivity` | Heartbeat             |
+| Mutation                             | Purpose               |
+| ------------------------------------ | --------------------- |
+| `participants.join`                  | Register native agent |
+| `participants.recordHarnessActivity` | Harness activity      |
 
 **Workspace git** (`git-subscription.ts`, `git-heartbeat.ts`, `commit-detail-sync.ts`):
 
