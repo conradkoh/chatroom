@@ -34,16 +34,13 @@ test.describe('Enhancer model refresh', { tag: [TAG_DOWNSTREAM] }, () => {
     // enhancer configuration lives behind the chatroom activity surface.
     await expect(page).toHaveURL(/\/app/);
 
-    // Best-effort: find the enhancer configuration entry point. Selector
-    // intent mirrors EnhancerActivityBarItem / PlannerConversationModeToggle.
-    const enhancerEntry = page
-      .getByRole('button', { name: /enhancer/i })
-      .or(page.getByText('Enhancer configuration'));
-    const entryVisible = await enhancerEntry
-      .first()
-      .isVisible()
-      .catch(() => false);
-    if (!entryVisible) {
+    // Production entry point: EnhancerActivityBarItem renders
+    // data-testid="enhancer-activity-bar-item" (aria-label/title
+    // "Configure planning review").
+    const enhancerEntry = page.getByTestId('enhancer-activity-bar-item');
+    try {
+      await expect(enhancerEntry).toBeVisible({ timeout: 10_000 });
+    } catch {
       test.skip(
         true,
         'Enhancer configuration entry unavailable: needs a seeded chatroom ' +
@@ -52,7 +49,7 @@ test.describe('Enhancer model refresh', { tag: [TAG_DOWNSTREAM] }, () => {
       return;
     }
 
-    await enhancerEntry.first().click();
+    await enhancerEntry.click();
 
     const dialog = page.getByRole('dialog').filter({
       hasText: 'Enhancer configuration',
