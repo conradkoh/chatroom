@@ -19,6 +19,7 @@ interface PlannerConversationModeToggleProps {
   chatroomId: string;
   machineId: string | null | undefined;
   teamSupportState?: TeamSupportState;
+  onRequestComposerFocus?: () => void;
 }
 
 function computeNextMode(mode: ConversationMode): ConversationMode {
@@ -81,6 +82,7 @@ export function PlannerConversationModeToggle({
   chatroomId,
   machineId,
   teamSupportState = 'supported',
+  onRequestComposerFocus,
 }: PlannerConversationModeToggleProps) {
   const { mode, setMode } = useConversationMode();
   const { config, saveConfig, disable, openDialog, dialog } = useEnhancerConfigDialogHost({
@@ -118,7 +120,7 @@ export function PlannerConversationModeToggle({
     // Incomplete config: open dialog, do not change mode.
     if (nextMode === 'code:enhanced' && !hasEnhancerConfigFields(config)) {
       openDialog();
-      return;
+      return false;
     }
 
     // ── Immediate optimistic UI ─────────────────────────────────────────
@@ -128,7 +130,7 @@ export function PlannerConversationModeToggle({
     const crossesEnhancedBoundary = nextMode === 'code:enhanced' || mode === 'code:enhanced';
     if (!crossesEnhancedBoundary) {
       committedModeRef.current = nextMode;
-      return;
+      return true;
     }
 
     // ── Serialized backend reconciliation ───────────────────────────────
@@ -143,6 +145,7 @@ export function PlannerConversationModeToggle({
 
       try {
         if (desiredEnabled) {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- config is complete here: incomplete configs return early via the dialog path above.
           await saveConfig({ ...config!, enabled: true });
         } else {
           await disable();
@@ -168,6 +171,7 @@ export function PlannerConversationModeToggle({
         );
       }
     });
+    return true;
   }, [mode, config, saveConfig, disable, openDialog, setMode]);
 
   const handleUnsupportedClick = useCallback(() => {
@@ -182,8 +186,9 @@ export function PlannerConversationModeToggle({
       handleUnsupportedClick();
       return;
     }
-    handleCycle();
-  }, [teamSupportState, handleUnsupportedClick, handleCycle]);
+    const didCycle = handleCycle();
+    if (didCycle) onRequestComposerFocus?.();
+  }, [teamSupportState, handleUnsupportedClick, handleCycle, onRequestComposerFocus]);
 
   useComposerPreflightShortcut({ code: 'KeyM', onTrigger: handleShortcut });
 

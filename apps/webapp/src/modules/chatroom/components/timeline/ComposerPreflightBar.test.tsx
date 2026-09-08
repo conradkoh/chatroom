@@ -1,13 +1,24 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ComposerPreflightBar } from './ComposerPreflightBar';
 
+const { mockNewSessionToggle, mockModeToggle } = vi.hoisted(() => ({
+  mockNewSessionToggle: vi.fn(),
+  mockModeToggle: vi.fn(),
+}));
+
 vi.mock('../../features/enhancers/components/PlannerNewSessionToggle', () => ({
-  PlannerNewSessionToggle: () => <div data-testid="planner-new-session-toggle" />,
+  PlannerNewSessionToggle: (props: unknown) => {
+    mockNewSessionToggle(props);
+    return <div data-testid="planner-new-session-toggle" />;
+  },
 }));
 vi.mock('../../features/enhancers/components/PlannerConversationModeToggle', () => ({
-  PlannerConversationModeToggle: () => <div data-testid="planner-conversation-mode-toggle" />,
+  PlannerConversationModeToggle: (props: unknown) => {
+    mockModeToggle(props);
+    return <div data-testid="planner-conversation-mode-toggle" />;
+  },
 }));
 vi.mock('../StandingInstructionsBar', () => ({
   StandingInstructionsBar: () => <div data-testid="standing-instructions-bar" />,
@@ -20,6 +31,10 @@ vi.mock('../../hooks/useChatroomLifecycle', () => ({
 }));
 
 describe('ComposerPreflightBar', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('uses compact icon-only columns below sm and labeled min-width at sm+', () => {
     render(<ComposerPreflightBar chatroomId={'room1' as never} />);
     const bar = screen.getByTestId('composer-preflight-bar');
@@ -43,5 +58,22 @@ describe('ComposerPreflightBar', () => {
   it('renders the conversation mode toggle', () => {
     render(<ComposerPreflightBar chatroomId={'room1' as never} />);
     expect(screen.getByTestId('planner-conversation-mode-toggle')).toBeInTheDocument();
+  });
+
+  it('forwards onRequestComposerFocus to both toggles', () => {
+    const onRequestComposerFocus = vi.fn();
+    render(
+      <ComposerPreflightBar
+        chatroomId={'room1' as never}
+        onRequestComposerFocus={onRequestComposerFocus}
+      />
+    );
+
+    expect(mockNewSessionToggle).toHaveBeenCalledWith(
+      expect.objectContaining({ onRequestComposerFocus })
+    );
+    expect(mockModeToggle).toHaveBeenCalledWith(
+      expect.objectContaining({ onRequestComposerFocus })
+    );
   });
 });

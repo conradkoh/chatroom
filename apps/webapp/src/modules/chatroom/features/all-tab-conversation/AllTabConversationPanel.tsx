@@ -20,10 +20,12 @@ export function AllTabConversationPanel({
   chatroomId,
   machines,
   onRegisterAllTabNavigation,
+  onRequestComposerFocus,
 }: {
   chatroomId: string;
   machines?: Map<string, MachineNameEntry>;
   onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
+  onRequestComposerFocus?: () => void;
 }) {
   const {
     events,
@@ -77,7 +79,10 @@ export function AllTabConversationPanel({
         />
       )}
 
-      <ComposerPreflightBar chatroomId={chatroomId as never} />
+      <ComposerPreflightBar
+        chatroomId={chatroomId as never}
+        onRequestComposerFocus={onRequestComposerFocus}
+      />
 
       <QueuedMessagesIndicator chatroomId={chatroomId as never} />
     </div>
