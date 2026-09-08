@@ -3,7 +3,7 @@ import { EventEmitter, Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CopilotAgentService, type CopilotAgentServiceDeps } from './copilot-agent-service.js';
-import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivitySignal } from '../../../../../services/agent-process-service/index.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 function createMockDeps(overrides?: Partial<CopilotAgentServiceDeps>): CopilotAgentServiceDeps {

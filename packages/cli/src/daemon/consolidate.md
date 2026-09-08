@@ -18,7 +18,7 @@
 2. Phase 1: `events/daemon/` → `daemon/entry/events/`
 3. Phase 2: `infrastructure/daemon/`, `domain/native-integration/`, `domain/harness-activity-emitter.ts`
 4. Phase 3: `infrastructure/git/` → `daemon/infrastructure/git/`
-5. Phase 4: `agent-process-manager/` → `daemon/infrastructure/agent-process-manager/`
+5. Phase 4: `agent-process-manager/` → `daemon/services/agent-process-service/infrastructure/`
 6. Phase 5: `daemon-start/handlers/` → `daemon/entry/handlers/`
 7. Phase 6: `daemon-start/{direct-harness,agentic-query,file-*,shared-harness}/` → matching `daemon/entry/` subtrees
 8. Phase 7: `daemon-start/` root files (`daemon-services`, `types`, `deps`, …)
@@ -202,14 +202,14 @@
 
 ---
 
-## 6. `infrastructure/services/agent-process-manager/
+## 6. `services/agent-process-service/`
 
 | Current                              | Target                                                                    | Verdict     | Rationale                                                                                          |
 | ------------------------------------ | ------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- |
-| `agent-process-manager.ts`           | `daemon/infrastructure/agent-process-manager/agent-process-manager.ts`    | consolidate | Core process manager; importers: daemon-services, native-delivery, remote-agents                   |
-| `turn-completed-backend.ts`          | `daemon/infrastructure/agent-process-manager/turn-completed-backend.ts`   | consolidate | Turn completion port; importer: agent-process-manager.ts                                           |
-| `turn-end-queue.ts`                  | `daemon/infrastructure/agent-process-manager/turn-end-queue.ts`           | consolidate | Turn end queue; importer: agent-process-manager.ts                                                 |
-| `domain/harness-activity-emitter.ts` | `daemon/infrastructure/agent-process-manager/harness-activity-emitter.ts` | consolidate | Importers: `remote-agent-service.ts`, `native-spawn-presence.ts` — move with agent-process-manager |
+| `agent-process-manager.ts`           | `daemon/services/agent-process-service/infrastructure/agent-process-manager.ts`    | consolidate | Core process manager; importers: daemon-services, native-delivery, remote-agents                   |
+| `turn-completed-backend.ts`          | `daemon/services/agent-process-service/infrastructure/turn-completed-backend.ts`   | consolidate | Turn completion port; importer: agent-process-manager.ts                                           |
+| `turn-end-queue.ts`                  | `daemon/services/agent-process-service/infrastructure/turn-end-queue.ts`           | consolidate | Turn end queue; importer: agent-process-manager.ts                                                 |
+| `domain/harness-activity-emitter.ts` | `daemon/services/agent-process-service/infrastructure/harness-activity-emitter.ts` | consolidate | Importers: `remote-agent-service.ts`, `native-spawn-presence.ts` — move with agent-process-manager |
 
 ---
 

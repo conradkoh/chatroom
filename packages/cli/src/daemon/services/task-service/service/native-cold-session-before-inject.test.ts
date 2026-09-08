@@ -1,0 +1,189 @@
+import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
+import { describe, expect, test, vi } from 'vitest';
+
+import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
+import type { NativeInjectorDeps } from './native-task-injector.js';
+import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
+import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
+import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
+
+function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTaskWithContent {
+  return {
+    taskId: 'task_1',
+    chatroomId: 'room_1',
+    status: 'pending',
+    assignedTo: 'planner',
+    taskContent: '## Goal\nUser task',
+    updatedAt: 1_000,
+    createdAt: 1_000,
+    agentConfig: {
+      role: 'planner',
+      machineId: 'machine_1',
+      agentHarness: 'cursor-sdk',
+      model: 'composer-1',
+      workingDir: '/tmp/project',
+      spawnedAgentPid: 12345,
+      desiredState: 'running',
+    },
+    participant: {
+      lastSeenAction: 'native:waiting',
+      lastSeenAt: 500,
+      lastStatus: 'agent.waiting',
+    },
+    ...overrides,
+  };
+}
+
+function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps {
+  const agentMgr: NativeInjectorDeps['agentMgr'] = {
+    resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
+    getSlot: vi.fn().mockReturnValue({ state: 'running', harnessSessionId: 'sess_after_cold' }),
+  };
+  const runSerializedForAgent: NativeInjectorDeps['runSerializedForAgent'] = vi.fn(
+    async (_key, _options, operation) =>
+      operation(
+        {
+          startAgent: async () => undefined,
+          stopAgent: async () => undefined,
+        },
+        { signal: new AbortController().signal }
+      )
+  );
+  const backend = { mutation: vi.fn().mockResolvedValue(undefined), query: vi.fn() };
+  const logEvent = vi.fn().mockResolvedValue(undefined);
+  return {
+    sessionId: 'session_1',
+    machineId: 'machine_1',
+    logEvent,
+    backend,
+    taskGateway: createConvexNativeTaskDeliveryGateway(backend),
+    audit: createDaemonAuditPort(logEvent),
+    agentMgr,
+    runSerializedForAgent,
+    ...overrides,
+  };
+}
+
+describe('ensureColdSessionBeforeNativeInject', () => {
+  test('returns null when startInNewSession is not set', async () => {
+    const deps = createDeps();
+    const result = await ensureColdSessionBeforeNativeInject(makeTask(), deps);
+
+    expect(result).toBeNull();
+    expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  test('cold-restarts planner harness and emits sessionAugmented before returning session id', async () => {
+    const deps = createDeps();
+    const task = makeTask({ startInNewSession: true });
+    const mutationCalls: { fn: unknown; args: Record<string, unknown> }[] = [];
+
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
+      async (fn: unknown, args: Record<string, unknown>) => {
+        mutationCalls.push({ fn, args });
+        return undefined;
+      }
+    );
+
+    const result = await ensureColdSessionBeforeNativeInject(task, deps);
+
+    expect(result).toBe('sess_after_cold');
+    expect(deps.runSerializedForAgent).toHaveBeenCalledOnce();
+
+    const waitingJoin = mutationCalls.find((call) => call.args.action === NATIVE_WAITING_ACTION);
+    expect(waitingJoin?.args).toMatchObject({
+      chatroomId: 'room_1',
+      role: 'planner',
+      taskId: 'task_1',
+    });
+
+    const augmented = mutationCalls.find((call) => call.args.mode === 'new_session');
+    expect(augmented?.args).toMatchObject({
+      chatroomId: 'room_1',
+      role: 'planner',
+      taskId: 'task_1',
+      mode: 'new_session',
+      newSessionStarted: true,
+      harnessSessionId: 'sess_after_cold',
+    });
+  });
+
+  test('does not bypass the serialized lifecycle capability', async () => {
+    const serializedStop = vi.fn().mockResolvedValue(undefined);
+    const serializedStart = vi.fn().mockResolvedValue(undefined);
+    const deps = createDeps({
+      agentMgr: {
+        ...createDeps().agentMgr,
+      },
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          { startAgent: serializedStart, stopAgent: serializedStop },
+          { signal: new AbortController().signal }
+        )
+      ),
+    });
+
+    await expect(
+      ensureColdSessionBeforeNativeInject(makeTask({ startInNewSession: true }), deps)
+    ).resolves.toBe('sess_after_cold');
+
+    expect(serializedStop).toHaveBeenCalledOnce();
+    expect(serializedStart).toHaveBeenCalledOnce();
+  });
+
+  test('returns null when cold spawn fails', async () => {
+    const deps = createDeps({
+      agentMgr: {
+        ...createDeps().agentMgr,
+      },
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          {
+            startAgent: async () => {
+              throw new Error('start failed');
+            },
+            stopAgent: async () => undefined,
+          },
+          { signal: new AbortController().signal }
+        )
+      ),
+    });
+
+    const result = await ensureColdSessionBeforeNativeInject(
+      makeTask({ startInNewSession: true }),
+      deps
+    );
+
+    expect(result).toBeNull();
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  test('explicit envelope new plus stale scalar false cold-restarts', async () => {
+    const deps = createDeps();
+    const task = makeTask({
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'code', sessionPolicy: 'new' }),
+      startInNewSession: false,
+    });
+
+    const result = await ensureColdSessionBeforeNativeInject(task, deps);
+
+    expect(result).toBe('sess_after_cold');
+    expect(deps.runSerializedForAgent).toHaveBeenCalledOnce();
+  });
+
+  test('explicit envelope continue plus stale scalar true does not cold-restart', async () => {
+    const deps = createDeps();
+    const task = makeTask({
+      taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
+      startInNewSession: true,
+    });
+
+    const result = await ensureColdSessionBeforeNativeInject(task, deps);
+
+    expect(result).toBeNull();
+    expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+});

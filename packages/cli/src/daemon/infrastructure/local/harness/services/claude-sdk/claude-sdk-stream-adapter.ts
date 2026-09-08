@@ -5,7 +5,7 @@
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
-import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
 import {
   BASH_TOOL_KIND,
   formatAgentLogLine,
@@ -55,6 +55,9 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
               ? message.errors.join('; ')
               : 'turn failed';
           this.writeLine(formatAgentLogLine(this.logPrefix, 'run-error', errors));
+          this.completeTurn({ status: 'failed', source: 'claude-sdk.result', error: errors });
+        } else {
+          this.completeTurn({ status: 'completed', source: 'claude-sdk.result' });
         }
         break;
       case 'tool_progress':
@@ -66,11 +69,10 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
     }
   }
 
-  /** Flush buffered output and emit agent_end once per turn. */
+  /** Flush buffered output after the terminal result has been recorded. */
   finish(): void {
     this.flushText();
     this.flushThinking();
-    this.emitAgentEnd();
   }
 
   // fallow-ignore-next-line complexity
@@ -173,13 +175,6 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
       default:
         break;
     }
-  }
-
-  private emitAgentEnd(): void {
-    if (this.agentEndEmitted) return;
-    this.agentEndEmitted = true;
-    this.writeLine(formatAgentLogLine(this.logPrefix, 'agent_end'));
-    for (const cb of this.agentEndCallbacks) cb();
   }
 
   private appendText(delta: string): void {

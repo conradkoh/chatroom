@@ -26,7 +26,7 @@ import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact
 import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type {
   AgentProcessManager,
-  AgentSlot,
+  AgentProcessSlotView,
   AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
@@ -34,13 +34,15 @@ import type {
   HandleExitOpts,
   OperationResult,
   StopOpts,
-} from '../infrastructure/agent-process-manager/agent-process-manager.js';
+} from '../services/agent-process-service/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type {
   AgentLifecycleOutboxRegistry,
   AgentLifecycleOutboxResult,
 } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
-import type { AgentProcessManagerService } from '../infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManagerService } from '../services/service-interfaces.js';
+import type { TaskService } from '../services/service-interfaces.js';
+export { createTaskService, type TaskService } from '../services/service-interfaces.js';
 
 export interface AgentLifecycleOutboxServiceShape {
   enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
@@ -147,8 +149,8 @@ export interface DaemonAgentProcessManagerServiceShape {
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
-  getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
-  listActive: () => { chatroomId: string; role: string; slot: AgentSlot }[];
+  getSlot: (chatroomId: string, role: string) => AgentProcessSlotView | undefined;
+  listActive: () => { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot: (
     chatroomId: string,
     role: string,
@@ -193,7 +195,7 @@ export const DaemonAgentProcessManagerServiceLive = (
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
         const { runRoleScopedStop } =
-          await import('../infrastructure/agent-process-manager/execute-stop-targets-adapter.js');
+          await import('../services/service-interfaces.js');
         const legacyReason: Record<string, string> = {
           'team.switch': 'platform.team_switch',
           dedup: 'platform.dedup',
@@ -301,6 +303,8 @@ export interface DaemonSessionServiceShape {
   convexUrl: string;
   client: ConvexClient;
   config: MachineConfig | null;
+  /** Constructed once by the daemon composition root. */
+  taskService: TaskService;
 
   // ─── Flat deps (no ctx.deps.xxx indirection) ──────────────────────
   /** Direct access to backend ops — same as ctx.deps.backend but without the .deps. layer. */

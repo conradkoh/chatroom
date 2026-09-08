@@ -6,7 +6,7 @@ import {
   CommandCodeAgentService,
   type CommandCodeAgentServiceDeps,
 } from './command-code-agent-service.js';
-import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivitySignal } from '../../../../../services/agent-process-service/index.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 function createMockDeps(

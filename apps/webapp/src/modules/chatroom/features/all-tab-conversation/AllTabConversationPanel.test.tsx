@@ -6,6 +6,9 @@ import { AllTabConversationPanel } from './AllTabConversationPanel';
 
 const mockUseAllTabConversation = vi.fn();
 const mockUseHandoffNotification = vi.fn();
+const { mockComposerPreflightBar } = vi.hoisted(() => ({
+  mockComposerPreflightBar: vi.fn(),
+}));
 
 vi.mock('./hooks/useAllTabConversation', () => ({
   useAllTabConversation: (...args: unknown[]) => mockUseAllTabConversation(...args),
@@ -16,7 +19,10 @@ vi.mock('../../hooks/useHandoffNotification', () => ({
 }));
 
 vi.mock('../../components/timeline/ComposerPreflightBar', () => ({
-  ComposerPreflightBar: () => <div data-testid="composer-preflight-bar" />,
+  ComposerPreflightBar: (props: unknown) => {
+    mockComposerPreflightBar(props);
+    return <div data-testid="composer-preflight-bar" />;
+  },
 }));
 
 vi.mock('../../components/QueuedMessagesIndicator', () => ({
@@ -166,5 +172,19 @@ describe('AllTabConversationPanel', () => {
     );
 
     expect(onRegisterAllTabNavigation).toHaveBeenCalledWith({ goToLatestAnchor });
+  });
+
+  it('forwards onRequestComposerFocus to ComposerPreflightBar', () => {
+    const onRequestComposerFocus = vi.fn();
+    render(
+      <AllTabConversationPanel
+        chatroomId="room-1"
+        onRequestComposerFocus={onRequestComposerFocus}
+      />
+    );
+
+    expect(mockComposerPreflightBar).toHaveBeenCalledWith(
+      expect.objectContaining({ onRequestComposerFocus })
+    );
   });
 });

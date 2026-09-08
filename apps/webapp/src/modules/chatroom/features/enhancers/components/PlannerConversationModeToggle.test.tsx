@@ -281,6 +281,123 @@ describe('PlannerConversationModeToggle', () => {
     expect(mockSetMode).not.toHaveBeenCalled();
   });
 
+  it('Ctrl+M requests composer focus after a supported mode cycle', async () => {
+    mockMode = 'chat';
+    const onRequestComposerFocus = vi.fn();
+    render(
+      <PlannerConversationModeToggle
+        chatroomId="room-1"
+        machineId="machine-1"
+        onRequestComposerFocus={onRequestComposerFocus}
+      />
+    );
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, bubbles: true })
+      );
+    });
+
+    expect(mockSetMode).toHaveBeenCalledWith('code');
+    expect(onRequestComposerFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it('Ctrl+M requests focus immediately on an optimistic enhanced-boundary transition', async () => {
+    mockMode = 'code';
+    mockConfig = SAVED_CONFIG;
+    const deferred = createDeferred<void>();
+    mockSaveConfig.mockReturnValue(deferred.promise);
+    const onRequestComposerFocus = vi.fn();
+
+    render(
+      <PlannerConversationModeToggle
+        chatroomId="room-1"
+        machineId="machine-1"
+        onRequestComposerFocus={onRequestComposerFocus}
+      />
+    );
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, bubbles: true })
+      );
+    });
+
+    // Optimistic transition accepted before backend reconciliation resolves.
+    expect(mockSetMode).toHaveBeenCalledWith('code:enhanced');
+    expect(onRequestComposerFocus).toHaveBeenCalledTimes(1);
+
+    deferred.resolve();
+    await act(async () => {});
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+M does not request focus when opening the incomplete-config dialog', async () => {
+    mockMode = 'code';
+    mockConfig = null;
+    const onRequestComposerFocus = vi.fn();
+    render(
+      <PlannerConversationModeToggle
+        chatroomId="room-1"
+        machineId="machine-1"
+        onRequestComposerFocus={onRequestComposerFocus}
+      />
+    );
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, bubbles: true })
+      );
+    });
+
+    await waitFor(() => expect(mockOpenDialog).toHaveBeenCalled());
+    expect(mockSetMode).not.toHaveBeenCalled();
+    expect(onRequestComposerFocus).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+M does not request focus while loading', async () => {
+    const onRequestComposerFocus = vi.fn();
+    render(
+      <PlannerConversationModeToggle
+        chatroomId="room-1"
+        machineId="machine-1"
+        teamSupportState="loading"
+        onRequestComposerFocus={onRequestComposerFocus}
+      />
+    );
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, bubbles: true })
+      );
+    });
+
+    expect(mockSetMode).not.toHaveBeenCalled();
+    expect(onRequestComposerFocus).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+M does not request focus for unsupported teams', async () => {
+    const onRequestComposerFocus = vi.fn();
+    render(
+      <PlannerConversationModeToggle
+        chatroomId="room-1"
+        machineId="machine-1"
+        teamSupportState="unsupported"
+        onRequestComposerFocus={onRequestComposerFocus}
+      />
+    );
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyM', key: 'm', ctrlKey: true, bubbles: true })
+      );
+    });
+
+    await waitFor(() => expect(mockToastMessage).toHaveBeenCalled());
+    expect(mockSetMode).not.toHaveBeenCalled();
+    expect(onRequestComposerFocus).not.toHaveBeenCalled();
+  });
+
   it('Ctrl+E does not trigger the mode toggle', async () => {
     render(<PlannerConversationModeToggle chatroomId="room-1" machineId="machine-1" />);
 

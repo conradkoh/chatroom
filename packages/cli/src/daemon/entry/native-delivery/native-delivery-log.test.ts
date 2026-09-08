@@ -6,6 +6,7 @@ import {
   logNativeDeliveryMutexSkip,
   logNativeDeliveryPrimary,
   logNativeDeliverySkip,
+  logNativeDeliveryTrigger,
 } from './native-delivery-log.js';
 
 describe('native-delivery-log', () => {
@@ -19,19 +20,19 @@ describe('native-delivery-log', () => {
     );
   });
 
-  test('logNativeDeliveryFallback uses fallback prefix with reason', () => {
+  test('logNativeDeliveryTrigger identifies the event-driven source', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryFallback('inbox-signal', 'builder', 'room_1', 'task_1');
+    logNativeDeliveryTrigger('inbox-signal', 'builder', 'room_1', 'task_1');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:fallback] inbox-signal builder@room_1 task task_1 — reconcile'
+      '[NativeDelivery:trigger] source=inbox-signal builder@room_1 task task_1'
     );
   });
 
-  test('logNativeDeliveryFallback accepts agent-started as a fallback reason', () => {
+  test('logNativeDeliveryFallback identifies periodic recovery', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryFallback('agent-started', 'builder', 'room_1', 'task_1');
+    logNativeDeliveryFallback('periodic-reconcile', 'builder', 'room_1', 'task_1');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:fallback] agent-started builder@room_1 task task_1 — reconcile'
+      '[NativeDelivery:fallback] source=periodic-reconcile builder@room_1 task task_1 — periodic recovery pass'
     );
   });
 

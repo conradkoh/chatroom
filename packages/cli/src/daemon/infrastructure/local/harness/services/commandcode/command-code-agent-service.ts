@@ -27,8 +27,8 @@ import {
   prefixModelWithProvider,
 } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 
-import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
-import type { HarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import { createHarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
+import type { HarnessActivityEmitter } from '../../../../../services/service-interfaces.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CommandCodeStreamReader } from './command-code-stream-reader.js';

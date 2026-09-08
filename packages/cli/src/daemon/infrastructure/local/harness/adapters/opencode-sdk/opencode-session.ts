@@ -23,7 +23,7 @@ export interface OpencodeSdkSessionOptions {
    * Called when the session is closed so the parent harness can unregister
    * the session from its SSE fan-out map.
    */
-  readonly onClose?:( (opencodeSessionId: string) => void) | undefined;
+  readonly onClose?: ((opencodeSessionId: string) => void) | undefined;
 }
 
 export class OpencodeSdkSession implements DirectHarnessSession {
@@ -99,8 +99,8 @@ export class OpencodeSdkSession implements DirectHarnessSession {
       console.warn(
         `[opencode-session] ${err instanceof Error ? err.message : String(err)} — session ${this.opencodeSessionId}`
       );
-      // On timeout, emit session.idle manually as fallback so the pipeline can finalize.
-      this._emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
+      // A missing idle event is a timeout/failure, not successful completion.
+      throw err;
     } finally {
       this._idleResolve = null;
     }

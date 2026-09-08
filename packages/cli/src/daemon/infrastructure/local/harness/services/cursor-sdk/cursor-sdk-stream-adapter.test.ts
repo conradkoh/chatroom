@@ -5,7 +5,7 @@ import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
 import {
   createHarnessActivityEmitter,
   type HarnessActivitySignal,
-} from '../../../../agent-process-manager/harness-activity-emitter.js';
+} from '../../../../../services/agent-process-service/index.js';
 
 const LOG_PREFIX = '[cursor-sdk:builder@test';
 
@@ -177,7 +177,7 @@ describe('CursorSdkStreamAdapter', () => {
     );
   });
 
-  it('finish() flushes buffered text and emits agent-end', () => {
+  it('finish() flushes buffered text without deciding completion', () => {
     let count = 0;
     const { adapter, onLogLine } = createAdapter();
     adapter.onAgentEnd(() => count++);
@@ -185,16 +185,16 @@ describe('CursorSdkStreamAdapter', () => {
     adapter.finish();
 
     expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] line without newline`);
-    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]`);
-    expect(count).toBe(1);
+    expect(onLogLine).not.toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]`);
+    expect(count).toBe(0);
   });
 
-  it('calls onAgentEnd only once when finish() is invoked twice', () => {
+  it('calls onAgentEnd only once when completion is reported twice', () => {
     let count = 0;
     const { adapter } = createAdapter();
     adapter.onAgentEnd(() => count++);
-    adapter.finish();
-    adapter.finish();
+    adapter.completeTurn({ status: 'completed', source: 'test.completed' });
+    adapter.completeTurn({ status: 'failed', source: 'test.late-error' });
 
     expect(count).toBe(1);
   });

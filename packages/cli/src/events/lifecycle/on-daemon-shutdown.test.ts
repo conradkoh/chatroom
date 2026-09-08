@@ -6,7 +6,7 @@ import {
   DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
 } from '../../daemon/entry/daemon-services.js';
-import type { AgentProcessManagerService } from '../../daemon/infrastructure/agent-process-manager/service/index.js';
+import type { AgentProcessManagerService } from '../../daemon/services/agent-process-service/index.js';
 
 vi.mock('../../daemon/entry/handlers/command-runner.js', () => ({
   shutdownAllCommandsEffect: Effect.succeed(undefined),

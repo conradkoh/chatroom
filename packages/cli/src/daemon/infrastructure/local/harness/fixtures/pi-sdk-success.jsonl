@@ -1,0 +1,5 @@
+{"type":"message_update","assistantMessageEvent":{"type":"thinking_delta","delta":"plan\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"PICKLE\n"}}
+{"type":"tool_execution_start","toolName":"bash","args":{"command":"printf PICKLE"}}
+{"type":"tool_execution_end","toolName":"bash","result":"PICKLE","isError":false}
+{"type":"agent_end"}

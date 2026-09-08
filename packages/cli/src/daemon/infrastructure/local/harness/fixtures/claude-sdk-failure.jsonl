@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","session_id":"claude-session-2"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I could not continue."}]}}
+{"type":"result","is_error":true,"session_id":"claude-session-2","errors":["provider unavailable"]}

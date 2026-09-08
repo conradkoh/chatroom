@@ -4,7 +4,7 @@ import {
   emitNativeWaitingAfterSpawn,
   wireTokenActivityReporting,
 } from './native-spawn-presence.js';
-import { createHarnessActivityEmitter } from '../../../agent-process-manager/harness-activity-emitter.js';
+import { createHarnessActivityEmitter } from '../../../../services/agent-process-service/index.js';
 
 function mockSpawnResult() {
   const callbacks: (() => void)[] = [];

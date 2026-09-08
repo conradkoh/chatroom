@@ -34,18 +34,15 @@ import {
   type SessionMetadata,
   type SessionMetadataStore,
 } from './session-metadata-store.js';
+import type { TurnCompletionResult } from '../turn-completion.js';
 import { StderrLineBuffer } from './stderr-line-buffer.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
 import {
   createHarnessActivityEmitter,
   type HarnessActivityEmitter,
-} from '../../../../agent-process-manager/harness-activity-emitter.js';
+} from '../../../../../services/service-interfaces.js';
 import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
-import type {
-  SpawnContext,
-  SpawnOptions,
-  SpawnResult,
-} from '../remote-agent-service.js';
+import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore | undefined;
@@ -104,6 +101,11 @@ function buildDisabledToolsPromptBody(args: {
 export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   /** Per-pid agent_end callbacks — preserved across in-turn session fallback. */
   private readonly agentEndCallbacksByPid = new Map<number, (() => void)[]>();
+  /** Per-pid typed turn-result callbacks — preserved across session fallback. */
+  private readonly turnResultCallbacksByPid = new Map<
+    number,
+    ((result: TurnCompletionResult) => void)[]
+  >();
   /** Per-pid assistant text callbacks — preserved across in-turn session fallback. */
   private readonly assistantTextCallbacksByPid = new Map<number, ((text: string) => void)[]>();
   /** Per-pid output callbacks — preserved for startFreshSessionOnServe fallback. */
@@ -282,6 +284,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     workingDir: string;
     logLineCallbacks: ((line: string) => void)[];
     assistantTextCallbacks?: ((text: string) => void)[] | undefined;
+    turnResultCallbacks?: ((result: TurnCompletionResult) => void)[] | undefined;
     deferredSystemPrompt?: string | undefined;
     outputCallbacks?: (() => void)[] | undefined;
     activityEmitter: HarnessActivityEmitter;
@@ -320,6 +323,9 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     if (args.assistantTextCallbacks) {
       this.assistantTextCallbacksByPid.set(pid, args.assistantTextCallbacks);
     }
+    if (args.turnResultCallbacks) {
+      this.turnResultCallbacksByPid.set(pid, args.turnResultCallbacks);
+    }
     if (args.outputCallbacks) {
       this.outputCallbacksByPid.set(pid, args.outputCallbacks);
     }
@@ -348,6 +354,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
           }
           this.sessionStore.remove(sessionId);
           this.agentEndCallbacksByPid.delete(pid);
+          this.turnResultCallbacksByPid.delete(pid);
           this.assistantTextCallbacksByPid.delete(pid);
           this.outputCallbacksByPid.delete(pid);
           this.activityEmittersByPid.delete(pid);
@@ -363,6 +370,12 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         callbacks.push(cb);
         this.agentEndCallbacksByPid.set(pid, callbacks);
         forwarder?.onAgentEnd(cb);
+      },
+      onTurnResult: (cb) => {
+        const callbacks = this.turnResultCallbacksByPid.get(pid) ?? [];
+        callbacks.push(cb);
+        this.turnResultCallbacksByPid.set(pid, callbacks);
+        forwarder?.onTurnResult(cb);
       },
       onLogLine: (cb) => {
         logLineCallbacks.push(cb);
@@ -524,6 +537,10 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     for (const cb of callbacks) {
       forwarder.onAgentEnd(cb);
     }
+    const turnResultCallbacks = this.turnResultCallbacksByPid.get(args.pid) ?? [];
+    for (const cb of turnResultCallbacks) {
+      forwarder.onTurnResult(cb);
+    }
     this.forwarders.set(args.pid, forwarder);
 
     if (args.oldSessionId) {
@@ -645,6 +662,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       workingDir: options.workingDir,
       logLineCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks: [],
       deferredSystemPrompt,
       outputCallbacks,
       activityEmitter,

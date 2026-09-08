@@ -13,6 +13,7 @@ export interface ChatroomMessagesPanelProps {
   chatroomId: string;
   machines?: Map<string, MachineNameEntry>;
   onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
+  onRequestComposerFocus?: () => void;
   /** Optional footer (MessageInput) rendered below feed */
   footer?: React.ReactNode;
 }
@@ -21,6 +22,7 @@ export function ChatroomMessagesPanel({
   chatroomId,
   machines,
   onRegisterAllTabNavigation,
+  onRequestComposerFocus,
   footer,
 }: ChatroomMessagesPanelProps) {
   return (
@@ -30,6 +32,7 @@ export function ChatroomMessagesPanel({
           chatroomId={chatroomId}
           machines={machines}
           onRegisterAllTabNavigation={onRegisterAllTabNavigation}
+          onRequestComposerFocus={onRequestComposerFocus}
         />
         {footer ? <div className="shrink-0">{footer}</div> : null}
       </div>

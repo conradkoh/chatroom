@@ -1,0 +1,5 @@
+{"type":"system","subtype":"init","session_id":"claude-session-1"}
+{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"plan\n"}}}
+{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"PICKLE\n"}}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"PICKLE\n"}]}}
+{"type":"result","is_error":false,"session_id":"claude-session-1","result":"PICKLE"}

@@ -12,7 +12,7 @@ import {
 import { startSessionEventForwarder as realStartForwarder } from './session-event-forwarder.js';
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
-import type { HarnessActivitySignal } from '../../../../agent-process-manager/harness-activity-emitter.js';
+import type { HarnessActivitySignal } from '../../../../../services/agent-process-service/index.js';
 import type { SpawnContext } from '../remote-agent-service.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
