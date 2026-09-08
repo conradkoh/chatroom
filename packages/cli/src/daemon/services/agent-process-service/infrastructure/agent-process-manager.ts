@@ -25,13 +25,7 @@ import { isExplicitDaemonStart } from '@workspace/backend/src/domain/entities/ag
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { Effect } from 'effect';
 
-import type {
-  AgentProcessSlotState,
-  AgentSessionLostHandler,
-  AgentStartedHandler,
-  AgentTurnEndedEvent,
-  AgentTurnEndedHandler,
-} from '../domain/entities/agent-process.js';
+import { untrackChildPid } from './adapters/orphan-process-tracker.js';
 import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
 import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js';
@@ -71,12 +65,6 @@ import {
   hasHarnessOutputStalled,
 } from '../../../domain/usecase/classify-provider-error.js';
 import { handleTurnCompleted } from '../../../domain/usecase/handle-turn-completed.js';
-import { untrackChildPid } from '../../../entry/handlers/orphan-tracker.js';
-import {
-  defaultNativeTurnPhase,
-  setNativeTurnPhase,
-  type NativeTurnPhase,
-} from '../domain/usecase/native-turn-phase.js';
 import { logDaemonAuditEvent } from '../../../infrastructure/event-stream/daemon-event-emitter.js';
 import {
   emitNativeWaitingAfterSpawn,
@@ -88,6 +76,18 @@ import type {
   SpawnResult,
 } from '../../../infrastructure/local/harness/services/remote-agent-service.js';
 import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
+import type {
+  AgentProcessSlotState,
+  AgentSessionLostHandler,
+  AgentStartedHandler,
+  AgentTurnEndedEvent,
+  AgentTurnEndedHandler,
+} from '../domain/entities/agent-process.js';
+import {
+  defaultNativeTurnPhase,
+  setNativeTurnPhase,
+  type NativeTurnPhase,
+} from '../domain/usecase/native-turn-phase.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

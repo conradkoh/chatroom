@@ -13,3 +13,4 @@ export * from './infrastructure/agent-process-manager.js';
 export * from './infrastructure/execute-stop-targets-adapter.js';
 export * from './infrastructure/harness-activity-emitter.js';
 export * from './infrastructure/stop-agent-confirmed-adapter.js';
+export * from './infrastructure/adapters/orphan-process-tracker.js';

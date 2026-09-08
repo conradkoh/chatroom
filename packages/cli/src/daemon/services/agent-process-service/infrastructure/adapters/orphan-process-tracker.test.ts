@@ -26,12 +26,12 @@ import {
   reapOrphanedProcessGroups,
   trackChildPid,
   untrackChildPid,
-} from './orphan-tracker.js';
+} from './orphan-process-tracker.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 // Mock convex client so getConvexUrl() returns a stable test URL
-vi.mock('../../../infrastructure/convex/client.js', () => ({
+vi.mock('../../../../../infrastructure/convex/client.js', () => ({
   getConvexUrl: () => 'http://test-convex-url',
 }));
 
