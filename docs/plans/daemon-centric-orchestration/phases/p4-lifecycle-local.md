@@ -88,7 +88,7 @@ Agent process manager emits local domain lifecycle events; read models update sy
 
 **Verify:**
 
-- High-frequency heartbeats aggregated (T1) — `participants.updateTokenActivity` not called per tick
+- High-frequency heartbeats aggregated (T1) — `participants.recordHarnessActivity` not called per tick
 - Task/agent/message status still T3 immediate
 
 ### P4-T4 — Local enhancer queue `[new]`

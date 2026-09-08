@@ -87,7 +87,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
 });
 
 describe('wireTokenActivityReporting', () => {
-  it('fires updateTokenActivity for team agent', async () => {
+  it('fires recordHarnessActivity for team agent', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const spawnResult = mockSpawnResult();
@@ -109,7 +109,7 @@ describe('wireTokenActivityReporting', () => {
     expect(args.role).toBe('builder');
   });
 
-  it('fires updateTokenActivity for enhancer team role', async () => {
+  it('fires recordHarnessActivity for enhancer team role', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const spawnResult = mockSpawnResult();
@@ -131,7 +131,7 @@ describe('wireTokenActivityReporting', () => {
     expect(args.role).toBe('enhancer');
   });
 
-  it('does not fire updateTokenActivity again within throttle window', async () => {
+  it('does not fire recordHarnessActivity again within throttle window', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const spawnResult = mockSpawnResult();

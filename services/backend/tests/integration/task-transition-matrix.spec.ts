@@ -7,8 +7,8 @@
  *
  * | Role kind | Trigger | Expected result |
  * |-----------|---------|----------------|
- * | team_agent (planner) | native:task-injected + updateTokenActivity | in_progress |
- * | team_agent (planner) | agent.waiting + updateTokenActivity (token resume) | in_progress |
+ * | team_agent (planner) | native:task-injected + recordHarnessActivity | in_progress |
+ * | team_agent (planner) | agent.waiting + recordHarnessActivity (activity resume) | in_progress |
  * | ephemeral (enhancer) | claimForSpawn | in_progress + participant row |
  */
 
@@ -54,7 +54,7 @@ async function seedPendingTask(
 }
 
 describe('task transition matrix', () => {
-  test('team agent + native:task-injected + updateTokenActivity -> in_progress', async () => {
+  test('team agent + native:task-injected + recordHarnessActivity -> in_progress', async () => {
     const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
       'ttm-injected',
       'planner'
@@ -74,7 +74,7 @@ describe('task transition matrix', () => {
       'acknowledged'
     );
 
-    // Simulate token activity after native injection
+    // Simulate harness activity after native injection
     const { startTaskFromTokenActivity } =
       await import('../../src/domain/usecase/participant/start-task-from-token-activity');
     await t.run(async (ctx) => {
@@ -91,7 +91,7 @@ describe('task transition matrix', () => {
     expect(status).toBe('in_progress');
   });
 
-  test('team agent + agent.waiting + updateTokenActivity (token resume) -> in_progress', async () => {
+  test('team agent + agent.waiting + recordHarnessActivity (activity resume) -> in_progress', async () => {
     const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
       'ttm-waiting',
       'planner'
