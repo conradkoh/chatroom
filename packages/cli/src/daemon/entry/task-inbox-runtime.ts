@@ -26,52 +26,12 @@ import {
   runOperationalInbox,
   type OperationalInboxUpdate,
 } from '../infrastructure/agent-operational/operational-inbox.js';
-import { createAgentTaskStateService } from '../services/service-interfaces.js';
-import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
-import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
-import { MachineTaskSnapshotState } from '../infrastructure/inbox/task-snapshot-state.js';
-import {
-  runTaskInbox,
-  taskSignalCursorAt,
-  type TaskInboxUpdate,
-} from '../infrastructure/inbox/task.js';
+import { createAgentTaskStateService } from '../services/service-interfaces.js';
 
 const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 const INBOX_RESTART_INITIAL_MS = 1_000;
 const INBOX_RESTART_MAX_MS = 30_000;
-type TaskInboxDependencies = {
-  sessionDeps: NativeTaskDeliverySessionDeps;
-  nativeDelivery: NativeDeliveryService;
-  /** Invoked with the assigned-task chatroom IDs after task state replace and before first delivery. */
-  onDiscoveredChatrooms?: (chatroomIds: string[]) => Promise<void>;
-};
-
-// fallow-ignore-next-line unused-export
-export async function bootstrapMachineAssignedTaskSnapshots(
-  deps: TaskInboxDependencies
-): Promise<void> {
-  await deps.sessionDeps.backend.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
-    sessionId: deps.sessionDeps.sessionId,
-    machineId: deps.sessionDeps.machineId,
-  });
-  await deps.sessionDeps.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-    sessionId: deps.sessionDeps.sessionId,
-    machineId: deps.sessionDeps.machineId,
-  });
-  const tasks = await fetchMachineAssignedTaskSnapshots(
-    deps.sessionDeps,
-    deps.sessionDeps.machineId
-  );
-  deps.nativeDelivery.taskSnapshotState.replace(tasks);
-  const chatroomIds = [...new Set(tasks.map((task) => task.chatroomId))];
-  if (chatroomIds.length > 0) {
-    await deps.onDiscoveredChatrooms?.(chatroomIds);
-  }
-  if (!tasks.length) return;
-  await deps.nativeDelivery.processSnapshots('bootstrap', tasks);
-}
-
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
 }
@@ -79,26 +39,6 @@ function isAbortError(error: unknown): boolean {
 /** Collision-safe durable cursor scope for one machine/chatroom stream (operational and task). */
 function roomScopeKey(machineId: string, chatroomId: string): string {
   return JSON.stringify([machineId, chatroomId]);
-}
-
-// fallow-ignore-next-line unused-export complexity
-export async function runInboxLoopWithRestart(
-  options: Parameters<typeof runTaskInbox>[0],
-  onUpdate: Parameters<typeof runTaskInbox>[1],
-  isStopped: () => boolean
-): Promise<void> {
-  let backoffMs = INBOX_RESTART_INITIAL_MS;
-  while (!isStopped()) {
-    try {
-      await runTaskInbox(options, onUpdate);
-      return;
-    } catch (error) {
-      if (isStopped() || isAbortError(error)) return;
-      console.warn(`[TaskInbox] loop error, restarting in ${backoffMs}ms:`, error);
-      await new Promise((resolve) => setTimeout(resolve, backoffMs));
-      backoffMs = Math.min(backoffMs * 2, INBOX_RESTART_MAX_MS);
-    }
-  }
 }
 
 // fallow-ignore-next-line complexity
@@ -168,7 +108,8 @@ export const startTaskInboxEffect = (
     const serviceStartedAt = Date.now();
     const abort = new AbortController();
     let stopped = false;
-    const taskSnapshotState = new MachineTaskSnapshotState();
+    // TaskService owns the task read model and the task-status subscription.
+    const taskSnapshotState = session.taskService.taskSnapshotState;
     const agentOperationalReadModel = new AgentOperationalReadModel();
     const agentTaskState = createAgentTaskStateService();
     const nativeDelivery = new NativeDeliveryService({
@@ -184,6 +125,15 @@ export const startTaskInboxEffect = (
       lifecycleOutbox,
       taskService: session.taskService,
     });
+    const unsubscribeTaskService = session.taskService.subscribe((notification) =>
+      nativeDelivery.handleTaskServiceNotification(notification)
+    );
+    yield* Effect.tryPromise(() => session.taskService.startTaskInbox(wsClient)).pipe(
+      Effect.catchAll((error) => {
+        console.warn('[TaskInbox] service bootstrap failed:', error);
+        return Effect.void;
+      })
+    );
     const knownRoomIds = new Set<string>();
     const roomWatchers = new Map<
       string,
@@ -326,55 +276,7 @@ export const startTaskInboxEffect = (
           operationalHandler,
           () => stopped
         );
-
-        // Task watcher — composite task cursor (never reuse the legacy machine cursor).
-        const taskRoomKey = {
-          inboxType: 'task' as const,
-          scopeKey: roomScopeKey(session.machineId, chatroomId),
-        };
-        const persistedTaskRoom = inboxStore.get<{ afterSignalKey: string }>(taskRoomKey);
-        let taskCursor: string;
-        if (persistedTaskRoom) {
-          taskCursor = persistedTaskRoom.state.afterSignalKey;
-        } else if (bootstrapSucceeded) {
-          taskCursor = taskSignalCursorAt(serviceStartedAt);
-          try {
-            inboxStore.save(taskRoomKey, { afterSignalKey: taskCursor });
-          } catch (error) {
-            console.warn(
-              `[TaskInbox room=${chatroomId}] failed to persist bootstrap baseline:`,
-              error
-            );
-          }
-        } else {
-          taskCursor = taskSignalCursorAt(serviceStartedAt);
-        }
-
-        const taskHandlerForRoom = async (update: TaskInboxUpdate): Promise<void> => {
-          inboxUpdatesInFlight += 1;
-          try {
-            await handleTaskInboxUpdate(update, {
-              nativeDelivery,
-            });
-            inboxStore.save(taskRoomKey, { afterSignalKey: update.throughSignalKey });
-          } finally {
-            inboxUpdatesInFlight -= 1;
-          }
-        };
-
-        void runInboxLoopWithRestart(
-          {
-            client: wsClient,
-            sessionId: session.sessionId as SessionId,
-            machineId: session.machineId,
-            chatroomId,
-            serviceStartedAt,
-            initialAfterSignalKey: taskCursor,
-            signal: controller.signal,
-          },
-          taskHandlerForRoom,
-          () => stopped
-        );
+        await session.taskService.registerTaskChatroom(chatroomId);
       })();
 
       return entry.startPromise;
@@ -394,6 +296,7 @@ export const startTaskInboxEffect = (
         for (const [chatroomId, watcher] of roomWatchers) {
           if (activeChatroomIds.has(chatroomId)) continue;
           watcher.controller.abort();
+          session.taskService.unregisterTaskChatroom(chatroomId);
           roomWatchers.delete(chatroomId);
           knownRoomIds.delete(chatroomId);
         }
@@ -416,21 +319,6 @@ export const startTaskInboxEffect = (
     ).pipe(
       Effect.catchAll((error) => {
         console.warn('[OperationalInbox] initial watcher start failed:', error);
-        return Effect.void;
-      })
-    );
-
-    yield* Effect.tryPromise(() =>
-      bootstrapMachineAssignedTaskSnapshots({
-        sessionDeps,
-        nativeDelivery,
-        onDiscoveredChatrooms: async (chatroomIds) => {
-          await Promise.all(chatroomIds.map((chatroomId) => ensureRoomInboxes(chatroomId)));
-        },
-      })
-    ).pipe(
-      Effect.catchAll((error) => {
-        console.warn('[TaskInbox] bootstrap failed:', error);
         return Effect.void;
       })
     );
@@ -458,6 +346,8 @@ export const startTaskInboxEffect = (
         }
         clearInterval(reconcileTimer);
         unregisterTaskInboxRoomMembershipRefresh();
+        unsubscribeTaskService();
+        session.taskService.stopTaskInbox();
         nativeDelivery.dispose();
         nativeDelivery.agentTaskState.clearAll();
         inboxStore.close();

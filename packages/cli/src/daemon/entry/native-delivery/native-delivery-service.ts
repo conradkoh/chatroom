@@ -7,17 +7,18 @@ import {
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import type { TaskSnapshotStateReader } from '../../infrastructure/inbox/task-snapshot-state.js';
+import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
   AgentTurnEndedEvent,
+  AgentTaskStateService,
+  AgentProcessManagerService,
+  TaskService,
 } from '../../services/service-interfaces.js';
-import type { AgentTaskStateService } from '../../services/service-interfaces.js';
-import type { AgentProcessManagerService } from '../../services/service-interfaces.js';
-import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
-import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
+import type { TaskServiceNotification } from '../../services/task-service/index.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import type { TaskService } from '../daemon-services.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 export type NativeDeliveryPass =
@@ -30,6 +31,14 @@ export type NativeTaskDeliveredHandler = (args: {
   harnessSessionId: string;
 }) => void;
 
+type TaskDeliveryService = Pick<
+  TaskService,
+  | 'deliverNativeTask'
+  | 'isNativeHarness'
+  | 'snapshotRequestsNativeColdSession'
+  | 'explainNativeDeliveryBlock'
+>;
+
 export interface NativeDeliveryServiceDependencies {
   readonly runtime: TaskDeliveryRuntime;
   readonly effectContext: TaskDeliveryContext;
@@ -37,11 +46,12 @@ export interface NativeDeliveryServiceDependencies {
   readonly runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
   readonly sessionDeps: NativeTaskDeliverySessionDeps;
   readonly machineId: string;
-  readonly taskSnapshotState: MachineTaskSnapshotState;
+  /** Read-only compatibility façade; the instance is owned by TaskService. */
+  readonly taskSnapshotState: TaskSnapshotStateReader;
   readonly agentTaskState: AgentTaskStateService;
   readonly agentOperationalReadModel: AgentOperationalReadModel;
   readonly lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
-  readonly taskService: TaskService;
+  readonly taskService: TaskDeliveryService;
 }
 
 /**
@@ -103,17 +113,20 @@ export class NativeDeliveryService {
     this.unsubscribeAgentSessionLost();
   }
 
-  get taskSnapshotState(): MachineTaskSnapshotState {
-    return this.deps.taskSnapshotState;
-  }
-
   get agentTaskState(): AgentTaskStateService {
     return this.deps.agentTaskState;
   }
 
   async handleTaskInboxUpdate(update: TaskInboxUpdate): Promise<void> {
-    this.deps.taskSnapshotState.applySignalPage(update.signals, update.snapshots);
     await this.processSnapshots('inbox-signal', update.snapshots);
+  }
+
+  async handleTaskServiceNotification(notification: TaskServiceNotification): Promise<void> {
+    if (notification.kind === 'bootstrap') {
+      await this.processSnapshots('bootstrap', notification.snapshots);
+      return;
+    }
+    await this.handleTaskInboxUpdate(notification.update);
   }
 
   async processSnapshots(

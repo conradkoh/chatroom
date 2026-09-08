@@ -5,29 +5,36 @@ import {
   logNativeDeliveryMutexSkip,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
-import type { NativeDeliverySessionHandles } from '../../services/service-interfaces.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
-import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
+import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
   SerializedAgentOperationOptions,
   SerializedAgentOperationContext,
+  NativeDeliverySessionHandles,
+  TaskService,
 } from '../../services/service-interfaces.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../daemon-services.js';
-import type { TaskService } from '../daemon-services.js';
-import {
-  filterSnapshotsExcludingRestartInFlight,
-} from '../restart-orchestrator-in-flight.js';
+import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
+
+type TaskDeliveryService = Pick<
+  TaskService,
+  | 'deliverNativeTask'
+  | 'isNativeHarness'
+  | 'snapshotRequestsNativeColdSession'
+  | 'explainNativeDeliveryBlock'
+>;
 
 type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskDeliveryContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -56,12 +63,10 @@ export class NativeTaskDeliveryCoordinator {
         context: SerializedAgentOperationContext
       ) => Promise<T>
     ) => Promise<T>;
-    taskService: TaskService;
+    taskService: TaskDeliveryService;
     sessionDeps: NativeTaskDeliverySessionDeps;
     lifecycleOutbox: {
-      enqueue: (
-        fact: import('../../domain/entities/agent-lifecycle-fact.js').AgentLifecycleFact
-      ) => Promise<unknown>;
+      enqueue: (fact: AgentLifecycleFact) => Promise<unknown>;
     };
     operationalModel: AgentOperationalReadModel;
     isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean;
@@ -77,13 +82,11 @@ export class NativeTaskDeliveryCoordinator {
   }): Promise<void> {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
-    const serializedOperation = params.runSerializedForAgent;
     const {
       runtime,
       effectContext,
       agentMgr,
       sessionDeps,
-      lifecycleOutbox,
       operationalModel,
       isTaskActive,
       machineId,

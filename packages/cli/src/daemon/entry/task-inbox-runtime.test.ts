@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { refreshTaskInboxRoomMembership } from './task-inbox-membership-registry.js';
-import {
-  bootstrapMachineAssignedTaskSnapshots,
-  runInboxLoopWithRestart,
-  startTaskInboxEffect,
-} from './task-inbox-runtime.js';
+import { startTaskInboxEffect } from './task-inbox-runtime.js';
 import { type AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
 import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
@@ -181,6 +177,74 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
     },
     agentServices: new Map(),
   };
+  const taskRows = [...(options.tasks ?? [])] as AssignedTaskSnapshotView[];
+  const taskSnapshotState = {
+    replace: vi.fn((rows: readonly AssignedTaskSnapshotView[]) => {
+      taskRows.splice(0, taskRows.length, ...rows);
+    }),
+    applySignalPage: vi.fn((_signals: unknown, rows: readonly AssignedTaskSnapshotView[]) => {
+      taskRows.splice(0, taskRows.length, ...rows);
+    }),
+    listForRole: vi.fn((chatroomId: string, role: string) =>
+      taskRows.filter(
+        (row) =>
+          row.chatroomId === chatroomId && row.agentConfig.role.toLowerCase() === role.toLowerCase()
+      )
+    ),
+    listAll: vi.fn(() => taskRows),
+  };
+  const taskListeners = new Set<(notification: unknown) => Promise<void> | void>();
+  const registeredTaskRooms = new Set<string>();
+  const taskRoomControllers = new Map<string, AbortController>();
+  const taskService = {
+    taskSnapshotState,
+    subscribe: vi.fn((listener: (notification: unknown) => Promise<void> | void) => {
+      taskListeners.add(listener);
+      return () => taskListeners.delete(listener);
+    }),
+    startTaskInbox: vi.fn(async () => {
+      for (const chatroomId of new Set(taskRows.map((row) => row.chatroomId))) {
+        await taskService.registerTaskChatroom(chatroomId);
+      }
+    }),
+    registerTaskChatroom: vi.fn(async (chatroomId: string) => {
+      if (registeredTaskRooms.has(chatroomId)) return;
+      registeredTaskRooms.add(chatroomId);
+      taskRoomControllers.set(chatroomId, new AbortController());
+      const key = { inboxType: 'task', scopeKey: COMPOSITE_SCOPE_KEY('machine-1', chatroomId) };
+      const persisted = createInboxStateStore.mock.results[0]?.value?.get?.(key);
+      const cursor = persisted?.state?.afterSignalKey ?? BASELINE;
+      if (!persisted)
+        createInboxStateStore.mock.results[0]?.value?.save?.(key, { afterSignalKey: cursor });
+      await runTaskInbox(
+        {
+          chatroomId,
+          initialAfterSignalKey: cursor,
+          signal: taskRoomControllers.get(chatroomId)?.signal,
+        } as never,
+        async (update) => {
+          taskSnapshotState.applySignalPage(update.signals, update.snapshots);
+          for (const listener of taskListeners) await listener({ kind: 'inbox', update });
+          createInboxStateStore.mock.results[0]?.value?.save?.(key, {
+            afterSignalKey: update.throughSignalKey,
+          });
+        }
+      );
+    }),
+    unregisterTaskChatroom: vi.fn((chatroomId: string) => {
+      taskRoomControllers.get(chatroomId)?.abort();
+      taskRoomControllers.delete(chatroomId);
+      registeredTaskRooms.delete(chatroomId);
+    }),
+    stopTaskInbox: vi.fn(() => {
+      for (const controller of taskRoomControllers.values()) controller.abort();
+    }),
+    isNativeHarness: vi.fn(() => true),
+    snapshotRequestsNativeColdSession: vi.fn(() => false),
+    explainNativeDeliveryBlock: vi.fn(() => null),
+    deliverNativeTask: vi.fn().mockResolvedValue(undefined),
+  };
+  Object.assign(session, { taskService });
   const layers = Layer.mergeAll(
     Layer.succeed(DaemonSessionService, session as never),
     Layer.succeed(DaemonAgentProcessManagerService, agentProcessManager as never),
@@ -215,123 +279,6 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
     taskInboxHandlers: () => taskInboxHandlers,
   };
 }
-
-describe('bootstrapMachineAssignedTaskSnapshots', () => {
-  const makeNativeDelivery = (processSnapshots = vi.fn().mockResolvedValue(undefined)) => ({
-    taskSnapshotState: { replace: vi.fn() },
-    processSnapshots,
-  });
-
-  it('delivers pending snapshots via processTasksUpdate on restart bootstrap', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
-    const query = vi.fn().mockResolvedValue({
-      tasks: [
-        {
-          taskId: 'task-1',
-          chatroomId: 'room-1',
-          status: 'pending',
-          assignedTo: 'builder',
-          updatedAt: 100,
-          createdAt: 100,
-          agentConfig: {
-            role: 'builder',
-            machineId: 'machine-1',
-            agentHarness: 'cursor-sdk',
-            workingDir: '/tmp',
-            spawnedAgentPid: 42,
-            desiredState: 'running',
-          },
-          participant: { lastSeenAction: null, lastSeenAt: null, lastStatus: null },
-        },
-      ],
-    });
-    const nativeDelivery = makeNativeDelivery();
-    await bootstrapMachineAssignedTaskSnapshots({
-      sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      nativeDelivery: nativeDelivery as never,
-    });
-    expect(mutation).toHaveBeenCalledTimes(2);
-    expect(nativeDelivery.processSnapshots).toHaveBeenCalledOnce();
-    expect(nativeDelivery.processSnapshots.mock.calls[0]?.[0]).toBe('bootstrap');
-  });
-
-  it('syncs and does not deliver when no snapshots exist', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
-    const query = vi.fn().mockResolvedValue({ tasks: [] });
-    await bootstrapMachineAssignedTaskSnapshots({
-      sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      nativeDelivery: makeNativeDelivery() as never,
-    });
-    expect(mutation).toHaveBeenCalledTimes(2);
-    expect(query).toHaveBeenCalledOnce();
-  });
-
-  it('invokes the discovery callback with task chatroom ids before delivery', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
-    const query = vi.fn().mockResolvedValue({
-      tasks: [
-        {
-          taskId: 'task-1',
-          chatroomId: 'room-1',
-          status: 'pending',
-          assignedTo: 'builder',
-          updatedAt: 100,
-          createdAt: 100,
-          agentConfig: { chatroomId: 0, role: 'builder', machineId: 'machine-1' },
-        },
-        {
-          taskId: 'task-2',
-          chatroomId: 'room-1',
-          status: 'pending',
-          assignedTo: 'builder',
-          updatedAt: 100,
-          createdAt: 100,
-          agentConfig: { chatroomId: 0, role: 'builder', machineId: 'machine-1' },
-        },
-      ],
-    });
-    const onDiscoveredChatrooms = vi.fn().mockResolvedValue(undefined);
-    const order: string[] = [];
-    onDiscoveredChatrooms.mockImplementation(async () => {
-      order.push('discover');
-    });
-    const nativeDelivery = makeNativeDelivery();
-    nativeDelivery.processSnapshots.mockImplementation(async () => {
-      order.push('deliver');
-    });
-    await bootstrapMachineAssignedTaskSnapshots({
-      sessionDeps: { sessionId: 'session-1', backend: { mutation, query } } as never,
-      nativeDelivery: nativeDelivery as never,
-      onDiscoveredChatrooms,
-    });
-    expect(onDiscoveredChatrooms).toHaveBeenCalledWith(['room-1']);
-    expect(order).toEqual(['discover', 'deliver']);
-  });
-});
-
-describe('runInboxLoopWithRestart', () => {
-  it('retries transient errors and stops on AbortError', async () => {
-    vi.mocked(runTaskInbox)
-      .mockRejectedValueOnce(new Error('transient'))
-      .mockRejectedValueOnce(Object.assign(new Error('stopped'), { name: 'AbortError' }));
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.useFakeTimers();
-    const promise = runInboxLoopWithRestart({} as never, vi.fn(), () => false);
-    await vi.advanceTimersByTimeAsync(1_000);
-    await promise;
-    expect(runTaskInbox).toHaveBeenCalledTimes(2);
-    warn.mockRestore();
-    vi.useRealTimers();
-  });
-
-  it('does not restart on AbortError', async () => {
-    vi.mocked(runTaskInbox).mockRejectedValueOnce(
-      Object.assign(new Error('aborted'), { name: 'AbortError' })
-    );
-    await runInboxLoopWithRestart({} as never, vi.fn(), () => false);
-    expect(runTaskInbox).toHaveBeenCalledOnce();
-  });
-});
 
 describe('startTaskInboxEffect operational room supervisor', () => {
   it('saves a fresh operational and task baseline per discovered room and acks with matching room ids', async () => {
@@ -425,7 +372,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     handle.stop();
   });
 
-  it('does not save or ack fresh baselines when bootstrap fails but still acks persisted cursors', async () => {
+  it('does not start operational watchers when operational bootstrap fails', async () => {
     const persistedKey = '0000000000000099:room:builder';
     const store = makeInboxStore({
       [COMPOSITE_SCOPE_KEY('machine-1', 'room-1')]: { afterSignalKey: persistedKey },
@@ -437,20 +384,12 @@ describe('startTaskInboxEffect operational room supervisor', () => {
       tasks: [taskSnapshot('task-1', 'room-1')],
       bootstrapRows: [],
     });
-    await vi.waitFor(() => expect(ackMachineOperationalSignals).toHaveBeenCalledOnce());
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(fetchMachineAgentOperationalStatus).toHaveBeenCalledTimes(2);
+    expect(fetchMachineAgentOperationalStatus).toHaveBeenCalledTimes(1);
     expect(store.save).not.toHaveBeenCalled();
-    expect(ackMachineOperationalSignals).toHaveBeenCalledWith(
-      expect.anything(),
-      'machine-1',
-      'room-1',
-      persistedKey
-    );
-    expect(runOperationalInbox.mock.calls[0]?.[0]).toMatchObject({
-      chatroomId: 'room-1',
-      initialAfterSignalKey: persistedKey,
-    });
+    expect(ackMachineOperationalSignals).not.toHaveBeenCalled();
+    expect(runOperationalInbox).not.toHaveBeenCalled();
     handle.stop();
     vi.restoreAllMocks();
   });

@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-export unused-type
+
 /**
  * Public boundary for task lifecycle and native task delivery operations.
  *
@@ -27,4 +29,10 @@ export {
   isNativeColdSessionDeliveryOwnedSpawn,
   explainColdSessionDeliveryBlock,
 } from './domain/usecase/native-cold-session-delivery.js';
-export { createTaskService, type TaskService, type TaskServiceCompositionDependencies } from './service/task-service.js';
+export {
+  createTaskService,
+  type TaskService,
+  type TaskServiceCompositionDependencies,
+  type TaskServiceNotification,
+} from './service/task-service.js';
+export { TaskOutbox, type TaskOutboxEntry } from './service/task-outbox.js';
