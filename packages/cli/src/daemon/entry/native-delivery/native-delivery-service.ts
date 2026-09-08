@@ -41,7 +41,7 @@ export interface NativeDeliveryServiceDependencies {
   readonly agentTaskState: AgentTaskStateService;
   readonly agentOperationalReadModel: AgentOperationalReadModel;
   readonly lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
-  readonly taskService?: TaskService | undefined;
+  readonly taskService: TaskService;
 }
 
 /**
@@ -127,7 +127,7 @@ export class NativeDeliveryService {
       this.deps.effectContext,
       this.deps.agentMgr,
       this.deps.runSerializedForAgent,
-      this.deps.taskService!,
+      this.deps.taskService,
       this.deps.sessionDeps,
       this.deps.machineId,
       pass,

@@ -47,6 +47,7 @@ describe('onRequestStartAgentEffect', () => {
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,
+      taskService: {} as never,
     });
   }
 

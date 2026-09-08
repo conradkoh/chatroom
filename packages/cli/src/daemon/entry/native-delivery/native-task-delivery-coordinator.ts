@@ -18,7 +18,6 @@ import type {
   SerializedAgentOperationOptions,
   SerializedAgentOperationContext,
 } from '../../services/service-interfaces.js';
-import { createTaskService } from '../daemon-services.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
@@ -57,7 +56,7 @@ export class NativeTaskDeliveryCoordinator {
         context: SerializedAgentOperationContext
       ) => Promise<T>
     ) => Promise<T>;
-    taskService?: TaskService | undefined;
+    taskService: TaskService;
     sessionDeps: NativeTaskDeliverySessionDeps;
     lifecycleOutbox: {
       enqueue: (
@@ -91,20 +90,7 @@ export class NativeTaskDeliveryCoordinator {
       onTaskDelivered,
     } = params;
     const deliveryState = getRoleDeliveryState();
-    const taskService = params.taskService ?? createTaskService({
-      sessionId: sessionDeps.sessionId,
-      machineId: sessionDeps.machineId,
-      convexUrl: sessionDeps.convexUrl,
-      backend: sessionDeps.backend,
-      logEvent: sessionDeps.logEvent,
-      agentProcessService: {
-        ...agentMgr,
-        resumeTurnForSlot: (args: { chatroomId: string; role: string; prompt: string }) =>
-          Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
-        runSerializedForAgent: serializedOperation,
-      } as never,
-      lifecycleOutbox,
-    });
+    const taskService = params.taskService;
 
     const pendingFirst = [...tasks].sort((a, b) => {
       if (a.status === 'pending' && b.status !== 'pending') return -1;

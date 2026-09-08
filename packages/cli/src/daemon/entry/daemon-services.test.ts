@@ -174,6 +174,7 @@ describe('DaemonSessionService', () => {
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,
+      taskService: {} as never,
     });
 
     const { sessionId, machineId } = Effect.runSync(
@@ -205,6 +206,7 @@ describe('DaemonSessionService', () => {
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,
+      taskService: {} as never,
     });
 
     const { backend, fs } = Effect.runSync(
@@ -236,6 +238,7 @@ describe('DaemonSessionService', () => {
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,
+      taskService: {} as never,
     });
 
     const result = Effect.runSync(

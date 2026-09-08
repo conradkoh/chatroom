@@ -17,6 +17,7 @@ import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
+import { withTestTaskService } from './test-task-service.js';
 import {
   buildNativeInjectionPrompt,
   shouldDeliverNativeTask,
@@ -89,7 +90,7 @@ describe('native queued delivery after agent_end', () => {
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks({
+    coordinator.reconcileAssignedTasks(withTestTaskService({
       tasks: [row!],
       runtime: Runtime.defaultRuntime as Parameters<
         NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
@@ -121,7 +122,7 @@ describe('native queued delivery after agent_end', () => {
       lifecycleOutbox: { enqueue: async () => undefined },
       operationalModel: new AgentOperationalReadModel(),
       isTaskActive: () => false,
-    });
+    }));
 
     await vi.waitFor(() => {
       expect(resumeTurnForSlot).toHaveBeenCalled();

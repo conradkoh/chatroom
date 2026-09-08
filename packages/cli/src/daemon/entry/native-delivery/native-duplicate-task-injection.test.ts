@@ -11,6 +11,7 @@ import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
+import { withTestTaskService } from './test-task-service.js';
 import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
@@ -79,7 +80,7 @@ describe('native duplicate task injection', () => {
     operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
     const activeTaskIds = new Set<string>();
 
-    const reconcileParams = {
+    const reconcileParams = withTestTaskService({
       tasks: [row],
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
@@ -105,7 +106,7 @@ describe('native duplicate task injection', () => {
       operationalModel,
       isTaskActive: ({ taskId }: { taskId: string }) => activeTaskIds.has(taskId),
       onTaskDelivered: ({ taskId }: { taskId: string }) => activeTaskIds.add(taskId),
-    };
+    });
 
     coordinator.reconcileAssignedTasks(reconcileParams);
     await vi.waitFor(() => {

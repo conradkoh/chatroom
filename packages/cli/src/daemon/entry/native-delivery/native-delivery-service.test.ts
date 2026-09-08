@@ -33,6 +33,12 @@ function createService(
     agentTaskState: createAgentTaskStateService(),
     agentOperationalReadModel: new AgentOperationalReadModel(),
     lifecycleOutbox: { enqueue: async () => undefined },
+    taskService: {
+      isNativeHarness: () => true,
+      snapshotRequestsNativeColdSession: () => false,
+      explainNativeDeliveryBlock: () => null,
+      deliverNativeTask: async () => undefined,
+    },
   });
 }
 

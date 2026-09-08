@@ -304,7 +304,7 @@ export interface DaemonSessionServiceShape {
   client: ConvexClient;
   config: MachineConfig | null;
   /** Constructed once by the daemon composition root. */
-  taskService?: TaskService | undefined;
+  taskService: TaskService;
 
   // ─── Flat deps (no ctx.deps.xxx indirection) ──────────────────────
   /** Direct access to backend ops — same as ctx.deps.backend but without the .deps. layer. */

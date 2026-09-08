@@ -25,6 +25,7 @@ import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
+import { withTestTaskService } from './test-task-service.js';
 import {
   buildNativeInjectionPrompt,
   shouldDeliverNativeTask,
@@ -139,7 +140,7 @@ describe('user message pending delivery path', () => {
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks({
+    coordinator.reconcileAssignedTasks(withTestTaskService({
       tasks: [row!],
       runtime: Runtime.defaultRuntime as Parameters<
         NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
@@ -179,7 +180,7 @@ describe('user message pending delivery path', () => {
       lifecycleOutbox,
       operationalModel,
       isTaskActive: () => false,
-    });
+    }));
 
     await vi.waitFor(() => {
       expect(resumeTurnForSlot).toHaveBeenCalled();
@@ -227,7 +228,7 @@ describe('user message pending delivery path', () => {
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks({
+    coordinator.reconcileAssignedTasks(withTestTaskService({
       tasks: [row!],
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
@@ -250,7 +251,7 @@ describe('user message pending delivery path', () => {
       lifecycleOutbox,
       operationalModel,
       isTaskActive: () => false,
-    });
+    }));
 
     await new Promise((r) => setTimeout(r, 50));
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
@@ -270,7 +271,7 @@ describe('user message pending delivery path', () => {
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks({
+    coordinator.reconcileAssignedTasks(withTestTaskService({
       tasks: [row!],
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
@@ -293,7 +294,7 @@ describe('user message pending delivery path', () => {
       lifecycleOutbox,
       operationalModel,
       isTaskActive: () => false,
-    });
+    }));
 
     await new Promise((r) => setTimeout(r, 50));
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
@@ -314,7 +315,7 @@ describe('user message pending delivery path', () => {
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks({
+    coordinator.reconcileAssignedTasks(withTestTaskService({
       tasks: [row!],
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
@@ -339,7 +340,7 @@ describe('user message pending delivery path', () => {
       lifecycleOutbox,
       operationalModel,
       isTaskActive: () => false,
-    });
+    }));
 
     await new Promise((r) => setTimeout(r, 50));
     expect(resumeTurnForSlot).not.toHaveBeenCalled();

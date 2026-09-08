@@ -182,7 +182,7 @@ export const startTaskInboxEffect = (
       agentTaskState,
       agentOperationalReadModel,
       lifecycleOutbox,
-      taskService: session.taskService ?? (() => { throw new Error('TaskService was not composed'); })(),
+      taskService: session.taskService,
     });
     const knownRoomIds = new Set<string>();
     const roomWatchers = new Map<
