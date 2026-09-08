@@ -131,7 +131,7 @@ describe('OpencodeSdkSession', () => {
     expect(events.some((e) => e.type === 'session.idle')).toBe(true);
   });
 
-  it('prompt() emits session.idle manually as fallback when SSE times out', async () => {
+  it('prompt() rejects when SSE idle times out', async () => {
     vi.useFakeTimers();
     mockPromptAsync.mockResolvedValue({});
 
@@ -139,11 +139,13 @@ describe('OpencodeSdkSession', () => {
     const events: DirectHarnessSessionEvent[] = [];
     session.onEvent((e) => events.push(e));
 
-    const promptDone = session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] });
+    const promptDone = expect(
+      session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'hi' }] })
+    ).rejects.toThrow('Timed out waiting for session.idle');
     await vi.advanceTimersByTimeAsync(300_001);
     await promptDone;
 
-    expect(events.some((e) => e.type === 'session.idle')).toBe(true);
+    expect(events.some((e) => e.type === 'session.idle')).toBe(false);
     vi.useRealTimers();
   });
 
@@ -303,7 +305,8 @@ describe('OpencodeSdkSession', () => {
     expect(events[0]!.type).toBe('session.updated');
 
     // Subscriber calls setTitle when the new title differs from the current one
-    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined }).info?.title;
+    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined })
+      .info?.title;
     if (newTitle && newTitle !== session.sessionTitle) {
       session.setTitle(newTitle);
     }
@@ -323,7 +326,8 @@ describe('OpencodeSdkSession', () => {
     session._emit(updatedEvent);
 
     // Guard: same title → no setTitle call
-    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined }).info?.title;
+    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined })
+      .info?.title;
     const before = session.sessionTitle;
     if (newTitle && newTitle !== session.sessionTitle) {
       session.setTitle(newTitle);
@@ -342,7 +346,8 @@ describe('OpencodeSdkSession', () => {
     };
     session._emit(updatedEvent);
 
-    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined }).info?.title;
+    const newTitle = (updatedEvent.payload as { info?: { title?: string | undefined } | undefined })
+      .info?.title;
     if (newTitle && newTitle !== session.sessionTitle) {
       session.setTitle(newTitle);
     }

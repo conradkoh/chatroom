@@ -1,4 +1,5 @@
 import type { NativeStreamAdapterBase } from './native-stream-adapter-base.js';
+import type { TurnCompletionResult } from './turn-completion.js';
 
 /** Wire shared stream-adapter callbacks for cursor-sdk and pi-sdk turn loops. */
 export function wireNativeStreamAdapter(args: {
@@ -6,6 +7,7 @@ export function wireNativeStreamAdapter(args: {
   assistantTextCallbacks: ((text: string) => void)[];
   outputCallbacks: (() => void)[];
   agentEndCallbacks: (() => void)[];
+  turnResultCallbacks?: ((result: TurnCompletionResult) => void)[];
   entry: { lastOutputAt: number };
 }): void {
   args.adapter.setAssistantTextCapture((text) => {
@@ -18,4 +20,9 @@ export function wireNativeStreamAdapter(args: {
   args.adapter.onAgentEnd(() => {
     for (const cb of args.agentEndCallbacks) cb();
   });
+  if (args.turnResultCallbacks) {
+    args.adapter.onTurnResult((result) => {
+      for (const cb of args.turnResultCallbacks ?? []) cb(result);
+    });
+  }
 }

@@ -173,7 +173,7 @@ describe('ClaudeSdkStreamAdapter typed activity', () => {
     adapter.finish();
     adapter.finish();
 
-    expect(onAgentEnd).toHaveBeenCalledTimes(1);
+    expect(onAgentEnd).toHaveBeenCalledTimes(0);
     expect(signals).toHaveLength(0);
   });
 

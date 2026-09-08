@@ -10,19 +10,20 @@ import type {
   HarnessActivityKind,
 } from '../../../../../services/service-interfaces.js';
 import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
+import { createTurnCompletion, type TurnCompletionResult } from '../turn-completion.js';
 
 export interface SessionEventForwarderOptions {
   sessionId: string;
   role: string;
   target?: Writable | undefined;
   errorTarget?: Writable | undefined;
-  now?:( () => string) | undefined;
+  now?: (() => string) | undefined;
   /** Human-readable log lines for provider failure classification. */
-  onLogLine?:( (line: string) => void) | undefined;
+  onLogLine?: ((line: string) => void) | undefined;
   /** Raw assistant text deltas for missed-handoff delivery. */
-  onAssistantText?:( (text: string) => void) | undefined;
+  onAssistantText?: ((text: string) => void) | undefined;
   /** Typed harness activity signals for observability and first-progress presence. */
-  onActivity?:( (event: HarnessActivityEvent) => void) | undefined;
+  onActivity?: ((event: HarnessActivityEvent) => void) | undefined;
   /** Max wait while OpenCode reports session.status retry before ending the turn. */
   sessionRetryIdleTimeoutMs?: number | undefined;
 }
@@ -36,6 +37,7 @@ export interface SessionEventForwarderHandle {
    * The AgentProcessManager uses this to terminate the process after a completed turn.
    */
   onAgentEnd: (cb: () => void) => void;
+  onTurnResult: (cb: (result: TurnCompletionResult) => void) => void;
   /**
    * Abort the session after a fatal provider error (e.g. rate limit) detected outside
    * the SSE stream — typically from opencode serve stderr logs.
@@ -126,7 +128,8 @@ export function startSessionEventForwarder(
   let doneResolve: () => void;
   let sessionStarted = false;
   let terminalAbortRequested = false;
-  let agentEndEmitted = false;
+  let activeTurnCompletion = createTurnCompletion();
+  const turnResultCallbacks: ((result: TurnCompletionResult) => void)[] = [];
   const seenToolStates = new Map<string, string>();
   let lastStatus: string | undefined;
   const agentEndCallbacks: (() => void)[] = [];
@@ -202,22 +205,40 @@ export function startSessionEventForwarder(
     retryIdleTimeout = setTimeout(() => {
       if (cancelled || terminalAbortRequested) return;
       logLine(target, 'status', 'retry_timeout');
-      emitAgentEnd();
+      emitAgentEnd('retry_timeout', 'timed_out');
     }, timeoutMs);
   }
 
-  function emitAgentEnd(reason?: string): void {
-    if (agentEndEmitted) return;
-    agentEndEmitted = true;
-    logLine(target, 'agent_end', reason ? `reason: ${reason}` : undefined);
-    for (const cb of agentEndCallbacks) cb();
+  function attachTurnCompletion(completion: ReturnType<typeof createTurnCompletion>): void {
+    completion.onComplete((result) => {
+      logLine(
+        target,
+        'agent_end',
+        result.status === 'completed' ? undefined : `reason: ${result.error ?? result.status}`
+      );
+      for (const cb of turnResultCallbacks) cb(result);
+      for (const cb of agentEndCallbacks) cb();
+    });
+  }
+
+  attachTurnCompletion(activeTurnCompletion);
+
+  function emitAgentEnd(
+    reason?: string,
+    status: 'completed' | 'failed' | 'timed_out' = 'completed'
+  ): void {
+    activeTurnCompletion.complete({
+      status,
+      source: reason ? `opencode.${reason}` : 'opencode.session.idle',
+      ...(reason ? { error: reason } : {}),
+    });
   }
 
   function abortTerminalProviderError(): void {
     if (terminalAbortRequested) return;
     terminalAbortRequested = true;
     cancelled = true;
-    emitAgentEnd('provider_rate_limit');
+    emitAgentEnd('provider_rate_limit', 'failed');
   }
 
   function armTurnEnd(): void {
@@ -226,7 +247,8 @@ export function startSessionEventForwarder(
       return;
     }
     clearRetryIdleTimeout();
-    agentEndEmitted = false;
+    activeTurnCompletion = createTurnCompletion();
+    attachTurnCompletion(activeTurnCompletion);
     lastStatus = undefined;
   }
 
@@ -247,7 +269,15 @@ export function startSessionEventForwarder(
   }
 
   function formatCompletedToolPayload(
-    part: { state?: { input?: unknown | undefined; time?: { start?: number | undefined; end?: number | undefined } | undefined } | undefined; tool?: string | undefined },
+    part: {
+      state?:
+        | {
+            input?: unknown | undefined;
+            time?: { start?: number | undefined; end?: number | undefined } | undefined;
+          }
+        | undefined;
+      tool?: string | undefined;
+    },
     state: string
   ): string {
     const start = part.state?.time?.start;
@@ -279,14 +309,22 @@ export function startSessionEventForwarder(
   }
 
   async function handlePartUpdated(props: {
-    part?: {
-      type?: string | undefined;
-      tool?: string | undefined;
-      text?: string | undefined;
-      sessionID?: string | undefined;
-      state?: { status?: string | undefined; input?: unknown | undefined; time?: { start?: number | undefined; end?: number | undefined } | undefined } | undefined;
-      callID?: string | undefined;
-    } | undefined;
+    part?:
+      | {
+          type?: string | undefined;
+          tool?: string | undefined;
+          text?: string | undefined;
+          sessionID?: string | undefined;
+          state?:
+            | {
+                status?: string | undefined;
+                input?: unknown | undefined;
+                time?: { start?: number | undefined; end?: number | undefined } | undefined;
+              }
+            | undefined;
+          callID?: string | undefined;
+        }
+      | undefined;
     delta?: string | undefined;
     state?: string | undefined;
   }): Promise<void> {
@@ -306,7 +344,13 @@ export function startSessionEventForwarder(
     part: {
       type?: string | undefined;
       tool?: string | undefined;
-      state?: { status?: string | undefined; input?: unknown | undefined; time?: { start?: number | undefined; end?: number | undefined } | undefined } | undefined;
+      state?:
+        | {
+            status?: string | undefined;
+            input?: unknown | undefined;
+            time?: { start?: number | undefined; end?: number | undefined } | undefined;
+          }
+        | undefined;
       callID?: string | undefined;
     },
     props: { state?: string | undefined },
@@ -328,7 +372,15 @@ export function startSessionEventForwarder(
   }
 
   function buildToolPayload(
-    part: { state?: { input?: unknown | undefined; time?: { start?: number | undefined; end?: number | undefined } | undefined } | undefined; tool?: string | undefined },
+    part: {
+      state?:
+        | {
+            input?: unknown | undefined;
+            time?: { start?: number | undefined; end?: number | undefined } | undefined;
+          }
+        | undefined;
+      tool?: string | undefined;
+    },
     state: string
   ): string {
     const basePayload = formatCompletedToolPayload(part, state);
@@ -365,7 +417,9 @@ export function startSessionEventForwarder(
     logLine(target, 'compacted');
   }
 
-  async function handleSessionStatus(props: { status?: { type?: string | undefined } | undefined }): Promise<void> {
+  async function handleSessionStatus(props: {
+    status?: { type?: string | undefined } | undefined;
+  }): Promise<void> {
     const raw = props?.status?.type;
     const parsed = parseOpenCodeSessionStatus(raw);
 
@@ -411,7 +465,9 @@ export function startSessionEventForwarder(
   }
 
   async function handleSessionError(props: {
-    error?: { name?: string | undefined; data?: { message?: string | undefined } | undefined } | undefined;
+    error?:
+      | { name?: string | undefined; data?: { message?: string | undefined } | undefined }
+      | undefined;
     tool?: string | undefined;
     command?: string | undefined;
   }): Promise<void> {
@@ -427,14 +483,18 @@ export function startSessionEventForwarder(
   }
 
   function formatErrorName(
-    err: { name?: string | undefined; data?: { message?: string | undefined } | undefined } | undefined
+    err:
+      { name?: string | undefined; data?: { message?: string | undefined } | undefined } | undefined
   ): string {
     if (!err?.name) return String(err ?? 'unknown');
     const detail = err?.data?.message;
     return detail ? `${err.name}: ${detail}` : err.name;
   }
 
-  function formatErrorContext(props: { tool?: string | undefined; command?: string | undefined }): string | undefined {
+  function formatErrorContext(props: {
+    tool?: string | undefined;
+    command?: string | undefined;
+  }): string | undefined {
     if (props?.tool) return `[tool: ${props.tool}]`;
     if (props?.command) return `[command: ${props.command}]`;
     return undefined;
@@ -473,6 +533,13 @@ export function startSessionEventForwarder(
 
   function shouldProcessEvent(event: OpenCodeEvent, eventSession: string | undefined): boolean {
     if (eventSession) return eventSession === options.sessionId;
+    if (
+      event.type === 'session.idle' ||
+      event.type === 'session.status' ||
+      event.type === 'session.error'
+    ) {
+      return false;
+    }
     return knownEventTypes.has(event.type);
   }
 
@@ -518,6 +585,10 @@ export function startSessionEventForwarder(
     done: donePromise,
     onAgentEnd: (cb: () => void) => {
       agentEndCallbacks.push(cb);
+    },
+    onTurnResult: (cb: (result: TurnCompletionResult) => void) => {
+      turnResultCallbacks.push(cb);
+      if (activeTurnCompletion.value) cb(activeTurnCompletion.value);
     },
     abortTerminalProviderError,
     armTurnEnd,

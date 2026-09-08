@@ -48,6 +48,32 @@ The following are separate concerns and must not be conflated:
 - A keeper or child process exited.
 - A compatibility `agent_end` log line was written.
 
+## Assessment findings from the current implementation
+
+These findings are based on the checked-in adapter/service code and its focused
+tests. They describe the current behavior, not the desired end state.
+
+### Cross-harness findings
+
+- [x] Each native SDK service creates a fresh stream adapter for each turn, which
+      gives Claude, Codex, Cursor, and Pi a natural per-turn state boundary.
+- [x] The shared `NativeStreamAdapterBase` prevents duplicate `agent_end` callbacks
+      within one adapter instance.
+- [x] Native SDK harnesses now expose a shared typed terminal outcome through
+      `SpawnResult.onTurnResult`; the daemon still retains `onAgentEnd(): void` for
+      compatibility and CLI-only harnesses.
+- [x] Native SDK adapters no longer use `finish()` as a success-producing operation;
+      provider success/failure/timeout/abort and missing-terminal cases are classified
+      before output flushing.
+- [ ] Process exit is observable through `onExit`, but it is not correlated to an
+      unresolved turn with a typed outcome.
+- [x] Native SDK lifecycle reconciliation consumes `TurnCompletionResult` directly;
+      compatibility `agent_end` remains the fallback channel for non-typed harnesses.
+
+Evidence: [`remote-agent-service.ts`](packages/cli/src/daemon/infrastructure/local/harness/services/remote-agent-service.ts),
+[`native-stream-adapter-base.ts`](packages/cli/src/daemon/infrastructure/local/harness/services/native-stream-adapter-base.ts),
+[`lifecycle-events.ts`](services/backend/src/domain/entities/harness/lifecycle-events.ts).
+
 ## Shared constraints for every implementation
 
 - [ ] Each logical turn has a unique daemon `turnId`.
@@ -121,6 +147,24 @@ Constraints:
 - [ ] Resume must create a fresh per-turn completion scope while preserving the provider
       session ID.
 
+Current findings:
+
+- [x] The service stops consuming after the first `result` message and creates a fresh
+      `ClaudeSdkStreamAdapter` for each turn.
+- [x] Provider session IDs are captured from SDK messages and retained for later resume.
+- [ ] A successful `result` is not currently converted into a typed result; the service
+      calls `adapter.finish()` after the loop instead.
+- [ ] `result.is_error` is logged as failure by the adapter, but the service still calls
+      `adapter.finish()`, which emits `agent_end` and can therefore look successful.
+- [ ] A query that ends without a `result` is also finalized by `adapter.finish()` and
+      can look successful.
+- [x] Query timeout/exception skips `adapter.finish()` and causes the session loop to
+      exit, so the current fallback is process exit rather than an explicit timeout
+      outcome.
+
+Evidence: [`claude-sdk-agent-service.ts:576`](packages/cli/src/daemon/infrastructure/local/harness/services/claude-sdk/claude-sdk-agent-service.ts:576),
+[`claude-sdk-stream-adapter.ts:42`](packages/cli/src/daemon/infrastructure/local/harness/services/claude-sdk/claude-sdk-stream-adapter.ts:42).
+
 ### `codex-sdk`
 
 Implementation references:
@@ -144,6 +188,21 @@ Constraints:
 - [ ] A top-level stream error must resolve the active turn as `failed` or `process_exited`.
 - [ ] `finish()` may flush output, but may not upgrade an unknown/failed turn to success.
 - [ ] A new `runStreamed()` call must create a new turn scope and reset completion state.
+
+Current findings:
+
+- [x] A fresh `CodexSdkStreamAdapter` is created for every `runStreamed()` turn.
+- [x] `turn.failed` and top-level `error` are recognized as failure activity and logged.
+- [ ] `turn.completed` is ignored by the adapter and is not recorded as the authoritative
+      successful terminal event.
+- [ ] The `finally` block always calls `adapter.finish()`, including after stream errors,
+      timeout, abort, `turn.failed`, or an iterator ending without a terminal event.
+- [ ] As a result, Codex can emit successful-looking `agent_end` after a failed or
+      unknown turn.
+- [x] Thread identity is learned from `thread.started` and reused for subsequent turns.
+
+Evidence: [`codex-sdk-agent-service.ts:687`](packages/cli/src/daemon/infrastructure/local/harness/services/codex-sdk/codex-sdk-agent-service.ts:687),
+[`codex-sdk-stream-adapter.ts:57`](packages/cli/src/daemon/infrastructure/local/harness/services/codex-sdk/codex-sdk-stream-adapter.ts:57).
 
 ### `cursor-sdk`
 
@@ -169,6 +228,24 @@ Constraints:
 - [ ] Aborted runs must be distinguishable from provider failures.
 - [ ] The keeper's process exit must not be mistaken for normal run completion.
 - [ ] Multiple sequential `agent.send()` calls must have independent completion gates.
+
+Current findings:
+
+- [x] The service consumes the run stream first and then waits for `run.wait()`.
+- [x] `run.wait()` errors and `result.status === 'error'` prevent `adapter.finish()`
+      from emitting normal `agent_end`.
+- [x] Successful runs call `adapter.finish()` only after the run result is accepted.
+- [ ] The successful result is still exposed only through the callback/log boundary; it
+      is not a typed `TurnResult`.
+- [ ] `withTimeout()` does not cancel the underlying `agent.send()`, stream, or
+      `run.wait()` promise. A late provider resolution remains a race to analyze.
+- [x] Each `agent.send()` creates a new run and a new stream adapter.
+
+Assessment: Cursor currently has the clearest success/failure ordering, but still needs
+the shared typed outcome and explicit timeout/abort correlation.
+
+Evidence: [`cursor-sdk-agent-service.ts:459`](packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-sdk-agent-service.ts:459),
+[`cursor-session.ts:73`](packages/cli/src/daemon/infrastructure/local/harness/adapters/cursor-sdk/cursor-session.ts:73).
 
 ### `opencode-sdk`
 
@@ -203,6 +280,28 @@ Constraints:
 - [ ] Events arriving after terminal resolution must be retained only for diagnostics,
       never for task lifecycle transitions.
 
+Current findings:
+
+- [x] `promptAsync()` is treated as submission; completion waits for idle in the direct
+      session path.
+- [x] Both `session.idle` and `session.status: idle` can trigger `agent_end`.
+- [x] The forwarder has an explicit latch and `armTurnEnd()` to support multiple turns.
+- [ ] `session.status: retry` timeout calls `emitAgentEnd()` and therefore looks like a
+      normal turn end rather than a timeout/failure.
+- [ ] `OpencodeSdkSession.prompt()` catches idle timeout and manually emits a synthetic
+      `session.idle`, which makes timeout indistinguishable from provider success.
+- [ ] The forwarder accepts known event types without a session ID, so a session-less
+      idle event from the shared SSE stream can potentially affect the wrong session.
+- [ ] Terminal provider errors call `emitAgentEnd('provider_rate_limit')`; the callback
+      still has no typed failure outcome.
+- [x] Focused tests cover duplicate/latch behavior and status-idle fallback, but they
+      currently lock in the timeout-to-idle behavior.
+
+Evidence: [`opencode-session.ts:65`](packages/cli/src/daemon/infrastructure/local/harness/adapters/opencode-sdk/opencode-session.ts:65),
+[`opencode-session.ts:102`](packages/cli/src/daemon/infrastructure/local/harness/adapters/opencode-sdk/opencode-session.ts:102),
+[`session-event-forwarder.ts:199`](packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/session-event-forwarder.ts:199),
+[`session-event-forwarder.ts:395`](packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/session-event-forwarder.ts:395).
+
 ### `pi-sdk`
 
 Implementation references:
@@ -232,7 +331,55 @@ Constraints:
 - [ ] Per-prompt subscriptions must not leak events into the next turn.
 - [ ] A late `agent_end` from the previous prompt must not complete the next prompt.
 
+Current findings:
+
+- [x] A fresh `PiSdkStreamAdapter` and SDK event subscription are created for each
+      prompt turn; the previous subscription is removed first.
+- [x] Provider `agent_end` and post-prompt `adapter.finish()` share the adapter latch,
+      so duplicate callbacks within the turn are suppressed.
+- [ ] Provider `agent_end` is treated as completion before the enclosing
+      `session.prompt()` promise has necessarily resolved.
+- [ ] If `agent_end` is emitted and `session.prompt()` later rejects, the daemon can
+      observe successful-looking completion before the failure path exits the process.
+- [ ] If `session.prompt()` resolves without a provider `agent_end`, `adapter.finish()`
+      synthesizes successful-looking completion.
+- [x] Prompt timeout/error skips the normal finish path and exits the SDK session, but
+      there is no explicit timeout/failure result.
+
+Evidence: [`pi-sdk-agent-service.ts:500`](packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-agent-service.ts:500),
+[`pi-sdk-agent-service.ts:508`](packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-agent-service.ts:508),
+[`pi-sdk-stream-adapter.ts:74`](packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-stream-adapter.ts:74).
+
 ## Cross-cutting implementation milestones
+
+## Implementation status
+
+The first shared-boundary slice is implemented in the daemon:
+
+- [x] Added `TurnCompletion` with a per-turn ID, typed terminal statuses, a promise,
+      late-listener delivery, and exactly-once completion.
+- [x] Added `turnCompletionFromError()` so timeout errors become `timed_out` rather than
+      generic successful completion.
+- [x] Made the common native SDK stream adapters use typed completion instead of making
+      `finish()` itself assert success.
+- [x] Migrated Claude, Codex, Cursor, and Pi SDK turn paths to report provider success,
+      provider failure, abort, timeout, or missing-terminal-event outcomes.
+- [x] Migrated the OpenCode session forwarder to the same completion primitive, including
+      re-arming for sequential turns.
+- [x] Removed OpenCode's direct-session timeout-to-`session.idle` fallback.
+- [x] Prevented session-less OpenCode idle/status/error events from completing a session
+      on the shared SSE stream.
+- [x] Preserved the existing `onAgentEnd` callback as a compatibility notification
+      derived from the typed completion result.
+- [x] Added focused completion, adapter, service, and OpenCode forwarder tests.
+- [x] Added checked-in JSONL behavior fixtures for Claude, Codex, Cursor, Pi, and
+      OpenCode (`opencode/big-pickle`-shaped) and exercised them against the adapters.
+- [x] Wire typed `TurnCompletionResult` through `SpawnResult` and process-manager
+      reconciliation; native SDK delivery now receives the result status and source.
+- [x] Add process-exit completion for an active unresolved native turn; the manager
+      synthesizes `process_exited` only while `nativeTurnPhase` is `turn_in_flight`.
+- [ ] Add end-to-end task-state assertions for failed, timed-out, and process-exited
+      turns.
 
 ### Milestone 1 — Capture current behavior
 

@@ -72,25 +72,17 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       }
       case 'agent_end':
-        this.emitAgentEnd();
+        this.completeTurn({ status: 'completed', source: 'pi-sdk.agent_end' });
         break;
       default:
         break;
     }
   }
 
-  /** Flush buffered output and emit agent_end once per turn. */
+  /** Flush buffered output after the terminal result has been recorded. */
   finish(): void {
     this.flushText();
     this.flushThinking();
-    this.emitAgentEnd();
-  }
-
-  private emitAgentEnd(): void {
-    if (this.agentEndEmitted) return;
-    this.agentEndEmitted = true;
-    this.writeLine(formatAgentLogLine(this.logPrefix, 'agent_end'));
-    for (const cb of this.agentEndCallbacks) cb();
   }
 
   private appendText(delta: string): void {

@@ -64,9 +64,7 @@ function createMockService() {
   };
 }
 
-function mockBackendMutation(
-  defaultResult: Record<string, unknown> = {}
-) {
+function mockBackendMutation(defaultResult: Record<string, unknown> = {}) {
   return vi.fn().mockImplementation((endpoint: unknown, args?: Record<string, unknown>) => {
     if (
       args &&
@@ -186,7 +184,6 @@ function createNativeSdkService(harness: NativeSdkHarness) {
   };
   return { service, resumeTurn, onAgentEndRegistrar };
 }
-
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -448,7 +445,6 @@ describe('AgentProcessManager', () => {
       expect(spawnArgs.systemPrompt).toBe('You are a builder');
     });
 
-
     test('opencode-sdk spawn passes harnessSessionId to lifecycle outbox', async () => {
       const opencodeSdkService = {
         ...createMockService(),
@@ -501,7 +497,6 @@ describe('AgentProcessManager', () => {
         })
       );
     });
-
 
     test('second start while running replaces PID', async () => {
       await manager.ensureRunning(createOpts());
@@ -1167,9 +1162,6 @@ describe('AgentProcessManager', () => {
       });
     });
 
-
-
-
     test('onAgentEnd with rate-limit logs still completes native turn end', async () => {
       const resumeTurn = vi.fn();
       let agentEndCb: (() => void) | undefined;
@@ -1251,9 +1243,6 @@ describe('AgentProcessManager', () => {
         )
       ).toHaveLength(0);
     });
-
-
-
   });
 
   // ── listActive ────────────────────────────────────────────────────────
@@ -1376,6 +1365,46 @@ describe('AgentProcessManager', () => {
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot?.nativeTurnPhase).toBeUndefined();
+    });
+
+    test('active native turn is reconciled as process_exited when the child exits first', async () => {
+      type SpawnExitCallback = Parameters<NonNullable<SpawnResult['onExit']>>[0];
+      let onExit: SpawnExitCallback | undefined;
+      const turnEnded = vi.fn(async () => undefined);
+      const service = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn: vi.fn().mockResolvedValue(undefined),
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: (cb: SpawnExitCallback) => {
+            onExit = cb;
+          },
+          onOutput: vi.fn(),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+      manager.subscribeAgentTurnEnded(turnEnded);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      await manager.resumeTurnForSlot({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        prompt: 'Continue working',
+      });
+
+      onExit?.({
+        code: 1,
+        signal: null,
+        context: { machineId: 'test-machine', chatroomId: CHATROOM_ID, role: ROLE },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).not.toBe('turn_in_flight');
+      expect(turnEnded).not.toHaveBeenCalled();
     });
   });
 

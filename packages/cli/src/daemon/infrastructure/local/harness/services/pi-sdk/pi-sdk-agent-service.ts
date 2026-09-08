@@ -44,6 +44,7 @@ import type {
 import { requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
+import { turnCompletionFromError, type TurnCompletionResult } from '../turn-completion.js';
 
 type LoadedPiSdk = Awaited<ReturnType<typeof importBundledPiSdk>>;
 
@@ -79,13 +80,13 @@ function getSdkPackageVersion(): string {
 interface SdkSession {
   session: AgentSession;
   model: string;
-  unsubscribe?:( () => void) | undefined;
+  unsubscribe?: (() => void) | undefined;
   keeper: ChildProcess;
   aborted: boolean;
   /** System prompt prepended to the first injected turn when deferInitialTurn is set. */
   storedSystemPrompt?: string | undefined;
-  resumeResolve?:( (prompt: string) => void) | undefined;
-  abortResolve?:( () => void) | undefined;
+  resumeResolve?: ((prompt: string) => void) | undefined;
+  abortResolve?: (() => void) | undefined;
   pendingResumePrompt?: string | undefined;
 }
 
@@ -383,6 +384,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     const agentEndCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
     const assistantTextCallbacks: ((text: string) => void)[] = [];
+    const turnResultCallbacks: ((result: TurnCompletionResult) => void)[] = [];
     const emitLogLine = (line: string) => {
       for (const cb of logLineCallbacks) cb(line);
     };
@@ -406,6 +408,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
     });
@@ -421,6 +424,9 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       },
       onAgentEnd: (cb) => {
         agentEndCallbacks.push(cb);
+      },
+      onTurnResult: (cb) => {
+        turnResultCallbacks.push(cb);
       },
       onLogLine: (cb) => {
         logLineCallbacks.push(cb);
@@ -442,6 +448,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
+    turnResultCallbacks: ((result: TurnCompletionResult) => void)[];
     emitLogLine: (line: string) => void;
     activityEmitter: HarnessActivityEmitter;
   }): void {
@@ -455,6 +462,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
     } = args;
@@ -466,6 +474,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       let exitSignal: string | null = null;
       let nextPrompt: string | null = deferInitialTurn ? null : initialPrompt;
       let prependSystemOnNextResume = deferInitialTurn;
+      let activeAdapter: PiSdkStreamAdapter | undefined;
       const storedSystemPrompt = sdkSession.storedSystemPrompt;
 
       try {
@@ -489,11 +498,13 @@ export class PiSdkAgentService extends BaseCLIAgentService {
 
             activityEmitter.beginTurn();
             const adapter = new PiSdkStreamAdapter(logPrefix, emitLogLine, activityEmitter);
+            activeAdapter = adapter;
             wireNativeStreamAdapter({
               adapter,
               assistantTextCallbacks,
               outputCallbacks,
               agentEndCallbacks,
+              turnResultCallbacks,
               entry,
             });
 
@@ -517,10 +528,14 @@ export class PiSdkAgentService extends BaseCLIAgentService {
               break;
             }
 
+            if (!adapter.turnCompletion.isComplete) {
+              adapter.completeTurn({ status: 'completed', source: 'pi-sdk.prompt.resolved' });
+            }
             adapter.finish();
             nextPrompt = null;
           } catch (turnErr) {
             exitCode = 1;
+            activeAdapter?.completeTurn(turnCompletionFromError(turnErr, 'pi-sdk.prompt'));
             writeSpawnError(logPrefix, turnErr, emitLogLine);
             break;
           }

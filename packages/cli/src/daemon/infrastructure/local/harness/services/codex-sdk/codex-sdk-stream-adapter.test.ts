@@ -122,11 +122,12 @@ describe('CodexSdkStreamAdapter', () => {
     expect(getLines(onLogLine)).toContain('[codex-sdk:builder run-error] boom');
   });
 
-  it('finish emits agent_end exactly once', () => {
+  it('terminal completion emits agent_end exactly once', () => {
     const { adapter, onLogLine } = createAdapter();
     const onAgentEnd = vi.fn();
     adapter.onAgentEnd(onAgentEnd);
 
+    adapter.completeTurn({ status: 'completed', source: 'test.completed' });
     adapter.finish();
     adapter.finish();
 
@@ -325,10 +326,11 @@ describe('CodexSdkStreamAdapter typed activity', () => {
     }
   });
 
-  it('finish emits agent_end without activity signals', () => {
+  it('terminal completion emits agent_end without activity signals', () => {
     const { adapter, signals } = createAdapter();
     const onAgentEnd = vi.fn();
     adapter.onAgentEnd(onAgentEnd);
+    adapter.completeTurn({ status: 'completed', source: 'test.completed' });
     adapter.finish();
     adapter.finish();
 

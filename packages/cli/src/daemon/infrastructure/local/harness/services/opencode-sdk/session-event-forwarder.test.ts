@@ -522,7 +522,9 @@ describe('SessionEventForwarder', () => {
     vi.useRealTimers();
     expect(onEnd).toHaveBeenCalledTimes(1);
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] retry_timeout\n');
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder agent_end]\n');
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: retry_timeout\n'
+    );
   }, 10000);
 
   it('abortTerminalProviderError from stderr path -> agent_end fired once', async () => {
@@ -582,7 +584,9 @@ describe('SessionEventForwarder', () => {
     vi.useRealTimers();
     expect(onEnd).toHaveBeenCalledTimes(1);
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] retry_timeout\n');
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder agent_end]\n');
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: retry_timeout\n'
+    );
   }, 10000);
 
   it('session.idle after provider rate limit abort does not double agent_end', async () => {

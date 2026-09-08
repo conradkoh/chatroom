@@ -56,12 +56,18 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       case 'turn.completed':
         // Token usage only — no agent output.
+        this.completeTurn({ status: 'completed', source: 'codex-sdk.turn.completed' });
         break;
       case 'turn.failed':
         this.flushText();
         this.writeProviderUnavailableMarker(event.error.message);
         this.writeLine(formatAgentLogLine(this.logPrefix, 'run-error', event.error.message));
         this.notifyFailure('codex-sdk.turn.failed');
+        this.completeTurn({
+          status: 'failed',
+          source: 'codex-sdk.turn.failed',
+          error: event.error.message,
+        });
         break;
       case 'error':
         // Fatal stream error.
@@ -69,6 +75,7 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
         this.writeProviderUnavailableMarker(event.message);
         this.writeLine(formatAgentLogLine(this.logPrefix, 'run-error', event.message));
         this.notifyFailure('codex-sdk.error');
+        this.completeTurn({ status: 'failed', source: 'codex-sdk.error', error: event.message });
         break;
       case 'thread.started':
       case 'turn.started':
@@ -78,10 +85,9 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
     }
   }
 
-  /** Call when the turn stream finishes so lifecycle.turn.completed is emitted. */
+  /** Flush buffered output after the terminal result has been recorded. */
   finish(): void {
     this.flushText();
-    this.emitAgentEnd();
   }
 
   // fallow-ignore-next-line complexity
@@ -239,14 +245,6 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
       if (line) this.writeLine(formatAgentLogLine(this.logPrefix, 'text', line));
     }
     this.textBuffer = '';
-  }
-
-  private emitAgentEnd(): void {
-    if (this.agentEndEmitted) return;
-    this.agentEndEmitted = true;
-    this.flushText();
-    this.writeLine(formatAgentLogLine(this.logPrefix, 'agent_end'));
-    for (const cb of this.agentEndCallbacks) cb();
   }
 
   private writeProviderUnavailableMarker(message: string): void {

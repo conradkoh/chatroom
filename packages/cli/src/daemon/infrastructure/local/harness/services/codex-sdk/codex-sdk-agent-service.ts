@@ -59,6 +59,7 @@ import type {
 import { requireHarnessModel } from '../require-harness-model.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
+import { turnCompletionFromError, type TurnCompletionResult } from '../turn-completion.js';
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
@@ -111,8 +112,8 @@ interface SdkSession {
   /** System prompt prepended to the first injected turn when deferInitialTurn is set. */
   storedSystemPrompt?: string | undefined;
   abortController?: AbortController | undefined;
-  resumeResolve?:( (prompt: string) => void) | undefined;
-  abortResolve?:( () => void) | undefined;
+  resumeResolve?: ((prompt: string) => void) | undefined;
+  abortResolve?: (() => void) | undefined;
   pendingResumePrompt?: string | undefined;
 }
 
@@ -397,6 +398,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       outputCallbacks: callbacks.outputCallbacks,
       agentEndCallbacks: callbacks.agentEndCallbacks,
       assistantTextCallbacks: callbacks.assistantTextCallbacks,
+      turnResultCallbacks: callbacks.turnResultCallbacks,
       emitLogLine: callbacks.emitLogLine,
       activityEmitter,
     });
@@ -410,6 +412,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks: callbacks.agentEndCallbacks,
       logLineCallbacks: callbacks.logLineCallbacks,
       assistantTextCallbacks: callbacks.assistantTextCallbacks,
+      turnResultCallbacks: callbacks.turnResultCallbacks,
       sessionIdUpdatedCallbacks: callbacks.sessionIdUpdatedCallbacks,
       activityEmitter,
     });
@@ -428,6 +431,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     agentEndCallbacks: (() => void)[];
     logLineCallbacks: ((line: string) => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
+    turnResultCallbacks: ((result: TurnCompletionResult) => void)[];
     sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[];
     emitLogLine: (line: string) => void;
     finishExit: (code: number | null, signal: string | null) => void;
@@ -441,6 +445,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     const agentEndCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
     const assistantTextCallbacks: ((text: string) => void)[] = [];
+    const turnResultCallbacks: ((result: TurnCompletionResult) => void)[] = [];
     const sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[] = [];
     const emitLogLine = (line: string) => {
       for (const cb of logLineCallbacks) cb(line);
@@ -460,6 +465,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       logLineCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       sessionIdUpdatedCallbacks,
       emitLogLine,
       finishExit,
@@ -479,6 +485,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     agentEndCallbacks: (() => void)[];
     logLineCallbacks: ((line: string) => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
+    turnResultCallbacks: ((result: TurnCompletionResult) => void)[];
     sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[];
     activityEmitter: HarnessActivityEmitter;
   }): SpawnResult {
@@ -491,6 +498,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       logLineCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       sessionIdUpdatedCallbacks,
       activityEmitter,
     } = args;
@@ -507,6 +515,9 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       },
       onAgentEnd: (cb) => {
         agentEndCallbacks.push(cb);
+      },
+      onTurnResult: (cb) => {
+        turnResultCallbacks.push(cb);
       },
       onLogLine: (cb) => {
         logLineCallbacks.push(cb);
@@ -540,6 +551,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
+    turnResultCallbacks: ((result: TurnCompletionResult) => void)[];
     emitLogLine: (line: string) => void;
     activityEmitter: HarnessActivityEmitter;
   }): void {
@@ -555,6 +567,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
     } = args;
@@ -598,6 +611,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
               outputCallbacks,
               agentEndCallbacks,
               assistantTextCallbacks,
+              turnResultCallbacks,
               emitLogLine,
               activityEmitter,
             });
@@ -653,6 +667,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
+    turnResultCallbacks: ((result: TurnCompletionResult) => void)[];
     emitLogLine: (line: string) => void;
     activityEmitter: HarnessActivityEmitter;
   }): Promise<void> {
@@ -666,6 +681,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
     } = args;
@@ -675,6 +691,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     wireNativeStreamAdapter({
       adapter,
       assistantTextCallbacks,
+      turnResultCallbacks,
       outputCallbacks,
       agentEndCallbacks,
       entry,
@@ -707,9 +724,21 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
         'thread.runStreamed'
       );
     } catch (err) {
-      if (!(session.aborted && isAbortError(err))) throw err;
+      if (session.aborted && isAbortError(err)) {
+        adapter.completeTurn({ status: 'aborted', source: 'codex-sdk.abort' });
+      } else {
+        adapter.completeTurn(turnCompletionFromError(err, 'codex-sdk.stream'));
+        throw err;
+      }
     } finally {
       session.abortController = undefined;
+      if (!adapter.turnCompletion.isComplete) {
+        adapter.completeTurn({
+          status: 'failed',
+          source: 'codex-sdk.iterator-ended-without-terminal-event',
+          error: 'Codex SDK stream ended without a terminal turn event',
+        });
+      }
       adapter.finish();
     }
   }
@@ -754,5 +783,4 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       storedSystemPrompt: options.systemPrompt,
     });
   }
-
 }

@@ -45,6 +45,7 @@ import { requireHarnessModel } from '../require-harness-model.js';
 import { tapProcessStreamWrites } from '../tap-process-stream-writes.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
+import { turnCompletionFromError, type TurnCompletionResult } from '../turn-completion.js';
 
 type Run = CursorSdkModule.Run;
 type SDKAgent = CursorSdkModule.SDKAgent;
@@ -108,9 +109,9 @@ interface SdkSession {
   /** System prompt prepended to the first injected turn when deferInitialTurn is set. */
   storedSystemPrompt?: string | undefined;
   /** Resolves when resumeTurn delivers the next prompt. */
-  resumeResolve?:( (prompt: string) => void) | undefined;
+  resumeResolve?: ((prompt: string) => void) | undefined;
   /** Resolves when stop() aborts while waiting for resume. */
-  abortResolve?:( () => void) | undefined;
+  abortResolve?: (() => void) | undefined;
   /** Queued when resumeTurn runs before waitForResumeOrAbort registers a resolver. */
   pendingResumePrompt?: string | undefined;
 }
@@ -325,6 +326,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const agentEndCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
     const assistantTextCallbacks: ((text: string) => void)[] = [];
+    const turnResultCallbacks: ((result: TurnCompletionResult) => void)[] = [];
     const emitLogLine = (line: string) => {
       for (const cb of logLineCallbacks) cb(line);
     };
@@ -351,6 +353,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
     });
@@ -366,6 +369,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       },
       onAgentEnd: (cb) => {
         agentEndCallbacks.push(cb);
+      },
+      onTurnResult: (cb) => {
+        turnResultCallbacks.push(cb);
       },
       onLogLine: (cb) => {
         logLineCallbacks.push(cb);
@@ -391,6 +397,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
+    turnResultCallbacks: ((result: TurnCompletionResult) => void)[];
     emitLogLine: (line: string) => void;
     activityEmitter: ReturnType<typeof createHarnessActivityEmitter>;
   }): void {
@@ -406,6 +413,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       outputCallbacks,
       agentEndCallbacks,
       assistantTextCallbacks,
+      turnResultCallbacks,
       emitLogLine,
       activityEmitter,
     } = args;
@@ -417,6 +425,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       let exitSignal: string | null = null;
       let nextPrompt: string | null = deferInitialTurn ? null : initialPrompt;
       let isFirstTurn = forceFirstTurn;
+      let activeAdapter: CursorSdkStreamAdapter | undefined;
       let prependSystemOnNextResume = deferInitialTurn;
       const storedSystemPrompt = session.storedSystemPrompt;
 
@@ -460,6 +469,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               // must no-op via optional chaining rather than write through a live adapter.
               // eslint-disable-next-line prefer-const -- closure-captured deferred assignment
               let adapter: CursorSdkStreamAdapter | undefined;
+              activeAdapter = adapter;
               const run = await withTimeout(
                 agent.send(nextPrompt, {
                   local: { force: isFirstTurn },
@@ -475,11 +485,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               isFirstTurn = false;
 
               adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine, activityEmitter);
+              activeAdapter = adapter;
               wireNativeStreamAdapter({
                 adapter,
                 assistantTextCallbacks,
                 outputCallbacks,
                 agentEndCallbacks,
+                turnResultCallbacks,
                 entry,
               });
 
@@ -490,6 +502,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
                 }
               } catch (streamErr) {
                 exitCode = 1;
+                adapter.completeTurn(turnCompletionFromError(streamErr, 'cursor-sdk.stream'));
                 writeSpawnError(logPrefix, streamErr, emitLogLine);
                 break;
               }
@@ -505,6 +518,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
                 result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
               } catch (waitErr) {
                 exitCode = 1;
+                adapter.completeTurn(turnCompletionFromError(waitErr, 'cursor-sdk.run.wait'));
                 writeSpawnError(logPrefix, waitErr, emitLogLine);
                 break;
               }
@@ -523,10 +537,15 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
                   `run ${result.id} failed: ${detail}`
                 );
                 emitLogLine(runErrorLine);
+                adapter.completeTurn({
+                  status: 'failed',
+                  source: 'cursor-sdk.run.wait',
+                  error: detail,
+                });
                 break;
               }
 
-              // finish() emits agent_end (wired to agentEndCallbacks) after a successful run.
+              adapter.completeTurn({ status: 'completed', source: 'cursor-sdk.run.wait' });
               adapter.finish();
 
               nextPrompt = null;
@@ -535,6 +554,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             }
           } catch (turnErr) {
             exitCode = 1;
+            activeAdapter?.completeTurn(turnCompletionFromError(turnErr, 'cursor-sdk.turn'));
             writeSpawnError(logPrefix, turnErr, emitLogLine);
             break;
           }

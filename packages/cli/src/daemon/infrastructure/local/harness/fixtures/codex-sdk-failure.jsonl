@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"codex-thread-2"}
+{"type":"turn.started","turn_id":"codex-turn-2"}
+{"type":"item.completed","item":{"id":"message-2","type":"agent_message","text":"partial output"}}
+{"type":"turn.failed","turn_id":"codex-turn-2","error":{"message":"model is at capacity"}}

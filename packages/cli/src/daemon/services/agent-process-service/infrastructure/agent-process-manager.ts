@@ -32,6 +32,7 @@ import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js
 import { api } from '../../../../api.js';
 import { isProcessAlive } from '../../../../infrastructure/deps/process.js';
 import type { AgentLogSink } from '../../../../infrastructure/log-server/index.js';
+import type { TurnCompletionResult } from '../../../infrastructure/local/harness/services/turn-completion.js';
 import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
 import { type AgentLifecyclePortAdapterDeps } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.js';
 import type { AgentLifecycleRuntime } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
@@ -246,6 +247,8 @@ export class AgentProcessManager {
   private agentTurnEndedSequence = 0;
   private readonly agentStartedHandlers = new Set<AgentStartedHandler>();
   private readonly agentSessionLostHandlers = new Set<AgentSessionLostHandler>();
+  /** PIDs whose current in-flight turn already produced a typed terminal result. */
+  private readonly typedCompletionSeenPids = new Set<number>();
   /** Shared per-agent serialization boundary for public and internal operations. */
   private readonly serializedOperationTails = new Map<string, Promise<void>>();
   /** Effect-native lifecycle service runtime (Phase 3). */
@@ -460,6 +463,7 @@ export class AgentProcessManager {
       throw new Error(`Harness ${slot.harness} does not support resumeTurn`);
     }
     setNativeTurnPhase(slot, 'injecting');
+    this.typedCompletionSeenPids.delete(slot.pid);
     try {
       await service.resumeTurn(slot.pid, args.prompt);
       setNativeTurnPhase(slot, 'turn_in_flight');
@@ -637,6 +641,7 @@ export class AgentProcessManager {
     role: string;
     pid: number;
     harness: AgentHarness;
+    completion?: TurnCompletionResult;
   }): Promise<void> {
     const slot = this.slots.get(agentKey(opts.chatroomId, opts.role));
     if (
@@ -665,11 +670,19 @@ export class AgentProcessManager {
       wantResume: slot?.wantResume,
     });
 
+    const completionStatus = opts.completion?.status ?? 'completed';
     console.log(
-      `[AgentProcessManager] lifecycle.turn.completed: role=${opts.role} pid=${opts.pid} harness=${opts.harness}`
+      `[AgentProcessManager] lifecycle.turn.${completionStatus === 'completed' ? 'completed' : 'terminal'}: role=${opts.role} pid=${opts.pid} harness=${opts.harness} status=${completionStatus}${opts.completion ? ` source=${opts.completion.source}` : ''}`
     );
 
     if (capabilities.supportsNativeIntegration) {
+      if (completionStatus !== 'completed') {
+        setNativeTurnPhase(slot, defaultNativeTurnPhase());
+        console.warn(
+          `[AgentProcessManager] Native turn did not complete successfully for ${opts.role}: ${completionStatus}`
+        );
+        return;
+      }
       this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
 
       const event: AgentTurnEndedEvent = {
@@ -1452,16 +1465,66 @@ export class AgentProcessManager {
     });
 
     spawnResult.onExit(({ code, signal }) => {
-      void this.handleExit({
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid,
-        code,
-        signal,
+      const reconcileExit = async (): Promise<void> => {
+        const currentSlot = this.slots.get(agentKey(opts.chatroomId, opts.role));
+        const hasUnresolvedNativeTurn =
+          currentSlot?.pid === pid &&
+          currentSlot.nativeTurnPhase === 'turn_in_flight' &&
+          !this.typedCompletionSeenPids.has(pid);
+
+        if (hasUnresolvedNativeTurn) {
+          await this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
+            this.runHandleAgentEnd({
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              pid,
+              harness: opts.agentHarness,
+              completion: {
+                turnId: `${pid}:process-exit`,
+                status: 'process_exited',
+                source: 'agent-process-manager.process-exit',
+                error: signal
+                  ? `process exited with signal ${signal}`
+                  : `process exited with code ${code ?? 'unknown'}`,
+              },
+            })
+          );
+        }
+
+        this.typedCompletionSeenPids.delete(pid);
+        await this.handleExit({
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid,
+          code,
+          signal,
+        });
+      };
+      void reconcileExit().catch((error: unknown) => {
+        console.warn(
+          `[AgentProcessManager] process-exit reconciliation failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+        );
       });
     });
 
-    if (spawnResult.onAgentEnd) {
+    if (spawnResult.onTurnResult) {
+      spawnResult.onTurnResult((completion) => {
+        this.typedCompletionSeenPids.add(pid);
+        void this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
+          this.runHandleAgentEnd({
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            harness: opts.agentHarness,
+            completion,
+          })
+        ).catch((error: unknown) => {
+          console.warn(
+            `[AgentProcessManager] typed turn-result handling failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        });
+      });
+    } else if (spawnResult.onAgentEnd) {
       spawnResult.onAgentEnd(() => {
         void this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
           this.runHandleAgentEnd({
