@@ -11,8 +11,8 @@ import {
   isNativeHarness,
   shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
-import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
-import type { AgentSlot } from '../../services/agent-process-service/index.js';
+import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
+import type { AgentSlot } from '../../../agent-process-service/index.js';
 
 const runningSlot: AgentSlot = {
   state: 'running',

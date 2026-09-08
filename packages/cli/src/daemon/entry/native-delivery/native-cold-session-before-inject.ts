@@ -10,7 +10,7 @@ import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import type { AgentHarness } from '../daemon-types.js';
-import type { NativeInjectorDeps } from './native-task-injector.js';
+import type { NativeInjectorDeps } from '../../services/task-service/index.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

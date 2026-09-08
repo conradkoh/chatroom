@@ -7,21 +7,21 @@ import {
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect } from 'effect';
 
-import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
-import { buildNativeInjectionPrompt } from './native-task-injector-logic.js';
-import { api } from '../../../api.js';
-import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
+import { ensureColdSessionBeforeNativeInject } from '../../../entry/native-delivery/native-cold-session-before-inject.js';
+import { buildNativeInjectionPrompt } from '../domain/usecase/native-task-injector-logic.js';
+import { api } from '../../../../api.js';
+import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
+import { getErrorMessage } from '../../../../utils/convex-error.js';
 import {
   buildActivityLifecycleFact,
   type AgentLifecycleFact,
-} from '../../domain/entities/agent-lifecycle-fact.js';
-import type { AgentSlot } from '../../services/agent-process-service/index.js';
+} from '../../../domain/entities/agent-lifecycle-fact.js';
+import type { AgentSlot } from '../../agent-process-service/index.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
-} from '../../services/agent-process-service/index.js';
-import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
+} from '../../agent-process-service/index.js';
+import { logDaemonAuditEvent } from '../../../infrastructure/event-stream/daemon-event-emitter.js';
 
 export interface NativeInjectorAgentMgr {
   resumeTurnForSlot: (args: { chatroomId: string; role: string; prompt: string }) => Promise<void>;

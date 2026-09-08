@@ -23,7 +23,7 @@ import type {
 } from '../daemon-services.js';
 import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 import type { AgentProcessManagerService } from '../../services/agent-process-service/index.js';
-import { isNativeHarness } from './native-task-injector-logic.js';
+import { isNativeHarness } from '../../services/task-service/index.js';
 import {
   isOperationalCircuitOpen,
   isOperationalStopIntentActive,

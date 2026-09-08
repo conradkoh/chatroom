@@ -7,7 +7,7 @@
 
 import type { StopReason } from '../daemon/domain/entities/stop-reason.js';
 import type { AgentHarness } from '../daemon/entry/daemon-types.js';
-import type { NativeInjectorAgentMgr } from '../daemon/entry/native-delivery/native-task-injector.js';
+import type { NativeInjectorAgentMgr } from '../daemon/services/task-service/index.js';
 import type { AgentSlot } from '../daemon/services/agent-process-service/index.js';
 import type { OperationResult } from '../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 

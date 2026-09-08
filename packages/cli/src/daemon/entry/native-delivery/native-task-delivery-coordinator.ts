@@ -7,11 +7,11 @@ import {
 } from './native-delivery-log.js';
 import {
   explainNativeDeliveryBlock,
-} from './native-task-injector-logic.js';
+} from '../../services/task-service/index.js';
 import {
   runNativeInjectionEffect,
   type NativeDeliverySessionHandles,
-} from './native-task-injector.js';
+} from '../../services/task-service/index.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';

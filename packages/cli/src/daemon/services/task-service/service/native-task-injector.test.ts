@@ -3,7 +3,7 @@ import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { runNativeInjectionEffect, type NativeInjectorDeps } from './native-task-injector.js';
-import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
+import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 
 const HARNESS_SESSION_ID = 'sess_1';
 

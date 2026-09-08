@@ -3,7 +3,7 @@ import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { describe, expect, test, vi } from 'vitest';
 
 import { ensureColdSessionBeforeNativeInject } from './native-cold-session-before-inject.js';
-import type { NativeInjectorDeps } from './native-task-injector.js';
+import type { NativeInjectorDeps } from '../../services/task-service/index.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 
 function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTaskWithContent {

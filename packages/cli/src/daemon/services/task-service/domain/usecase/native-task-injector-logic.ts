@@ -3,12 +3,13 @@ import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usec
 import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
-} from './native-ready-invariant.js';
-import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
-import type { MachineAgentOperationalRow } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentSlot } from '../../services/agent-process-service/index.js';
+} from '../../../../entry/native-delivery/native-ready-invariant.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import type { MachineAgentOperationalRow } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+import type { AgentSlot } from '../../../agent-process-service/index.js';
 
-export { isNativeHarness } from '../../domain/native-integration/index.js';
+export { isNativeHarness } from '../../../../domain/native-integration/index.js';
+export { isDeliverableNativeTaskStatus } from '../../../../entry/native-delivery/native-ready-invariant.js';
 
 /**
  * Readiness inputs for native delivery gating. Callers with an explicit

@@ -20,7 +20,7 @@ import {
 import {
   buildNativeInjectionPrompt,
   shouldDeliverNativeTask,
-} from './native-task-injector-logic.js';
+} from '../../services/task-service/index.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
