@@ -12,12 +12,10 @@ This plan completes consolidation in four phases (5–8), following the same dis
 
 **Estimated scope:** ~125 consolidate moves + ~26 consolidate+shim re-exports + enhancer rename sub-step.
 
-## Native handoff-reminder simplification
+## Native delivery cleanup
 
-The current missed-handoff flow is split between the native delivery inbox, the
-agent process manager, participant state, and backend task state. Replace it in
-two deliberate stages so the old behavior is removed before the new behavior is
-introduced.
+Native turn-end handling now schedules ordinary queued-task delivery only. The
+daemon does not inject follow-up prompts into an agent after a turn ends.
 
 ### Removal of the current implementation
 
@@ -25,7 +23,7 @@ introduced.
       `native-turn-end-inbox.ts` and its tests.
 - [x] Delete the agent process manager's backend fallback and reminder-specific
       turn-end branches, including their tests.
-- [x] Remove obsolete handoff-reminder constants, mocks, fixtures, and assertions.
+- [x] Remove obsolete turn-end prompt constants, mocks, fixtures, and assertions.
 - [x] Remove or update tests that assume `lastInFlightTaskId`, local task snapshots,
       or participant state independently prove that a handoff occurred.
 - [x] Verify that native `agent_end` no longer injects a reminder through the
@@ -70,38 +68,23 @@ introduced.
 ### Reimplementation around one decision path
 
 - [x] Define a daemon-owned `ActiveTaskStateStore` keyed by chatroom and role,
-      with task identity/generation, lifecycle status, handoff status, and
-      reminder-attempt state. The in-memory implementation owns generation
-      assignment so callers cannot fabricate task generations.
-- [x] Add a `handleAgentTurnEnded` use case that reads the active task state
-      and resolves one of: no active work, already handed off, or reminder
-      required.
+      with the currently delivered task identity for duplicate-delivery
+      suppression.
 - [x] Expose the state transitions through a single `AgentTaskStateService`
       façade with a composition-root constructor.
-- [x] Make task delivery and successful handoff update the store through one
-      state-transition interface; task delivery starts state and explicit
-      completed-task signals mark handoff. Keep the backend as durable
-      persistence, not the synchronous source for the live turn-end decision.
+- [x] Make task delivery update the store through one state-transition
+      interface. Keep the backend as durable persistence for task status.
 - [x] Route `AgentProcessManager` `onAgentEnd` events through a constructed
-      `NativeDeliveryService` subscription instead of embedding task-state and
-      handoff policy in the process callback. The event is emitted only after
-      manager validation and remains inside the shared per-agent serialized path.
-- [x] Serialize turn-end handling, task delivery, handoff updates, and lifecycle
-      commands with the same chatroom/role key. Handoff state updates now use
-      the service's operation boundary with an operation-level timeout.
-- [x] Add an injected `HandoffReminder` port; issue a reminder through the
-      agent manager and track its attempt number in daemon state.
-- [x] Validate task identity/generation before acting so stale `agent_end` events
-      cannot affect a later task for the same agent.
+      `NativeDeliveryService` subscription for queued-task delivery. The event
+      is emitted only after manager validation and remains inside the shared
+      per-agent serialized path.
+- [x] Serialize turn-end handling, task delivery, and lifecycle commands with
+      the same chatroom/role key.
 - [x] Keep `AgentProcessManager` responsible for process lifecycle and transport;
-      keep `NativeDeliveryService` responsible for task outcome and reminder
-      policy.
-- [x] Add focused tests for state transitions, duplicate events, stale
-      generations, and missing active tasks.
-- [x] Add integration coverage for the constructed native delivery service:
-      manager turn-end events consult daemon task state, reminder failures
-      preserve reminder-attempt state, and successful handoff state remains the
-      decision boundary.
+      keep `NativeDeliveryService` responsible for queued-task delivery.
+- [x] Add focused tests for active-task state and duplicate-delivery suppression.
+- [x] Add integration coverage for the constructed native delivery service and
+      its manager turn-end delivery trigger.
 - [x] Update the native delivery documentation and run focused CLI tests plus
       typecheck before committing the reimplementation.
 
@@ -120,8 +103,7 @@ introduced.
 - [x] Make `handleTaskInboxUpdate` consume required dependencies directly and
       remove its remaining compatibility branch and session-registry fallbacks.
 - [x] Move production task-state transition calls behind the service API and
-      remove the registry-level `recordNativeTaskDelivered` and
-      `recordNativeTaskHandedOff` helpers.
+      remove the registry-level task-delivery helpers.
 - [x] Remove the module-level native-delivery session singleton after all
       callers use the constructed service.
 

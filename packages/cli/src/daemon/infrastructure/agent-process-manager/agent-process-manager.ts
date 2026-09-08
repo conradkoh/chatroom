@@ -63,9 +63,7 @@ import {
   classifyProviderErrorFromLogs,
   hasHarnessOutputStalled,
 } from '../../domain/usecase/classify-provider-error.js';
-import {
-  handleTurnCompleted,
-} from '../../domain/usecase/handle-turn-completed.js';
+import { handleTurnCompleted } from '../../domain/usecase/handle-turn-completed.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import {
   defaultNativeTurnPhase,
@@ -160,9 +158,7 @@ export interface AgentTurnEndedEvent {
   readonly eventId: string;
 }
 
-export type AgentTurnEndedHandler = (
-  event: AgentTurnEndedEvent
-) => Promise<'reminder_requested' | void>;
+export type AgentTurnEndedHandler = (event: AgentTurnEndedEvent) => Promise<void>;
 
 export interface AgentStartedEvent {
   readonly chatroomId: string;
@@ -696,15 +692,7 @@ export class AgentProcessManager {
         slot,
         eventId: `${opts.pid}:${++this.agentTurnEndedSequence}`,
       };
-      const outcomes = await Promise.all(
-        [...this.agentTurnEndedHandlers].map((handler) => handler(event))
-      );
-      if (outcomes.includes('reminder_requested')) {
-        console.log(
-          `[AgentProcessManager] ⏩ Handoff reminder requested for ${opts.role}`
-        );
-        return;
-      }
+      await Promise.all([...this.agentTurnEndedHandlers].map((handler) => handler(event)));
       setNativeTurnPhase(slot, defaultNativeTurnPhase());
       console.log(`[AgentProcessManager] ✅ Native agent_end completed for ${opts.role}`);
       return;
@@ -1487,15 +1475,13 @@ export class AgentProcessManager {
 
     if (spawnResult.onAgentEnd) {
       spawnResult.onAgentEnd(() => {
-        void this.runSerializedForAgent(
-          { chatroomId: opts.chatroomId, role: opts.role },
-          () =>
-            this.runHandleAgentEnd({
-              chatroomId: opts.chatroomId,
-              role: opts.role,
-              pid,
-              harness: opts.agentHarness,
-            })
+        void this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
+          this.runHandleAgentEnd({
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            harness: opts.agentHarness,
+          })
         ).catch((error: unknown) => {
           console.warn(
             `[AgentProcessManager] turn-end handling failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
