@@ -27,11 +27,17 @@ import {
   type OperationalInboxUpdate,
 } from '../infrastructure/agent-operational/operational-inbox.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
-import { createAgentTaskStateService } from '../services/service-interfaces.js';
+import {
+  createAgentTaskStateService,
+  createOperationalObservabilityService,
+  type OperationalObservabilityService,
+} from '../services/service-interfaces.js';
 
 const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 const INBOX_RESTART_INITIAL_MS = 1_000;
 const INBOX_RESTART_MAX_MS = 30_000;
+/** Bounded local export cadence for aggregated operational-signal snapshots. */
+const OPERATIONAL_OBSERVABILITY_FLUSH_MS = 30_000;
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
 }
@@ -45,7 +51,8 @@ function roomScopeKey(machineId: string, chatroomId: string): string {
 async function runOperationalInboxLoopWithRestart(
   options: Parameters<typeof runOperationalInbox>[0],
   onUpdate: Parameters<typeof runOperationalInbox>[1],
-  isStopped: () => boolean
+  isStopped: () => boolean,
+  observability: OperationalObservabilityService
 ): Promise<void> {
   let backoffMs = INBOX_RESTART_INITIAL_MS;
   while (!isStopped()) {
@@ -54,11 +61,13 @@ async function runOperationalInboxLoopWithRestart(
       return;
     } catch (error) {
       if (isStopped() || isAbortError(error)) return;
+      observability.loopError(options.chatroomId);
       console.warn(
         `[OperationalInbox room=${options.chatroomId}] loop error, restarting in ${backoffMs}ms:`,
         error
       );
       await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      observability.loopRestart(options.chatroomId);
       backoffMs = Math.min(backoffMs * 2, INBOX_RESTART_MAX_MS);
     }
   }
@@ -112,6 +121,13 @@ export const startTaskInboxEffect = (
     const taskSnapshotState = session.taskService.taskSnapshotState;
     const agentOperationalReadModel = new AgentOperationalReadModel();
     const agentTaskState = createAgentTaskStateService();
+    // Daemon-local, in-memory aggregation only. The sink below is the
+    // existing local event stream (127.0.0.1) and flushes at most one
+    // aggregate snapshot per interval, so production bandwidth is unchanged.
+    const operationalObservability = createOperationalObservabilityService({
+      machineId: session.machineId,
+      sink: (snapshot) => session.logEvent(snapshot as Record<string, unknown>),
+    });
     const nativeDelivery = new NativeDeliveryService({
       runtime,
       effectContext,
@@ -171,6 +187,7 @@ export const startTaskInboxEffect = (
           },
           { afterSignalKey: update.throughSignalKey }
         );
+        operationalObservability.acknowledgementAttempted(chatroomId);
         try {
           await ackMachineOperationalSignals(
             sessionDeps,
@@ -272,9 +289,11 @@ export const startTaskInboxEffect = (
             serviceStartedAt,
             initialAfterSignalKey: operationalCursor,
             signal: controller.signal,
+            observer: operationalObservability,
           },
           operationalHandler,
-          () => stopped
+          () => stopped,
+          operationalObservability
         );
         await session.taskService.registerTaskChatroom(chatroomId);
       })();
@@ -323,6 +342,13 @@ export const startTaskInboxEffect = (
       })
     );
 
+    // Periodic aggregated export only: the service flushes at most one local
+    // snapshot per interval when new data was recorded. Never per-signal.
+    const observabilityTimer = setInterval(() => {
+      void operationalObservability.flush().catch((error) => {
+        console.warn('[OperationalObservability] flush failed:', error);
+      });
+    }, OPERATIONAL_OBSERVABILITY_FLUSH_MS);
     /** Fallback reliability reconcile — primary delivery is reactive via inbox signals. */
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdatesInFlight > 0 || reconcileInFlight) return;
@@ -344,6 +370,11 @@ export const startTaskInboxEffect = (
         for (const watcher of roomWatchers.values()) {
           watcher.controller.abort();
         }
+        clearInterval(observabilityTimer);
+        // Best-effort final export of any unflushed interval evidence.
+        void operationalObservability.flush().catch((error) => {
+          console.warn('[OperationalObservability] final flush failed:', error);
+        });
         clearInterval(reconcileTimer);
         unregisterTaskInboxRoomMembershipRefresh();
         unsubscribeTaskService();

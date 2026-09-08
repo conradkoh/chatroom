@@ -42,6 +42,27 @@ export interface OperationalInboxUpdate {
   readonly throughSignalKey: string;
 }
 
+/**
+ * In-process observer for operational inbox activity.
+ *
+ * Implementations must be synchronous and side-effect free with respect to
+ * delivery: no network I/O, no Convex calls, and no signal-key/row payloads
+ * leave through this boundary. Cursor advancement, hydration ordering, and
+ * acknowledgement behavior are unchanged by observer wiring.
+ */
+export interface OperationalInboxObserver {
+  subscriptionStarted(chatroomId: string): void;
+  subscriptionStopped(chatroomId: string): void;
+  signalPageReceived(
+    chatroomId: string,
+    signals: readonly Pick<OperationalStatusSignal, 'role' | 'projectedAt'>[]
+  ): void;
+  hydrationCompleted(
+    chatroomId: string,
+    result: { rowCount: number; removedRowCount: number }
+  ): void;
+}
+
 export interface OperationalInboxOptions {
   readonly client: ConvexClient;
   readonly sessionId: SessionId;
@@ -54,6 +75,7 @@ export interface OperationalInboxOptions {
   readonly signalPageLimit?: number | undefined;
   readonly operationalPageLimit?: number | undefined;
   readonly signal?: AbortSignal | undefined;
+  readonly observer?: OperationalInboxObserver | undefined;
 }
 
 export type OperationalInboxHandler = (update: OperationalInboxUpdate) => Promise<void>;
@@ -80,8 +102,13 @@ function waitForOperationalSignalPage(
   return new Promise((resolve, reject) => {
     let unsubscribe: (() => void) | undefined;
     let settled = false;
+    let observerNotifiedStart = false;
 
     const cleanup = (): void => {
+      if (observerNotifiedStart) {
+        observerNotifiedStart = false;
+        options.observer?.subscriptionStopped(options.chatroomId);
+      }
       unsubscribe?.();
       unsubscribe = undefined;
       options.signal?.removeEventListener('abort', onAbort);
@@ -106,6 +133,8 @@ function waitForOperationalSignalPage(
       return;
     }
 
+    observerNotifiedStart = true;
+    options.observer?.subscriptionStarted(options.chatroomId);
     unsubscribe = options.client.onUpdate(
       api.machines.subscribeMachineOperationalSignalsSince,
       buildSubscribeMachineOperationalSignalsSinceArgs({
@@ -190,7 +219,12 @@ export async function runOperationalInbox(
   onUpdate: OperationalInboxHandler
 ): Promise<void> {
   for await (const page of createOperationalSignalIterator(options)) {
+    options.observer?.signalPageReceived(options.chatroomId, page.items);
     const hydrated = await fetchRowsForSignalPage(options, page);
+    options.observer?.hydrationCompleted(options.chatroomId, {
+      rowCount: hydrated.rows.length,
+      removedRowCount: hydrated.removed.length,
+    });
     await onUpdate({
       chatroomId: options.chatroomId,
       signals: page.items,

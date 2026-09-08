@@ -5,6 +5,7 @@ import { startTaskInboxEffect } from './task-inbox-runtime.js';
 import { type AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
 import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
+import type { OperationalObservabilitySnapshot } from '../services/service-interfaces.js';
 
 const processTasksUpdate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const runOperationalInbox = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -150,6 +151,7 @@ type StartTaskInboxOptions = {
 async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promise<{
   handle: { stop: () => void };
   workspaceQuery: ReturnType<typeof vi.fn>;
+  logEvent: ReturnType<typeof vi.fn>;
   operationalHandlers: () => ((update: never) => Promise<void>)[];
   taskInboxHandlers: () => Map<string, (update: never) => Promise<void>>;
 }> {
@@ -162,6 +164,7 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   } = await import('./daemon-services.js');
   const backendQuery = vi.fn().mockResolvedValue({ tasks: options.tasks ?? [] });
   const workspaceQuery = vi.fn().mockResolvedValue(options.workspaces ?? []);
+  const logEvent = vi.fn().mockResolvedValue(undefined);
   const agentProcessManager = {
     subscribeAgentTurnEnded: vi.fn(() => () => undefined),
     subscribeAgentStarted: vi.fn(() => () => undefined),
@@ -171,6 +174,7 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
     sessionId: 'session-1',
     machineId: 'machine-1',
     convexUrl: 'https://example.com',
+    logEvent,
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
       query: backendQuery,
@@ -275,6 +279,7 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   return {
     handle,
     workspaceQuery,
+    logEvent,
     operationalHandlers: () => operationalHandlers,
     taskInboxHandlers: () => taskInboxHandlers,
   };
@@ -677,6 +682,165 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     handle.stop();
     expect(calls.every((call) => call.signal.aborted)).toBe(true);
     expect(taskSignals.every((signal) => signal.aborted)).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('passes one shared observability instance as the operational observer', async () => {
+    makeInboxStore();
+    const { handle } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1'), opRow('room-2')],
+    });
+    await vi.waitFor(() => expect(runOperationalInbox).toHaveBeenCalledTimes(2));
+
+    const observers = runOperationalInbox.mock.calls.map((call) => call[0].observer);
+    expect(observers).toHaveLength(2);
+    expect(observers[0]).toBeDefined();
+    // Room startup must not create more than one observability service instance.
+    expect(observers[0]).toBe(observers[1]);
+    handle.stop();
+  });
+
+  it('records loop error/restart metrics and exports one aggregate snapshot per interval', async () => {
+    makeInboxStore();
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let failures = 1;
+    const flakyInboxImpl = async (
+      _options: Parameters<typeof runOperationalInbox>[0]
+    ): Promise<void> => {
+      if (failures > 0) {
+        failures -= 1;
+        throw new Error('transient room error');
+      }
+      return new Promise<void>(() => {});
+    };
+    runOperationalInbox.mockImplementation(flakyInboxImpl);
+
+    const { handle, logEvent } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1')],
+      operationalInboxImpl: flakyInboxImpl,
+    });
+
+    // Backoff elapses: the error and the restart are both recorded.
+    await vi.advanceTimersByTimeAsync(1_000);
+    // The flush interval exports exactly one aggregate snapshot.
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(logEvent).toHaveBeenCalledTimes(1);
+    const snapshot = logEvent.mock.calls[0][0] as OperationalObservabilitySnapshot;
+    expect(snapshot.type).toBe('daemon.observability.operational-signals');
+    expect(snapshot.schemaVersion).toBe(1);
+    expect(snapshot.machineId).toBe('machine-1');
+    expect(snapshot.totals.errorCount).toBe(1);
+    expect(snapshot.totals.restartCount).toBe(1);
+    expect(snapshot.scopes).toHaveLength(1);
+    expect(snapshot.scopes[0]).toMatchObject({ chatroomId: 'room-1' });
+
+    handle.stop();
+    warn.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('increments the acknowledgement metric without changing delivery behavior', async () => {
+    const store = makeInboxStore();
+    vi.useFakeTimers();
+
+    const { handle, logEvent, operationalHandlers } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1')],
+    });
+    await operationalHandlers()[0]({
+      chatroomId: 'room-1',
+      rows: [updatedOpRow('room-1')],
+      removed: [],
+      throughSignalKey: 'key-1',
+    } as never);
+
+    expect(store.save).toHaveBeenCalledWith(OPERATIONAL_SCOPE_ROOM_1, {
+      afterSignalKey: 'key-1',
+    });
+    expect(ackMachineOperationalSignals).toHaveBeenCalledWith(
+      expect.anything(),
+      'machine-1',
+      'room-1',
+      'key-1'
+    );
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(logEvent).toHaveBeenCalledTimes(1);
+    const snapshot = logEvent.mock.calls[0][0] as OperationalObservabilitySnapshot;
+    expect(snapshot.totals.acknowledgementCount).toBe(1);
+    expect(snapshot.scopes[0]).toMatchObject({
+      chatroomId: 'room-1',
+      acknowledgementCount: 1,
+    });
+
+    handle.stop();
+    vi.useRealTimers();
+  });
+
+  it('exports exactly one bounded snapshot for pages across two rooms', async () => {
+    makeInboxStore();
+    vi.useFakeTimers();
+
+    const { handle, logEvent, operationalHandlers } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1'), opRow('room-2')],
+    });
+    expect(runOperationalInbox.mock.calls.map((call) => call[0].chatroomId)).toEqual([
+      'room-1',
+      'room-2',
+    ]);
+    const handlers = operationalHandlers();
+    expect(handlers).toHaveLength(2);
+    await handlers[0]({
+      chatroomId: 'room-1',
+      rows: [updatedOpRow('room-1')],
+      removed: [],
+      throughSignalKey: 'k1',
+    } as never);
+    await handlers[1]({
+      chatroomId: 'room-2',
+      rows: [updatedOpRow('room-2')],
+      removed: [],
+      throughSignalKey: 'k2',
+    } as never);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(logEvent).toHaveBeenCalledTimes(1);
+    const snapshot = logEvent.mock.calls[0][0] as OperationalObservabilitySnapshot;
+    expect(snapshot.type).toBe('daemon.observability.operational-signals');
+    expect(snapshot.totals.acknowledgementCount).toBe(2);
+    expect(snapshot.scopes.map((scope) => scope.chatroomId).sort()).toEqual(['room-1', 'room-2']);
+    // No raw signal keys, revision keys, or row payloads leave the service.
+    expect(JSON.stringify(snapshot)).not.toContain('revisionKey');
+    expect(JSON.stringify(snapshot)).not.toContain('signalKey');
+
+    handle.stop();
+    vi.useRealTimers();
+  });
+
+  it('starts the flush interval and performs a final best-effort flush on stop', async () => {
+    makeInboxStore();
+    vi.useFakeTimers();
+
+    const { handle, logEvent, operationalHandlers } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1')],
+    });
+    await operationalHandlers()[0]({
+      chatroomId: 'room-1',
+      rows: [],
+      removed: [],
+      throughSignalKey: 'key-1',
+    } as never);
+
+    handle.stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(logEvent).toHaveBeenCalledTimes(1);
+    const snapshot = logEvent.mock.calls[0][0] as OperationalObservabilitySnapshot;
+    expect(snapshot.type).toBe('daemon.observability.operational-signals');
+    expect(snapshot.totals.acknowledgementCount).toBe(1);
+
+    // The interval is cleared on stop: no further exports fire.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(logEvent).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
 
