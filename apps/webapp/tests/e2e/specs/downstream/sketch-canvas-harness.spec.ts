@@ -19,8 +19,13 @@ const countNonWhitePixels = (canvas: Locator) =>
     return count;
   });
 async function openSketch(page: Page) {
-  await page.getByTestId('harness-add-attachment').click();
-  await page.getByText('Sketch', { exact: true }).click();
+  const trigger = page.getByTestId('harness-add-attachment');
+  const sketchOption = page.getByRole('option', { name: 'Sketch', exact: true });
+  await expect(async () => {
+    await trigger.click();
+    await expect(sketchOption).toBeVisible();
+  }).toPass();
+  await sketchOption.click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('Sketch canvas')).toBeVisible();
   await waitForCanvasReady(page.getByLabel('Sketch canvas'));

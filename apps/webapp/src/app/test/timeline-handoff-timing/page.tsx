@@ -10,7 +10,8 @@ const HANDOFF: Message = {
   senderRole: 'builder',
   targetRole: 'planner',
   content: 'E2E handoff timing check',
-  _creationTime: 1_700_000_062_000,
+  // Keep the fixture away from midnight so the browser's local timezone cannot change the day.
+  _creationTime: Date.UTC(2023, 10, 15, 12, 14, 22),
 };
 
 const MESSAGE: Message = {
