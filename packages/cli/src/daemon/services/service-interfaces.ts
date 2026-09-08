@@ -4,9 +4,7 @@
  * Composition roots may import concrete factories. All other daemon modules
  * use this façade so service-package internals remain replaceable.
  */
-export * from './agent-process-service/index.js';
-export * from './agent-process-service/infrastructure/components/agent-task-state/index.js';
-export * from './agent-process-service/infrastructure/harness-activity-emitter.js';
+export * from './agent-process-contracts.js';
 export {
   createTaskService,
   type TaskService,

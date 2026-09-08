@@ -1,7 +1,7 @@
 import { Effect } from 'effect';
 
 import type { AssignedTaskSnapshotView, AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
-import type { AgentProcessManagerService } from '../../agent-process-service/index.js';
+import type { AgentProcessManagerService } from '../../agent-process-contracts.js';
 import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
 import {

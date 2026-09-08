@@ -8,7 +8,7 @@ import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assig
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../../domain/usecase/check-agent-slot.js';
 import { isOperationalDesiredRunning, type TaskOperationalAgent } from '../entities/operational-agent.js';
-import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
+import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(

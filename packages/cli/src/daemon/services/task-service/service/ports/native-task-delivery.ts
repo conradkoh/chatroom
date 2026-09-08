@@ -1,5 +1,4 @@
-import type { AgentKey, SerializedAgentOperations } from '../../../agent-process-service/index.js';
-import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
+import type { AgentKey, SerializedAgentOperations, AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 export interface NativeTaskDeliveryGateway {
   claimPendingTask(args: {

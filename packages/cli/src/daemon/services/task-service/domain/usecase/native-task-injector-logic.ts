@@ -6,7 +6,7 @@ import {
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
 import type { TaskOperationalAgent } from '../entities/operational-agent.js';
-import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
+import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';
 export { isDeliverableNativeTaskStatus } from './native-ready-invariant.js';

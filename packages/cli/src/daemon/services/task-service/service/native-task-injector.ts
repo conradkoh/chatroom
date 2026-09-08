@@ -18,7 +18,7 @@ import type {
   AgentKey,
   AgentProcessSlotView,
   SerializedAgentOperations,
-} from '../../agent-process-service/index.js';
+} from '../../agent-process-contracts.js';
 import { buildNativeInjectionPrompt } from '../domain/usecase/native-task-injector-logic.js';
 import type {
   NativeTaskDeliveryAgentPort,

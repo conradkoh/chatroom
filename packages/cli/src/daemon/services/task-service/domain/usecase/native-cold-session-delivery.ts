@@ -9,8 +9,8 @@ import {
   isOperationalStopIntentActive,
   type TaskOperationalAgent,
 } from '../entities/operational-agent.js';
-import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
-import { isChatroomStopScopeActive } from '../../../agent-process-service/index.js';
+import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
+import { isChatroomStopScopeActive } from '../../../agent-process-contracts.js';
 
 /**
  * Explicit cold-session intent is distinct from role-default augmentation.
