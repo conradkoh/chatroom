@@ -40,9 +40,6 @@ import {
 const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 const INBOX_RESTART_INITIAL_MS = 1_000;
 const INBOX_RESTART_MAX_MS = 30_000;
-const NATIVE_HANDOFF_REMINDER =
-  'Reminder: Use the handoff command to send your response to the team.';
-
 type TaskInboxDependencies = {
   sessionDeps: NativeTaskDeliverySessionDeps;
   nativeDelivery: NativeDeliveryService;
@@ -173,19 +170,7 @@ export const startTaskInboxEffect = (
     let stopped = false;
     const taskSnapshotState = new MachineTaskSnapshotState();
     const agentOperationalReadModel = new AgentOperationalReadModel();
-    const agentTaskState = createAgentTaskStateService({
-      reminder: {
-        remind: async ({ chatroomId, role }) => {
-          await Effect.runPromise(
-            agentMgr.resumeTurnForSlot({
-              chatroomId,
-              role,
-              prompt: NATIVE_HANDOFF_REMINDER,
-            })
-          );
-        },
-      },
-    });
+    const agentTaskState = createAgentTaskStateService();
     const nativeDelivery = new NativeDeliveryService({
       runtime,
       effectContext,

@@ -4,8 +4,9 @@ import {
   type TaskDeliveryContext,
   type TaskDeliveryRuntime,
 } from './task-delivery-processor.js';
-import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
+import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
+import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
@@ -13,7 +14,6 @@ import type {
 } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { AgentTaskStateService } from '../../infrastructure/agent-process-manager/components/agent-task-state/index.js';
 import type { AgentProcessManagerService } from '../../infrastructure/agent-process-manager/service/index.js';
-import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
@@ -28,8 +28,6 @@ export type NativeTaskDeliveredHandler = (args: {
   taskId: string;
   harnessSessionId: string;
 }) => void;
-
-const TASK_STATE_UPDATE_TIMEOUT_MS = 30_000;
 
 export interface NativeDeliveryServiceDependencies {
   readonly runtime: TaskDeliveryRuntime;
@@ -78,27 +76,7 @@ export class NativeDeliveryService {
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
   }
 
-  async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<'reminder_requested' | void> {
-    const activeTask = this.deps.agentTaskState.get({
-      chatroomId: event.chatroomId,
-      role: event.role,
-    });
-    if (!activeTask) {
-      this.scheduleRoleDelivery(event.chatroomId, event.role);
-      return;
-    }
-
-    const result = await this.deps.agentTaskState.handleAgentTurnEnded({
-      chatroomId: event.chatroomId,
-      role: event.role,
-      version: {
-        taskId: activeTask.taskId,
-        generation: activeTask.generation,
-      },
-      eventId: event.eventId,
-    });
-    if (result.outcome === 'reminder_requested') return 'reminder_requested';
-
+  async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<void> {
     // The manager invokes this handler while the agent's lifecycle operation
     // is still serialized. Schedule delivery for the next turn of the event
     // loop so it cannot attempt to inject while that operation still owns the
@@ -132,22 +110,6 @@ export class NativeDeliveryService {
   }
 
   async handleTaskInboxUpdate(update: TaskInboxUpdate): Promise<void> {
-    for (const signal of update.signals) {
-      if (signal.taskStatus === 'completed') {
-        await this.deps.runSerializedForAgent(
-          { chatroomId: signal.chatroomId, role: signal.targetRole },
-          { timeoutMs: TASK_STATE_UPDATE_TIMEOUT_MS },
-          async () => {
-            this.recordTaskHandedOff({
-              chatroomId: signal.chatroomId,
-              role: signal.targetRole,
-              taskId: signal.taskId,
-            });
-          }
-        );
-      }
-    }
-
     this.deps.taskSnapshotState.applySignalPage(update.signals, update.snapshots);
     await this.processSnapshots('inbox-signal', update.snapshots);
   }
@@ -182,15 +144,5 @@ export class NativeDeliveryService {
 
   recordTaskDelivered(args: { chatroomId: string; role: string; taskId: string }): void {
     this.deps.agentTaskState.start(args);
-  }
-
-  recordTaskHandedOff(args: { chatroomId: string; role: string; taskId: string }): void {
-    const key = { chatroomId: args.chatroomId, role: args.role };
-    const active = this.deps.agentTaskState.get(key);
-    if (active?.taskId !== args.taskId) return;
-    this.deps.agentTaskState.markHandedOff(key, {
-      taskId: active.taskId,
-      generation: active.generation,
-    });
   }
 }
