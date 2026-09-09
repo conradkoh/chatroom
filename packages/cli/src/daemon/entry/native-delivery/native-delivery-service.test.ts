@@ -112,11 +112,46 @@ describe('NativeDeliveryService', () => {
         onSessionLost = handler;
       },
     });
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
     onSessionLost?.({ chatroomId: 'room-1', role: 'builder' } as never);
 
     expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    expect(requestReconcile).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      source: 'operational-signal',
+    });
+    service.dispose();
+  });
+
+  test('routes task-signal and bootstrap notifications by affected role', async () => {
+    const service = createService();
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
+    const snapshot = {
+      chatroomId: 'room-1',
+      agentConfig: { role: 'builder' },
+    } as never;
+
+    await service.handleTaskInboxUpdate({
+      signals: [],
+      snapshots: [snapshot],
+      afterSignalKey: 'a',
+      throughSignalKey: 'b',
+    });
+    await service.handleTaskServiceNotification({ kind: 'bootstrap', snapshots: [snapshot] });
+
+    expect(requestReconcile).toHaveBeenNthCalledWith(1, {
+      chatroomId: 'room-1',
+      role: 'builder',
+      source: 'task-signal',
+    });
+    expect(requestReconcile).toHaveBeenNthCalledWith(2, {
+      chatroomId: 'room-1',
+      role: 'builder',
+      source: 'bootstrap',
+    });
     service.dispose();
   });
 
