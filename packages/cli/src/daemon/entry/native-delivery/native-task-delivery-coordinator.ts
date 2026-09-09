@@ -86,7 +86,7 @@ export class NativeTaskDeliveryCoordinator {
   }
 
   // fallow-ignore-next-line complexity
-  async reconcileAssignedTasks(params: {
+  async reconcileRoleTasks(params: {
     tasks: AssignedTaskSnapshotView[];
     pass?: ExtendedDeliveryPass | LegacyDeliveryPass;
     runtime: TaskDeliveryRuntime;

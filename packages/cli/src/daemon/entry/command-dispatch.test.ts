@@ -197,7 +197,6 @@ vi.mock('./events/agent/on-request-stop-agent.js', async () => {
 // ---------------------------------------------------------------------------
 
 const nativeDelivery = {
-  processSnapshots: vi.fn(async () => undefined),
   requestReconcile: vi.fn(async () => undefined),
 };
 

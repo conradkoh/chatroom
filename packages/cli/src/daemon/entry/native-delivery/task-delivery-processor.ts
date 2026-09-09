@@ -130,7 +130,7 @@ export async function processTasksUpdate(
       return { kind: 'delivered' as const, ...(delivered ? { delivered } : {}) };
     },
   };
-  await getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
+  await getNativeTaskDeliveryCoordinator().reconcileRoleTasks({
     tasks: [...options.snapshots],
     pass,
     runtime,
