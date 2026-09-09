@@ -41,11 +41,10 @@ Native SDK harnesses with a typed activity emitter report once per turn via `wir
 
 **Delivery pipeline (native SDK harnesses):**
 
-| Stage         | Responsibility                                                                             | Log prefix                   |
-| ------------- | ------------------------------------------------------------------------------------------ | ---------------------------- |
-| **Trigger**   | Task/operational signals, lifecycle events, restart completion, bootstrap, or safety timer | `[NativeDelivery:trigger]`   |
-| **Decision**  | Role-scoped state read and pure delivery decision                                          | `[NativeDelivery:decision]`  |
-| **Execution** | Process start/recovery or serialized task injection                                        | `[NativeDelivery:execution]` |
+| Stage              | Responsibility                                                                                                                          | Log prefix                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **Trigger/source** | Task/operational signals, lifecycle events, restart completion, bootstrap, or safety timer; the source is recorded on the decision line | `[NativeDelivery:decision]`  |
+| **Execution**      | Process start/recovery or serialized task injection                                                                                     | `[NativeDelivery:execution]` |
 
 Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). The periodic timer remains a bounded safety trigger for daemon restart or missed events; it uses the same role-scoped decision and execution path as every event-driven trigger.
 

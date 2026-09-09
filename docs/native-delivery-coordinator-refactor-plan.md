@@ -1,8 +1,16 @@
 # Native Delivery Coordinator Refactor Plan
 
-> **Status:** **Complete** — all 5 slices implemented  
+> **Status:** **Superseded** — the five slices remain implemented, but the
+> delivery ownership and service boundary were consolidated by
+> `docs/plans/pending/2026-09-09-unify-daemon-task-delivery-reconciliation.md`.
 > **Branch:** `feat/native-delivery-reliability`  
 > **Owner:** Planner coordinates; Builder implements slice-by-slice
+
+This document is a historical record of the earlier coordinator refactor. Its
+old primary/fallback log names and call-chain examples describe that earlier
+implementation, not the current production contract. See the current
+ownership and reconciliation status in
+`docs/plans/pending/2026-09-09-unify-daemon-task-delivery-reconciliation.md`.
 
 ## Problem Statement
 

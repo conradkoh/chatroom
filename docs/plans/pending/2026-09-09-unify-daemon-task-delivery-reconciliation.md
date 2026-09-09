@@ -48,7 +48,8 @@ responsible for those data-model migrations.
 
 ## Implementation status
 
-The implementation is present on the associated PR branch. The following
+The implementation is present on the associated stacked PR branch (#1637,
+targeting #1636). The following
 evidence is current as of 2026-09-09:
 
 - All task, operational, lifecycle, restart, bootstrap, and periodic triggers
@@ -64,13 +65,13 @@ evidence is current as of 2026-09-09:
 - Production searches contain no `processSnapshots`,
   `startPendingNativeAgents`, `listDeliverableSnapshots`, or
   `reconcileAssignedTasks` delivery paths.
-- Full verification passed: 321 CLI test files and 2,444 CLI tests, plus the
+- Full verification passed: 321 CLI test files and 2,443 CLI tests, plus the
   workspace test tasks, CLI/backend typechecks, staged lint/format hooks, and
   pre-push checks.
 
-The plan remains in `docs/plans/pending/` until PR merge and production
-verification. Post-merge monitoring and the final move to
-`docs/plans/completed/` are intentionally still outstanding.
+The plan remains in `docs/plans/pending/` until PR #1637 is merged and the
+production instance has been verified. Post-merge monitoring and the final
+move to `docs/plans/completed/` are intentionally still outstanding.
 
 ## Validation criteria
 
@@ -84,12 +85,12 @@ The change is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] Task inbox updates call role reconciliation.
-   - [ ] Operational-status updates call role reconciliation.
-   - [ ] Agent started and turn-ended events call role reconciliation.
-   - [ ] Restart completion calls role reconciliation.
-   - [ ] Periodic recovery calls role reconciliation only as a safety trigger.
-   - [ ] There is one production implementation of the delivery decision.
+   - [x] Task inbox updates call role reconciliation.
+   - [x] Operational-status updates call role reconciliation.
+   - [x] Agent started and turn-ended events call role reconciliation.
+   - [x] Restart completion calls role reconciliation.
+   - [x] Periodic recovery calls role reconciliation only as a safety trigger.
+   - [x] There is one production implementation of the delivery decision.
 
 2. **Explicit decision results**
 
@@ -108,10 +109,10 @@ The change is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] Decision outcomes are represented by a typed discriminated union.
-   - [ ] Each non-idle outcome has a stable reason code.
-   - [ ] Logs include source, chatroom, role, task ID when known, and reason.
-   - [ ] Tests cover every decision branch.
+   - [x] Decision outcomes are represented by a typed discriminated union.
+   - [x] Each non-idle outcome has a stable reason code.
+   - [x] Logs include source, chatroom, role, task ID when known, and reason.
+   - [x] Tests cover every decision branch.
 
 3. **Clear ownership boundaries**
 
@@ -122,11 +123,11 @@ The change is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] Task inbox does not start agents or inject prompts.
-   - [ ] Agent process manager does not inspect task queues.
-   - [ ] Restart orchestration does not list/filter/deliver tasks.
-   - [ ] Delivery decision code is pure or depends only on explicit state.
-   - [ ] Delivery execution is serialized per role.
+   - [x] Task inbox does not start agents or inject prompts.
+   - [x] Agent process manager does not inspect task queues.
+   - [x] Restart orchestration does not list/filter/deliver tasks.
+   - [x] Delivery decision code is pure or depends only on explicit state.
+   - [x] Delivery execution is serialized per role.
 
 4. **Recovery is convergent**
 
@@ -136,12 +137,12 @@ The change is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] Duplicate task and operational signals are harmless.
-   - [ ] Restart followed by periodic reconciliation does not duplicate a task.
-   - [ ] Agent session loss clears local active-task state.
-   - [ ] A failed injection releases the per-role delivery lock and remains
+   - [x] Duplicate task and operational signals are harmless.
+   - [x] Restart followed by periodic reconciliation does not duplicate a task.
+   - [x] Agent session loss clears local active-task state.
+   - [x] A failed injection releases the per-role delivery lock and remains
          recoverable.
-   - [ ] A stale local slot cannot permanently suppress pending work.
+   - [x] A stale local slot cannot permanently suppress pending work.
 
 5. **Operational diagnosis is sufficient**
 
@@ -150,17 +151,17 @@ The change is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] Every reconciliation records its source.
-   - [ ] Every blocked decision records a stable reason code.
-   - [ ] Start and injection executions record success/failure.
-   - [ ] Restart completion records the reconciliation result.
-   - [ ] Swallowed errors are removed or converted into structured failure
+   - [x] Every reconciliation records its source.
+   - [x] Every blocked decision records a stable reason code.
+   - [x] Start and injection executions record success/failure.
+   - [x] Restart completion records the reconciliation result.
+   - [x] Swallowed errors are removed or converted into structured failure
          events.
 
 These criteria are release gates. Exceptions must be documented before
 implementation proceeds.
 
-## Current state
+## Historical state before this implementation
 
 ```text
 task signal ───────────────┐
@@ -177,7 +178,7 @@ periodic timer ────────────┘
           └── native injection
 ```
 
-Relevant current code:
+The historical implementation was in:
 
 - Task delivery processor:
   `packages/cli/src/daemon/entry/native-delivery/task-delivery-processor.ts`
@@ -199,16 +200,33 @@ Relevant current code:
 - Native delivery predicate:
   `packages/cli/src/daemon/services/task-service/domain/usecase/native-task-injector-logic.ts`
 
-The main ambiguity is that `processSnapshots('periodic-reconcile', ...)` logs
+The current implementation is in:
+
+- Task-service façade and lifecycle:
+  `packages/cli/src/daemon/services/service-interfaces.ts` and
+  `packages/cli/src/daemon/services/task-service/service/task-service.ts`
+- Delivery service and reconciliation coordinator:
+  `packages/cli/src/daemon/services/task-service/service/native-delivery/`
+- Daemon task/operational trigger wiring:
+  `packages/cli/src/daemon/entry/task-inbox-runtime.ts`
+
+The task-inbox runtime supplies infrastructure state and operational signal
+updates; it does not construct the delivery implementation, subscribe it to
+task notifications, or own the periodic reconciliation timer.
+
+The main ambiguity was that `processSnapshots('periodic-reconcile', ...)` logged
 before readiness and active-task checks. Therefore a
-`NativeDelivery:fallback` line proves only that a local snapshot was passed to
+`NativeDelivery:fallback` line proved only that a local snapshot was passed to
 the processor; it does not prove that an injection was attempted.
 
-The restart path has an additional ambiguity. `listDeliverableSnapshots` in
+The restart path had an additional ambiguity. `listDeliverableSnapshots` in
 `restart-orchestrator.ts` filters tasks with
 `isAgentReadyForNativeDelivery` before passing them to the delivery service.
-A task filtered there cannot produce a normal delivery skip reason. The restart
-use case also catches errors through the outer `restartAgent` boundary.
+A task filtered there could not produce a normal delivery skip reason. The
+restart use case also caught errors through the outer `restartAgent` boundary.
+These paths have been removed; the implementation now lives under
+`packages/cli/src/daemon/services/task-service/service/native-delivery/`, and
+daemon callers use `packages/cli/src/daemon/services/service-interfaces.ts`.
 
 ## Target architecture
 
@@ -219,9 +237,11 @@ agent lifecycle events ────┤
 restart completion ────────┤
 safety timer ──────────────┘
           ↓
-requestReconcile(chatroomId, role, source)
+TaskService.createNativeDeliveryService()
           ↓
-RoleDeliveryCoordinator
+NativeDeliveryService.requestReconcile(chatroomId, role, source)
+          ↓
+NativeTaskDeliveryCoordinator
           ↓
 read current role state:
   task snapshot(s)
@@ -332,24 +352,24 @@ state.
 
 ### 1. Inventory current triggers and define the role state contract
 
-- [ ] Enumerate every call to `processSnapshots`,
+- [x] Enumerate every call to `processSnapshots`,
       `reconcileAssignedTasks`, `startPendingNativeAgents`, and
       `isAgentReadyForNativeDelivery` in production code.
-- [ ] Document which component owns each input:
+- [x] Document which component owns each input:
   - task snapshots and task status;
   - backend agent operational status;
   - local slot state;
   - native turn phase and harness session ID;
   - local active-task/delivery lock state.
-- [ ] Define the canonical role key as `(chatroomId, normalizedRole)`.
-- [ ] Define precedence when multiple active tasks exist for one role.
-- [ ] Define the difference between:
+- [x] Define the canonical role key as `(chatroomId, normalizedRole)`.
+- [x] Define precedence when multiple active tasks exist for one role.
+- [x] Define the difference between:
   - blocked permanently until state changes;
   - waiting for an in-flight lifecycle operation;
   - start required;
   - ready to inject;
   - duplicate delivery suppressed.
-- [ ] Define stable reason-code enums for current readiness failures, including:
+- [x] Define stable reason-code enums for current readiness failures, including:
   - task status not deliverable;
   - acknowledged task assigned to another role;
   - operational stop intent;
@@ -361,43 +381,44 @@ state.
   - task already active;
   - task hydration missing;
   - injection failure.
-- [ ] Add a plan-level state transition diagram and use it as the contract for
+- [x] Add a plan-level state transition diagram and use it as the contract for
       the implementation tests.
 
 Acceptance gate:
 
-- [ ] Every current trigger and readiness check has an identified owner.
-- [ ] No implementation change has yet altered delivery behavior.
+- [x] Every current trigger and readiness check has an identified owner.
+- [x] Planning gate was satisfied before implementation began; the
+      implementation intentionally changes the orchestration now.
 
 ### 2. Extract a pure delivery decision function
 
-- [ ] Create a focused domain module beside the existing native delivery use
+- [x] Create a focused domain module beside the existing native delivery use
       cases for role-scoped delivery decisions.
-- [ ] Move task eligibility, operational stop/circuit checks, local slot
+- [x] Move task eligibility, operational stop/circuit checks, local slot
       readiness, active-task deduplication, and cold-session policy into one
       decision flow.
-- [ ] Return `DeliveryDecision` rather than `boolean`, `null`, or an empty task
+- [x] Return `DeliveryDecision` rather than `boolean`, `null`, or an empty task
       list for blocked states.
-- [ ] Keep the decision function free of Convex calls, process spawning,
+- [x] Keep the decision function free of Convex calls, process spawning,
       mutations, logging side effects, and timers.
-- [ ] Pass all state as explicit input so tests can construct a complete role
+- [x] Pass all state as explicit input so tests can construct a complete role
       state without module-level registries.
-- [ ] Preserve the existing semantics of `native-ready-invariant.ts` and
+- [x] Preserve the existing semantics of `native-ready-invariant.ts` and
       `native-cold-session-delivery.ts`; move or wrap them incrementally rather
       than rewriting policy and orchestration at the same time.
-- [ ] Add unit tests for every decision branch, including the incident shape:
+- [x] Add unit tests for every decision branch, including the incident shape:
       pending planner task, operational state running, and each local slot/session
       readiness failure.
 
 Acceptance gate:
 
-- [ ] The decision function is independently testable.
-- [ ] Existing behavior is expressible through the decision results.
-- [ ] No process or backend side effects occur inside the decision function.
+- [x] The decision function is independently testable.
+- [x] Existing behavior is expressible through the decision results.
+- [x] No process or backend side effects occur inside the decision function.
 
 ### 3. Introduce one role-scoped reconciliation coordinator
 
-- [ ] Add a `RoleDeliveryCoordinator` or equivalent constructed service with
+- [x] Add a `RoleDeliveryCoordinator` or equivalent constructed service with
       dependencies for:
   - task snapshot reader;
   - operational read model;
@@ -406,39 +427,39 @@ Acceptance gate:
   - decision function;
   - execution ports;
   - audit/diagnostic logging.
-- [ ] Add `requestReconcile({ chatroomId, role, source })` as the only public
+- [x] Add `requestReconcile({ chatroomId, role, source })` as the only public
       trigger API.
-- [ ] Coalesce duplicate requests for the same role while preserving the most
+- [x] Coalesce duplicate requests for the same role while preserving the most
       useful source metadata for diagnostics.
-- [ ] Serialize reconciliation per role, independently of the process manager's
+- [x] Serialize reconciliation per role, independently of the process manager's
       existing serialized operation boundary.
-- [ ] Re-read current state when reconciliation begins instead of trusting the
+- [x] Re-read current state when reconciliation begins instead of trusting the
       snapshot that caused the trigger.
-- [ ] Reconcile the oldest deliverable task first.
-- [ ] Ensure a completed/reassigned task is removed from consideration before
+- [x] Reconcile the oldest deliverable task first.
+- [x] Ensure a completed/reassigned task is removed from consideration before
       execution.
-- [ ] Make the coordinator return or record the final decision and execution
+- [x] Make the coordinator return or record the final decision and execution
       result.
 - [ ] Add tests for duplicate triggers, concurrent triggers, stale snapshots,
       and task reassignment between trigger and execution.
 
 Acceptance gate:
 
-- [ ] A single coordinator can handle a task trigger and an agent lifecycle
+- [x] A single coordinator can handle a task trigger and an agent lifecycle
       trigger with the same decision path.
-- [ ] Duplicate requests cannot create duplicate injections.
+- [x] Duplicate requests cannot create duplicate injections.
 
 ### 4. Separate decision execution from lifecycle and task services
 
-- [ ] Extract a narrow execution port for `startAgent`/agent recovery.
-- [ ] Extract a narrow execution port for native task injection.
-- [ ] Move `startPendingNativeAgents` behavior behind the coordinator's
+- [x] Extract a narrow execution port for `startAgent`/agent recovery.
+- [x] Extract a narrow execution port for native task injection.
+- [x] Move `startPendingNativeAgents` behavior behind the coordinator's
       `start-agent` decision and remove it as an independent pass.
-- [ ] Keep process-manager serialization as the final boundary for start/stop
+- [x] Keep process-manager serialization as the final boundary for start/stop
       operations.
-- [ ] Keep task-service serialization and receipt recording as the final
+- [x] Keep task-service serialization and receipt recording as the final
       boundary for injection.
-- [ ] Define execution outcomes for:
+- [x] Define execution outcomes for:
   - successful start;
   - start rejected due to stop intent or stale revision;
   - start already in progress;
@@ -446,48 +467,48 @@ Acceptance gate:
   - injection success;
   - injection failure;
   - task no longer available.
-- [ ] Ensure every failure releases the coordinator's per-role lock.
-- [ ] Ensure successful injection updates local active-task state exactly once.
-- [ ] Add focused executor tests with fake process-manager and task-service
+- [x] Ensure every failure releases the coordinator's per-role lock.
+- [x] Ensure successful injection updates local active-task state exactly once.
+- [x] Add focused executor tests with fake process-manager and task-service
       ports.
 
 Acceptance gate:
 
-- [ ] The process manager does not know about task selection.
-- [ ] The task service does not know why a task became eligible.
-- [ ] All side effects are reachable through explicit executor ports.
+- [x] The process manager does not know about task selection.
+- [x] The task service does not know why a task became eligible.
+- [x] All side effects are reachable through explicit executor ports.
 
 ### 5. Route every existing trigger through the coordinator
 
-- [ ] Task inbox notifications request reconciliation for affected roles.
-- [ ] Operational-status updates request reconciliation for changed roles.
-- [ ] `NativeDeliveryService.handleAgentStarted` requests reconciliation.
-- [ ] `NativeDeliveryService.handleAgentTurnEnded` requests reconciliation.
-- [ ] Session-loss handling clears active-task state and requests reconciliation
+- [x] Task inbox notifications request reconciliation for affected roles.
+- [x] Operational-status updates request reconciliation for changed roles.
+- [x] `NativeDeliveryService.handleAgentStarted` requests reconciliation.
+- [x] `NativeDeliveryService.handleAgentTurnEnded` requests reconciliation.
+- [x] Session-loss handling clears active-task state and requests reconciliation
       when the role can recover.
-- [ ] Bootstrap requests reconciliation for every role with active task rows.
-- [ ] The periodic timer requests reconciliation for roles represented in the
+- [x] Bootstrap requests reconciliation for every role with active task rows.
+- [x] The periodic timer requests reconciliation for roles represented in the
       local task snapshot state; it does not call a separate delivery algorithm.
-- [ ] Preserve periodic reconciliation as a bounded safety net during this
+- [x] Preserve periodic reconciliation as a bounded safety net during this
       migration. It may be removed later only after equivalent event coverage and
       monitoring exist.
-- [ ] Replace restart-specific task listing/filtering with:
+- [x] Replace restart-specific task listing/filtering with:
   - restart orchestrator performs stop → start → await session → ready;
   - restart orchestrator emits or requests `restart-completed` reconciliation;
   - coordinator makes the same decision as every other trigger.
-- [ ] Remove direct production calls to `processSnapshots('restart', ...)` once
+- [x] Remove direct production calls to `processSnapshots('restart', ...)` once
       the coordinator owns restart reconciliation.
 
 Acceptance gate:
 
-- [ ] Search shows one production reconciliation entry point.
-- [ ] No trigger has its own task readiness filter.
-- [ ] Restart, task signal, operational signal, and periodic recovery use the
+- [x] Search shows one production reconciliation entry point.
+- [x] No trigger has its own task readiness filter.
+- [x] Restart, task signal, operational signal, and periodic recovery use the
       same decision function.
 
 ### 6. Make observability part of the delivery contract
 
-- [ ] Add structured decision logging with fields:
+- [x] Add structured decision logging with fields:
   - source;
   - chatroom ID;
   - role;
@@ -499,23 +520,24 @@ Acceptance gate:
   - harness session presence;
   - operational state;
   - reconciliation attempt ID.
-- [ ] Log the transition from decision to execution and the final result.
-- [ ] Replace generic `NativeDelivery:fallback` wording with a trigger log
-      followed by a decision log, so fallback is clearly a source rather than an
-      implied delivery outcome.
-- [ ] Remove or narrow swallowed errors in `restartAgent`; restart failures must
+- [x] Log the transition from decision to execution and the final result.
+- [x] Replace generic `NativeDelivery:fallback` wording with source-bearing
+      decision and execution logs, so recovery is clearly a source rather than
+      an implied delivery outcome. A separate `NativeDelivery:trigger` line is
+      not currently emitted by production code.
+- [x] Remove or narrow swallowed errors in `restartAgent`; restart failures must
       be visible through the daemon audit/log path.
-- [ ] Record whether restart completed with zero, one, or multiple delivered
+- [x] Record whether restart completed with zero, one, or multiple delivered
       tasks.
-- [ ] Add tests that assert blocked decisions include stable reason codes.
-- [ ] Add an incident diagnostic checklist to the relevant daemon plan or
+- [x] Add tests that assert blocked decisions include stable reason codes.
+- [x] Add an incident diagnostic checklist to the relevant daemon plan or
       harness documentation.
 
 Incident diagnostic checklist:
 
-1. Find the `NativeDelivery:trigger` line for the role/chatroom and note its
-   `source`.
-2. Find the matching `NativeDelivery:decision` line and compare `task`,
+1. Find the matching `NativeDelivery:decision` line for the role/chatroom and
+   note its `source`.
+2. Compare `task`,
    `decision`, `reason`, `slotState`, `nativeTurnPhase`,
    `harnessSessionPresent`, and `operationalState`.
 3. If the decision is `start-agent`, inspect the matching
@@ -552,8 +574,9 @@ Acceptance gate:
       stale local snapshot.
 - [ ] Add an integration test proving stop intent blocks delivery and later
       reconciliation resumes after the stop intent clears.
-- [ ] Preserve and adapt the existing pending-task-after-agent-restart and
-      native queued-delivery tests rather than replacing them with only unit tests.
+- [x] Preserve and adapt the existing native queued-delivery tests rather than
+      replacing them with only unit tests. A dedicated pending-task-after-agent-
+      restart integration test is still outstanding.
 
 Acceptance gate:
 
@@ -562,41 +585,44 @@ Acceptance gate:
 
 ### 8. Remove superseded orchestration and verify
 
-- [ ] Delete `startPendingNativeAgents` as an independent orchestration pass,
+- [x] Delete `startPendingNativeAgents` as an independent orchestration pass,
       or reduce it to a private executor implementation with no decision logic.
-- [ ] Remove restart-specific `listDeliverableSnapshots` filtering once the
+- [x] Remove restart-specific `listDeliverableSnapshots` filtering once the
       coordinator owns readiness evaluation.
-- [ ] Remove duplicate calls to `isAgentReadyForNativeDelivery` from trigger
+- [x] Remove duplicate calls to `isAgentReadyForNativeDelivery` from trigger
       paths.
-- [ ] Retain readiness and cold-session policy only in the canonical decision
+- [x] Retain readiness and cold-session policy only in the canonical decision
       path and its focused domain helpers.
-- [ ] Remove obsolete `processSnapshots` pass-specific branching where it no
+- [x] Remove obsolete `processSnapshots` pass-specific branching where it no
       longer represents behavior.
-- [ ] Search the repository for all of:
+- [x] Search the repository for all of:
   - `processSnapshots(`;
   - `startPendingNativeAgents`;
   - `listDeliverableSnapshots`;
   - `isAgentReadyForNativeDelivery`;
   - `explainNativeDeliveryBlock`;
   - `reconcileAssignedTasks`.
-- [ ] Confirm each remaining reference has one documented responsibility.
-- [ ] Run CLI typecheck and focused daemon tests.
+- [x] Confirm each remaining reference has one documented responsibility.
+- [x] Run CLI typecheck and focused daemon tests.
 - [ ] Run backend integration tests covering task transitions and operational
       projections.
-- [ ] Run the full test suite and lint/format checks required by the repository.
+- [x] Run the full CLI test suite and the lint/format checks required by the
+      repository's pre-push hook. A separate full-repository lint run remains
+      outside this implementation verification.
 
 Acceptance gate:
 
-- [ ] No superseded path can independently inject or start an agent.
+- [x] No superseded path can independently inject or start an agent.
 - [ ] Typechecks, focused tests, integration tests, and full verification pass.
+      Backend integration tests remain outstanding.
 
 ## Rollout and compatibility
 
-- [ ] Keep the existing periodic safety trigger during the migration.
-- [ ] Make the new coordinator observable before removing old diagnostic logs.
+- [x] Keep the existing periodic safety trigger during the migration.
+- [x] Make the new coordinator observable before removing old diagnostic logs.
 - [ ] If a staged rollout is needed, gate the coordinator behind a safe default
       feature flag and compare old/new decisions without executing both side effects.
-- [ ] Do not dual-inject or dual-start agents while comparing behavior.
+- [x] Do not dual-inject or dual-start agents while comparing behavior.
 - [ ] Confirm the supported daemon/backend version boundary before deploying any
       new decision or signal contract.
 - [ ] After production rollout, monitor:
@@ -610,18 +636,18 @@ Acceptance gate:
 
 ## Final verification checklist
 
-- [ ] `rg` confirms one production reconciliation entry point.
-- [ ] Task inbox owns task state only.
-- [ ] Process manager owns process state only.
-- [ ] Restart orchestrator owns restart lifecycle only.
-- [ ] Coordinator owns delivery decisions only.
-- [ ] Executors own start/injection side effects only.
-- [ ] Decision tests cover every stable reason code.
+- [x] `rg` confirms one production reconciliation entry point.
+- [x] Task inbox owns task state only.
+- [x] Process manager owns process state only.
+- [x] Restart orchestrator owns restart lifecycle only.
+- [x] Coordinator owns delivery decisions only.
+- [x] Executors own start/injection side effects only.
+- [x] Decision tests cover every stable reason code.
 - [ ] Integration tests cover restart, reconnect, task signal, operational
       signal, turn end, duplicate trigger, and stale-state recovery.
 - [ ] Production logs distinguish trigger, decision, execution, and result.
-- [ ] CLI typecheck passes.
-- [ ] Backend typecheck passes.
-- [ ] Focused and full test suites pass.
+- [x] CLI typecheck passes.
+- [x] Backend typecheck passes.
+- [x] Focused and full CLI test suites pass.
 - [ ] Plan is moved to `docs/plans/completed/` only after the pull request is
       merged and production verification is complete.
