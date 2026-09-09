@@ -143,6 +143,8 @@ export class NativeTaskDeliveryCoordinator {
         snapshotRequestsNativeColdSession: taskService.snapshotRequestsNativeColdSession,
         explainNativeDeliveryBlock: taskService.explainNativeDeliveryBlock,
       });
+      const attemptId = `${Date.now()}-${firstTask.taskId}`;
+      const decisionReason = 'reason' in decision ? decision.reason : undefined;
       logNativeDeliveryDecision(
         params.pass ?? 'inbox-signal',
         role,
@@ -150,7 +152,15 @@ export class NativeTaskDeliveryCoordinator {
         decision.kind === 'blocked' || decision.kind === 'wait'
           ? `${decision.kind}:${decision.reason}`
           : decision.kind,
-        'taskId' in decision ? decision.taskId : undefined
+        'taskId' in decision ? decision.taskId : undefined,
+        {
+          ...(decisionReason ? { reason: decisionReason } : {}),
+          attemptId,
+          slotState: slot?.state ?? 'missing',
+          nativeTurnPhase: slot?.nativeTurnPhase ?? 'unknown',
+          harnessSessionPresent: Boolean(slot?.harnessSessionId),
+          operationalState: operational?.operationalState ?? 'missing',
+        }
       );
 
       const row =
@@ -171,7 +181,7 @@ export class NativeTaskDeliveryCoordinator {
       if (decision.kind === 'start-agent') {
         if (!row.agentConfig.workingDir || (slot && !isSlotIdle(slot.state))) continue;
         try {
-          await params.runSerializedForAgent(
+          const startResult = await params.runSerializedForAgent(
             { chatroomId: row.chatroomId, role },
             { timeoutMs: 120_000 },
             (ops, context) =>
@@ -192,6 +202,9 @@ export class NativeTaskDeliveryCoordinator {
                 },
                 context.signal
               )
+          );
+          console.log(
+            `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=start-agent result=${startResult && typeof startResult === 'object' && 'success' in startResult ? startResult.success : 'completed'}`
           );
         } catch (error) {
           console.warn(

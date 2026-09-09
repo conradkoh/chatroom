@@ -17,11 +17,25 @@ export function logNativeDeliveryDecision(
   role: string,
   chatroomId: string,
   decision: string,
-  taskId?: string
+  taskId?: string,
+  details?: {
+    reason?: string;
+    attemptId?: string;
+    slotState?: string;
+    nativeTurnPhase?: string;
+    harnessSessionPresent?: boolean;
+    operationalState?: string;
+  }
 ): void {
   const taskSuffix = taskId ? ` task=${taskId}` : '';
+  const detailSuffix = details
+    ? Object.entries(details)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => `${key}=${value}`)
+        .join(' ')
+    : '';
   console.log(
-    `[NativeDelivery:decision] source=${source} role=${role} chatroom=${chatroomId}${taskSuffix} decision=${decision}`
+    `[NativeDelivery:decision] source=${source} role=${role} chatroom=${chatroomId}${taskSuffix} decision=${decision}${detailSuffix ? ` ${detailSuffix}` : ''}`
   );
 }
 
