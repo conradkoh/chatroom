@@ -3,21 +3,12 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   logNativeDeliveryInjecting,
   logNativeDeliveryMutexSkip,
-  logNativeDeliveryPrimary,
   logNativeDeliverySkip,
   logNativeDeliveryTrigger,
 } from './native-delivery-log.js';
 
 describe('native-delivery-log', () => {
   afterEach(() => vi.restoreAllMocks());
-
-  test('logNativeDeliveryPrimary uses primary prefix', () => {
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryPrimary('builder', 'room_1');
-    expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:primary] turn idle builder@room_1 — trying inject'
-    );
-  });
 
   test('logNativeDeliveryTrigger identifies the event-driven source', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});

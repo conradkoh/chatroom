@@ -51,8 +51,8 @@ Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend par
 
 Injection wiring:
 
-1. `native-task-injector-logic.ts` — pure inject decisions (`shouldDeliverNativeTask`)
-2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
+1. `delivery-decision.ts` — pure role-scoped delivery decisions
+2. `native-task-injector.ts` — task-service wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
 3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after native spawn only; turn-end unlocks delivery via `agent_end` → nativeTurnPhase idle → coordinator, not via `lastSeenAction` predicates
 
 CLI harnesses keep the existing `get-next-task` loop. Native harnesses use the

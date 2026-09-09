@@ -1,7 +1,3 @@
-export function logNativeDeliveryPrimary(role: string, chatroomId: string): void {
-  console.log(`[NativeDelivery:primary] turn idle ${role}@${chatroomId} — trying inject`);
-}
-
 type NativeDeliveryPass =
   | 'inbox-signal'
   | 'periodic-reconcile'
@@ -67,9 +63,4 @@ export function logNativeDeliveryMutexSkip(role: string, chatroomId: string, tas
 
 export function logNativeDeliveryInjecting(role: string, chatroomId: string, taskId: string): void {
   console.log(`[NativeDelivery:inject] ${role}@${chatroomId} task ${taskId} — starting injection`);
-}
-
-// fallow-ignore-next-line unused-export
-export function logNativeDeliveryNoTasks(role: string, chatroomId: string): void {
-  console.log(`[NativeDelivery:skip] ${role}@${chatroomId} — no pending tasks for role`);
 }
