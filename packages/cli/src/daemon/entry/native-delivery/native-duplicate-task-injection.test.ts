@@ -125,4 +125,46 @@ describe('native duplicate task injection', () => {
     );
   });
 
+  test('uses explicit production executors for start and injection side effects', async () => {
+    const row = makeAcknowledgedRow();
+    const agentMgr = makeAgentMgr(vi.fn());
+    const operationalModel = new AgentOperationalReadModel();
+    operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
+    const delivered = {
+      chatroomId: CHATROOM_ID,
+      role: ROLE,
+      taskId: TASK_ID,
+      harnessSessionId: HARNESS_SESSION_ID,
+    };
+    const injectTask = vi.fn().mockResolvedValue({ kind: 'delivered', delivered });
+    const onTaskDelivered = vi.fn();
+    const params = withTestTaskService({
+      tasks: [row],
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      runSerializedForAgent: vi.fn() as never,
+      sessionDeps: {
+        sessionId: 'session_executor',
+        machineId: 'machine_dup',
+        logEvent: async () => undefined,
+        convexUrl: 'http://test:3210',
+        backend: { mutation: vi.fn(), query: vi.fn() },
+      },
+      machineId: 'machine_dup',
+      lifecycleOutbox: { enqueue: async () => undefined },
+      operationalModel,
+      isTaskActive: () => false,
+      onTaskDelivered,
+      executors: {
+        startAgent: vi.fn(),
+        injectTask,
+      },
+    });
+
+    await new NativeTaskDeliveryCoordinator().reconcileAssignedTasks(params);
+
+    expect(injectTask).toHaveBeenCalledWith(row, HARNESS_SESSION_ID);
+    expect(onTaskDelivered).toHaveBeenCalledWith(delivered);
+  });
 });
