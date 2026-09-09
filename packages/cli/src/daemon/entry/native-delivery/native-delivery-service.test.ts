@@ -8,6 +8,7 @@ import { createAgentTaskStateService } from '../../services/agent-process-servic
 function createService(
   options: {
     readonly onTurnEnded?: (handler: (event: never) => Promise<unknown>) => void;
+    readonly onSessionLost?: (handler: (event: never) => void) => void;
   } = {}
 ): NativeDeliveryService {
   return new NativeDeliveryService({
@@ -19,7 +20,10 @@ function createService(
         return () => undefined;
       },
       subscribeAgentStarted: () => () => undefined,
-      subscribeAgentSessionLost: () => () => undefined,
+      subscribeAgentSessionLost: (handler: (event: never) => void) => {
+        options.onSessionLost?.(handler);
+        return () => undefined;
+      },
     } as never,
     runSerializedForAgent: (async (_key: never, _options: never, operation: any) =>
       operation(
@@ -67,6 +71,21 @@ describe('NativeDeliveryService', () => {
       slot: { state: 'running' },
       eventId: 'turn-1',
     } as never);
+    service.dispose();
+  });
+
+  test('clears stale active-task state when the agent session is lost', () => {
+    let onSessionLost: ((event: never) => void) | undefined;
+    const service = createService({
+      onSessionLost: (handler) => {
+        onSessionLost = handler;
+      },
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    onSessionLost?.({ chatroomId: 'room-1', role: 'builder' } as never);
+
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
     service.dispose();
   });
 
