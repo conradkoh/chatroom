@@ -158,12 +158,15 @@ export const startTaskInboxEffect = (
       inboxUpdatesInFlight += 1;
       try {
         const changed = agentOperationalReadModel.applySignalPage(update.rows, update.removed);
-        const snapshots = changed.flatMap(({ chatroomId: roomId, role }) =>
-          taskSnapshotState.listForRole(roomId, role)
+        await Promise.all(
+          changed.map(({ chatroomId: roomId, role }) =>
+            nativeDelivery.requestReconcile({
+              chatroomId: roomId,
+              role,
+              source: 'operational-signal',
+            })
+          )
         );
-        if (snapshots.length > 0) {
-          await nativeDelivery.processSnapshots('operational-status', snapshots);
-        }
         inboxStore.save(
           {
             inboxType: 'operational',
@@ -327,8 +330,21 @@ export const startTaskInboxEffect = (
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdatesInFlight > 0 || reconcileInFlight) return;
       reconcileInFlight = true;
-      void nativeDelivery
-        .processSnapshots('periodic-reconcile', taskSnapshotState.listAll())
+      const roleKeys = new Set(
+        taskSnapshotState
+          .listAll()
+          .map((snapshot) => `${snapshot.chatroomId}:${snapshot.agentConfig.role.toLowerCase()}`)
+      );
+      void Promise.all(
+        [...roleKeys].map((key) => {
+          const separator = key.indexOf(':');
+          return nativeDelivery.requestReconcile({
+            chatroomId: key.slice(0, separator),
+            role: key.slice(separator + 1),
+            source: 'periodic-reconcile',
+          });
+        })
+      )
         .catch((error) => {
           console.warn('[TaskInbox] local delivery reconciliation failed:', error);
         })
