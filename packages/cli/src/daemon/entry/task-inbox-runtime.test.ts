@@ -463,6 +463,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     } as never);
 
     expect(order).toEqual(['process', 'save', 'ack']);
+    expect(processTasksUpdate.mock.calls[0]?.[7]).toBe('operational-signal');
     expect(store.save).toHaveBeenCalledWith(OPERATIONAL_SCOPE_ROOM_1, {
       afterSignalKey: 'key-1',
     });
@@ -629,6 +630,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     } as never);
 
     expect(processTasksUpdate).toHaveBeenCalled();
+    expect(processTasksUpdate.mock.calls[0]?.[7]).toBe('task-signal');
     expect(store.save).toHaveBeenCalledWith(TASK_SCOPE_ROOM_2, { afterSignalKey: 'k1' });
 
     handle.stop();
