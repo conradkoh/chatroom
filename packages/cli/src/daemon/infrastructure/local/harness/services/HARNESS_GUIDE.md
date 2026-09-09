@@ -39,19 +39,19 @@ Native SDK harnesses with a typed activity emitter report once per turn via `wir
 
 **Daemon task injection** (`packages/cli/src/commands/machine/daemon-start/`):
 
-**Delivery paths (native SDK harnesses):**
+**Delivery pipeline (native SDK harnesses):**
 
-| Path         | Trigger                                                                               | Log prefix                                     |
-| ------------ | ------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| **Primary**  | Harness `agent_end` → manager event → constructed native delivery service             | `[NativeDelivery:fallback] operational-status` |
-| **Fallback** | Signal/presence feed reconcile, subscribed snapshot store + 10s local reconcile timer | `[NativeDelivery:fallback]`                    |
+| Stage              | Responsibility                                                                                                                          | Log prefix                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **Trigger/source** | Task/operational signals, lifecycle events, restart completion, bootstrap, or safety timer; the source is recorded on the decision line | `[NativeDelivery:decision]`  |
+| **Execution**      | Process start/recovery or serialized task injection                                                                                     | `[NativeDelivery:execution]` |
 
-Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). Fallback paths exist for daemon restart mid-turn or missed events — monitor logs to measure how often they fire before removing.
+Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). The periodic timer remains a bounded safety trigger for daemon restart or missed events; it uses the same role-scoped decision and execution path as every event-driven trigger.
 
 Injection wiring:
 
-1. `native-task-injector-logic.ts` — pure inject decisions (`shouldDeliverNativeTask`)
-2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
+1. `delivery-decision.ts` — pure role-scoped delivery decisions
+2. `native-task-injector.ts` — task-service wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
 3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after native spawn only; turn-end unlocks delivery via `agent_end` → nativeTurnPhase idle → coordinator, not via `lastSeenAction` predicates
 
 CLI harnesses keep the existing `get-next-task` loop. Native harnesses use the

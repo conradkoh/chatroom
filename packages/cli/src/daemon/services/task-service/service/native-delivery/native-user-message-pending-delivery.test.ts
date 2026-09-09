@@ -4,7 +4,7 @@
  * Flow under test (happy path):
  * 1. Backend: messages.sendMessage → createTask(status=pending) → projectAssignedTaskSnapshots
  * 2. Backend: machine task-status signals feed the daemon task inbox
- * 3. Daemon: task-monitor onSignalRow → processTasksUpdate → reconcileAssignedTasks
+ * 3. Daemon: task-monitor onSignalRow → requestReconcile → reconcileRoleTasks
  * 4. Daemon: shouldDeliverNativeTask(slot idle + pid match) → runNativeInjectionEffect
  * 5. Daemon: claimTask → getTaskDeliveryPrompt → participants.join(native:task-injected) → resumeTurn
  *
@@ -18,26 +18,21 @@ import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js'
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
-import { Context, Effect, Runtime } from 'effect';
+import { Context, Runtime } from 'effect';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { withTestTaskService } from './test-task-service.js';
-import {
-  buildNativeInjectionPrompt,
-  shouldDeliverNativeTask,
-} from '../../services/task-service/index.js';
-import { api } from '../../../api.js';
-import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
-import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import {
-  operationalRow,
-} from '../../infrastructure/agent-operational/test-support.js';
+import { withTestTaskService } from './test-task-service.js';
+import { api } from '../../../../../api.js';
+import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
+import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
 const operationalModel = new AgentOperationalReadModel();
 const lifecycleOutbox = { enqueue: vi.fn().mockResolvedValue(undefined) };
@@ -140,47 +135,49 @@ describe('user message pending delivery path', () => {
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks(withTestTaskService({
-      tasks: [row!],
-      runtime: Runtime.defaultRuntime as Parameters<
-        NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
-      >[0]['runtime'],
-      effectContext: Context.empty() as Parameters<
-        NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
-      >[0]['effectContext'],
-      agentMgr,
-      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
-        operation(
-          {
-            startAgent: async () => ({ success: true }),
-            stopAgent: async () => ({ success: true }),
-          } as never,
-          { signal: new AbortController().signal }
-        )
-      ) as never,
-      sessionDeps: {
-        sessionId: SESSION_ID,
-        convexUrl: 'http://test:3210',
+    coordinator.reconcileRoleTasks(
+      withTestTaskService({
+        tasks: [row!],
+        runtime: Runtime.defaultRuntime as Parameters<
+          NativeTaskDeliveryCoordinator['reconcileRoleTasks']
+        >[0]['runtime'],
+        effectContext: Context.empty() as Parameters<
+          NativeTaskDeliveryCoordinator['reconcileRoleTasks']
+        >[0]['effectContext'],
+        agentMgr,
+        runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+          operation(
+            {
+              startAgent: async () => ({ success: true }),
+              stopAgent: async () => ({ success: true }),
+            } as never,
+            { signal: new AbortController().signal }
+          )
+        ) as never,
+        sessionDeps: {
+          sessionId: SESSION_ID,
+          convexUrl: 'http://test:3210',
+          machineId: MACHINE_ID,
+          logEvent: async () => undefined,
+          backend: {
+            mutation: backendMutation,
+            query: vi.fn(async (fn, args) => {
+              if (args && 'machineId' in args && !('chatroomId' in args)) {
+                return makeFullTaskFromRow(row!);
+              }
+              if (args && 'chatroomId' in args) {
+                return { fullCliOutput: 'USER MESSAGE DELIVERY OUTPUT' };
+              }
+              throw new Error(`Unexpected query: ${String(fn)}`);
+            }),
+          },
+        } satisfies NativeTaskDeliverySessionDeps,
         machineId: MACHINE_ID,
-        logEvent: async () => undefined,
-        backend: {
-          mutation: backendMutation,
-          query: vi.fn(async (fn, args) => {
-            if (args && 'machineId' in args && !('chatroomId' in args)) {
-              return makeFullTaskFromRow(row!);
-            }
-            if (args && 'chatroomId' in args) {
-              return { fullCliOutput: 'USER MESSAGE DELIVERY OUTPUT' };
-            }
-            throw new Error(`Unexpected query: ${String(fn)}`);
-          }),
-        },
-      } satisfies NativeTaskDeliverySessionDeps,
-      machineId: MACHINE_ID,
-      lifecycleOutbox,
-      operationalModel,
-      isTaskActive: () => false,
-    }));
+        lifecycleOutbox,
+        operationalModel,
+        isTaskActive: () => false,
+      })
+    );
 
     await vi.waitFor(() => {
       expect(resumeTurnForSlot).toHaveBeenCalled();
@@ -228,30 +225,34 @@ describe('user message pending delivery path', () => {
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks(withTestTaskService({
-      tasks: [row!],
-      runtime: Runtime.defaultRuntime as never,
-      effectContext: Context.empty() as never,
-      agentMgr: {
-        getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ nativeTurnPhase: 'turn_in_flight' })),
-        resumeTurnForSlot,
-      } as unknown as DaemonAgentProcessManagerServiceShape,
-      runSerializedForAgent: vi.fn() as never,
-      sessionDeps: {
-        sessionId: SESSION_ID,
-        convexUrl: 'http://test:3210',
-        machineId: MACHINE_ID,
-        logEvent: async () => undefined,
-        backend: {
-          mutation: vi.fn(),
-          query: vi.fn(),
+    coordinator.reconcileRoleTasks(
+      withTestTaskService({
+        tasks: [row!],
+        runtime: Runtime.defaultRuntime as never,
+        effectContext: Context.empty() as never,
+        agentMgr: {
+          getSlot: vi
+            .fn()
+            .mockReturnValue(makeIdleNativeSlot({ nativeTurnPhase: 'turn_in_flight' })),
+          resumeTurnForSlot,
+        } as unknown as DaemonAgentProcessManagerServiceShape,
+        runSerializedForAgent: vi.fn() as never,
+        sessionDeps: {
+          sessionId: SESSION_ID,
+          convexUrl: 'http://test:3210',
+          machineId: MACHINE_ID,
+          logEvent: async () => undefined,
+          backend: {
+            mutation: vi.fn(),
+            query: vi.fn(),
+          },
         },
-      },
-      machineId: MACHINE_ID,
-      lifecycleOutbox,
-      operationalModel,
-      isTaskActive: () => false,
-    }));
+        machineId: MACHINE_ID,
+        lifecycleOutbox,
+        operationalModel,
+        isTaskActive: () => false,
+      })
+    );
 
     await new Promise((r) => setTimeout(r, 50));
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
@@ -271,30 +272,32 @@ describe('user message pending delivery path', () => {
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks(withTestTaskService({
-      tasks: [row!],
-      runtime: Runtime.defaultRuntime as never,
-      effectContext: Context.empty() as never,
-      agentMgr: {
-        getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ harnessSessionId: undefined })),
-        resumeTurnForSlot,
-      } as unknown as DaemonAgentProcessManagerServiceShape,
-      runSerializedForAgent: vi.fn() as never,
-      sessionDeps: {
-        sessionId: SESSION_ID,
-        convexUrl: 'http://test:3210',
-        machineId: MACHINE_ID,
-        logEvent: async () => undefined,
-        backend: {
-          mutation: vi.fn(),
-          query: vi.fn(),
+    coordinator.reconcileRoleTasks(
+      withTestTaskService({
+        tasks: [row!],
+        runtime: Runtime.defaultRuntime as never,
+        effectContext: Context.empty() as never,
+        agentMgr: {
+          getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ harnessSessionId: undefined })),
+          resumeTurnForSlot,
+        } as unknown as DaemonAgentProcessManagerServiceShape,
+        runSerializedForAgent: vi.fn() as never,
+        sessionDeps: {
+          sessionId: SESSION_ID,
+          convexUrl: 'http://test:3210',
+          machineId: MACHINE_ID,
+          logEvent: async () => undefined,
+          backend: {
+            mutation: vi.fn(),
+            query: vi.fn(),
+          },
         },
-      },
-      machineId: MACHINE_ID,
-      lifecycleOutbox,
-      operationalModel,
-      isTaskActive: () => false,
-    }));
+        machineId: MACHINE_ID,
+        lifecycleOutbox,
+        operationalModel,
+        isTaskActive: () => false,
+      })
+    );
 
     await new Promise((r) => setTimeout(r, 50));
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
@@ -315,32 +318,34 @@ describe('user message pending delivery path', () => {
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks(withTestTaskService({
-      tasks: [row!],
-      runtime: Runtime.defaultRuntime as never,
-      effectContext: Context.empty() as never,
-      agentMgr: {
-        getSlot: vi
-          .fn()
-          .mockReturnValue(makeIdleNativeSlot({ pid: SPAWNED_PID + 1, state: 'spawning' })),
-        resumeTurnForSlot,
-      } as unknown as DaemonAgentProcessManagerServiceShape,
-      runSerializedForAgent: vi.fn() as never,
-      sessionDeps: {
-        sessionId: SESSION_ID,
-        convexUrl: 'http://test:3210',
-        machineId: MACHINE_ID,
-        logEvent: async () => undefined,
-        backend: {
-          mutation: vi.fn(),
-          query: vi.fn(),
+    coordinator.reconcileRoleTasks(
+      withTestTaskService({
+        tasks: [row!],
+        runtime: Runtime.defaultRuntime as never,
+        effectContext: Context.empty() as never,
+        agentMgr: {
+          getSlot: vi
+            .fn()
+            .mockReturnValue(makeIdleNativeSlot({ pid: SPAWNED_PID + 1, state: 'spawning' })),
+          resumeTurnForSlot,
+        } as unknown as DaemonAgentProcessManagerServiceShape,
+        runSerializedForAgent: vi.fn() as never,
+        sessionDeps: {
+          sessionId: SESSION_ID,
+          convexUrl: 'http://test:3210',
+          machineId: MACHINE_ID,
+          logEvent: async () => undefined,
+          backend: {
+            mutation: vi.fn(),
+            query: vi.fn(),
+          },
         },
-      },
-      machineId: MACHINE_ID,
-      lifecycleOutbox,
-      operationalModel,
-      isTaskActive: () => false,
-    }));
+        machineId: MACHINE_ID,
+        lifecycleOutbox,
+        operationalModel,
+        isTaskActive: () => false,
+      })
+    );
 
     await new Promise((r) => setTimeout(r, 50));
     expect(resumeTurnForSlot).not.toHaveBeenCalled();

@@ -10,23 +10,20 @@ import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js'
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
-import { Context, Effect, Runtime } from 'effect';
+import { Context, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { withTestTaskService } from './test-task-service.js';
-import {
-  buildNativeInjectionPrompt,
-  shouldDeliverNativeTask,
-} from '../../services/task-service/index.js';
-import { api } from '../../../api.js';
-import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
-import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { withTestTaskService } from './test-task-service.js';
+import { api } from '../../../../../api.js';
+import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
@@ -90,39 +87,41 @@ describe('native queued delivery after agent_end', () => {
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     const coordinator = new NativeTaskDeliveryCoordinator();
-    coordinator.reconcileAssignedTasks(withTestTaskService({
-      tasks: [row!],
-      runtime: Runtime.defaultRuntime as Parameters<
-        NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
-      >[0]['runtime'],
-      effectContext: Context.empty() as Parameters<
-        NativeTaskDeliveryCoordinator['reconcileAssignedTasks']
-      >[0]['effectContext'],
-      agentMgr,
-      runSerializedForAgent: vi.fn() as never,
-      sessionDeps: {
-        sessionId: SESSION_ID,
-        convexUrl: 'http://test:3210',
+    coordinator.reconcileRoleTasks(
+      withTestTaskService({
+        tasks: [row!],
+        runtime: Runtime.defaultRuntime as Parameters<
+          NativeTaskDeliveryCoordinator['reconcileRoleTasks']
+        >[0]['runtime'],
+        effectContext: Context.empty() as Parameters<
+          NativeTaskDeliveryCoordinator['reconcileRoleTasks']
+        >[0]['effectContext'],
+        agentMgr,
+        runSerializedForAgent: vi.fn() as never,
+        sessionDeps: {
+          sessionId: SESSION_ID,
+          convexUrl: 'http://test:3210',
+          machineId: MACHINE_ID,
+          logEvent: async () => undefined,
+          backend: {
+            mutation: backendMutation,
+            query: vi.fn(async (fn, args) => {
+              if (args && 'machineId' in args && !('chatroomId' in args)) {
+                return makeFullTaskFromSnapshot(row!);
+              }
+              if (args && 'chatroomId' in args) {
+                return { fullCliOutput: 'DELIVERY OUTPUT' };
+              }
+              throw new Error(`Unexpected query: ${String(fn)}`);
+            }),
+          },
+        } satisfies NativeTaskDeliverySessionDeps,
         machineId: MACHINE_ID,
-        logEvent: async () => undefined,
-        backend: {
-          mutation: backendMutation,
-          query: vi.fn(async (fn, args) => {
-            if (args && 'machineId' in args && !('chatroomId' in args)) {
-              return makeFullTaskFromSnapshot(row!);
-            }
-            if (args && 'chatroomId' in args) {
-              return { fullCliOutput: 'DELIVERY OUTPUT' };
-            }
-            throw new Error(`Unexpected query: ${String(fn)}`);
-          }),
-        },
-      } satisfies NativeTaskDeliverySessionDeps,
-      machineId: MACHINE_ID,
-      lifecycleOutbox: { enqueue: async () => undefined },
-      operationalModel: new AgentOperationalReadModel(),
-      isTaskActive: () => false,
-    }));
+        lifecycleOutbox: { enqueue: async () => undefined },
+        operationalModel: new AgentOperationalReadModel(),
+        isTaskActive: () => false,
+      })
+    );
 
     await vi.waitFor(() => {
       expect(resumeTurnForSlot).toHaveBeenCalled();
@@ -162,5 +161,4 @@ describe('native queued delivery after agent_end', () => {
     };
     expect(shouldDeliverNativeTask(row!, { slot })).toBe(true);
   });
-
 });

@@ -1,24 +1,14 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
-  logNativeDeliveryFallback,
   logNativeDeliveryInjecting,
   logNativeDeliveryMutexSkip,
-  logNativeDeliveryPrimary,
   logNativeDeliverySkip,
   logNativeDeliveryTrigger,
 } from './native-delivery-log.js';
 
 describe('native-delivery-log', () => {
   afterEach(() => vi.restoreAllMocks());
-
-  test('logNativeDeliveryPrimary uses primary prefix', () => {
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryPrimary('builder', 'room_1');
-    expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:primary] turn idle builder@room_1 — trying inject'
-    );
-  });
 
   test('logNativeDeliveryTrigger identifies the event-driven source', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -28,11 +18,11 @@ describe('native-delivery-log', () => {
     );
   });
 
-  test('logNativeDeliveryFallback identifies periodic recovery', () => {
+  test('logNativeDeliveryTrigger identifies periodic recovery', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryFallback('periodic-reconcile', 'builder', 'room_1', 'task_1');
+    logNativeDeliveryTrigger('periodic-reconcile', 'builder', 'room_1', 'task_1');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:fallback] source=periodic-reconcile builder@room_1 task task_1 — periodic recovery pass'
+      '[NativeDelivery:trigger] source=periodic-reconcile builder@room_1 task task_1'
     );
   });
 

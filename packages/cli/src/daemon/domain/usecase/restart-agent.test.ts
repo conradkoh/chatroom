@@ -61,5 +61,8 @@ describe('restartAgent', () => {
       .mockRejectedValue(new Error('orchestrator failed'));
 
     await expect(restartAgent(deps, baseInput)).resolves.toBeUndefined();
+    expect(deps.log).toHaveBeenCalledWith(
+      '[daemon] agent.restart failed (correlationId=corr-1) for role=builder: orchestrator failed'
+    );
   });
 });

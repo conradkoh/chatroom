@@ -4,7 +4,6 @@ import {
   markRestartOrchestratorInFlight,
   clearRestartOrchestratorInFlight,
   isRestartOrchestratorInFlight,
-  filterSnapshotsExcludingRestartInFlight,
   _resetRestartOrchestratorInFlightForTests,
 } from './restart-orchestrator-in-flight.js';
 
@@ -47,25 +46,5 @@ describe('restart-orchestrator-in-flight', () => {
     _resetRestartOrchestratorInFlightForTests();
     markRestartOrchestratorInFlight('room_1', 'builder', 'corr-1');
     expect(isRestartOrchestratorInFlight('room_1', 'planner')).toBe(false);
-  });
-
-  test('filterSnapshotsExcludingRestartInFlight excludes in-flight roles', () => {
-    _resetRestartOrchestratorInFlightForTests();
-    markRestartOrchestratorInFlight('room_1', 'builder', 'corr-1');
-
-    type TestSnapshot = {
-      chatroomId: string;
-      agentConfig: { role: string };
-      taskId: string;
-    };
-
-    const snapshots: TestSnapshot[] = [
-      { chatroomId: 'room_1', agentConfig: { role: 'builder' }, taskId: 't1' },
-      { chatroomId: 'room_1', agentConfig: { role: 'planner' }, taskId: 't2' },
-    ];
-
-    const filtered = filterSnapshotsExcludingRestartInFlight(snapshots);
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0].taskId).toBe('t2');
   });
 });

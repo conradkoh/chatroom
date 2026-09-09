@@ -4,6 +4,10 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
 
+import {
+  NativeDeliveryService,
+  type NativeDeliveryServiceDependencies,
+} from './native-delivery/native-delivery-service.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
 import { TaskOutbox } from './task-outbox.js';
@@ -74,6 +78,9 @@ export interface TaskService {
       operational?: TaskOperationalAgent | undefined;
     }
   ): string | null;
+  createNativeDeliveryService(
+    deps: Omit<NativeDeliveryServiceDependencies, 'taskService' | 'taskSnapshotState'>
+  ): NativeDeliveryService;
 }
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
@@ -180,7 +187,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     void runRoomInbox(chatroomId, cursor, controller);
   };
 
-  return {
+  const service: TaskService = {
     startTaskInbox: async (client) => {
       if (inboxClient) return;
       inboxStore = createInboxStateStore(resolveInboxDbPath(deps.machineId));
@@ -237,5 +244,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     isNativeHarness,
     snapshotRequestsNativeColdSession,
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
+    createNativeDeliveryService: (deliveryDeps) => {
+      const nativeDelivery = new NativeDeliveryService({
+        ...deliveryDeps,
+        taskSnapshotState,
+        taskService: service,
+      });
+      nativeDelivery.startPeriodicReconciliation();
+      return nativeDelivery;
+    },
   };
+  return service;
 }

@@ -3,7 +3,7 @@ import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/use
 import { api } from '../../../api.js';
 import { mapAssignedTaskSnapshotList } from '../../../infrastructure/mappers/map-assigned-task.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
-import type { NativeTaskDeliverySessionDeps } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 
 export async function fetchMachineAssignedTaskSnapshots(
   sessionDeps: NativeTaskDeliverySessionDeps,

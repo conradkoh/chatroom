@@ -12,9 +12,9 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { withTestTaskService } from './test-task-service.js';
-import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';
@@ -108,7 +108,7 @@ describe('native duplicate task injection', () => {
       onTaskDelivered: ({ taskId }: { taskId: string }) => activeTaskIds.add(taskId),
     });
 
-    coordinator.reconcileAssignedTasks(reconcileParams);
+    coordinator.reconcileRoleTasks(reconcileParams);
     await vi.waitFor(() => {
       expect(activeTaskIds.has(TASK_ID)).toBe(true);
     });
@@ -116,7 +116,7 @@ describe('native duplicate task injection', () => {
     resumeTurnForSlot.mockClear();
     logSpy.mockClear();
 
-    coordinator.reconcileAssignedTasks(reconcileParams);
+    coordinator.reconcileRoleTasks(reconcileParams);
     await new Promise((r) => setTimeout(r, 30));
 
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
@@ -125,4 +125,53 @@ describe('native duplicate task injection', () => {
     );
   });
 
+  test('uses explicit production executors for start and injection side effects', async () => {
+    const row = makeAcknowledgedRow();
+    const agentMgr = makeAgentMgr(vi.fn());
+    const operationalModel = new AgentOperationalReadModel();
+    operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
+    const delivered = {
+      chatroomId: CHATROOM_ID,
+      role: ROLE,
+      taskId: TASK_ID,
+      harnessSessionId: HARNESS_SESSION_ID,
+    };
+    const injectTask = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('inject failed'))
+      .mockResolvedValue({ kind: 'delivered', delivered });
+    const onTaskDelivered = vi.fn();
+    const params = withTestTaskService({
+      tasks: [row],
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      runSerializedForAgent: vi.fn() as never,
+      sessionDeps: {
+        sessionId: 'session_executor',
+        machineId: 'machine_dup',
+        logEvent: async () => undefined,
+        convexUrl: 'http://test:3210',
+        backend: { mutation: vi.fn(), query: vi.fn() },
+      },
+      machineId: 'machine_dup',
+      lifecycleOutbox: { enqueue: async () => undefined },
+      operationalModel,
+      isTaskActive: () => false,
+      onTaskDelivered,
+      executors: {
+        startAgent: vi.fn(),
+        injectTask,
+      },
+    });
+
+    const coordinator = new NativeTaskDeliveryCoordinator();
+    await coordinator.reconcileRoleTasks(params);
+    await coordinator.reconcileRoleTasks(params);
+
+    expect(injectTask).toHaveBeenCalledTimes(2);
+    expect(injectTask).toHaveBeenNthCalledWith(1, row, HARNESS_SESSION_ID);
+    expect(injectTask).toHaveBeenNthCalledWith(2, row, HARNESS_SESSION_ID);
+    expect(onTaskDelivered).toHaveBeenCalledWith(delivered);
+  });
 });

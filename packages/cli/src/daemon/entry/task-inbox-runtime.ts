@@ -10,13 +10,11 @@ import {
   AgentLifecycleOutboxService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
-import { api } from '../../api.js';
-import { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
-import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
 import {
   registerTaskInboxRoomMembershipRefresh,
   unregisterTaskInboxRoomMembershipRefresh,
 } from './task-inbox-membership-registry.js';
+import { api } from '../../api.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import { ackMachineOperationalSignals } from '../infrastructure/agent-operational/ack-machine-operational-signals.js';
 import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
@@ -27,9 +25,12 @@ import {
   type OperationalInboxUpdate,
 } from '../infrastructure/agent-operational/operational-inbox.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
+import {
+  type NativeDeliveryService,
+  type NativeTaskDeliverySessionDeps,
+} from '../services/service-interfaces.js';
 import { createAgentTaskStateService } from '../services/service-interfaces.js';
 
-const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 const INBOX_RESTART_INITIAL_MS = 1_000;
 const INBOX_RESTART_MAX_MS = 30_000;
 function isAbortError(error: unknown): boolean {
@@ -109,25 +110,19 @@ export const startTaskInboxEffect = (
     const abort = new AbortController();
     let stopped = false;
     // TaskService owns the task read model and the task-status subscription.
-    const taskSnapshotState = session.taskService.taskSnapshotState;
     const agentOperationalReadModel = new AgentOperationalReadModel();
     const agentTaskState = createAgentTaskStateService();
-    const nativeDelivery = new NativeDeliveryService({
+    const nativeDelivery = session.taskService.createNativeDeliveryService({
       runtime,
       effectContext,
       agentMgr,
       runSerializedForAgent: commandService.runSerializedForAgent,
       sessionDeps,
       machineId: session.machineId,
-      taskSnapshotState,
       agentTaskState,
       agentOperationalReadModel,
       lifecycleOutbox,
-      taskService: session.taskService,
     });
-    const unsubscribeTaskService = session.taskService.subscribe((notification) =>
-      nativeDelivery.handleTaskServiceNotification(notification)
-    );
     yield* Effect.tryPromise(() => session.taskService.startTaskInbox(wsClient)).pipe(
       Effect.catchAll((error) => {
         console.warn('[TaskInbox] service bootstrap failed:', error);
@@ -139,8 +134,6 @@ export const startTaskInboxEffect = (
       string,
       { controller: AbortController; startPromise: Promise<void> }
     >();
-    let inboxUpdatesInFlight = 0;
-    let reconcileInFlight = false;
     const bootstrapSucceeded = yield* Effect.tryPromise(async () => {
       const rows = await fetchMachineAgentOperationalStatus(sessionDeps, session.machineId);
       agentOperationalReadModel.replace(rows);
@@ -155,34 +148,32 @@ export const startTaskInboxEffect = (
 
     const operationalHandler = async (update: OperationalInboxUpdate): Promise<void> => {
       const chatroomId = update.chatroomId;
-      inboxUpdatesInFlight += 1;
+      const changed = agentOperationalReadModel.applySignalPage(update.rows, update.removed);
+      await Promise.all(
+        changed.map(({ chatroomId: roomId, role }) =>
+          nativeDelivery.requestReconcile({
+            chatroomId: roomId,
+            role,
+            source: 'operational-signal',
+          })
+        )
+      );
+      inboxStore.save(
+        {
+          inboxType: 'operational',
+          scopeKey: roomScopeKey(session.machineId, chatroomId),
+        },
+        { afterSignalKey: update.throughSignalKey }
+      );
       try {
-        const changed = agentOperationalReadModel.applySignalPage(update.rows, update.removed);
-        const snapshots = changed.flatMap(({ chatroomId: roomId, role }) =>
-          taskSnapshotState.listForRole(roomId, role)
+        await ackMachineOperationalSignals(
+          sessionDeps,
+          session.machineId,
+          chatroomId,
+          update.throughSignalKey
         );
-        if (snapshots.length > 0) {
-          await nativeDelivery.processSnapshots('operational-status', snapshots);
-        }
-        inboxStore.save(
-          {
-            inboxType: 'operational',
-            scopeKey: roomScopeKey(session.machineId, chatroomId),
-          },
-          { afterSignalKey: update.throughSignalKey }
-        );
-        try {
-          await ackMachineOperationalSignals(
-            sessionDeps,
-            session.machineId,
-            chatroomId,
-            update.throughSignalKey
-          );
-        } catch (error) {
-          console.warn(`[OperationalInbox room=${chatroomId}] signal cleanup failed:`, error);
-        }
-      } finally {
-        inboxUpdatesInFlight -= 1;
+      } catch (error) {
+        console.warn(`[OperationalInbox room=${chatroomId}] signal cleanup failed:`, error);
       }
     };
 
@@ -323,19 +314,6 @@ export const startTaskInboxEffect = (
       })
     );
 
-    /** Fallback reliability reconcile — primary delivery is reactive via inbox signals. */
-    const reconcileTimer = setInterval(() => {
-      if (stopped || inboxUpdatesInFlight > 0 || reconcileInFlight) return;
-      reconcileInFlight = true;
-      void nativeDelivery
-        .processSnapshots('periodic-reconcile', taskSnapshotState.listAll())
-        .catch((error) => {
-          console.warn('[TaskInbox] local delivery reconciliation failed:', error);
-        })
-        .finally(() => {
-          reconcileInFlight = false;
-        });
-    }, NATIVE_DELIVERY_RECONCILE_MS);
     return {
       nativeDelivery,
       stop() {
@@ -344,9 +322,7 @@ export const startTaskInboxEffect = (
         for (const watcher of roomWatchers.values()) {
           watcher.controller.abort();
         }
-        clearInterval(reconcileTimer);
         unregisterTaskInboxRoomMembershipRefresh();
-        unsubscribeTaskService();
         session.taskService.stopTaskInbox();
         nativeDelivery.dispose();
         nativeDelivery.agentTaskState.clearAll();
