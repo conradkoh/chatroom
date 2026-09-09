@@ -250,6 +250,58 @@ type ReconcileRequest = {
 The exact names may change during implementation, but the separation between
 trigger, decision, and execution is required.
 
+## Role reconciliation state contract
+
+The role key is `(chatroomId, role.toLowerCase())`. A reconciliation always
+re-reads the task snapshot, operational projection, local process slot, native
+turn phase, harness session, and local active-task state for that key.
+
+```text
+                 ┌──────────────────────┐
+                 │ requestReconcile     │
+                 │ source + role key    │
+                 └──────────┬───────────┘
+                            │ re-read current state
+                            v
+                 ┌──────────────────────┐
+                 │ DeliveryDecision     │
+                 └─┬──────┬──────┬──────┘
+       no task     │      │      │ ready
+       /blocked   wait   start   inject
+          │        │      │       │
+          v        v      v       v
+        idle     await  process  acquire role lock
+                           │       │
+                           │       v
+                           │   hydrate + inject
+                           │       │
+                           └───────┴──────────────┐
+                                   success/fail   │
+                                   release lock   │
+                                   record result  │
+                                                   v
+                                          next queued trigger
+```
+
+Decision ownership is intentionally one-way:
+
+| State                      | Owner                    | Meaning                                     |
+| -------------------------- | ------------------------ | ------------------------------------------- |
+| task snapshot/status       | task inbox/task service  | source-of-truth task state                  |
+| operational status         | operational read model   | backend desired state, stop intent, circuit |
+| process slot/session       | process manager          | local lifecycle and harness identity        |
+| delivery decision          | role coordinator         | pure evaluation of explicit state           |
+| start/recovery side effect | process manager executor | serialized process operation                |
+| task injection/receipt     | task service executor    | serialized content delivery and receipt     |
+| active delivery lock       | role delivery state      | local duplicate suppression                 |
+
+The oldest pending task is preferred over acknowledged work for a role. A
+completed, closed, deleted, or reassigned task is not deliverable. A spawning
+or stopping slot is a wait state; stop scope, stop intent, circuit-open state,
+non-idle native turn, and missing readiness data are blocked states with stable
+reason codes. A duplicate active task or in-flight delivery is a deduplicated
+state.
+
 ## Migration sequence
 
 ### 1. Inventory current triggers and define the role state contract
@@ -432,6 +484,23 @@ Acceptance gate:
 - [ ] Add tests that assert blocked decisions include stable reason codes.
 - [ ] Add an incident diagnostic checklist to the relevant daemon plan or
       harness documentation.
+
+Incident diagnostic checklist:
+
+1. Find the `NativeDelivery:trigger` line for the role/chatroom and note its
+   `source`.
+2. Find the matching `NativeDelivery:decision` line and compare `task`,
+   `decision`, `reason`, `slotState`, `nativeTurnPhase`,
+   `harnessSessionPresent`, and `operationalState`.
+3. If the decision is `start-agent`, inspect the matching
+   `NativeDelivery:execution operation=start-agent` result.
+4. If the decision is `inject`, inspect the matching execution result and the
+   task receipt/participant signal.
+5. If only `idle reason=no_deliverable_task` appears, verify task snapshot
+   hydration and assignment before investigating the agent process.
+6. If a task remains pending after a failed execution, the next task or
+   operational signal, agent lifecycle event, or periodic pass should produce a
+   new attempt with a new attempt ID.
 
 Acceptance gate:
 
