@@ -1,3 +1,4 @@
+import { logNativeDeliveryDecision } from './native-delivery-log.js';
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
 import {
   processTasksUpdate,
@@ -176,12 +177,19 @@ export class NativeDeliveryService {
       pendingSource: undefined as NativeDeliveryPass | undefined,
       promise: Promise.resolve(),
     };
+    // fallow-ignore-next-line complexity
     state.promise = (async () => {
       try {
         do {
           const source = state.pendingSource ?? params.source;
           state.pendingSource = undefined;
           const snapshots = this.deps.taskSnapshotState.listForRole(params.chatroomId, params.role);
+          if (snapshots.length === 0) {
+            logNativeDeliveryDecision(source, params.role, params.chatroomId, 'idle', undefined, {
+              reason: 'no_deliverable_task',
+              attemptId: `${Date.now()}-${params.chatroomId}-${params.role}`,
+            });
+          }
           await this.processSnapshots(source, snapshots, params.onTaskDelivered);
         } while (state.pendingSource !== undefined);
       } finally {
