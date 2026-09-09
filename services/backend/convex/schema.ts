@@ -20,6 +20,7 @@ import {
   machineAgentRemovalSignalValidator,
   machineAgentStopSignalValidator,
 } from '../src/domain/entities/machine-operational-signal';
+import { machineTaskDeliverySignalValidator } from '../src/domain/entities/machine-task-delivery-signal';
 
 const attachedSnippetValidator = v.object({
   reference: v.string(),
@@ -764,6 +765,15 @@ export default defineSchema({
     signalKey: v.string(),
     taskUpdatedAt: v.number(),
   })
+    .index('by_machineId_signalKey', ['machineId', 'signalKey'])
+    .index('by_machineId_chatroomId_signalKey', ['machineId', 'chatroomId', 'signalKey']),
+
+  /**
+   * Daemon-owned task-delivery signals. Payload is routing/status metadata only;
+   * task content is hydrated imperatively from assigned-task snapshots.
+   * Per-chatroom append-only cursors isolate invalidation between active rooms.
+   */
+  chatroom_machineTaskDeliverySignals: defineTable(machineTaskDeliverySignalValidator)
     .index('by_machineId_signalKey', ['machineId', 'signalKey'])
     .index('by_machineId_chatroomId_signalKey', ['machineId', 'chatroomId', 'signalKey']),
 

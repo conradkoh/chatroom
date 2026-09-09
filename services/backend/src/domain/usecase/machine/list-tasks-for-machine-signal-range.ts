@@ -1,7 +1,11 @@
+// fallow-ignore-file complexity
 import type { AssignedTaskSnapshotView } from './assigned-task-snapshot-contract';
 import { assignedTaskSnapshotFromDoc } from './assigned-task-snapshot-row';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
+
+export type MachineTaskSignalTable =
+  'chatroom_machineTaskStatusSignals' | 'chatroom_machineTaskDeliverySignals';
 
 export type ListTasksForMachineSignalRangeInput = {
   machineId: string;
@@ -10,6 +14,7 @@ export type ListTasksForMachineSignalRangeInput = {
   afterSignalKey: string;
   throughSignalKey: string;
   limit: number;
+  signalTable?: MachineTaskSignalTable;
 };
 
 export type ListTasksForMachineSignalRangeResult = {
@@ -23,8 +28,10 @@ export async function listTasksForMachineSignalRange(
   input: ListTasksForMachineSignalRangeInput
 ): Promise<ListTasksForMachineSignalRangeResult> {
   void input.userId;
+  const signalTable: MachineTaskSignalTable =
+    input.signalTable ?? 'chatroom_machineTaskStatusSignals';
   const signals = await ctx.db
-    .query('chatroom_machineTaskStatusSignals')
+    .query(signalTable)
     .withIndex('by_machineId_chatroomId_signalKey', (q) =>
       q
         .eq('machineId', input.machineId)
