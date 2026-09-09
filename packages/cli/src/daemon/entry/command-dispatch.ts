@@ -310,7 +310,7 @@ const commandEventHandlers: {
   [K in DaemonCommandEventType]?: (
     event: CommandEvent,
     tracker: DedupTracker,
-    nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots' | 'requestReconcile'>
+    nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>
   ) => Effect.Effect<void, never, CommandDispatchDeps>;
 } = {
   'agent.requestStart': handleRequestStartEffect,
@@ -334,7 +334,7 @@ const commandEventHandlers: {
 export const dispatchCommandEventEffect = (
   event: CommandEvent,
   tracker: DedupTracker,
-  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots' | 'requestReconcile'>
+  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>
 ): Effect.Effect<void, never, CommandDispatchDeps> => {
   if (!isDaemonCommandEventType(event.type)) return Effect.void;
   const factory = commandEventHandlers[event.type];
@@ -347,7 +347,7 @@ export async function handleInboundCommandEvent(
   effectContext: Context.Context<CommandDispatchDeps>,
   session: DaemonSessionServiceShape,
   claimedCommand: ClaimedMachineCommand,
-  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots' | 'requestReconcile'>
+  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>
 ): Promise<void> {
   if (claimedCommand.commandId !== commandId) return;
   const renewTimer = setInterval(() => {

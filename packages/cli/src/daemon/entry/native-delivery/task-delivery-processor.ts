@@ -27,7 +27,6 @@ import type {
   DaemonAgentProcessManagerServiceShape,
 } from '../daemon-services.js';
 import type { AgentHarness } from '../daemon-types.js';
-import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 
 type TaskDeliveryService = Pick<
   TaskService,
@@ -77,10 +76,8 @@ export async function processTasksUpdate(
   isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean,
   options: ProcessTasksUpdateOptions
 ): Promise<void> {
-  const filteredTasks = filterSnapshotsExcludingRestartInFlight([...options.snapshots]);
-  if (filteredTasks.length === 0) return;
-
-  const first = filteredTasks[0];
+  const first = options.snapshots[0];
+  if (!first) return;
   if (pass === 'periodic-reconcile') {
     logNativeDeliveryFallback(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   } else {
@@ -134,7 +131,7 @@ export async function processTasksUpdate(
     },
   };
   await getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
-    tasks: filteredTasks,
+    tasks: [...options.snapshots],
     pass,
     runtime,
     effectContext,

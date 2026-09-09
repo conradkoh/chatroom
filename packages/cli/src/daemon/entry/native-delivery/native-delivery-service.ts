@@ -30,8 +30,8 @@ export type NativeDeliveryPass =
   | 'agent-started'
   | 'turn-ended'
   | 'restart-completed';
-// Compatibility aliases remain accepted by processSnapshots while callers migrate
-// to requestReconcile and the canonical trigger names above.
+// Compatibility aliases remain accepted by the internal delivery adapter while
+// callers migrate to requestReconcile and the canonical trigger names above.
 export type LegacyNativeDeliveryPass = 'inbox-signal' | 'operational-status' | 'restart';
 
 export type NativeTaskDeliveredHandler = (args: {
@@ -190,7 +190,7 @@ export class NativeDeliveryService {
               attemptId: `${Date.now()}-${params.chatroomId}-${params.role}`,
             });
           }
-          await this.processSnapshots(source, snapshots, params.onTaskDelivered);
+          await this.reconcileRole(source, snapshots, params.onTaskDelivered);
         } while (state.pendingSource !== undefined);
       } finally {
         if (this.reconcileStates.get(key) === state) this.reconcileStates.delete(key);
@@ -221,7 +221,7 @@ export class NativeDeliveryService {
     );
   }
 
-  async processSnapshots(
+  private async reconcileRole(
     pass: NativeDeliveryPass | LegacyNativeDeliveryPass,
     snapshots: readonly AssignedTaskSnapshotView[],
     onTaskDelivered?: NativeTaskDeliveredHandler

@@ -28,6 +28,7 @@ function context(
     operational: { operationalState: 'running', stopState: 'idle' },
     activeTaskId: undefined,
     deliveryInFlight: false,
+    agentLifecycleInFlight: false,
     isNativeHarness: (harness) => harness.endsWith('-sdk'),
     snapshotRequestsNativeColdSession: (row) => row.requestsNativeColdSession === true,
     explainNativeDeliveryBlock: vi.fn(() => null),
@@ -97,8 +98,9 @@ describe('decideNextDelivery', () => {
 
   test('returns idle when no task is deliverable', () => {
     expect(decideNextDelivery([task({ status: 'in_progress' })], context())).toEqual({
-      kind: 'idle',
-      reason: 'no_deliverable_task',
+      kind: 'blocked',
+      taskId: 'task-1',
+      reason: 'task_status_not_deliverable',
     });
   });
 
@@ -130,5 +132,39 @@ describe('decideNextDelivery', () => {
         context({ explainNativeDeliveryBlock: vi.fn(() => 'operational_circuit_open') })
       )
     ).toEqual({ kind: 'blocked', taskId: 'task-1', reason: 'operational_circuit_open' });
+  });
+
+  test.each([
+    'not_native_harness',
+    'acknowledged_wrong_role',
+    'chatroom_stop_scope_active',
+    'operational_state_not_running',
+    'slot_missing',
+    'slot_not_running',
+    'slot_pid_missing',
+    'spawned_pid_missing',
+    'pid_mismatch',
+    'working_dir_missing',
+  ] as const)('preserves stable blocked reason %s', (reason) => {
+    expect(
+      decideNextDelivery([task()], context({ explainNativeDeliveryBlock: vi.fn(() => reason) }))
+    ).toEqual({ kind: 'blocked', taskId: 'task-1', reason });
+  });
+
+  test('waits while an agent lifecycle operation is in flight', () => {
+    expect(decideNextDelivery([task()], context({ agentLifecycleInFlight: true }))).toEqual({
+      kind: 'wait',
+      taskId: 'task-1',
+      reason: 'agent_start_in_flight',
+    });
+  });
+
+  test('waits for a missing harness session', () => {
+    expect(
+      decideNextDelivery(
+        [task()],
+        context({ explainNativeDeliveryBlock: vi.fn(() => 'harness_session_missing') })
+      )
+    ).toEqual({ kind: 'wait', taskId: 'task-1', reason: 'session_not_ready' });
   });
 });

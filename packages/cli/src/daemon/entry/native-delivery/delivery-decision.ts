@@ -50,6 +50,7 @@ export type DeliveryDecisionContext = {
   operational: TaskOperationalAgent | undefined;
   activeTaskId: string | undefined;
   deliveryInFlight: boolean;
+  agentLifecycleInFlight: boolean;
   isNativeHarness: (harness: string) => boolean;
   snapshotRequestsNativeColdSession: (task: AssignedTaskSnapshotView) => boolean;
   explainNativeDeliveryBlock: (
@@ -96,16 +97,20 @@ export function decideNextDelivery(
   tasks: readonly AssignedTaskSnapshotView[],
   context: DeliveryDecisionContext
 ): DeliveryDecision {
-  const task = [...tasks]
+  const assignedTasks = [...tasks]
     .filter((candidate) => candidate.agentConfig.role.toLowerCase() === context.role.toLowerCase())
-    .sort(taskSort)
-    .find((candidate) => isDeliverableTaskStatus(candidate.status));
+    .sort(taskSort);
+  const task = assignedTasks.find((candidate) => isDeliverableTaskStatus(candidate.status));
 
   if (!task) {
-    const assignedToRole = tasks.some(
-      (candidate) => candidate.agentConfig.role.toLowerCase() === context.role.toLowerCase()
-    );
-    return { kind: 'idle', reason: assignedToRole ? 'no_deliverable_task' : 'not_assigned' };
+    if (assignedTasks.length > 0) {
+      return {
+        kind: 'blocked',
+        taskId: assignedTasks[0].taskId,
+        reason: 'task_status_not_deliverable',
+      };
+    }
+    return { kind: 'idle', reason: tasks.length > 0 ? 'not_assigned' : 'no_deliverable_task' };
   }
   if (context.activeTaskId === task.taskId) {
     return { kind: 'deduplicated', taskId: task.taskId, reason: 'task_state_active' };
@@ -116,6 +121,10 @@ export function decideNextDelivery(
 
   if (!context.isNativeHarness(task.agentConfig.agentHarness)) {
     return { kind: 'blocked', taskId: task.taskId, reason: 'not_native_harness' };
+  }
+
+  if (context.agentLifecycleInFlight) {
+    return { kind: 'wait', taskId: task.taskId, reason: 'agent_start_in_flight' };
   }
 
   const blockReason = context.explainNativeDeliveryBlock(task, {

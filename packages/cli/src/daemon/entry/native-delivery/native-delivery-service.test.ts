@@ -161,8 +161,8 @@ describe('NativeDeliveryService', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const processSnapshots = vi
-      .spyOn(service, 'processSnapshots')
+    const reconcileRole = vi
+      .spyOn(service as any, 'reconcileRole')
       .mockImplementationOnce(async () => gate)
       .mockResolvedValue(undefined);
 
@@ -180,8 +180,8 @@ describe('NativeDeliveryService', () => {
     release();
     await Promise.all([first, second]);
 
-    expect(processSnapshots).toHaveBeenCalledTimes(2);
-    expect(processSnapshots).toHaveBeenNthCalledWith(
+    expect(reconcileRole).toHaveBeenCalledTimes(2);
+    expect(reconcileRole).toHaveBeenNthCalledWith(
       2,
       'operational-signal',
       expect.any(Array),

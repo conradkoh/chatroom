@@ -29,7 +29,7 @@ import type {
   DaemonSessionService,
 } from '../daemon-services.js';
 import type { AgentHarness } from '../daemon-types.js';
-import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
+import { isRestartOrchestratorInFlight } from '../restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 type TaskDeliveryService = Pick<
@@ -118,7 +118,7 @@ export class NativeTaskDeliveryCoordinator {
       | undefined;
     executors?: NativeDeliveryExecutors;
   }): Promise<void> {
-    const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
+    const tasks = params.tasks;
     if (tasks.length === 0) return;
     const {
       runtime,
@@ -162,6 +162,7 @@ export class NativeTaskDeliveryCoordinator {
         operational,
         activeTaskId,
         deliveryInFlight: false,
+        agentLifecycleInFlight: isRestartOrchestratorInFlight(firstTask.chatroomId, role),
         isNativeHarness: taskService.isNativeHarness,
         snapshotRequestsNativeColdSession: taskService.snapshotRequestsNativeColdSession,
         explainNativeDeliveryBlock: taskService.explainNativeDeliveryBlock,
