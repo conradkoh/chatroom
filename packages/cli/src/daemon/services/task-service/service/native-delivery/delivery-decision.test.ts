@@ -55,6 +55,16 @@ describe('decideNextDelivery', () => {
     ).toEqual({ kind: 'start-agent', taskId: 'task-1' });
   });
 
+  test('starts pending work when the local slot and backend PID are both missing', () => {
+    const explain = vi.fn(() => 'spawned_pid_missing');
+    expect(
+      decideNextDelivery(
+        [task()],
+        context({ slot: undefined, explainNativeDeliveryBlock: explain })
+      )
+    ).toEqual({ kind: 'start-agent', taskId: 'task-1' });
+  });
+
   test('waits for a spawning or stopping slot', () => {
     const explain = vi.fn(() => 'slot_not_running (slotState=spawning, expectedPid=none)');
     expect(

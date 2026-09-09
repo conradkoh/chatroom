@@ -148,7 +148,13 @@ export function decideNextDelivery(
 
   const coldSession = context.snapshotRequestsNativeColdSession(task);
   const startAllowed =
-    blockReason.startsWith('slot_missing') || blockReason.startsWith('slot_not_running');
+    blockReason.startsWith('slot_missing') ||
+    blockReason.startsWith('slot_not_running') ||
+    // A desired-running role with neither a local slot nor a backend PID is
+    // still startable. The readiness invariant reports this as
+    // `spawned_pid_missing`, so pending work must not be left permanently
+    // blocked in that transitional state.
+    blockReason.startsWith('spawned_pid_missing');
   if (
     startAllowed &&
     !coldSession &&
