@@ -46,6 +46,32 @@ This plan is intentionally limited to daemon orchestration. The separate plans
 for task-status signal storage and machine operational signal storage remain
 responsible for those data-model migrations.
 
+## Implementation status
+
+The implementation is present on the associated PR branch. The following
+evidence is current as of 2026-09-09:
+
+- All task, operational, lifecycle, restart, bootstrap, and periodic triggers
+  route through `NativeDeliveryService.requestReconcile`.
+- `decideNextDelivery` is a pure typed decision boundary. Its stable blocked
+  reasons, wait states, deduplication outcomes, start path, and injection path
+  are covered by focused tests.
+- `NativeTaskDeliveryCoordinator.reconcileRoleTasks` is the only production
+  role-level delivery coordinator. Start and injection side effects are passed
+  through explicit executor ports.
+- Restart-in-flight state is represented as an explicit lifecycle wait decision;
+  snapshots are not silently discarded by a restart-specific delivery filter.
+- Production searches contain no `processSnapshots`,
+  `startPendingNativeAgents`, `listDeliverableSnapshots`, or
+  `reconcileAssignedTasks` delivery paths.
+- Full verification passed: 321 CLI test files and 2,444 CLI tests, plus the
+  workspace test tasks, CLI/backend typechecks, staged lint/format hooks, and
+  pre-push checks.
+
+The plan remains in `docs/plans/pending/` until PR merge and production
+verification. Post-merge monitoring and the final move to
+`docs/plans/completed/` are intentionally still outstanding.
+
 ## Validation criteria
 
 The change is valid only if all of the following are true:
