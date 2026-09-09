@@ -136,7 +136,10 @@ describe('native duplicate task injection', () => {
       taskId: TASK_ID,
       harnessSessionId: HARNESS_SESSION_ID,
     };
-    const injectTask = vi.fn().mockResolvedValue({ kind: 'delivered', delivered });
+    const injectTask = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('inject failed'))
+      .mockResolvedValue({ kind: 'delivered', delivered });
     const onTaskDelivered = vi.fn();
     const params = withTestTaskService({
       tasks: [row],
@@ -162,9 +165,13 @@ describe('native duplicate task injection', () => {
       },
     });
 
-    await new NativeTaskDeliveryCoordinator().reconcileAssignedTasks(params);
+    const coordinator = new NativeTaskDeliveryCoordinator();
+    await coordinator.reconcileAssignedTasks(params);
+    await coordinator.reconcileAssignedTasks(params);
 
-    expect(injectTask).toHaveBeenCalledWith(row, HARNESS_SESSION_ID);
+    expect(injectTask).toHaveBeenCalledTimes(2);
+    expect(injectTask).toHaveBeenNthCalledWith(1, row, HARNESS_SESSION_ID);
+    expect(injectTask).toHaveBeenNthCalledWith(2, row, HARNESS_SESSION_ID);
     expect(onTaskDelivered).toHaveBeenCalledWith(delivered);
   });
 });
