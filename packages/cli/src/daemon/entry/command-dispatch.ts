@@ -26,18 +26,18 @@ import type {
   DaemonAgentProcessManagerCommandService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
+import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
+import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
+import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
+import type { NativeDeliveryService } from '../services/service-interfaces.js';
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
 import { onStopScopeAgentEffect } from './events/agent/on-stop-scope-agent.js';
 import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
-import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
-import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
-import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
-import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
 import { makeGitStateKey } from '../infrastructure/git/types.js';
@@ -375,3 +375,4 @@ export async function handleInboundCommandEvent(
     clearInterval(renewTimer);
   }
 }
+// fallow-ignore-file code-duplication

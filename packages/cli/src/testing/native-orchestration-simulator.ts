@@ -10,13 +10,15 @@ import { Effect } from 'effect';
 
 import { RecordingHarness } from './recording-harness.js';
 import { api } from '../api.js';
-import { buildNativeInjectionPrompt } from '../daemon/services/task-service/index.js';
+import {
+  buildNativeInjectionPrompt,
+  createConvexNativeTaskDeliveryGateway,
+  createDaemonAuditPort,
+} from '../daemon/services/service-interfaces.js';
 import {
   runNativeInjectionEffect,
   type NativeInjectorDeps,
-} from '../daemon/services/task-service/index.js';
-import { createConvexNativeTaskDeliveryGateway } from '../daemon/services/task-service/infrastructure/adapters/convex-native-task-delivery-gateway.js';
-import { createDaemonAuditPort } from '../daemon/services/task-service/infrastructure/adapters/daemon-audit-port.js';
+} from '../daemon/services/service-interfaces.js';
 
 export interface SimulateInjectionOptions {
   task: AssignedTaskView;

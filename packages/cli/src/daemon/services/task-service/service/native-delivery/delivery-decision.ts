@@ -1,11 +1,11 @@
-import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
-import { isDeliverableTaskStatus } from '../../domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import {
   isSlotIdle,
   isSlotSpawning,
   isSlotStopping,
-} from '../../domain/usecase/check-agent-slot.js';
-import type { AgentProcessSlotView } from '../../services/agent-process-contracts.js';
+} from '../../../../domain/usecase/check-agent-slot.js';
+import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 type TaskOperationalAgent = {
   operationalState: 'running' | 'stopped' | 'starting' | 'circuit_open';

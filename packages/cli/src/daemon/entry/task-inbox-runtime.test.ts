@@ -5,6 +5,10 @@ import { startTaskInboxEffect } from './task-inbox-runtime.js';
 import { type AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
 import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
+import {
+  NativeDeliveryService,
+  type NativeDeliveryServiceDependencies,
+} from '../services/service-interfaces.js';
 
 const processTasksUpdate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const runOperationalInbox = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -28,7 +32,9 @@ vi.mock('../infrastructure/inbox/task.js', () => ({
   taskSignalCursorAt: (timestamp: number) =>
     `${String(Math.max(0, Math.floor(timestamp))).padStart(16, '0')}:`,
 }));
-vi.mock('./native-delivery/task-delivery-processor.js', () => ({ processTasksUpdate }));
+vi.mock('../services/task-service/service/native-delivery/task-delivery-processor.js', () => ({
+  processTasksUpdate,
+}));
 vi.mock('../infrastructure/agent-operational/operational-inbox.js', () => ({
   runOperationalInbox,
   operationalSignalCursorAt: (timestamp: number) =>
@@ -196,7 +202,7 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   const taskListeners = new Set<(notification: unknown) => Promise<void> | void>();
   const registeredTaskRooms = new Set<string>();
   const taskRoomControllers = new Map<string, AbortController>();
-  const taskService = {
+  const taskService: Record<string, any> = {
     taskSnapshotState,
     subscribe: vi.fn((listener: (notification: unknown) => Promise<void> | void) => {
       taskListeners.add(listener);
@@ -243,6 +249,17 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
     snapshotRequestsNativeColdSession: vi.fn(() => false),
     explainNativeDeliveryBlock: vi.fn(() => null),
     deliverNativeTask: vi.fn().mockResolvedValue(undefined),
+  };
+  taskService.createNativeDeliveryService = (
+    deliveryDeps: Omit<NativeDeliveryServiceDependencies, 'taskService' | 'taskSnapshotState'>
+  ) => {
+    const service = new NativeDeliveryService({
+      ...deliveryDeps,
+      taskSnapshotState: taskSnapshotState as never,
+      taskService: taskService as never,
+    });
+    service.startPeriodicReconciliation();
+    return service;
   };
   Object.assign(session, { taskService });
   const layers = Layer.mergeAll(

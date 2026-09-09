@@ -19,14 +19,11 @@ import {
 } from './native-task-delivery-coordinator.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
 import { withTestTaskService } from './test-task-service.js';
-import { api } from '../../../api.js';
-import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
-import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import {
-  buildNativeInjectionPrompt,
-  shouldDeliverNativeTask,
-} from '../../services/task-service/index.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
+import { api } from '../../../../../api.js';
+import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';

@@ -8,7 +8,7 @@ import { Effect } from 'effect';
 import type { Id } from '../../../../api.js';
 import { restartAgent } from '../../../../daemon/domain/usecase/restart-agent.js';
 import { createRestartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
-import type { NativeDeliveryService } from '../../../../daemon/entry/native-delivery/native-delivery-service.js';
+import type { NativeDeliveryService } from '../../../../daemon/services/service-interfaces.js';
 import {
   DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,

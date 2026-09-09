@@ -5,11 +5,13 @@ import {
   type TaskDeliveryContext,
   type TaskDeliveryRuntime,
 } from './task-delivery-processor.js';
-import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
-import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
-import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { TaskSnapshotStateReader } from '../../infrastructure/inbox/task-snapshot-state.js';
-import type { TaskInboxUpdate } from '../../infrastructure/inbox/task.js';
+import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import { getRoleDeliveryState } from '../../../../entry/role-delivery-state.js';
+import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+import type { TaskSnapshotStateReader } from '../../../../infrastructure/inbox/task-snapshot-state.js';
+import type { TaskInboxUpdate } from '../../../../infrastructure/inbox/task.js';
 import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
@@ -17,10 +19,8 @@ import type {
   AgentTaskStateService,
   AgentProcessManagerService,
   TaskService,
-} from '../../services/service-interfaces.js';
-import type { TaskServiceNotification } from '../../services/task-service/index.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { getRoleDeliveryState } from '../role-delivery-state.js';
+} from '../../../service-interfaces.js';
+import type { TaskServiceNotification } from '../../index.js';
 
 export type NativeDeliveryPass =
   | 'task-signal'
@@ -47,7 +47,10 @@ type TaskDeliveryService = Pick<
   | 'isNativeHarness'
   | 'snapshotRequestsNativeColdSession'
   | 'explainNativeDeliveryBlock'
->;
+> &
+  Partial<Pick<TaskService, 'subscribe'>>;
+
+const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 
 export interface NativeDeliveryServiceDependencies {
   readonly runtime: TaskDeliveryRuntime;
@@ -82,6 +85,9 @@ export class NativeDeliveryService {
       promise: Promise<void>;
     }
   >();
+  private unsubscribeTaskService: (() => void) | undefined;
+  private periodicReconcileTimer: ReturnType<typeof setInterval> | undefined;
+  private periodicReconcileInFlight = false;
 
   constructor(private readonly deps: NativeDeliveryServiceDependencies) {
     this.unsubscribeAgentTurnEnded = deps.agentMgr.subscribeAgentTurnEnded((event) =>
@@ -92,6 +98,9 @@ export class NativeDeliveryService {
     );
     this.unsubscribeAgentSessionLost = deps.agentMgr.subscribeAgentSessionLost((event) =>
       this.handleAgentSessionLost(event)
+    );
+    this.unsubscribeTaskService = deps.taskService.subscribe?.((notification) =>
+      this.handleTaskServiceNotification(notification)
     );
   }
 
@@ -137,12 +146,50 @@ export class NativeDeliveryService {
     }, 0);
   }
 
+  // fallow-ignore-next-line unused-class-member
   dispose(): void {
     this.unsubscribeAgentTurnEnded();
     this.unsubscribeAgentStarted();
     this.unsubscribeAgentSessionLost();
+    this.unsubscribeTaskService?.();
+    this.unsubscribeTaskService = undefined;
+    if (this.periodicReconcileTimer) {
+      clearInterval(this.periodicReconcileTimer);
+      this.periodicReconcileTimer = undefined;
+    }
   }
 
+  startPeriodicReconciliation(intervalMs = NATIVE_DELIVERY_RECONCILE_MS): void {
+    if (this.periodicReconcileTimer) return;
+    this.periodicReconcileTimer = setInterval(() => {
+      if (this.periodicReconcileInFlight) return;
+      this.periodicReconcileInFlight = true;
+      const roleKeys = new Set(
+        this.deps.taskSnapshotState
+          .listAll()
+          .map((snapshot) => `${snapshot.chatroomId}:${snapshot.agentConfig.role.toLowerCase()}`)
+      );
+      void Promise.all(
+        [...roleKeys].map((key) => {
+          const separator = key.indexOf(':');
+          return this.requestReconcile({
+            chatroomId: key.slice(0, separator),
+            role: key.slice(separator + 1),
+            source: 'periodic-reconcile',
+          });
+        })
+      )
+        .catch((error) => {
+          console.warn('[TaskService] local delivery reconciliation failed:', error);
+        })
+        .finally(() => {
+          this.periodicReconcileInFlight = false;
+        });
+    }, intervalMs);
+    this.periodicReconcileTimer.unref?.();
+  }
+
+  // fallow-ignore-next-line unused-class-member
   get agentTaskState(): AgentTaskStateService {
     return this.deps.agentTaskState;
   }

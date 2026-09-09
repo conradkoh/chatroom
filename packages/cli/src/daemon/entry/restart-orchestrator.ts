@@ -12,17 +12,19 @@ import {
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import type { AgentHarness } from './daemon-types.js';
-import type { AgentProcessManagerService } from '../services/service-interfaces.js';
-import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
-import { api } from '../../api.js';
-import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
 import {
   markRestartOrchestratorInFlight,
   clearRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
+import { api } from '../../api.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
+import { resetRoleDeliveryState } from '../services/service-interfaces.js';
+import type {
+  NativeDeliveryService,
+  AgentProcessManagerService,
+} from '../services/service-interfaces.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;

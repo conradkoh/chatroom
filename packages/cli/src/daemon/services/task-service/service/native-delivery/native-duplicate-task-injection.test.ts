@@ -12,9 +12,9 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { withTestTaskService } from './test-task-service.js';
-import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import { operationalRow } from '../../infrastructure/agent-operational/test-support.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';

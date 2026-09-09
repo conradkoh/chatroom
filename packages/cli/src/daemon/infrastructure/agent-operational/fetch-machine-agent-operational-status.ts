@@ -1,6 +1,6 @@
 import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
 import { api } from '../../../api.js';
-import type { NativeTaskDeliverySessionDeps } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 
 export async function fetchMachineAgentOperationalStatus(
   sessionDeps: NativeTaskDeliverySessionDeps,

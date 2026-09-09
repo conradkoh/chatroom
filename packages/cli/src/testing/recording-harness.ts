@@ -7,8 +7,8 @@
 
 import type { StopReason } from '../daemon/domain/entities/stop-reason.js';
 import type { AgentHarness } from '../daemon/entry/daemon-types.js';
-import type { NativeInjectorAgentMgr } from '../daemon/services/task-service/index.js';
 import type { AgentSlot } from '../daemon/services/agent-process-service/index.js';
+import type { NativeInjectorAgentMgr } from '../daemon/services/service-interfaces.js';
 import type { OperationResult } from '../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 
 export interface RecordedInjection {

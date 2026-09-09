@@ -5,7 +5,7 @@ import {
   isNativeSlotIdleForDelivery,
   setNativeTurnPhase,
 } from './native-turn-phase.js';
-import type { AgentSlot } from '../../services/agent-process-service/index.js';
+import type { AgentSlot } from '../../../agent-process-service/index.js';
 
 describe('native-turn-phase', () => {
   test('defaultNativeTurnPhase is idle', () => {

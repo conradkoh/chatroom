@@ -3,13 +3,15 @@ import type { Id } from '../../../api.js';
 import type { RestartAgentDeps } from '../../domain/usecase/restart-agent.js';
 import type { StartAgentDeps } from '../../domain/usecase/start-agent.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
-import type { AgentProcessManagerService } from '../../services/service-interfaces.js';
+import type {
+  AgentProcessManagerService,
+  NativeDeliveryService,
+} from '../../services/service-interfaces.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonSessionServiceShape,
 } from '../daemon-services.js';
 import type { AgentHarness, StartAgentReason } from '../daemon-types.js';
-import type { NativeDeliveryService } from '../native-delivery/native-delivery-service.js';
 import { runRestartOrchestrator } from '../restart-orchestrator.js';
 
 export function createStartAgentDeps(

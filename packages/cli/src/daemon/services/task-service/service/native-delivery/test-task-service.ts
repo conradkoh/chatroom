@@ -1,6 +1,8 @@
+// fallow-ignore-file unused-file code-duplication
+
 import { Effect } from 'effect';
 
-import { createTaskService, type TaskService } from '../daemon-services.js';
+import { createTaskService, type TaskService } from '../../index.js';
 
 type ReconcileLike = {
   sessionDeps: {
@@ -21,7 +23,9 @@ type ReconcileLike = {
   lifecycleOutbox: { enqueue: (fact: unknown) => Promise<unknown> };
 };
 
-export function withTestTaskService<T extends ReconcileLike>(params: T): T & { taskService: TaskService } {
+export function withTestTaskService<T extends ReconcileLike>(
+  params: T
+): T & { taskService: TaskService } {
   return {
     ...params,
     taskService: createTaskService({

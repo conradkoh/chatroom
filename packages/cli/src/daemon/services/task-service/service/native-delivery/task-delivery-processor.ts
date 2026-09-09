@@ -15,18 +15,18 @@ import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { api } from '../../../api.js';
-import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
-import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
-import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
-import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
-import type { AgentProcessManagerService, TaskService } from '../../services/service-interfaces.js';
+import { api } from '../../../../../api.js';
+import { mapAssignedTaskView } from '../../../../../infrastructure/mappers/map-assigned-task.js';
+import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
   DaemonAgentProcessManagerServiceShape,
-} from '../daemon-services.js';
-import type { AgentHarness } from '../daemon-types.js';
+} from '../../../../entry/daemon-services.js';
+import type { AgentHarness } from '../../../../entry/daemon-types.js';
+import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
+import type { AgentProcessManagerService, TaskService } from '../../../service-interfaces.js';
 
 type TaskDeliveryService = Pick<
   TaskService,

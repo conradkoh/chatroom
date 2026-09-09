@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { decideNextDelivery } from './delivery-decision.js';
-import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 
 const task = (overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView => ({
   taskId: 'task-1',

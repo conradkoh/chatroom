@@ -42,17 +42,17 @@
 
 > **Status:** ✅ Phase 0 shims deleted. Post-consolidation slice 2 removed `daemon-services.ts` and `types.ts` shims; `daemon-start/` now contains only `index.ts` (CLI entry). `event-bus.test.ts` relocated to `daemon/entry/events/`.
 
-| Current                               | Target | Verdict     | Rationale                                                                     |
-| ------------------------------------- | ------ | ----------- | ----------------------------------------------------------------------------- |
-| `init.ts`                             | —      | delete-shim | Re-exports `daemon/entry/init-daemon.ts`                                      |
-| `git-heartbeat.ts`                    | —      | delete-shim | Re-exports `daemon/entry/workspace-git/git-heartbeat.ts`                      |
-| `git-subscription.ts`                 | —      | delete-shim | Re-exports `daemon/entry/workspace-git/git-subscription.ts`                   |
-| `task-monitor.ts`                     | —      | delete-shim | Re-exports `daemon/entry/task-monitor-runtime.ts`                             |
-| `native-task-delivery-coordinator.ts` | —      | delete-shim | Re-exports `daemon/entry/native-delivery/native-task-delivery-coordinator.ts` |
-| `native-turn-phase.ts`                | —      | delete-shim | Re-exports `daemon/entry/native-delivery/native-turn-phase.ts`                |
-| `command-loop.ts`                     | —      | delete-shim | Re-exports `daemon/entry/command-dispatch.ts`                                 |
-| `enhancer/job-subscriber.ts`          | —      | delete-shim | Re-exports the consolidated `daemon/entry/enhancer/job-subscriber.ts`         |
-| `enhancer/start-subscriptions.ts`     | —      | delete-shim | Re-exports the consolidated `daemon/entry/enhancer/start-subscriptions.ts`    |
+| Current                               | Target | Verdict     | Rationale                                                                  |
+| ------------------------------------- | ------ | ----------- | -------------------------------------------------------------------------- |
+| `init.ts`                             | —      | delete-shim | Re-exports `daemon/entry/init-daemon.ts`                                   |
+| `git-heartbeat.ts`                    | —      | delete-shim | Re-exports `daemon/entry/workspace-git/git-heartbeat.ts`                   |
+| `git-subscription.ts`                 | —      | delete-shim | Re-exports `daemon/entry/workspace-git/git-subscription.ts`                |
+| `task-monitor.ts`                     | —      | delete-shim | Re-exports `daemon/entry/task-monitor-runtime.ts`                          |
+| `native-task-delivery-coordinator.ts` | —      | migrated    | Owned by `services/task-service/service/native-delivery/`                  |
+| `native-turn-phase.ts`                | —      | migrated    | Owned by `services/task-service/service/native-delivery/`                  |
+| `command-loop.ts`                     | —      | delete-shim | Re-exports `daemon/entry/command-dispatch.ts`                              |
+| `enhancer/job-subscriber.ts`          | —      | delete-shim | Re-exports the consolidated `daemon/entry/enhancer/job-subscriber.ts`      |
+| `enhancer/start-subscriptions.ts`     | —      | delete-shim | Re-exports the consolidated `daemon/entry/enhancer/start-subscriptions.ts` |
 
 ---
 
@@ -204,8 +204,8 @@
 
 ## 6. `services/agent-process-service/`
 
-| Current                              | Target                                                                    | Verdict     | Rationale                                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- |
+| Current                              | Target                                                                             | Verdict     | Rationale                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- |
 | `agent-process-manager.ts`           | `daemon/services/agent-process-service/infrastructure/agent-process-manager.ts`    | consolidate | Core process manager; importers: daemon-services, native-delivery, remote-agents                   |
 | `turn-completed-backend.ts`          | `daemon/services/agent-process-service/infrastructure/turn-completed-backend.ts`   | consolidate | Turn completion port; importer: agent-process-manager.ts                                           |
 | `turn-end-queue.ts`                  | `daemon/services/agent-process-service/infrastructure/turn-end-queue.ts`           | consolidate | Turn end queue; importer: agent-process-manager.ts                                                 |

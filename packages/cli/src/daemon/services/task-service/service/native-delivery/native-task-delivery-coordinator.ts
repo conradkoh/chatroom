@@ -8,13 +8,21 @@ import {
   logNativeDeliveryMutexSkip,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
-import { api } from '../../../api.js';
-import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
-import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
-import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
-import { isSlotIdle } from '../../domain/usecase/check-agent-slot.js';
-import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import { api } from '../../../../../api.js';
+import { mapAssignedTaskView } from '../../../../../infrastructure/mappers/map-assigned-task.js';
+import { getErrorMessage } from '../../../../../utils/convex-error.js';
+import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import { isSlotIdle } from '../../../../domain/usecase/check-agent-slot.js';
+import type {
+  DaemonAgentProcessManagerServiceShape,
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+} from '../../../../entry/daemon-services.js';
+import type { AgentHarness } from '../../../../entry/daemon-types.js';
+import { isRestartOrchestratorInFlight } from '../../../../entry/restart-orchestrator-in-flight.js';
+import { getRoleDeliveryState } from '../../../../entry/role-delivery-state.js';
+import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
@@ -22,15 +30,7 @@ import type {
   SerializedAgentOperationContext,
   NativeDeliverySessionHandles,
   TaskService,
-} from '../../services/service-interfaces.js';
-import type {
-  DaemonAgentProcessManagerServiceShape,
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../daemon-services.js';
-import type { AgentHarness } from '../daemon-types.js';
-import { isRestartOrchestratorInFlight } from '../restart-orchestrator-in-flight.js';
-import { getRoleDeliveryState } from '../role-delivery-state.js';
+} from '../../../service-interfaces.js';
 
 type TaskDeliveryService = Pick<
   TaskService,
@@ -333,3 +333,4 @@ export function getNativeTaskDeliveryCoordinator(): NativeTaskDeliveryCoordinato
 export function resetRoleDeliveryState(chatroomId: string, role: string): void {
   getRoleDeliveryState().resetDeliveryState(chatroomId, role);
 }
+// fallow-ignore-file complexity
