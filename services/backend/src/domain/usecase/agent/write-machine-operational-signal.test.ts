@@ -3,7 +3,10 @@ import { describe, expect, test } from 'vitest';
 
 import {
   buildMachineOperationalSignalKey,
-  writeMachineOperationalSignal,
+  writeMachineAgentRemovalSignal,
+  writeMachineAgentOperationalSignal,
+  writeMachineAgentStopSignal,
+  writeMachineConnectivitySignal,
 } from './write-machine-operational-signal';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
@@ -17,7 +20,7 @@ describe('buildMachineOperationalSignalKey', () => {
   });
 });
 
-describe('writeMachineOperationalSignal', () => {
+describe('writeMachineAgentOperationalSignal', () => {
   test('appends signals and does not create an operational head', async () => {
     const sessionId = 'operational-signal-append' as SessionId;
     await t.mutation(api.auth.loginAnon, { sessionId });
@@ -31,21 +34,21 @@ describe('writeMachineOperationalSignal', () => {
     const machineId = 'operational-signal-machine';
 
     await t.run(async (ctx) => {
-      await writeMachineOperationalSignal(ctx, {
+      await writeMachineAgentOperationalSignal(ctx, {
         machineId,
         chatroomId,
         role: 'Builder',
         revisionKey: 'revision-1',
         projectedAt: 100,
       });
-      await writeMachineOperationalSignal(ctx, {
+      await writeMachineAgentOperationalSignal(ctx, {
         machineId,
         chatroomId,
         role: 'Builder',
         revisionKey: 'revision-older',
         projectedAt: 99,
       });
-      await writeMachineOperationalSignal(ctx, {
+      await writeMachineAgentOperationalSignal(ctx, {
         machineId,
         chatroomId,
         role: 'Builder',
@@ -56,7 +59,7 @@ describe('writeMachineOperationalSignal', () => {
 
     const signals = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_machineOperationalSignals')
+        .query('chatroom_machineAgentOperationalSignals')
         .withIndex('by_machineId_chatroomId_signalKey', (q) =>
           q.eq('machineId', machineId).eq('chatroomId', chatroomId)
         )
@@ -75,5 +78,66 @@ describe('writeMachineOperationalSignal', () => {
       'revision-1',
       'revision-2',
     ]);
+  });
+
+  test('writes each purpose to its own signal table', async () => {
+    const sessionId = 'operational-signal-purpose-tables' as SessionId;
+    await t.mutation(api.auth.loginAnon, { sessionId });
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'duo',
+      teamName: 'Duo',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+    const input = {
+      machineId: `operational-signal-purpose-machine-${Math.random()}`,
+      chatroomId,
+      role: 'builder',
+      revisionKey: 'revision-purpose',
+      projectedAt: 200,
+    };
+
+    await t.run(async (ctx) => {
+      await writeMachineAgentOperationalSignal(ctx, input);
+      await writeMachineConnectivitySignal(ctx, { ...input, daemonConnected: true });
+      await writeMachineAgentStopSignal(ctx, { ...input, stopState: 'pending' });
+      await writeMachineAgentRemovalSignal(ctx, input);
+    });
+
+    const counts = await t.run(async (ctx) =>
+      Promise.all([
+        ctx.db
+          .query('chatroom_machineAgentOperationalSignals')
+          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
+          )
+          .collect(),
+        ctx.db
+          .query('chatroom_machineConnectivitySignals')
+          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
+          )
+          .collect(),
+        ctx.db
+          .query('chatroom_machineAgentStopSignals')
+          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
+          )
+          .collect(),
+        ctx.db
+          .query('chatroom_machineAgentRemovalSignals')
+          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
+          )
+          .collect(),
+      ])
+    );
+    expect(counts.map((rows) => rows.length)).toEqual([1, 1, 1, 1]);
+
+    expect(counts[0][0]).toMatchObject({ kind: 'agent-operational' });
+    expect(counts[1][0]).toMatchObject({ kind: 'connectivity', daemonConnected: true });
+    expect(counts[2][0]).toMatchObject({ kind: 'agent-stop', stopState: 'pending' });
+    expect(counts[3][0]).toMatchObject({ kind: 'agent-removal', reason: 'role-removed' });
   });
 });

@@ -16,7 +16,7 @@ import {
 } from './task-inbox-membership-registry.js';
 import { api } from '../../api.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
-import { ackMachineOperationalSignals } from '../infrastructure/agent-operational/ack-machine-operational-signals.js';
+import { ackMachineSignal } from '../infrastructure/agent-operational/ack-machine-operational-signals.js';
 import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
 import {
@@ -24,6 +24,10 @@ import {
   runOperationalInbox,
   type OperationalInboxUpdate,
 } from '../infrastructure/agent-operational/operational-inbox.js';
+import {
+  operationalSignalFeeds,
+  type OperationalSignalKind,
+} from '../infrastructure/agent-operational/operational-signal-feeds.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import {
   type NativeDeliveryService,
@@ -146,7 +150,10 @@ export const startTaskInboxEffect = (
       })
     );
 
-    const operationalHandler = async (update: OperationalInboxUpdate): Promise<void> => {
+    const operationalHandler = async (
+      kind: OperationalSignalKind,
+      update: OperationalInboxUpdate
+    ): Promise<void> => {
       const chatroomId = update.chatroomId;
       const changed = agentOperationalReadModel.applySignalPage(update.rows, update.removed);
       await Promise.all(
@@ -160,20 +167,24 @@ export const startTaskInboxEffect = (
       );
       inboxStore.save(
         {
-          inboxType: 'operational',
+          inboxType: `operational:${kind}`,
           scopeKey: roomScopeKey(session.machineId, chatroomId),
         },
         { afterSignalKey: update.throughSignalKey }
       );
       try {
-        await ackMachineOperationalSignals(
+        await ackMachineSignal(
           sessionDeps,
           session.machineId,
           chatroomId,
-          update.throughSignalKey
+          update.throughSignalKey,
+          kind
         );
       } catch (error) {
-        console.warn(`[OperationalInbox room=${chatroomId}] signal cleanup failed:`, error);
+        console.warn(
+          `[OperationalInbox kind=${kind} room=${chatroomId}] signal cleanup failed:`,
+          error
+        );
       }
     };
 
@@ -207,65 +218,56 @@ export const startTaskInboxEffect = (
             );
           }
         }
-        // Operational watcher — composite cursor as before.
-        const operationalRoomKey = {
-          inboxType: 'operational' as const,
-          scopeKey: roomScopeKey(session.machineId, chatroomId),
-        };
-        const persistedOperationalRoom = inboxStore.get<{ afterSignalKey: string }>(
-          operationalRoomKey
-        );
-        let operationalCursor: string;
-        if (persistedOperationalRoom) {
-          operationalCursor = persistedOperationalRoom.state.afterSignalKey;
-          void ackMachineOperationalSignals(
-            sessionDeps,
-            session.machineId,
-            chatroomId,
-            operationalCursor
-          ).catch((error) =>
-            console.warn(
-              `[OperationalInbox room=${chatroomId}] startup signal cleanup failed:`,
-              error
-            )
-          );
-        } else if (bootstrapSucceeded) {
-          operationalCursor = operationalSignalCursorAt(serviceStartedAt);
-          // Persist the baseline before acking historical signals skipped by this daemon.
-          try {
-            inboxStore.save(operationalRoomKey, { afterSignalKey: operationalCursor });
-            void ackMachineOperationalSignals(
-              sessionDeps,
-              session.machineId,
-              chatroomId,
-              operationalCursor
-            ).catch((error) =>
-              console.warn(
-                `[OperationalInbox room=${chatroomId}] startup signal cleanup failed:`,
-                error
-              )
-            );
-          } catch (error) {
-            console.warn(
-              `[OperationalInbox room=${chatroomId}] failed to persist bootstrap baseline:`,
-              error
-            );
-          }
-        } else {
-          operationalCursor = operationalSignalCursorAt(serviceStartedAt);
-        }
-        void runOperationalInboxLoopWithRestart(
-          {
-            client: wsClient,
-            sessionId: session.sessionId as SessionId,
-            machineId: session.machineId,
-            chatroomId,
-            serviceStartedAt,
-            initialAfterSignalKey: operationalCursor,
-            signal: controller.signal,
-          },
-          operationalHandler,
-          () => stopped
+        await Promise.all(
+          (['agent-operational', 'connectivity', 'agent-stop', 'agent-removal'] as const).map(
+            async (kind) => {
+              const operationalRoomKey = {
+                inboxType: `operational:${kind}`,
+                scopeKey: roomScopeKey(session.machineId, chatroomId),
+              };
+              const persistedRoom = inboxStore.get<{ afterSignalKey: string }>(operationalRoomKey);
+              let cursor = persistedRoom?.state.afterSignalKey;
+              if (!cursor) {
+                cursor = operationalSignalCursorAt(serviceStartedAt);
+                try {
+                  inboxStore.save(operationalRoomKey, { afterSignalKey: cursor });
+                } catch (error) {
+                  console.warn(
+                    `[OperationalInbox kind=${kind} room=${chatroomId}] failed to persist bootstrap baseline:`,
+                    error
+                  );
+                }
+              }
+              if (persistedRoom || bootstrapSucceeded) {
+                void ackMachineSignal(
+                  sessionDeps,
+                  session.machineId,
+                  chatroomId,
+                  cursor,
+                  kind
+                ).catch((error) =>
+                  console.warn(
+                    `[OperationalInbox kind=${kind} room=${chatroomId}] startup signal cleanup failed:`,
+                    error
+                  )
+                );
+              }
+              void runOperationalInboxLoopWithRestart(
+                {
+                  client: wsClient,
+                  sessionId: session.sessionId as SessionId,
+                  machineId: session.machineId,
+                  chatroomId,
+                  feed: operationalSignalFeeds[kind],
+                  serviceStartedAt,
+                  initialAfterSignalKey: cursor,
+                  signal: controller.signal,
+                },
+                (update) => operationalHandler(kind, update),
+                () => stopped
+              );
+            }
+          )
         );
         await session.taskService.registerTaskChatroom(chatroomId);
       })();

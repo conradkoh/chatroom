@@ -53,26 +53,29 @@ describe('listOperationalStatusForMachineSignalRange', () => {
         projectedAt: 102,
         revisionKey: 'revision-other',
       });
-      await ctx.db.insert('chatroom_machineOperationalSignals', {
+      await ctx.db.insert('chatroom_machineAgentOperationalSignals', {
         machineId,
         chatroomId,
+        kind: 'agent-operational',
         role: 'builder',
         revisionKey: 'revision-1',
         signalKey: firstKey,
         projectedAt: 100,
       });
-      await ctx.db.insert('chatroom_machineOperationalSignals', {
+      await ctx.db.insert('chatroom_machineAgentRemovalSignals', {
         machineId,
         chatroomId,
+        kind: 'agent-removal',
         role: 'planner',
+        reason: 'role-removed',
         revisionKey: 'revision-removed',
         signalKey: removedKey,
         projectedAt: 101,
-        removed: true,
       });
-      await ctx.db.insert('chatroom_machineOperationalSignals', {
+      await ctx.db.insert('chatroom_machineAgentOperationalSignals', {
         machineId,
         chatroomId: otherChatroomId,
+        kind: 'agent-operational',
         role: 'builder',
         revisionKey: 'revision-other',
         signalKey: otherRoomKey,
@@ -86,7 +89,7 @@ describe('listOperationalStatusForMachineSignalRange', () => {
         chatroomId: String(chatroomId),
         userId: 'unused',
         afterSignalKey: '',
-        throughSignalKey: removedKey,
+        throughSignalKey: firstKey,
         limit: 10,
       })
     );
@@ -102,9 +105,27 @@ describe('listOperationalStatusForMachineSignalRange', () => {
         revisionKey: 'revision-1',
       },
     ]);
-    expect(result.removed).toEqual([{ chatroomId, role: 'planner' }]);
-    expect(result.nextSignalKey).toBe(removedKey);
+    expect(result.removed).toEqual([]);
+    expect(result.nextSignalKey).toBe(firstKey);
     expect(result.hasMore).toBe(false);
+
+    const removedResult = await t.run((ctx) =>
+      listOperationalStatusForMachineSignalRange(
+        ctx,
+        {
+          machineId,
+          chatroomId: String(chatroomId),
+          userId: 'unused',
+          afterSignalKey: '',
+          throughSignalKey: removedKey,
+          limit: 10,
+        },
+        'chatroom_machineAgentRemovalSignals'
+      )
+    );
+    expect(removedResult.rows).toEqual([]);
+    expect(removedResult.removed).toEqual([{ chatroomId, role: 'planner' }]);
+    expect(removedResult.nextSignalKey).toBe(removedKey);
 
     const otherRoom = await t.run((ctx) =>
       listOperationalStatusForMachineSignalRange(ctx, {

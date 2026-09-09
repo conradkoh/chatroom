@@ -17,6 +17,32 @@ The migration must preserve these user-visible behaviors:
 - signal delivery remains cursor-based, paginated, retryable, and acknowledgeable;
 - no task content or full operational rows are placed in signal tables.
 
+## Implementation status
+
+This implementation is being delivered in the PR targeting `release/v1.112.0`.
+The current implementation covers the migration end to end:
+
+- four purpose-specific Convex signal tables, indexes, queries, hydration
+  queries, and acknowledgement mutations replace the shared operational feed;
+- each signal table now has its own required, discriminated payload validator:
+  agent-operational, connectivity (including daemon connectivity), agent-stop
+  (including the stop-state union), and agent-removal (including its literal
+  removal reason);
+- operational projections write agent state, connectivity, stop state, and
+  role removal to their respective tables in the same Convex mutation as the
+  projection update;
+- the daemon owns an independent cursor and reconnecting inbox for each feed,
+  while `TaskService` remains the owner of task-status delivery;
+- operational changes update the local read model and route through
+  `NativeDeliveryService.requestReconcile` rather than directly processing
+  task snapshots;
+- backend integration coverage verifies feed isolation and the focused daemon
+  suite verifies independent watcher lifecycle, retry, acknowledgement, and
+  cursor behavior.
+
+The final PR verification still includes the repository-wide typecheck, test,
+lint, stale-identifier search, and release-branch push/PR checks.
+
 ## Validation criteria
 
 The migration is valid only if all of the following are true:
@@ -178,7 +204,7 @@ Do not split solely by the current projection function. One projection function 
 - [ ] Define the new schema tables and purpose-specific indexes.
 - [ ] Define signal key and cursor semantics for each table.
 - [ ] Decide whether keys must be globally ordered, machine-scoped, chatroom-scoped, or only ordered within one inbox.
-- [ ] Add validators/types for each signal payload.
+  - [x] Add validators/types for each signal payload.
 - [ ] Add generated Convex API output through the normal Convex generation workflow.
 - [ ] Add focused schema/type tests for indexes, optional removal fields, and cursor fields.
 - [ ] Add one-time backfill support if a daemon can be upgraded while old rows exist.

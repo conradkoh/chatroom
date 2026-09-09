@@ -2,16 +2,14 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ackMachineOperationalSignals } from './ack-machine-operational-signals.js';
+import { ackMachineSignal } from './ack-machine-operational-signals.js';
 
 const SESSION_ID = 'session-test' as SessionId;
 const MACHINE_ID = 'machine-test';
 const CHATROOM_ID = 'room-1';
 const THROUGH_SIGNAL_KEY = '0000000000000042:room:builder';
 
-function sessionDeps(
-  mutation: ConvexClient['mutation']
-): Parameters<typeof ackMachineOperationalSignals>[0] {
+function sessionDeps(mutation: ConvexClient['mutation']): Parameters<typeof ackMachineSignal>[0] {
   return {
     sessionId: SESSION_ID,
     machineId: MACHINE_ID,
@@ -22,18 +20,19 @@ function sessionDeps(
   } as never;
 }
 
-describe('ackMachineOperationalSignals', () => {
+describe('ackMachineSignal', () => {
   it('continues through bounded batches with the same cursor and room id', async () => {
     const mutation = vi
       .fn()
       .mockResolvedValueOnce({ deletedCount: 100, hasMore: true })
       .mockResolvedValueOnce({ deletedCount: 1, hasMore: false });
 
-    await ackMachineOperationalSignals(
+    await ackMachineSignal(
       sessionDeps(mutation),
       MACHINE_ID,
       CHATROOM_ID,
-      THROUGH_SIGNAL_KEY
+      THROUGH_SIGNAL_KEY,
+      'agent-operational'
     );
 
     expect(mutation).toHaveBeenCalledTimes(2);
@@ -61,11 +60,12 @@ describe('ackMachineOperationalSignals', () => {
     const mutation = vi.fn().mockResolvedValue({ deletedCount: 0, hasMore: false });
 
     await expect(
-      ackMachineOperationalSignals(
+      ackMachineSignal(
         sessionDeps(mutation),
         MACHINE_ID,
         CHATROOM_ID,
-        THROUGH_SIGNAL_KEY
+        THROUGH_SIGNAL_KEY,
+        'agent-operational'
       )
     ).resolves.toBeUndefined();
     expect(mutation).toHaveBeenCalledOnce();
@@ -79,13 +79,14 @@ describe('ackMachineOperationalSignals', () => {
     const mutation = vi.fn().mockResolvedValue({ deletedCount: 0, hasMore: true });
 
     await expect(
-      ackMachineOperationalSignals(
+      ackMachineSignal(
         sessionDeps(mutation),
         MACHINE_ID,
         CHATROOM_ID,
-        THROUGH_SIGNAL_KEY
+        THROUGH_SIGNAL_KEY,
+        'agent-operational'
       )
-    ).rejects.toThrow('Operational signal ack reported more work without progress');
+    ).rejects.toThrow('agent-operational signal ack reported more work without progress');
     expect(mutation).toHaveBeenCalledOnce();
   });
 });
