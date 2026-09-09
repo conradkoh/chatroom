@@ -7,6 +7,7 @@
  * module only filters snapshots and delegates ready work to native delivery.
  */
 
+import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
 import type { Runtime, Context } from 'effect';
 
 import { logNativeDeliveryFallback, logNativeDeliveryTrigger } from './native-delivery-log.js';
@@ -14,6 +15,8 @@ import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
+import { api } from '../../../api.js';
+import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
@@ -23,6 +26,7 @@ import type {
   DaemonSessionService,
   DaemonAgentProcessManagerServiceShape,
 } from '../daemon-services.js';
+import type { AgentHarness } from '../daemon-types.js';
 import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 
 type TaskDeliveryService = Pick<
@@ -82,6 +86,53 @@ export async function processTasksUpdate(
   } else {
     logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   }
+  const executors = {
+    startAgent: (task: AssignedTaskSnapshotView, operationalState: string | undefined) =>
+      runSerializedForAgent(
+        { chatroomId: task.chatroomId, role: task.agentConfig.role },
+        { timeoutMs: 120_000 },
+        (ops, context) =>
+          ops.startAgent(
+            {
+              chatroomId: task.chatroomId,
+              role: task.agentConfig.role,
+              agentHarness: task.agentConfig.agentHarness as AgentHarness,
+              model: task.agentConfig.model ?? '',
+              workingDir: task.agentConfig.workingDir as string,
+              reason:
+                operationalState === 'running'
+                  ? AgentStartReasonEnum['platform.task_monitor_nudge']
+                  : AgentStartReasonEnum['platform.pending_task_wake'],
+              wantResume: false,
+              lifecycleRevision: task.agentConfig.configLifecycleRevision,
+              taskId: task.taskId,
+            },
+            context.signal
+          )
+      ),
+    injectTask: async (task: AssignedTaskSnapshotView, harnessSessionId: string | undefined) => {
+      const backend = (await sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
+        sessionId: sessionDeps.sessionId,
+        machineId,
+        taskId: task.taskId,
+        role: task.agentConfig.role,
+      })) as Parameters<typeof mapAssignedTaskView>[0] | null;
+      if (!backend) return { kind: 'task-unavailable' as const };
+      const full = mapAssignedTaskView(backend);
+      let delivered:
+        | {
+            chatroomId: string;
+            role: string;
+            taskId: string;
+            harnessSessionId: string;
+          }
+        | undefined;
+      await taskService.deliverNativeTask(full, harnessSessionId, (result) => {
+        delivered = result;
+      });
+      return { kind: 'delivered' as const, ...(delivered ? { delivered } : {}) };
+    },
+  };
   await getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks: filteredTasks,
     pass,
@@ -96,5 +147,6 @@ export async function processTasksUpdate(
     isTaskActive,
     machineId,
     onTaskDelivered: options.onTaskDelivered,
+    executors,
   });
 }

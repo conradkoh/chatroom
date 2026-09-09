@@ -47,6 +47,27 @@ export interface NativeTaskDeliverySessionDeps extends NativeDeliverySessionHand
   convexUrl: string;
 }
 
+export type NativeDeliveryDelivered = {
+  chatroomId: string;
+  role: string;
+  taskId: string;
+  harnessSessionId: string;
+};
+
+export type NativeDeliveryExecution =
+  { kind: 'delivered'; delivered?: NativeDeliveryDelivered } | { kind: 'task-unavailable' };
+
+export type NativeDeliveryExecutors = {
+  startAgent: (
+    task: AssignedTaskSnapshotView,
+    operationalState: string | undefined
+  ) => Promise<unknown>;
+  injectTask: (
+    task: AssignedTaskSnapshotView,
+    harnessSessionId: string | undefined
+  ) => Promise<NativeDeliveryExecution>;
+};
+
 type DeliveryPass =
   | 'inbox-signal'
   | 'periodic-reconcile'
@@ -95,6 +116,7 @@ export class NativeTaskDeliveryCoordinator {
           harnessSessionId: string;
         }) => void)
       | undefined;
+    executors?: NativeDeliveryExecutors;
   }): Promise<void> {
     const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
     if (tasks.length === 0) return;
@@ -107,6 +129,7 @@ export class NativeTaskDeliveryCoordinator {
       isTaskActive,
       machineId,
       onTaskDelivered,
+      executors,
     } = params;
     const deliveryState = getRoleDeliveryState();
     const taskService = params.taskService;
@@ -181,6 +204,13 @@ export class NativeTaskDeliveryCoordinator {
       if (decision.kind === 'start-agent') {
         if (!row.agentConfig.workingDir || (slot && !isSlotIdle(slot.state))) continue;
         try {
+          if (executors) {
+            const startResult = await executors.startAgent(row, operational?.operationalState);
+            console.log(
+              `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=start-agent result=${startResult && typeof startResult === 'object' && 'success' in startResult ? startResult.success : 'completed'}`
+            );
+            continue;
+          }
           const startResult = await params.runSerializedForAgent(
             { chatroomId: row.chatroomId, role },
             { timeoutMs: 120_000 },
@@ -221,6 +251,29 @@ export class NativeTaskDeliveryCoordinator {
 
       const harnessSessionId = decision.harnessSessionId;
       logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
+      if (executors) {
+        try {
+          const result = await executors.injectTask(row, harnessSessionId);
+          if (result.kind === 'task-unavailable') {
+            console.warn(
+              `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
+            );
+          } else if (result.delivered) {
+            onTaskDelivered?.(result.delivered);
+            deliveryState.clearNativeNudgeFailures(row.chatroomId, role);
+            console.log(
+              `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=success`
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `[NativeDelivery:failure] role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject error=${getErrorMessage(error)}`
+          );
+        } finally {
+          deliveryState.releaseDelivery(row.chatroomId, role);
+        }
+        continue;
+      }
       await Runtime.runPromise(runtime)(
         Effect.gen(function* () {
           const backend = (yield* Effect.tryPromise(() =>
