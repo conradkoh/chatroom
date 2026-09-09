@@ -1,3 +1,4 @@
+import type { RoleStopState } from './derive-agent-stop-state';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -10,27 +11,66 @@ export function buildMachineOperationalSignalKey(
   return `${String(projectedAt).padStart(16, '0')}:${chatroomId}:${role.toLowerCase()}`;
 }
 
-export async function writeMachineOperationalSignal(
-  ctx: MutationCtx,
-  input: {
-    machineId: string;
-    chatroomId: Id<'chatroom_rooms'>;
-    role: string;
-    revisionKey: string;
-    projectedAt: number;
-    removed?: boolean | undefined;
-  }
-): Promise<void> {
+type MachineSignalInput = {
+  machineId: string;
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  revisionKey: string;
+  projectedAt: number;
+};
+
+function baseMachineSignal(input: MachineSignalInput) {
   const role = input.role.toLowerCase();
   const signalKey = buildMachineOperationalSignalKey(input.projectedAt, input.chatroomId, role);
-  const signal = {
+  return {
     machineId: input.machineId,
     chatroomId: input.chatroomId,
     role,
     revisionKey: input.revisionKey,
     signalKey,
     projectedAt: input.projectedAt,
-    ...(input.removed ? { removed: true } : {}),
   };
-  await ctx.db.insert('chatroom_machineOperationalSignals', signal);
+}
+
+export async function writeMachineAgentOperationalSignal(
+  ctx: MutationCtx,
+  input: MachineSignalInput
+): Promise<void> {
+  await ctx.db.insert('chatroom_machineAgentOperationalSignals', {
+    ...baseMachineSignal(input),
+    kind: 'agent-operational',
+  });
+}
+
+export async function writeMachineConnectivitySignal(
+  ctx: MutationCtx,
+  input: MachineSignalInput & { daemonConnected: boolean }
+): Promise<void> {
+  await ctx.db.insert('chatroom_machineConnectivitySignals', {
+    ...baseMachineSignal(input),
+    kind: 'connectivity',
+    daemonConnected: input.daemonConnected,
+  });
+}
+
+export async function writeMachineAgentStopSignal(
+  ctx: MutationCtx,
+  input: MachineSignalInput & { stopState: RoleStopState }
+): Promise<void> {
+  await ctx.db.insert('chatroom_machineAgentStopSignals', {
+    ...baseMachineSignal(input),
+    kind: 'agent-stop',
+    stopState: input.stopState,
+  });
+}
+
+export async function writeMachineAgentRemovalSignal(
+  ctx: MutationCtx,
+  input: MachineSignalInput
+): Promise<void> {
+  await ctx.db.insert('chatroom_machineAgentRemovalSignals', {
+    ...baseMachineSignal(input),
+    kind: 'agent-removal',
+    reason: 'role-removed',
+  });
 }

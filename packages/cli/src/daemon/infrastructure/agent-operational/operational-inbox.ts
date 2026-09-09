@@ -13,25 +13,16 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
 import {
-  buildListOperationalStatusForMachineSignalRangeArgs,
-  buildSubscribeMachineOperationalSignalsSinceArgs,
-} from './operational-signal-contract.js';
-import type { Doc } from '../../../api.js';
-import { api } from '../../../api.js';
+  operationalSignalFeeds,
+  type OperationalSignalFeed,
+  type OperationalSignalPage,
+  type OperationalStatusSignal,
+} from './operational-signal-feeds.js';
 
 const DEFAULT_SIGNAL_PAGE_LIMIT = 100;
 const DEFAULT_OPERATIONAL_PAGE_LIMIT = 500;
 
-export type OperationalStatusSignal = Pick<
-  Doc<'chatroom_machineOperationalSignals'>,
-  'chatroomId' | 'role' | 'revisionKey' | 'signalKey' | 'projectedAt' | 'removed'
->;
-
-export interface OperationalSignalPage {
-  readonly items: readonly OperationalStatusSignal[];
-  readonly afterSignalKey: string;
-  readonly highSignalKey: string;
-}
+export type { OperationalSignalPage, OperationalStatusSignal } from './operational-signal-feeds.js';
 
 export interface OperationalInboxUpdate {
   readonly chatroomId: string;
@@ -54,6 +45,7 @@ export interface OperationalInboxOptions {
   readonly signalPageLimit?: number | undefined;
   readonly operationalPageLimit?: number | undefined;
   readonly signal?: AbortSignal | undefined;
+  readonly feed?: OperationalSignalFeed | undefined;
 }
 
 export type OperationalInboxHandler = (update: OperationalInboxUpdate) => Promise<void>;
@@ -71,6 +63,10 @@ function abortError(): Error {
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw abortError();
+}
+
+function feedFor(options: OperationalInboxOptions): OperationalSignalFeed {
+  return options.feed ?? operationalSignalFeeds['agent-operational'];
 }
 
 function waitForOperationalSignalPage(
@@ -106,31 +102,19 @@ function waitForOperationalSignalPage(
       return;
     }
 
-    unsubscribe = options.client.onUpdate(
-      api.machines.subscribeMachineOperationalSignalsSince,
-      buildSubscribeMachineOperationalSignalsSinceArgs({
+    unsubscribe = feedFor(options).subscribe(
+      options.client,
+      {
         sessionId: options.sessionId,
         machineId: options.machineId,
         chatroomId: options.chatroomId,
         afterKey: afterSignalKey,
         limit: options.signalPageLimit ?? DEFAULT_SIGNAL_PAGE_LIMIT,
-      }),
+      },
       (result: unknown) => {
-        if (!result || typeof result !== 'object') return;
-        const page = result as {
-          items?: readonly OperationalStatusSignal[] | undefined;
-          highKey?: string | null | undefined;
-        };
-        const items = page.items;
-        const highKey = page.highKey;
-        if (!items?.length || !highKey) return;
-        settle(() =>
-          resolve({
-            items,
-            afterSignalKey,
-            highSignalKey: highKey,
-          })
-        );
+        const page = result as OperationalSignalPage | null;
+        if (!page) return;
+        settle(() => resolve(page));
       },
       (error: unknown) => {
         settle(() => reject(error));
@@ -166,17 +150,14 @@ async function fetchRowsForSignalPage(
   let afterSignalKey = page.afterSignalKey;
   while (true) {
     throwIfAborted(options.signal);
-    const result = await options.client.query(
-      api.machines.listOperationalStatusForMachineSignalRange,
-      buildListOperationalStatusForMachineSignalRangeArgs({
-        sessionId: options.sessionId,
-        machineId: options.machineId,
-        chatroomId: options.chatroomId,
-        afterSignalKey,
-        throughSignalKey: page.highSignalKey,
-        limit: options.operationalPageLimit ?? DEFAULT_OPERATIONAL_PAGE_LIMIT,
-      })
-    );
+    const result = await feedFor(options).hydrate(options.client, {
+      sessionId: options.sessionId,
+      machineId: options.machineId,
+      chatroomId: options.chatroomId,
+      afterSignalKey,
+      throughSignalKey: page.highSignalKey,
+      limit: options.operationalPageLimit ?? DEFAULT_OPERATIONAL_PAGE_LIMIT,
+    });
     rows.push(...result.rows);
     removed.push(...result.removed);
     if (!result.hasMore || !result.nextSignalKey) break;

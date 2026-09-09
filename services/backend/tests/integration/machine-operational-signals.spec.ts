@@ -10,6 +10,78 @@ import {
 } from '../helpers/integration';
 
 describe('machine operational signals', () => {
+  test('keeps purpose-specific feeds isolated on the same machine and room', async () => {
+    const { sessionId } = await createTestSession('machine-operational-signal-feeds');
+    const machineId = 'machine-operational-signal-feeds';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'duo',
+      teamName: 'Duo',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+    const signalRows = [
+      ['chatroom_machineAgentOperationalSignals', 'agent-operational'],
+      ['chatroom_machineConnectivitySignals', 'connectivity'],
+      ['chatroom_machineAgentStopSignals', 'agent-stop'],
+      ['chatroom_machineAgentRemovalSignals', 'agent-removal'],
+    ] as const;
+    await t.run(async (ctx) => {
+      for (const [index, [table, suffix]] of signalRows.entries()) {
+        const base = {
+          machineId,
+          chatroomId,
+          role: 'builder',
+          revisionKey: suffix,
+          signalKey: `000000000000000${index + 1}:${chatroomId}:builder`,
+          projectedAt: 100,
+        };
+        if (table === 'chatroom_machineAgentOperationalSignals')
+          await ctx.db.insert(table, { ...base, kind: 'agent-operational' });
+        else if (table === 'chatroom_machineConnectivitySignals')
+          await ctx.db.insert(table, { ...base, kind: 'connectivity', daemonConnected: true });
+        else if (table === 'chatroom_machineAgentStopSignals')
+          await ctx.db.insert(table, { ...base, kind: 'agent-stop', stopState: 'pending' });
+        else await ctx.db.insert(table, { ...base, kind: 'agent-removal', reason: 'role-removed' });
+      }
+    });
+
+    const feeds = [
+      [
+        api.machines.subscribeMachineAgentOperationalSignalsSince,
+        api.machines.ackMachineAgentOperationalSignals,
+      ],
+      [
+        api.machines.subscribeMachineConnectivitySignalsSince,
+        api.machines.ackMachineConnectivitySignals,
+      ],
+      [api.machines.subscribeMachineAgentStopSignalsSince, api.machines.ackMachineAgentStopSignals],
+      [
+        api.machines.subscribeMachineAgentRemovalSignalsSince,
+        api.machines.ackMachineAgentRemovalSignals,
+      ],
+    ] as const;
+    const pages = await Promise.all(
+      feeds.map(([subscribe]) =>
+        t.query(subscribe, { sessionId, machineId, chatroomId, afterKey: '' })
+      )
+    );
+    expect(pages.every((page) => page?.items.length === 1)).toBe(true);
+
+    await t.mutation(feeds[0][1], {
+      sessionId,
+      machineId,
+      chatroomId,
+      throughSignalKey: pages[0]!.highKey,
+    });
+    const remaining = await t.run(async (ctx) =>
+      Promise.all(signalRows.map(([table]) => ctx.db.query(table).collect()))
+    );
+    expect(remaining[0]).toHaveLength(0);
+    expect(remaining.slice(1).every((rows) => rows.length === 1)).toBe(true);
+  });
+
   test('projects a row into signal, subscription, and hydration pages', async () => {
     const { sessionId } = await createTestSession('machine-operational-signals');
     const machineId = 'machine-operational-signals';
@@ -24,7 +96,7 @@ describe('machine operational signals', () => {
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 62001);
 
-    const subscription = await t.query(api.machines.subscribeMachineOperationalSignalsSince, {
+    const subscription = await t.query(api.machines.subscribeMachineAgentOperationalSignalsSince, {
       sessionId,
       machineId,
       chatroomId,
@@ -37,7 +109,7 @@ describe('machine operational signals', () => {
     const item = [...subscription!.items]
       .reverse()
       .find((entry) => entry.chatroomId === chatroomId)!;
-    const hydrated = await t.query(api.machines.listOperationalStatusForMachineSignalRange, {
+    const hydrated = await t.query(api.machines.listMachineAgentOperationalStatusForSignalRange, {
       sessionId,
       machineId,
       chatroomId,
@@ -53,13 +125,13 @@ describe('machine operational signals', () => {
       })
     );
 
-    await t.mutation(api.machines.ackMachineOperationalSignals, {
+    await t.mutation(api.machines.ackMachineAgentOperationalSignals, {
       sessionId,
       machineId,
       chatroomId,
       throughSignalKey: subscription!.highKey,
     });
-    const idle = await t.query(api.machines.subscribeMachineOperationalSignalsSince, {
+    const idle = await t.query(api.machines.subscribeMachineAgentOperationalSignalsSince, {
       sessionId,
       machineId,
       chatroomId,
@@ -68,7 +140,7 @@ describe('machine operational signals', () => {
     expect(idle).toBeNull();
     const remaining = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_machineOperationalSignals')
+        .query('chatroom_machineAgentOperationalSignals')
         .withIndex('by_machineId_chatroomId_signalKey', (q) =>
           q.eq('machineId', machineId).eq('chatroomId', chatroomId)
         )
@@ -100,7 +172,7 @@ describe('machine operational signals', () => {
     await updateSpawnedAgentInTest(sessionId, machineId, chatroomA, 'builder', 62003);
     await updateSpawnedAgentInTest(sessionId, machineId, chatroomB, 'builder', 62004);
 
-    const subscriptionA = await t.query(api.machines.subscribeMachineOperationalSignalsSince, {
+    const subscriptionA = await t.query(api.machines.subscribeMachineAgentOperationalSignalsSince, {
       sessionId,
       machineId,
       chatroomId: chatroomA,
@@ -110,7 +182,7 @@ describe('machine operational signals', () => {
     expect(subscriptionA!.items.some((item) => item.chatroomId === chatroomA)).toBe(true);
     expect(subscriptionA!.items.every((item) => item.chatroomId === chatroomA)).toBe(true);
 
-    const subscriptionB = await t.query(api.machines.subscribeMachineOperationalSignalsSince, {
+    const subscriptionB = await t.query(api.machines.subscribeMachineAgentOperationalSignalsSince, {
       sessionId,
       machineId,
       chatroomId: chatroomB,
@@ -120,7 +192,7 @@ describe('machine operational signals', () => {
     expect(subscriptionB!.items.some((item) => item.chatroomId === chatroomB)).toBe(true);
     expect(subscriptionB!.items.every((item) => item.chatroomId === chatroomB)).toBe(true);
 
-    const hydratedA = await t.query(api.machines.listOperationalStatusForMachineSignalRange, {
+    const hydratedA = await t.query(api.machines.listMachineAgentOperationalStatusForSignalRange, {
       sessionId,
       machineId,
       chatroomId: chatroomA,
@@ -132,7 +204,7 @@ describe('machine operational signals', () => {
     expect(hydratedA.rows.every((row) => row.chatroomId === chatroomA)).toBe(true);
     expect(hydratedA.removed.every((entry) => entry.chatroomId === chatroomA)).toBe(true);
 
-    await t.mutation(api.machines.ackMachineOperationalSignals, {
+    await t.mutation(api.machines.ackMachineAgentOperationalSignals, {
       sessionId,
       machineId,
       chatroomId: chatroomA,
@@ -141,7 +213,7 @@ describe('machine operational signals', () => {
 
     const roomARemaining = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_machineOperationalSignals')
+        .query('chatroom_machineAgentOperationalSignals')
         .withIndex('by_machineId_chatroomId_signalKey', (q) =>
           q.eq('machineId', machineId).eq('chatroomId', chatroomA)
         )
@@ -149,7 +221,7 @@ describe('machine operational signals', () => {
     );
     const roomBRemaining = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_machineOperationalSignals')
+        .query('chatroom_machineAgentOperationalSignals')
         .withIndex('by_machineId_chatroomId_signalKey', (q) =>
           q.eq('machineId', machineId).eq('chatroomId', chatroomB)
         )
@@ -180,7 +252,7 @@ describe('machine operational signals', () => {
       'machine-operational-signals-other'
     );
     await expect(
-      t.mutation(api.machines.ackMachineOperationalSignals, {
+      t.mutation(api.machines.ackMachineAgentOperationalSignals, {
         sessionId: otherSessionId,
         machineId,
         chatroomId,
@@ -190,7 +262,7 @@ describe('machine operational signals', () => {
 
     const signals = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_machineOperationalSignals')
+        .query('chatroom_machineAgentOperationalSignals')
         .withIndex('by_machineId_chatroomId_signalKey', (q) =>
           q.eq('machineId', machineId).eq('chatroomId', chatroomId)
         )

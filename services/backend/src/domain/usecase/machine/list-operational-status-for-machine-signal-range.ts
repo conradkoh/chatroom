@@ -11,6 +11,12 @@ export type ListOperationalStatusForMachineSignalRangeInput = {
   limit: number;
 };
 
+export type OperationalSignalTable =
+  | 'chatroom_machineAgentOperationalSignals'
+  | 'chatroom_machineConnectivitySignals'
+  | 'chatroom_machineAgentStopSignals'
+  | 'chatroom_machineAgentRemovalSignals';
+
 export type MachineAgentOperationalRowView = {
   chatroomId: string;
   role: string;
@@ -32,11 +38,12 @@ export type ListOperationalStatusForMachineSignalRangeResult = {
 
 export async function listOperationalStatusForMachineSignalRange(
   ctx: QueryCtx,
-  input: ListOperationalStatusForMachineSignalRangeInput
+  input: ListOperationalStatusForMachineSignalRangeInput,
+  signalTable: OperationalSignalTable = 'chatroom_machineAgentOperationalSignals'
 ): Promise<ListOperationalStatusForMachineSignalRangeResult> {
   void input.userId;
   const signals = await ctx.db
-    .query('chatroom_machineOperationalSignals')
+    .query(signalTable)
     .withIndex('by_machineId_chatroomId_signalKey', (q) =>
       q
         .eq('machineId', input.machineId)
@@ -49,9 +56,10 @@ export async function listOperationalStatusForMachineSignalRange(
   const page = signals.slice(0, input.limit);
   const rows: MachineAgentOperationalRowView[] = [];
   const removed: { chatroomId: string; role: string }[] = [];
+  const isRemovalSignal = signalTable === 'chatroom_machineAgentRemovalSignals';
 
   for (const signal of page) {
-    if (signal.removed) {
+    if (isRemovalSignal) {
       removed.push({ chatroomId: signal.chatroomId, role: signal.role });
       continue;
     }
