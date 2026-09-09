@@ -10,7 +10,13 @@ export function buildMachineOperationalSignalKey(
   return `${String(projectedAt).padStart(16, '0')}:${chatroomId}:${role.toLowerCase()}`;
 }
 
-export async function writeMachineOperationalSignal(
+type SignalTable =
+  | 'chatroom_machineAgentOperationalSignals'
+  | 'chatroom_machineConnectivitySignals'
+  | 'chatroom_machineAgentStopSignals'
+  | 'chatroom_machineAgentRemovalSignals';
+
+async function writeMachineSignal(
   ctx: MutationCtx,
   input: {
     machineId: string;
@@ -18,8 +24,8 @@ export async function writeMachineOperationalSignal(
     role: string;
     revisionKey: string;
     projectedAt: number;
-    removed?: boolean | undefined;
-  }
+  },
+  table: SignalTable
 ): Promise<void> {
   const role = input.role.toLowerCase();
   const signalKey = buildMachineOperationalSignalKey(input.projectedAt, input.chatroomId, role);
@@ -30,7 +36,58 @@ export async function writeMachineOperationalSignal(
     revisionKey: input.revisionKey,
     signalKey,
     projectedAt: input.projectedAt,
-    ...(input.removed ? { removed: true } : {}),
   };
-  await ctx.db.insert('chatroom_machineOperationalSignals', signal);
+  await ctx.db.insert(table, signal);
+}
+
+export async function writeMachineAgentOperationalSignal(
+  ctx: MutationCtx,
+  input: {
+    machineId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    revisionKey: string;
+    projectedAt: number;
+  }
+): Promise<void> {
+  await writeMachineSignal(ctx, input, 'chatroom_machineAgentOperationalSignals');
+}
+
+export async function writeMachineConnectivitySignal(
+  ctx: MutationCtx,
+  input: {
+    machineId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    revisionKey: string;
+    projectedAt: number;
+  }
+): Promise<void> {
+  await writeMachineSignal(ctx, input, 'chatroom_machineConnectivitySignals');
+}
+
+export async function writeMachineAgentStopSignal(
+  ctx: MutationCtx,
+  input: {
+    machineId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    revisionKey: string;
+    projectedAt: number;
+  }
+): Promise<void> {
+  await writeMachineSignal(ctx, input, 'chatroom_machineAgentStopSignals');
+}
+
+export async function writeMachineAgentRemovalSignal(
+  ctx: MutationCtx,
+  input: {
+    machineId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    revisionKey: string;
+    projectedAt: number;
+  }
+): Promise<void> {
+  await writeMachineSignal(ctx, input, 'chatroom_machineAgentRemovalSignals');
 }

@@ -13,7 +13,12 @@ import {
   type ChatroomOperationalSummary,
 } from './derive-agent-operational-state';
 import { deriveRoleStopState } from './derive-agent-stop-state';
-import { writeMachineOperationalSignal } from './write-machine-operational-signal';
+import {
+  writeMachineAgentOperationalSignal,
+  writeMachineAgentRemovalSignal,
+  writeMachineAgentStopSignal,
+  writeMachineConnectivitySignal,
+} from './write-machine-operational-signal';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
@@ -182,6 +187,20 @@ export async function projectAgentOperationalStatusForRole(
     .query('chatroom_agentRoleOperationalStatus')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', roleKey))
     .first();
+  const operationalStateChanged =
+    !existing ||
+    existing.operationalState !== fields.operationalState ||
+    existing.isAlive !== fields.isAlive ||
+    existing.isRunning !== fields.isRunning ||
+    existing.daemonConnected !== fields.daemonConnected ||
+    existing.viewState !== fields.viewState ||
+    existing.machineId !== fields.machineId ||
+    existing.teamId !== fields.teamId ||
+    existing.acceptsTasks !== fields.acceptsTasks;
+  const stopStateChanged =
+    !existing ||
+    existing.stopState !== fields.stopState ||
+    existing.activeStopCommandId !== fields.activeStopCommandId;
   if (
     !existing ||
     existing.operationalState !== fields.operationalState ||
@@ -198,13 +217,15 @@ export async function projectAgentOperationalStatusForRole(
     if (existing) await ctx.db.patch('chatroom_agentRoleOperationalStatus', existing._id, fields);
     else await ctx.db.insert('chatroom_agentRoleOperationalStatus', fields);
     if (fields.machineId) {
-      await writeMachineOperationalSignal(ctx, {
+      const signalInput = {
         machineId: fields.machineId,
         chatroomId,
         role: roleKey,
         revisionKey: fields.revisionKey,
         projectedAt,
-      });
+      };
+      if (operationalStateChanged) await writeMachineAgentOperationalSignal(ctx, signalInput);
+      if (stopStateChanged) await writeMachineAgentStopSignal(ctx, signalInput);
     }
   }
   const summary = await summaryFor(ctx, chatroomId);
@@ -257,7 +278,7 @@ export async function projectAgentStopStateForRole(
     revisionKey,
   });
   if (row.machineId) {
-    await writeMachineOperationalSignal(ctx, {
+    await writeMachineAgentStopSignal(ctx, {
       machineId: row.machineId,
       chatroomId,
       role: row.role,
@@ -281,13 +302,12 @@ export async function projectAgentOperationalStatusForRoleRemoved(
     .first();
   if (row?.machineId) {
     const projectedAt = Date.now();
-    await writeMachineOperationalSignal(ctx, {
+    await writeMachineAgentRemovalSignal(ctx, {
       machineId: row.machineId,
       chatroomId,
       role,
       revisionKey: `operational:${chatroomId}:${projectedAt}:removed`,
       projectedAt,
-      removed: true,
     });
   }
   if (row) await ctx.db.delete('chatroom_agentRoleOperationalStatus', row._id);
@@ -357,7 +377,7 @@ export async function projectDaemonConnectivityForMachine(
         revisionKey,
       });
       if (row.machineId) {
-        await writeMachineOperationalSignal(ctx, {
+        await writeMachineConnectivitySignal(ctx, {
           machineId: row.machineId,
           chatroomId: config.chatroomId,
           role: row.role,

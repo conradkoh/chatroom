@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   buildMachineOperationalSignalKey,
-  writeMachineOperationalSignal,
+  writeMachineAgentOperationalSignal,
 } from './write-machine-operational-signal';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
@@ -17,7 +17,7 @@ describe('buildMachineOperationalSignalKey', () => {
   });
 });
 
-describe('writeMachineOperationalSignal', () => {
+describe('writeMachineAgentOperationalSignal', () => {
   test('appends signals and does not create an operational head', async () => {
     const sessionId = 'operational-signal-append' as SessionId;
     await t.mutation(api.auth.loginAnon, { sessionId });
@@ -31,21 +31,21 @@ describe('writeMachineOperationalSignal', () => {
     const machineId = 'operational-signal-machine';
 
     await t.run(async (ctx) => {
-      await writeMachineOperationalSignal(ctx, {
+      await writeMachineAgentOperationalSignal(ctx, {
         machineId,
         chatroomId,
         role: 'Builder',
         revisionKey: 'revision-1',
         projectedAt: 100,
       });
-      await writeMachineOperationalSignal(ctx, {
+      await writeMachineAgentOperationalSignal(ctx, {
         machineId,
         chatroomId,
         role: 'Builder',
         revisionKey: 'revision-older',
         projectedAt: 99,
       });
-      await writeMachineOperationalSignal(ctx, {
+      await writeMachineAgentOperationalSignal(ctx, {
         machineId,
         chatroomId,
         role: 'Builder',
@@ -56,7 +56,7 @@ describe('writeMachineOperationalSignal', () => {
 
     const signals = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_machineOperationalSignals')
+        .query('chatroom_machineAgentOperationalSignals')
         .withIndex('by_machineId_chatroomId_signalKey', (q) =>
           q.eq('machineId', machineId).eq('chatroomId', chatroomId)
         )

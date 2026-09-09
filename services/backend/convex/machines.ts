@@ -49,6 +49,7 @@ import { listMachineAgentOperationalStatus as listMachineAgentOperationalStatusU
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import {
   listOperationalStatusForMachineSignalRange as listOperationalStatusForMachineSignalRangeUseCase,
+  type OperationalSignalTable,
   type ListOperationalStatusForMachineSignalRangeResult,
 } from '../src/domain/usecase/machine/list-operational-status-for-machine-signal-range';
 import {
@@ -2214,11 +2215,57 @@ export const listMachineAssignedTaskSnapshots = query({
   },
 });
 
-/**
- * Reactive cursor-pinned operational-status signals for this machine and chatroom.
- * Returns null while idle so the subscription carries no full operational row array.
- */
-export const subscribeMachineOperationalSignalsSince = query({
+const operationalSignalTables = {
+  agentOperational: 'chatroom_machineAgentOperationalSignals',
+  connectivity: 'chatroom_machineConnectivitySignals',
+  agentStop: 'chatroom_machineAgentStopSignals',
+  agentRemoval: 'chatroom_machineAgentRemovalSignals',
+} as const satisfies Record<string, OperationalSignalTable>;
+
+type MachineSignalArgs = {
+  sessionId: string;
+  machineId: string;
+  chatroomId: Id<'chatroom_rooms'>;
+  afterKey: string;
+  limit?: number;
+};
+
+async function listMachineSignalPage(
+  ctx: QueryCtx,
+  args: MachineSignalArgs,
+  signalTable: OperationalSignalTable
+) {
+  const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+  if (!auth) return null;
+
+  const limit = Math.min(
+    Math.max(args.limit ?? DEFAULT_OPERATIONAL_SIGNALS_LIMIT, 1),
+    MAX_OPERATIONAL_SIGNALS_LIMIT
+  );
+  const page = await ctx.db
+    .query(signalTable)
+    .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+      q
+        .eq('machineId', args.machineId)
+        .eq('chatroomId', args.chatroomId)
+        .gt('signalKey', args.afterKey)
+    )
+    .order('asc')
+    .take(limit + 1);
+  const items = page.slice(0, limit).map((row) => ({
+    chatroomId: row.chatroomId,
+    role: row.role,
+    revisionKey: row.revisionKey,
+    signalKey: row.signalKey,
+    projectedAt: row.projectedAt,
+  }));
+  const lastItem = items.at(-1);
+  if (!lastItem) return null;
+  return { items, highKey: lastItem.signalKey, hasMore: page.length > limit };
+}
+
+/** Reactive cursor-pinned role operational-state signals. */
+export const subscribeMachineAgentOperationalSignalsSince = query({
   args: {
     ...SessionIdArg,
     ...machineOperationalSignalScopeValidator,
@@ -2226,40 +2273,78 @@ export const subscribeMachineOperationalSignalsSince = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) return null;
-
-    const limit = Math.min(
-      Math.max(args.limit ?? DEFAULT_OPERATIONAL_SIGNALS_LIMIT, 1),
-      MAX_OPERATIONAL_SIGNALS_LIMIT
-    );
-    const page = await ctx.db
-      .query('chatroom_machineOperationalSignals')
-      .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('chatroomId', args.chatroomId)
-          .gt('signalKey', args.afterKey)
-      )
-      .order('asc')
-      .take(limit + 1);
-    const hasMore = page.length > limit;
-    const items = page.slice(0, limit).map((row) => ({
-      chatroomId: row.chatroomId,
-      role: row.role,
-      revisionKey: row.revisionKey,
-      signalKey: row.signalKey,
-      projectedAt: row.projectedAt,
-      ...(row.removed ? { removed: true } : {}),
-    }));
-    const lastItem = items.at(-1);
-    if (!lastItem) return null;
-    return { items, highKey: lastItem.signalKey, hasMore };
+    return listMachineSignalPage(ctx, args, operationalSignalTables.agentOperational);
   },
 });
 
-/** Hydrate operational rows for a cursor range after signal delivery, scoped to a chatroom. */
-export const listOperationalStatusForMachineSignalRange = query({
+/** Reactive cursor-pinned machine connectivity signals. */
+export const subscribeMachineConnectivitySignalsSince = query({
+  args: {
+    ...SessionIdArg,
+    ...machineOperationalSignalScopeValidator,
+    afterKey: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) =>
+    listMachineSignalPage(ctx, args, operationalSignalTables.connectivity),
+});
+
+/** Reactive cursor-pinned role stop-state signals. */
+export const subscribeMachineAgentStopSignalsSince = query({
+  args: {
+    ...SessionIdArg,
+    ...machineOperationalSignalScopeValidator,
+    afterKey: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => listMachineSignalPage(ctx, args, operationalSignalTables.agentStop),
+});
+
+/** Reactive cursor-pinned role-removal signals. */
+export const subscribeMachineAgentRemovalSignalsSince = query({
+  args: {
+    ...SessionIdArg,
+    ...machineOperationalSignalScopeValidator,
+    afterKey: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) =>
+    listMachineSignalPage(ctx, args, operationalSignalTables.agentRemoval),
+});
+
+async function listOperationalRowsForSignalRange(
+  ctx: QueryCtx,
+  args: {
+    sessionId: string;
+    machineId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    afterSignalKey: string;
+    throughSignalKey: string;
+    limit?: number;
+  },
+  signalTable: OperationalSignalTable
+): Promise<ListOperationalStatusForMachineSignalRangeResult> {
+  const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+  if (!auth) return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+  return listOperationalStatusForMachineSignalRangeUseCase(
+    ctx,
+    {
+      machineId: args.machineId,
+      chatroomId: String(args.chatroomId),
+      userId: auth.userId,
+      afterSignalKey: args.afterSignalKey,
+      throughSignalKey: args.throughSignalKey,
+      limit: Math.min(
+        Math.max(args.limit ?? MAX_OPERATIONAL_SIGNALS_LIMIT, 1),
+        MAX_OPERATIONAL_SIGNALS_LIMIT
+      ),
+    },
+    signalTable
+  );
+}
+
+/** Hydrate rows for role operational-state signal delivery. */
+export const listMachineAgentOperationalStatusForSignalRange = query({
   args: {
     ...SessionIdArg,
     ...machineOperationalSignalScopeValidator,
@@ -2267,23 +2352,47 @@ export const listOperationalStatusForMachineSignalRange = query({
     throughSignalKey: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<ListOperationalStatusForMachineSignalRangeResult> => {
-    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+  handler: async (ctx, args) =>
+    listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentOperational),
+});
 
-    const limit = Math.min(
-      Math.max(args.limit ?? MAX_OPERATIONAL_SIGNALS_LIMIT, 1),
-      MAX_OPERATIONAL_SIGNALS_LIMIT
-    );
-    return listOperationalStatusForMachineSignalRangeUseCase(ctx, {
-      machineId: args.machineId,
-      chatroomId: args.chatroomId,
-      userId: auth.userId,
-      afterSignalKey: args.afterSignalKey,
-      throughSignalKey: args.throughSignalKey,
-      limit,
-    });
+/** Hydrate rows for machine connectivity signal delivery. */
+export const listMachineConnectivityStatusForSignalRange = query({
+  args: {
+    ...SessionIdArg,
+    ...machineOperationalSignalScopeValidator,
+    afterSignalKey: v.string(),
+    throughSignalKey: v.string(),
+    limit: v.optional(v.number()),
   },
+  handler: async (ctx, args) =>
+    listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.connectivity),
+});
+
+/** Hydrate rows for role stop-state signal delivery. */
+export const listMachineAgentStopStatusForSignalRange = query({
+  args: {
+    ...SessionIdArg,
+    ...machineOperationalSignalScopeValidator,
+    afterSignalKey: v.string(),
+    throughSignalKey: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) =>
+    listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentStop),
+});
+
+/** Return removed roles for role-removal signal delivery. */
+export const listMachineAgentRemovalStatusForSignalRange = query({
+  args: {
+    ...SessionIdArg,
+    ...machineOperationalSignalScopeValidator,
+    afterSignalKey: v.string(),
+    throughSignalKey: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) =>
+    listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentRemoval),
 });
 
 /** One-shot operational-status bootstrap for this machine. */
@@ -2299,8 +2408,53 @@ export const listMachineAgentOperationalStatus = query({
   },
 });
 
-/** Acknowledge delivered operational signals for a machine and chatroom. */
-export const ackMachineOperationalSignals = mutation({
+function ackMachineSignalMutation(signalTable: OperationalSignalTable) {
+  return mutation({
+    args: {
+      ...SessionIdArg,
+      ...machineOperationalSignalScopeValidator,
+      throughSignalKey: v.string(),
+    },
+    handler: async (ctx, args) => {
+      await requireMachineOwner(ctx, args.sessionId, args.machineId);
+      return ackMachineOperationalSignalsUseCase(
+        ctx,
+        {
+          machineId: args.machineId,
+          chatroomId: args.chatroomId,
+          throughSignalKey: args.throughSignalKey,
+        },
+        signalTable
+      );
+    },
+  });
+}
+
+/** Acknowledge role operational-state signals. */
+export const ackMachineAgentOperationalSignals = ackMachineSignalMutation(
+  operationalSignalTables.agentOperational
+);
+
+/** Acknowledge machine connectivity signals. */
+export const ackMachineConnectivitySignals = ackMachineSignalMutation(
+  operationalSignalTables.connectivity
+);
+
+/** Acknowledge role stop-state signals. */
+export const ackMachineAgentStopSignals = ackMachineSignalMutation(
+  operationalSignalTables.agentStop
+);
+
+/** Acknowledge role-removal signals. */
+export const ackMachineAgentRemovalSignals = ackMachineSignalMutation(
+  operationalSignalTables.agentRemoval
+);
+
+/*
+ * The old broad operational endpoint is intentionally removed with the old
+ * table. Replacement endpoints above are purpose-specific daemon APIs.
+ */
+/* export const ackMachineOperationalSignals = mutation({
   args: {
     ...SessionIdArg,
     ...machineOperationalSignalScopeValidator,
@@ -2314,7 +2468,7 @@ export const ackMachineOperationalSignals = mutation({
       throughSignalKey: args.throughSignalKey,
     });
   },
-});
+}); */
 
 /**
  * Rebuild snapshot projection rows for this machine (daemon startup backfill).

@@ -3,7 +3,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { ackMachineOperationalSignals } from './ack-machine-operational-signals';
-import { writeMachineOperationalSignal } from './write-machine-operational-signal';
+import { writeMachineAgentOperationalSignal } from './write-machine-operational-signal';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -40,7 +40,7 @@ async function writeSignals(
 ): Promise<void> {
   await t.run(async (ctx) => {
     for (let index = 0; index < count; index += 1) {
-      await writeMachineOperationalSignal(ctx, {
+      await writeMachineAgentOperationalSignal(ctx, {
         machineId,
         chatroomId,
         role: `role-${index}`,
@@ -54,7 +54,7 @@ async function writeSignals(
 async function remainingSignals(machineId: string, chatroomId: Id<'chatroom_rooms'>) {
   return t.run((ctx) =>
     ctx.db
-      .query('chatroom_machineOperationalSignals')
+      .query('chatroom_machineAgentOperationalSignals')
       .withIndex('by_machineId_chatroomId_signalKey', (q) =>
         q.eq('machineId', machineId).eq('chatroomId', chatroomId)
       )
