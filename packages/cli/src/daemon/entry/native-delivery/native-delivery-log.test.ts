@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
-  logNativeDeliveryFallback,
   logNativeDeliveryInjecting,
   logNativeDeliveryMutexSkip,
   logNativeDeliveryPrimary,
@@ -28,11 +27,11 @@ describe('native-delivery-log', () => {
     );
   });
 
-  test('logNativeDeliveryFallback identifies periodic recovery', () => {
+  test('logNativeDeliveryTrigger identifies periodic recovery', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryFallback('periodic-reconcile', 'builder', 'room_1', 'task_1');
+    logNativeDeliveryTrigger('periodic-reconcile', 'builder', 'room_1', 'task_1');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:fallback] source=periodic-reconcile builder@room_1 task task_1 — periodic recovery pass'
+      '[NativeDelivery:trigger] source=periodic-reconcile builder@room_1 task task_1'
     );
   });
 

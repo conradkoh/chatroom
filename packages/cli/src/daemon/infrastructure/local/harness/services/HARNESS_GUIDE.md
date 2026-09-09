@@ -39,14 +39,15 @@ Native SDK harnesses with a typed activity emitter report once per turn via `wir
 
 **Daemon task injection** (`packages/cli/src/commands/machine/daemon-start/`):
 
-**Delivery paths (native SDK harnesses):**
+**Delivery pipeline (native SDK harnesses):**
 
-| Path         | Trigger                                                                               | Log prefix                                     |
-| ------------ | ------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| **Primary**  | Harness `agent_end` → manager event → constructed native delivery service             | `[NativeDelivery:fallback] operational-status` |
-| **Fallback** | Signal/presence feed reconcile, subscribed snapshot store + 10s local reconcile timer | `[NativeDelivery:fallback]`                    |
+| Stage         | Responsibility                                                                             | Log prefix                   |
+| ------------- | ------------------------------------------------------------------------------------------ | ---------------------------- |
+| **Trigger**   | Task/operational signals, lifecycle events, restart completion, bootstrap, or safety timer | `[NativeDelivery:trigger]`   |
+| **Decision**  | Role-scoped state read and pure delivery decision                                          | `[NativeDelivery:decision]`  |
+| **Execution** | Process start/recovery or serialized task injection                                        | `[NativeDelivery:execution]` |
 
-Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). Fallback paths exist for daemon restart mid-turn or missed events — monitor logs to measure how often they fire before removing.
+Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). The periodic timer remains a bounded safety trigger for daemon restart or missed events; it uses the same role-scoped decision and execution path as every event-driven trigger.
 
 Injection wiring:
 

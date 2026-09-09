@@ -10,7 +10,7 @@
 import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
 import type { Runtime, Context } from 'effect';
 
-import { logNativeDeliveryFallback, logNativeDeliveryTrigger } from './native-delivery-log.js';
+import { logNativeDeliveryTrigger } from './native-delivery-log.js';
 import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
@@ -78,11 +78,7 @@ export async function processTasksUpdate(
 ): Promise<void> {
   const first = options.snapshots[0];
   if (!first) return;
-  if (pass === 'periodic-reconcile') {
-    logNativeDeliveryFallback(pass, first.agentConfig.role, first.chatroomId, first.taskId);
-  } else {
-    logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
-  }
+  logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
     startAgent: (task: AssignedTaskSnapshotView, operationalState: string | undefined) =>
       runSerializedForAgent(
