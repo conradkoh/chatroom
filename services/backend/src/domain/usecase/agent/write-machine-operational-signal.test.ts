@@ -106,21 +106,32 @@ describe('writeMachineAgentOperationalSignal', () => {
     });
 
     const counts = await t.run(async (ctx) =>
-      Promise.all(
-        [
-          'chatroom_machineAgentOperationalSignals',
-          'chatroom_machineConnectivitySignals',
-          'chatroom_machineAgentStopSignals',
-          'chatroom_machineAgentRemovalSignals',
-        ].map((table) =>
-          ctx.db
-            .query(table as never)
-            .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-              q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
-            )
-            .collect()
-        )
-      )
+      Promise.all([
+        ctx.db
+          .query('chatroom_machineAgentOperationalSignals')
+          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
+          )
+          .collect(),
+        ctx.db
+          .query('chatroom_machineConnectivitySignals')
+          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
+          )
+          .collect(),
+        ctx.db
+          .query('chatroom_machineAgentStopSignals')
+          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
+          )
+          .collect(),
+        ctx.db
+          .query('chatroom_machineAgentRemovalSignals')
+          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
+          )
+          .collect(),
+      ])
     );
     expect(counts.map((rows) => rows.length)).toEqual([1, 1, 1, 1]);
   });
