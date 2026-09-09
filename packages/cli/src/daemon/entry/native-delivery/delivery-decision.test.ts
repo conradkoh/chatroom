@@ -101,4 +101,34 @@ describe('decideNextDelivery', () => {
       reason: 'no_deliverable_task',
     });
   });
+
+  test('distinguishes a task assigned to another role', () => {
+    expect(
+      decideNextDelivery(
+        [task({ agentConfig: { ...task().agentConfig, role: 'planner' } })],
+        context()
+      )
+    ).toEqual({ kind: 'idle', reason: 'not_assigned' });
+  });
+
+  test('keeps operational stop and circuit reasons blocked', () => {
+    expect(
+      decideNextDelivery(
+        [task()],
+        context({
+          explainNativeDeliveryBlock: vi.fn(() => 'operational_stop_intent_active'),
+        })
+      )
+    ).toEqual({
+      kind: 'blocked',
+      taskId: 'task-1',
+      reason: 'operational_stop_intent_active',
+    });
+    expect(
+      decideNextDelivery(
+        [task()],
+        context({ explainNativeDeliveryBlock: vi.fn(() => 'operational_circuit_open') })
+      )
+    ).toEqual({ kind: 'blocked', taskId: 'task-1', reason: 'operational_circuit_open' });
+  });
 });

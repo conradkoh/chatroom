@@ -23,6 +23,8 @@ export type DeliveryBlockReason =
   | 'slot_missing'
   | 'slot_not_running'
   | 'slot_pid_missing'
+  | 'spawned_pid_missing'
+  | 'pid_mismatch'
   | 'harness_session_missing'
   | 'turn_not_idle'
   | 'working_dir_missing';
@@ -76,6 +78,8 @@ function stableBlockReason(reason: string): DeliveryBlockReason {
     'slot_missing',
     'slot_not_running',
     'slot_pid_missing',
+    'spawned_pid_missing',
+    'pid_mismatch',
     'harness_session_missing',
     'turn_not_idle',
     'working_dir_missing',
@@ -97,7 +101,12 @@ export function decideNextDelivery(
     .sort(taskSort)
     .find((candidate) => isDeliverableTaskStatus(candidate.status));
 
-  if (!task) return { kind: 'idle', reason: 'no_deliverable_task' };
+  if (!task) {
+    const assignedToRole = tasks.some(
+      (candidate) => candidate.agentConfig.role.toLowerCase() === context.role.toLowerCase()
+    );
+    return { kind: 'idle', reason: assignedToRole ? 'no_deliverable_task' : 'not_assigned' };
+  }
   if (context.activeTaskId === task.taskId) {
     return { kind: 'deduplicated', taskId: task.taskId, reason: 'task_state_active' };
   }

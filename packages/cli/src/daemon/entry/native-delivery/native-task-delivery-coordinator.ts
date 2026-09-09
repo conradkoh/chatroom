@@ -234,7 +234,7 @@ export class NativeTaskDeliveryCoordinator {
 
           if (!backend) {
             console.warn(
-              `[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — task_hydrate_missing (deleted or not assigned)`
+              `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
             );
             return;
           }
@@ -244,6 +244,9 @@ export class NativeTaskDeliveryCoordinator {
             taskService.deliverNativeTask(full, harnessSessionId, (delivered) => {
               onTaskDelivered?.(delivered);
               deliveryState.clearNativeNudgeFailures(delivered.chatroomId, delivered.role);
+              console.log(
+                `[NativeDelivery:execution] attempt=${attemptId} role=${delivered.role} chatroom=${delivered.chatroomId} task=${delivered.taskId} operation=inject result=success`
+              );
             })
           );
         }).pipe(
