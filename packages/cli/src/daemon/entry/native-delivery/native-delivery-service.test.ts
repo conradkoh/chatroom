@@ -8,6 +8,7 @@ import { createAgentTaskStateService } from '../../services/agent-process-servic
 function createService(
   options: {
     readonly onTurnEnded?: (handler: (event: never) => Promise<unknown>) => void;
+    readonly onAgentStarted?: (handler: (event: never) => Promise<unknown>) => void;
     readonly onSessionLost?: (handler: (event: never) => void) => void;
   } = {}
 ): NativeDeliveryService {
@@ -19,7 +20,10 @@ function createService(
         options.onTurnEnded?.(handler);
         return () => undefined;
       },
-      subscribeAgentStarted: () => () => undefined,
+      subscribeAgentStarted: (handler: (event: never) => Promise<unknown>) => {
+        options.onAgentStarted?.(handler);
+        return () => undefined;
+      },
       subscribeAgentSessionLost: (handler: (event: never) => void) => {
         options.onSessionLost?.(handler);
         return () => undefined;
@@ -62,6 +66,7 @@ describe('NativeDeliveryService', () => {
         onTurnEnded = handler;
       },
     });
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
 
     await onTurnEnded?.({
       chatroomId: 'room-1',
@@ -71,6 +76,32 @@ describe('NativeDeliveryService', () => {
       slot: { state: 'running' },
       eventId: 'turn-1',
     } as never);
+    await vi.waitFor(() => {
+      expect(requestReconcile).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        source: 'turn-ended',
+      });
+    });
+    service.dispose();
+  });
+
+  test('routes agent-started lifecycle events through reconciliation', async () => {
+    let onAgentStarted: ((event: never) => Promise<unknown>) | undefined;
+    const service = createService({
+      onAgentStarted: (handler) => {
+        onAgentStarted = handler;
+      },
+    });
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
+
+    await onAgentStarted?.({ chatroomId: 'room-1', role: 'builder' } as never);
+
+    expect(requestReconcile).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      source: 'agent-started',
+    });
     service.dispose();
   });
 
