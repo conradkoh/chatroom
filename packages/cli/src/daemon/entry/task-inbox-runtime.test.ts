@@ -740,6 +740,47 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     vi.useRealTimers();
   });
 
+  it('does not record a restart when stopped during retry backoff', async () => {
+    makeInboxStore();
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let failures = 1;
+    const flakyInboxImpl = async (
+      _options: Parameters<typeof runOperationalInbox>[0]
+    ): Promise<void> => {
+      if (failures > 0) {
+        failures -= 1;
+        throw new Error('transient room error');
+      }
+      return new Promise<void>(() => {});
+    };
+    runOperationalInbox.mockImplementation(flakyInboxImpl);
+
+    const { handle, logEvent } = await startTaskInboxForTest({
+      bootstrapRows: [opRow('room-1')],
+      operationalInboxImpl: flakyInboxImpl,
+    });
+
+    // Let the loop record the error without elapsing the 1s retry backoff.
+    await vi.advanceTimersByTimeAsync(0);
+    handle.stop();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    // The error evidence is preserved, but no retry began so no restart is recorded.
+    expect(logEvent).toHaveBeenCalledTimes(1);
+    const snapshot = logEvent.mock.calls[0][0] as OperationalObservabilitySnapshot;
+    expect(snapshot.totals.errorCount).toBe(1);
+    expect(snapshot.totals.restartCount).toBe(0);
+    expect(snapshot.scopes[0]).toMatchObject({
+      chatroomId: 'room-1',
+      errorCount: 1,
+      restartCount: 0,
+    });
+
+    warn.mockRestore();
+    vi.useRealTimers();
+  });
+
   it('increments the acknowledgement metric without changing delivery behavior', async () => {
     const store = makeInboxStore();
     vi.useFakeTimers();

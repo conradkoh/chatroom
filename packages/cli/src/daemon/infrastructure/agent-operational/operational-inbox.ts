@@ -135,36 +135,40 @@ function waitForOperationalSignalPage(
 
     observerNotifiedStart = true;
     options.observer?.subscriptionStarted(options.chatroomId);
-    unsubscribe = options.client.onUpdate(
-      api.machines.subscribeMachineOperationalSignalsSince,
-      buildSubscribeMachineOperationalSignalsSinceArgs({
-        sessionId: options.sessionId,
-        machineId: options.machineId,
-        chatroomId: options.chatroomId,
-        afterKey: afterSignalKey,
-        limit: options.signalPageLimit ?? DEFAULT_SIGNAL_PAGE_LIMIT,
-      }),
-      (result: unknown) => {
-        if (!result || typeof result !== 'object') return;
-        const page = result as {
-          items?: readonly OperationalStatusSignal[] | undefined;
-          highKey?: string | null | undefined;
-        };
-        const items = page.items;
-        const highKey = page.highKey;
-        if (!items?.length || !highKey) return;
-        settle(() =>
-          resolve({
-            items,
-            afterSignalKey,
-            highSignalKey: highKey,
-          })
-        );
-      },
-      (error: unknown) => {
-        settle(() => reject(error));
-      }
-    );
+    try {
+      unsubscribe = options.client.onUpdate(
+        api.machines.subscribeMachineOperationalSignalsSince,
+        buildSubscribeMachineOperationalSignalsSinceArgs({
+          sessionId: options.sessionId,
+          machineId: options.machineId,
+          chatroomId: options.chatroomId,
+          afterKey: afterSignalKey,
+          limit: options.signalPageLimit ?? DEFAULT_SIGNAL_PAGE_LIMIT,
+        }),
+        (result: unknown) => {
+          if (!result || typeof result !== 'object') return;
+          const page = result as {
+            items?: readonly OperationalStatusSignal[] | undefined;
+            highKey?: string | null | undefined;
+          };
+          const items = page.items;
+          const highKey = page.highKey;
+          if (!items?.length || !highKey) return;
+          settle(() =>
+            resolve({
+              items,
+              afterSignalKey,
+              highSignalKey: highKey,
+            })
+          );
+        },
+        (error: unknown) => {
+          settle(() => reject(error));
+        }
+      );
+    } catch (error) {
+      settle(() => reject(error));
+    }
   });
 }
 

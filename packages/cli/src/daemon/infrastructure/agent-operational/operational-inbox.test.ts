@@ -147,6 +147,42 @@ describe('operational inbox', () => {
     expect(observer.subscriptionStopped).toHaveBeenCalledWith(CHATROOM_ID);
   });
 
+  it('stops the observer exactly once when subscription registration throws synchronously', async () => {
+    const registrationError = new Error('subscription failed');
+    const client = {
+      onUpdate: vi.fn(() => {
+        throw registrationError;
+      }),
+      query: vi
+        .fn()
+        .mockResolvedValue({ rows: [], removed: [], nextSignalKey: null, hasMore: false }),
+    };
+    const controller = new AbortController();
+    const observer = makeObserver();
+    const runPromise = runOperationalInbox(
+      {
+        client: client as never,
+        sessionId: 'session-1' as never,
+        machineId: 'machine-1',
+        chatroomId: CHATROOM_ID,
+        serviceStartedAt: 10,
+        signal: controller.signal,
+        observer,
+      },
+      async () => undefined
+    );
+
+    await expect(runPromise).rejects.toThrow('subscription failed');
+
+    expect(observer.subscriptionStarted).toHaveBeenCalledTimes(1);
+    expect(observer.subscriptionStarted).toHaveBeenCalledWith(CHATROOM_ID);
+    expect(observer.subscriptionStopped).toHaveBeenCalledTimes(1);
+    expect(observer.subscriptionStopped).toHaveBeenCalledWith(CHATROOM_ID);
+    expect(observer.signalPageReceived).not.toHaveBeenCalled();
+    expect(observer.hydrationCompleted).not.toHaveBeenCalled();
+    controller.abort();
+  });
+
   it('notifies the observer across the page lifecycle and stops exactly once on cleanup', async () => {
     let deliverPage: ((page: unknown) => void) | undefined;
     const client = {

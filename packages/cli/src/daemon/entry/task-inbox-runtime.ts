@@ -67,6 +67,7 @@ async function runOperationalInboxLoopWithRestart(
         error
       );
       await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      if (isStopped()) return;
       observability.loopRestart(options.chatroomId);
       backoffMs = Math.min(backoffMs * 2, INBOX_RESTART_MAX_MS);
     }
