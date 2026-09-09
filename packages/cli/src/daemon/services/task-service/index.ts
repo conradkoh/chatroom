@@ -36,3 +36,19 @@ export {
   type TaskServiceNotification,
 } from './service/task-service.js';
 export { TaskOutbox, type TaskOutboxEntry } from './service/task-outbox.js';
+export { createConvexNativeTaskDeliveryGateway } from './infrastructure/adapters/convex-native-task-delivery-gateway.js';
+export { createDaemonAuditPort } from './infrastructure/adapters/daemon-audit-port.js';
+export {
+  NativeDeliveryService,
+  type NativeDeliveryPass,
+  type NativeDeliveryServiceDependencies,
+  type NativeTaskDeliveredHandler,
+} from './service/native-delivery/native-delivery-service.js';
+export {
+  resetRoleDeliveryState,
+  type NativeDeliveryDelivered,
+  type NativeDeliveryExecution,
+  type NativeDeliveryExecutors,
+  type NativeTaskDeliverySessionDeps,
+  NativeTaskDeliveryCoordinator,
+} from './service/native-delivery/native-task-delivery-coordinator.js';

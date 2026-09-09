@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-export unused-type
+
 /**
  * Daemon-wide service contract surface.
  *
@@ -19,4 +21,11 @@ export {
   snapshotRequestsNativeColdSession,
   isAgentReadyForNativeDelivery,
   explainAgentReadyForNativeDeliveryBlock,
+  NativeDeliveryService,
+  type NativeDeliveryServiceDependencies,
+  resetRoleDeliveryState,
+  type NativeTaskDeliverySessionDeps,
+  createConvexNativeTaskDeliveryGateway,
+  createDaemonAuditPort,
+  runNativeInjectionEffect,
 } from './task-service/index.js';

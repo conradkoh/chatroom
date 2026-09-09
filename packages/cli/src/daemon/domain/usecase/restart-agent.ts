@@ -18,8 +18,8 @@ export interface RestartOrchestratorPort {
 
 export interface RestartAgentDeps {
   restartOrchestrator: RestartOrchestratorPort;
-  now?:( () => number) | undefined;
-  log?:( (message: string) => void) | undefined;
+  now?: (() => number) | undefined;
+  log?: ((message: string) => void) | undefined;
 }
 
 export async function restartAgent(
@@ -49,7 +49,9 @@ export async function restartAgent(
         ? { lifecycleRevision: input.lifecycleRevision }
         : {}),
     });
-  } catch {
-    // Swallow errors like legacy Effect.catchAll
+  } catch (error) {
+    log(
+      `[daemon] agent.restart failed (correlationId=${input.correlationId}) for role=${input.role}: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }

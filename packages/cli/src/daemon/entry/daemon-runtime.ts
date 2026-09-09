@@ -17,11 +17,11 @@ import {
   registerCommandInboundHandler,
   unregisterCommandInboundHandler,
 } from './command-inbound-registry.js';
-import {
-  DaemonSessionService,
+import { DaemonSessionService } from './daemon-services.js';
+import type {
   DaemonAgentProcessManagerCommandService,
-  type DaemonAgentProcessManagerService,
-  type DaemonMutableStateService,
+  DaemonAgentProcessManagerService,
+  DaemonMutableStateService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
@@ -41,7 +41,6 @@ import { drainActionableCommandRuns } from './handlers/process/command-run-subsc
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { getActiveLogSink } from './init-daemon.js';
 import { startTaskInboxEffect } from './task-inbox-runtime.js';
-import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
 import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
@@ -58,7 +57,10 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import type { BoundHarness } from '../domain/entities/bound-harness.js';
 import type { SessionHandle } from '../domain/usecase/open-harness-session.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
-import type { AgentProcessManagerService } from '../services/service-interfaces.js';
+import type {
+  NativeDeliveryService,
+  AgentProcessManagerService,
+} from '../services/service-interfaces.js';
 
 const PROCESS_KILL_TIMEOUT_MS = 6_000;
 const CLOSE_TIMEOUT_MS = 3_000;
@@ -311,13 +313,18 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     registerCommandInboundHandler(async (event) => {
       evictStaleDedupEntries(dedupTracker);
       if (event.type === 'command.received') {
+        const nativeDelivery = taskInboxHandle?.nativeDelivery;
+        if (!nativeDelivery) {
+          console.warn('[Daemon] command received before task inbox started');
+          return;
+        }
         await handleInboundCommandEvent(
           event.commandId,
           dedupTracker,
           effectContext,
           session,
           event.claimedCommand,
-          taskInboxHandle!.nativeDelivery
+          nativeDelivery
         );
       } else {
         await drainActionableCommandRuns(session, commandRunRuntime);
@@ -337,3 +344,4 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     shutdown,
   };
 }
+// fallow-ignore-file code-duplication

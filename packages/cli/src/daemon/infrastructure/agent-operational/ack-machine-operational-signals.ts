@@ -4,7 +4,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { buildAckMachineOperationalSignalsArgs } from './operational-signal-contract.js';
 import { api } from '../../../api.js';
-import type { NativeTaskDeliverySessionDeps } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 
 type AckResult = FunctionReturnType<typeof api.machines.ackMachineOperationalSignals>;
 

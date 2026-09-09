@@ -31,14 +31,6 @@ export function isRestartOrchestratorInFlight(chatroomId: string, role: string):
   return inFlight.has(roleKey(chatroomId, role));
 }
 
-export function filterSnapshotsExcludingRestartInFlight<
-  T extends { chatroomId: string; agentConfig: { role: string } },
->(snapshots: T[]): T[] {
-  return snapshots.filter(
-    (row) => !isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)
-  );
-}
-
 /** Test-only */
 export function _resetRestartOrchestratorInFlightForTests(): void {
   inFlight.clear();
