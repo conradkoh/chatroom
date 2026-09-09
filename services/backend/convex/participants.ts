@@ -266,8 +266,8 @@ export const leave = mutation({
   },
 });
 
-/** Updates lastSeenTokenAt and may start an acknowledged task when harness output is detected. */
-export const updateTokenActivity = mutation({
+/** Records harness activity and may start an acknowledged task when output is detected. */
+export const recordHarnessActivity = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
@@ -278,10 +278,6 @@ export const updateTokenActivity = mutation({
     const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
     if (participant) {
       await startTaskFromTokenActivity(ctx, args, participant);
-
-      await ctx.db.patch('chatroom_participants', participant._id, {
-        lastSeenTokenAt: Date.now(),
-      });
     }
   },
 });

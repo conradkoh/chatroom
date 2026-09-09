@@ -25,7 +25,7 @@ export interface NativeSpawnPresenceContext {
 export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceContext {
   spawnResult: Pick<SpawnResult, 'onOutput'>;
   /** Defaults to Date.now — APM passes clock.now for testability */
-  now?:( () => number) | undefined;
+  now?: (() => number) | undefined;
   throttleMs?: number | undefined;
   /** Optional typed activity emitter. When present, uses one unthrottled subscription instead of raw onOutput. */
   activityEmitter?: HarnessActivityEmitter | undefined;
@@ -38,7 +38,7 @@ export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceConte
 export async function emitNativeWaitingAfterSpawn(
   ctx: NativeSpawnPresenceContext,
   harness: AgentHarness | string,
-  opts?: { onError?:( (err: Error) => void) | undefined }
+  opts?: { onError?: ((err: Error) => void) | undefined }
 ): Promise<boolean> {
   if (!isTeamAgentRole(ctx.role)) return false;
   if (!getHarnessCapabilities(harness as AgentHarness).supportsNativeIntegration) {
@@ -64,7 +64,7 @@ export async function emitNativeWaitingAfterSpawn(
 }
 
 /**
- * Wire spawnResult.onOutput to throttled participants.updateTokenActivity.
+ * Wire spawnResult.onOutput to throttled participants.recordHarnessActivity.
  * First output fires immediately; subsequent calls throttled (default 30s).
  * When activityEmitter is present, reports first typed progress per turn only.
  */
@@ -81,7 +81,7 @@ function fireTokenActivity(
   if (lastReportedTokenAt.value === 0 || t - lastReportedTokenAt.value >= throttleMs) {
     lastReportedTokenAt.value = t;
     void backend
-      .mutation(api.participants.updateTokenActivity, {
+      .mutation(api.participants.recordHarnessActivity, {
         sessionId,
         chatroomId,
         role,
@@ -97,7 +97,7 @@ export function wireTokenActivityReporting(opts: WireTokenActivityReportingOpts)
     opts.activityEmitter.onActivity((signal) => {
       if (signal.kind !== 'progress' || !signal.isFirstForTurn) return;
       void opts.backend
-        .mutation(api.participants.updateTokenActivity, {
+        .mutation(api.participants.recordHarnessActivity, {
           sessionId: opts.sessionId,
           chatroomId: opts.chatroomId,
           role: opts.role,

@@ -1,7 +1,7 @@
 /**
  * Task delivery receipt integration tests.
  *
- * Proves receipt rule starts task on updateTokenActivity,
+ * Proves receipt rule starts task on recordHarnessActivity,
  * and legacy path without receipt still works.
  */
 
@@ -35,7 +35,7 @@ async function seedAcknowledgedTask(
 }
 
 describe('task delivery receipt — receipt rule', () => {
-  test('receipt + updateTokenActivity starts acknowledged task', async () => {
+  test('receipt + recordHarnessActivity starts acknowledged task', async () => {
     const { sessionId } = await createTestSession('tdr-receipt');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -53,8 +53,8 @@ describe('task delivery receipt — receipt rule', () => {
       });
     });
 
-    // Call startTaskFromTokenActivity via updateTokenActivity mutation
-    await t.mutation(api.participants.updateTokenActivity, {
+    // Call startTaskFromTokenActivity via recordHarnessActivity mutation
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'builder',
@@ -80,8 +80,8 @@ describe('task delivery receipt — receipt rule', () => {
       taskId,
     });
 
-    // updateTokenActivity should start the task via legacy acknowledged-native rule
-    await t.mutation(api.participants.updateTokenActivity, {
+    // recordHarnessActivity should start the task via legacy acknowledged-native rule
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'builder',

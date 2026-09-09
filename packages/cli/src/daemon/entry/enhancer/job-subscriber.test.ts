@@ -21,7 +21,7 @@ vi.mock('../../../api.js', () => {
   setPath(api, ['web', 'enhancer', 'index', 'getJobOutcome'], 'getJobOutcome');
   setPath(api, ['daemon', 'enhancer', 'index', 'pendingForMachine'], 'pendingForMachine');
   setPath(api, ['participants', 'join'], 'participantsJoin');
-  setPath(api, ['participants', 'updateTokenActivity'], 'updateTokenActivity');
+  setPath(api, ['participants', 'recordHarnessActivity'], 'recordHarnessActivity');
   return { api };
 });
 
@@ -268,12 +268,12 @@ describe('startEnhancerJobSubscriber', () => {
     vi.useFakeTimers();
 
     let outputCallback: (() => void) | undefined;
-    const updateTokenActivity = vi.fn().mockResolvedValue(undefined);
+    const recordHarnessActivity = vi.fn().mockResolvedValue(undefined);
     const participantsJoin = vi.fn().mockResolvedValue(undefined);
     const mutationFn = vi.fn().mockImplementation((endpoint: string) => {
       if (endpoint === 'claimForSpawn') return { claimed: true };
       if (endpoint === 'participantsJoin') return participantsJoin();
-      if (endpoint === 'updateTokenActivity') return updateTokenActivity();
+      if (endpoint === 'recordHarnessActivity') return recordHarnessActivity();
       return undefined;
     });
     const queryFn = vi.fn().mockImplementation((endpoint: string) => {
@@ -321,13 +321,13 @@ describe('startEnhancerJobSubscriber', () => {
     await vi.advanceTimersByTimeAsync(10);
 
     expect(participantsJoin).not.toHaveBeenCalled();
-    expect(updateTokenActivity).not.toHaveBeenCalled();
+    expect(recordHarnessActivity).not.toHaveBeenCalled();
 
     outputCallback?.();
     await vi.advanceTimersByTimeAsync(0);
 
     expect(participantsJoin).not.toHaveBeenCalled();
-    expect(updateTokenActivity).not.toHaveBeenCalled();
+    expect(recordHarnessActivity).not.toHaveBeenCalled();
 
     vi.useRealTimers();
   });

@@ -2,7 +2,7 @@
  * Read a task — optional recovery for backlog/context not shown in delivery.
  *
  * Harness stdout tokens normally mark acknowledged tasks in_progress via
- * participants.updateTokenActivity. Use this command when you need full
+ * participants.recordHarnessActivity. Use this command when you need full
  * task/backlog details outside the get-next-task or native injection output.
  * Phase 7: Migrated to Effect-TS services with typed error handling.
  */

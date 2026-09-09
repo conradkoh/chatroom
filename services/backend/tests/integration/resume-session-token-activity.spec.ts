@@ -1,7 +1,7 @@
 /**
  * Resume session token activity — Integration Tests
  *
- * Verifies updateTokenActivity restarts work when a resumed native agent is
+ * Verifies recordHarnessActivity restarts work when a resumed native agent is
  * agent.waiting and harness tokens resume.
  */
 
@@ -91,7 +91,7 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'builder',
@@ -141,7 +141,7 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'planner',
@@ -165,7 +165,7 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'builder',
@@ -263,7 +263,7 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'builder',
@@ -355,7 +355,7 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'exited',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'planner',
@@ -442,7 +442,7 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'builder',
@@ -534,7 +534,7 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'exited',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.participants.recordHarnessActivity, {
       sessionId,
       chatroomId,
       role: 'planner',
