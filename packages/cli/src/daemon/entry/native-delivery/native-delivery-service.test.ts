@@ -96,6 +96,11 @@ describe('NativeDeliveryService', () => {
     await Promise.all([first, second]);
 
     expect(processSnapshots).toHaveBeenCalledTimes(2);
-    expect(processSnapshots).toHaveBeenNthCalledWith(2, 'operational-signal', expect.any(Array));
+    expect(processSnapshots).toHaveBeenNthCalledWith(
+      2,
+      'operational-signal',
+      expect.any(Array),
+      undefined
+    );
   });
 });

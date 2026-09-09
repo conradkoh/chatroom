@@ -130,6 +130,9 @@ async function deliverPendingTasks(
     chatroomId: event.chatroomId,
     role: event.role,
     source: 'restart-completed',
+    onTaskDelivered: ({ taskId }) => {
+      delivered.push(taskId);
+    },
   });
 
   return delivered;

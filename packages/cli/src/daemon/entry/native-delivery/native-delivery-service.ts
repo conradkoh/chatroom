@@ -162,6 +162,7 @@ export class NativeDeliveryService {
     chatroomId: string;
     role: string;
     source: NativeDeliveryPass;
+    onTaskDelivered?: NativeTaskDeliveredHandler;
   }): Promise<void> {
     const key = `${params.chatroomId}:${params.role.toLowerCase()}`;
     const existing = this.reconcileStates.get(key);
@@ -181,7 +182,7 @@ export class NativeDeliveryService {
           const source = state.pendingSource ?? params.source;
           state.pendingSource = undefined;
           const snapshots = this.deps.taskSnapshotState.listForRole(params.chatroomId, params.role);
-          await this.processSnapshots(source, snapshots);
+          await this.processSnapshots(source, snapshots, params.onTaskDelivered);
         } while (state.pendingSource !== undefined);
       } finally {
         if (this.reconcileStates.get(key) === state) this.reconcileStates.delete(key);

@@ -120,15 +120,16 @@ export class NativeTaskDeliveryCoordinator {
     }
 
     for (const roleTasks of groups.values()) {
-      const row = [...roleTasks].sort((a, b) => {
+      const sortedTasks = [...roleTasks].sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
         if (b.status === 'pending' && a.status !== 'pending') return 1;
         return a.createdAt - b.createdAt;
-      })[0];
-      if (!row) continue;
-      const { role } = row.agentConfig;
-      const slot = agentMgr.getSlot(row.chatroomId, role);
-      const operational = operationalModel.get(row.chatroomId, role);
+      });
+      const firstTask = sortedTasks[0];
+      if (!firstTask) continue;
+      const { role } = firstTask.agentConfig;
+      const slot = agentMgr.getSlot(firstTask.chatroomId, role);
+      const operational = operationalModel.get(firstTask.chatroomId, role);
       const activeTaskId = roleTasks.find((candidate) =>
         isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
       )?.taskId;
@@ -145,12 +146,17 @@ export class NativeTaskDeliveryCoordinator {
       logNativeDeliveryDecision(
         params.pass ?? 'inbox-signal',
         role,
-        row.chatroomId,
+        firstTask.chatroomId,
         decision.kind === 'blocked' || decision.kind === 'wait'
           ? `${decision.kind}:${decision.reason}`
           : decision.kind,
         'taskId' in decision ? decision.taskId : undefined
       );
+
+      const row =
+        ('taskId' in decision
+          ? sortedTasks.find((candidate) => candidate.taskId === decision.taskId)
+          : firstTask) ?? firstTask;
 
       if (decision.kind === 'idle' || decision.kind === 'blocked' || decision.kind === 'wait') {
         if (decision.kind === 'blocked') {
