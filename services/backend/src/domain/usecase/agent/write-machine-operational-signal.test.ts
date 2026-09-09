@@ -3,7 +3,10 @@ import { describe, expect, test } from 'vitest';
 
 import {
   buildMachineOperationalSignalKey,
+  writeMachineAgentRemovalSignal,
   writeMachineAgentOperationalSignal,
+  writeMachineAgentStopSignal,
+  writeMachineConnectivitySignal,
 } from './write-machine-operational-signal';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
@@ -75,5 +78,41 @@ describe('writeMachineAgentOperationalSignal', () => {
       'revision-1',
       'revision-2',
     ]);
+  });
+
+  test('writes each purpose to its own signal table', async () => {
+    const sessionId = 'operational-signal-purpose-tables' as SessionId;
+    await t.mutation(api.auth.loginAnon, { sessionId });
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'duo',
+      teamName: 'Duo',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+    const input = {
+      machineId: `operational-signal-purpose-machine-${Math.random()}`,
+      chatroomId,
+      role: 'builder',
+      revisionKey: 'revision-purpose',
+      projectedAt: 200,
+    };
+
+    await t.run(async (ctx) => {
+      await writeMachineAgentOperationalSignal(ctx, input);
+      await writeMachineConnectivitySignal(ctx, input);
+      await writeMachineAgentStopSignal(ctx, input);
+      await writeMachineAgentRemovalSignal(ctx, input);
+    });
+
+    const counts = await t.run(async (ctx) =>
+      Promise.all([
+        ctx.db.query('chatroom_machineAgentOperationalSignals').collect(),
+        ctx.db.query('chatroom_machineConnectivitySignals').collect(),
+        ctx.db.query('chatroom_machineAgentStopSignals').collect(),
+        ctx.db.query('chatroom_machineAgentRemovalSignals').collect(),
+      ])
+    );
+    expect(counts.map((rows) => rows.length)).toEqual([1, 1, 1, 1]);
   });
 });

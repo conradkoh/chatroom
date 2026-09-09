@@ -2273,6 +2273,7 @@ export const subscribeMachineAgentOperationalSignalsSince = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
     return listMachineSignalPage(ctx, args, operationalSignalTables.agentOperational);
   },
 });
@@ -2285,8 +2286,10 @@ export const subscribeMachineConnectivitySignalsSince = query({
     afterKey: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) =>
-    listMachineSignalPage(ctx, args, operationalSignalTables.connectivity),
+  handler: async (ctx, args) => {
+    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
+    return listMachineSignalPage(ctx, args, operationalSignalTables.connectivity);
+  },
 });
 
 /** Reactive cursor-pinned role stop-state signals. */
@@ -2297,7 +2300,10 @@ export const subscribeMachineAgentStopSignalsSince = query({
     afterKey: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) => listMachineSignalPage(ctx, args, operationalSignalTables.agentStop),
+  handler: async (ctx, args) => {
+    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
+    return listMachineSignalPage(ctx, args, operationalSignalTables.agentStop);
+  },
 });
 
 /** Reactive cursor-pinned role-removal signals. */
@@ -2308,8 +2314,10 @@ export const subscribeMachineAgentRemovalSignalsSince = query({
     afterKey: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) =>
-    listMachineSignalPage(ctx, args, operationalSignalTables.agentRemoval),
+  handler: async (ctx, args) => {
+    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
+    return listMachineSignalPage(ctx, args, operationalSignalTables.agentRemoval);
+  },
 });
 
 async function listOperationalRowsForSignalRange(
@@ -2352,8 +2360,11 @@ export const listMachineAgentOperationalStatusForSignalRange = query({
     throughSignalKey: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) =>
-    listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentOperational),
+  handler: async (ctx, args) => {
+    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
+      return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentOperational);
+  },
 });
 
 /** Hydrate rows for machine connectivity signal delivery. */
@@ -2365,8 +2376,11 @@ export const listMachineConnectivityStatusForSignalRange = query({
     throughSignalKey: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) =>
-    listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.connectivity),
+  handler: async (ctx, args) => {
+    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
+      return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.connectivity);
+  },
 });
 
 /** Hydrate rows for role stop-state signal delivery. */
@@ -2378,8 +2392,11 @@ export const listMachineAgentStopStatusForSignalRange = query({
     throughSignalKey: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) =>
-    listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentStop),
+  handler: async (ctx, args) => {
+    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
+      return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentStop);
+  },
 });
 
 /** Return removed roles for role-removal signal delivery. */
@@ -2391,8 +2408,11 @@ export const listMachineAgentRemovalStatusForSignalRange = query({
     throughSignalKey: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) =>
-    listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentRemoval),
+  handler: async (ctx, args) => {
+    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
+      return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentRemoval);
+  },
 });
 
 /** One-shot operational-status bootstrap for this machine. */

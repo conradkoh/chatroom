@@ -17,6 +17,28 @@ The migration must preserve these user-visible behaviors:
 - signal delivery remains cursor-based, paginated, retryable, and acknowledgeable;
 - no task content or full operational rows are placed in signal tables.
 
+## Implementation status
+
+This implementation is being delivered in the PR targeting `release/v1.112.0`.
+The current implementation covers the migration end to end:
+
+- four purpose-specific Convex signal tables, indexes, queries, hydration
+  queries, and acknowledgement mutations replace the shared operational feed;
+- operational projections write agent state, connectivity, stop state, and
+  role removal to their respective tables in the same Convex mutation as the
+  projection update;
+- the daemon owns an independent cursor and reconnecting inbox for each feed,
+  while `TaskService` remains the owner of task-status delivery;
+- operational changes update the local read model and route through
+  `NativeDeliveryService.requestReconcile` rather than directly processing
+  task snapshots;
+- backend integration coverage verifies feed isolation and the focused daemon
+  suite verifies independent watcher lifecycle, retry, acknowledgement, and
+  cursor behavior.
+
+The final PR verification still includes the repository-wide typecheck, test,
+lint, stale-identifier search, and release-branch push/PR checks.
+
 ## Validation criteria
 
 The migration is valid only if all of the following are true:
