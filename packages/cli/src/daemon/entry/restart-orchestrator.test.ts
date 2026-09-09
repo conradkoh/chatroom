@@ -78,7 +78,7 @@ function createMockDeps(overrides?: {
         )
       ),
       nativeDelivery: {
-        processSnapshots: vi.fn(async () => undefined),
+        requestReconcile: vi.fn(async () => undefined),
       },
     },
     auditLog,

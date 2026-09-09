@@ -19,12 +19,11 @@ import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
 import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
-import {
-  DaemonMutableStateService,
+import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
+import type {
+  DaemonAgentProcessManagerService,
+  DaemonSessionServiceShape,
   DaemonAgentProcessManagerCommandService,
-  DaemonSessionService,
-  type DaemonAgentProcessManagerService,
-  type DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
@@ -35,13 +34,13 @@ import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.j
 import { onStopScopeAgentEffect } from './events/agent/on-stop-scope-agent.js';
 import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
+import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
 import { makeGitStateKey } from '../infrastructure/git/types.js';
-import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
 
 /** Event shape delivered from the machine command inbox (formerly machines.getCommandEvents). */
 type CommandEvent = {
@@ -132,7 +131,7 @@ function handleRequestStartEffect(
 function handleRequestRestartEffect(
   event: CommandEvent,
   tracker: DedupTracker,
-  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
+  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>
 ): Effect.Effect<void, never, CommandDispatchDeps> {
   return Effect.gen(function* () {
     const eventId = event._id.toString();
@@ -311,7 +310,7 @@ const commandEventHandlers: {
   [K in DaemonCommandEventType]?: (
     event: CommandEvent,
     tracker: DedupTracker,
-    nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
+    nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots' | 'requestReconcile'>
   ) => Effect.Effect<void, never, CommandDispatchDeps>;
 } = {
   'agent.requestStart': handleRequestStartEffect,
@@ -335,7 +334,7 @@ const commandEventHandlers: {
 export const dispatchCommandEventEffect = (
   event: CommandEvent,
   tracker: DedupTracker,
-  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots' | 'requestReconcile'>
 ): Effect.Effect<void, never, CommandDispatchDeps> => {
   if (!isDaemonCommandEventType(event.type)) return Effect.void;
   const factory = commandEventHandlers[event.type];
@@ -348,7 +347,7 @@ export async function handleInboundCommandEvent(
   effectContext: Context.Context<CommandDispatchDeps>,
   session: DaemonSessionServiceShape,
   claimedCommand: ClaimedMachineCommand,
-  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
+  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots' | 'requestReconcile'>
 ): Promise<void> {
   if (claimedCommand.commandId !== commandId) return;
   const renewTimer = setInterval(() => {

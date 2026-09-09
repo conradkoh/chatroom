@@ -9,24 +9,18 @@ import {
   buildAgentRestartPhaseEvent,
   type AgentRestartPhase,
 } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
-import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-contract.js';
+
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
+import type { AgentHarness } from './daemon-types.js';
 import type { AgentProcessManagerService } from '../services/service-interfaces.js';
 import type { NativeDeliveryService } from './native-delivery/native-delivery-service.js';
-import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
-import { fetchMachineAgentOperationalStatus } from '../infrastructure/agent-operational/fetch-machine-agent-operational-status.js';
-import type { AgentHarness } from './daemon-types.js';
 import { api } from '../../api.js';
-import { isAgentReadyForNativeDelivery } from '../services/service-interfaces.js';
 import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
 import {
   markRestartOrchestratorInFlight,
   clearRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
-import { mapAssignedTaskSnapshotList } from '../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
-import { isDeliverableTaskStatus } from '../domain/entities/assigned-task.js';
-import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 
@@ -55,7 +49,7 @@ interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
-  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>;
+  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>;
 }
 
 async function emitPhase(
@@ -119,45 +113,11 @@ async function forceNativeWaiting(
   });
 }
 
-async function listDeliverableSnapshots(
-  deps: RestartOrchestratorDeps,
-  event: RestartOrchestratorEvent
-): Promise<AssignedTaskSnapshotView[]> {
+async function syncAssignedTaskSnapshots(deps: RestartOrchestratorDeps): Promise<void> {
   await deps.session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
     sessionId: deps.session.sessionId,
     machineId: deps.session.machineId,
   });
-
-  const result = (await deps.session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-  })) as { tasks?: unknown | undefined };
-
-  const operationalRows = await fetchMachineAgentOperationalStatus(
-    {
-      sessionId: deps.session.sessionId,
-      machineId: deps.session.machineId,
-      convexUrl: deps.session.convexUrl,
-      logEvent: deps.session.logEvent,
-      backend: deps.session.backend,
-    } satisfies NativeTaskDeliverySessionDeps,
-    deps.session.machineId
-  );
-
-  const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
-  const operational = operationalRows.find(
-    (row) =>
-      row.chatroomId === event.chatroomId && row.role.toLowerCase() === event.role.toLowerCase()
-  );
-  return mapAssignedTaskSnapshotList(parseAssignedTaskSnapshotRows(result.tasks ?? []))
-    .filter(
-      (t) =>
-        t.chatroomId === event.chatroomId &&
-        t.agentConfig.role.toLowerCase() === event.role.toLowerCase() &&
-        isDeliverableTaskStatus(t.status) &&
-        isAgentReadyForNativeDelivery(t, slot, operational)
-    )
-    .sort((a, b) => a.createdAt - b.createdAt);
 }
 
 async function deliverPendingTasks(
@@ -165,9 +125,11 @@ async function deliverPendingTasks(
   event: RestartOrchestratorEvent
 ): Promise<string[]> {
   const delivered: string[] = [];
-  const snapshots = await listDeliverableSnapshots(deps, event);
-  await deps.nativeDelivery.processSnapshots('restart', snapshots, ({ taskId }) => {
-    delivered.push(taskId);
+  await syncAssignedTaskSnapshots(deps);
+  await deps.nativeDelivery.requestReconcile({
+    chatroomId: event.chatroomId,
+    role: event.role,
+    source: 'restart-completed',
   });
 
   return delivered;

@@ -9,10 +9,25 @@ type NativeDeliveryPass =
   | 'operational-status'
   | 'restart'
   | 'agent-started';
+type ExtendedNativeDeliveryPass =
+  NativeDeliveryPass | 'task-signal' | 'operational-signal' | 'turn-ended' | 'restart-completed';
+
+export function logNativeDeliveryDecision(
+  source: ExtendedNativeDeliveryPass,
+  role: string,
+  chatroomId: string,
+  decision: string,
+  taskId?: string
+): void {
+  const taskSuffix = taskId ? ` task=${taskId}` : '';
+  console.log(
+    `[NativeDelivery:decision] source=${source} role=${role} chatroom=${chatroomId}${taskSuffix} decision=${decision}`
+  );
+}
 
 /** Logs an event-driven delivery pass; this is not a fallback/recovery path. */
 export function logNativeDeliveryTrigger(
-  source: Exclude<NativeDeliveryPass, 'periodic-reconcile'>,
+  source: Exclude<ExtendedNativeDeliveryPass, 'periodic-reconcile'>,
   role: string,
   chatroomId: string,
   taskId?: string

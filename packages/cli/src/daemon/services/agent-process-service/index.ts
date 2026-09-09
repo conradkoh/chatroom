@@ -7,6 +7,8 @@
 export * from './service/index.js';
 export * from './domain/entities/agent-process.js';
 export { createAgentProcessService } from './composition/agent-process-service.js';
+// fallow-ignore-next-line unused-export
+export { createAgentTaskStateService } from './infrastructure/components/agent-task-state/index.js';
 export { createAgentProcessCommandBus } from './infrastructure/adapters/agent-process-command-bus.js';
 export * from './domain/usecase/native-turn-phase.js';
 export * from './infrastructure/agent-process-manager.js';

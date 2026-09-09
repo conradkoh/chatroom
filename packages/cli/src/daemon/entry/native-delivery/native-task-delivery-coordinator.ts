@@ -1,16 +1,19 @@
+import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
 import { Effect, Runtime, type Context } from 'effect';
 
+import { decideNextDelivery } from './delivery-decision.js';
 import {
+  logNativeDeliveryDecision,
   logNativeDeliveryInjecting,
   logNativeDeliveryMutexSkip,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
-import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
+import { isSlotIdle } from '../../domain/usecase/check-agent-slot.js';
 import type { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentKey,
@@ -25,6 +28,7 @@ import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../daemon-services.js';
+import type { AgentHarness } from '../daemon-types.js';
 import { filterSnapshotsExcludingRestartInFlight } from '../restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
@@ -43,6 +47,17 @@ export interface NativeTaskDeliverySessionDeps extends NativeDeliverySessionHand
   convexUrl: string;
 }
 
+type DeliveryPass =
+  | 'inbox-signal'
+  | 'periodic-reconcile'
+  | 'bootstrap'
+  | 'operational-status'
+  | 'restart'
+  | 'agent-started';
+type ExtendedDeliveryPass =
+  DeliveryPass | 'task-signal' | 'operational-signal' | 'turn-ended' | 'restart-completed';
+type LegacyDeliveryPass = 'inbox-signal' | 'operational-status' | 'restart';
+
 // fallow-ignore-next-line unused-export
 export class NativeTaskDeliveryCoordinator {
   resetRoleDeliveryState(chatroomId: string, role: string): void {
@@ -52,6 +67,7 @@ export class NativeTaskDeliveryCoordinator {
   // fallow-ignore-next-line complexity
   async reconcileAssignedTasks(params: {
     tasks: AssignedTaskSnapshotView[];
+    pass?: ExtendedDeliveryPass | LegacyDeliveryPass;
     runtime: TaskDeliveryRuntime;
     effectContext: TaskDeliveryContext;
     agentMgr: DaemonAgentProcessManagerServiceShape;
@@ -95,43 +111,97 @@ export class NativeTaskDeliveryCoordinator {
     const deliveryState = getRoleDeliveryState();
     const taskService = params.taskService;
 
-    const pendingFirst = [...tasks].sort((a, b) => {
-      if (a.status === 'pending' && b.status !== 'pending') return -1;
-      if (b.status === 'pending' && a.status !== 'pending') return 1;
-      return a.createdAt - b.createdAt;
-    });
+    const groups = new Map<string, AssignedTaskSnapshotView[]>();
+    for (const task of tasks) {
+      const key = `${task.chatroomId}:${task.agentConfig.role.toLowerCase()}`;
+      const group = groups.get(key) ?? [];
+      group.push(task);
+      groups.set(key, group);
+    }
 
-    for (const row of pendingFirst) {
+    for (const roleTasks of groups.values()) {
+      const row = [...roleTasks].sort((a, b) => {
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (b.status === 'pending' && a.status !== 'pending') return 1;
+        return a.createdAt - b.createdAt;
+      })[0];
+      if (!row) continue;
       const { role } = row.agentConfig;
       const slot = agentMgr.getSlot(row.chatroomId, role);
-      const blockReason = taskService.explainNativeDeliveryBlock(row, {
+      const operational = operationalModel.get(row.chatroomId, role);
+      const activeTaskId = roleTasks.find((candidate) =>
+        isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
+      )?.taskId;
+      const decision = decideNextDelivery(roleTasks, {
+        role,
         slot,
-        operational: operationalModel.get(row.chatroomId, role),
+        operational,
+        activeTaskId,
+        deliveryInFlight: false,
+        isNativeHarness: taskService.isNativeHarness,
+        snapshotRequestsNativeColdSession: taskService.snapshotRequestsNativeColdSession,
+        explainNativeDeliveryBlock: taskService.explainNativeDeliveryBlock,
       });
-      if (blockReason) {
-        if (isDeliverableTaskStatus(row.status)) {
-          logNativeDeliverySkip(role, row.chatroomId, row.taskId, blockReason);
+      logNativeDeliveryDecision(
+        params.pass ?? 'inbox-signal',
+        role,
+        row.chatroomId,
+        decision.kind === 'blocked' || decision.kind === 'wait'
+          ? `${decision.kind}:${decision.reason}`
+          : decision.kind,
+        'taskId' in decision ? decision.taskId : undefined
+      );
+
+      if (decision.kind === 'idle' || decision.kind === 'blocked' || decision.kind === 'wait') {
+        if (decision.kind === 'blocked') {
+          logNativeDeliverySkip(role, row.chatroomId, decision.taskId, decision.reason);
         }
         continue;
       }
-
-      if (isTaskActive({ chatroomId: row.chatroomId, role, taskId: row.taskId as string })) {
-        logNativeDeliverySkip(role, row.chatroomId, row.taskId, 'task_state_active');
+      if (decision.kind === 'deduplicated') {
+        logNativeDeliverySkip(role, row.chatroomId, decision.taskId, decision.reason);
         continue;
       }
-
-      // Absent harness id is represented as absent (never a pretend
-      // session). Cold policy creates a real session inside the injector;
-      // continue policy without a session fails before receipt/injection.
-      const harnessSessionId = slot?.harnessSessionId;
+      if (decision.kind === 'start-agent') {
+        if (!row.agentConfig.workingDir || (slot && !isSlotIdle(slot.state))) continue;
+        try {
+          await params.runSerializedForAgent(
+            { chatroomId: row.chatroomId, role },
+            { timeoutMs: 120_000 },
+            (ops, context) =>
+              ops.startAgent(
+                {
+                  chatroomId: row.chatroomId,
+                  role,
+                  agentHarness: row.agentConfig.agentHarness as AgentHarness,
+                  model: row.agentConfig.model ?? '',
+                  workingDir: row.agentConfig.workingDir as string,
+                  reason:
+                    operational?.operationalState === 'running'
+                      ? AgentStartReasonEnum['platform.task_monitor_nudge']
+                      : AgentStartReasonEnum['platform.pending_task_wake'],
+                  wantResume: false,
+                  lifecycleRevision: row.agentConfig.configLifecycleRevision,
+                  taskId: row.taskId,
+                },
+                context.signal
+              )
+          );
+        } catch (error) {
+          console.warn(
+            `[NativeDelivery:failure] role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=start-agent error=${getErrorMessage(error)}`
+          );
+        }
+        continue;
+      }
 
       if (!deliveryState.tryAcquireDelivery(row.chatroomId, role)) {
         logNativeDeliveryMutexSkip(role, row.chatroomId, row.taskId);
         continue;
       }
 
+      const harnessSessionId = decision.harnessSessionId;
       logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
-
       await Runtime.runPromise(runtime)(
         Effect.gen(function* () {
           const backend = (yield* Effect.tryPromise(() =>
@@ -162,7 +232,7 @@ export class NativeTaskDeliveryCoordinator {
           Effect.catchAll((err) =>
             Effect.sync(() =>
               console.warn(
-                `[NativeTaskDelivery] delivery failed for ${row.agentConfig.role}@${row.chatroomId}: ${getErrorMessage(err)}`
+                `[NativeDelivery:failure] role=${row.agentConfig.role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject error=${getErrorMessage(err)}`
               )
             )
           ),
@@ -173,8 +243,6 @@ export class NativeTaskDeliveryCoordinator {
           )
         )
       );
-      // Serial native delivery per role — one task at a time
-      break;
     }
   }
 }

@@ -31,7 +31,7 @@ export interface AgentRestartEventPayload {
 
 export const onRequestRestartAgentEffect = (
   event: AgentRestartEventPayload,
-  nativeDelivery: Pick<NativeDeliveryService, 'processSnapshots'>
+  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>
 ): Effect.Effect<
   void,
   never,
@@ -43,18 +43,21 @@ export const onRequestRestartAgentEffect = (
     const session = yield* DaemonSessionService;
 
     yield* Effect.promise(() =>
-      restartAgent(createRestartAgentDeps(agentMgr, session, processManagerService, nativeDelivery), {
-        commandId: event._id.toString(),
-        chatroomId: event.chatroomId as string,
-        machineId: event.machineId,
-        role: event.role,
-        agentHarness: event.agentHarness,
-        model: event.model,
-        workingDir: event.workingDir,
-        correlationId: event.correlationId,
-        deadline: event.deadline,
-        wantResume: event.wantResume,
-        lifecycleRevision: event.lifecycleRevision,
-      })
+      restartAgent(
+        createRestartAgentDeps(agentMgr, session, processManagerService, nativeDelivery),
+        {
+          commandId: event._id.toString(),
+          chatroomId: event.chatroomId as string,
+          machineId: event.machineId,
+          role: event.role,
+          agentHarness: event.agentHarness,
+          model: event.model,
+          workingDir: event.workingDir,
+          correlationId: event.correlationId,
+          deadline: event.deadline,
+          wantResume: event.wantResume,
+          lifecycleRevision: event.lifecycleRevision,
+        }
+      )
     );
   });

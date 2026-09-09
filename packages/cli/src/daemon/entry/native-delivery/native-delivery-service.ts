@@ -22,7 +22,16 @@ import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.j
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 export type NativeDeliveryPass =
-  'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status' | 'restart';
+  | 'task-signal'
+  | 'periodic-reconcile'
+  | 'bootstrap'
+  | 'operational-signal'
+  | 'agent-started'
+  | 'turn-ended'
+  | 'restart-completed';
+// Compatibility aliases remain accepted by processSnapshots while callers migrate
+// to requestReconcile and the canonical trigger names above.
+export type LegacyNativeDeliveryPass = 'inbox-signal' | 'operational-status' | 'restart';
 
 export type NativeTaskDeliveredHandler = (args: {
   chatroomId: string;
@@ -79,13 +88,25 @@ export class NativeDeliveryService {
   }
 
   async handleAgentStarted(event: AgentStartedEvent): Promise<void> {
-    const tasks = this.deps.taskSnapshotState.listForRole(event.chatroomId, event.role);
-    await this.processSnapshots('operational-status', tasks);
+    await this.requestReconcile({
+      chatroomId: event.chatroomId,
+      role: event.role,
+      source: 'agent-started',
+    });
   }
 
   handleAgentSessionLost(event: AgentSessionLostEvent): void {
     getRoleDeliveryState().resetDeliveryState(event.chatroomId, event.role);
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+    void this.requestReconcile({
+      chatroomId: event.chatroomId,
+      role: event.role,
+      source: 'operational-signal',
+    }).catch((error: unknown) => {
+      console.warn(
+        `[NativeDelivery:failure] role=${event.role} chatroom=${event.chatroomId} operation=session-loss-reconcile error=${error instanceof Error ? error.message : String(error)}`
+      );
+    });
   }
 
   async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<void> {
@@ -98,12 +119,13 @@ export class NativeDeliveryService {
 
   private scheduleRoleDelivery(chatroomId: string, role: string): void {
     setTimeout(() => {
-      const snapshots = this.deps.taskSnapshotState.listForRole(chatroomId, role);
-      void this.processSnapshots('operational-status', snapshots).catch((error: unknown) => {
-        console.warn(
-          `[NativeDelivery] post-turn delivery failed for ${role}@${chatroomId}: ${error instanceof Error ? error.message : String(error)}`
-        );
-      });
+      void this.requestReconcile({ chatroomId, role, source: 'turn-ended' }).catch(
+        (error: unknown) => {
+          console.warn(
+            `[NativeDelivery] post-turn delivery failed for ${role}@${chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      );
     }, 0);
   }
 
@@ -118,19 +140,49 @@ export class NativeDeliveryService {
   }
 
   async handleTaskInboxUpdate(update: TaskInboxUpdate): Promise<void> {
-    await this.processSnapshots('inbox-signal', update.snapshots);
+    await this.requestReconcileForSnapshots(update.snapshots, 'task-signal');
   }
 
   async handleTaskServiceNotification(notification: TaskServiceNotification): Promise<void> {
     if (notification.kind === 'bootstrap') {
-      await this.processSnapshots('bootstrap', notification.snapshots);
+      await this.requestReconcileForSnapshots(notification.snapshots, 'bootstrap');
       return;
     }
     await this.handleTaskInboxUpdate(notification.update);
   }
 
+  async requestReconcile(params: {
+    chatroomId: string;
+    role: string;
+    source: NativeDeliveryPass;
+  }): Promise<void> {
+    const snapshots = this.deps.taskSnapshotState.listForRole(params.chatroomId, params.role);
+    await this.processSnapshots(params.source, snapshots);
+  }
+
+  private async requestReconcileForSnapshots(
+    snapshots: readonly AssignedTaskSnapshotView[],
+    source: NativeDeliveryPass
+  ): Promise<void> {
+    const roles = new Set(
+      snapshots.map(
+        (snapshot) => `${snapshot.chatroomId}:${snapshot.agentConfig.role.toLowerCase()}`
+      )
+    );
+    await Promise.all(
+      [...roles].map((key) => {
+        const separator = key.indexOf(':');
+        return this.requestReconcile({
+          chatroomId: key.slice(0, separator),
+          role: key.slice(separator + 1),
+          source,
+        });
+      })
+    );
+  }
+
   async processSnapshots(
-    pass: NativeDeliveryPass,
+    pass: NativeDeliveryPass | LegacyNativeDeliveryPass,
     snapshots: readonly AssignedTaskSnapshotView[],
     onTaskDelivered?: NativeTaskDeliveredHandler
   ): Promise<void> {
