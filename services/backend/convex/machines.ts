@@ -25,7 +25,7 @@ import {
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
 import { machineOperationalSignalScopeValidator } from '../src/domain/entities/machine-operational-signal';
-import { ackMachineOperationalSignals as ackMachineOperationalSignalsUseCase } from '../src/domain/usecase/agent/ack-machine-operational-signals';
+import { ackMachineSignalRows } from '../src/domain/usecase/agent/ack-machine-operational-signals';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
@@ -2417,7 +2417,7 @@ function ackMachineSignalMutation(signalTable: OperationalSignalTable) {
     },
     handler: async (ctx, args) => {
       await requireMachineOwner(ctx, args.sessionId, args.machineId);
-      return ackMachineOperationalSignalsUseCase(
+      return ackMachineSignalRows(
         ctx,
         {
           machineId: args.machineId,
@@ -2449,26 +2449,6 @@ export const ackMachineAgentStopSignals = ackMachineSignalMutation(
 export const ackMachineAgentRemovalSignals = ackMachineSignalMutation(
   operationalSignalTables.agentRemoval
 );
-
-/*
- * The old broad operational endpoint is intentionally removed with the old
- * table. Replacement endpoints above are purpose-specific daemon APIs.
- */
-/* export const ackMachineOperationalSignals = mutation({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    throughSignalKey: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    return ackMachineOperationalSignalsUseCase(ctx, {
-      machineId: args.machineId,
-      chatroomId: args.chatroomId,
-      throughSignalKey: args.throughSignalKey,
-    });
-  },
-}); */
 
 /**
  * Rebuild snapshot projection rows for this machine (daemon startup backfill).

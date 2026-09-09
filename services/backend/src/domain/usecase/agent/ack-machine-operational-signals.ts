@@ -9,7 +9,7 @@ export type AckMachineOperationalSignalsResult = {
   hasMore: boolean;
 };
 
-export async function ackMachineOperationalSignals(
+export async function ackMachineSignalRows(
   ctx: MutationCtx,
   input: { machineId: string; chatroomId: string; throughSignalKey: string },
   signalTable: OperationalSignalTable = 'chatroom_machineAgentOperationalSignals'

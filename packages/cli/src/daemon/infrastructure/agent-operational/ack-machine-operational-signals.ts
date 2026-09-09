@@ -1,32 +1,24 @@
 // fallow-ignore-file complexity
-import type { FunctionReturnType } from 'convex/server';
-import type { SessionId } from 'convex-helpers/server/sessions';
-
-import { buildAckMachineOperationalSignalsArgs } from './operational-signal-contract.js';
-import { api } from '../../../api.js';
+import { operationalSignalFeeds, type OperationalSignalKind } from './operational-signal-feeds.js';
 import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 
-type AckResult = FunctionReturnType<typeof api.machines.ackMachineOperationalSignals>;
-
-export async function ackMachineOperationalSignals(
+export async function ackMachineSignal(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   chatroomId: string,
-  throughSignalKey: string
+  throughSignalKey: string,
+  kind: OperationalSignalKind
 ): Promise<void> {
+  const feed = operationalSignalFeeds[kind];
   while (true) {
-    const result = (await sessionDeps.backend.mutation(
-      api.machines.ackMachineOperationalSignals,
-      buildAckMachineOperationalSignalsArgs({
-        sessionId: sessionDeps.sessionId as SessionId,
-        machineId,
-        chatroomId,
-        throughSignalKey,
-      })
-    )) as AckResult;
+    const result = await feed.acknowledge(sessionDeps, {
+      machineId,
+      chatroomId,
+      throughSignalKey,
+    });
     if (!result.hasMore) return;
     if (result.deletedCount === 0) {
-      throw new Error('Operational signal ack reported more work without progress');
+      throw new Error(`${kind} signal ack reported more work without progress`);
     }
   }
 }

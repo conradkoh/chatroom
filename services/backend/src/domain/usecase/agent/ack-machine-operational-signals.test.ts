@@ -2,7 +2,7 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { ackMachineOperationalSignals } from './ack-machine-operational-signals';
+import { ackMachineSignalRows } from './ack-machine-operational-signals';
 import { writeMachineAgentOperationalSignal } from './write-machine-operational-signal';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -62,12 +62,12 @@ async function remainingSignals(machineId: string, chatroomId: Id<'chatroom_room
   );
 }
 
-describe('ackMachineOperationalSignals', () => {
+describe('ackMachineSignalRows', () => {
   test('deletes delivered signals and preserves later signals', async () => {
     const { chatroomId, machineId } = await setup('range');
     await writeSignals(machineId, chatroomId, 3);
     const result = await t.run((ctx) =>
-      ackMachineOperationalSignals(ctx, {
+      ackMachineSignalRows(ctx, {
         machineId,
         chatroomId: String(chatroomId),
         throughSignalKey: key(101, String(chatroomId), 'role-1'),
@@ -83,7 +83,7 @@ describe('ackMachineOperationalSignals', () => {
     await writeSignals(machineId, chatroomId, 1);
     const throughSignalKey = key(100, String(chatroomId), 'role-0');
     await t.run((ctx) =>
-      ackMachineOperationalSignals(ctx, {
+      ackMachineSignalRows(ctx, {
         machineId,
         chatroomId: String(chatroomId),
         throughSignalKey,
@@ -91,7 +91,7 @@ describe('ackMachineOperationalSignals', () => {
     );
     await expect(
       t.run((ctx) =>
-        ackMachineOperationalSignals(ctx, {
+        ackMachineSignalRows(ctx, {
           machineId,
           chatroomId: String(chatroomId),
           throughSignalKey,
@@ -104,7 +104,7 @@ describe('ackMachineOperationalSignals', () => {
     const { chatroomId, machineId } = await setup('future');
     await writeSignals(machineId, chatroomId, 2);
     await t.run((ctx) =>
-      ackMachineOperationalSignals(ctx, {
+      ackMachineSignalRows(ctx, {
         machineId,
         chatroomId: String(chatroomId),
         throughSignalKey: key(99, String(chatroomId), 'role-0'),
@@ -118,7 +118,7 @@ describe('ackMachineOperationalSignals', () => {
     const { chatroomId, machineId } = await setup('batch');
     await writeSignals(machineId, chatroomId, 101);
     const result = await t.run((ctx) =>
-      ackMachineOperationalSignals(ctx, {
+      ackMachineSignalRows(ctx, {
         machineId,
         chatroomId: String(chatroomId),
         throughSignalKey: key(200, String(chatroomId), 'role-100'),
@@ -129,7 +129,7 @@ describe('ackMachineOperationalSignals', () => {
     expect(remaining).toHaveLength(1);
 
     const continuation = await t.run((ctx) =>
-      ackMachineOperationalSignals(ctx, {
+      ackMachineSignalRows(ctx, {
         machineId,
         chatroomId: String(chatroomId),
         throughSignalKey: key(200, String(chatroomId), 'role-100'),
@@ -147,7 +147,7 @@ describe('ackMachineOperationalSignals', () => {
     await writeSignals(machineId, otherChatroomId, 2);
 
     const result = await t.run((ctx) =>
-      ackMachineOperationalSignals(ctx, {
+      ackMachineSignalRows(ctx, {
         machineId,
         chatroomId: String(chatroomId),
         throughSignalKey: key(400, String(otherChatroomId), 'role-1'),
