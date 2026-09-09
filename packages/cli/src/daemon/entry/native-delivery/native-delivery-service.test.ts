@@ -69,4 +69,33 @@ describe('NativeDeliveryService', () => {
     } as never);
     service.dispose();
   });
+
+  test('coalesces duplicate role reconciliations and runs a fresh pass afterward', async () => {
+    const service = createService();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const processSnapshots = vi
+      .spyOn(service, 'processSnapshots')
+      .mockImplementationOnce(async () => gate)
+      .mockResolvedValue(undefined);
+
+    const first = service.requestReconcile({
+      chatroomId: 'room-1',
+      role: 'Builder',
+      source: 'task-signal',
+    });
+    const second = service.requestReconcile({
+      chatroomId: 'room-1',
+      role: 'builder',
+      source: 'operational-signal',
+    });
+
+    release();
+    await Promise.all([first, second]);
+
+    expect(processSnapshots).toHaveBeenCalledTimes(2);
+    expect(processSnapshots).toHaveBeenNthCalledWith(2, 'operational-signal', expect.any(Array));
+  });
 });

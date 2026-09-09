@@ -74,6 +74,13 @@ export class NativeDeliveryService {
   private readonly unsubscribeAgentTurnEnded: () => void;
   private readonly unsubscribeAgentStarted: () => void;
   private readonly unsubscribeAgentSessionLost: () => void;
+  private readonly reconcileStates = new Map<
+    string,
+    {
+      pendingSource: NativeDeliveryPass | undefined;
+      promise: Promise<void>;
+    }
+  >();
 
   constructor(private readonly deps: NativeDeliveryServiceDependencies) {
     this.unsubscribeAgentTurnEnded = deps.agentMgr.subscribeAgentTurnEnded((event) =>
@@ -156,8 +163,32 @@ export class NativeDeliveryService {
     role: string;
     source: NativeDeliveryPass;
   }): Promise<void> {
-    const snapshots = this.deps.taskSnapshotState.listForRole(params.chatroomId, params.role);
-    await this.processSnapshots(params.source, snapshots);
+    const key = `${params.chatroomId}:${params.role.toLowerCase()}`;
+    const existing = this.reconcileStates.get(key);
+    if (existing) {
+      existing.pendingSource = params.source;
+      await existing.promise;
+      return;
+    }
+
+    const state = {
+      pendingSource: undefined as NativeDeliveryPass | undefined,
+      promise: Promise.resolve(),
+    };
+    state.promise = (async () => {
+      try {
+        do {
+          const source = state.pendingSource ?? params.source;
+          state.pendingSource = undefined;
+          const snapshots = this.deps.taskSnapshotState.listForRole(params.chatroomId, params.role);
+          await this.processSnapshots(source, snapshots);
+        } while (state.pendingSource !== undefined);
+      } finally {
+        if (this.reconcileStates.get(key) === state) this.reconcileStates.delete(key);
+      }
+    })();
+    this.reconcileStates.set(key, state);
+    await state.promise;
   }
 
   private async requestReconcileForSnapshots(
