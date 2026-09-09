@@ -100,8 +100,8 @@ describe('writeMachineAgentOperationalSignal', () => {
 
     await t.run(async (ctx) => {
       await writeMachineAgentOperationalSignal(ctx, input);
-      await writeMachineConnectivitySignal(ctx, input);
-      await writeMachineAgentStopSignal(ctx, input);
+      await writeMachineConnectivitySignal(ctx, { ...input, daemonConnected: true });
+      await writeMachineAgentStopSignal(ctx, { ...input, stopState: 'pending' });
       await writeMachineAgentRemovalSignal(ctx, input);
     });
 
@@ -134,5 +134,10 @@ describe('writeMachineAgentOperationalSignal', () => {
       ])
     );
     expect(counts.map((rows) => rows.length)).toEqual([1, 1, 1, 1]);
+
+    expect(counts[0][0]).toMatchObject({ kind: 'agent-operational' });
+    expect(counts[1][0]).toMatchObject({ kind: 'connectivity', daemonConnected: true });
+    expect(counts[2][0]).toMatchObject({ kind: 'agent-stop', stopState: 'pending' });
+    expect(counts[3][0]).toMatchObject({ kind: 'agent-removal', reason: 'role-removed' });
   });
 });

@@ -24,6 +24,10 @@ The current implementation covers the migration end to end:
 
 - four purpose-specific Convex signal tables, indexes, queries, hydration
   queries, and acknowledgement mutations replace the shared operational feed;
+- each signal table now has its own required, discriminated payload validator:
+  agent-operational, connectivity (including daemon connectivity), agent-stop
+  (including the stop-state union), and agent-removal (including its literal
+  removal reason);
 - operational projections write agent state, connectivity, stop state, and
   role removal to their respective tables in the same Convex mutation as the
   projection update;
@@ -200,7 +204,7 @@ Do not split solely by the current projection function. One projection function 
 - [ ] Define the new schema tables and purpose-specific indexes.
 - [ ] Define signal key and cursor semantics for each table.
 - [ ] Decide whether keys must be globally ordered, machine-scoped, chatroom-scoped, or only ordered within one inbox.
-- [ ] Add validators/types for each signal payload.
+  - [x] Add validators/types for each signal payload.
 - [ ] Add generated Convex API output through the normal Convex generation workflow.
 - [ ] Add focused schema/type tests for indexes, optional removal fields, and cursor fields.
 - [ ] Add one-time backfill support if a daemon can be upgraded while old rows exist.

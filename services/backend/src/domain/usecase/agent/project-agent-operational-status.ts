@@ -225,7 +225,8 @@ export async function projectAgentOperationalStatusForRole(
         projectedAt,
       };
       if (operationalStateChanged) await writeMachineAgentOperationalSignal(ctx, signalInput);
-      if (stopStateChanged) await writeMachineAgentStopSignal(ctx, signalInput);
+      if (stopStateChanged)
+        await writeMachineAgentStopSignal(ctx, { ...signalInput, stopState: fields.stopState });
     }
   }
   const summary = await summaryFor(ctx, chatroomId);
@@ -284,6 +285,7 @@ export async function projectAgentStopStateForRole(
       role: row.role,
       revisionKey,
       projectedAt,
+      stopState: stop.stopState,
     });
   }
 }
@@ -383,6 +385,7 @@ export async function projectDaemonConnectivityForMachine(
           role: row.role,
           revisionKey,
           projectedAt,
+          daemonConnected,
         });
       }
       const projections = changed.get(config.chatroomId) ?? [];

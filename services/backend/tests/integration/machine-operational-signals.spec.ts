@@ -29,14 +29,21 @@ describe('machine operational signals', () => {
     ] as const;
     await t.run(async (ctx) => {
       for (const [index, [table, suffix]] of signalRows.entries()) {
-        await ctx.db.insert(table, {
+        const base = {
           machineId,
           chatroomId,
           role: 'builder',
           revisionKey: suffix,
           signalKey: `000000000000000${index + 1}:${chatroomId}:builder`,
           projectedAt: 100,
-        });
+        };
+        if (table === 'chatroom_machineAgentOperationalSignals')
+          await ctx.db.insert(table, { ...base, kind: 'agent-operational' });
+        else if (table === 'chatroom_machineConnectivitySignals')
+          await ctx.db.insert(table, { ...base, kind: 'connectivity', daemonConnected: true });
+        else if (table === 'chatroom_machineAgentStopSignals')
+          await ctx.db.insert(table, { ...base, kind: 'agent-stop', stopState: 'pending' });
+        else await ctx.db.insert(table, { ...base, kind: 'agent-removal', reason: 'role-removed' });
       }
     });
 

@@ -56,6 +56,7 @@ describe('listOperationalStatusForMachineSignalRange', () => {
       await ctx.db.insert('chatroom_machineAgentOperationalSignals', {
         machineId,
         chatroomId,
+        kind: 'agent-operational',
         role: 'builder',
         revisionKey: 'revision-1',
         signalKey: firstKey,
@@ -64,7 +65,9 @@ describe('listOperationalStatusForMachineSignalRange', () => {
       await ctx.db.insert('chatroom_machineAgentRemovalSignals', {
         machineId,
         chatroomId,
+        kind: 'agent-removal',
         role: 'planner',
+        reason: 'role-removed',
         revisionKey: 'revision-removed',
         signalKey: removedKey,
         projectedAt: 101,
@@ -72,6 +75,7 @@ describe('listOperationalStatusForMachineSignalRange', () => {
       await ctx.db.insert('chatroom_machineAgentOperationalSignals', {
         machineId,
         chatroomId: otherChatroomId,
+        kind: 'agent-operational',
         role: 'builder',
         revisionKey: 'revision-other',
         signalKey: otherRoomKey,
