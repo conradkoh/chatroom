@@ -1,4 +1,3 @@
-import type { RoleStopState } from './derive-agent-stop-state';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -50,17 +49,6 @@ export async function writeMachineConnectivitySignal(
     ...baseMachineSignal(input),
     kind: 'connectivity',
     daemonConnected: input.daemonConnected,
-  });
-}
-
-export async function writeMachineAgentStopSignal(
-  ctx: MutationCtx,
-  input: MachineSignalInput & { stopState: RoleStopState }
-): Promise<void> {
-  await ctx.db.insert('chatroom_machineAgentStopSignals', {
-    ...baseMachineSignal(input),
-    kind: 'agent-stop',
-    stopState: input.stopState,
   });
 }
 

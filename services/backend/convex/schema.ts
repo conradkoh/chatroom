@@ -19,7 +19,6 @@ import {
   machineAgentOperationalSignalValidator,
   machineConnectivitySignalValidator,
   machineAgentRemovalSignalValidator,
-  machineAgentStopSignalValidator,
 } from '../src/domain/entities/machine-operational-signal';
 import {
   machineTaskDeliverySignalValidator,
@@ -768,12 +767,6 @@ export default defineSchema({
 
   /** Slim machine connectivity change signals, scoped per machine/chatroom. */
   chatroom_machineConnectivitySignals: defineTable(machineConnectivitySignalValidator).index(
-    'by_machineId_chatroomId_signalKey',
-    ['machineId', 'chatroomId', 'signalKey']
-  ),
-
-  /** Slim role stop-state change signals, scoped per machine/chatroom. */
-  chatroom_machineAgentStopSignals: defineTable(machineAgentStopSignalValidator).index(
     'by_machineId_chatroomId_signalKey',
     ['machineId', 'chatroomId', 'signalKey']
   ),

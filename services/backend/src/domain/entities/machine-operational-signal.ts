@@ -20,7 +20,6 @@ export const machineOperationalSignalScopeValidator = {
 export const MACHINE_OPERATIONAL_SIGNAL_KINDS = [
   'agent-operational',
   'connectivity',
-  'agent-stop',
   'agent-removal',
 ] as const;
 
@@ -51,18 +50,6 @@ export const machineConnectivitySignalValidator = v.object({
   daemonConnected: v.boolean(),
 });
 
-export const machineAgentStopSignalValidator = v.object({
-  ...machineOperationalSignalSyncFields,
-  kind: v.literal('agent-stop'),
-  stopState: v.union(
-    v.literal('idle'),
-    v.literal('pending'),
-    v.literal('stopping'),
-    v.literal('stopped'),
-    v.literal('failed')
-  ),
-});
-
 export const machineAgentRemovalSignalValidator = v.object({
   ...machineOperationalSignalSyncFields,
   kind: v.literal('agent-removal'),
@@ -72,12 +59,10 @@ export const machineAgentRemovalSignalValidator = v.object({
 export const machineOperationalSignalValidator = v.union(
   machineAgentOperationalSignalValidator,
   machineConnectivitySignalValidator,
-  machineAgentStopSignalValidator,
   machineAgentRemovalSignalValidator
 );
 
 export type MachineAgentOperationalSignal = typeof machineAgentOperationalSignalValidator.type;
 export type MachineConnectivitySignal = typeof machineConnectivitySignalValidator.type;
-export type MachineAgentStopSignal = typeof machineAgentStopSignalValidator.type;
 export type MachineAgentRemovalSignal = typeof machineAgentRemovalSignalValidator.type;
 export type MachineOperationalSignal = typeof machineOperationalSignalValidator.type;

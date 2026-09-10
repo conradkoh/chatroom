@@ -24,7 +24,6 @@ describe('machine operational signals', () => {
     const signalRows = [
       ['chatroom_machineAgentOperationalSignals', 'agent-operational'],
       ['chatroom_machineConnectivitySignals', 'connectivity'],
-      ['chatroom_machineAgentStopSignals', 'agent-stop'],
       ['chatroom_machineAgentRemovalSignals', 'agent-removal'],
     ] as const;
     await t.run(async (ctx) => {
@@ -41,8 +40,6 @@ describe('machine operational signals', () => {
           await ctx.db.insert(table, { ...base, kind: 'agent-operational' });
         else if (table === 'chatroom_machineConnectivitySignals')
           await ctx.db.insert(table, { ...base, kind: 'connectivity', daemonConnected: true });
-        else if (table === 'chatroom_machineAgentStopSignals')
-          await ctx.db.insert(table, { ...base, kind: 'agent-stop', stopState: 'pending' });
         else await ctx.db.insert(table, { ...base, kind: 'agent-removal', reason: 'role-removed' });
       }
     });
@@ -56,7 +53,6 @@ describe('machine operational signals', () => {
         api.machines.subscribeMachineConnectivitySignalsSince,
         api.machines.ackMachineConnectivitySignals,
       ],
-      [api.machines.subscribeMachineAgentStopSignalsSince, api.machines.ackMachineAgentStopSignals],
       [
         api.machines.subscribeMachineAgentRemovalSignalsSince,
         api.machines.ackMachineAgentRemovalSignals,
@@ -80,6 +76,59 @@ describe('machine operational signals', () => {
     );
     expect(remaining[0]).toHaveLength(0);
     expect(remaining.slice(1).every((rows) => rows.length === 1)).toBe(true);
+  });
+
+  test('delivers a stop-only state change through the agent-operational feed', async () => {
+    const { sessionId } = await createTestSession('machine-operational-stop-state');
+    const machineId = 'machine-operational-stop-state';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'duo',
+      teamName: 'Duo',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 62005);
+
+    const baseline = await t.query(api.machines.subscribeMachineAgentOperationalSignalsSince, {
+      sessionId,
+      machineId,
+      chatroomId,
+      afterKey: '',
+    });
+    expect(baseline).not.toBeNull();
+    const cursor = baseline!.highKey;
+
+    await t.mutation(api.agentStops.requestAgent, {
+      sessionId,
+      chatroomId,
+      machineId,
+      role: 'builder',
+      reason: 'user.stop',
+    });
+
+    const page = await t.query(api.machines.subscribeMachineAgentOperationalSignalsSince, {
+      sessionId,
+      machineId,
+      chatroomId,
+      afterKey: cursor,
+    });
+    expect(page).not.toBeNull();
+    expect(page!.items.length).toBeGreaterThan(0);
+
+    const hydrated = await t.query(api.machines.listMachineAgentOperationalStatusForSignalRange, {
+      sessionId,
+      machineId,
+      chatroomId,
+      afterSignalKey: cursor,
+      throughSignalKey: page!.highKey,
+      limit: 100,
+    });
+    const builderRow = hydrated.rows.find((row) => row.role === 'builder');
+    expect(builderRow).toBeDefined();
+    expect(['pending', 'stopping']).toContain(builderRow!.stopState);
   });
 
   test('projects a row into signal, subscription, and hydration pages', async () => {

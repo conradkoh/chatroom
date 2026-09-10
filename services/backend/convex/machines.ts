@@ -2218,7 +2218,6 @@ export const listMachineAssignedTaskSnapshots = query({
 const operationalSignalTables = {
   agentOperational: 'chatroom_machineAgentOperationalSignals',
   connectivity: 'chatroom_machineConnectivitySignals',
-  agentStop: 'chatroom_machineAgentStopSignals',
   agentRemoval: 'chatroom_machineAgentRemovalSignals',
 } as const satisfies Record<string, OperationalSignalTable>;
 
@@ -2289,20 +2288,6 @@ export const subscribeMachineConnectivitySignalsSince = query({
   handler: async (ctx, args) => {
     if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
     return listMachineSignalPage(ctx, args, operationalSignalTables.connectivity);
-  },
-});
-
-/** Reactive cursor-pinned role stop-state signals. */
-export const subscribeMachineAgentStopSignalsSince = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
-    return listMachineSignalPage(ctx, args, operationalSignalTables.agentStop);
   },
 });
 
@@ -2383,22 +2368,6 @@ export const listMachineConnectivityStatusForSignalRange = query({
   },
 });
 
-/** Hydrate rows for role stop-state signal delivery. */
-export const listMachineAgentStopStatusForSignalRange = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterSignalKey: v.string(),
-    throughSignalKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
-      return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
-    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentStop);
-  },
-});
-
 /** Return removed roles for role-removal signal delivery. */
 export const listMachineAgentRemovalStatusForSignalRange = query({
   args: {
@@ -2458,11 +2427,6 @@ export const ackMachineAgentOperationalSignals = ackMachineSignalMutation(
 /** Acknowledge machine connectivity signals. */
 export const ackMachineConnectivitySignals = ackMachineSignalMutation(
   operationalSignalTables.connectivity
-);
-
-/** Acknowledge role stop-state signals. */
-export const ackMachineAgentStopSignals = ackMachineSignalMutation(
-  operationalSignalTables.agentStop
 );
 
 /** Acknowledge role-removal signals. */

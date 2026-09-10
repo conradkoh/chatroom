@@ -16,7 +16,6 @@ import { deriveRoleStopState } from './derive-agent-stop-state';
 import {
   writeMachineAgentOperationalSignal,
   writeMachineAgentRemovalSignal,
-  writeMachineAgentStopSignal,
   writeMachineConnectivitySignal,
 } from './write-machine-operational-signal';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
@@ -224,9 +223,8 @@ export async function projectAgentOperationalStatusForRole(
         revisionKey: fields.revisionKey,
         projectedAt,
       };
-      if (operationalStateChanged) await writeMachineAgentOperationalSignal(ctx, signalInput);
-      if (stopStateChanged)
-        await writeMachineAgentStopSignal(ctx, { ...signalInput, stopState: fields.stopState });
+      if (operationalStateChanged || stopStateChanged)
+        await writeMachineAgentOperationalSignal(ctx, signalInput);
     }
   }
   const summary = await summaryFor(ctx, chatroomId);
@@ -279,13 +277,12 @@ export async function projectAgentStopStateForRole(
     revisionKey,
   });
   if (row.machineId) {
-    await writeMachineAgentStopSignal(ctx, {
+    await writeMachineAgentOperationalSignal(ctx, {
       machineId: row.machineId,
       chatroomId,
       role: row.role,
       revisionKey,
       projectedAt,
-      stopState: stop.stopState,
     });
   }
 }

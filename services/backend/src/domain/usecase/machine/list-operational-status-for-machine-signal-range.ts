@@ -14,7 +14,6 @@ export type ListOperationalStatusForMachineSignalRangeInput = {
 export type OperationalSignalTable =
   | 'chatroom_machineAgentOperationalSignals'
   | 'chatroom_machineConnectivitySignals'
-  | 'chatroom_machineAgentStopSignals'
   | 'chatroom_machineAgentRemovalSignals';
 
 export type MachineAgentOperationalRowView = {
