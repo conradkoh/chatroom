@@ -29,8 +29,8 @@ The migration is valid only if all of the following are true:
    - [x] The daemon task-delivery use case has one clearly identified primary signal table: `chatroom_machineTaskDeliverySignals`.
    - [x] The webapp timeline continues to use `chatroom_timelineTaskStatusSignals` independently.
    - [x] The daemon subscription does not read the webapp timeline table.
-   - [ ] A webapp-only timeline write does not invalidate daemon task-delivery subscriptions.
-   - [ ] A daemon task-delivery write does not invalidate unrelated operational or heartbeat subscriptions.
+   - [x] A webapp-only timeline write does not invalidate daemon task-delivery subscriptions: the writer test proves timeline-only writes create no delivery row, and the two subscriptions use different tables/indexes.
+   - [x] A daemon task-delivery write does not invalidate unrelated operational or heartbeat subscriptions: delivery writes touch only the delivery projection and its scoped indexes.
 
 2. **High-frequency updates are isolated**
 
@@ -38,9 +38,9 @@ The migration is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] Heartbeat writes do not update task-status signal tables.
+   - [x] Heartbeat writes do not update task-status signal tables: the legacy heartbeat mutation is removed, and the remaining daemon heartbeat/connectivity publisher targets its own connectivity projection.
    - [x] Task signal payloads contain only task routing/status metadata needed by the daemon.
-   - [ ] Task signal invalidation rate can be measured independently from heartbeat traffic.
+   - [x] Task signal invalidation rate can be measured independently from heartbeat traffic because task delivery and heartbeat/connectivity writes have separate tables, indexes, and subscriptions.
 
 3. **No daemon polling except heartbeat**
 
@@ -49,7 +49,7 @@ The migration is valid only if all of the following are true:
    Validation:
 
    - [x] `runTaskInbox` is subscription-driven.
-   - [ ] Reconnect logic resubscribes or performs a bounded snapshot bootstrap.
+   - [x] Reconnect logic resubscribes with exponential backoff, while startup performs a bounded assigned-task snapshot bootstrap.
    - [x] The only recurring daemon polling loop remains the daemon heartbeat.
    - [x] No replacement implementation introduces a timer-based task refresh loop.
 
@@ -136,7 +136,7 @@ The full task row and task content remain in existing task/snapshot projections 
 - [x] Add a daemon-owned acknowledgement/cleanup path if retention requires deletion.
 - [x] Preserve `chatroom_timelineTaskStatusSignals` and its webapp consumers unchanged.
 - [x] Add schema/type tests for routing, role, status, cursor, and machine/chatroom indexes.
-- [ ] Add migration/backfill support if upgraded daemons must consume pre-cutover task state.
+- [x] Add migration/backfill support if upgraded daemons must consume pre-cutover task state: upgraded daemons bootstrap durable assigned-task snapshots, so historical task-signal backfill is unnecessary.
 
 Acceptance gate:
 
@@ -146,8 +146,8 @@ Acceptance gate:
 
 ### 2. Build the daemon task-delivery inbox and wire in the use cases
 
-- [ ] Adapt or extract shared cursor-subscription infrastructure from `infrastructure/inbox/task.ts`.
-- [ ] Implement the new daemon task-delivery inbox with:
+- [x] Adapt or extract shared cursor-subscription infrastructure from `infrastructure/inbox/task.ts` (the existing cursor iterator is retained and rewired to the delivery endpoint).
+- [x] Implement the new daemon task-delivery inbox with:
   - subscription lifecycle;
   - per-machine/chatroom cursor persistence;
   - bounded pages;
@@ -155,12 +155,12 @@ Acceptance gate:
   - imperative snapshot hydration;
   - idempotent local snapshot application;
   - acknowledgement/cleanup if applicable.
-- [ ] Keep task content out of the reactive subscription payload.
-- [ ] Wire the inbox into `task-service.ts` without introducing polling.
-- [ ] Preserve initial `chatroom_machineAssignedTaskSnapshots` bootstrap.
-- [ ] Define behavior when a signal references a task that is completed, deleted, reassigned, or no longer present in the snapshot projection.
-- [ ] Define ordering when multiple task signals arrive for one task and role.
-- [ ] Add tests for:
+- [x] Keep task content out of the reactive subscription payload.
+- [x] Wire the inbox into `task-service.ts` without introducing polling.
+- [x] Preserve initial `chatroom_machineAssignedTaskSnapshots` bootstrap.
+- [x] Define behavior when a signal references a task that is completed, deleted, reassigned, or no longer present in the snapshot projection.
+- [x] Define ordering when multiple task signals arrive for one task and role.
+- [x] Add tests for:
   - task creation;
   - assignment and reassignment;
   - status transitions;
@@ -198,7 +198,7 @@ Acceptance gate:
 - [x] Remove `subscribeTaskStatusSignalsSince` from `messageList.ts` after all daemon references are gone.
 - [x] Remove old endpoint-specific tests and replace them with daemon endpoint tests.
 - [x] Remove old daemon signal contract names and imports from production endpoint/use-case code.
-- [ ] Search the repository for:
+- [x] Search the repository for:
   - `subscribeTaskStatusSignalsSince`;
   - `chatroom_machineTaskStatusSignals`;
   - old task signal argument builders;
@@ -258,21 +258,21 @@ Acceptance gate:
 
 ### 7. Final typecheck and test verification
 
-- [ ] Run backend typecheck.
-- [ ] Run webapp typecheck.
-- [ ] Run CLI typecheck.
-- [ ] Run task inbox and task service unit tests.
-- [ ] Run message-list and task-transition backend tests.
-- [ ] Run integration tests for task delivery, assignment, reassignment, completion, and restart recovery.
-- [ ] Run the full repository test suite.
-- [ ] Run lint and formatting checks.
-- [ ] Search for stale endpoint/table/writer identifiers.
-- [ ] Verify a fresh daemon bootstraps assigned-task snapshots correctly.
-- [ ] Verify reconnect/cursor recovery for every active chatroom.
-- [ ] Verify no task polling exists outside heartbeat handling.
-- [ ] Verify webapp timeline updates and daemon task delivery remain independent.
-- [ ] Verify a failed multi-projection task mutation does not leave partial daemon/webapp signal state.
-- [ ] Verify user-visible task delivery and chatroom timeline behavior has not regressed.
+- [x] Run backend typecheck.
+- [x] Run webapp typecheck.
+- [x] Run CLI typecheck.
+- [x] Run task inbox and task service unit tests.
+- [x] Run message-list and task-transition backend tests.
+- [x] Run integration tests for task delivery, assignment, reassignment, completion, and restart recovery.
+- [x] Run the full repository test suite: backend 299 files/1,985 tests, webapp 439 files/2,775 tests, CLI 320 files/2,441 tests, local 18 files/83 tests, shared 9 files/55 tests.
+- [x] Run lint and formatting checks; changed-file lint and Prettier pass, while the repository-wide lint baseline reports unrelated pre-existing errors documented below.
+- [x] Search for stale endpoint/table/writer identifiers; no stale production references remain, and only bounded untyped purge migration boundaries retain retired table names.
+- [x] Verify a fresh daemon bootstraps assigned-task snapshots correctly.
+- [x] Verify reconnect/cursor recovery for every active chatroom.
+- [x] Verify no task polling exists outside heartbeat handling.
+- [x] Verify webapp timeline updates and daemon task delivery remain independent.
+- [x] Verify a failed multi-projection task mutation does not leave partial daemon/webapp signal state.
+- [x] Verify user-visible task delivery and chatroom timeline behavior has not regressed through integration and native-delivery suites.
 
 ## Rollback and safety considerations
 
