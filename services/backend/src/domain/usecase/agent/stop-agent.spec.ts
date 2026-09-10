@@ -159,7 +159,7 @@ describe('stopAgent use case — deferred physical stop', () => {
     expect(config?.desiredState).toBe('stopped');
   });
 
-  test('creates agent.stopScope inbox with stopCommandId', async () => {
+  test('creates dedicated agent.stop inbox row with intentId and no legacy stopScope row', async () => {
     const { sessionId, userId } = await createTestSession('stop-agent-pid-1');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'stop-machine-pid-1';
@@ -200,22 +200,38 @@ describe('stopAgent use case — deferred physical stop', () => {
       });
     });
 
-    const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
-    const stopCmd = inbox.find((row) => row.command.type === 'agent.stopScope');
-    expect(stopCmd).toBeDefined();
-    if (stopCmd?.command.type === 'agent.stopScope') {
-      expect(stopCmd.command.scope).toEqual({ kind: 'agent', role: 'builder' });
-      expect(stopCmd.command.stopCommandId).toBeDefined();
-      const target = await t.run(async (ctx) =>
-        ctx.db
-          .query('chatroom_agentStopTargets')
-          .withIndex('by_stopCommandId', (q) =>
-            q.eq('stopCommandId', stopCmd.command.stopCommandId)
-          )
-          .first()
-      );
-      expect(target?.pid).toBe(54321);
-    }
+    const dedicated = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_agentCommandInbox')
+        .withIndex('by_machine_status_deadline', (q) =>
+          q.eq('machineId', machineId).eq('status', 'pending')
+        )
+        .collect()
+    );
+    expect(dedicated).toHaveLength(1);
+    const row = dedicated[0]!;
+    expect(row.command.type).toBe('agent.stop');
+    expect(row.command.scope).toEqual({ kind: 'agent', role: 'builder' });
+    expect(row.command.reason).toBe('user.stop');
+    expect(row.command.chatroomId).toBe(chatroomId);
+    expect(Number.isFinite(row.deadlineAt)).toBe(true);
+    expect(row.deadlineAt).toBeGreaterThan(Date.now());
+    const stopCommandId = row.command.intentId as Id<'chatroom_agentStopCommands'>;
+    const stopCommand = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_agentStopCommands', stopCommandId)
+    );
+    expect(stopCommand?.chatroomId).toBe(chatroomId);
+    expect(String(stopCommand?._id)).toBe(row.command.intentId);
+    const target = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_agentStopTargets')
+        .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', stopCommandId))
+        .first()
+    );
+    expect(target?.pid).toBe(54321);
+
+    const legacy = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
+    expect(legacy).toEqual([]);
   });
 
   test('does not transition participant to agent.exited on stop request', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
@@ -9,7 +10,18 @@ import {
   setupRemoteAgentConfig,
   updateSpawnedAgentInTest,
 } from '../helpers/integration';
-import { getInboxCommandsForMachine } from '../helpers/machine-command-inbox';
+
+/** Dedicated pending agent.stop rows for a machine. */
+async function getAgentCommandInboxForMachine(machineId: string) {
+  return t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_agentCommandInbox')
+      .withIndex('by_machine_status_deadline', (q) =>
+        q.eq('machineId', machineId).eq('status', 'pending')
+      )
+      .collect()
+  );
+}
 
 describe('agent stop request reason', () => {
   test('defaults to user.stop', async () => {
@@ -20,13 +32,18 @@ describe('agent stop request reason', () => {
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 50101);
     await t.mutation(api.agentStops.request, { sessionId, chatroomId, machineId, role: 'builder' });
-    const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
-    const row = inbox.find((item) => item.command.type === 'agent.stopScope');
+    const inbox = await getAgentCommandInboxForMachine(machineId);
+    const row = inbox.find((item) => item.command.type === 'agent.stop');
     expect(row).toBeDefined();
-    const command =
-      row && row.command.type === 'agent.stopScope'
-        ? await t.run((ctx) => ctx.db.get('chatroom_agentStopCommands', row.command.stopCommandId))
-        : null;
+    expect(row?.command.reason).toBe('user.stop');
+    const command = row
+      ? await t.run((ctx) =>
+          ctx.db.get(
+            'chatroom_agentStopCommands',
+            row.command.intentId as Id<'chatroom_agentStopCommands'>
+          )
+        )
+      : null;
     expect(command?.reason).toBe('user.stop');
   });
 
@@ -44,13 +61,18 @@ describe('agent stop request reason', () => {
       role: 'builder',
       reason: 'platform.dedup',
     });
-    const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
-    const row = inbox.find((item) => item.command.type === 'agent.stopScope');
+    const inbox = await getAgentCommandInboxForMachine(machineId);
+    const row = inbox.find((item) => item.command.type === 'agent.stop');
     expect(row).toBeDefined();
-    const command =
-      row && row.command.type === 'agent.stopScope'
-        ? await t.run((ctx) => ctx.db.get('chatroom_agentStopCommands', row.command.stopCommandId))
-        : null;
+    expect(row?.command.reason).toBe('platform.dedup');
+    const command = row
+      ? await t.run((ctx) =>
+          ctx.db.get(
+            'chatroom_agentStopCommands',
+            row.command.intentId as Id<'chatroom_agentStopCommands'>
+          )
+        )
+      : null;
     expect(command?.reason).toBe('platform.dedup');
   });
 });

@@ -13,10 +13,7 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
-import {
-  getInboxCommandsForChatroom,
-  getStopCommandMachineIdsForRole,
-} from '../../../../tests/helpers/machine-command-inbox';
+import { getStopCommandMachineIdsForRole } from '../../../../tests/helpers/machine-command-inbox';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,6 +60,18 @@ async function insertTeamConfig(
   });
 }
 
+/** Dedicated pending agent.stop rows for a machine. */
+async function getAgentCommandInboxForMachine(machineId: string) {
+  return t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_agentCommandInbox')
+      .withIndex('by_machine_status_deadline', (q) =>
+        q.eq('machineId', machineId).eq('status', 'pending')
+      )
+      .collect()
+  );
+}
+
 /** Get machine IDs that received agent.requestStop commands for a given role */
 async function getStopEventMachineIds(chatroomId: Id<'chatroom_rooms'>, role: string) {
   return getStopCommandMachineIdsForRole(chatroomId, role);
@@ -95,10 +104,14 @@ describe('ensureOnlyAgentForRole', () => {
       });
     });
 
-    const rows = await getInboxCommandsForChatroom(chatroomId, 'agent.stopScope');
+    const rows = [
+      ...(await getAgentCommandInboxForMachine('machine-a')),
+      ...(await getAgentCommandInboxForMachine('machine-b')),
+    ];
     expect(rows.map((r) => r.machineId)).toEqual(
       expect.arrayContaining(['machine-a', 'machine-b'])
     );
+    for (const row of rows) expect(row.command.type).toBe('agent.stop');
   });
 
   test('skips the excluded machine when excludeMachineId is provided', async () => {
@@ -118,9 +131,11 @@ describe('ensureOnlyAgentForRole', () => {
       });
     });
 
-    const rows = await getInboxCommandsForChatroom(chatroomId, 'agent.stopScope');
-    expect(rows.map((r) => r.machineId)).toContain('machine-a');
-    expect(rows.map((r) => r.machineId)).not.toContain('machine-c');
+    const rowsA = await getAgentCommandInboxForMachine('machine-a');
+    const rowsC = await getAgentCommandInboxForMachine('machine-c');
+    expect(rowsA.length).toBeGreaterThan(0);
+    expect(rowsA[0]?.command.type).toBe('agent.stop');
+    expect(rowsC).toEqual([]);
   });
 
   test('no-op when no existing configs exist', async () => {
@@ -170,16 +185,14 @@ describe('ensureOnlyAgentForRole', () => {
       });
     });
 
-    const inbox = await getInboxCommandsForChatroom(chatroomId, 'agent.stopScope');
+    const inbox = await getAgentCommandInboxForMachine('machine-f');
 
     expect(inbox.length).toBe(1);
     const row = inbox[0]!;
-    expect(row.command.type).toBe('agent.stopScope');
-    if (row.command.type === 'agent.stopScope') {
-      expect(row.machineId).toBe('machine-f');
-      expect(row.command.reason).toBe('platform.dedup');
-      expect(row.deadline).toBeGreaterThan(before);
-      expect(typeof row.createdAt).toBe('number');
-    }
+    expect(row.command.type).toBe('agent.stop');
+    expect(row.machineId).toBe('machine-f');
+    expect(row.command.reason).toBe('platform.dedup');
+    expect(row.deadlineAt).toBeGreaterThan(before);
+    expect(typeof row.createdAt).toBe('number');
   });
 });

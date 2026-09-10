@@ -75,7 +75,7 @@ export const requestMachineScope = mutation({
     return {
       ok: true as const,
       stopCommandId: result.stopCommandId,
-      inboxCommandId: result.inboxCommandIdsByMachine[args.machineId],
+      agentCommandId: result.agentCommandIdsByMachine[args.machineId],
     };
   },
 });

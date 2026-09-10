@@ -9,6 +9,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
   createTestSession,
@@ -16,10 +17,15 @@ import {
   seedRunningAgentPid,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
-import {
-  getStopScopeCommandsForChatroom,
-  getInboxCommandsForChatroom,
-} from '../helpers/machine-command-inbox';
+import { getInboxCommandsForChatroom } from '../helpers/machine-command-inbox';
+
+/** Dedicated agent.stop rows for a chatroom (any status). */
+async function getAgentStopRowsForChatroom(chatroomId: Id<'chatroom_rooms'>) {
+  return t.run(async (ctx) => {
+    const rows = await ctx.db.query('chatroom_agentCommandInbox').collect();
+    return rows.filter((row) => row.command.chatroomId === chatroomId);
+  });
+}
 
 function createThreeRoleChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
@@ -87,17 +93,17 @@ describe('updateTeam — stop events', () => {
       teamEntryPoint: 'planner',
     });
 
-    const stopRows = await getStopScopeCommandsForChatroom(chatroomId);
+    const stopRows = await getAgentStopRowsForChatroom(chatroomId);
     const teamSwitchStops = stopRows.filter(
-      (row) =>
-        row.command.type === 'agent.stopScope' && row.command.reason === 'platform.team_switch'
+      (row) => row.command.type === 'agent.stop' && row.command.reason === 'platform.team_switch'
     );
     expect(teamSwitchStops.length).toBeGreaterThanOrEqual(1);
-    const stopCommandId =
-      teamSwitchStops[0]?.command.type === 'agent.stopScope'
-        ? teamSwitchStops[0].command.stopCommandId
+    const intentId =
+      teamSwitchStops[0]?.command.type === 'agent.stop'
+        ? teamSwitchStops[0].command.intentId
         : undefined;
-    if (stopCommandId) {
+    if (intentId) {
+      const stopCommandId = intentId as Id<'chatroom_agentStopCommands'>;
       const targetCount = await t.run(
         async (ctx) =>
           (

@@ -2,7 +2,7 @@
  * Stop Agent — Integration Tests
  *
  * Tests the `stopAgent` use case which enqueues scoped stop commands
- * on the machine command inbox.
+ * on the dedicated agent command inbox.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -16,10 +16,20 @@ import {
   seedRunningAgentPid,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
-import { getInboxCommandsForMachine } from '../helpers/machine-command-inbox';
+/** Dedicated pending agent.stop rows for a machine. */
+async function getAgentCommandInboxForMachine(machineId: string) {
+  return t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_agentCommandInbox')
+      .withIndex('by_machine_status_deadline', (q) =>
+        q.eq('machineId', machineId).eq('status', 'pending')
+      )
+      .collect()
+  );
+}
 
 describe('stopAgent', () => {
-  test('enqueues agent.stopScope when a team config exists', async () => {
+  test('enqueues dedicated agent.stop when a team config exists', async () => {
     const { sessionId } = await createTestSession('test-stop-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-1';
@@ -38,10 +48,10 @@ describe('stopAgent', () => {
       });
     });
 
-    const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
-    const stopCmd = inbox.find((row) => row.command.type === 'agent.stopScope');
+    const inbox = await getAgentCommandInboxForMachine(machineId);
+    const stopCmd = inbox.find((row) => row.command.type === 'agent.stop');
     expect(stopCmd).toBeDefined();
-    if (stopCmd?.command.type === 'agent.stopScope') {
+    if (stopCmd?.command.type === 'agent.stop') {
       expect(stopCmd.command.chatroomId).toBe(chatroomId);
       expect(stopCmd.command.reason).toBe('test');
     }
@@ -97,7 +107,7 @@ describe('stopAgent', () => {
       });
     });
 
-    const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
+    const inbox = await getAgentCommandInboxForMachine(machineId);
     expect(inbox.length).toBe(1);
     const configs = await t.run(async (ctx) =>
       ctx.db

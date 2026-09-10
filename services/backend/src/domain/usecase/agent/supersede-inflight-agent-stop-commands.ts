@@ -7,6 +7,27 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 
 const INFLIGHT = ['pending', 'processing'] as const;
 
+/**
+ * Delete pending dedicated agent.stop rows for a superseded stop command on
+ * one machine. Processing claims are left alone; lease recovery handles them.
+ */
+async function deletePendingAgentCommandInboxRows(
+  ctx: MutationCtx,
+  machineId: string,
+  stopCommandId: Id<'chatroom_agentStopCommands'>
+): Promise<void> {
+  const intentId = String(stopCommandId);
+  const rows = await ctx.db
+    .query('chatroom_agentCommandInbox')
+    .withIndex('by_machine_status_deadline', (q) =>
+      q.eq('machineId', machineId).eq('status', 'pending')
+    )
+    .collect();
+  for (const row of rows)
+    if (row.command.intentId === intentId)
+      await ctx.db.delete('chatroom_agentCommandInbox', row._id);
+}
+
 export async function supersedeInflightAgentStopCommands(
   ctx: MutationCtx,
   args: {
@@ -51,6 +72,7 @@ export async function supersedeInflightAgentStopCommands(
           if (inbox?.status === 'pending')
             await ctx.db.delete('chatroom_machineCommandInbox', execution.inboxCommandId);
         }
+        await deletePendingAgentCommandInboxRows(ctx, execution.machineId, command._id);
       }
       await ctx.db.patch('chatroom_agentStopCommands', command._id, {
         status: 'superseded',

@@ -16,7 +16,7 @@ import {
   normalizeAgentStopRole,
   type AgentStopScope,
 } from '../../entities/agent-stop-command';
-import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
+import { enqueueAgentStopCommand } from '../machine/enqueue-agent-stop-command';
 import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
 
 export interface ApplyAgentStopCommandInput {
@@ -29,7 +29,7 @@ export interface ApplyAgentStopCommandInput {
 }
 export interface ApplyAgentStopCommandResult {
   stopCommandId: Id<'chatroom_agentStopCommands'>;
-  inboxCommandIdsByMachine: Record<string, Id<'chatroom_machineCommandInbox'>>;
+  agentCommandIdsByMachine: Record<string, Id<'chatroom_agentCommandInbox'>>;
 }
 
 /** Persist and dispatch a stop command without chatroom-level enhancer interruption. */
@@ -98,25 +98,21 @@ export async function applyAgentStopCommand(
       ...ephemeralMachineIds,
     ]),
   ];
-  const inboxCommandIdsByMachine: Record<string, Id<'chatroom_machineCommandInbox'>> = {};
+  const agentCommandIdsByMachine: Record<string, Id<'chatroom_agentCommandInbox'>> = {};
   for (const machineId of machineIds) {
-    const inboxCommandId = await enqueueMachineCommand(ctx, {
+    const agentCommandId = await enqueueAgentStopCommand(ctx, {
       machineId,
+      intentId: String(stopCommandId),
+      chatroomId: input.chatroomId,
+      scope: input.scope,
+      reason: input.reason,
       now: Date.now(),
-      command: {
-        type: 'agent.stopScope',
-        stopCommandId,
-        chatroomId: input.chatroomId,
-        scope: input.scope,
-        reason: input.reason,
-      },
     });
-    inboxCommandIdsByMachine[machineId] = inboxCommandId;
+    agentCommandIdsByMachine[machineId] = agentCommandId;
     await ctx.db.insert('chatroom_agentStopMachineExecutions', {
       stopCommandId,
       chatroomId: input.chatroomId,
       machineId,
-      inboxCommandId,
       status: 'pending',
     });
   }
@@ -139,5 +135,5 @@ export async function applyAgentStopCommand(
     scope: input.scope,
     rolesWithStopTargets,
   });
-  return { stopCommandId, inboxCommandIdsByMachine };
+  return { stopCommandId, agentCommandIdsByMachine };
 }
