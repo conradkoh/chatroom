@@ -10,6 +10,7 @@ export const agentDaemonCommandPayloadValidator = v.union(
     chatroomId: v.id('chatroom_rooms'),
     scope: agentStopScopeValidator,
     reason: agentStopReasonValidator,
+    targets: v.optional(v.array(v.object({ role: v.string(), pid: v.number() }))),
   })
 );
 export type AgentDaemonCommandPayload = typeof agentDaemonCommandPayloadValidator.type;

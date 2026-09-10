@@ -4,6 +4,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
 
 import {
+  DaemonAgentCommandService,
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
@@ -28,11 +29,7 @@ import {
   operationalSignalFeeds,
   type OperationalSignalKind,
 } from '../infrastructure/agent-operational/operational-signal-feeds.js';
-import { createAgentCommandInbox } from '../infrastructure/convex/agent-command-inbox.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
-import { createAgentCommandFactOutbox } from '../infrastructure/outbox/agent-command-fact-outbox.js';
-import { createAgentCommandFactSend } from '../infrastructure/outbox/agent-command-fact-send.js';
-import { startDaemonAgentCommandRuntime } from '../services/agent-command-service/index.js';
 import {
   type NativeDeliveryService,
   type NativeTaskDeliverySessionDeps,
@@ -48,67 +45,6 @@ function isAbortError(error: unknown): boolean {
 /** Collision-safe durable cursor scope for one machine/chatroom stream (operational and task). */
 function roomScopeKey(machineId: string, chatroomId: string): string {
   return JSON.stringify([machineId, chatroomId]);
-}
-
-type AgentCommandBridge = {
-  consumer: { stop: () => Promise<void> };
-  factOutbox: ReturnType<typeof createAgentCommandFactOutbox>;
-};
-
-async function startAgentCommandBridge(input: {
-  wsClient: ConvexClient;
-  backend: { mutation: (fn: unknown, args: unknown) => Promise<unknown> };
-  sessionId: SessionId;
-  machineId: string;
-  processManager: Parameters<typeof startDaemonAgentCommandRuntime>[0]['processManager'];
-}): Promise<AgentCommandBridge | undefined> {
-  let factOutbox: ReturnType<typeof createAgentCommandFactOutbox> | undefined;
-  try {
-    const inbox = createAgentCommandInbox({
-      wsClient: input.wsClient,
-      backend: input.backend,
-      sessionId: input.sessionId,
-      machineId: input.machineId,
-    });
-    factOutbox = createAgentCommandFactOutbox(input.machineId, () =>
-      createAgentCommandFactSend({
-        sessionId: input.sessionId,
-        machineId: input.machineId,
-        backend: input.backend,
-      })
-    );
-    const consumer = startDaemonAgentCommandRuntime({
-      inbox,
-      processManager: input.processManager,
-      factSink: factOutbox,
-      onError: (error) => console.warn('[AgentCommandInbox]', error),
-    });
-    return { consumer, factOutbox };
-  } catch (error) {
-    console.warn('[AgentCommandInbox] failed to start:', error);
-    if (factOutbox) {
-      try {
-        await factOutbox.stopAll();
-      } catch (stopError) {
-        console.warn('[AgentCommandInbox] failed to stop fact outbox:', stopError);
-      }
-    }
-    return undefined;
-  }
-}
-
-async function stopAgentCommandBridge(bridge: AgentCommandBridge | undefined): Promise<void> {
-  if (!bridge) return;
-  try {
-    await bridge.consumer.stop();
-  } catch (error) {
-    console.warn('[AgentCommandInbox] failed to stop:', error);
-  }
-  try {
-    await bridge.factOutbox.stopAll();
-  } catch (error) {
-    console.warn('[AgentCommandInbox] failed to stop fact outbox:', error);
-  }
 }
 
 // fallow-ignore-next-line complexity
@@ -144,12 +80,14 @@ export const startOperationalInboxEffect = (
   | DaemonSessionService
   | DaemonAgentProcessManagerService
   | DaemonAgentProcessManagerCommandService
+  | DaemonAgentCommandService
   | AgentLifecycleOutboxService
 > =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const agentMgr = yield* DaemonAgentProcessManagerService;
     const commandService = yield* DaemonAgentProcessManagerCommandService;
+    const agentCommandService = yield* DaemonAgentCommandService;
     const lifecycleOutboxService = yield* AgentLifecycleOutboxService;
     const lifecycleOutbox = {
       enqueue: (fact: AgentLifecycleFact) =>
@@ -377,20 +315,7 @@ export const startOperationalInboxEffect = (
       })
     );
 
-    // Dedicated machine-scoped agent-stop command consumer. Shares the daemon
-    // lifetime with the operational runtime; legacy operational stop-signal
-    // feeds above remain untouched in this slice.
-    // Bridge shutdown (consumer stop, then fact-outbox drain) is awaited at
-    // the top of stop() before runtime-owned resources are closed.
-    let agentCommandBridge = yield* Effect.promise(() =>
-      startAgentCommandBridge({
-        wsClient,
-        backend: session.backend,
-        sessionId: session.sessionId as SessionId,
-        machineId: session.machineId,
-        processManager: commandService,
-      })
-    );
+    yield* Effect.promise(() => agentCommandService.start());
 
     let stopPromise: Promise<void> | undefined;
     return {
@@ -398,9 +323,7 @@ export const startOperationalInboxEffect = (
       stop() {
         stopPromise ??= (async () => {
           stopped = true;
-          const bridge = agentCommandBridge;
-          agentCommandBridge = undefined;
-          await stopAgentCommandBridge(bridge);
+          await agentCommandService.stop();
           abort.abort();
           for (const watcher of roomWatchers.values()) {
             watcher.controller.abort();

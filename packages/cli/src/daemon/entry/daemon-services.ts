@@ -7,9 +7,10 @@
  *   → infrastructure/services/
  */
 
+import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
+import type { ConvexClient as ConvexWsClient } from 'convex/browser';
 import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
-import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
@@ -24,6 +25,16 @@ import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/t
 import type { TryConsumeResult } from '../../infrastructure/services/harness-spawning/index.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import type { AgentStopReason } from '../domain/entities/agent-stop.js';
+import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
+import type {
+  AgentLifecycleOutboxRegistry,
+  AgentLifecycleOutboxResult,
+} from '../infrastructure/outbox/agent-lifecycle-outbox.js';
+import {
+  createDaemonAgentCommandServiceRuntime,
+  type AgentCommandServiceState,
+  type DaemonAgentCommandService as DaemonAgentCommandServiceRuntime,
+} from '../services/agent-command-service/index.js';
 import type {
   AgentProcessManager,
   AgentProcessSlotView,
@@ -35,13 +46,8 @@ import type {
   OperationResult,
   StopOpts,
 } from '../services/agent-process-service/index.js';
-import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
-import type {
-  AgentLifecycleOutboxRegistry,
-  AgentLifecycleOutboxResult,
-} from '../infrastructure/outbox/agent-lifecycle-outbox.js';
-import type { AgentProcessManagerService } from '../services/service-interfaces.js';
-import type { TaskService } from '../services/service-interfaces.js';
+import type { AgentProcessManagerService, TaskService } from '../services/service-interfaces.js';
+
 export { createTaskService, type TaskService } from '../services/service-interfaces.js';
 
 export interface AgentLifecycleOutboxServiceShape {
@@ -194,8 +200,7 @@ export const DaemonAgentProcessManagerServiceLive = (
       }),
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
-        const { runRoleScopedStop } =
-          await import('../services/service-interfaces.js');
+        const { runRoleScopedStop } = await import('../services/service-interfaces.js');
         const legacyReason: Record<string, string> = {
           'team.switch': 'platform.team_switch',
           dedup: 'platform.dedup',
@@ -271,7 +276,8 @@ export const DaemonAgentProcessManagerServiceLive = (
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
     subscribeAgentTurnEnded: (handler) => processManagerService.subscribeAgentTurnEnded(handler),
     subscribeAgentStarted: (handler) => processManagerService.subscribeAgentStarted(handler),
-    subscribeAgentSessionLost: (handler) => processManagerService.subscribeAgentSessionLost(handler),
+    subscribeAgentSessionLost: (handler) =>
+      processManagerService.subscribeAgentSessionLost(handler),
   });
 
 /**
@@ -287,6 +293,27 @@ export const DaemonAgentProcessManagerCommandServiceLive = (
   service: AgentProcessManagerService
 ): Layer.Layer<DaemonAgentProcessManagerCommandService> =>
   Layer.succeed(DaemonAgentProcessManagerCommandService, service);
+
+// ─── DaemonAgentCommandService ─────────────────────────────────────────────
+
+/** Public daemon façade for machine-scoped agent command transport and state. */
+export interface DaemonAgentCommandServiceShape extends DaemonAgentCommandServiceRuntime {
+  getState(): AgentCommandServiceState;
+}
+
+export class DaemonAgentCommandService extends Context.Tag('DaemonAgentCommandService')<
+  DaemonAgentCommandService,
+  DaemonAgentCommandServiceShape
+>() {}
+
+export const DaemonAgentCommandServiceLive = (input: {
+  wsClient: ConvexWsClient;
+  backend: DaemonSessionServiceShape['backend'];
+  sessionId: SessionId;
+  machineId: string;
+  processManager: AgentProcessManagerService;
+}): Layer.Layer<DaemonAgentCommandService> =>
+  Layer.succeed(DaemonAgentCommandService, createDaemonAgentCommandServiceRuntime(input));
 
 // ─── DaemonSessionService ────────────────────────────────────────────────────
 

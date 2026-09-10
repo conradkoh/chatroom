@@ -19,6 +19,7 @@ export interface AgentStopCommand {
   readonly intentId: string;
   readonly machineId: string;
   readonly target: AgentStopCommandTarget;
+  readonly targets?: readonly { role: string; pid: number }[];
   readonly reason: StopReason;
   readonly createdAt: number;
   readonly deadlineAt: number;

@@ -12,6 +12,7 @@ export interface EnqueueAgentStopCommandInput {
   chatroomId: Id<'chatroom_rooms'>;
   scope: AgentStopScope;
   reason: AgentStopReason;
+  targets?: { role: string; pid: number }[] | undefined;
   now?: number | undefined;
 }
 
@@ -27,6 +28,7 @@ export async function enqueueAgentStopCommand(
     chatroomId: input.chatroomId,
     scope: input.scope,
     reason: input.reason,
+    ...(input.targets && input.targets.length > 0 ? { targets: input.targets } : {}),
   };
   return await ctx.db.insert('chatroom_agentCommandInbox', {
     machineId: input.machineId,

@@ -76,6 +76,7 @@ describe('createDaemonRuntime', () => {
       DaemonSessionService,
       DaemonMutableStateService,
       DaemonAgentProcessManagerCommandService,
+      DaemonAgentCommandService,
       DaemonAgentProcessManagerService,
     } = await import('./daemon-services.js');
     const { createDaemonRuntime } = await import('./daemon-runtime.js');
@@ -96,6 +97,12 @@ describe('createDaemonRuntime', () => {
       Layer.succeed(DaemonAgentProcessManagerService, {} as never),
       Layer.succeed(DaemonAgentProcessManagerCommandService, {
         runSerializedForAgent: vi.fn(),
+      } as never),
+      Layer.succeed(DaemonAgentCommandService, {
+        start: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn().mockResolvedValue(undefined),
+        getState: vi.fn(),
+        subscribe: vi.fn(() => () => undefined),
       } as never),
       Layer.succeed(AgentLifecycleOutboxService, {
         enqueue: () => Effect.succeed({ success: true }),
@@ -138,6 +145,7 @@ describe('createDaemonRuntime', () => {
       DaemonSessionService,
       DaemonMutableStateService,
       DaemonAgentProcessManagerCommandService,
+      DaemonAgentCommandService,
       DaemonAgentProcessManagerService,
     } = await import('./daemon-services.js');
     const { createDaemonRuntime } = await import('./daemon-runtime.js');
@@ -158,6 +166,12 @@ describe('createDaemonRuntime', () => {
       Layer.succeed(DaemonAgentProcessManagerService, {} as never),
       Layer.succeed(DaemonAgentProcessManagerCommandService, {
         runSerializedForAgent: vi.fn(),
+      } as never),
+      Layer.succeed(DaemonAgentCommandService, {
+        start: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn().mockResolvedValue(undefined),
+        getState: vi.fn(),
+        subscribe: vi.fn(() => () => undefined),
       } as never),
       Layer.succeed(AgentLifecycleOutboxService, {
         enqueue: () => Effect.succeed({ success: true }),

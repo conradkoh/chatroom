@@ -42,8 +42,9 @@ function compareRoles(a: string, b: string): number {
 
 // Resolve a stop command to its machine-local targets. An explicit agent
 // target that is not active locally becomes a synthetic already-stopped
-// target so the caller can clear the request idempotently. A chatroom target
-// resolves only to active local roles in deterministic role order.
+// target so the caller can clear the request idempotently. Chatroom targets
+// use the backend's concrete target snapshot to distinguish a vanished agent
+// from a newly started replacement, while still stopping local ephemeral roles.
 function resolveTargets(
   command: AgentStopCommand,
   active: readonly AgentCommandActiveAgent[]
@@ -66,11 +67,29 @@ function resolveTargets(
       },
     ];
   }
-  return active
-    .filter((candidate) => normalize(candidate.chatroomId) === normalize(target.chatroomId))
-    .slice()
-    .sort((a, b) => compareRoles(a.role, b.role))
+  const roomActive = active.filter(
+    (candidate) => normalize(candidate.chatroomId) === normalize(target.chatroomId)
+  );
+  const concreteTargets = command.targets ?? [];
+  const resolved = concreteTargets.map((requested) => {
+    const found = roomActive.find(
+      (candidate) =>
+        normalize(candidate.role) === normalize(requested.role) && candidate.pid === requested.pid
+    );
+    return found === undefined
+      ? {
+          agent: { chatroomId: target.chatroomId, role: requested.role },
+          alreadyStopped: true,
+        }
+      : { agent: found, alreadyStopped: false };
+  });
+  const requestedRoles = new Set(concreteTargets.map((requested) => normalize(requested.role)));
+  const additionalActive = roomActive
+    .filter((candidate) => !requestedRoles.has(normalize(candidate.role)))
     .map((agent) => ({ agent, alreadyStopped: false }));
+  return [...resolved, ...additionalActive].sort((a, b) =>
+    compareRoles(a.agent.role, b.agent.role)
+  );
 }
 
 function buildStoppedFact(

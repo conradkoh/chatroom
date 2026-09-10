@@ -18,6 +18,7 @@ function toAgentStopCommand(claim: RawClaim): AgentStopCommand {
       claim.scope.kind === 'agent'
         ? { kind: 'agent', chatroomId, role: claim.scope.role }
         : { kind: 'chatroom', chatroomId },
+    ...(claim.targets === undefined ? {} : { targets: claim.targets }),
     reason: claim.reason,
     createdAt: claim.timestamp,
     deadlineAt: claim.deadline,

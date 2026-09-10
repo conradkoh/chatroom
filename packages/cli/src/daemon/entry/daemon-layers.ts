@@ -54,7 +54,7 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
         sessionId: init.sessionId,
         machineId: init.machineId,
         backend: init.backend,
-      },
+      }
     ),
     DaemonAgentProcessManagerCommandServiceLive(init.agentProcessManagerService),
     DaemonMutableStateServiceLive({

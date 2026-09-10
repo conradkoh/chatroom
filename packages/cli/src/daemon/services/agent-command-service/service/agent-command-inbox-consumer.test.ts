@@ -382,13 +382,17 @@ describe('agent command inbox consumer', () => {
     await settle();
     const claimsBeforeStop = inbox.claimCalls;
 
-    await consumer.stop();
-    await consumer.stop();
+    const stopPromise = consumer.stop();
+    await settle(2);
+    expect(inbox.acknowledged).toEqual([]);
+    const secondStopPromise = consumer.stop();
     expect(inbox.unsubscribeCalls).toBe(1);
 
-    // In-flight work finishes, but no further claims happen after stop.
+    // In-flight work must finish before stop resolves, and no further claims happen after stop.
     release();
     await settle();
+    await stopPromise;
+    await secondStopPromise;
     expect(inbox.claimCalls).toBe(claimsBeforeStop);
 
     inbox.pending.push(makeCommand('cmd-after-stop'));

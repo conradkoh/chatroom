@@ -152,6 +152,20 @@ describe('agent-command-service', () => {
     });
   });
 
+  it('chatroom targets emit already_stopped for agents that disappeared after request creation', async () => {
+    const { service, stopAgent, append } = setup({ active: [] });
+    const result = await service.stop(
+      baseCommand({
+        target: { kind: 'chatroom', chatroomId: 'room-1' },
+        targets: [{ role: 'builder', pid: 42 }],
+      })
+    );
+
+    expect(stopAgent).not.toHaveBeenCalled();
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(result.facts[0]).toMatchObject({ role: 'builder', outcome: 'already_stopped' });
+  });
+
   it('one target failure continues to next target and returns partial_failure with one failure', async () => {
     const { service } = setup({
       active: [

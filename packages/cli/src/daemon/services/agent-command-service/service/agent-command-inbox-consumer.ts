@@ -149,8 +149,18 @@ export function startAgentCommandInboxConsumer(
     reportError,
   };
   const state: AgentCommandDrainState = { stopped: false, draining: false, queued: false };
+  let activeDrain: Promise<void> | undefined;
   const requestDrain = (): void => {
-    drain(runtime, state).catch(reportError);
+    if (state.stopped) return;
+    const promise = drain(runtime, state);
+    if (state.draining) {
+      activeDrain ??= promise;
+      void promise.catch(reportError).finally(() => {
+        if (activeDrain === promise) activeDrain = undefined;
+      });
+    } else {
+      void promise.catch(reportError);
+    }
   };
   // Subscribe before the initial drain so an availability nudge cannot be lost.
   const unsubscribe = deps.inbox.subscribe(requestDrain, reportError);
@@ -163,6 +173,7 @@ export function startAgentCommandInboxConsumer(
         unsubscribed = true;
         unsubscribe();
       }
+      await activeDrain;
     },
   };
 }

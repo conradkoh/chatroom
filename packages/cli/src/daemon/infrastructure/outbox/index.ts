@@ -19,13 +19,4 @@ export {
   type AgentLifecycleOutboxRegistry,
   type AgentLifecycleOutboxResult,
 } from './agent-lifecycle-outbox.js';
-export {
-  createAgentCommandFactOutbox,
-  createAgentCommandFactOutboxRegistry,
-  agentCommandFactDeliveryKey,
-  AGENT_COMMAND_FACT_OUTBOX_BATCH_SIZE,
-  type AgentCommandFactOutbox,
-  type AgentCommandFactOutboxRegistry,
-  type AgentCommandFactSendResult,
-} from './agent-command-fact-outbox.js';
 export { createAgentLifecycleSend } from './agent-lifecycle-send.js';

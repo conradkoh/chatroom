@@ -19,6 +19,7 @@ import {
 } from './command-inbound-registry.js';
 import { DaemonSessionService } from './daemon-services.js';
 import type {
+  DaemonAgentCommandService,
   DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonMutableStateService,
@@ -79,6 +80,7 @@ export type DaemonRuntimeDeps = {
     | DaemonSessionService
     | DaemonAgentProcessManagerService
     | DaemonAgentProcessManagerCommandService
+    | DaemonAgentCommandService
     | DaemonMutableStateService
   >;
 };
