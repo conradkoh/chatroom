@@ -26,7 +26,7 @@ import {
   hasActiveTaskFromSource,
   reconcileActiveTaskCountsFromSource,
 } from './task-counts';
-import { writeTimelineTaskStatusSignal } from './write-timeline-task-status-signal';
+import { writeTaskStatusSignals } from './write-task-status-signals';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeMarkdownContent } from '../../entities/markdown-content';
@@ -189,7 +189,7 @@ export async function createTask(
 
   const createdTask = await ctx.db.get('chatroom_tasks', taskId);
   if (createdTask) {
-    await writeTimelineTaskStatusSignal(ctx, createdTask);
+    await writeTaskStatusSignals(ctx, createdTask);
   }
 
   return { taskId, status };

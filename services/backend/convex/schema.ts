@@ -20,6 +20,7 @@ import {
   machineAgentRemovalSignalValidator,
   machineAgentStopSignalValidator,
 } from '../src/domain/entities/machine-operational-signal';
+import { machineTaskDeliverySignalValidator } from '../src/domain/entities/machine-task-delivery-signal';
 
 const attachedSnippetValidator = v.object({
   reference: v.string(),
@@ -727,7 +728,7 @@ export default defineSchema({
   /**
    * Slim timeline task-status signals — one row per FSM transition.
    * Chatroom-scoped only; webapp subscribes via by_chatroom_signalKey.
-   * Machine-routed signals live in chatroom_machineTaskStatusSignals.
+   * Machine-routed task signals live in chatroom_machineTaskDeliverySignals.
    */
   chatroom_timelineTaskStatusSignals: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -746,49 +747,14 @@ export default defineSchema({
     taskUpdatedAt: v.number(),
   }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
 
-  chatroom_machineTaskStatusSignals: defineTable({
-    machineId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
-    taskId: v.id('chatroom_tasks'),
-    targetRole: v.string(),
-    taskStatus: v.union(
-      v.literal('pending'),
-      v.literal('acknowledged'),
-      v.literal('in_progress'),
-      v.literal('completed'),
-      v.literal('closed'),
-      v.literal('backlog'),
-      v.literal('pending_user_review'),
-      v.literal('backlog_acknowledged')
-    ),
-    signalKey: v.string(),
-    taskUpdatedAt: v.number(),
-  })
+  /**
+   * Daemon-owned task-delivery signals. Payload is routing/status metadata only;
+   * task content is hydrated imperatively from assigned-task snapshots.
+   * Per-chatroom append-only cursors isolate invalidation between active rooms.
+   */
+  chatroom_machineTaskDeliverySignals: defineTable(machineTaskDeliverySignalValidator)
     .index('by_machineId_signalKey', ['machineId', 'signalKey'])
     .index('by_machineId_chatroomId_signalKey', ['machineId', 'chatroomId', 'signalKey']),
-
-  /** Two-key signal frontier; lagging cursors must use the append-only range. */
-  chatroom_machineTaskStatusSignalHeads: defineTable({
-    machineId: v.string(),
-    previousSignalKey: v.optional(v.string()),
-    latestSignal: v.object({
-      chatroomId: v.id('chatroom_rooms'),
-      taskId: v.id('chatroom_tasks'),
-      targetRole: v.string(),
-      taskStatus: v.union(
-        v.literal('pending'),
-        v.literal('acknowledged'),
-        v.literal('in_progress'),
-        v.literal('completed'),
-        v.literal('closed'),
-        v.literal('backlog'),
-        v.literal('pending_user_review'),
-        v.literal('backlog_acknowledged')
-      ),
-      signalKey: v.string(),
-      taskUpdatedAt: v.number(),
-    }),
-  }).index('by_machineId', ['machineId']),
 
   /** Slim role operational-state change signals, scoped per machine/chatroom. */
   chatroom_machineAgentOperationalSignals: defineTable(

@@ -29,7 +29,7 @@
 
 import { maybePromoteNextQueuedTask } from './maybe-promote-next-queued-task';
 import { adjustTaskCountsForTransition } from './task-counts';
-import { writeTimelineTaskStatusSignal } from './write-timeline-task-status-signal';
+import { writeTaskStatusSignals } from './write-task-status-signals';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
@@ -109,7 +109,7 @@ export async function transitionTask(
   // 1a. Write timeline task-status signal for live cursor subscription
   const transitionedTask = await ctx.db.get('chatroom_tasks', taskId);
   if (transitionedTask) {
-    await writeTimelineTaskStatusSignal(ctx, transitionedTask);
+    await writeTaskStatusSignals(ctx, transitionedTask);
     if (transitionedTask.sourceMessageId)
       await syncMessageReadModel(ctx, transitionedTask.sourceMessageId);
     const linked = await ctx.db

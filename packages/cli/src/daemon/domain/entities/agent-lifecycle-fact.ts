@@ -34,6 +34,19 @@ export type AgentLifecycleFact =
       revisionKey: string;
       emittedAt: number;
     }
+  | {
+      kind: 'turn_failed';
+      chatroomId: string;
+      role: string;
+      taskId?: string | undefined;
+      harnessSessionId?: string | undefined;
+      turnId: string;
+      status: string;
+      source: string;
+      error?: string | undefined;
+      revisionKey: string;
+      emittedAt: number;
+    }
   | { kind: 'cleared_all_pids'; revisionKey: string; emittedAt: number };
 
 /** Audit-log / retry payload for agent.exited — not valid as a lifecycle fact. */
@@ -86,19 +99,29 @@ export function normalizeAgentLifecycleFact(raw: unknown): AgentLifecycleFact {
       emittedAt: Number(rest.emittedAt),
     };
   }
-  if (kind === 'spawned' || kind === 'exited' || kind === 'activity') {
+  if (kind === 'spawned' || kind === 'exited' || kind === 'activity' || kind === 'turn_failed') {
     return rest as AgentLifecycleFact;
   }
   throw new Error(`Unknown agent lifecycle fact kind: ${String(kind)}`);
 }
 
 export function buildActivityLifecycleFact(params: {
-  chatroomId: string; role: string; action: string; taskId?: string | undefined; emittedAt?: number | undefined;
+  chatroomId: string;
+  role: string;
+  action: string;
+  taskId?: string | undefined;
+  emittedAt?: number | undefined;
 }): Extract<AgentLifecycleFact, { kind: 'activity' }> {
   const emittedAt = params.emittedAt ?? Date.now();
-  return { kind: 'activity', chatroomId: params.chatroomId, role: params.role, action: params.action,
+  return {
+    kind: 'activity',
+    chatroomId: params.chatroomId,
+    role: params.role,
+    action: params.action,
     ...(params.taskId ? { taskId: params.taskId } : {}),
-    revisionKey: buildAgentLifecycleRevisionKey('activity', { ...params, emittedAt }), emittedAt };
+    revisionKey: buildAgentLifecycleRevisionKey('activity', { ...params, emittedAt }),
+    emittedAt,
+  };
 }
 
 export function agentLifecycleDeliveryKey(machineId: string, fact: AgentLifecycleFact): string {

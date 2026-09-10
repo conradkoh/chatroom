@@ -32,7 +32,6 @@ import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js
 import { api } from '../../../../api.js';
 import { isProcessAlive } from '../../../../infrastructure/deps/process.js';
 import type { AgentLogSink } from '../../../../infrastructure/log-server/index.js';
-import type { TurnCompletionResult } from '../../../infrastructure/local/harness/services/turn-completion.js';
 import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
 import { type AgentLifecyclePortAdapterDeps } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.js';
 import type { AgentLifecycleRuntime } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
@@ -76,6 +75,7 @@ import type {
   RemoteAgentService,
   SpawnResult,
 } from '../../../infrastructure/local/harness/services/remote-agent-service.js';
+import type { TurnCompletionResult } from '../../../infrastructure/local/harness/services/turn-completion.js';
 import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type {
   AgentProcessSlotState,
@@ -672,15 +672,14 @@ export class AgentProcessManager {
 
     const completionStatus = opts.completion?.status ?? 'completed';
     console.log(
-      `[AgentProcessManager] lifecycle.turn.${completionStatus === 'completed' ? 'completed' : 'terminal'}: role=${opts.role} pid=${opts.pid} harness=${opts.harness} status=${completionStatus}${opts.completion ? ` source=${opts.completion.source}` : ''}`
+      `[AgentProcessManager] lifecycle.turn.${completionStatus === 'completed' ? 'completed' : 'failed'}: role=${opts.role} pid=${opts.pid} harness=${opts.harness} status=${completionStatus} completion=${JSON.stringify(opts.completion ?? { status: 'completed' })}`
     );
 
     if (capabilities.supportsNativeIntegration) {
-      if (completionStatus !== 'completed') {
+      // Process-exit reconciliation has its own recovery path. Turn failures
+      // are the completions that the task service must observe and decide on.
+      if (completionStatus === 'process_exited') {
         setNativeTurnPhase(slot, defaultNativeTurnPhase());
-        console.warn(
-          `[AgentProcessManager] Native turn did not complete successfully for ${opts.role}: ${completionStatus}`
-        );
         return;
       }
       this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
@@ -692,10 +691,35 @@ export class AgentProcessManager {
         harness: opts.harness,
         slot,
         eventId: `${opts.pid}:${++this.agentTurnEndedSequence}`,
+        completion: opts.completion ?? {
+          turnId: `${opts.pid}:${this.agentTurnEndedSequence}`,
+          status: 'completed',
+          source: 'agent-process-manager.agent-end',
+        },
       };
-      await Promise.all([...this.agentTurnEndedHandlers].map((handler) => handler(event)));
+      const dispositions = await Promise.all(
+        [...this.agentTurnEndedHandlers].map((handler) => handler(event))
+      );
+      const held = dispositions.find((disposition) => disposition?.kind === 'hold-slot');
+      if (held?.kind === 'hold-slot') {
+        console.warn(
+          `[AgentProcessManager] Native turn slot held after ${completionStatus}: role=${opts.role} pid=${opts.pid} reason=${held.reason}`
+        );
+        return;
+      }
+      if (
+        completionStatus !== 'completed' &&
+        !dispositions.some((disposition) => disposition?.kind === 'release-slot')
+      ) {
+        console.warn(
+          `[AgentProcessManager] Native turn slot held: no task-service disposition returned role=${opts.role} pid=${opts.pid} status=${completionStatus}`
+        );
+        return;
+      }
       setNativeTurnPhase(slot, defaultNativeTurnPhase());
-      console.log(`[AgentProcessManager] ✅ Native agent_end completed for ${opts.role}`);
+      console.log(
+        `[AgentProcessManager] Native agent_end disposition accepted: role=${opts.role} status=${completionStatus} disposition=release-slot`
+      );
       return;
     }
 

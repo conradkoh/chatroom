@@ -1,6 +1,36 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { createTaskSignalIterator, runTaskInbox } from './task.js';
+
+const inboxDir = dirname(fileURLToPath(import.meta.url));
+
+function readInboxFile(name: string): string {
+  return readFileSync(join(inboxDir, name), 'utf8');
+}
+
+describe('task inbox daemon delivery feed', () => {
+  it('subscribes and hydrates only through the daemon taskDelivery endpoints', () => {
+    for (const name of ['task.ts', 'task-signal-contract.ts'] as const) {
+      const source = readInboxFile(name);
+      expect(source, `${name} must use the daemon delivery feed`).toContain(
+        'api.taskDelivery.subscribeTaskDeliverySignalsSince'
+      );
+      expect(source, `${name} must hydrate through the daemon delivery feed`).toContain(
+        'api.taskDelivery.listTasksForMachineTaskDeliverySignalRange'
+      );
+      expect(source, `${name} must not reference the legacy task-status feed`).not.toContain(
+        'api.messageList.subscribeTaskStatusSignalsSince'
+      );
+      expect(source, `${name} must not reference the legacy hydration endpoint`).not.toContain(
+        'api.tasks.listTasksForMachineSignalRange'
+      );
+    }
+  });
+});
 
 describe('runTaskInbox', () => {
   it('does not advance signal cursor when onUpdate throws', async () => {

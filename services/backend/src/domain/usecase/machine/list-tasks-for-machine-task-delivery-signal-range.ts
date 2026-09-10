@@ -1,9 +1,10 @@
+// fallow-ignore-file complexity
 import type { AssignedTaskSnapshotView } from './assigned-task-snapshot-contract';
 import { assignedTaskSnapshotFromDoc } from './assigned-task-snapshot-row';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
-export type ListTasksForMachineSignalRangeInput = {
+export type ListTasksForMachineTaskDeliverySignalRangeInput = {
   machineId: string;
   chatroomId: string;
   userId: string;
@@ -12,19 +13,19 @@ export type ListTasksForMachineSignalRangeInput = {
   limit: number;
 };
 
-export type ListTasksForMachineSignalRangeResult = {
+export type ListTasksForMachineTaskDeliverySignalRangeResult = {
   snapshots: AssignedTaskSnapshotView[];
   nextSignalKey: string | null;
   hasMore: boolean;
 };
 
-export async function listTasksForMachineSignalRange(
+export async function listTasksForMachineTaskDeliverySignalRange(
   ctx: QueryCtx,
-  input: ListTasksForMachineSignalRangeInput
-): Promise<ListTasksForMachineSignalRangeResult> {
+  input: ListTasksForMachineTaskDeliverySignalRangeInput
+): Promise<ListTasksForMachineTaskDeliverySignalRangeResult> {
   void input.userId;
   const signals = await ctx.db
-    .query('chatroom_machineTaskStatusSignals')
+    .query('chatroom_machineTaskDeliverySignals')
     .withIndex('by_machineId_chatroomId_signalKey', (q) =>
       q
         .eq('machineId', input.machineId)
@@ -38,11 +39,10 @@ export async function listTasksForMachineSignalRange(
   const snapshots: AssignedTaskSnapshotView[] = [];
 
   for (const signal of page) {
-    const targetRole = signal.targetRole;
     const snapshot = await ctx.db
       .query('chatroom_machineAssignedTaskSnapshots')
       .withIndex('by_machineId_taskId_role', (q) =>
-        q.eq('machineId', input.machineId).eq('taskId', signal.taskId).eq('role', targetRole)
+        q.eq('machineId', input.machineId).eq('taskId', signal.taskId).eq('role', signal.targetRole)
       )
       .unique();
     if (!snapshot) continue;

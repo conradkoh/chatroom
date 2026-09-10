@@ -1,6 +1,6 @@
 // fallow-ignore-file code-duplication
 /**
- * Typed argument builders for the task-status signal contract.
+ * Typed argument builders for the daemon task-delivery signal contract.
  *
  * Every builder returns the exact argument type generated for its Convex
  * function, so a backend validator change (for example a removed or renamed
@@ -11,11 +11,11 @@ import type { FunctionArgs } from 'convex/server';
 
 import type { api, Id } from '../../../api.js';
 
-export type SubscribeTaskStatusSignalsSinceArgs = FunctionArgs<
-  typeof api.messageList.subscribeTaskStatusSignalsSince
+export type SubscribeTaskDeliverySignalsSinceArgs = FunctionArgs<
+  typeof api.taskDelivery.subscribeTaskDeliverySignalsSince
 >;
-export type ListTasksForMachineSignalRangeArgs = FunctionArgs<
-  typeof api.tasks.listTasksForMachineSignalRange
+export type ListTasksForMachineTaskDeliverySignalRangeArgs = FunctionArgs<
+  typeof api.taskDelivery.listTasksForMachineTaskDeliverySignalRange
 >;
 
 function asChatroomId(chatroomId: string): Id<'chatroom_rooms'> {
@@ -24,13 +24,13 @@ function asChatroomId(chatroomId: string): Id<'chatroom_rooms'> {
   return chatroomId as Id<'chatroom_rooms'>;
 }
 
-export function buildSubscribeTaskStatusSignalsSinceArgs(input: {
-  sessionId: SubscribeTaskStatusSignalsSinceArgs['sessionId'];
-  machineId: SubscribeTaskStatusSignalsSinceArgs['machineId'];
+export function buildSubscribeTaskDeliverySignalsSinceArgs(input: {
+  sessionId: SubscribeTaskDeliverySignalsSinceArgs['sessionId'];
+  machineId: SubscribeTaskDeliverySignalsSinceArgs['machineId'];
   chatroomId: string;
-  afterKey: SubscribeTaskStatusSignalsSinceArgs['afterKey'];
-  limit: SubscribeTaskStatusSignalsSinceArgs['limit'];
-}): SubscribeTaskStatusSignalsSinceArgs {
+  afterKey: SubscribeTaskDeliverySignalsSinceArgs['afterKey'];
+  limit: SubscribeTaskDeliverySignalsSinceArgs['limit'];
+}): SubscribeTaskDeliverySignalsSinceArgs {
   return {
     sessionId: input.sessionId,
     machineId: input.machineId,
@@ -40,14 +40,14 @@ export function buildSubscribeTaskStatusSignalsSinceArgs(input: {
   };
 }
 
-export function buildListTasksForMachineSignalRangeArgs(input: {
-  sessionId: ListTasksForMachineSignalRangeArgs['sessionId'];
-  machineId: ListTasksForMachineSignalRangeArgs['machineId'];
+export function buildListTasksForMachineTaskDeliverySignalRangeArgs(input: {
+  sessionId: ListTasksForMachineTaskDeliverySignalRangeArgs['sessionId'];
+  machineId: ListTasksForMachineTaskDeliverySignalRangeArgs['machineId'];
   chatroomId: string;
-  afterSignalKey: ListTasksForMachineSignalRangeArgs['afterSignalKey'];
-  throughSignalKey: ListTasksForMachineSignalRangeArgs['throughSignalKey'];
-  limit: ListTasksForMachineSignalRangeArgs['limit'];
-}): ListTasksForMachineSignalRangeArgs {
+  afterSignalKey: ListTasksForMachineTaskDeliverySignalRangeArgs['afterSignalKey'];
+  throughSignalKey: ListTasksForMachineTaskDeliverySignalRangeArgs['throughSignalKey'];
+  limit: ListTasksForMachineTaskDeliverySignalRangeArgs['limit'];
+}): ListTasksForMachineTaskDeliverySignalRangeArgs {
   return {
     sessionId: input.sessionId,
     machineId: input.machineId,
