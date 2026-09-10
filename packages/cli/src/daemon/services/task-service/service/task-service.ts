@@ -8,9 +8,9 @@ import {
   NativeDeliveryService,
   type NativeDeliveryServiceDependencies,
 } from './native-delivery/native-delivery-service.js';
+import { NativeTaskDeliveryQueue } from './native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
-import { TaskOutbox } from './task-outbox.js';
 import { api } from '../../../../api.js';
 import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type {
@@ -133,7 +133,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   let inboxClient: ConvexClient | undefined;
   let serviceStartedAt = 0;
   let stopped = false;
-  const taskOutbox = new TaskOutbox(async (entry) => {
+  const nativeTaskDeliveryQueue = new NativeTaskDeliveryQueue(async (entry) => {
     await Effect.runPromise(
       runNativeInjectionEffect(entry.task, entry.harnessSessionId, {
         ...deps,
@@ -250,7 +250,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       stopped = true;
       for (const controller of roomControllers.values()) controller.abort();
       roomControllers.clear();
-      taskOutbox.stop();
+      nativeTaskDeliveryQueue.stop();
       inboxStore?.close();
       inboxStore = undefined;
     },
@@ -258,7 +258,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     listAllTasks: () => taskSnapshotState.listAll(),
     taskSnapshotState,
     deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
-      taskOutbox.enqueue({ task, harnessSessionId, onTaskDelivered }),
+      nativeTaskDeliveryQueue.enqueue({ task, harnessSessionId, onTaskDelivered }),
     isNativeHarness,
     releaseTaskAfterTurnFailure: async (args) => {
       const result = await gateway.releaseTaskAfterTurnFailure({

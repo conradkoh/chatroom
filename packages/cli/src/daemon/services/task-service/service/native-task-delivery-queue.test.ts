@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, test, vi } from 'vitest';
 
-import { TaskOutbox } from './task-outbox.js';
+import { NativeTaskDeliveryQueue } from './native-task-delivery-queue.js';
 import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 
 function task(role: string, id: string): AssignedTaskWithContent {
@@ -16,22 +18,22 @@ function task(role: string, id: string): AssignedTaskWithContent {
   } as AssignedTaskWithContent;
 }
 
-describe('TaskOutbox', () => {
+describe('NativeTaskDeliveryQueue', () => {
   test('serializes content sends per chatroom and role', async () => {
     const release: (() => void)[] = [];
     const calls: string[] = [];
-    const outbox = new TaskOutbox(async ({ task: item }) => {
+    const queue = new NativeTaskDeliveryQueue(async ({ task: item }) => {
       calls.push(`start:${item.taskId}`);
       await new Promise<void>((resolve) => release.push(resolve));
       calls.push(`end:${item.taskId}`);
     });
 
-    const first = outbox.enqueue({
+    const first = queue.enqueue({
       task: task('builder', 'one'),
       harnessSessionId: undefined,
       onTaskDelivered: undefined,
     });
-    const second = outbox.enqueue({
+    const second = queue.enqueue({
       task: task('builder', 'two'),
       harnessSessionId: undefined,
       onTaskDelivered: undefined,
@@ -47,19 +49,35 @@ describe('TaskOutbox', () => {
 
   test('allows different roles to send concurrently', async () => {
     const sender = vi.fn(async () => undefined);
-    const outbox = new TaskOutbox(sender);
+    const queue = new NativeTaskDeliveryQueue(sender);
     await Promise.all([
-      outbox.enqueue({
+      queue.enqueue({
         task: task('builder', 'one'),
         harnessSessionId: undefined,
         onTaskDelivered: undefined,
       }),
-      outbox.enqueue({
+      queue.enqueue({
         task: task('reviewer', 'two'),
         harnessSessionId: undefined,
         onTaskDelivered: undefined,
       }),
     ]);
     expect(sender).toHaveBeenCalledTimes(2);
+  });
+
+  test('exposes only scheduling operations and has no subscription or Convex surface', () => {
+    expect(Object.getOwnPropertyNames(NativeTaskDeliveryQueue.prototype).sort()).toEqual([
+      'constructor',
+      'enqueue',
+      'stop',
+    ]);
+    const source = readFileSync(
+      new URL('./native-task-delivery-queue.ts', import.meta.url),
+      'utf8'
+    );
+    expect(source).not.toMatch(/subscribe/i);
+    expect(source).not.toContain('TaskServiceNotification');
+    expect(source).not.toMatch(/from '.*api\.js'/);
+    expect(source).not.toContain('convex');
   });
 });
