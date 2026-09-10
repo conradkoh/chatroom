@@ -44,7 +44,7 @@ import {
   transitionTask,
   type TransitionTaskOptions,
 } from '../src/domain/usecase/task/transition-task';
-import { writeTimelineTaskStatusSignal } from '../src/domain/usecase/task/write-timeline-task-status-signal';
+import { writeTaskStatusSignals } from '../src/domain/usecase/task/write-task-status-signals';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -279,7 +279,7 @@ export const startTask = mutation({
           });
           const reassignedTask = await ctx.db.get('chatroom_tasks', acknowledgedTask._id);
           if (reassignedTask) {
-            await writeTimelineTaskStatusSignal(ctx, reassignedTask);
+            await writeTaskStatusSignals(ctx, reassignedTask);
           }
         }
 
