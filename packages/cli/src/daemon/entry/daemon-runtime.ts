@@ -40,7 +40,7 @@ import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracke
 import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { getActiveLogSink } from './init-daemon.js';
-import { startTaskInboxEffect } from './task-inbox-runtime.js';
+import { startOperationalInboxEffect } from './operational-inbox-runtime.js';
 import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
@@ -275,7 +275,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       }
     });
 
-    taskInboxHandle = yield* startTaskInboxEffect(deps.wsClient);
+    taskInboxHandle = yield* startOperationalInboxEffect(deps.wsClient);
 
     logObserverSubscriptionHandle = startLogObserverSubscription(
       { sessionId: session.sessionId, machineId: session.machineId },

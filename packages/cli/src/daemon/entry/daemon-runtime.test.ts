@@ -49,9 +49,9 @@ vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
 vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: () => ({ stop: vi.fn() }),
 }));
-vi.mock('./task-inbox-runtime.js', async () => {
+vi.mock('./operational-inbox-runtime.js', async () => {
   const { Effect } = await import('effect');
-  return { startTaskInboxEffect: () => Effect.succeed({ stop: vi.fn() }) };
+  return { startOperationalInboxEffect: () => Effect.succeed({ stop: vi.fn() }) };
 });
 vi.mock('../../commands/machine/pid.js', () => ({
   releaseLock: vi.fn(),

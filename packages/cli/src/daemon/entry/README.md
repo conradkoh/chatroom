@@ -4,7 +4,9 @@ Composition root — wiring only. **No business logic.**
 
 ## Task discovery
 
-Daemon task discovery uses the machine-scoped task inbox (`infrastructure/inbox/task.ts` + `entry/task-inbox-runtime.ts`), not legacy assigned-task subscribe queries. Snapshots hydrate via `listMachineAssignedTaskSnapshots`; delivery and reconciliation run through the task-service coordinator.
+TaskService owns the task inbox implementation: task inbox subscriptions, cursors, snapshot hydration (`listMachineAssignedTaskSnapshots`), task notifications, and task-room registration (`startTaskInbox`, `registerTaskChatroom`, `unregisterTaskChatroom`, `stopTaskInbox`). Entry only calls that facade as composition wiring.
+
+`entry/operational-inbox-runtime.ts` supervises machine operational-signal feeds (`infrastructure/agent-operational/`) and forwards affected roles to native delivery. Workspace membership refresh (`entry/workspace-membership-refresh-registry.ts`) is composition wiring shared by task, operational, enhancer, and Git watchers — a workspace nudge keeps all of them in sync.
 
 ## Belongs here
 
