@@ -359,8 +359,9 @@ describe('subscribeTaskStatusSignalsSince', () => {
     });
     const seedKey = initial.taskStatusAfterKey;
 
-    // Query with seed key should return null (no transitions yet)
-    const nullResult = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+    // Query with seed key should return null (no transitions yet).
+    // Machine task signals now arrive via the daemon-owned delivery feed.
+    const nullResult = await t.query(api.taskDelivery.subscribeTaskDeliverySignalsSince, {
       sessionId: sessionId as any,
       machineId,
       chatroomId,
@@ -388,7 +389,7 @@ describe('subscribeTaskStatusSignalsSince', () => {
     });
 
     // Now should have signals
-    const afterTransition = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+    const afterTransition = await t.query(api.taskDelivery.subscribeTaskDeliverySignalsSince, {
       sessionId: sessionId as any,
       machineId,
       chatroomId,
@@ -401,7 +402,7 @@ describe('subscribeTaskStatusSignalsSince', () => {
     ).toBe(true);
 
     // Query with highKey should return null
-    const afterHighKey = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+    const afterHighKey = await t.query(api.taskDelivery.subscribeTaskDeliverySignalsSince, {
       sessionId: sessionId as any,
       machineId,
       chatroomId,
@@ -414,6 +415,7 @@ describe('subscribeTaskStatusSignalsSince', () => {
     // The hot subscription must stay room-scoped and slim: any added outer or
     // item field (task content, participant, config, presence) fails this test.
     // Implementation, schema, and indexes are untouched — this only pins the wire.
+    // Machine task signals now arrive via the daemon-owned delivery feed.
     const { sessionId } = await createTestSession('ml-signals-exact-wire-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'ml-signals-exact-wire-machine-1';
@@ -438,7 +440,7 @@ describe('subscribeTaskStatusSignalsSince', () => {
       await transitionTask(ctx, taskId, 'acknowledged', 'claimTask', { assignedTo: 'planner' });
     });
 
-    const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+    const result = await t.query(api.taskDelivery.subscribeTaskDeliverySignalsSince, {
       sessionId: sessionId as any,
       machineId,
       chatroomId,
@@ -465,7 +467,7 @@ describe('subscribeTaskStatusSignalsSince', () => {
     // enumerates every allowed field so added payload fields fail toEqual.
     const row = await t.run(async (ctx) =>
       ctx.db
-        .query('chatroom_machineTaskStatusSignals')
+        .query('chatroom_machineTaskDeliverySignals')
         .withIndex('by_machineId_chatroomId_signalKey', (q) =>
           q.eq('machineId', machineId).eq('chatroomId', chatroomId).gt('signalKey', '')
         )

@@ -11,6 +11,7 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
 
 async function createTestSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
@@ -339,5 +340,58 @@ describe('taskDelivery.ackTaskDeliverySignals', () => {
     });
     expect(otherRoom).not.toBeNull();
     expect(otherRoom!.items).toHaveLength(1);
+  });
+});
+
+describe('taskDelivery production writer projection', () => {
+  test('rows written by the task writer are observable through the delivery feed', async () => {
+    const { sessionId } = await createTestSession('delivery-writer-1');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'delivery-writer-machine-1';
+    await registerMachine(sessionId, machineId);
+
+    // Route the chatroom entry point (planner) to this machine.
+    await t.run(async (ctx) => {
+      const room = await ctx.db.get('chatroom_rooms', chatroomId);
+      if (!room?.teamId) throw new Error('chatroom missing teamId');
+      const now = Date.now();
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: buildTeamRoleKey(chatroomId, room.teamId, 'planner'),
+        chatroomId,
+        role: 'planner',
+        type: 'remote',
+        machineId,
+        agentHarness: 'opencode',
+        model: 'model',
+        workingDir: '/tmp',
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'writer-projected task',
+      createdBy: 'user',
+    });
+
+    const result = await t.query(api.taskDelivery.subscribeTaskDeliverySignalsSince, {
+      sessionId,
+      machineId,
+      chatroomId,
+      afterKey: '',
+    });
+    expect(result).not.toBeNull();
+    expect(result!.items).toHaveLength(1);
+    expect(result!.items[0]).toMatchObject({
+      chatroomId,
+      taskId,
+      targetRole: 'planner',
+      taskStatus: 'pending',
+    });
+    expect(typeof result!.items[0].signalKey).toBe('string');
+    expect(result!.highKey).toBe(result!.items[0].signalKey);
   });
 });
