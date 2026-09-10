@@ -26,9 +26,9 @@ The migration is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] The daemon task-delivery use case has one clearly identified primary signal table.
-   - [ ] The webapp timeline continues to use `chatroom_timelineTaskStatusSignals` independently.
-   - [ ] The daemon subscription does not read the webapp timeline table.
+   - [x] The daemon task-delivery use case has one clearly identified primary signal table: `chatroom_machineTaskDeliverySignals`.
+   - [x] The webapp timeline continues to use `chatroom_timelineTaskStatusSignals` independently.
+   - [x] The daemon subscription does not read the webapp timeline table.
    - [ ] A webapp-only timeline write does not invalidate daemon task-delivery subscriptions.
    - [ ] A daemon task-delivery write does not invalidate unrelated operational or heartbeat subscriptions.
 
@@ -39,7 +39,7 @@ The migration is valid only if all of the following are true:
    Validation:
 
    - [ ] Heartbeat writes do not update task-status signal tables.
-   - [ ] Task signal payloads contain only task routing/status metadata needed by the daemon.
+   - [x] Task signal payloads contain only task routing/status metadata needed by the daemon.
    - [ ] Task signal invalidation rate can be measured independently from heartbeat traffic.
 
 3. **No daemon polling except heartbeat**
@@ -48,10 +48,10 @@ The migration is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] `runTaskInbox` is subscription-driven.
+   - [x] `runTaskInbox` is subscription-driven.
    - [ ] Reconnect logic resubscribes or performs a bounded snapshot bootstrap.
-   - [ ] The only recurring daemon polling loop remains the daemon heartbeat.
-   - [ ] No replacement implementation introduces a timer-based task refresh loop.
+   - [x] The only recurring daemon polling loop remains the daemon heartbeat.
+   - [x] No replacement implementation introduces a timer-based task refresh loop.
 
 4. **Separate daemon endpoints and atomic projections**
 
@@ -59,11 +59,11 @@ The migration is valid only if all of the following are true:
 
    Validation:
 
-   - [ ] The daemon subscription endpoint is defined in a daemon/task-oriented Convex module, not `messageList.ts`.
-   - [ ] The daemon hydration endpoint is separate from webapp task/message queries.
-   - [ ] The daemon acknowledgement/cleanup endpoint is separate from webapp timeline APIs.
-   - [ ] Task transition writes update the timeline and daemon projections atomically.
-   - [ ] Tests prove that a failed mutation cannot leave only one projection updated.
+   - [x] The daemon subscription endpoint is defined in a daemon/task-oriented Convex module, not `messageList.ts`.
+   - [x] The daemon hydration endpoint is separate from webapp task/message queries.
+   - [x] The daemon acknowledgement/cleanup endpoint is separate from webapp timeline APIs.
+   - [x] Task transition writes update the timeline and daemon projections atomically.
+   - [x] Tests prove that a failed mutation cannot leave only one projection updated.
 
 These criteria are release gates. Any exception must be documented and explicitly approved before implementation proceeds.
 
@@ -125,24 +125,24 @@ The full task row and task content remain in existing task/snapshot projections 
 
 ### 1. Create the new daemon task-delivery table and endpoints
 
-- [ ] Inventory all task transitions that call `writeTimelineTaskStatusSignal`.
-- [ ] Confirm the daemon use cases: task discovery, assigned-task snapshot refresh, task removal from local state, and native task delivery.
-- [ ] Define the new daemon-owned signal table and compound indexes for `(machineId, chatroomId, signalKey)` and any required machine-wide frontier.
-- [ ] Decide whether `chatroom_machineTaskStatusSignalHeads` remains useful, is renamed, or is replaced by a task-delivery-specific head table.
-- [ ] Define cursor semantics and ordering for task transitions with equal timestamps.
-- [ ] Add validators and types for the daemon task-delivery signal.
-- [ ] Add a daemon-owned subscription query outside `messageList.ts`.
-- [ ] Add a daemon-owned hydration query outside webapp message APIs.
-- [ ] Add a daemon-owned acknowledgement/cleanup path if retention requires deletion.
-- [ ] Preserve `chatroom_timelineTaskStatusSignals` and its webapp consumers unchanged.
-- [ ] Add schema/type tests for routing, role, status, cursor, and machine/chatroom indexes.
+- [x] Inventory all task transitions that call `writeTimelineTaskStatusSignal`.
+- [x] Confirm the daemon use cases: task discovery, assigned-task snapshot refresh, task removal from local state, and native task delivery.
+- [x] Define the new daemon-owned signal table and compound indexes for `(machineId, chatroomId, signalKey)` and any required machine-wide frontier.
+- [x] Decide that the append-only task-delivery table replaces the old machine signal head; no new head table is required.
+- [x] Define cursor semantics and ordering for task transitions with equal timestamps.
+- [x] Add validators and types for the daemon task-delivery signal.
+- [x] Add a daemon-owned subscription query outside `messageList.ts`.
+- [x] Add a daemon-owned hydration query outside webapp message APIs.
+- [x] Add a daemon-owned acknowledgement/cleanup path if retention requires deletion.
+- [x] Preserve `chatroom_timelineTaskStatusSignals` and its webapp consumers unchanged.
+- [x] Add schema/type tests for routing, role, status, cursor, and machine/chatroom indexes.
 - [ ] Add migration/backfill support if upgraded daemons must consume pre-cutover task state.
 
 Acceptance gate:
 
-- [ ] New daemon task-delivery schema and endpoints compile.
-- [ ] Webapp timeline behavior remains unchanged.
-- [ ] No production writer has been switched yet.
+- [x] New daemon task-delivery schema and endpoints compile.
+- [x] Webapp timeline behavior remains unchanged.
+- [x] Replacement schema/endpoints and tests passed before the production writer was switched.
 
 ### 2. Build the daemon task-delivery inbox and wire in the use cases
 
@@ -174,24 +174,24 @@ Acceptance gate:
 
 Acceptance gate:
 
-- [ ] The new inbox can deliver task updates without reading the old daemon endpoint.
-- [ ] Native task delivery behavior remains intact.
-- [ ] No daemon polling loop is added.
+- [x] The new inbox can deliver task updates without reading the old daemon endpoint.
+- [x] Native task delivery behavior remains intact.
+- [x] No daemon polling loop is added.
 
 ### 3. Delete daemon usage of `messageList.subscribeTaskStatusSignalsSince`
 
-- [ ] Remove the old subscription call from `packages/cli/src/daemon/infrastructure/inbox/task.ts`.
-- [ ] Remove the old task-signal contract types and argument builder.
-- [ ] Remove old endpoint-specific cursor and observer wiring.
-- [ ] Remove any old persistence keys that identify the `messageList` task signal feed.
-- [ ] Preserve reusable cursor/inbox primitives used by the replacement inbox.
-- [ ] Add a test proving the production daemon no longer calls `api.messageList.subscribeTaskStatusSignalsSince`.
-- [ ] Confirm the task service starts and maintains the replacement inbox for every active chatroom.
+- [x] Remove the old subscription call from `packages/cli/src/daemon/infrastructure/inbox/task.ts`.
+- [x] Remove the old task-signal contract types and argument builder.
+- [x] Remove old endpoint-specific cursor and observer wiring.
+- [x] Remove any old persistence keys that identify the `messageList` task signal feed.
+- [x] Preserve reusable cursor/inbox primitives used by the replacement inbox.
+- [x] Add a test proving the production daemon no longer calls `api.messageList.subscribeTaskStatusSignalsSince`.
+- [x] Confirm the task service starts and maintains the replacement inbox for every active chatroom.
 
 Acceptance gate:
 
-- [ ] No production daemon code subscribes to the `messageList` task-status endpoint.
-- [ ] Task delivery is fully served by the daemon-owned endpoint/inbox.
+- [x] No production daemon code subscribes to the `messageList` task-status endpoint.
+- [x] Task delivery is fully served by the daemon-owned endpoint/inbox.
 
 ### 4. Delete code that still depends on the old daemon task-status endpoint/table, then verify
 
@@ -217,27 +217,27 @@ Acceptance gate:
 
 ### 5. Stop writing the old daemon table and write the new table instead
 
-- [ ] Replace the daemon branch of `writeTimelineTaskStatusSignal` with a purpose-specific daemon task-delivery writer.
-- [ ] Keep the webapp timeline branch writing `chatroom_timelineTaskStatusSignals`.
-- [ ] Ensure both projections are written atomically from task create/transition mutations.
-- [ ] Update task reassignment and agent-exit release paths that explicitly emit task signals.
+- [x] Replace the daemon branch of `writeTimelineTaskStatusSignal` with a purpose-specific daemon task-delivery writer.
+- [x] Keep the webapp timeline branch writing `chatroom_timelineTaskStatusSignals`.
+- [x] Ensure both projections are written atomically from task create/transition mutations.
+- [x] Update task reassignment and agent-exit release paths that explicitly emit task signals.
 - [ ] Update any migration or backfill code that writes `chatroom_machineTaskStatusSignals`.
 - [ ] Revisit the machine signal head logic and make it consistent with the new daemon table.
-- [ ] Verify routing is resolved from the current team/machine configuration before writing a daemon signal.
-- [ ] Verify task transitions without a remote machine do not create daemon delivery rows.
-- [ ] Add tests proving:
-  - timeline-only writes do not create daemon rows;
-  - daemon-routed writes create only the expected daemon row/head;
-  - both projections receive the same task transition atomically;
+  - [x] Verify routing is resolved from the current team/machine configuration before writing a daemon signal.
+  - [x] Verify task transitions without a remote machine do not create daemon delivery rows.
+  - [x] Add tests proving:
+    - timeline-only writes do not create daemon rows;
+    - daemon-routed writes create only the expected daemon row and no legacy head;
+    - both projections receive the same task transition atomically;
   - reassignment creates the correct old/new machine behavior;
   - unrelated machines and chatrooms are not invalidated.
-- [ ] If temporary dual-write is required, make it bounded, observable, and remove it before completion.
+  - [x] No temporary dual-write was required.
 
 Acceptance gate:
 
-- [ ] No production write inserts into `chatroom_machineTaskStatusSignals`.
-- [ ] Every daemon task-delivery use case receives the new signal.
-- [ ] Webapp timeline task-status updates remain intact.
+- [x] No production write inserts into `chatroom_machineTaskStatusSignals`.
+- [x] Every daemon task-delivery use case receives the new signal.
+- [x] Webapp timeline task-status updates remain intact.
 
 ### 6. Delete the old daemon task-status table
 
