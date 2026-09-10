@@ -1,4 +1,7 @@
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import type {
+  AssignedTaskSnapshotView,
+  AssignedTaskWithContent,
+} from '../../../../domain/entities/assigned-task.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
@@ -57,6 +60,12 @@ export interface NativeTaskDeliveryGateway {
     newSessionStarted: boolean;
     harnessSessionId: string;
   }): Promise<void>;
+  loadAssignedTaskForAction(args: {
+    sessionId: string;
+    machineId: string;
+    taskId: string;
+    role: string;
+  }): Promise<AssignedTaskWithContent | null>;
 }
 
 export interface NativeTaskDeliveryAuditPort {

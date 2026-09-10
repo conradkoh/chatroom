@@ -1,7 +1,11 @@
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 
-import { api } from '../../../../../api.js';
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import { api, type Id } from '../../../../../api.js';
+import { mapAssignedTaskView } from '../../../../../infrastructure/mappers/map-assigned-task.js';
+import type {
+  AssignedTaskSnapshotView,
+  AssignedTaskWithContent,
+} from '../../../../domain/entities/assigned-task.js';
 import type { NativeTaskDeliveryGateway } from '../../service/ports/native-task-delivery.js';
 
 type Backend = {
@@ -36,6 +40,16 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
     },
     recordSessionAugmentation: async (args) => {
       await backend.mutation(api.daemon.agentEvents.sessionAugmented, args);
+    },
+    loadAssignedTaskForAction: async (args) => {
+      const row = (await backend.query(api.machines.getAssignedTaskForAction, {
+        sessionId: args.sessionId,
+        machineId: args.machineId,
+        taskId: args.taskId as Id<'chatroom_tasks'>,
+        role: args.role,
+      })) as Parameters<typeof mapAssignedTaskView>[0] | null;
+      if (!row) return null;
+      return mapAssignedTaskView(row) satisfies AssignedTaskWithContent;
     },
   };
 }

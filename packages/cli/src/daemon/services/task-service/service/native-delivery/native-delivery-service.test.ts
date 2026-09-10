@@ -46,6 +46,7 @@ function createService(
     lifecycleOutbox: { enqueue: (options.enqueueFact ?? (async () => undefined)) as never },
     taskService: {
       isNativeHarness: () => true,
+      loadAssignedTaskForAction: async () => null,
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
       snapshotRequestsNativeColdSession: () => false,

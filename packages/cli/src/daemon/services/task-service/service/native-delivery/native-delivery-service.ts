@@ -52,6 +52,7 @@ type TaskDeliveryService = Pick<
   | 'releaseTaskAfterTurnFailure'
   | 'snapshotRequestsNativeColdSession'
   | 'explainNativeDeliveryBlock'
+  | 'loadAssignedTaskForAction'
 > &
   Partial<Pick<TaskService, 'subscribe'>>;
 

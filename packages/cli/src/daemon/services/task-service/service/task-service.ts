@@ -81,6 +81,11 @@ export interface TaskService {
     updatedAt: number;
   }>;
   snapshotRequestsNativeColdSession(task: AssignedTaskSnapshotView): boolean;
+  loadAssignedTaskForAction(args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<AssignedTaskWithContent | null>;
   explainNativeDeliveryBlock(
     task: AssignedTaskSnapshotView,
     options: {
@@ -269,6 +274,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       return result;
     },
     snapshotRequestsNativeColdSession,
+    loadAssignedTaskForAction: async ({ chatroomId, role, taskId }) => {
+      const task = await gateway.loadAssignedTaskForAction({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId,
+        role,
+      });
+      return task?.chatroomId === chatroomId ? task : null;
+    },
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
     createNativeDeliveryService: (deliveryDeps) => {
       const nativeDelivery = new NativeDeliveryService({
