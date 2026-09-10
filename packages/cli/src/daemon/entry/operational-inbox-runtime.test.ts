@@ -185,7 +185,7 @@ type StartOperationalInboxOptions = {
 };
 
 async function startOperationalInboxForTest(options: StartOperationalInboxOptions = {}): Promise<{
-  handle: { stop: () => void };
+  handle: { stop: () => Promise<void> };
   workspaceQuery: ReturnType<typeof vi.fn>;
   operationalHandlers: () => ((update: never) => Promise<void>)[];
   taskInboxHandlers: () => Map<string, (update: never) => Promise<void>>;
@@ -394,7 +394,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     const taskCalls = vi.mocked(runTaskInbox).mock.calls;
     expect(taskCalls.map((call) => call[0].chatroomId).sort()).toEqual(['room-1', 'room-2']);
     expect(taskCalls.every((call) => call[0].initialAfterSignalKey === BASELINE)).toBe(true);
-    handle.stop();
+    await handle.stop();
     vi.restoreAllMocks();
   });
 
@@ -441,7 +441,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
       chatroomId: 'room-1',
       initialAfterSignalKey: persistedKey,
     });
-    handle.stop();
+    await handle.stop();
   });
 
   it('does not start operational watchers when operational bootstrap fails', async () => {
@@ -462,7 +462,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     expect(store.save).not.toHaveBeenCalled();
     expect(agentOperationalAckCalls()).toHaveLength(0);
     expect(runOperationalInbox).not.toHaveBeenCalled();
-    handle.stop();
+    await handle.stop();
     vi.restoreAllMocks();
   });
 
@@ -501,7 +501,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     expect(agentOperationalRunCalls()).toHaveLength(2);
     expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(2);
 
-    handle.stop();
+    await handle.stop();
     vi.useRealTimers();
   });
 
@@ -546,7 +546,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
       'key-1',
       'agent-operational'
     );
-    handle.stop();
+    await handle.stop();
   });
 
   it('task handler delivers then persists the room composite task cursor', async () => {
@@ -584,7 +584,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
 
     expect(order).toEqual(['deliver', 'save']);
     expect(store.save).toHaveBeenCalledWith(TASK_SCOPE_ROOM_1, { afterSignalKey: 'k1' });
-    handle.stop();
+    await handle.stop();
   });
 
   it('does not save or ack a room when its processing fails', async () => {
@@ -609,7 +609,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     ).rejects.toThrow('processing failed');
     expect(store.save).not.toHaveBeenCalled();
     expect(agentOperationalAckCalls()).toHaveLength(0);
-    handle.stop();
+    await handle.stop();
   });
 
   it('keeps the cursor saved and logs cleanup failure when ack fails', async () => {
@@ -640,7 +640,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
       expect.any(Error)
     );
     warn.mockRestore();
-    handle.stop();
+    await handle.stop();
   });
 
   it('workspace membership nudge starts room watchers and delivers its first task', async () => {
@@ -706,7 +706,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     expect(processTasksUpdate.mock.calls[0]?.[7]).toBe('task-signal');
     expect(store.save).toHaveBeenCalledWith(TASK_SCOPE_ROOM_2, { afterSignalKey: 'k1' });
 
-    handle.stop();
+    await handle.stop();
     vi.useRealTimers();
   });
 
@@ -749,7 +749,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(4);
     expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(2);
 
-    handle.stop();
+    await handle.stop();
     expect(calls.every((call) => call.signal.aborted)).toBe(true);
     expect(taskSignals.every((signal) => signal.aborted)).toBe(true);
     vi.useRealTimers();
@@ -794,7 +794,7 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
       true
     );
 
-    handle.stop();
+    await handle.stop();
     vi.useRealTimers();
   });
 
@@ -843,11 +843,67 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     // Operational watcher ordering is preserved alongside the command runtime.
     expect(agentOperationalRunCalls().map((call) => call[0].chatroomId)).toEqual(['room-1']);
 
-    handle.stop();
-    await vi.waitFor(() => expect(consumerStop).toHaveBeenCalledTimes(1));
-    await vi.waitFor(() => expect(outboxStopAll).toHaveBeenCalledTimes(1));
+    await handle.stop();
+    expect(consumerStop).toHaveBeenCalledTimes(1);
+    expect(outboxStopAll).toHaveBeenCalledTimes(1);
     expect(consumerStop.mock.invocationCallOrder[0]).toBeLessThan(
       outboxStopAll.mock.invocationCallOrder[0] as number
     );
+  });
+
+  it('does not resolve stop() until the command consumer has stopped and the fact outbox has drained, and repeated stops share one shutdown', async () => {
+    makeInboxStore();
+    const order: string[] = [];
+    let releaseConsumer!: () => void;
+    let releaseOutbox!: () => void;
+    const consumerGate = new Promise<void>((resolve) => {
+      releaseConsumer = resolve;
+    });
+    const outboxGate = new Promise<void>((resolve) => {
+      releaseOutbox = resolve;
+    });
+    const consumerStop = vi.fn(async () => {
+      await consumerGate;
+      order.push('consumer');
+    });
+    const outboxStopAll = vi.fn(async () => {
+      await outboxGate;
+      order.push('outbox');
+    });
+    createAgentCommandInboxMock.mockReturnValue({ claimNext: async () => null });
+    createAgentCommandFactOutboxMock.mockReturnValue({
+      append: async () => undefined,
+      flushNow: async () => undefined,
+      stopAll: outboxStopAll,
+    });
+    startDaemonAgentCommandRuntimeMock.mockReturnValue({ stop: consumerStop });
+
+    const { handle } = await startOperationalInboxForTest({
+      bootstrapRows: [opRow('room-1')],
+    });
+
+    let settled = false;
+    const rawStopPromise = handle.stop();
+    const stopPromise = rawStopPromise.then(() => {
+      settled = true;
+    });
+    // Repeated stop shares the same in-flight shutdown (idempotent).
+    const secondStopPromise = handle.stop();
+    expect(secondStopPromise).toBe(rawStopPromise);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(consumerStop).toHaveBeenCalledTimes(1);
+    expect(outboxStopAll).not.toHaveBeenCalled();
+    expect(settled).toBe(false);
+
+    releaseConsumer();
+    await vi.waitFor(() => expect(outboxStopAll).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(settled).toBe(false);
+
+    releaseOutbox();
+    await stopPromise;
+    expect(settled).toBe(true);
+    expect(order).toEqual(['consumer', 'outbox']);
   });
 });

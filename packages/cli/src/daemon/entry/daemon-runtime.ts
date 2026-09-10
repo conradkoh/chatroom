@@ -91,7 +91,10 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let enhancerWorkerHandle: { stop: () => void } | null = null;
-  let taskInboxHandle: { stop: () => void; nativeDelivery: NativeDeliveryService } | null = null;
+  let taskInboxHandle: {
+    stop: () => Promise<void>;
+    nativeDelivery: NativeDeliveryService;
+  } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
@@ -129,14 +132,14 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     ]);
   };
 
-  const stopWorkers = (): void => {
+  const stopWorkers = async (): Promise<void> => {
     unregisterCommandInboundHandler();
     unregisterFileInboundHandler();
     unregisterWorkspaceGitInboundHandler();
     gitSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
-    taskInboxHandle?.stop();
+    await taskInboxHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     agenticQueryWorkerHandle?.stop();
     enhancerWorkerHandle?.stop();
@@ -157,7 +160,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     await deps.agentProcessManagerService.stopProcessing();
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
-    stopWorkers();
+    await stopWorkers();
 
     await withTimeout(
       Effect.runPromise(

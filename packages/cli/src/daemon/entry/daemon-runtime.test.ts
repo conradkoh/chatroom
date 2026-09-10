@@ -7,6 +7,7 @@ const unregisterFileInboundHandler = vi.fn();
 const registerWorkspaceGitInboundHandler = vi.fn();
 const unregisterWorkspaceGitInboundHandler = vi.fn();
 const drainPendingFileTreeReleaseRequests = vi.fn().mockResolvedValue(undefined);
+const taskInboxStopMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('./command-inbound-registry.js', () => ({
   registerCommandInboundHandler,
@@ -51,7 +52,9 @@ vi.mock('./handlers/process/log-observer-sync.js', () => ({
 }));
 vi.mock('./operational-inbox-runtime.js', async () => {
   const { Effect } = await import('effect');
-  return { startOperationalInboxEffect: () => Effect.succeed({ stop: vi.fn() }) };
+  return {
+    startOperationalInboxEffect: () => Effect.succeed({ stop: taskInboxStopMock }),
+  };
 });
 vi.mock('../../commands/machine/pid.js', () => ({
   releaseLock: vi.fn(),
@@ -126,5 +129,84 @@ describe('createDaemonRuntime', () => {
     expect(unregisterCommandInboundHandler).toHaveBeenCalled();
     expect(unregisterFileInboundHandler).toHaveBeenCalled();
     expect(unregisterWorkspaceGitInboundHandler).toHaveBeenCalled();
+  });
+
+  it('awaits the task inbox stop before continuing daemon shutdown', async () => {
+    const { Effect, Layer } = await import('effect');
+    const {
+      AgentLifecycleOutboxService,
+      DaemonSessionService,
+      DaemonMutableStateService,
+      DaemonAgentProcessManagerCommandService,
+      DaemonAgentProcessManagerService,
+    } = await import('./daemon-services.js');
+    const { createDaemonRuntime } = await import('./daemon-runtime.js');
+
+    const session = {
+      sessionId: 's1' as const,
+      machineId: 'm1',
+      backend: { mutation: vi.fn(), query: vi.fn() },
+      convexUrl: 'https://example.com',
+      agentServices: new Map(),
+    };
+
+    const layers = Layer.mergeAll(
+      Layer.succeed(DaemonSessionService, session as never),
+      Layer.succeed(DaemonMutableStateService, {
+        lastPushedGitState: { get: vi.fn(), set: vi.fn() },
+      } as never),
+      Layer.succeed(DaemonAgentProcessManagerService, {} as never),
+      Layer.succeed(DaemonAgentProcessManagerCommandService, {
+        runSerializedForAgent: vi.fn(),
+      } as never),
+      Layer.succeed(AgentLifecycleOutboxService, {
+        enqueue: () => Effect.succeed({ success: true }),
+        stopAll: () => Effect.void,
+      })
+    );
+
+    const lifecycleOutboxStopAll = vi.fn().mockResolvedValue(undefined);
+    const runtime = createDaemonRuntime({
+      wsClient: { onUpdate: vi.fn() } as never,
+      agentLifecycleOutbox: {
+        stopAll: lifecycleOutboxStopAll,
+      } as never,
+      agentProcessManagerService: {
+        stopProcessing: vi.fn().mockResolvedValue(undefined),
+      } as never,
+      layers,
+    });
+
+    const runPromise = runtime.run();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const order: string[] = [];
+    let releaseInbox!: () => void;
+    const inboxGate = new Promise<void>((resolve) => {
+      releaseInbox = resolve;
+    });
+    taskInboxStopMock.mockImplementationOnce(async () => {
+      order.push('task-inbox-stop-start');
+      await inboxGate;
+      order.push('task-inbox-stop-done');
+    });
+    lifecycleOutboxStopAll.mockImplementationOnce(async () => {
+      order.push('lifecycle-outbox-stop');
+    });
+
+    const shutdownPromise = runtime.shutdown();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(taskInboxStopMock).toHaveBeenCalledTimes(1);
+    expect(lifecycleOutboxStopAll).not.toHaveBeenCalled();
+
+    releaseInbox();
+    await shutdownPromise;
+    await runPromise;
+
+    expect(order).toEqual([
+      'task-inbox-stop-start',
+      'task-inbox-stop-done',
+      'lifecycle-outbox-stop',
+    ]);
   });
 });

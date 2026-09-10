@@ -55,13 +55,14 @@ type AgentCommandBridge = {
   factOutbox: ReturnType<typeof createAgentCommandFactOutbox>;
 };
 
-function startAgentCommandBridge(input: {
+async function startAgentCommandBridge(input: {
   wsClient: ConvexClient;
   backend: { mutation: (fn: unknown, args: unknown) => Promise<unknown> };
   sessionId: SessionId;
   machineId: string;
   processManager: Parameters<typeof startDaemonAgentCommandRuntime>[0]['processManager'];
-}): AgentCommandBridge | undefined {
+}): Promise<AgentCommandBridge | undefined> {
+  let factOutbox: ReturnType<typeof createAgentCommandFactOutbox> | undefined;
   try {
     const inbox = createAgentCommandInbox({
       wsClient: input.wsClient,
@@ -69,7 +70,7 @@ function startAgentCommandBridge(input: {
       sessionId: input.sessionId,
       machineId: input.machineId,
     });
-    const factOutbox = createAgentCommandFactOutbox(input.machineId, () =>
+    factOutbox = createAgentCommandFactOutbox(input.machineId, () =>
       createAgentCommandFactSend({
         sessionId: input.sessionId,
         machineId: input.machineId,
@@ -85,24 +86,29 @@ function startAgentCommandBridge(input: {
     return { consumer, factOutbox };
   } catch (error) {
     console.warn('[AgentCommandInbox] failed to start:', error);
+    if (factOutbox) {
+      try {
+        await factOutbox.stopAll();
+      } catch (stopError) {
+        console.warn('[AgentCommandInbox] failed to stop fact outbox:', stopError);
+      }
+    }
     return undefined;
   }
 }
 
-function stopAgentCommandBridge(bridge: AgentCommandBridge | undefined): void {
+async function stopAgentCommandBridge(bridge: AgentCommandBridge | undefined): Promise<void> {
   if (!bridge) return;
-  void (async () => {
-    try {
-      await bridge.consumer.stop();
-    } catch (error) {
-      console.warn('[AgentCommandInbox] failed to stop:', error);
-    }
-    try {
-      await bridge.factOutbox.stopAll();
-    } catch (error) {
-      console.warn('[AgentCommandInbox] failed to stop fact outbox:', error);
-    }
-  })();
+  try {
+    await bridge.consumer.stop();
+  } catch (error) {
+    console.warn('[AgentCommandInbox] failed to stop:', error);
+  }
+  try {
+    await bridge.factOutbox.stopAll();
+  } catch (error) {
+    console.warn('[AgentCommandInbox] failed to stop fact outbox:', error);
+  }
 }
 
 // fallow-ignore-next-line complexity
@@ -133,7 +139,7 @@ async function runOperationalInboxLoopWithRestart(
 export const startOperationalInboxEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<
-  { stop: () => void; nativeDelivery: NativeDeliveryService },
+  { stop: () => Promise<void>; nativeDelivery: NativeDeliveryService },
   never,
   | DaemonSessionService
   | DaemonAgentProcessManagerService
@@ -381,30 +387,38 @@ export const startOperationalInboxEffect = (
     // Dedicated machine-scoped agent-stop command consumer. Shares the daemon
     // lifetime with the operational runtime; legacy operational stop-signal
     // feeds above remain untouched in this slice.
-    let agentCommandBridge = startAgentCommandBridge({
-      wsClient,
-      backend: session.backend,
-      sessionId: session.sessionId as SessionId,
-      machineId: session.machineId,
-      processManager: commandService,
-    });
+    // Bridge shutdown (consumer stop, then fact-outbox drain) is awaited at
+    // the top of stop() before runtime-owned resources are closed.
+    let agentCommandBridge = yield* Effect.promise(() =>
+      startAgentCommandBridge({
+        wsClient,
+        backend: session.backend,
+        sessionId: session.sessionId as SessionId,
+        machineId: session.machineId,
+        processManager: commandService,
+      })
+    );
 
+    let stopPromise: Promise<void> | undefined;
     return {
       nativeDelivery,
       stop() {
-        stopped = true;
-        abort.abort();
-        for (const watcher of roomWatchers.values()) {
-          watcher.controller.abort();
-        }
-        unregisterWorkspaceMembershipRefresh();
-        session.taskService.stopTaskInbox();
-        nativeDelivery.dispose();
-        nativeDelivery.agentTaskState.clearAll();
-        inboxStore.close();
-        const bridge = agentCommandBridge;
-        agentCommandBridge = undefined;
-        stopAgentCommandBridge(bridge);
+        stopPromise ??= (async () => {
+          stopped = true;
+          const bridge = agentCommandBridge;
+          agentCommandBridge = undefined;
+          await stopAgentCommandBridge(bridge);
+          abort.abort();
+          for (const watcher of roomWatchers.values()) {
+            watcher.controller.abort();
+          }
+          unregisterWorkspaceMembershipRefresh();
+          session.taskService.stopTaskInbox();
+          nativeDelivery.dispose();
+          nativeDelivery.agentTaskState.clearAll();
+          inboxStore.close();
+        })();
+        return stopPromise;
       },
     };
   });
