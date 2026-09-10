@@ -54,4 +54,51 @@ describe('MachineTaskSnapshotState', () => {
 
     expect(state.listForRole('room-1', 'builder')).toHaveLength(0);
   });
+
+  describe('markStatus', () => {
+    it('applies a normal post-backend-success in_progress → pending patch', () => {
+      const state = new MachineTaskSnapshotState();
+      state.replace([{ ...row('task-1'), status: 'in_progress' as const, updatedAt: 100 }]);
+
+      expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 200)).toBe(true);
+
+      expect(state.getForRole('room-1', 'builder', 'task-1')).toMatchObject({
+        status: 'pending',
+        updatedAt: 200,
+      });
+    });
+
+    it('refuses to regress a newer local snapshot with an older backend response', () => {
+      const state = new MachineTaskSnapshotState();
+      state.replace([{ ...row('task-1'), status: 'in_progress' as const, updatedAt: 200 }]);
+
+      expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
+
+      expect(state.getForRole('room-1', 'builder', 'task-1')).toMatchObject({
+        status: 'in_progress',
+        updatedAt: 200,
+      });
+    });
+
+    it('refuses to regress equal-timestamp completed back to pending', () => {
+      const state = new MachineTaskSnapshotState();
+      state.replace([{ ...row('task-1'), status: 'completed' as never, updatedAt: 100 }]);
+
+      expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
+
+      expect(state.getForRole('room-1', 'builder', 'task-1')).toMatchObject({
+        status: 'completed',
+        updatedAt: 100,
+      });
+    });
+
+    it('returns false without creating a snapshot when nothing matches', () => {
+      const state = new MachineTaskSnapshotState();
+
+      expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
+
+      expect(state.listAll()).toHaveLength(0);
+      expect(state.getForRole('room-1', 'builder', 'task-1')).toBeNull();
+    });
+  });
 });
