@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-export unused-type
+// Temporary: agent-command-fact consumers (Convex sender + daemon startup) land in later slices.
 export {
   createWorkspaceFileTreeCheckpointOutboxRegistry,
   WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS,
@@ -17,4 +19,13 @@ export {
   type AgentLifecycleOutboxRegistry,
   type AgentLifecycleOutboxResult,
 } from './agent-lifecycle-outbox.js';
+export {
+  createAgentCommandFactOutbox,
+  createAgentCommandFactOutboxRegistry,
+  agentCommandFactDeliveryKey,
+  AGENT_COMMAND_FACT_OUTBOX_BATCH_SIZE,
+  type AgentCommandFactOutbox,
+  type AgentCommandFactOutboxRegistry,
+  type AgentCommandFactSendResult,
+} from './agent-command-fact-outbox.js';
 export { createAgentLifecycleSend } from './agent-lifecycle-send.js';
