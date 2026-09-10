@@ -122,6 +122,84 @@ describe('writeTaskStatusSignals', () => {
     });
   });
 
+  test('reassignment routes the new signal to the current machine/role only', async () => {
+    const { sessionId } = await createTestSession('task-signals-reassign');
+    const chatroomId = await createChatroom(sessionId);
+    const oldMachineId = 'task-signals-machine-old';
+    const newMachineId = 'task-signals-machine-new';
+    await seedRemoteConfig(chatroomId, 'planner', oldMachineId);
+    await seedRemoteConfig(chatroomId, 'builder', newMachineId);
+
+    const task = await seedTask(chatroomId, { assignedTo: 'planner' });
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.get('chatroom_tasks', task._id))!;
+      await writeTaskStatusSignals(ctx, row);
+    });
+
+    // Reassign to builder with a strictly later timestamp, then project again.
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.get('chatroom_tasks', task._id))!;
+      await ctx.db.patch('chatroom_tasks', task._id, {
+        assignedTo: 'builder',
+        updatedAt: row.updatedAt + 1,
+      });
+      const reassigned = (await ctx.db.get('chatroom_tasks', task._id))!;
+      await writeTaskStatusSignals(ctx, reassigned);
+    });
+
+    const timeline = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_timelineTaskStatusSignals')
+        .withIndex('by_chatroom_signalKey', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const oldDelivery = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_machineTaskDeliverySignals')
+        .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+          q.eq('machineId', oldMachineId).eq('chatroomId', chatroomId)
+        )
+        .collect();
+    });
+    const newDelivery = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_machineTaskDeliverySignals')
+        .withIndex('by_machineId_chatroomId_signalKey', (q) =>
+          q.eq('machineId', newMachineId).eq('chatroomId', chatroomId)
+        )
+        .collect();
+    });
+
+    expect(timeline).toHaveLength(2);
+    expect(oldDelivery).toHaveLength(1);
+    expect(newDelivery).toHaveLength(1);
+    expect(oldDelivery[0]).toMatchObject({
+      chatroomId,
+      taskId: task._id,
+      targetRole: 'planner',
+      taskStatus: 'pending',
+    });
+    expect(newDelivery[0]).toMatchObject({
+      chatroomId,
+      taskId: task._id,
+      targetRole: 'builder',
+      taskStatus: 'pending',
+    });
+
+    // Each transition's timeline/delivery pair shares cursor and timestamp.
+    const [first, second] = [...timeline].sort((a, b) => (a.signalKey < b.signalKey ? -1 : 1));
+    expect(oldDelivery[0].signalKey).toBe(first.signalKey);
+    expect(oldDelivery[0].taskUpdatedAt).toBe(first.taskUpdatedAt);
+    expect(newDelivery[0].signalKey).toBe(second.signalKey);
+    expect(newDelivery[0].taskUpdatedAt).toBe(second.taskUpdatedAt);
+
+    // The reassignment key is strictly ordered after the original transition.
+    expect(second.signalKey > first.signalKey).toBe(true);
+    expect(second.taskUpdatedAt).toBeGreaterThan(first.taskUpdatedAt);
+    // Append-only history keeps the old row, but no new signal went to the old route.
+    expect(oldDelivery[0].signalKey).not.toBe(newDelivery[0].signalKey);
+  });
+
   test('local/user/no-machine task creates a timeline row and no daemon row', async () => {
     const { sessionId } = await createTestSession('task-signals-local');
     const chatroomId = await createChatroom(sessionId);
