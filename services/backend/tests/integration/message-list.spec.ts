@@ -1,8 +1,8 @@
 /**
  * Integration tests for messageList.ts timeline queries.
  *
- * Tests getLatestMessages, subscribeNewMessages, subscribeTaskStatusSignalsSince,
- * and listMessagesBefore from convex/messageList.ts.
+ * Tests getLatestMessages, subscribeNewMessages, and listMessagesBefore from
+ * convex/messageList.ts, plus daemon task-delivery feed integration.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -323,27 +323,12 @@ describe('listMessagesBefore', () => {
 });
 
 // ---------------------------------------------------------------------------
-// subscribeTaskStatusSignalsSince
+// Daemon task-delivery signals (taskDelivery feed; replaces the removed
+// messageList.subscribeTaskStatusSignalsSince daemon path)
 // ---------------------------------------------------------------------------
 
-describe('subscribeTaskStatusSignalsSince', () => {
-  test('returns null when no signals after cursor', async () => {
-    const { sessionId } = await createTestSession('ml-signals-null-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    const machineId = 'ml-signals-null-machine-1';
-    await registerMachineWithDaemon(sessionId, machineId);
-
-    const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
-      sessionId: sessionId as any,
-      machineId,
-      chatroomId,
-      afterKey: 'zzz',
-    });
-
-    expect(result).toBeNull();
-  });
-
-  test('getLatestMessages seed key + subscribeTaskStatusSignalsSince integration', async () => {
+describe('daemon task-delivery signals integration', () => {
+  test('getLatestMessages seed key + task-delivery feed integration', async () => {
     const { sessionId } = await createTestSession('ml-signals-integration-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'planner');

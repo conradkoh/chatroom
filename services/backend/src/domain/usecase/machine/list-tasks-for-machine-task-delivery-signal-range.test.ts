@@ -2,7 +2,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { assignedTaskSnapshotFromDoc } from './assigned-task-snapshot-row';
-import { listTasksForMachineSignalRange } from './list-tasks-for-machine-signal-range';
+import { listTasksForMachineTaskDeliverySignalRange } from './list-tasks-for-machine-task-delivery-signal-range';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -19,7 +19,7 @@ async function createRoom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   });
 }
 
-async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'norole' | 'page') {
+async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'page') {
   const sessionId = `hydration-${kind}-${Math.random()}` as SessionId;
   const machineId = `hydration-test-machine-${kind}-${Math.random()}`;
   await t.mutation(api.auth.loginAnon, { sessionId });
@@ -60,7 +60,7 @@ async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'norole' | 'page') 
               revisionKey: `r-${i}`,
               signalUpdatedAt: updatedAt,
             });
-      await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+      await ctx.db.insert('chatroom_machineTaskDeliverySignals', {
         chatroomId,
         taskId,
         machineId: machineId,
@@ -83,7 +83,7 @@ async function query(
   limit = 10
 ) {
   return t.run((ctx) =>
-    listTasksForMachineSignalRange(ctx, {
+    listTasksForMachineTaskDeliverySignalRange(ctx, {
       machineId,
       chatroomId,
       userId: 'unused',
@@ -94,7 +94,7 @@ async function query(
   );
 }
 
-describe('listTasksForMachineSignalRange', () => {
+describe('listTasksForMachineTaskDeliverySignalRange', () => {
   test('returns matching owned snapshot rows', async () => {
     const {
       machineId,
@@ -104,6 +104,8 @@ describe('listTasksForMachineSignalRange', () => {
     const result = await query(machineId, String(chatroomId), '', row.key);
     expect(result.snapshots).toHaveLength(1);
     expect(result.snapshots[0]).toEqual(assignedTaskSnapshotFromDoc(row.snapshot!));
+    expect(result.nextSignalKey).toBe(row.key);
+    expect(result.hasMore).toBe(false);
   });
   test('skips changed ownership', async () => {
     const {
@@ -165,7 +167,7 @@ describe('listTasksForMachineSignalRange', () => {
           signalUpdatedAt: now,
         });
         const key = `${String(now).padStart(16, '0')}:${taskId}`;
-        await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+        await ctx.db.insert('chatroom_machineTaskDeliverySignals', {
           chatroomId,
           taskId,
           machineId,
@@ -197,111 +199,16 @@ describe('listTasksForMachineSignalRange', () => {
     expect(String(roomBResult.snapshots[0].chatroomId)).toBe(String(roomB));
     expect(roomBResult.nextSignalKey).toBe(roomBKey);
   });
-});
-
-describe('listTasksForMachineSignalRange with chatroom_machineTaskDeliverySignals', () => {
-  async function seedDelivery(count = 3) {
-    const sessionId = `hydration-delivery-${Math.random()}` as SessionId;
-    const machineId = `hydration-delivery-machine-${Math.random()}`;
-    await t.mutation(api.auth.loginAnon, { sessionId });
-    const chatroomId = await createRoom(sessionId);
-    return t.run(async (ctx) => {
-      const rows: { key: string; snapshot?: any | undefined }[] = [];
-      for (let i = 0; i < count; i++) {
-        const updatedAt = now + i;
-        const taskId = await ctx.db.insert('chatroom_tasks', {
-          chatroomId,
-          createdBy: 'user',
-          content: `delivery task ${i}`,
-          status: 'pending',
-          assignedTo: 'builder',
-          createdAt: updatedAt,
-          updatedAt,
-          queuePosition: i,
-        });
-        const key = `${String(updatedAt).padStart(16, '0')}:${taskId}`;
-        const snapshotId = await ctx.db.insert('chatroom_machineAssignedTaskSnapshots', {
-          machineId,
-          taskId,
-          chatroomId,
-          role: 'builder',
-          taskStatus: 'pending',
-          taskAssignedTo: 'builder',
-          taskCreatedAt: updatedAt,
-          taskUpdatedAt: updatedAt,
-          agentHarness: 'opencode',
-          workingDir: '/tmp',
-          configUpdatedAt: updatedAt,
-          presenceUpdatedAt: updatedAt,
-          presenceKey: `delivery-p-${i}`,
-          revisionKey: `delivery-r-${i}`,
-          signalUpdatedAt: updatedAt,
-        });
-        await ctx.db.insert('chatroom_machineTaskDeliverySignals', {
-          chatroomId,
-          taskId,
-          machineId,
-          targetRole: 'builder',
-          taskStatus: 'pending',
-          signalKey: key,
-          taskUpdatedAt: updatedAt,
-        });
-        rows.push({ key, snapshot: await ctx.db.get(snapshotId) });
-      }
-      return { machineId, chatroomId, rows };
-    });
-  }
-
-  async function queryDelivery(
-    machineId: string,
-    chatroomId: string,
-    after: string,
-    through: string,
-    limit = 10
-  ) {
-    return t.run((ctx) =>
-      listTasksForMachineSignalRange(ctx, {
-        machineId,
-        chatroomId,
-        userId: 'unused',
-        afterSignalKey: after,
-        throughSignalKey: through,
-        limit,
-        signalTable: 'chatroom_machineTaskDeliverySignals',
-      })
-    );
-  }
-
-  test('returns matching owned snapshot rows from the delivery table', async () => {
-    const {
-      machineId,
-      chatroomId,
-      rows: [row],
-    } = await seedDelivery(1);
-    const result = await queryDelivery(machineId, String(chatroomId), '', row.key);
-    expect(result.snapshots).toHaveLength(1);
-    expect(result.snapshots[0]).toEqual(assignedTaskSnapshotFromDoc(row.snapshot!));
-    expect(result.nextSignalKey).toBe(row.key);
-    expect(result.hasMore).toBe(false);
-  });
 
   test('respects exclusive lower and inclusive upper range bounds', async () => {
-    const { machineId, chatroomId, rows } = await seedDelivery(3);
-    const result = await queryDelivery(machineId, String(chatroomId), rows[0].key, rows[2].key);
+    const { machineId, chatroomId, rows } = await seed('page');
+    const result = await query(machineId, String(chatroomId), rows[0].key, rows[2].key);
     expect(result.snapshots).toHaveLength(2);
     expect(result.nextSignalKey).toBe(rows[2].key);
     expect(result.hasMore).toBe(false);
-    const empty = await queryDelivery(machineId, String(chatroomId), rows[2].key, rows[2].key);
+    const empty = await query(machineId, String(chatroomId), rows[2].key, rows[2].key);
     expect(empty.snapshots).toHaveLength(0);
     expect(empty.nextSignalKey).toBeNull();
     expect(empty.hasMore).toBe(false);
-  });
-
-  test('respects limit and reports hasMore with nextSignalKey', async () => {
-    const { machineId, chatroomId, rows } = await seedDelivery(3);
-    const result = await queryDelivery(machineId, String(chatroomId), '', rows[2].key, 2);
-    expect(result.snapshots).toHaveLength(2);
-    expect(result.nextSignalKey).toBe(rows[1].key);
-    expect(result.hasMore).toBe(true);
   });
 });
