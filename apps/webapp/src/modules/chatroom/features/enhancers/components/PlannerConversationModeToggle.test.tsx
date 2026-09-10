@@ -43,7 +43,7 @@ const SAVED_CONFIG: EnhancerConfig = {
 };
 
 // Mock the conversation mode context
-let mockMode = 'code' as 'chat' | 'code' | 'code:enhanced';
+let mockMode = 'chat' as 'chat' | 'code' | 'code:enhanced';
 let mockSetMode = vi.fn((newMode: 'chat' | 'code' | 'code:enhanced') => {
   mockMode = newMode;
 });
@@ -80,7 +80,7 @@ describe('PlannerConversationModeToggle', () => {
     mockPlatform('MacIntel');
     mockConfig = null;
     mockIsActive = false;
-    mockMode = 'code';
+    mockMode = 'chat';
     mockSetMode = vi.fn((newMode: 'chat' | 'code' | 'code:enhanced') => {
       mockMode = newMode;
     });
@@ -91,9 +91,9 @@ describe('PlannerConversationModeToggle', () => {
     expect(screen.getByTestId('planner-conversation-mode-toggle')).toBeInTheDocument();
   });
 
-  it('shows Code mode by default', () => {
+  it('shows Chat mode by default', () => {
     render(<PlannerConversationModeToggle chatroomId="room-1" machineId="machine-1" />);
-    expect(screen.getByText('Code')).toBeInTheDocument();
+    expect(screen.getByText('Chat')).toBeInTheDocument();
   });
 
   it('cycles from Code to Enhanced optimistically before mutation resolves', async () => {
