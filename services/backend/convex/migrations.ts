@@ -880,36 +880,6 @@ export const backfillAgentViewMetadata = migrations.define({
   },
 });
 
-export const backfillMachineTaskStatusSignalHeads = migrations.define({
-  table: 'chatroom_machines',
-  migrateOne: async (ctx, machine) => {
-    const existing = await ctx.db
-      .query('chatroom_machineTaskStatusSignalHeads')
-      .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
-      .first();
-    if (existing) return;
-    const signals = await ctx.db
-      .query('chatroom_machineTaskStatusSignals')
-      .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machine.machineId))
-      .order('desc')
-      .take(2);
-    if (signals.length === 0) return;
-    const [latest, previous] = signals;
-    await ctx.db.insert('chatroom_machineTaskStatusSignalHeads', {
-      machineId: machine.machineId,
-      ...(previous ? { previousSignalKey: previous.signalKey } : {}),
-      latestSignal: {
-        chatroomId: latest.chatroomId,
-        taskId: latest.taskId,
-        targetRole: latest.targetRole,
-        taskStatus: latest.taskStatus,
-        signalKey: latest.signalKey,
-        taskUpdatedAt: latest.taskUpdatedAt,
-      },
-    });
-  },
-});
-
 export const backfillMachineObservedWorkspaceViews = migrations.define({
   table: 'chatroom_machines',
   migrateOne: async (ctx, machine) => {
@@ -1006,31 +976,6 @@ export const backfillAgentRoleStatusReadModel = migrations.define({
   },
 });
 
-export const migrateMachineTaskStatusSignals = migrations.define({
-  table: 'chatroom_timelineTaskStatusSignals',
-  migrateOne: async (ctx, row) => {
-    const targetMachineId = (row as { targetMachineId?: string | undefined }).targetMachineId;
-    const targetRole = (row as { targetRole?: string | undefined }).targetRole;
-    if (!targetMachineId || !targetRole) return;
-    const existing = await ctx.db
-      .query('chatroom_machineTaskStatusSignals')
-      .withIndex('by_machineId_signalKey', (q) =>
-        q.eq('machineId', targetMachineId).eq('signalKey', row.signalKey)
-      )
-      .unique();
-    if (existing) return;
-    await ctx.db.insert('chatroom_machineTaskStatusSignals', {
-      machineId: targetMachineId,
-      chatroomId: row.chatroomId,
-      taskId: row.taskId,
-      targetRole,
-      taskStatus: row.taskStatus,
-      signalKey: row.signalKey,
-      taskUpdatedAt: row.taskUpdatedAt,
-    });
-  },
-});
-
 export const stripTimelineMachineSignalFields = migrations.define({
   table: 'chatroom_timelineTaskStatusSignals',
   migrateOne: async (_ctx, row) => {
@@ -1109,6 +1054,28 @@ export const purgeDirectHarnessCommands = migrations.define({
   },
 });
 
+/** Purge retired task-status signal rows before their table is removed from schema. */
+export const purgeMachineTaskStatusSignals = migrations.define({
+  table: 'chatroom_machineTaskStatusSignals' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_machineTaskStatusSignals' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+/** Purge retired task-status signal heads before their table is removed from schema. */
+export const purgeMachineTaskStatusSignalHeads = migrations.define({
+  table: 'chatroom_machineTaskStatusSignalHeads' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_machineTaskStatusSignalHeads' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
 /**
  * Run all migrations in order.
  * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
@@ -1133,7 +1100,6 @@ const allMigrationReferences = [
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
-  internal.migrations.migrateMachineTaskStatusSignals,
   internal.migrations.stripTimelineMachineSignalFields,
   internal.migrations.stripMachineAssignedTaskSnapshotOperationalFields,
   // Workspace File Tree
@@ -1171,7 +1137,6 @@ const allMigrationReferences = [
   internal.migrations.backfillAgentRoleStatusReadModel,
   internal.migrations.backfillMachineIdentities,
   internal.migrations.backfillAgentViewMetadata,
-  internal.migrations.backfillMachineTaskStatusSignalHeads,
   internal.migrations.backfillMachineObservedWorkspaceViews,
   internal.migrations.backfillMessageReadModels,
   internal.migrations.backfillMessageReadModelState,
@@ -1181,6 +1146,10 @@ const allMigrationReferences = [
   internal.migrations.purgeHarnessSessionTurns,
   internal.migrations.purgeHarnessSessions,
   internal.migrations.purgeDirectHarnessCommands,
+  // Retired task-status signal data purge (rows before heads is irrelevant here;
+  // both tables are independent, purged after all readers/writers are gone)
+  internal.migrations.purgeMachineTaskStatusSignals,
+  internal.migrations.purgeMachineTaskStatusSignalHeads,
 ] as unknown as MigrationFunctionReference[];
 
 export const runAll = migrations.runner(allMigrationReferences);
