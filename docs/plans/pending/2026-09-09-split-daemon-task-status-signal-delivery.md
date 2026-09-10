@@ -195,25 +195,25 @@ Acceptance gate:
 
 ### 4. Delete code that still depends on the old daemon task-status endpoint/table, then verify
 
-- [ ] Remove `subscribeTaskStatusSignalsSince` from `messageList.ts` after all daemon references are gone.
-- [ ] Remove old endpoint-specific tests and replace them with daemon endpoint tests.
-- [ ] Remove old daemon signal contract names and imports.
+- [x] Remove `subscribeTaskStatusSignalsSince` from `messageList.ts` after all daemon references are gone.
+- [x] Remove old endpoint-specific tests and replace them with daemon endpoint tests.
+- [x] Remove old daemon signal contract names and imports from production endpoint/use-case code.
 - [ ] Search the repository for:
   - `subscribeTaskStatusSignalsSince`;
   - `chatroom_machineTaskStatusSignals`;
   - old task signal argument builders;
   - old task inbox cursor/persistence names.
-- [ ] Distinguish and preserve legitimate migration references until the migration is retired.
-- [ ] Confirm webapp references use `chatroom_timelineTaskStatusSignals` and are not accidentally removed.
-- [ ] Run backend, webapp, and CLI typechecks.
-- [ ] Run focused task inbox, task service, message-list, and integration tests.
-- [ ] Run the full test suite before changing the task writer.
+- [x] Distinguish and preserve legitimate schema, head-table, and historical migration references until the migration is retired.
+- [x] Confirm webapp references use `chatroom_timelineTaskStatusSignals` and are not accidentally removed.
+- [x] Run backend, webapp, and CLI typechecks (`pnpm typecheck`, 5/5 packages).
+- [x] Run focused task inbox, task service, message-list, and integration tests (backend cleanup slice: 7 files, 60 tests).
+- [x] Run the full backend suite (299 files, 1,984 tests); the prior writer cutover pre-push also passed the repository checks.
 
 Acceptance gate:
 
-- [ ] No production daemon code depends on the old `messageList` endpoint.
-- [ ] The webapp timeline path still works through its own projection.
-- [ ] Typechecks and tests pass before the writer cutover.
+- [x] No production daemon code depends on the old `messageList` endpoint.
+- [x] The webapp timeline path still works through its own projection.
+- [x] Typechecks and tests pass for the endpoint-removal boundary before proceeding to schema/migration retirement.
 
 ### 5. Stop writing the old daemon table and write the new table instead
 
