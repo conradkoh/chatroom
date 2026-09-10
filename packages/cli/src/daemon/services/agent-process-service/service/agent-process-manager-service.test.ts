@@ -11,10 +11,8 @@ import type {
   EnsureRunningOpts,
   StopOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
+import { createAgentProcessCommandBus } from '../infrastructure/adapters/agent-process-command-bus.js';
 import { InMemoryCommandNotifier } from '../infrastructure/components/command-notifier/index.js';
-import {
-  createAgentProcessCommandBus,
-} from '../infrastructure/adapters/agent-process-command-bus.js';
 import type { CommandQueueConsumerOptions } from '../infrastructure/components/command-queue/index.js';
 
 type TestServiceDependencies = Omit<AgentProcessManagerServiceDependencies, 'commandBus'> & {

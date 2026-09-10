@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto';
+
 import type { CommandQueueConsumerDependencies, CommandQueueConsumerOptions } from './types.js';
 import type { ReceivedCommandMessage } from '../entities/command-message.js';
-import { randomUUID } from 'node:crypto';
 
 const DEFAULT_POLL_INTERVAL_MS = 100;
 const DEFAULT_VISIBILITY_TIMEOUT_MS = 30_000;

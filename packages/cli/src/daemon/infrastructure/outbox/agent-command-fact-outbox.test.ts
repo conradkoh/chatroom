@@ -7,8 +7,8 @@ import {
 import type { AgentCommandFactSendResult } from './agent-command-fact-outbox.js';
 import { openDurableFifoQueueStore } from './lib/durable-fifo-queue-store.js';
 import { resolveOutboxDbPath } from './outbox-db-path.js';
-import type { AgentStoppedFact } from '../../services/agent-command-service/domain/entities/agent-fact.js';
-import type { AgentFactSink } from '../../services/agent-command-service/service/ports/agent-fact-sink.js';
+import type { AgentStoppedFact } from '../../services/agent-process-service/agent-stop-command/domain/entities/agent-fact.js';
+import type { AgentFactSink } from '../../services/agent-process-service/agent-stop-command/service/ports/agent-fact-sink.js';
 
 const uniqueMachineId = (prefix: string): string => `${prefix}-${Date.now()}-${Math.random()}`;
 

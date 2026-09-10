@@ -1,6 +1,5 @@
-// fallow-ignore-file unused-file unused-type
 // Temporary: production wiring (inbox adapter/outbox) lands in the next slice.
-import type { StopReason } from '../../../../domain/entities/stop-reason.js';
+import type { StopReason } from '../../../../../domain/entities/stop-reason.js';
 
 export interface AgentCommandActiveAgent {
   readonly chatroomId: string;

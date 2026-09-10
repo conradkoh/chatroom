@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-type
 export {
   createAgentProcessManagerService,
   type AgentOperationResult,
@@ -9,6 +10,8 @@ export {
   type SerializedAgentOperationOptions,
   type SerializedAgentOperationContext,
   type AgentProcessManagerServiceDependencies,
+  type AgentCommandProcessingInput,
+  type AgentCommandServiceState,
   type AgentProcessManagerCommand,
   type AgentProcessManagerExecutionPort,
   type RestartAgentInput,

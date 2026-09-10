@@ -3,7 +3,7 @@ import { Effect } from 'effect';
 
 import { api } from '../../api.js';
 import {
-  DaemonAgentProcessManagerCommandService,
+  DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../../daemon/entry/daemon-services.js';
 import { formatTimestamp } from '../../daemon/entry/daemon-utils.js';
@@ -12,9 +12,9 @@ import { shutdownAllCommandsEffect } from '../../daemon/entry/handlers/command-r
 export const onDaemonShutdownEffect: Effect.Effect<
   void,
   never,
-  DaemonAgentProcessManagerCommandService | DaemonSessionService
+  DaemonAgentProcessManagerService | DaemonSessionService
 > = Effect.gen(function* () {
-  const agentPm = yield* DaemonAgentProcessManagerCommandService;
+  const agentPm = yield* DaemonAgentProcessManagerService;
   const session = yield* DaemonSessionService;
 
   // Kill all running command processes before stopping agents
@@ -22,13 +22,15 @@ export const onDaemonShutdownEffect: Effect.Effect<
 
   // Wait for any in-progress agent turn to end gracefully
   yield* Effect.race(
-    Effect.promise(() => agentPm.whenTurnEndsIdle()),
+    agentPm.whenTurnEndsIdle(),
     Effect.sleep(SCOPE_TARGET_STOP_TIMEOUT_MS).pipe(
       Effect.tap(() => Effect.sync(() => console.log('[shutdown] idle wait timed out, proceeding')))
     )
   );
 
   const activeAgents = agentPm.listActive();
+  const stopAgent = agentPm.stopAgent;
+  if (!stopAgent) throw new Error('Agent process stop is unavailable');
 
   if (activeAgents.length > 0) {
     console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s) locally...`);
@@ -37,9 +39,7 @@ export const onDaemonShutdownEffect: Effect.Effect<
     let totalFailed = 0;
     yield* Effect.all(
       activeAgents.map(({ chatroomId, role }) =>
-        Effect.promise(() =>
-          agentPm.stopAgent({ chatroomId, role, reason: 'daemon.shutdown' })
-        ).pipe(
+        Effect.promise(() => stopAgent({ chatroomId, role, reason: 'daemon.shutdown' })).pipe(
           Effect.tap(() =>
             Effect.sync(() => {
               totalStopped += 1;

@@ -1,9 +1,8 @@
-// fallow-ignore-file unused-file unused-export
 // Temporary: Convex inbox adapter and daemon startup composition land in later slices.
-import type { AgentProcessManagerService } from '../../agent-process-service/index.js';
+import type { AgentProcessManagerService } from '../../index.js';
 import {
-  createAgentCommandService,
-  type AgentCommandService,
+  createAgentStopCommandExecutor,
+  type AgentStopCommandExecutor,
 } from '../service/agent-command-service.js';
 import type { AgentFactSink } from '../service/ports/agent-fact-sink.js';
 
@@ -13,12 +12,12 @@ export interface AgentCommandServiceCompositionDependencies {
   readonly now?: (() => number) | undefined;
 }
 
-export function createDaemonAgentCommandService(
+export function createAgentStopCommandService(
   deps: AgentCommandServiceCompositionDependencies
-): AgentCommandService {
+): AgentStopCommandExecutor {
   // Structural adapter: the existing process manager remains the process and
   // slot authority. This only maps its views/results to the command port.
-  return createAgentCommandService({
+  return createAgentStopCommandExecutor({
     processManager: {
       listActive: () =>
         deps.processManager.listActive().map(({ chatroomId, role, slot }) => ({

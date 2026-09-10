@@ -19,7 +19,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
 import type {
-  DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonMutableStateService,
   DaemonSessionService,
@@ -206,7 +205,7 @@ function makeDispatchLayers(
 ): Layer.Layer<
   | DaemonSessionService
   | DaemonAgentProcessManagerService
-  | DaemonAgentProcessManagerCommandService
+  | DaemonAgentProcessManagerService
   | DaemonMutableStateService
 > {
   const init = createMockDaemonSessionInit(overrides);
@@ -219,7 +218,7 @@ async function runDispatch<A>(
     never,
     | DaemonSessionService
     | DaemonAgentProcessManagerService
-    | DaemonAgentProcessManagerCommandService
+    | DaemonAgentProcessManagerService
     | DaemonMutableStateService
   >,
   overrides?: Partial<DaemonSessionInit>

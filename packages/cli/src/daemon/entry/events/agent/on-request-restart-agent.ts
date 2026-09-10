@@ -9,11 +9,7 @@ import type { Id } from '../../../../api.js';
 import { restartAgent } from '../../../../daemon/domain/usecase/restart-agent.js';
 import { createRestartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
 import type { NativeDeliveryService } from '../../../../daemon/services/service-interfaces.js';
-import {
-  DaemonAgentProcessManagerCommandService,
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../daemon-services.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
 
 export interface AgentRestartEventPayload {
   _id: Id<'chatroom_machineCommandInbox'>;
@@ -32,19 +28,16 @@ export interface AgentRestartEventPayload {
 export const onRequestRestartAgentEffect = (
   event: AgentRestartEventPayload,
   nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
-): Effect.Effect<
-  void,
-  never,
-  DaemonAgentProcessManagerService | DaemonAgentProcessManagerCommandService | DaemonSessionService
-> =>
+): Effect.Effect<void, never, DaemonAgentProcessManagerService | DaemonSessionService> =>
   Effect.gen(function* () {
     const agentMgr = yield* DaemonAgentProcessManagerService;
-    const processManagerService = yield* DaemonAgentProcessManagerCommandService;
     const session = yield* DaemonSessionService;
+    const runSerializedForAgent = agentMgr.runSerializedForAgent;
+    if (!runSerializedForAgent) throw new Error('Agent process serialization is unavailable');
 
     yield* Effect.promise(() =>
       restartAgent(
-        createRestartAgentDeps(agentMgr, session, processManagerService, nativeDelivery),
+        createRestartAgentDeps(agentMgr, session, { runSerializedForAgent }, nativeDelivery),
         {
           commandId: event._id.toString(),
           chatroomId: event.chatroomId as string,

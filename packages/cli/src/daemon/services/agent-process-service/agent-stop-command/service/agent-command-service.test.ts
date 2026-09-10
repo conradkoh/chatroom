@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createAgentCommandService } from './agent-command-service.js';
+import { createAgentStopCommandExecutor } from './agent-command-service.js';
 import type { AgentCommandProcessManager } from './ports/agent-command-process-manager.js';
 import type { AgentFactSink } from './ports/agent-fact-sink.js';
 import type { AgentStopCommand } from '../domain/entities/agent-command.js';
@@ -36,7 +36,7 @@ function setup(deps?: {
   };
   const append = deps?.appendImpl !== undefined ? vi.fn(deps.appendImpl) : vi.fn(async () => {});
   const factSink: AgentFactSink = { append };
-  const service = createAgentCommandService({
+  const service = createAgentStopCommandExecutor({
     processManager,
     factSink,
     now: deps?.now ?? (() => 1500),
@@ -229,7 +229,7 @@ describe('agent-command-service', () => {
         stored.push(fact);
       },
     };
-    const service = createAgentCommandService({ processManager, factSink, now });
+    const service = createAgentStopCommandExecutor({ processManager, factSink, now });
     const command = baseCommand({
       commandId: 'cmd-boundary',
       intentId: 'intent-boundary',

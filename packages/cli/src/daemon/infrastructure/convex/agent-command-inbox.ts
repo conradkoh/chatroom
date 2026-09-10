@@ -3,8 +3,8 @@ import type { FunctionReturnType } from 'convex/server';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { api, type Id } from '../../../api.js';
-import type { AgentStopCommand } from '../../services/agent-command-service/domain/entities/agent-command.js';
-import type { AgentCommandInbox } from '../../services/agent-command-service/service/ports/agent-command-inbox.js';
+import type { AgentStopCommand } from '../../services/agent-process-service/agent-stop-command/domain/entities/agent-command.js';
+import type { AgentCommandInbox } from '../../services/agent-process-service/agent-stop-command/service/ports/agent-command-inbox.js';
 
 type RawClaim = NonNullable<FunctionReturnType<typeof api.daemon.agentCommandInbox.claimNext>>;
 

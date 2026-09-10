@@ -1,17 +1,17 @@
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { createDaemonAgentCommandService as createDomainAgentCommandService } from './agent-command-service.js';
-import { createAgentCommandInbox } from '../../../infrastructure/convex/agent-command-inbox.js';
-import { createAgentCommandFactOutbox } from '../../../infrastructure/outbox/agent-command-fact-outbox.js';
-import { createAgentCommandFactSend } from '../../../infrastructure/outbox/agent-command-fact-send.js';
-import type { AgentProcessManagerService } from '../../agent-process-service/index.js';
+import { createAgentStopCommandService } from './agent-command-service.js';
+import { createAgentCommandInbox } from '../../../../infrastructure/convex/agent-command-inbox.js';
+import { createAgentCommandFactOutbox } from '../../../../infrastructure/outbox/agent-command-fact-outbox.js';
+import { createAgentCommandFactSend } from '../../../../infrastructure/outbox/agent-command-fact-send.js';
+import type { AgentProcessManagerService } from '../../index.js';
 import type { AgentStopCommand } from '../domain/entities/agent-command.js';
 import {
   startAgentCommandInboxConsumer,
   type AgentCommandInboxConsumer,
 } from '../service/agent-command-inbox-consumer.js';
-import type { AgentCommandService } from '../service/agent-command-service.js';
+import type { AgentStopCommandExecutor } from '../service/agent-command-service.js';
 
 export type AgentCommandServiceStatus =
   'starting' | 'running' | 'stopping' | 'stopped' | 'degraded';
@@ -26,14 +26,14 @@ export type AgentCommandServiceState = {
   readonly lastError?: string | undefined;
 };
 
-export interface DaemonAgentCommandService {
+export interface AgentStopCommandRuntime {
   start(): Promise<void>;
   stop(): Promise<void>;
   getState(): AgentCommandServiceState;
   subscribe(listener: (state: AgentCommandServiceState) => void): () => void;
 }
 
-export interface DaemonAgentCommandServiceDependencies {
+export interface AgentStopCommandRuntimeDependencies {
   readonly wsClient: ConvexClient;
   readonly backend: {
     mutation: (fn: unknown, args: unknown) => Promise<unknown>;
@@ -57,9 +57,9 @@ function snapshot(state: MutableState): AgentCommandServiceState {
   return { ...state };
 }
 
-export function createDaemonAgentCommandServiceRuntime(
-  deps: DaemonAgentCommandServiceDependencies
-): DaemonAgentCommandService {
+export function createAgentStopCommandRuntime(
+  deps: AgentStopCommandRuntimeDependencies
+): AgentStopCommandRuntime {
   const state: MutableState = {
     status: 'stopped',
     processedCount: 0,
@@ -89,8 +89,10 @@ export function createDaemonAgentCommandServiceRuntime(
     });
   };
 
-  const createCommandService = (factSink: NonNullable<typeof factOutbox>): AgentCommandService => {
-    const service = createDomainAgentCommandService({
+  const createCommandService = (
+    factSink: NonNullable<typeof factOutbox>
+  ): AgentStopCommandExecutor => {
+    const service = createAgentStopCommandService({
       processManager: deps.processManager,
       factSink,
     });

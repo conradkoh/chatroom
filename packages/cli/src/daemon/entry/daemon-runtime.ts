@@ -19,8 +19,6 @@ import {
 } from './command-inbound-registry.js';
 import { DaemonSessionService } from './daemon-services.js';
 import type {
-  DaemonAgentCommandService,
-  DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonMutableStateService,
 } from './daemon-services.js';
@@ -77,11 +75,7 @@ export type DaemonRuntimeDeps = {
   agentProcessManagerService: AgentProcessManagerService;
   wsClient: ConvexClient;
   layers: Layer.Layer<
-    | DaemonSessionService
-    | DaemonAgentProcessManagerService
-    | DaemonAgentProcessManagerCommandService
-    | DaemonAgentCommandService
-    | DaemonMutableStateService
+    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
   >;
 };
 
@@ -168,10 +162,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       Effect.runPromise(
         Effect.gen(function* () {
           const effectContext = yield* Effect.context<
-            | DaemonSessionService
-            | DaemonAgentProcessManagerService
-            | DaemonAgentProcessManagerCommandService
-            | DaemonMutableStateService
+            DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
           >();
           yield* onDaemonShutdownEffect.pipe(Effect.provide(effectContext));
         }).pipe(Effect.provide(deps.layers))
@@ -211,10 +202,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   const startRuntimeEffect = Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const effectContext = yield* Effect.context<
-      | DaemonSessionService
-      | DaemonAgentProcessManagerService
-      | DaemonAgentProcessManagerCommandService
-      | DaemonMutableStateService
+      DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
     >();
 
     let heartbeatCount = 0;

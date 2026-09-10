@@ -1,14 +1,14 @@
-// fallow-ignore-file unused-file
 // Temporary: Convex inbox adapter and daemon startup composition land in later slices.
-import type { AgentCommandService } from './agent-command-service.js';
+import type { AgentStopCommandExecutor } from './agent-command-service.js';
 import type { AgentCommandInbox } from './ports/agent-command-inbox.js';
 import type { AgentStopCommand } from '../domain/entities/agent-command.js';
 
+// fallow-ignore-next-line unused-export
 export const AGENT_COMMAND_INBOX_DEFAULT_LEASE_RENEWAL_MS = 20_000;
 
 export interface AgentCommandInboxConsumerDependencies {
   readonly inbox: AgentCommandInbox;
-  readonly service: Pick<AgentCommandService, 'stop'>;
+  readonly service: Pick<AgentStopCommandExecutor, 'stop'>;
   readonly onError?: ((error: unknown) => void) | undefined;
   readonly leaseRenewalMs?: number | undefined;
 }
@@ -19,7 +19,7 @@ export interface AgentCommandInboxConsumer {
 
 interface AgentCommandInboxRuntime {
   readonly inbox: AgentCommandInbox;
-  readonly service: Pick<AgentCommandService, 'stop'>;
+  readonly service: Pick<AgentStopCommandExecutor, 'stop'>;
   readonly leaseRenewalMs: number;
   readonly reportError: (error: unknown) => void;
 }

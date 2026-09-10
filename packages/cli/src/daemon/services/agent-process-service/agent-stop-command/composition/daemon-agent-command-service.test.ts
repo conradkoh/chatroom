@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createDaemonAgentCommandServiceRuntime } from './daemon-agent-command-service.js';
+import { createAgentStopCommandRuntime } from './daemon-agent-command-service.js';
 
 const inbox = vi.hoisted(() => ({
   claimNext: vi.fn(),
@@ -16,13 +16,13 @@ const outbox = vi.hoisted(() => ({
 const send = vi.hoisted(() => vi.fn());
 const consumer = vi.hoisted(() => vi.fn());
 
-vi.mock('../../../infrastructure/convex/agent-command-inbox.js', () => ({
+vi.mock('../../../../infrastructure/convex/agent-command-inbox.js', () => ({
   createAgentCommandInbox: vi.fn(() => inbox),
 }));
-vi.mock('../../../infrastructure/outbox/agent-command-fact-outbox.js', () => ({
+vi.mock('../../../../infrastructure/outbox/agent-command-fact-outbox.js', () => ({
   createAgentCommandFactOutbox: vi.fn(() => outbox),
 }));
-vi.mock('../../../infrastructure/outbox/agent-command-fact-send.js', () => ({
+vi.mock('../../../../infrastructure/outbox/agent-command-fact-send.js', () => ({
   createAgentCommandFactSend: vi.fn(() => send),
 }));
 vi.mock('../service/agent-command-inbox-consumer.js', () => ({
@@ -46,7 +46,7 @@ function createService() {
       receiveCount: 1,
     })),
   };
-  return createDaemonAgentCommandServiceRuntime({
+  return createAgentStopCommandRuntime({
     wsClient: {} as never,
     backend: { mutation: vi.fn() },
     sessionId: 'session-1',

@@ -1,6 +1,6 @@
 import type { AgentCommandFactSendResult } from './agent-command-fact-outbox.js';
 import { api, type Id } from '../../../api.js';
-import type { AgentStoppedFact } from '../../services/agent-command-service/domain/entities/agent-fact.js';
+import type { AgentStoppedFact } from '../../services/agent-process-service/agent-stop-command/domain/entities/agent-fact.js';
 
 export function createAgentCommandFactSend(input: {
   readonly sessionId: string;

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import type { ConvexClient } from 'convex/browser';
+
 import type { AgentProcessCommandBus } from './ports/agent-process-command-bus.js';
 import type {
   EnsureAgentProcessInput,
@@ -13,12 +15,19 @@ import type {
   AgentProcessNotificationListener,
   AgentProcessNotifier,
 } from './ports/agent-process-notifier.js';
+import {
+  createAgentStopCommandRuntime,
+  type AgentCommandServiceState,
+  type AgentStopCommandRuntime,
+} from '../agent-stop-command/composition/daemon-agent-command-service.js';
 import type {
   AgentProcessSlotView,
   AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
 } from '../domain/entities/agent-process.js';
+
+export type { AgentCommandServiceState } from '../agent-stop-command/composition/daemon-agent-command-service.js';
 
 export interface RestartAgentInput {
   readonly chatroomId: string;
@@ -35,7 +44,10 @@ export interface AgentKey {
 }
 
 export interface SerializedAgentOperations {
-  startAgent(input: EnsureAgentProcessInput, signal: AbortSignal): Promise<AgentProcessOperationResult>;
+  startAgent(
+    input: EnsureAgentProcessInput,
+    signal: AbortSignal
+  ): Promise<AgentProcessOperationResult>;
   stopAgent(input: StopAgentProcessInput, signal: AbortSignal): Promise<{ success: boolean }>;
 }
 
@@ -48,18 +60,18 @@ export interface SerializedAgentOperationContext {
 }
 
 export type AgentProcessManagerCommand =
-  | { readonly operationId: string; readonly type: 'start'; readonly input: EnsureAgentProcessInput }
+  | {
+      readonly operationId: string;
+      readonly type: 'start';
+      readonly input: EnsureAgentProcessInput;
+    }
   | { readonly operationId: string; readonly type: 'stop'; readonly input: StopAgentProcessInput }
-  | { readonly operationId: string; readonly type: 'restart'; readonly input: RestartAgentInput }
-  ;
+  | { readonly operationId: string; readonly type: 'restart'; readonly input: RestartAgentInput };
 
 export type AgentOperationResult = AgentProcessNotification<AgentProcessManagerCommand>;
 
 export interface AgentProcessManagerExecutionPort {
-  runSerializedForAgent<T>(
-    key: AgentKey,
-    operation: () => Promise<T>
-  ): Promise<T>;
+  runSerializedForAgent<T>(key: AgentKey, operation: () => Promise<T>): Promise<T>;
   ensureRunning(opts: EnsureAgentProcessInput): Promise<AgentProcessOperationResult>;
   stop(opts: StopAgentProcessInput): Promise<{ success: boolean }>;
   handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
@@ -114,6 +126,12 @@ export interface AgentProcessManagerService {
   startProcessing(): void;
   stopProcessing(): Promise<void>;
 
+  /** Start and stop the private dedicated agent.stop command transport. */
+  startCommandProcessing(input: AgentCommandProcessingInput): Promise<void>;
+  stopCommandProcessing(): Promise<void>;
+  getCommandState(): AgentCommandServiceState;
+  subscribeCommandState(listener: (state: AgentCommandServiceState) => void): () => void;
+
   /** Non-lifecycle manager operations exposed through the same boundary. */
   handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
   getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
@@ -128,6 +146,15 @@ export interface AgentProcessManagerService {
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
   subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
+}
+
+export interface AgentCommandProcessingInput {
+  readonly wsClient: ConvexClient;
+  readonly backend: {
+    mutation: (fn: unknown, args: unknown) => Promise<unknown>;
+  };
+  readonly sessionId: string;
+  readonly machineId: string;
 }
 
 export interface AgentProcessManagerResetResult {
@@ -154,16 +181,12 @@ function commandMessage(command: AgentProcessManagerCommand): {
   return { body: command, messageGroupId: messageGroupId(input) };
 }
 
-function assertStartSucceeded(result: AgentProcessOperationResult): void {
-  if (!result.success) {
-    throw new Error(`Agent start failed${result.error ? `: ${result.error}` : ''}`);
-  }
-}
-
-function assertStopSucceeded(result: { success: boolean }): void {
-  if (!result.success) {
-    throw new Error('Agent stop failed');
-  }
+function assertSucceeded(
+  operation: string,
+  result: { success: boolean; error?: string | undefined }
+): void {
+  if (!result.success)
+    throw new Error(`${operation} failed${result.error ? `: ${result.error}` : ''}`);
 }
 
 interface PendingOperation {
@@ -184,6 +207,7 @@ export function createAgentProcessManagerService(
   const pendingOperations = new Map<string, PendingOperation>();
   let processingStarted = false;
   let resetting = false;
+  let commandService: AgentStopCommandRuntime | undefined;
 
   const runExclusive = <T>(key: AgentKey, operation: () => Promise<T>): Promise<T> => {
     return deps.execution.runSerializedForAgent(key, operation);
@@ -211,13 +235,13 @@ export function createAgentProcessManagerService(
           startAgent: async (input, signal) => {
             if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
             const result = await deps.execution.ensureRunning(input);
-            assertStartSucceeded(result);
+            assertSucceeded('Agent start', result);
             return result;
           },
           stopAgent: async (input, signal) => {
             if (signal.aborted) throw signal.reason ?? new Error('Agent operation cancelled');
             const result = await deps.execution.stop(input);
-            assertStopSucceeded(result);
+            assertSucceeded('Agent stop', result);
             return result;
           },
         },
@@ -261,7 +285,7 @@ export function createAgentProcessManagerService(
     return completion;
   };
 
-  return {
+  const service: AgentProcessManagerService = {
     startAgent: (input) => {
       if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
       return runExclusive(input, () =>
@@ -351,6 +375,23 @@ export function createAgentProcessManagerService(
       processingStarted = false;
       await deps.commandBus.stop();
     },
+    startCommandProcessing: async (input) => {
+      commandService ??= createAgentStopCommandRuntime({
+        ...input,
+        processManager: service,
+      });
+      await commandService.start();
+    },
+    stopCommandProcessing: async () => {
+      await commandService?.stop();
+    },
+    getCommandState: () =>
+      commandService?.getState() ?? {
+        status: 'stopped',
+        processedCount: 0,
+        failedCount: 0,
+      },
+    subscribeCommandState: (listener) => commandService?.subscribe(listener) ?? (() => undefined),
     handleExit: (input) => deps.execution.handleExit(input),
     getSlot: (chatroomId, role) => deps.execution.getSlot(chatroomId, role),
     listActive: () => deps.execution.listActive(),
@@ -362,4 +403,5 @@ export function createAgentProcessManagerService(
     subscribeAgentStarted: (handler) => deps.execution.subscribeAgentStarted(handler),
     subscribeAgentSessionLost: (handler) => deps.execution.subscribeAgentSessionLost(handler),
   };
+  return service;
 }

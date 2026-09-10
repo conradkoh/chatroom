@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonAgentCommandService } from './daemon-services.js';
 import { startOperationalInboxEffect } from './operational-inbox-runtime.js';
 import { refreshWorkspaceMembership } from './workspace-membership-refresh-registry.js';
 import { type AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
@@ -176,18 +175,16 @@ async function startOperationalInboxForTest(options: StartOperationalInboxOption
   taskInboxHandlers: () => Map<string, (update: never) => Promise<void>>;
 }> {
   const { Effect, Layer } = await import('effect');
-  const {
-    AgentLifecycleOutboxService,
-    DaemonAgentProcessManagerCommandService,
-    DaemonAgentProcessManagerService,
-    DaemonSessionService,
-  } = await import('./daemon-services.js');
+  const { AgentLifecycleOutboxService, DaemonAgentProcessManagerService, DaemonSessionService } =
+    await import('./daemon-services.js');
   const backendQuery = vi.fn().mockResolvedValue({ tasks: options.tasks ?? [] });
   const workspaceQuery = vi.fn().mockResolvedValue(options.workspaces ?? []);
   const agentProcessManager = {
     subscribeAgentTurnEnded: vi.fn(() => () => undefined),
     subscribeAgentStarted: vi.fn(() => () => undefined),
     subscribeAgentSessionLost: vi.fn(() => () => undefined),
+    runSerializedForAgent: async (_key: never, operation: (ops: never) => Promise<unknown>) =>
+      operation({} as never),
   };
   const session = {
     sessionId: 'session-1',
@@ -278,20 +275,13 @@ async function startOperationalInboxForTest(options: StartOperationalInboxOption
     return service;
   };
   Object.assign(session, { taskService });
-  const commandServiceValue = {
-    runSerializedForAgent: async (_key: never, operation: (ops: never) => Promise<unknown>) =>
-      operation({} as never),
-  };
+  Object.assign(agentProcessManager, {
+    startCommandProcessing: () => Effect.promise(() => agentCommandServiceStartMock()),
+    stopCommandProcessing: () => Effect.promise(() => agentCommandServiceStopMock()),
+  });
   const layers = Layer.mergeAll(
     Layer.succeed(DaemonSessionService, session as never),
     Layer.succeed(DaemonAgentProcessManagerService, agentProcessManager as never),
-    Layer.succeed(DaemonAgentProcessManagerCommandService, commandServiceValue as never),
-    Layer.succeed(DaemonAgentCommandService, {
-      start: agentCommandServiceStartMock,
-      stop: agentCommandServiceStopMock,
-      getState: vi.fn(() => ({ status: 'running', processedCount: 0, failedCount: 0 })),
-      subscribe: vi.fn(() => () => undefined),
-    } as never),
     Layer.succeed(AgentLifecycleOutboxService, {
       enqueue: () => Effect.succeed({ success: true }),
       stopAll: () => Effect.void,

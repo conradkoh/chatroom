@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createDaemonAgentCommandService } from './agent-command-service.js';
-import type { AgentProcessManagerService } from '../../agent-process-service/index.js';
+import { createAgentStopCommandService } from './agent-command-service.js';
+import type { AgentProcessManagerService } from '../../index.js';
 import type { AgentStopCommand } from '../domain/entities/agent-command.js';
 import type { AgentStoppedFact } from '../domain/entities/agent-fact.js';
 
@@ -87,7 +87,7 @@ describe('daemon agent command service composition', () => {
       { chatroomId: 'room-1', role: 'Builder', pid: 7 },
       { chatroomId: 'room-1', role: 'planner' },
     ];
-    const service = createDaemonAgentCommandService({ processManager, factSink: sink });
+    const service = createAgentStopCommandService({ processManager, factSink: sink });
 
     const result = await service.stop(
       makeCommand({ target: { kind: 'chatroom', chatroomId: 'room-1' } })
@@ -108,7 +108,7 @@ describe('daemon agent command service composition', () => {
     const { state, processManager } = createFakeProcessManager();
     const sink = createFakeFactSink();
     state.active = [{ chatroomId: 'room-1', role: 'builder', pid: 99 }];
-    const service = createDaemonAgentCommandService({ processManager, factSink: sink });
+    const service = createAgentStopCommandService({ processManager, factSink: sink });
 
     const result = await service.stop(makeCommand());
 
@@ -131,7 +131,7 @@ describe('daemon agent command service composition', () => {
     state.active = [{ chatroomId: 'room-1', role: 'builder', pid: 99 }];
     state.stopStatus = 'failed';
     state.stopError = new Error('boom');
-    const service = createDaemonAgentCommandService({ processManager, factSink: sink });
+    const service = createAgentStopCommandService({ processManager, factSink: sink });
 
     const result = await service.stop(makeCommand());
 
@@ -145,7 +145,7 @@ describe('daemon agent command service composition', () => {
     const sink = createFakeFactSink();
     state.active = [{ chatroomId: 'room-1', role: 'builder' }];
     state.stopStatus = 'cancelled';
-    const service = createDaemonAgentCommandService({ processManager, factSink: sink });
+    const service = createAgentStopCommandService({ processManager, factSink: sink });
 
     const result = await service.stop(makeCommand());
 
@@ -161,7 +161,7 @@ describe('daemon agent command service composition', () => {
     state.active = [{ chatroomId: 'room-1', role: 'builder' }];
     state.stopStatus = 'failed';
     state.stopError = 'plain failure';
-    const service = createDaemonAgentCommandService({ processManager, factSink: sink });
+    const service = createAgentStopCommandService({ processManager, factSink: sink });
 
     const result = await service.stop(makeCommand());
 
@@ -174,7 +174,7 @@ describe('daemon agent command service composition', () => {
     const { state, processManager } = createFakeProcessManager();
     const sink = createFakeFactSink();
     state.active = [{ chatroomId: 'room-1', role: 'builder', pid: 4242 }];
-    const service = createDaemonAgentCommandService({ processManager, factSink: sink });
+    const service = createAgentStopCommandService({ processManager, factSink: sink });
 
     await service.stop(makeCommand({ reason: 'daemon.shutdown' }));
 
@@ -187,7 +187,7 @@ describe('daemon agent command service composition', () => {
     const { state, processManager } = createFakeProcessManager();
     const sink = createFakeFactSink();
     state.active = [{ chatroomId: 'room-1', role: 'builder', pid: 1 }];
-    const service = createDaemonAgentCommandService({
+    const service = createAgentStopCommandService({
       processManager,
       factSink: sink,
       now: () => 4242,

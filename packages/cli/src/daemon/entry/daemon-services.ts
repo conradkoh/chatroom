@@ -8,7 +8,6 @@
  */
 
 import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
-import type { ConvexClient as ConvexWsClient } from 'convex/browser';
 import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
 
@@ -30,12 +29,9 @@ import type {
   AgentLifecycleOutboxRegistry,
   AgentLifecycleOutboxResult,
 } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
-import {
-  createDaemonAgentCommandServiceRuntime,
-  type AgentCommandServiceState,
-  type DaemonAgentCommandService as DaemonAgentCommandServiceRuntime,
-} from '../services/agent-command-service/index.js';
 import type {
+  AgentCommandProcessingInput,
+  AgentCommandServiceState,
   AgentProcessManager,
   AgentProcessSlotView,
   AgentSessionLostHandler,
@@ -48,6 +44,7 @@ import type {
 } from '../services/agent-process-service/index.js';
 import type { AgentProcessManagerService, TaskService } from '../services/service-interfaces.js';
 
+// fallow-ignore-next-line unused-export
 export { createTaskService, type TaskService } from '../services/service-interfaces.js';
 
 export interface AgentLifecycleOutboxServiceShape {
@@ -152,6 +149,9 @@ export interface DaemonAgentProcessManagerServiceShape {
       }) => Effect.Effect<void>)
     | undefined;
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
+  startAgent?: AgentProcessManagerService['startAgent'];
+  stopAgent?: AgentProcessManagerService['stopAgent'];
+  restartAgent?: AgentProcessManagerService['restartAgent'];
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
@@ -172,6 +172,11 @@ export interface DaemonAgentProcessManagerServiceShape {
   subscribeAgentTurnEnded: (handler: AgentTurnEndedHandler) => () => void;
   subscribeAgentStarted: (handler: AgentStartedHandler) => () => void;
   subscribeAgentSessionLost: (handler: AgentSessionLostHandler) => () => void;
+  runSerializedForAgent?: AgentProcessManagerService['runSerializedForAgent'];
+  startCommandProcessing?: (input: AgentCommandProcessingInput) => Effect.Effect<void>;
+  stopCommandProcessing?: () => Effect.Effect<void>;
+  getCommandState?: () => AgentCommandServiceState;
+  subscribeCommandState?: (listener: (state: AgentCommandServiceState) => void) => () => void;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -266,6 +271,9 @@ export const DaemonAgentProcessManagerServiceLive = (
         });
       }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
+    startAgent: processManagerService.startAgent,
+    stopAgent: processManagerService.stopAgent,
+    restartAgent: processManagerService.restartAgent,
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),
     getSlot: (chatroomId, role) => mgr.getSlot(chatroomId, role),
@@ -278,42 +286,14 @@ export const DaemonAgentProcessManagerServiceLive = (
     subscribeAgentStarted: (handler) => processManagerService.subscribeAgentStarted(handler),
     subscribeAgentSessionLost: (handler) =>
       processManagerService.subscribeAgentSessionLost(handler),
+    runSerializedForAgent: processManagerService.runSerializedForAgent,
+    startCommandProcessing: (input) =>
+      Effect.promise(() => processManagerService.startCommandProcessing(input)),
+    stopCommandProcessing: () =>
+      Effect.promise(() => processManagerService.stopCommandProcessing()),
+    getCommandState: () => processManagerService.getCommandState(),
+    subscribeCommandState: (listener) => processManagerService.subscribeCommandState(listener),
   });
-
-/**
- * Transitional Effect boundary for the queue-backed process manager service.
- * Existing callers continue using DaemonAgentProcessManagerService until they
- * are migrated to this interface.
- */
-export class DaemonAgentProcessManagerCommandService extends Context.Tag(
-  'DaemonAgentProcessManagerCommandService'
-)<DaemonAgentProcessManagerCommandService, AgentProcessManagerService>() {}
-
-export const DaemonAgentProcessManagerCommandServiceLive = (
-  service: AgentProcessManagerService
-): Layer.Layer<DaemonAgentProcessManagerCommandService> =>
-  Layer.succeed(DaemonAgentProcessManagerCommandService, service);
-
-// ─── DaemonAgentCommandService ─────────────────────────────────────────────
-
-/** Public daemon façade for machine-scoped agent command transport and state. */
-export interface DaemonAgentCommandServiceShape extends DaemonAgentCommandServiceRuntime {
-  getState(): AgentCommandServiceState;
-}
-
-export class DaemonAgentCommandService extends Context.Tag('DaemonAgentCommandService')<
-  DaemonAgentCommandService,
-  DaemonAgentCommandServiceShape
->() {}
-
-export const DaemonAgentCommandServiceLive = (input: {
-  wsClient: ConvexWsClient;
-  backend: DaemonSessionServiceShape['backend'];
-  sessionId: SessionId;
-  machineId: string;
-  processManager: AgentProcessManagerService;
-}): Layer.Layer<DaemonAgentCommandService> =>
-  Layer.succeed(DaemonAgentCommandService, createDaemonAgentCommandServiceRuntime(input));
 
 // ─── DaemonSessionService ────────────────────────────────────────────────────
 

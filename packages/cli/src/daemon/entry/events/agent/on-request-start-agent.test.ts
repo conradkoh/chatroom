@@ -3,11 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { AgentRequestStartEventPayload } from './on-request-start-agent.js';
 import { onRequestStartAgentEffect } from './on-request-start-agent.js';
-import {
-  DaemonAgentProcessManagerCommandService,
-  DaemonSessionService,
-} from '../../daemon-services.js';
-import type { AgentProcessManagerService } from '../../../services/agent-process-service/index.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
 import { DaemonEventBus } from '../event-bus.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -53,7 +49,7 @@ describe('onRequestStartAgentEffect', () => {
 
   function runEffect(
     event: AgentRequestStartEventPayload,
-    apmLayer: Layer.Layer<DaemonAgentProcessManagerCommandService>,
+    apmLayer: Layer.Layer<DaemonAgentProcessManagerService>,
     sessionLayer: Layer.Layer<DaemonSessionService>
   ) {
     return Effect.runPromise(
@@ -62,9 +58,9 @@ describe('onRequestStartAgentEffect', () => {
   }
 
   function makeCommandLayer(startAgent: ReturnType<typeof vi.fn>) {
-    return Layer.succeed(DaemonAgentProcessManagerCommandService, {
+    return Layer.succeed(DaemonAgentProcessManagerService, {
       startAgent,
-    } as unknown as AgentProcessManagerService);
+    } as never);
   }
 
   test('skips expired events without calling startAgent', async () => {

@@ -1,9 +1,6 @@
-import { Layer } from 'effect';
-
 import { createStartBackgroundCapabilitiesDiscoveryDeps } from './bridge/capabilities-bridge.js';
 import { daemonSessionToLayers } from './daemon-layers.js';
 import { createDaemonRuntime } from './daemon-runtime.js';
-import { DaemonAgentCommandServiceLive } from './daemon-services.js';
 import { asConvexSessionId } from './daemon-types.js';
 import { createDefaultEventRouterDeps } from './default-router-deps.js';
 import { createDaemonDeps } from './deps.js';
@@ -79,16 +76,7 @@ export async function startDaemon(): Promise<void> {
 
   console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/`);
 
-  const layers = Layer.merge(
-    daemonSessionToLayers(init),
-    DaemonAgentCommandServiceLive({
-      wsClient,
-      backend: init.backend,
-      sessionId: init.sessionId,
-      machineId: init.machineId,
-      processManager: init.agentProcessManagerService,
-    })
-  );
+  const layers = daemonSessionToLayers(init);
   init.agentProcessManagerService.startProcessing();
   startBackgroundMachineCapabilitiesDiscovery(
     createStartBackgroundCapabilitiesDiscoveryDeps(layers)

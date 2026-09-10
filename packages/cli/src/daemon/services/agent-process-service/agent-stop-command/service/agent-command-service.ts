@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 // Temporary: Convex inbox adapter and daemon startup composition land in later slices.
 import type {
   AgentCommandActiveAgent,
@@ -13,13 +12,13 @@ import type {
 import type { AgentStoppedFact, AgentStoppedOutcome } from '../domain/entities/agent-fact.js';
 import { buildAgentStoppedEventId } from '../domain/entities/agent-fact.js';
 
-export interface AgentCommandServiceDependencies {
+export interface AgentStopCommandExecutorDependencies {
   readonly processManager: AgentCommandProcessManager;
   readonly factSink: AgentFactSink;
   readonly now?: (() => number) | undefined;
 }
 
-export interface AgentCommandService {
+export interface AgentStopCommandExecutor {
   stop(command: AgentStopCommand): Promise<AgentStopCommandResult>;
 }
 
@@ -181,9 +180,9 @@ async function stopAllTargets(
   return { facts, failures };
 }
 
-export function createAgentCommandService(
-  deps: AgentCommandServiceDependencies
-): AgentCommandService {
+export function createAgentStopCommandExecutor(
+  deps: AgentStopCommandExecutorDependencies
+): AgentStopCommandExecutor {
   const now = deps.now ?? Date.now;
 
   return {

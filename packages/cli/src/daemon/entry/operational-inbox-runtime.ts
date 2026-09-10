@@ -4,9 +4,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
 
 import {
-  DaemonAgentCommandService,
   DaemonAgentProcessManagerService,
-  DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
   AgentLifecycleOutboxService,
 } from './daemon-services.js';
@@ -77,17 +75,11 @@ export const startOperationalInboxEffect = (
 ): Effect.Effect<
   { stop: () => Promise<void>; nativeDelivery: NativeDeliveryService },
   never,
-  | DaemonSessionService
-  | DaemonAgentProcessManagerService
-  | DaemonAgentProcessManagerCommandService
-  | DaemonAgentCommandService
-  | AgentLifecycleOutboxService
+  DaemonSessionService | DaemonAgentProcessManagerService | AgentLifecycleOutboxService
 > =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const agentMgr = yield* DaemonAgentProcessManagerService;
-    const commandService = yield* DaemonAgentProcessManagerCommandService;
-    const agentCommandService = yield* DaemonAgentCommandService;
     const lifecycleOutboxService = yield* AgentLifecycleOutboxService;
     const lifecycleOutbox = {
       enqueue: (fact: AgentLifecycleFact) =>
@@ -122,11 +114,13 @@ export const startOperationalInboxEffect = (
     // TaskService owns the task read model and the task-status subscription.
     const agentOperationalReadModel = new AgentOperationalReadModel();
     const agentTaskState = createAgentTaskStateService();
+    const runSerializedForAgent = agentMgr.runSerializedForAgent;
+    if (!runSerializedForAgent) throw new Error('Agent process serialization is unavailable');
     const nativeDelivery = session.taskService.createNativeDeliveryService({
       runtime,
       effectContext,
       agentMgr,
-      runSerializedForAgent: commandService.runSerializedForAgent,
+      runSerializedForAgent,
       sessionDeps,
       machineId: session.machineId,
       agentTaskState,
@@ -315,7 +309,14 @@ export const startOperationalInboxEffect = (
       })
     );
 
-    yield* Effect.promise(() => agentCommandService.start());
+    if (!agentMgr.startCommandProcessing)
+      throw new Error('Agent command processing is unavailable');
+    yield* agentMgr.startCommandProcessing({
+      wsClient,
+      backend: session.backend,
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+    });
 
     let stopPromise: Promise<void> | undefined;
     return {
@@ -323,7 +324,8 @@ export const startOperationalInboxEffect = (
       stop() {
         stopPromise ??= (async () => {
           stopped = true;
-          await agentCommandService.stop();
+          if (agentMgr.stopCommandProcessing)
+            await Effect.runPromise(agentMgr.stopCommandProcessing());
           abort.abort();
           for (const watcher of roomWatchers.values()) {
             watcher.controller.abort();

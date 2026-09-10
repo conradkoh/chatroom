@@ -8,10 +8,7 @@ import { Effect } from 'effect';
 import type { Id } from '../../../../api.js';
 import { startAgent } from '../../../../daemon/domain/usecase/start-agent.js';
 import { createStartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
-import {
-  DaemonAgentProcessManagerCommandService,
-  DaemonSessionService,
-} from '../../daemon-services.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
 import type { AgentHarness } from '../../daemon-types.js';
 import { drainPendingEnhancerJobsIfRegistered } from '../../enhancer/enhancer-drain-registry.js';
 
@@ -30,13 +27,15 @@ export interface AgentRequestStartEventPayload {
 
 export const onRequestStartAgentEffect = (
   event: AgentRequestStartEventPayload
-): Effect.Effect<void, never, DaemonAgentProcessManagerCommandService | DaemonSessionService> =>
+): Effect.Effect<void, never, DaemonAgentProcessManagerService | DaemonSessionService> =>
   Effect.gen(function* () {
-    const processManagerService = yield* DaemonAgentProcessManagerCommandService;
+    const processManagerService = yield* DaemonAgentProcessManagerService;
     const session = yield* DaemonSessionService;
+    const startAgentOperation = processManagerService.startAgent;
+    if (!startAgentOperation) throw new Error('Agent process start is unavailable');
 
     yield* Effect.promise(async () => {
-      await startAgent(createStartAgentDeps(session, processManagerService), {
+      await startAgent(createStartAgentDeps(session, { startAgent: startAgentOperation }), {
         commandId: event._id.toString(),
         chatroomId: event.chatroomId as string,
         role: event.role,

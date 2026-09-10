@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createAgentCommandFactSend } from './agent-command-fact-send.js';
 import { api } from '../../../api.js';
-import type { AgentStoppedFact } from '../../services/agent-command-service/domain/entities/agent-fact.js';
+import type { AgentStoppedFact } from '../../services/agent-process-service/agent-stop-command/domain/entities/agent-fact.js';
 
 const stoppedFact = (overrides?: Partial<AgentStoppedFact>): AgentStoppedFact => ({
   kind: 'agent.stopped',

@@ -3,10 +3,9 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { onDaemonShutdownEffect } from './on-daemon-shutdown.js';
 import {
-  DaemonAgentProcessManagerCommandService,
+  DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../../daemon/entry/daemon-services.js';
-import type { AgentProcessManagerService } from '../../daemon/services/agent-process-service/index.js';
 
 vi.mock('../../daemon/entry/handlers/command-runner.js', () => ({
   shutdownAllCommandsEffect: Effect.succeed(undefined),
@@ -30,10 +29,7 @@ function runShutdown({ activeAgents }: { activeAgents: { chatroomId: string; rol
     onDaemonShutdownEffect.pipe(
       Effect.provide(
         Layer.merge(
-          Layer.succeed(
-            DaemonAgentProcessManagerCommandService,
-            agentPm as unknown as AgentProcessManagerService
-          ),
+          Layer.succeed(DaemonAgentProcessManagerService, agentPm as never),
           Layer.succeed(DaemonSessionService, session as never)
         )
       )

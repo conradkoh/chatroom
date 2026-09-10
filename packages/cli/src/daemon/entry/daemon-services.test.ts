@@ -16,7 +16,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
 import {
-  DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerServiceLive,
   DaemonMachineService,
@@ -269,11 +268,11 @@ describe('daemonSessionToLayers', () => {
 
     const service = await Effect.runPromise(
       Effect.gen(function* () {
-        return yield* DaemonAgentProcessManagerCommandService;
+        return yield* DaemonAgentProcessManagerService;
       }).pipe(Effect.provide(daemonSessionToLayers(init)))
     );
 
-    expect(service).toBe(init.agentProcessManagerService);
+    expect(service.startAgent).toBe(init.agentProcessManagerService.startAgent);
   });
 
   it('builds a layer that provides DaemonSessionService with init identity fields', async () => {

@@ -23,7 +23,6 @@ import { DaemonMutableStateService, DaemonSessionService } from './daemon-servic
 import type {
   DaemonAgentProcessManagerService,
   DaemonSessionServiceShape,
-  DaemonAgentProcessManagerCommandService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
@@ -64,10 +63,7 @@ export interface DedupTracker {
 
 /** Union of services required to dispatch any command event. */
 export type CommandDispatchDeps =
-  | DaemonAgentProcessManagerService
-  | DaemonAgentProcessManagerCommandService
-  | DaemonMutableStateService
-  | DaemonSessionService;
+  DaemonAgentProcessManagerService | DaemonMutableStateService | DaemonSessionService;
 
 function evictStaleEntries(entries: Map<string, number>, evictBefore: number): void {
   for (const [id, ts] of entries) {

@@ -4,15 +4,17 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const daemonRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const daemonRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 const serviceRoot = fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$/, '');
 const transportImplementations = [
-  fileURLToPath(new URL('../../../infrastructure/convex/agent-command-inbox.ts', import.meta.url)),
   fileURLToPath(
-    new URL('../../../infrastructure/outbox/agent-command-fact-outbox.ts', import.meta.url)
+    new URL('../../../../infrastructure/convex/agent-command-inbox.ts', import.meta.url)
   ),
   fileURLToPath(
-    new URL('../../../infrastructure/outbox/agent-command-fact-send.ts', import.meta.url)
+    new URL('../../../../infrastructure/outbox/agent-command-fact-outbox.ts', import.meta.url)
+  ),
+  fileURLToPath(
+    new URL('../../../../infrastructure/outbox/agent-command-fact-send.ts', import.meta.url)
   ),
 ];
 const forbidden = [

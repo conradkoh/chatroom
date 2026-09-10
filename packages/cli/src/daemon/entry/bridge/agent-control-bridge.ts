@@ -16,7 +16,7 @@ import { runRestartOrchestrator } from '../restart-orchestrator.js';
 
 export function createStartAgentDeps(
   session: DaemonSessionServiceShape,
-  processManagerService: AgentProcessManagerService
+  processManagerService: Pick<AgentProcessManagerService, 'startAgent'>
 ): StartAgentDeps {
   return {
     agentProcessManager: {
@@ -77,7 +77,7 @@ export function createStartAgentDeps(
 export function createRestartAgentDeps(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   session: DaemonSessionServiceShape,
-  processManagerService: AgentProcessManagerService,
+  processManagerService: Pick<AgentProcessManagerService, 'runSerializedForAgent'>,
   nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
 ): RestartAgentDeps {
   return {

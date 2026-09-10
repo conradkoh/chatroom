@@ -6,8 +6,8 @@ import {
   type KeyedFifoBatchedOutboxRegistry,
 } from './lib/keyed-fifo-batched-outbox-registry.js';
 import { resolveOutboxDbPath } from './outbox-db-path.js';
-import type { AgentStoppedFact } from '../../services/agent-command-service/domain/entities/agent-fact.js';
-import type { AgentFactSink } from '../../services/agent-command-service/service/ports/agent-fact-sink.js';
+import type { AgentStoppedFact } from '../../services/agent-process-service/agent-stop-command/domain/entities/agent-fact.js';
+import type { AgentFactSink } from '../../services/agent-process-service/agent-stop-command/service/ports/agent-fact-sink.js';
 
 export const AGENT_COMMAND_FACT_OUTBOX_BATCH_SIZE = 1;
 
