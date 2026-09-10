@@ -1,19 +1,14 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
+import { untrackChildPid } from './adapters/orphan-process-tracker.js';
 import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
-import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
-
-import { untrackChildPid } from './adapters/orphan-process-tracker.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../../infrastructure/local/harness/bound-harness-registry.js';
-import type {
-  RemoteAgentService,
-  SpawnResult,
-} from '../../../infrastructure/local/harness/services/remote-agent-service.js';
+import type { SpawnResult } from '../../../infrastructure/local/harness/services/remote-agent-service.js';
 import { DEFAULT_TRIGGER_PROMPT } from '../../../infrastructure/local/harness/services/spawn-prompt.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
@@ -1405,6 +1400,94 @@ describe('AgentProcessManager', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).not.toBe('turn_in_flight');
       expect(turnEnded).not.toHaveBeenCalled();
+    });
+
+    test('native turn-end waits for an async handler disposition before resetting nativeTurnPhase', async () => {
+      type TurnResultCallback = Parameters<NonNullable<SpawnResult['onTurnResult']>>[0];
+      let turnResultCb: TurnResultCallback | undefined;
+      const service = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn: vi.fn().mockResolvedValue(undefined),
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onTurnResult: (cb: TurnResultCallback) => {
+            turnResultCb = cb;
+          },
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      await manager.resumeTurnForSlot({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        prompt: 'Continue working',
+      });
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).toBe('turn_in_flight');
+
+      let resolveDisposition!: (disposition: { kind: 'release-slot' }) => void;
+      const dispositionGate = new Promise<{ kind: 'release-slot' }>((resolve) => {
+        resolveDisposition = resolve;
+      });
+      manager.subscribeAgentTurnEnded(() => dispositionGate);
+
+      turnResultCb?.({ turnId: 'turn-1', status: 'failed', source: 'test', error: 'boom' });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // The async handler is still pending — the slot must not reset early.
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).toBe('turn_in_flight');
+
+      resolveDisposition({ kind: 'release-slot' });
+      await manager.whenTurnEndsIdle();
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).toBe('idle');
+    });
+
+    test('hold-slot disposition preserves turn_in_flight after a failed native turn', async () => {
+      type TurnResultCallback = Parameters<NonNullable<SpawnResult['onTurnResult']>>[0];
+      let turnResultCb: TurnResultCallback | undefined;
+      const service = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn: vi.fn().mockResolvedValue(undefined),
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onTurnResult: (cb: TurnResultCallback) => {
+            turnResultCb = cb;
+          },
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      await manager.resumeTurnForSlot({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        prompt: 'Continue working',
+      });
+
+      manager.subscribeAgentTurnEnded(async () => ({
+        kind: 'hold-slot' as const,
+        reason: 'task-recovery-failed',
+      }));
+
+      turnResultCb?.({ turnId: 'turn-1', status: 'failed', source: 'test', error: 'boom' });
+      await manager.whenTurnEndsIdle();
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).toBe('turn_in_flight');
     });
   });
 

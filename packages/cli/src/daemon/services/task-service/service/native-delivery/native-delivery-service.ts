@@ -49,6 +49,7 @@ type TaskDeliveryService = Pick<
   TaskService,
   | 'deliverNativeTask'
   | 'isNativeHarness'
+  | 'releaseTaskAfterTurnFailure'
   | 'snapshotRequestsNativeColdSession'
   | 'explainNativeDeliveryBlock'
 > &
@@ -141,6 +142,21 @@ export class NativeDeliveryService {
       console.error(
         `[NativeDelivery:turn-failed] chatroom=${event.chatroomId} role=${event.role} task=${activeTask?.taskId ?? 'none'} turn=${completion.turnId} status=${completion.status} source=${completion.source} error=${errorDetail ?? 'none'}`
       );
+      if (activeTask) {
+        try {
+          await this.deps.taskService.releaseTaskAfterTurnFailure({
+            chatroomId: event.chatroomId,
+            role: event.role,
+            taskId: activeTask.taskId,
+          });
+        } catch (error) {
+          console.error(
+            `[NativeDelivery:turn-failed-recovery-error] chatroom=${event.chatroomId} role=${event.role} task=${activeTask.taskId} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+          );
+          return { kind: 'hold-slot', reason: 'task-recovery-failed' };
+        }
+        this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+      }
       const fact: AgentLifecycleFact = {
         kind: 'turn_failed',
         chatroomId: event.chatroomId,
@@ -161,11 +177,14 @@ export class NativeDeliveryService {
       try {
         // The local outbox is the fire-and-forget boundary to the backend. The
         // enqueue itself is awaited so the manager receives a real disposition.
+        // When a task was recovered above, the backend queue already holds it;
+        // a secondary fact-enqueue failure must not re-orphan the task/slot.
         await this.deps.lifecycleOutbox.enqueue(fact);
       } catch (error) {
         console.error(
           `[NativeDelivery:turn-failed-outbox-error] chatroom=${event.chatroomId} role=${event.role} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
         );
+        if (activeTask) return { kind: 'release-slot' };
         return { kind: 'hold-slot', reason: 'turn-failed-outbox-enqueue-failed' };
       }
       return { kind: 'release-slot' };

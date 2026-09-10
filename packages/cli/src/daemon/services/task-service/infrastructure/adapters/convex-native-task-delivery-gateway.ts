@@ -1,5 +1,7 @@
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+
 import { api } from '../../../../../api.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { NativeTaskDeliveryGateway } from '../../service/ports/native-task-delivery.js';
 
 type Backend = {
@@ -12,6 +14,12 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
     claimPendingTask: async (args) => {
       await backend.mutation(api.tasks.claimTask, args);
     },
+    releaseTaskAfterTurnFailure: (args) =>
+      backend.mutation(api.tasks.releaseTaskAfterTurnFailure, args) as Promise<{
+        released: boolean;
+        status: AssignedTaskSnapshotView['status'];
+        updatedAt: number;
+      }>,
     loadDeliveryPrompt: (args) =>
       backend.query(api.messages.getTaskDeliveryPrompt, args) as Promise<{ fullCliOutput: string }>,
     recordReceipt: async (args) => {

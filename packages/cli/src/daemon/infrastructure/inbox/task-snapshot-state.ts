@@ -80,6 +80,26 @@ export class MachineTaskSnapshotState {
       this.snapshots.set(snapshotKey(snapshot.taskId, snapshot.agentConfig.role), snapshot);
     }
   }
+
+  /**
+   * Patches the status of an existing snapshot after a backend-confirmed
+   * transition. Never creates a snapshot; returns false when no matching
+   * snapshot exists. Call only after the backend mutation resolves — the
+   * backend row is authoritative, this cache is not.
+   */
+  markStatus(
+    chatroomId: string,
+    role: ChatroomRole,
+    taskId: string,
+    status: AssignedTaskSnapshotView['status'],
+    updatedAt: number
+  ): boolean {
+    const key = snapshotKey(taskId, role);
+    const snapshot = this.snapshots.get(key);
+    if (!snapshot || snapshot.chatroomId !== chatroomId) return false;
+    this.snapshots.set(key, { ...snapshot, status, updatedAt });
+    return true;
+  }
 }
 
 /** Read-only view exposed to services that consume task notifications. */

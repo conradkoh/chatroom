@@ -70,6 +70,16 @@ export interface TaskService {
     }) => void
   ): Promise<void>;
   isNativeHarness(harness: string): boolean;
+  /**
+   * Releases a single in-flight task back to backend `pending` after a native
+   * turn failure, then patches the local snapshot from the authoritative
+   * backend response. The cache update happens only after backend success.
+   */
+  releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
+    released: boolean;
+    status: AssignedTaskSnapshotView['status'];
+    updatedAt: number;
+  }>;
   snapshotRequestsNativeColdSession(task: AssignedTaskSnapshotView): boolean;
   explainNativeDeliveryBlock(
     task: AssignedTaskSnapshotView,
@@ -242,6 +252,22 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
       taskOutbox.enqueue({ task, harnessSessionId, onTaskDelivered }),
     isNativeHarness,
+    releaseTaskAfterTurnFailure: async (args) => {
+      const result = await gateway.releaseTaskAfterTurnFailure({
+        sessionId: deps.sessionId,
+        chatroomId: args.chatroomId,
+        role: args.role,
+        taskId: args.taskId,
+      });
+      taskSnapshotState.markStatus(
+        args.chatroomId,
+        args.role,
+        args.taskId,
+        result.status,
+        result.updatedAt
+      );
+      return result;
+    },
     snapshotRequestsNativeColdSession,
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
     createNativeDeliveryService: (deliveryDeps) => {
