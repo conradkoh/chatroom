@@ -14,7 +14,7 @@ import { query, mutation } from './_generated/server';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { machineTaskDeliverySignalScopeValidator } from '../src/domain/entities/machine-task-delivery-signal';
 import { ackMachineTaskDeliverySignals } from '../src/domain/usecase/agent/ack-machine-task-delivery-signals';
-import { listTasksForMachineSignalRange } from '../src/domain/usecase/machine/list-tasks-for-machine-signal-range';
+import { listTasksForMachineTaskDeliverySignalRange as listTasksForMachineTaskDeliverySignalRangeUsecase } from '../src/domain/usecase/machine/list-tasks-for-machine-task-delivery-signal-range';
 
 const DEFAULT_TASK_DELIVERY_SIGNALS_LIMIT = 100;
 const MAX_TASK_DELIVERY_SIGNALS_LIMIT = 500;
@@ -93,14 +93,13 @@ export const listTasksForMachineTaskDeliverySignalRange = query({
       MAX_TASK_DELIVERY_HYDRATION_LIMIT
     );
 
-    return listTasksForMachineSignalRange(ctx, {
+    return listTasksForMachineTaskDeliverySignalRangeUsecase(ctx, {
       machineId: args.machineId,
       chatroomId: String(args.chatroomId),
       userId: auth.userId,
       afterSignalKey: args.afterSignalKey,
       throughSignalKey: args.throughSignalKey,
       limit,
-      signalTable: 'chatroom_machineTaskDeliverySignals',
     });
   },
 });
