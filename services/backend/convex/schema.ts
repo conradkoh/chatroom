@@ -2909,6 +2909,18 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId']),
 
   /**
+   * Per-user conversation-mode preference for a chatroom.
+   * Kept separate from enhancer configuration because chat/code selections are
+   * valid even when no enhancer has been configured.
+   */
+  chatroom_conversationModePreferences: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    mode: v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced')),
+    updatedAt: v.number(),
+  }).index('by_chatroom_user', ['chatroomId', 'userId']),
+
+  /**
    * One-shot enhancer job per originating user request.
    */
   chatroom_enhancerJobs: defineTable({
