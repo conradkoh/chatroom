@@ -31,7 +31,7 @@ export interface AgentRestartEventPayload {
 
 export const onRequestRestartAgentEffect = (
   event: AgentRestartEventPayload,
-  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>
+  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
 ): Effect.Effect<
   void,
   never,

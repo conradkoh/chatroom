@@ -77,10 +77,7 @@ function createMockDeps(overrides?: {
         )
       ),
       nativeDelivery: {
-        requestReconcile: vi.fn(async () => undefined),
-      },
-      taskService: {
-        syncAssignedTaskSnapshots: vi.fn(async () => undefined),
+        reconcileAfterAgentRestart: vi.fn(async () => []),
       },
     },
     auditLog,
@@ -106,7 +103,7 @@ describe('runRestartOrchestrator', () => {
     const restartCompleted = auditLog.filter((event) => event.type === 'agent.restartCompleted');
     expect(restartCompleted).toHaveLength(1);
 
-    expect(deps.taskService.syncAssignedTaskSnapshots).toHaveBeenCalledTimes(1);
+    expect(deps.nativeDelivery.reconcileAfterAgentRestart).toHaveBeenCalledTimes(1);
 
     const phaseEvents = auditLog.filter((event) => event.type === 'agent.restartPhase');
     expect(phaseEvents.map((event) => event.phase)).toEqual([
@@ -138,7 +135,7 @@ describe('runRestartOrchestrator', () => {
     );
     expect(failedPhases).toHaveLength(1);
 
-    expect(deps.taskService.syncAssignedTaskSnapshots).not.toHaveBeenCalled();
+    expect(deps.nativeDelivery.reconcileAfterAgentRestart).not.toHaveBeenCalled();
 
     const restartCompleted = auditLog.filter((event) => event.type === 'agent.restartCompleted');
     expect(restartCompleted).toHaveLength(0);

@@ -78,7 +78,7 @@ export function createRestartAgentDeps(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   session: DaemonSessionServiceShape,
   processManagerService: AgentProcessManagerService,
-  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>
+  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
 ): RestartAgentDeps {
   return {
     restartOrchestrator: {
@@ -95,7 +95,6 @@ export function createRestartAgentDeps(
             agentMgr,
             runSerializedForAgent: processManagerService.runSerializedForAgent,
             nativeDelivery,
-            taskService: session.taskService,
           },
           {
             chatroomId: input.chatroomId as Id<'chatroom_rooms'>,
