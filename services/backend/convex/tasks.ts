@@ -32,6 +32,7 @@ import {
 import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
+import { releaseTaskAfterTurnFailure as releaseTaskAfterTurnFailureUsecase } from '../src/domain/usecase/task/release-task-after-turn-failure';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
 import {
   countActiveTasksFromSource,
@@ -48,6 +49,18 @@ const MAX_ACTIVE_TASKS = 100;
 
 /** Maximum number of tasks to return in list queries. */
 const MAX_TASK_LIST_LIMIT = 100;
+
+/**
+ * Shared args for single-task mutations scoped to (chatroomId, role, taskId).
+ * Extracted so scoped task mutations (read, turn-failure release) share one
+ * definition instead of cloning the same args/handler shape.
+ */
+const singleTaskMutationArgs = {
+  ...SessionIdArg,
+  chatroomId: v.id('chatroom_rooms'),
+  role: v.string(),
+  taskId: v.id('chatroom_tasks'),
+};
 
 /** Creates a new task in a chatroom (pending status). */
 export const createTask = mutation({
@@ -332,15 +345,23 @@ export const startTask = mutation({
  * Business logic is delegated to the readTask usecase in src/domain/usecase/task/.
  */
 export const readTask = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    taskId: v.id('chatroom_tasks'),
-  },
+  args: singleTaskMutationArgs,
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     return readTaskUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: args.taskId,
+    });
+  },
+});
+
+/** Releases a single in-flight task back to pending after a native turn failure. */
+export const releaseTaskAfterTurnFailure = mutation({
+  args: singleTaskMutationArgs,
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return releaseTaskAfterTurnFailureUsecase(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
       taskId: args.taskId,
