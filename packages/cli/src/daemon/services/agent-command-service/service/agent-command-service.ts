@@ -1,5 +1,5 @@
-// fallow-ignore-file unused-file
-// Temporary: production wiring (inbox adapter/outbox) lands in the next slice.
+// fallow-ignore-file unused-file unused-export
+// Temporary: Convex inbox adapter and daemon startup composition land in later slices.
 import type {
   AgentCommandActiveAgent,
   AgentCommandProcessManager,
@@ -16,7 +16,7 @@ import { buildAgentStoppedEventId } from '../domain/entities/agent-fact.js';
 export interface AgentCommandServiceDependencies {
   readonly processManager: AgentCommandProcessManager;
   readonly factSink: AgentFactSink;
-  readonly now?: () => number;
+  readonly now?: (() => number) | undefined;
 }
 
 export interface AgentCommandService {

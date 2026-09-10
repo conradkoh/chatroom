@@ -24,3 +24,17 @@ port:
   instead of starting concurrent work.
 
 The Convex inbox adapter and daemon startup composition are later slices.
+
+## Composition
+
+- `createDaemonAgentCommandService` adapts the existing agent-process service
+  (listActive view mapping plus stop result mapping) into the command port and
+  builds the application service. It holds no process or slot state itself.
+- `startDaemonAgentCommandRuntime` composes inbox, process manager, service,
+  and fact sink into a running transport-neutral consumer, returning the
+  consumer stop handle.
+- Resource ownership remains with the caller: the runtime creates only the
+  composed service and consumer. It does not create or close the inbox, fact
+  sink, or process manager.
+
+Convex adapter and daemon startup wiring are intentionally later slices.
