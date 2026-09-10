@@ -1,18 +1,18 @@
 /**
  * Task inbox primitives.
  *
- * The inbox deliberately subscribes only to timeline task-status signals for one
- * machine AND one chatroom (mirrors operational-inbox). Full task rows are
- * hydrated imperatively after a signal arrives, which keeps task content out of
- * the reactive subscription payload.
+ * The inbox deliberately subscribes only to daemon task-delivery signals for one
+ * machine AND one chatroom (mirrors operational-inbox). Assigned-task snapshots
+ * are hydrated imperatively after a signal arrives, which keeps task content out
+ * of the reactive subscription payload.
  */
 
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import {
-  buildListTasksForMachineSignalRangeArgs,
-  buildSubscribeTaskStatusSignalsSinceArgs,
+  buildListTasksForMachineTaskDeliverySignalRangeArgs,
+  buildSubscribeTaskDeliverySignalsSinceArgs,
 } from './task-signal-contract.js';
 import type { Doc } from '../../../api.js';
 import { api } from '../../../api.js';
@@ -22,7 +22,7 @@ const DEFAULT_SIGNAL_PAGE_LIMIT = 100;
 const DEFAULT_TASK_PAGE_LIMIT = 500;
 
 export type TaskStatusSignal = Pick<
-  Doc<'chatroom_machineTaskStatusSignals'>,
+  Doc<'chatroom_machineTaskDeliverySignals'>,
   'chatroomId' | 'taskId' | 'targetRole' | 'taskStatus' | 'signalKey' | 'taskUpdatedAt'
 >;
 
@@ -46,7 +46,7 @@ export interface TaskInboxOptions {
   readonly chatroomId: string;
   /** Defaults to the time the iterator is created. */
   readonly serviceStartedAt?: number | undefined;
-  /** Overrides the initial timeline signal cursor. */
+  /** Overrides the initial task-delivery signal cursor. */
   readonly initialAfterSignalKey?: string | undefined;
   readonly signalPageLimit?: number | undefined;
   readonly taskPageLimit?: number | undefined;
@@ -57,7 +57,7 @@ export type TaskInboxHandler = (update: TaskInboxUpdate) => Promise<void>;
 
 /**
  * Builds the exclusive signal cursor immediately before all signals at a time.
- * Timeline signal keys are `<zero-padded taskUpdatedAt>:<taskId>`.
+ * Task-delivery signal keys are `<zero-padded taskUpdatedAt>:<taskId>`.
  */
 export function taskSignalCursorAt(timestamp: number): string {
   return `${String(Math.max(0, Math.floor(timestamp))).padStart(16, '0')}:`;
@@ -107,8 +107,8 @@ function waitForTaskSignalPage(
     }
 
     unsubscribe = options.client.onUpdate(
-      api.messageList.subscribeTaskStatusSignalsSince,
-      buildSubscribeTaskStatusSignalsSinceArgs({
+      api.taskDelivery.subscribeTaskDeliverySignalsSince,
+      buildSubscribeTaskDeliverySignalsSinceArgs({
         sessionId: options.sessionId,
         machineId: options.machineId,
         chatroomId: options.chatroomId,
@@ -168,8 +168,8 @@ async function fetchSnapshotsForSignalPage(
   while (true) {
     throwIfAborted(options.signal);
     const result = await options.client.query(
-      api.tasks.listTasksForMachineSignalRange,
-      buildListTasksForMachineSignalRangeArgs({
+      api.taskDelivery.listTasksForMachineTaskDeliverySignalRange,
+      buildListTasksForMachineTaskDeliverySignalRangeArgs({
         sessionId: options.sessionId,
         machineId: options.machineId,
         chatroomId: options.chatroomId,

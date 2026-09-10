@@ -7,7 +7,7 @@
  */
 
 import { transitionTask } from './transition-task';
-import { writeTimelineTaskStatusSignal } from './write-timeline-task-status-signal';
+import { writeTaskStatusSignals } from './write-task-status-signals';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { TaskStatus } from '../../../../convex/lib/taskStateMachine';
@@ -127,7 +127,7 @@ export async function reassignInFlightTasksOnTeamSwitch(
     });
     const reassignedTask = await ctx.db.get('chatroom_tasks', task._id);
     if (reassignedTask) {
-      await writeTimelineTaskStatusSignal(ctx, reassignedTask);
+      await writeTaskStatusSignals(ctx, reassignedTask);
     }
     reassigned++;
   }

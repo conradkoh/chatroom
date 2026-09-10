@@ -13,18 +13,15 @@ import {
 import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
-import { getMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
-import { machineOperationalSignalScopeValidator } from '../src/domain/entities/machine-operational-signal';
 import {
   normalizeMarkdownContent,
   withMarkdownContent,
 } from '../src/domain/entities/markdown-content';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
-import { listTasksForMachineSignalRange as listTasksForMachineSignalRangeUsecase } from '../src/domain/usecase/machine/list-tasks-for-machine-signal-range';
 import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
@@ -44,15 +41,13 @@ import {
   transitionTask,
   type TransitionTaskOptions,
 } from '../src/domain/usecase/task/transition-task';
-import { writeTimelineTaskStatusSignal } from '../src/domain/usecase/task/write-timeline-task-status-signal';
+import { writeTaskStatusSignals } from '../src/domain/usecase/task/write-task-status-signals';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
 
 /** Maximum number of tasks to return in list queries. */
 const MAX_TASK_LIST_LIMIT = 100;
-/** Maximum number of full task rows returned by one inbox page. */
-const MAX_TASK_INBOX_PAGE_LIMIT = 500;
 
 /** Creates a new task in a chatroom (pending status). */
 export const createTask = mutation({
@@ -279,7 +274,7 @@ export const startTask = mutation({
           });
           const reassignedTask = await ctx.db.get('chatroom_tasks', acknowledgedTask._id);
           if (reassignedTask) {
-            await writeTimelineTaskStatusSignal(ctx, reassignedTask);
+            await writeTaskStatusSignals(ctx, reassignedTask);
           }
         }
 
@@ -1104,41 +1099,6 @@ export const getTasksByIds = query({
         createdAt: task.createdAt,
         createdBy: task.createdBy,
       }));
-  },
-});
-
-/**
- * Returns full task rows whose task-update cursor falls within a signal-key range.
- *
- * This is intentionally imperative: the task inbox subscribes only to
- * chatroom_timelineTaskStatusSignals and uses this query to hydrate the full rows
- * after a signal arrives.
- */
-export const listTasksForMachineSignalRange = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterSignalKey: v.string(),
-    throughSignalKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) return { snapshots: [], nextSignalKey: null, hasMore: false };
-
-    const limit = Math.min(
-      Math.max(args.limit ?? MAX_TASK_INBOX_PAGE_LIMIT, 1),
-      MAX_TASK_INBOX_PAGE_LIMIT
-    );
-
-    return listTasksForMachineSignalRangeUsecase(ctx, {
-      machineId: args.machineId,
-      chatroomId: args.chatroomId,
-      userId: auth.userId,
-      afterSignalKey: args.afterSignalKey,
-      throughSignalKey: args.throughSignalKey,
-      limit,
-    });
   },
 });
 

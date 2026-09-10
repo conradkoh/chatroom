@@ -120,6 +120,7 @@ import type * as skills from "../skills.js";
 import type * as standingInstructions from "../standingInstructions.js";
 import type * as storageCleanup from "../storageCleanup.js";
 import type * as system_auth_google from "../system/auth/google.js";
+import type * as taskDelivery from "../taskDelivery.js";
 import type * as taskDeliveryReceipts from "../taskDeliveryReceipts.js";
 import type * as tasks from "../tasks.js";
 import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteScopeKey.js";
@@ -279,6 +280,7 @@ declare const fullApi: ApiFromModules<{
   standingInstructions: typeof standingInstructions;
   storageCleanup: typeof storageCleanup;
   "system/auth/google": typeof system_auth_google;
+  taskDelivery: typeof taskDelivery;
   taskDeliveryReceipts: typeof taskDeliveryReceipts;
   tasks: typeof tasks;
   "utils/machineFavoriteScopeKey": typeof utils_machineFavoriteScopeKey;

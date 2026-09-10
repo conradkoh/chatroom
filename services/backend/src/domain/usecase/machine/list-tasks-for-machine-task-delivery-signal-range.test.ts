@@ -2,7 +2,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { assignedTaskSnapshotFromDoc } from './assigned-task-snapshot-row';
-import { listTasksForMachineSignalRange } from './list-tasks-for-machine-signal-range';
+import { listTasksForMachineTaskDeliverySignalRange } from './list-tasks-for-machine-task-delivery-signal-range';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -19,7 +19,7 @@ async function createRoom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   });
 }
 
-async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'norole' | 'page') {
+async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'page') {
   const sessionId = `hydration-${kind}-${Math.random()}` as SessionId;
   const machineId = `hydration-test-machine-${kind}-${Math.random()}`;
   await t.mutation(api.auth.loginAnon, { sessionId });
@@ -60,7 +60,7 @@ async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'norole' | 'page') 
               revisionKey: `r-${i}`,
               signalUpdatedAt: updatedAt,
             });
-      await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+      await ctx.db.insert('chatroom_machineTaskDeliverySignals', {
         chatroomId,
         taskId,
         machineId: machineId,
@@ -83,7 +83,7 @@ async function query(
   limit = 10
 ) {
   return t.run((ctx) =>
-    listTasksForMachineSignalRange(ctx, {
+    listTasksForMachineTaskDeliverySignalRange(ctx, {
       machineId,
       chatroomId,
       userId: 'unused',
@@ -94,7 +94,7 @@ async function query(
   );
 }
 
-describe('listTasksForMachineSignalRange', () => {
+describe('listTasksForMachineTaskDeliverySignalRange', () => {
   test('returns matching owned snapshot rows', async () => {
     const {
       machineId,
@@ -104,6 +104,8 @@ describe('listTasksForMachineSignalRange', () => {
     const result = await query(machineId, String(chatroomId), '', row.key);
     expect(result.snapshots).toHaveLength(1);
     expect(result.snapshots[0]).toEqual(assignedTaskSnapshotFromDoc(row.snapshot!));
+    expect(result.nextSignalKey).toBe(row.key);
+    expect(result.hasMore).toBe(false);
   });
   test('skips changed ownership', async () => {
     const {
@@ -165,7 +167,7 @@ describe('listTasksForMachineSignalRange', () => {
           signalUpdatedAt: now,
         });
         const key = `${String(now).padStart(16, '0')}:${taskId}`;
-        await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+        await ctx.db.insert('chatroom_machineTaskDeliverySignals', {
           chatroomId,
           taskId,
           machineId,
@@ -196,5 +198,17 @@ describe('listTasksForMachineSignalRange', () => {
     expect(roomBResult.snapshots).toHaveLength(1);
     expect(String(roomBResult.snapshots[0].chatroomId)).toBe(String(roomB));
     expect(roomBResult.nextSignalKey).toBe(roomBKey);
+  });
+
+  test('respects exclusive lower and inclusive upper range bounds', async () => {
+    const { machineId, chatroomId, rows } = await seed('page');
+    const result = await query(machineId, String(chatroomId), rows[0].key, rows[2].key);
+    expect(result.snapshots).toHaveLength(2);
+    expect(result.nextSignalKey).toBe(rows[2].key);
+    expect(result.hasMore).toBe(false);
+    const empty = await query(machineId, String(chatroomId), rows[2].key, rows[2].key);
+    expect(empty.snapshots).toHaveLength(0);
+    expect(empty.nextSignalKey).toBeNull();
+    expect(empty.hasMore).toBe(false);
   });
 });
