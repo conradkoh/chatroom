@@ -8,6 +8,7 @@ import {
   agentTypeValidator,
   agentStopReasonValidator,
 } from '../src/domain/entities/agent';
+import { agentDaemonCommandPayloadValidator } from '../src/domain/entities/agent-daemon-command';
 import {
   agentStopScopeValidator,
   agentStopStatusValidator,
@@ -1589,6 +1590,33 @@ export default defineSchema({
     .index('by_machine_status_deadline', ['machineId', 'status', 'deadline'])
     .index('by_status_leaseExpiresAt', ['status', 'leaseExpiresAt'])
     .index('by_deadline', ['deadline']),
+
+  /** Dedicated short-lived agent.stop inbox; separate from the generic machine command inbox. */
+  chatroom_agentCommandInbox: defineTable(
+    v.union(
+      v.object({
+        machineId: v.string(),
+        command: agentDaemonCommandPayloadValidator,
+        createdAt: v.number(),
+        deadlineAt: v.number(),
+        attemptCount: v.number(),
+        status: v.literal('pending'),
+      }),
+      v.object({
+        machineId: v.string(),
+        command: agentDaemonCommandPayloadValidator,
+        createdAt: v.number(),
+        deadlineAt: v.number(),
+        attemptCount: v.number(),
+        status: v.literal('processing'),
+        claimedBySessionId: v.string(),
+        leaseExpiresAt: v.number(),
+      })
+    )
+  )
+    .index('by_machine_status_deadline', ['machineId', 'status', 'deadlineAt'])
+    .index('by_status_leaseExpiresAt', ['status', 'leaseExpiresAt'])
+    .index('by_deadline', ['deadlineAt']),
 
   /**
    * Pre-aggregated agent restart metrics.
