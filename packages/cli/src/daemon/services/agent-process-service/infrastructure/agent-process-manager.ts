@@ -773,19 +773,7 @@ export class AgentProcessManager {
     }
     this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
     if (slot.harness && getHarnessCapabilities(slot.harness).supportsNativeIntegration) {
-      for (const handler of this.agentSessionLostHandlers) {
-        try {
-          handler({
-            chatroomId: opts.chatroomId,
-            role: opts.role,
-            harnessSessionId: ctx.harnessSessionId,
-          });
-        } catch (error) {
-          console.warn(
-            `[AgentProcessManager] native session-loss cleanup failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-      }
+      this.notifyAgentSessionLost(opts.chatroomId, opts.role, ctx.harnessSessionId);
     }
 
     const lifecyclePromise = this.lifecycle.runPromise(
@@ -1198,9 +1186,33 @@ export class AgentProcessManager {
   }): Promise<void> {
     for (const { target } of result.targets) {
       const slot = this.slots.get(agentKey(target.chatroomId, target.role));
+      // A successful scoped stop can report `already_stopped` without a live
+      // process-exit callback. Still invalidate native delivery state so a
+      // stale task marker cannot suppress recovery after the stop.
+      this.notifyAgentSessionLost(
+        target.chatroomId,
+        target.role,
+        slot?.pid === target.pid ? slot.harnessSessionId : undefined
+      );
       if (!slot || slot.pid !== target.pid) continue;
       this.resetSlotAfterStop(slot);
       await this.clearAgentPidQuietly(target.chatroomId, target.role);
+    }
+  }
+
+  private notifyAgentSessionLost(
+    chatroomId: string,
+    role: string,
+    harnessSessionId?: string | undefined
+  ): void {
+    for (const handler of this.agentSessionLostHandlers) {
+      try {
+        handler({ chatroomId, role, ...(harnessSessionId ? { harnessSessionId } : {}) });
+      } catch (error) {
+        console.warn(
+          `[AgentProcessManager] native session-loss cleanup failed for ${role}@${chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { refreshTaskInboxRoomMembership } from './task-inbox-membership-registry.js';
-import { startTaskInboxEffect } from './task-inbox-runtime.js';
+import { startOperationalInboxEffect } from './operational-inbox-runtime.js';
+import { refreshWorkspaceMembership } from './workspace-membership-refresh-registry.js';
 import { type AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
 import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/agent-operational-read-model.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
@@ -155,7 +155,7 @@ function makeInboxStore(persistedRooms: Record<string, { afterSignalKey: string 
   return store;
 }
 
-type StartTaskInboxOptions = {
+type StartOperationalInboxOptions = {
   tasks?: unknown[];
   workspaces?: { chatroomId: string }[];
   bootstrapRows?: MachineAgentOperationalRow[];
@@ -165,7 +165,7 @@ type StartTaskInboxOptions = {
   ) => Promise<void>;
 };
 
-async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promise<{
+async function startOperationalInboxForTest(options: StartOperationalInboxOptions = {}): Promise<{
   handle: { stop: () => void };
   workspaceQuery: ReturnType<typeof vi.fn>;
   operationalHandlers: () => ((update: never) => Promise<void>)[];
@@ -301,7 +301,7 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
     taskInboxHandlers.set(taskOptions.chatroomId, handler);
   });
   const handle = await Effect.runPromise(
-    startTaskInboxEffect({ query: workspaceQuery } as never).pipe(Effect.provide(layers))
+    startOperationalInboxEffect({ query: workspaceQuery } as never).pipe(Effect.provide(layers))
   );
   return {
     handle,
@@ -311,12 +311,12 @@ async function startTaskInboxForTest(options: StartTaskInboxOptions = {}): Promi
   };
 }
 
-describe('startTaskInboxEffect operational room supervisor', () => {
+describe('startOperationalInboxEffect operational room supervisor', () => {
   it('saves a fresh operational and task baseline per discovered room and acks with matching room ids', async () => {
     const store = makeInboxStore();
     vi.spyOn(Date, 'now').mockReturnValue(1234);
 
-    const { handle } = await startTaskInboxForTest({
+    const { handle } = await startOperationalInboxForTest({
       bootstrapRows: [opRow('room-1'), opRow('room-2')],
     });
     await vi.waitFor(() => expect(agentOperationalAckCalls()).toHaveLength(2));
@@ -366,7 +366,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
       [COMPOSITE_SCOPE_KEY('machine-1', 'room-1')]: { afterSignalKey: persistedKey },
     });
 
-    const { handle } = await startTaskInboxForTest({ bootstrapRows: [opRow('room-1')] });
+    const { handle } = await startOperationalInboxForTest({ bootstrapRows: [opRow('room-1')] });
     await vi.waitFor(() => expect(agentOperationalAckCalls()).toHaveLength(1));
 
     expect(store.save).not.toHaveBeenCalled();
@@ -414,7 +414,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     fetchMachineAgentOperationalStatus.mockRejectedValueOnce(new Error('bootstrap failed'));
     vi.spyOn(Date, 'now').mockReturnValue(1234);
 
-    const { handle } = await startTaskInboxForTest({
+    const { handle } = await startOperationalInboxForTest({
       tasks: [taskSnapshot('task-1', 'room-1')],
       bootstrapRows: [],
     });
@@ -436,7 +436,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     makeInboxStore(persistedRooms);
     vi.useFakeTimers();
 
-    const { handle } = await startTaskInboxForTest({
+    const { handle } = await startOperationalInboxForTest({
       bootstrapRows: [opRow('room-1'), opRow('room-2')],
     });
 
@@ -469,7 +469,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
 
   it('keeps process -> save -> ack ordering with the room-scoped cursor', async () => {
     const store = makeInboxStore();
-    const { handle, operationalHandlers } = await startTaskInboxForTest({
+    const { handle, operationalHandlers } = await startOperationalInboxForTest({
       tasks: [taskSnapshot('task-1', 'room-1')],
       bootstrapRows: [opRow('room-1')],
     });
@@ -513,7 +513,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
 
   it('task handler delivers then persists the room composite task cursor', async () => {
     const store = makeInboxStore();
-    const { handle, taskInboxHandlers } = await startTaskInboxForTest({
+    const { handle, taskInboxHandlers } = await startOperationalInboxForTest({
       tasks: [taskSnapshot('task-1', 'room-1')],
       bootstrapRows: [opRow('room-1')],
     });
@@ -551,7 +551,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
 
   it('does not save or ack a room when its processing fails', async () => {
     const store = makeInboxStore();
-    const { handle, operationalHandlers } = await startTaskInboxForTest({
+    const { handle, operationalHandlers } = await startOperationalInboxForTest({
       tasks: [taskSnapshot('task-1', 'room-1')],
       bootstrapRows: [opRow('room-1')],
     });
@@ -576,7 +576,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
 
   it('keeps the cursor saved and logs cleanup failure when ack fails', async () => {
     const store = makeInboxStore();
-    const { handle, operationalHandlers } = await startTaskInboxForTest({
+    const { handle, operationalHandlers } = await startOperationalInboxForTest({
       bootstrapRows: [opRow('room-1')],
     });
     await vi.waitFor(() => expect(agentOperationalRunCalls()).toHaveLength(1));
@@ -609,7 +609,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     const store = makeInboxStore();
     vi.useFakeTimers();
 
-    const { handle, workspaceQuery, taskInboxHandlers } = await startTaskInboxForTest({
+    const { handle, workspaceQuery, taskInboxHandlers } = await startOperationalInboxForTest({
       bootstrapRows: [],
       tasks: [],
     });
@@ -620,7 +620,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     // A workspace membership nudge surfaces room-2 for the first time.
     fetchMachineAgentOperationalStatus.mockResolvedValue([opRow('room-2')]);
     workspaceQuery.mockResolvedValueOnce([{ chatroomId: 'room-2' }]);
-    await refreshTaskInboxRoomMembership();
+    await refreshWorkspaceMembership();
 
     expect(agentOperationalRunCalls().map((call) => call[0].chatroomId)).toEqual(['room-2']);
     const taskCalls = vi.mocked(runTaskInbox).mock.calls;
@@ -628,15 +628,15 @@ describe('startTaskInboxEffect operational room supervisor', () => {
 
     // A second nudge re-discovers room-2; no duplicate watchers are started.
     workspaceQuery.mockResolvedValueOnce([{ chatroomId: 'room-2' }]);
-    await refreshTaskInboxRoomMembership();
+    await refreshWorkspaceMembership();
     expect(agentOperationalRunCalls()).toHaveLength(1);
     expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(1);
 
     // Removal stops the room watcher; re-adding it starts a fresh pair.
     workspaceQuery.mockResolvedValueOnce([]);
-    await refreshTaskInboxRoomMembership();
+    await refreshWorkspaceMembership();
     workspaceQuery.mockResolvedValueOnce([{ chatroomId: 'room-2' }]);
-    await refreshTaskInboxRoomMembership();
+    await refreshWorkspaceMembership();
     expect(agentOperationalRunCalls()).toHaveLength(2);
     expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(2);
 
@@ -688,7 +688,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
     };
     runOperationalInbox.mockImplementation(reconnectableInboxImpl);
 
-    const { handle } = await startTaskInboxForTest({
+    const { handle } = await startOperationalInboxForTest({
       bootstrapRows: [opRow('room-1'), opRow('room-2')],
       operationalInboxImpl: reconnectableInboxImpl,
     });
@@ -725,7 +725,7 @@ describe('startTaskInboxEffect operational room supervisor', () => {
       release = resolve;
     });
 
-    const { handle, operationalHandlers } = await startTaskInboxForTest({
+    const { handle, operationalHandlers } = await startOperationalInboxForTest({
       bootstrapRows: [opRow('room-1'), opRow('room-2')],
       tasks: [taskSnapshot('task-1', 'room-1'), taskSnapshot('task-2', 'room-2')],
     });

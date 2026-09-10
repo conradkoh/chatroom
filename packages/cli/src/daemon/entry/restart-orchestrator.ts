@@ -51,7 +51,7 @@ interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
-  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>;
+  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>;
 }
 
 async function emitPhase(
@@ -115,31 +115,6 @@ async function forceNativeWaiting(
   });
 }
 
-async function syncAssignedTaskSnapshots(deps: RestartOrchestratorDeps): Promise<void> {
-  await deps.session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-  });
-}
-
-async function deliverPendingTasks(
-  deps: RestartOrchestratorDeps,
-  event: RestartOrchestratorEvent
-): Promise<string[]> {
-  const delivered: string[] = [];
-  await syncAssignedTaskSnapshots(deps);
-  await deps.nativeDelivery.requestReconcile({
-    chatroomId: event.chatroomId,
-    role: event.role,
-    source: 'restart-completed',
-    onTaskDelivered: ({ taskId }) => {
-      delivered.push(taskId);
-    },
-  });
-
-  return delivered;
-}
-
 export async function runRestartOrchestrator(
   deps: RestartOrchestratorDeps,
   event: RestartOrchestratorEvent
@@ -198,7 +173,10 @@ export async function runRestartOrchestrator(
     await emitPhase(deps, event, 'ready');
 
     await emitPhase(deps, event, 'deliver');
-    const deliveredTaskIds = await deliverPendingTasks(deps, event);
+    const deliveredTaskIds = await deps.nativeDelivery.reconcileAfterAgentRestart({
+      chatroomId,
+      role,
+    });
 
     await emitPhase(deps, event, 'completed');
     await logDaemonAuditEvent(

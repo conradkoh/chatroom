@@ -1,5 +1,6 @@
 import { logNativeDeliveryDecision } from './native-delivery-log.js';
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
+import { getRoleDeliveryState } from './role-delivery-state.js';
 import {
   processTasksUpdate,
   type TaskDeliveryContext,
@@ -11,7 +12,6 @@ import {
 } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import { getRoleDeliveryState } from '../../../../entry/role-delivery-state.js';
 import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { TaskSnapshotStateReader } from '../../../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../../../infrastructure/inbox/task.js';
@@ -49,8 +49,11 @@ type TaskDeliveryService = Pick<
   TaskService,
   | 'deliverNativeTask'
   | 'isNativeHarness'
+  | 'releaseTaskAfterTurnFailure'
   | 'snapshotRequestsNativeColdSession'
   | 'explainNativeDeliveryBlock'
+  | 'loadAssignedTaskForAction'
+  | 'syncAssignedTaskSnapshots'
 > &
   Partial<Pick<TaskService, 'subscribe'>>;
 
@@ -109,6 +112,10 @@ export class NativeDeliveryService {
   }
 
   async handleAgentStarted(event: AgentStartedEvent): Promise<void> {
+    // A new agent process/session cannot still be executing the task recorded
+    // by the previous process. Clear the local dedup marker before the first
+    // post-start reconciliation so a stop/start cycle can recover delivery.
+    this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
     await this.requestReconcile({
       chatroomId: event.chatroomId,
       role: event.role,
@@ -141,6 +148,21 @@ export class NativeDeliveryService {
       console.error(
         `[NativeDelivery:turn-failed] chatroom=${event.chatroomId} role=${event.role} task=${activeTask?.taskId ?? 'none'} turn=${completion.turnId} status=${completion.status} source=${completion.source} error=${errorDetail ?? 'none'}`
       );
+      if (activeTask) {
+        try {
+          await this.deps.taskService.releaseTaskAfterTurnFailure({
+            chatroomId: event.chatroomId,
+            role: event.role,
+            taskId: activeTask.taskId,
+          });
+        } catch (error) {
+          console.error(
+            `[NativeDelivery:turn-failed-recovery-error] chatroom=${event.chatroomId} role=${event.role} task=${activeTask.taskId} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+          );
+          return { kind: 'hold-slot', reason: 'task-recovery-failed' };
+        }
+        this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+      }
       const fact: AgentLifecycleFact = {
         kind: 'turn_failed',
         chatroomId: event.chatroomId,
@@ -161,15 +183,24 @@ export class NativeDeliveryService {
       try {
         // The local outbox is the fire-and-forget boundary to the backend. The
         // enqueue itself is awaited so the manager receives a real disposition.
+        // When a task was recovered above, the backend queue already holds it;
+        // a secondary fact-enqueue failure must not re-orphan the task/slot.
         await this.deps.lifecycleOutbox.enqueue(fact);
       } catch (error) {
         console.error(
           `[NativeDelivery:turn-failed-outbox-error] chatroom=${event.chatroomId} role=${event.role} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
         );
+        if (activeTask) return { kind: 'release-slot' };
         return { kind: 'hold-slot', reason: 'turn-failed-outbox-enqueue-failed' };
       }
       return { kind: 'release-slot' };
     }
+    // A completed native turn leaves the harness idle. The task may still be
+    // acknowledged (for example, if the agent did not read it), so retaining
+    // the local marker would make every subsequent reconcile look like a
+    // duplicate forever. In-progress/completed task snapshots are filtered by
+    // the normal task-status gate on the next pass.
+    this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
     // The manager invokes this handler while the agent's lifecycle operation
     // is still serialized. Schedule delivery for the next turn of the event
     // loop so it cannot attempt to inject while that operation still owns the
@@ -289,6 +320,21 @@ export class NativeDeliveryService {
     })();
     this.reconcileStates.set(key, state);
     await state.promise;
+  }
+
+  // fallow-ignore-next-line unused-class-member
+  async reconcileAfterAgentRestart(args: { chatroomId: string; role: string }): Promise<string[]> {
+    const delivered: string[] = [];
+    await this.deps.taskService.syncAssignedTaskSnapshots();
+    await this.requestReconcile({
+      chatroomId: args.chatroomId,
+      role: args.role,
+      source: 'restart-completed',
+      onTaskDelivered: ({ taskId }) => {
+        delivered.push(taskId);
+      },
+    });
+    return delivered;
   }
 
   private async requestReconcileForSnapshots(

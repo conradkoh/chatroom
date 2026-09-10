@@ -9,6 +9,27 @@ function snapshotKey(taskId: string, role: string): string {
 }
 
 /**
+ * Whether a post-backend-success status patch is stale relative to the
+ * locally applied snapshot: strictly older timestamps never regress newer
+ * state, and an equal-timestamp terminal (`completed`) snapshot is never
+ * regressed to a non-terminal status.
+ */
+function isStaleStatusPatch(
+  snapshot: AssignedTaskSnapshotView,
+  status: AssignedTaskSnapshotView['status'],
+  updatedAt: number
+): boolean {
+  if (snapshot.updatedAt > updatedAt) return true;
+  return (
+    snapshot.updatedAt === updatedAt &&
+    // Widened: hydrated rows are typed active-only, but a terminal row at the
+    // same timestamp must still win over a stale pending recovery.
+    (snapshot.status as string) === 'completed' &&
+    (status as string) !== 'completed'
+  );
+}
+
+/**
  * In-memory task read model owned by the machine task inbox.
  *
  * The inbox is the only component that mutates this state. Consumers such as
@@ -79,6 +100,32 @@ export class MachineTaskSnapshotState {
     for (const snapshot of snapshots) {
       this.snapshots.set(snapshotKey(snapshot.taskId, snapshot.agentConfig.role), snapshot);
     }
+  }
+
+  /**
+   * Patches the status of an existing snapshot after a backend-confirmed
+   * transition. Never creates a snapshot; returns false when no matching
+   * snapshot exists. Call only after the backend mutation resolves — the
+   * backend row is authoritative, this cache is not.
+   *
+   * The patch is monotonic: a stale response (strictly older `updatedAt`)
+   * never regresses a newer locally applied state, and an equal-timestamp
+   * terminal (`completed`) snapshot is never regressed to a non-terminal
+   * status. Returning false is sufficient; callers do not retry.
+   */
+  markStatus(
+    chatroomId: string,
+    role: ChatroomRole,
+    taskId: string,
+    status: AssignedTaskSnapshotView['status'],
+    updatedAt: number
+  ): boolean {
+    const key = snapshotKey(taskId, role);
+    const snapshot = this.snapshots.get(key);
+    if (!snapshot || snapshot.chatroomId !== chatroomId) return false;
+    if (isStaleStatusPatch(snapshot, status, updatedAt)) return false;
+    this.snapshots.set(key, { ...snapshot, status, updatedAt });
+    return true;
   }
 }
 

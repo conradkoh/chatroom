@@ -78,7 +78,7 @@ export function createRestartAgentDeps(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   session: DaemonSessionServiceShape,
   processManagerService: AgentProcessManagerService,
-  nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>
+  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
 ): RestartAgentDeps {
   return {
     restartOrchestrator: {

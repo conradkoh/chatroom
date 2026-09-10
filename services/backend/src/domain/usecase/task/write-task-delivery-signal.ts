@@ -6,6 +6,7 @@ import { getTeamEntryPoint } from '../../entities/team';
 export type TaskDeliverySignalProjection = {
   signalKey: string;
   taskUpdatedAt: number;
+  source?: 'task_service' | undefined;
 };
 
 type TaskDeliveryRoute = {
@@ -84,5 +85,6 @@ export async function writeTaskDeliverySignal(
     taskStatus: task.status,
     signalKey: projection.signalKey,
     taskUpdatedAt: projection.taskUpdatedAt,
+    ...(projection.source !== undefined ? { source: projection.source } : {}),
   });
 }

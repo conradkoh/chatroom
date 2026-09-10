@@ -20,7 +20,10 @@ import {
   machineAgentRemovalSignalValidator,
   machineAgentStopSignalValidator,
 } from '../src/domain/entities/machine-operational-signal';
-import { machineTaskDeliverySignalValidator } from '../src/domain/entities/machine-task-delivery-signal';
+import {
+  machineTaskDeliverySignalValidator,
+  taskTransitionSourceValidator,
+} from '../src/domain/entities/machine-task-delivery-signal';
 
 const attachedSnippetValidator = v.object({
   reference: v.string(),
@@ -745,6 +748,7 @@ export default defineSchema({
     ),
     signalKey: v.string(),
     taskUpdatedAt: v.number(),
+    source: v.optional(taskTransitionSourceValidator),
   }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
 
   /**

@@ -34,6 +34,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
+import type { TaskTransitionSource } from '../../entities/machine-task-delivery-signal';
 import { TERMINAL_TASK_STATUSES } from '../../entities/task';
 import { requestEphemeralAgentRelease } from '../agent/request-ephemeral-agent-release';
 import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
@@ -42,6 +43,15 @@ import { syncMessageReadModel } from '../message/message-read-model';
 // ============================================================================
 // TYPES
 // ============================================================================
+
+/**
+ * Narrow typed marker for the origin of a task transition signal.
+ * Canonical definition lives in `machine-task-delivery-signal`; re-exported
+ * here so transition callers need only one import path. Currently only the
+ * turn-failure recovery path sets this; all other callers omit it. It is
+ * audit/diagnostic metadata and must never be used to suppress propagation.
+ */
+export type { TaskTransitionSource };
 
 /**
  * Options for controlling side effects during a task transition.
@@ -69,6 +79,12 @@ export interface TransitionTaskOptions {
    * or task creation logic.
    */
   skipAutoPromotion?: boolean | undefined;
+
+  /**
+   * Optional source marker written to both task-status signal projections.
+   * Omitted callers keep existing behavior (no source field written).
+   */
+  source?: TaskTransitionSource | undefined;
 }
 
 // ============================================================================
@@ -109,7 +125,9 @@ export async function transitionTask(
   // 1a. Write timeline task-status signal for live cursor subscription
   const transitionedTask = await ctx.db.get('chatroom_tasks', taskId);
   if (transitionedTask) {
-    await writeTaskStatusSignals(ctx, transitionedTask);
+    await writeTaskStatusSignals(ctx, transitionedTask, {
+      source: options?.source,
+    });
     if (transitionedTask.sourceMessageId)
       await syncMessageReadModel(ctx, transitionedTask.sourceMessageId);
     const linked = await ctx.db

@@ -8,9 +8,9 @@ import {
   NativeDeliveryService,
   type NativeDeliveryServiceDependencies,
 } from './native-delivery/native-delivery-service.js';
+import { NativeTaskDeliveryQueue } from './native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
-import { TaskOutbox } from './task-outbox.js';
 import { api } from '../../../../api.js';
 import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type {
@@ -70,7 +70,28 @@ export interface TaskService {
     }) => void
   ): Promise<void>;
   isNativeHarness(harness: string): boolean;
+  /**
+   * Releases a single in-flight task back to backend `pending` after a native
+   * turn failure, then patches the local snapshot from the authoritative
+   * backend response. The cache update happens only after backend success.
+   */
+  releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
+    released: boolean;
+    status: AssignedTaskSnapshotView['status'];
+    updatedAt: number;
+  }>;
   snapshotRequestsNativeColdSession(task: AssignedTaskSnapshotView): boolean;
+  loadAssignedTaskForAction(args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<AssignedTaskWithContent | null>;
+  /**
+   * Synchronizes the machine's assigned-task snapshot projection. Convex
+   * remains durable authority; this is a projection sync, not a new source
+   * of truth.
+   */
+  syncAssignedTaskSnapshots(): Promise<void>;
   explainNativeDeliveryBlock(
     task: AssignedTaskSnapshotView,
     options: {
@@ -112,7 +133,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   let inboxClient: ConvexClient | undefined;
   let serviceStartedAt = 0;
   let stopped = false;
-  const taskOutbox = new TaskOutbox(async (entry) => {
+  const nativeTaskDeliveryQueue = new NativeTaskDeliveryQueue(async (entry) => {
     await Effect.runPromise(
       runNativeInjectionEffect(entry.task, entry.harnessSessionId, {
         ...deps,
@@ -197,10 +218,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           sessionId: deps.sessionId,
           machineId: deps.machineId,
         });
-        await deps.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-          sessionId: deps.sessionId,
-          machineId: deps.machineId,
-        });
+        await service.syncAssignedTaskSnapshots();
         const snapshots = await fetchMachineAssignedTaskSnapshots(
           { ...deps, convexUrl: deps.convexUrl },
           deps.machineId
@@ -232,7 +250,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       stopped = true;
       for (const controller of roomControllers.values()) controller.abort();
       roomControllers.clear();
-      taskOutbox.stop();
+      nativeTaskDeliveryQueue.stop();
       inboxStore?.close();
       inboxStore = undefined;
     },
@@ -240,9 +258,39 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     listAllTasks: () => taskSnapshotState.listAll(),
     taskSnapshotState,
     deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
-      taskOutbox.enqueue({ task, harnessSessionId, onTaskDelivered }),
+      nativeTaskDeliveryQueue.enqueue({ task, harnessSessionId, onTaskDelivered }),
     isNativeHarness,
+    releaseTaskAfterTurnFailure: async (args) => {
+      const result = await gateway.releaseTaskAfterTurnFailure({
+        sessionId: deps.sessionId,
+        chatroomId: args.chatroomId,
+        role: args.role,
+        taskId: args.taskId,
+      });
+      taskSnapshotState.markStatus(
+        args.chatroomId,
+        args.role,
+        args.taskId,
+        result.status,
+        result.updatedAt
+      );
+      return result;
+    },
     snapshotRequestsNativeColdSession,
+    loadAssignedTaskForAction: async ({ chatroomId, role, taskId }) => {
+      const task = await gateway.loadAssignedTaskForAction({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId,
+        role,
+      });
+      return task?.chatroomId === chatroomId ? task : null;
+    },
+    syncAssignedTaskSnapshots: () =>
+      gateway.syncAssignedTaskSnapshots({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+      }),
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
     createNativeDeliveryService: (deliveryDeps) => {
       const nativeDelivery = new NativeDeliveryService({

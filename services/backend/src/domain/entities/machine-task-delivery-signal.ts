@@ -27,6 +27,13 @@ export const machineTaskDeliveryTaskStatusValidator = v.union(
   v.literal('backlog_acknowledged')
 );
 
+/**
+ * Optional typed marker for the origin of a task transition.
+ * Audit/diagnostic metadata only — must never gate signal propagation.
+ */
+export const taskTransitionSourceValidator = v.union(v.literal('task_service'));
+export type TaskTransitionSource = typeof taskTransitionSourceValidator.type;
+
 export const machineTaskDeliverySignalValidator = v.object({
   machineId: v.string(),
   chatroomId: v.id('chatroom_rooms'),
@@ -35,6 +42,7 @@ export const machineTaskDeliverySignalValidator = v.object({
   taskStatus: machineTaskDeliveryTaskStatusValidator,
   signalKey: v.string(),
   taskUpdatedAt: v.number(),
+  source: v.optional(taskTransitionSourceValidator),
 });
 
 export type MachineTaskDeliverySignal = typeof machineTaskDeliverySignalValidator.type;

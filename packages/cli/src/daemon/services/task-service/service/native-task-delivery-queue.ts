@@ -1,6 +1,6 @@
 import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 
-export type TaskOutboxEntry = {
+export type NativeTaskDeliveryQueueEntry = {
   readonly task: AssignedTaskWithContent;
   readonly harnessSessionId: string | undefined;
   readonly onTaskDelivered:
@@ -13,20 +13,18 @@ export type TaskOutboxEntry = {
     | undefined;
 };
 
-type Sender = (entry: TaskOutboxEntry) => Promise<void>;
+type Sender = (entry: NativeTaskDeliveryQueueEntry) => Promise<void>;
 
 /**
- * Task-service-owned content outbox.
- *
- * Delivery is serialized per chatroom/role, so callers can enqueue work
- * without creating a second delivery coordinator or sending content directly.
+ * Internal native-agent delivery scheduler. It serializes delivery per
+ * chatroom/role; it is not a task-update subscription or a Convex outbox.
  */
-export class TaskOutbox {
+export class NativeTaskDeliveryQueue {
   private readonly tails = new Map<string, Promise<void>>();
 
   constructor(private readonly sender: Sender) {}
 
-  enqueue(entry: TaskOutboxEntry): Promise<void> {
+  enqueue(entry: NativeTaskDeliveryQueueEntry): Promise<void> {
     const key = `${entry.task.chatroomId}:${entry.task.agentConfig.role.toLowerCase()}`;
     const previous = this.tails.get(key) ?? Promise.resolve();
     const next = previous.catch(() => undefined).then(() => this.sender(entry));
