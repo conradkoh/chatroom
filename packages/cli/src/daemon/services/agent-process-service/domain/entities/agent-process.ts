@@ -1,4 +1,5 @@
 import type { NativeTurnPhase } from '../../../../domain/entities/native-turn-phase.js';
+import type { TurnCompletionResult } from '../../../../infrastructure/local/harness/services/turn-completion.js';
 
 export type AgentProcessSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
@@ -17,9 +18,15 @@ export interface AgentTurnEndedEvent {
   readonly harness: string;
   readonly slot: AgentProcessSlotView;
   readonly eventId: string;
+  readonly completion?: TurnCompletionResult;
 }
 
-export type AgentTurnEndedHandler = (event: AgentTurnEndedEvent) => Promise<void>;
+export type AgentTurnDisposition =
+  { readonly kind: 'release-slot' } | { readonly kind: 'hold-slot'; readonly reason: string };
+
+export type AgentTurnEndedHandler = (
+  event: AgentTurnEndedEvent
+) => Promise<AgentTurnDisposition | void>;
 
 export interface AgentStartedEvent {
   readonly chatroomId: string;

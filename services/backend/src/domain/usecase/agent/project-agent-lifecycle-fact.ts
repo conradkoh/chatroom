@@ -45,6 +45,19 @@ export type AgentLifecycleFactInput =
       revisionKey: string;
       emittedAt: number;
     }
+  | {
+      kind: 'turn_failed';
+      chatroomId: Id<'chatroom_rooms'>;
+      role: string;
+      taskId?: Id<'chatroom_tasks'> | undefined;
+      harnessSessionId?: string | undefined;
+      turnId: string;
+      status: string;
+      source: string;
+      error?: string | undefined;
+      revisionKey: string;
+      emittedAt: number;
+    }
   | { kind: 'cleared_all_pids'; revisionKey: string; emittedAt: number };
 
 export async function projectAgentLifecycleFact(
@@ -103,6 +116,15 @@ export async function projectAgentLifecycleFact(
     });
     if (result.applied) await onAgentExited(ctx, fact);
     return { success: true, skipped: !result.applied };
+  }
+  if (fact.kind === 'turn_failed') {
+    await transitionAgentStatus(ctx, fact.chatroomId, fact.role, 'agent.turnFailed', undefined, {
+      status: 'error',
+      errorSource: 'runtime',
+      errorCode: fact.status,
+      errorMessage: `${fact.source}${fact.error ? `: ${fact.error}` : ''}`,
+    });
+    return { success: true };
   }
   if (fact.lifecycleRevision === undefined)
     return { success: true, skipped: true, rejectionReason: 'stale_revision' };

@@ -18,7 +18,7 @@ function toConvexLifecycleFact(fact: AgentLifecycleFact): ConvexLifecycleFact {
   return {
     ...normalized,
     chatroomId: normalized.chatroomId as Id<'chatroom_rooms'>,
-    ...(normalized.kind === 'activity' && normalized.taskId
+    ...((normalized.kind === 'activity' || normalized.kind === 'turn_failed') && normalized.taskId
       ? { taskId: normalized.taskId as Id<'chatroom_tasks'> }
       : {}),
   } as ConvexLifecycleFact;

@@ -9,7 +9,7 @@ import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-fo
 
 export type AgentRoleStatusReadModelStatus = ChatroomAgentActivityStatusValue;
 
-type StatusEvent = {
+export type StatusEvent = {
   status: AgentRoleStatusReadModelStatus;
   errorSource?: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop' | undefined;
   errorCode?: string | undefined;
