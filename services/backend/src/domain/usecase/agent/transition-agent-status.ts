@@ -16,6 +16,7 @@ import { projectAgentOperationalStatusForRole } from './project-agent-operationa
 import {
   projectAgentRoleStatusReadModel,
   statusEventForAgentEvent,
+  type StatusEvent,
 } from './project-agent-role-status-read-model';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -69,7 +70,8 @@ export async function transitionAgentStatus(
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
   lastStatus: string,
-  lastDesiredState?: string
+  lastDesiredState?: string,
+  statusEvent?: StatusEvent
 ): Promise<void> {
   // 1. Update participant record (denormalized — deprecated as primary source)
   const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
@@ -94,6 +96,6 @@ export async function transitionAgentStatus(
   await projectAgentRoleStatusReadModel(ctx, {
     chatroomId,
     role,
-    event: statusEventForAgentEvent(lastStatus),
+    event: statusEvent ?? statusEventForAgentEvent(lastStatus),
   });
 }

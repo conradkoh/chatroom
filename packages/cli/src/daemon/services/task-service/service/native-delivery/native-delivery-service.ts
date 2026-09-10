@@ -5,7 +5,10 @@ import {
   type TaskDeliveryContext,
   type TaskDeliveryRuntime,
 } from './task-delivery-processor.js';
-import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
+import {
+  buildAgentLifecycleRevisionKey,
+  type AgentLifecycleFact,
+} from '../../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
 import { getRoleDeliveryState } from '../../../../entry/role-delivery-state.js';
@@ -16,6 +19,7 @@ import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
   AgentTurnEndedEvent,
+  AgentTurnDisposition,
   AgentTaskStateService,
   AgentProcessManagerService,
   TaskService,
@@ -126,12 +130,52 @@ export class NativeDeliveryService {
     });
   }
 
-  async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<void> {
+  async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<AgentTurnDisposition> {
+    const completion = event.completion;
+    if (completion && completion.status !== 'completed') {
+      const activeTask = this.deps.agentTaskState.get({
+        chatroomId: event.chatroomId,
+        role: event.role,
+      });
+      const errorDetail = completion.error;
+      console.error(
+        `[NativeDelivery:turn-failed] chatroom=${event.chatroomId} role=${event.role} task=${activeTask?.taskId ?? 'none'} turn=${completion.turnId} status=${completion.status} source=${completion.source} error=${errorDetail ?? 'none'}`
+      );
+      const fact: AgentLifecycleFact = {
+        kind: 'turn_failed',
+        chatroomId: event.chatroomId,
+        role: event.role,
+        ...(activeTask?.taskId ? { taskId: activeTask.taskId } : {}),
+        ...(event.slot.harnessSessionId ? { harnessSessionId: event.slot.harnessSessionId } : {}),
+        turnId: completion.turnId,
+        status: completion.status,
+        source: completion.source,
+        ...(errorDetail ? { error: errorDetail } : {}),
+        revisionKey: buildAgentLifecycleRevisionKey('turn_failed', {
+          chatroomId: event.chatroomId,
+          role: event.role,
+          turnId: completion.turnId,
+        }),
+        emittedAt: Date.now(),
+      };
+      try {
+        // The local outbox is the fire-and-forget boundary to the backend. The
+        // enqueue itself is awaited so the manager receives a real disposition.
+        await this.deps.lifecycleOutbox.enqueue(fact);
+      } catch (error) {
+        console.error(
+          `[NativeDelivery:turn-failed-outbox-error] chatroom=${event.chatroomId} role=${event.role} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+        );
+        return { kind: 'hold-slot', reason: 'turn-failed-outbox-enqueue-failed' };
+      }
+      return { kind: 'release-slot' };
+    }
     // The manager invokes this handler while the agent's lifecycle operation
     // is still serialized. Schedule delivery for the next turn of the event
     // loop so it cannot attempt to inject while that operation still owns the
     // per-agent boundary.
     this.scheduleRoleDelivery(event.chatroomId, event.role);
+    return { kind: 'release-slot' };
   }
 
   private scheduleRoleDelivery(chatroomId: string, role: string): void {
