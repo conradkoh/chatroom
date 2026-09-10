@@ -9,3 +9,18 @@ Daemon application boundary for durable agent commands.
 - Machine-local scope is intentional: a chatroom target resolves only to active
   local roles on this machine.
 - Inbox adapter and durable outbox wiring are a later slice.
+
+## Agent Command Inbox Consumer
+
+`AgentCommandInboxConsumer` is transport-neutral. It owns serial
+claim/process/ack behavior and lease renewal against the `AgentCommandInbox`
+port:
+
+- `completed` and `expired` results are acknowledged (terminal).
+- `partial_failure` results and service/ack exceptions are reported through
+  `onError` and left unacknowledged, so the command stays retryable after
+  lease expiry. Stable fact event IDs keep retried targets idempotent.
+- Processing is strictly serial; a nudge during a drain queues another drain
+  instead of starting concurrent work.
+
+The Convex inbox adapter and daemon startup composition are later slices.
