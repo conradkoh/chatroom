@@ -10,7 +10,6 @@ import type {
 vi.mock('../../api.js', () => ({
   api: {
     machines: {
-      syncMachineAssignedTaskSnapshotsMutation: 'syncMachineAssignedTaskSnapshotsMutation',
       listMachineAssignedTaskSnapshots: 'listMachineAssignedTaskSnapshots',
       listMachineAgentOperationalStatus: 'listMachineAgentOperationalStatus',
       getAssignedTaskForAction: 'getAssignedTaskForAction',
@@ -80,6 +79,9 @@ function createMockDeps(overrides?: {
       nativeDelivery: {
         requestReconcile: vi.fn(async () => undefined),
       },
+      taskService: {
+        syncAssignedTaskSnapshots: vi.fn(async () => undefined),
+      },
     },
     auditLog,
     agentMgrMock: agentMgr,
@@ -103,6 +105,8 @@ describe('runRestartOrchestrator', () => {
 
     const restartCompleted = auditLog.filter((event) => event.type === 'agent.restartCompleted');
     expect(restartCompleted).toHaveLength(1);
+
+    expect(deps.taskService.syncAssignedTaskSnapshots).toHaveBeenCalledTimes(1);
 
     const phaseEvents = auditLog.filter((event) => event.type === 'agent.restartPhase');
     expect(phaseEvents.map((event) => event.phase)).toEqual([
@@ -133,6 +137,8 @@ describe('runRestartOrchestrator', () => {
       (event) => event.type === 'agent.restartPhase' && event.phase === 'failed'
     );
     expect(failedPhases).toHaveLength(1);
+
+    expect(deps.taskService.syncAssignedTaskSnapshots).not.toHaveBeenCalled();
 
     const restartCompleted = auditLog.filter((event) => event.type === 'agent.restartCompleted');
     expect(restartCompleted).toHaveLength(0);

@@ -51,5 +51,11 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
       if (!row) return null;
       return mapAssignedTaskView(row) satisfies AssignedTaskWithContent;
     },
+    syncAssignedTaskSnapshots: async ({ sessionId, machineId }) => {
+      await backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
+        sessionId,
+        machineId,
+      });
+    },
   };
 }

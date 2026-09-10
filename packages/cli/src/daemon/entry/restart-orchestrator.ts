@@ -24,6 +24,7 @@ import { resetRoleDeliveryState } from '../services/service-interfaces.js';
 import type {
   NativeDeliveryService,
   AgentProcessManagerService,
+  TaskService,
 } from '../services/service-interfaces.js';
 
 interface RestartOrchestratorEvent {
@@ -52,6 +53,7 @@ interface RestartOrchestratorDeps {
   agentMgr: DaemonAgentProcessManagerServiceShape;
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
   nativeDelivery: Pick<NativeDeliveryService, 'requestReconcile'>;
+  taskService: Pick<TaskService, 'syncAssignedTaskSnapshots'>;
 }
 
 async function emitPhase(
@@ -116,10 +118,7 @@ async function forceNativeWaiting(
 }
 
 async function syncAssignedTaskSnapshots(deps: RestartOrchestratorDeps): Promise<void> {
-  await deps.session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-  });
+  await deps.taskService.syncAssignedTaskSnapshots();
 }
 
 async function deliverPendingTasks(

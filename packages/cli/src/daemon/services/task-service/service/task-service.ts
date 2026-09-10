@@ -86,6 +86,12 @@ export interface TaskService {
     role: string;
     taskId: string;
   }): Promise<AssignedTaskWithContent | null>;
+  /**
+   * Synchronizes the machine's assigned-task snapshot projection. Convex
+   * remains durable authority; this is a projection sync, not a new source
+   * of truth.
+   */
+  syncAssignedTaskSnapshots(): Promise<void>;
   explainNativeDeliveryBlock(
     task: AssignedTaskSnapshotView,
     options: {
@@ -212,10 +218,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           sessionId: deps.sessionId,
           machineId: deps.machineId,
         });
-        await deps.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-          sessionId: deps.sessionId,
-          machineId: deps.machineId,
-        });
+        await service.syncAssignedTaskSnapshots();
         const snapshots = await fetchMachineAssignedTaskSnapshots(
           { ...deps, convexUrl: deps.convexUrl },
           deps.machineId
@@ -283,6 +286,11 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       });
       return task?.chatroomId === chatroomId ? task : null;
     },
+    syncAssignedTaskSnapshots: () =>
+      gateway.syncAssignedTaskSnapshots({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+      }),
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
     createNativeDeliveryService: (deliveryDeps) => {
       const nativeDelivery = new NativeDeliveryService({

@@ -67,3 +67,28 @@ describe('TaskService.loadAssignedTaskForAction', () => {
     });
   });
 });
+
+describe('TaskService.syncAssignedTaskSnapshots', () => {
+  test('delegates to the adapter with service-owned credentials', async () => {
+    const mutation = vi.fn(async () => undefined);
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      backend: { mutation, query: vi.fn(async () => null) },
+      agentProcessService: {
+        getSlot: vi.fn(),
+        resumeTurnForSlot: vi.fn(),
+        runSerializedForAgent: vi.fn(),
+      } as never,
+      lifecycleOutbox: { enqueue: vi.fn(async () => undefined) },
+    } as never);
+
+    await service.syncAssignedTaskSnapshots();
+
+    expect(mutation).toHaveBeenCalledWith(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+    });
+  });
+});

@@ -95,6 +95,7 @@ export function createRestartAgentDeps(
             agentMgr,
             runSerializedForAgent: processManagerService.runSerializedForAgent,
             nativeDelivery,
+            taskService: session.taskService,
           },
           {
             chatroomId: input.chatroomId as Id<'chatroom_rooms'>,

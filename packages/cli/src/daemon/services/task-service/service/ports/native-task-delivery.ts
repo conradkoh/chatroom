@@ -66,6 +66,12 @@ export interface NativeTaskDeliveryGateway {
     taskId: string;
     role: string;
   }): Promise<AssignedTaskWithContent | null>;
+  /**
+   * Synchronizes the machine's assigned-task snapshot projection. Convex
+   * remains durable authority; this is a projection sync, not a new source
+   * of truth.
+   */
+  syncAssignedTaskSnapshots(args: { sessionId: string; machineId: string }): Promise<void>;
 }
 
 export interface NativeTaskDeliveryAuditPort {
