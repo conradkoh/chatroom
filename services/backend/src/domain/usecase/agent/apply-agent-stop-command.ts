@@ -116,16 +116,11 @@ export async function applyAgentStopCommand(
       stopCommandId,
       chatroomId: input.chatroomId,
       machineId,
-      status: input.selectedConfigs.some((target) => target.machineId === machineId)
-        ? 'pending'
-        : 'completed',
-      ...(input.selectedConfigs.some((target) => target.machineId === machineId)
-        ? {}
-        : { completedAt: Date.now() }),
+      status: 'pending',
     });
   }
   const hasStopTargets = rolesWithStopTargets.size > 0;
-  if (!hasStopTargets)
+  if (!hasStopTargets && machineIds.length === 0)
     await ctx.db.patch('chatroom_agentStopCommands', stopCommandId, {
       status: 'completed',
       completedAt: Date.now(),
