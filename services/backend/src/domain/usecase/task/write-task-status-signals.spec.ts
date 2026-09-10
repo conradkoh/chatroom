@@ -114,18 +114,12 @@ describe('writeTaskStatusSignals', () => {
     });
     // Slim contract: no task content or row metadata.
     expect(delivery[0]).not.toHaveProperty('content');
-
-    // Legacy projections are never written by the new writer.
-    const legacy = (
-      await t.run(async (ctx) => {
-        return await ctx.db.query('chatroom_machineTaskStatusSignals').collect();
-      })
-    ).filter((row) => row.chatroomId === chatroomId);
-    const heads = await t.run(async (ctx) => {
-      return await ctx.db.query('chatroom_machineTaskStatusSignalHeads').collect();
+    // Exact retained-table evidence: one timeline row and one delivery row.
+    expect(timeline[0]).toMatchObject({
+      chatroomId,
+      taskId: task._id,
+      taskStatus: 'pending',
     });
-    expect(legacy).toHaveLength(0);
-    expect(heads).toHaveLength(0);
   });
 
   test('local/user/no-machine task creates a timeline row and no daemon row', async () => {

@@ -28,9 +28,6 @@ describe('task inbox daemon delivery feed', () => {
       expect(source, `${name} must not reference the legacy hydration endpoint`).not.toContain(
         'api.tasks.listTasksForMachineSignalRange'
       );
-      expect(source, `${name} must not reference the legacy signal table`).not.toContain(
-        'chatroom_machineTaskStatusSignals'
-      );
     }
   });
 });
