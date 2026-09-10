@@ -8,8 +8,7 @@ import {
   logNativeDeliveryMutexSkip,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
-import { api } from '../../../../../api.js';
-import { mapAssignedTaskView } from '../../../../../infrastructure/mappers/map-assigned-task.js';
+import { getRoleDeliveryState } from './role-delivery-state.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
@@ -21,7 +20,6 @@ import type {
 } from '../../../../entry/daemon-services.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
 import { isRestartOrchestratorInFlight } from '../../../../entry/restart-orchestrator-in-flight.js';
-import { getRoleDeliveryState } from '../../../../entry/role-delivery-state.js';
 import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentKey,
@@ -38,6 +36,7 @@ type TaskDeliveryService = Pick<
   | 'isNativeHarness'
   | 'snapshotRequestsNativeColdSession'
   | 'explainNativeDeliveryBlock'
+  | 'loadAssignedTaskForAction'
 >;
 
 type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -124,10 +123,8 @@ export class NativeTaskDeliveryCoordinator {
       runtime,
       effectContext,
       agentMgr,
-      sessionDeps,
       operationalModel,
       isTaskActive,
-      machineId,
       onTaskDelivered,
       executors,
     } = params;
@@ -277,23 +274,21 @@ export class NativeTaskDeliveryCoordinator {
       }
       await Runtime.runPromise(runtime)(
         Effect.gen(function* () {
-          const backend = (yield* Effect.tryPromise(() =>
-            sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
-              sessionId: sessionDeps.sessionId,
-              machineId,
-              taskId: row.taskId,
+          const full = yield* Effect.tryPromise(() =>
+            taskService.loadAssignedTaskForAction({
+              chatroomId: row.chatroomId,
               role: row.agentConfig.role,
+              taskId: row.taskId,
             })
-          )) as Parameters<typeof mapAssignedTaskView>[0] | null;
+          );
 
-          if (!backend) {
+          if (!full) {
             console.warn(
               `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
             );
             return;
           }
 
-          const full = mapAssignedTaskView(backend);
           yield* Effect.tryPromise(() =>
             taskService.deliverNativeTask(full, harnessSessionId, (delivered) => {
               onTaskDelivered?.(delivered);

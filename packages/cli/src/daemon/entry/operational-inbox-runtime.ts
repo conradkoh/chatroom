@@ -11,9 +11,9 @@ import {
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import {
-  registerTaskInboxRoomMembershipRefresh,
-  unregisterTaskInboxRoomMembershipRefresh,
-} from './task-inbox-membership-registry.js';
+  registerWorkspaceMembershipRefresh,
+  unregisterWorkspaceMembershipRefresh,
+} from './workspace-membership-refresh-registry.js';
 import { api } from '../../api.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import { ackMachineSignal } from '../infrastructure/agent-operational/ack-machine-operational-signals.js';
@@ -71,7 +71,7 @@ async function runOperationalInboxLoopWithRestart(
 
 // fallow-ignore-next-line code-duplication
 // fallow-ignore-next-line complexity
-export const startTaskInboxEffect = (
+export const startOperationalInboxEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<
   { stop: () => void; nativeDelivery: NativeDeliveryService },
@@ -106,8 +106,11 @@ export const startTaskInboxEffect = (
         query: (fn, args) => session.backend.query(fn, args),
       },
     };
+    // Operational supervisor: owns machine operational-signal feeds and room watcher
+    // membership. The actual task inbox (cursors, snapshots, loops, task-room
+    // registration) is implemented by TaskService; entry only calls its facade.
     console.log(
-      `[${formatTimestamp()}] 📬 Starting task-inbox (chatroom-scoped operational signals)`
+      `[${formatTimestamp()}] 📬 Starting operational-inbox (chatroom-scoped operational signals)`
     );
     const inboxStore = createInboxStateStore(resolveInboxDbPath(session.machineId));
     const serviceStartedAt = Date.now();
@@ -129,7 +132,7 @@ export const startTaskInboxEffect = (
     });
     yield* Effect.tryPromise(() => session.taskService.startTaskInbox(wsClient)).pipe(
       Effect.catchAll((error) => {
-        console.warn('[TaskInbox] service bootstrap failed:', error);
+        console.warn('[TaskService] task inbox bootstrap failed:', error);
         return Effect.void;
       })
     );
@@ -295,11 +298,11 @@ export const startTaskInboxEffect = (
         }
         await Promise.all(chatroomIds.map((chatroomId) => ensureRoomInboxes(chatroomId)));
       } catch (error) {
-        console.warn('[TaskInbox] room membership refresh failed:', error);
+        console.warn('[WorkspaceMembership] room membership refresh failed:', error);
       }
     };
 
-    registerTaskInboxRoomMembershipRefresh(refreshRoomMembership);
+    registerWorkspaceMembershipRefresh(refreshRoomMembership);
 
     // Cover membership changes that happened while the daemon was offline or before
     // the command-inbox handler was registered. Later changes arrive through nudges.
@@ -324,7 +327,7 @@ export const startTaskInboxEffect = (
         for (const watcher of roomWatchers.values()) {
           watcher.controller.abort();
         }
-        unregisterTaskInboxRoomMembershipRefresh();
+        unregisterWorkspaceMembershipRefresh();
         session.taskService.stopTaskInbox();
         nativeDelivery.dispose();
         nativeDelivery.agentTaskState.clearAll();

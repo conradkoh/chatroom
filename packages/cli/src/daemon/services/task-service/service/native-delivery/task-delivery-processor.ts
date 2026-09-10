@@ -15,8 +15,6 @@ import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { api } from '../../../../../api.js';
-import { mapAssignedTaskView } from '../../../../../infrastructure/mappers/map-assigned-task.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type {
@@ -34,6 +32,7 @@ type TaskDeliveryService = Pick<
   | 'isNativeHarness'
   | 'snapshotRequestsNativeColdSession'
   | 'explainNativeDeliveryBlock'
+  | 'loadAssignedTaskForAction'
 >;
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
@@ -104,14 +103,12 @@ export async function processTasksUpdate(
           )
       ),
     injectTask: async (task: AssignedTaskSnapshotView, harnessSessionId: string | undefined) => {
-      const backend = (await sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
-        sessionId: sessionDeps.sessionId,
-        machineId,
-        taskId: task.taskId,
+      const full = await taskService.loadAssignedTaskForAction({
+        chatroomId: task.chatroomId,
         role: task.agentConfig.role,
-      })) as Parameters<typeof mapAssignedTaskView>[0] | null;
-      if (!backend) return { kind: 'task-unavailable' as const };
-      const full = mapAssignedTaskView(backend);
+        taskId: task.taskId,
+      });
+      if (!full) return { kind: 'task-unavailable' as const };
       let delivered:
         | {
             chatroomId: string;

@@ -189,6 +189,24 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   // ==========================================================================
+  // NATIVE TURN FAILURE: release the failed turn's task back to pending
+  // ==========================================================================
+
+  {
+    from: 'acknowledged',
+    to: 'pending',
+    trigger: 'releaseTaskAfterTurnFailure',
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
+
+  {
+    from: 'in_progress',
+    to: 'pending',
+    trigger: 'releaseTaskAfterTurnFailure',
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
+
+  // ==========================================================================
   // TEAM SWITCH: reassign in-flight tasks to new entry point
   // ==========================================================================
 

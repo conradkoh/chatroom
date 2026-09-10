@@ -1,6 +1,6 @@
 import { dispatchCommandInboundEvent } from './command-inbound-registry.js';
 import { routeInboundEvent, type EventRouterDeps } from './event-router.js';
-import { refreshTaskInboxRoomMembership } from './task-inbox-membership-registry.js';
+import { refreshWorkspaceMembership } from './workspace-membership-refresh-registry.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
@@ -34,7 +34,7 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     if (claimed.type === 'daemon.workspaceListChanged') {
       void enhancerJob.refreshChatrooms();
       void gitRequest.refreshWorkspaces();
-      void refreshTaskInboxRoomMembership();
+      void refreshWorkspaceMembership();
     }
     await dispatchCommandInboundEvent({
       type: 'command.received',

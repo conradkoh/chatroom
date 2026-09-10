@@ -1,4 +1,12 @@
-import type { AgentKey, SerializedAgentOperations, AgentProcessSlotView } from '../../../agent-process-contracts.js';
+import type {
+  AssignedTaskSnapshotView,
+  AssignedTaskWithContent,
+} from '../../../../domain/entities/assigned-task.js';
+import type {
+  AgentKey,
+  SerializedAgentOperations,
+  AgentProcessSlotView,
+} from '../../../agent-process-contracts.js';
 
 export interface NativeTaskDeliveryGateway {
   claimPendingTask(args: {
@@ -7,6 +15,21 @@ export interface NativeTaskDeliveryGateway {
     role: string;
     taskId: string;
   }): Promise<void>;
+  /**
+   * Requests the backend to release a single in-flight task back to pending
+   * after a native turn failure. Scoped to the exact task/role; idempotent
+   * for already-pending/completed tasks.
+   */
+  releaseTaskAfterTurnFailure(args: {
+    sessionId: string;
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<{
+    released: boolean;
+    status: AssignedTaskSnapshotView['status'];
+    updatedAt: number;
+  }>;
   loadDeliveryPrompt(args: {
     sessionId: string;
     chatroomId: string;
@@ -37,6 +60,18 @@ export interface NativeTaskDeliveryGateway {
     newSessionStarted: boolean;
     harnessSessionId: string;
   }): Promise<void>;
+  loadAssignedTaskForAction(args: {
+    sessionId: string;
+    machineId: string;
+    taskId: string;
+    role: string;
+  }): Promise<AssignedTaskWithContent | null>;
+  /**
+   * Synchronizes the machine's assigned-task snapshot projection. Convex
+   * remains durable authority; this is a projection sync, not a new source
+   * of truth.
+   */
+  syncAssignedTaskSnapshots(args: { sessionId: string; machineId: string }): Promise<void>;
 }
 
 export interface NativeTaskDeliveryAuditPort {

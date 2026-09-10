@@ -197,7 +197,7 @@ vi.mock('./events/agent/on-request-stop-agent.js', async () => {
 // ---------------------------------------------------------------------------
 
 const nativeDelivery = {
-  requestReconcile: vi.fn(async () => undefined),
+  reconcileAfterAgentRestart: vi.fn(async () => []),
 };
 
 /** Combined DaemonSessionService + DaemonAgentProcessManagerService + DaemonMutableStateService layers — used by dispatchCommandEventEffect and createDaemonRuntime. */
