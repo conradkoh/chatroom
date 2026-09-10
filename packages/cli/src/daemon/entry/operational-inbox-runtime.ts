@@ -28,7 +28,11 @@ import {
   operationalSignalFeeds,
   type OperationalSignalKind,
 } from '../infrastructure/agent-operational/operational-signal-feeds.js';
+import { createAgentCommandInbox } from '../infrastructure/convex/agent-command-inbox.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
+import { createAgentCommandFactOutbox } from '../infrastructure/outbox/agent-command-fact-outbox.js';
+import { createAgentCommandFactSend } from '../infrastructure/outbox/agent-command-fact-send.js';
+import { startDaemonAgentCommandRuntime } from '../services/agent-command-service/index.js';
 import {
   type NativeDeliveryService,
   type NativeTaskDeliverySessionDeps,
@@ -44,6 +48,61 @@ function isAbortError(error: unknown): boolean {
 /** Collision-safe durable cursor scope for one machine/chatroom stream (operational and task). */
 function roomScopeKey(machineId: string, chatroomId: string): string {
   return JSON.stringify([machineId, chatroomId]);
+}
+
+type AgentCommandBridge = {
+  consumer: { stop: () => Promise<void> };
+  factOutbox: ReturnType<typeof createAgentCommandFactOutbox>;
+};
+
+function startAgentCommandBridge(input: {
+  wsClient: ConvexClient;
+  backend: { mutation: (fn: unknown, args: unknown) => Promise<unknown> };
+  sessionId: SessionId;
+  machineId: string;
+  processManager: Parameters<typeof startDaemonAgentCommandRuntime>[0]['processManager'];
+}): AgentCommandBridge | undefined {
+  try {
+    const inbox = createAgentCommandInbox({
+      wsClient: input.wsClient,
+      backend: input.backend,
+      sessionId: input.sessionId,
+      machineId: input.machineId,
+    });
+    const factOutbox = createAgentCommandFactOutbox(input.machineId, () =>
+      createAgentCommandFactSend({
+        sessionId: input.sessionId,
+        machineId: input.machineId,
+        backend: input.backend,
+      })
+    );
+    const consumer = startDaemonAgentCommandRuntime({
+      inbox,
+      processManager: input.processManager,
+      factSink: factOutbox,
+      onError: (error) => console.warn('[AgentCommandInbox]', error),
+    });
+    return { consumer, factOutbox };
+  } catch (error) {
+    console.warn('[AgentCommandInbox] failed to start:', error);
+    return undefined;
+  }
+}
+
+function stopAgentCommandBridge(bridge: AgentCommandBridge | undefined): void {
+  if (!bridge) return;
+  void (async () => {
+    try {
+      await bridge.consumer.stop();
+    } catch (error) {
+      console.warn('[AgentCommandInbox] failed to stop:', error);
+    }
+    try {
+      await bridge.factOutbox.stopAll();
+    } catch (error) {
+      console.warn('[AgentCommandInbox] failed to stop fact outbox:', error);
+    }
+  })();
 }
 
 // fallow-ignore-next-line complexity
@@ -319,6 +378,17 @@ export const startOperationalInboxEffect = (
       })
     );
 
+    // Dedicated machine-scoped agent-stop command consumer. Shares the daemon
+    // lifetime with the operational runtime; legacy operational stop-signal
+    // feeds above remain untouched in this slice.
+    let agentCommandBridge = startAgentCommandBridge({
+      wsClient,
+      backend: session.backend,
+      sessionId: session.sessionId as SessionId,
+      machineId: session.machineId,
+      processManager: commandService,
+    });
+
     return {
       nativeDelivery,
       stop() {
@@ -332,6 +402,9 @@ export const startOperationalInboxEffect = (
         nativeDelivery.dispose();
         nativeDelivery.agentTaskState.clearAll();
         inboxStore.close();
+        const bridge = agentCommandBridge;
+        agentCommandBridge = undefined;
+        stopAgentCommandBridge(bridge);
       },
     };
   });

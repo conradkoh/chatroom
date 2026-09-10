@@ -26,6 +26,10 @@ const fetchMachineAssignedTaskSnapshots = vi.hoisted(() =>
 );
 const createInboxStateStore = vi.hoisted(() => vi.fn());
 const resolveInboxDbPath = vi.hoisted(() => vi.fn().mockReturnValue('/tmp/test-inbox.sqlite'));
+const createAgentCommandInboxMock = vi.hoisted(() => vi.fn());
+const createAgentCommandFactOutboxMock = vi.hoisted(() => vi.fn());
+const createAgentCommandFactSendMock = vi.hoisted(() => vi.fn());
+const startDaemonAgentCommandRuntimeMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../infrastructure/inbox/task.js', () => ({
   runTaskInbox: vi.fn(),
@@ -52,6 +56,18 @@ vi.mock('../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js', () =
 vi.mock('../infrastructure/inbox/index.js', () => ({
   createInboxStateStore,
   resolveInboxDbPath,
+}));
+vi.mock('../infrastructure/convex/agent-command-inbox.js', () => ({
+  createAgentCommandInbox: createAgentCommandInboxMock,
+}));
+vi.mock('../infrastructure/outbox/agent-command-fact-outbox.js', () => ({
+  createAgentCommandFactOutbox: createAgentCommandFactOutboxMock,
+}));
+vi.mock('../infrastructure/outbox/agent-command-fact-send.js', () => ({
+  createAgentCommandFactSend: createAgentCommandFactSendMock,
+}));
+vi.mock('../services/agent-command-service/index.js', () => ({
+  startDaemonAgentCommandRuntime: startDaemonAgentCommandRuntimeMock,
 }));
 
 const COMPOSITE_SCOPE_KEY = (machineId: string, chatroomId: string) =>
@@ -128,7 +144,10 @@ beforeEach(() => {
   ackMachineSignalMock.mockReset().mockResolvedValue(undefined);
   createInboxStateStore.mockReset();
   processTasksUpdate.mockReset().mockResolvedValue(undefined);
-  vi.restoreAllMocks();
+  createAgentCommandInboxMock.mockReset();
+  createAgentCommandFactOutboxMock.mockReset();
+  createAgentCommandFactSendMock.mockReset();
+  startDaemonAgentCommandRuntimeMock.mockReset();
 });
 
 function makeInboxStore(persistedRooms: Record<string, { afterSignalKey: string }> = {}): {
@@ -274,19 +293,38 @@ async function startOperationalInboxForTest(options: StartOperationalInboxOption
     return service;
   };
   Object.assign(session, { taskService });
+  const commandServiceValue = {
+    runSerializedForAgent: async (_key: never, operation: (ops: never) => Promise<unknown>) =>
+      operation({} as never),
+  };
   const layers = Layer.mergeAll(
     Layer.succeed(DaemonSessionService, session as never),
     Layer.succeed(DaemonAgentProcessManagerService, agentProcessManager as never),
-    Layer.succeed(DaemonAgentProcessManagerCommandService, {
-      runSerializedForAgent: async (_key: never, operation: (ops: never) => Promise<unknown>) =>
-        operation({} as never),
-    } as never),
+    Layer.succeed(DaemonAgentProcessManagerCommandService, commandServiceValue as never),
     Layer.succeed(AgentLifecycleOutboxService, {
       enqueue: () => Effect.succeed({ success: true }),
       stopAll: () => Effect.void,
     })
   );
   fetchMachineAgentOperationalStatus.mockResolvedValue(options.bootstrapRows ?? []);
+  if (!createAgentCommandInboxMock.getMockImplementation()) {
+    createAgentCommandInboxMock.mockReturnValue({ claimNext: async () => null });
+  }
+  if (!createAgentCommandFactSendMock.getMockImplementation()) {
+    createAgentCommandFactSendMock.mockReturnValue(async () => ({ success: true }));
+  }
+  if (!createAgentCommandFactOutboxMock.getMockImplementation()) {
+    createAgentCommandFactOutboxMock.mockReturnValue({
+      append: async () => undefined,
+      flushNow: async () => undefined,
+      stopAll: async () => undefined,
+    });
+  }
+  if (!startDaemonAgentCommandRuntimeMock.getMockImplementation()) {
+    startDaemonAgentCommandRuntimeMock.mockReturnValue({
+      stop: async () => undefined,
+    });
+  }
   const operationalHandlers: ((update: never) => Promise<void>)[] = [];
   const taskInboxHandlers = new Map<string, (update: never) => Promise<void>>();
   runOperationalInbox.mockImplementation(
@@ -758,5 +796,58 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
 
     handle.stop();
     vi.useRealTimers();
+  });
+
+  it('starts one machine-scoped agent command runtime with the session machine/backend and stops it with its outbox on shutdown', async () => {
+    makeInboxStore();
+    const fakeInbox = { claimNext: async () => null };
+    const consumerStop = vi.fn().mockResolvedValue(undefined);
+    const outboxStopAll = vi.fn().mockResolvedValue(undefined);
+    const fakeOutbox = {
+      append: vi.fn().mockResolvedValue(undefined),
+      flushNow: vi.fn().mockResolvedValue(undefined),
+      stopAll: outboxStopAll,
+    };
+    createAgentCommandInboxMock.mockReturnValue(fakeInbox);
+    createAgentCommandFactOutboxMock.mockReturnValue(fakeOutbox);
+    startDaemonAgentCommandRuntimeMock.mockReturnValue({ stop: consumerStop });
+
+    const { handle } = await startOperationalInboxForTest({
+      bootstrapRows: [opRow('room-1')],
+    });
+
+    expect(createAgentCommandInboxMock).toHaveBeenCalledTimes(1);
+    expect(createAgentCommandInboxMock.mock.calls[0]?.[0]).toMatchObject({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+    });
+    expect(
+      (createAgentCommandInboxMock.mock.calls[0]?.[0] as { backend: unknown }).backend
+    ).toMatchObject({ mutation: expect.any(Function) });
+
+    expect(createAgentCommandFactOutboxMock).toHaveBeenCalledTimes(1);
+    expect(createAgentCommandFactOutboxMock.mock.calls[0]?.[0]).toBe('machine-1');
+
+    expect(startDaemonAgentCommandRuntimeMock).toHaveBeenCalledTimes(1);
+    const runtimeArgs = startDaemonAgentCommandRuntimeMock.mock.calls[0]?.[0] as {
+      inbox: unknown;
+      processManager: { runSerializedForAgent?: unknown };
+      factSink: unknown;
+      onError: unknown;
+    };
+    expect(runtimeArgs.inbox).toBe(fakeInbox);
+    expect(runtimeArgs.factSink).toBe(fakeOutbox);
+    expect(typeof runtimeArgs.processManager.runSerializedForAgent).toBe('function');
+    expect(typeof runtimeArgs.onError).toBe('function');
+
+    // Operational watcher ordering is preserved alongside the command runtime.
+    expect(agentOperationalRunCalls().map((call) => call[0].chatroomId)).toEqual(['room-1']);
+
+    handle.stop();
+    await vi.waitFor(() => expect(consumerStop).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(outboxStopAll).toHaveBeenCalledTimes(1));
+    expect(consumerStop.mock.invocationCallOrder[0]).toBeLessThan(
+      outboxStopAll.mock.invocationCallOrder[0] as number
+    );
   });
 });

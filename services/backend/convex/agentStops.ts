@@ -13,6 +13,7 @@ import {
   agentStopScopeValidator,
   agentStopTargetStatusValidator,
 } from '../src/domain/entities/agent-stop-command';
+import { applyAgentStoppedFact } from '../src/domain/usecase/agent/apply-agent-stopped-fact';
 import { applySuccessfulTargetLifecycle } from '../src/domain/usecase/agent/apply-successful-target-lifecycle';
 import { beginMachineStopExecution } from '../src/domain/usecase/agent/begin-machine-stop-execution';
 import { completeMachineStopExecution } from '../src/domain/usecase/agent/complete-machine-stop-execution';
@@ -106,6 +107,29 @@ export const requestChatroom = mutation({
 export const request = requestAgent;
 export const requestScope = requestMachineScope;
 
+export const reportAgentStoppedFact = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    fact: v.object({
+      eventId: v.string(),
+      intentId: v.string(),
+      commandId: v.string(),
+      machineId: v.string(),
+      chatroomId: v.id('chatroom_rooms'),
+      role: v.string(),
+      pid: v.optional(v.number()),
+      outcome: v.union(v.literal('stopped'), v.literal('already_stopped')),
+      reason: agentStopReasonValidator,
+      occurredAt: v.number(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return applyAgentStoppedFact(ctx, { machineId: args.machineId, fact: args.fact });
+  },
+});
+
 export const reportTargetOutcome = mutation({
   args: {
     ...SessionIdArg,
@@ -125,6 +149,7 @@ export const reportTargetOutcome = mutation({
     ),
     lifecycleWarning: v.optional(v.string()),
   },
+  // fallow-ignore-next-line complexity
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     const target = await ctx.db
