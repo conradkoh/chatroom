@@ -286,11 +286,20 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       });
       return task?.chatroomId === chatroomId ? task : null;
     },
-    syncAssignedTaskSnapshots: () =>
-      gateway.syncAssignedTaskSnapshots({
+    syncAssignedTaskSnapshots: async () => {
+      // Refresh the daemon-owned read model after asking Convex to rebuild the
+      // projection. Restart reconciliation must not continue using snapshots
+      // retained from the previous agent process when a signal was missed.
+      await gateway.syncAssignedTaskSnapshots({
         sessionId: deps.sessionId,
         machineId: deps.machineId,
-      }),
+      });
+      const snapshots = await fetchMachineAssignedTaskSnapshots(
+        { ...deps, convexUrl: deps.convexUrl },
+        deps.machineId
+      );
+      taskSnapshotState.replace(snapshots);
+    },
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
     createNativeDeliveryService: (deliveryDeps) => {
       const nativeDelivery = new NativeDeliveryService({
