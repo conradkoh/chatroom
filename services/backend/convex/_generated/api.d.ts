@@ -134,6 +134,7 @@ import type * as web_agenticQuery_internal from "../web/agenticQuery/internal.js
 import type * as web_agenticQuery_mutations from "../web/agenticQuery/mutations.js";
 import type * as web_agenticQuery_queries from "../web/agenticQuery/queries.js";
 import type * as web_agenticQuery_runTurns from "../web/agenticQuery/runTurns.js";
+import type * as web_conversationModePreferences from "../web/conversationModePreferences.js";
 import type * as web_enhancer_completeLogic from "../web/enhancer/completeLogic.js";
 import type * as web_enhancer_delivery from "../web/enhancer/delivery.js";
 import type * as web_enhancer_enqueueHandoff from "../web/enhancer/enqueueHandoff.js";
@@ -294,6 +295,7 @@ declare const fullApi: ApiFromModules<{
   "web/agenticQuery/mutations": typeof web_agenticQuery_mutations;
   "web/agenticQuery/queries": typeof web_agenticQuery_queries;
   "web/agenticQuery/runTurns": typeof web_agenticQuery_runTurns;
+  "web/conversationModePreferences": typeof web_conversationModePreferences;
   "web/enhancer/completeLogic": typeof web_enhancer_completeLogic;
   "web/enhancer/delivery": typeof web_enhancer_delivery;
   "web/enhancer/enqueueHandoff": typeof web_enhancer_enqueueHandoff;
