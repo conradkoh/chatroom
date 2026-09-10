@@ -155,6 +155,50 @@ describe('NativeDeliveryService', () => {
     service.dispose();
   });
 
+  test('clears stale active-task state after a successful native turn', async () => {
+    const service = createService();
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    const disposition = await service.handleAgentTurnEnded({
+      chatroomId: 'room-1',
+      role: 'builder',
+      pid: 42,
+      harness: 'opencode-sdk',
+      slot: { state: 'running', nativeTurnPhase: 'turn_in_flight' },
+      eventId: 'turn-1',
+      completion: {
+        turnId: 'turn-1',
+        status: 'completed',
+        source: 'provider.result',
+      },
+    } as never);
+
+    expect(disposition).toEqual({ kind: 'release-slot' });
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    service.dispose();
+  });
+
+  test('clears stale active-task state before reconciling a newly started agent', async () => {
+    let onAgentStarted: ((event: never) => Promise<unknown>) | undefined;
+    const service = createService({
+      onAgentStarted: (handler) => {
+        onAgentStarted = handler;
+      },
+    });
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await onAgentStarted?.({ chatroomId: 'room-1', role: 'builder' } as never);
+
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    expect(requestReconcile).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      source: 'agent-started',
+    });
+    service.dispose();
+  });
+
   test('routes agent-started lifecycle events through reconciliation', async () => {
     let onAgentStarted: ((event: never) => Promise<unknown>) | undefined;
     const service = createService({

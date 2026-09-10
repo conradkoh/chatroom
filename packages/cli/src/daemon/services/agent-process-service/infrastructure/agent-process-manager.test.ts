@@ -192,6 +192,28 @@ describe('AgentProcessManager', () => {
     manager = new AgentProcessManager(deps);
   });
 
+  test('scoped stop cleanup emits session loss even when the process is already stopped', async () => {
+    const onSessionLost = vi.fn();
+    manager.subscribeAgentSessionLost(onSessionLost);
+
+    await manager.syncSlotsAfterScopedStop({
+      targets: [
+        {
+          target: {
+            chatroomId: CHATROOM_ID,
+            role: ROLE,
+            pid: PID,
+          },
+        },
+      ],
+    });
+
+    expect(onSessionLost).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      role: ROLE,
+    });
+  });
+
   // ── ensureRunning ─────────────────────────────────────────────────────
 
   describe('ensureRunning', () => {

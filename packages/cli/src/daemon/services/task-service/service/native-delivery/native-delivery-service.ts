@@ -112,6 +112,10 @@ export class NativeDeliveryService {
   }
 
   async handleAgentStarted(event: AgentStartedEvent): Promise<void> {
+    // A new agent process/session cannot still be executing the task recorded
+    // by the previous process. Clear the local dedup marker before the first
+    // post-start reconciliation so a stop/start cycle can recover delivery.
+    this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
     await this.requestReconcile({
       chatroomId: event.chatroomId,
       role: event.role,
@@ -191,6 +195,12 @@ export class NativeDeliveryService {
       }
       return { kind: 'release-slot' };
     }
+    // A completed native turn leaves the harness idle. The task may still be
+    // acknowledged (for example, if the agent did not read it), so retaining
+    // the local marker would make every subsequent reconcile look like a
+    // duplicate forever. In-progress/completed task snapshots are filtered by
+    // the normal task-status gate on the next pass.
+    this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
     // The manager invokes this handler while the agent's lifecycle operation
     // is still serialized. Schedule delivery for the next turn of the event
     // loop so it cannot attempt to inject while that operation still owns the
