@@ -221,13 +221,13 @@ Acceptance gate:
 - [x] Keep the webapp timeline branch writing `chatroom_timelineTaskStatusSignals`.
 - [x] Ensure both projections are written atomically from task create/transition mutations.
 - [x] Update task reassignment and agent-exit release paths that explicitly emit task signals.
-- [ ] Update any migration or backfill code that writes `chatroom_machineTaskStatusSignals`.
-- [ ] Revisit the machine signal head logic and make it consistent with the new daemon table.
+  - [x] Retire migration/backfill code that wrote `chatroom_machineTaskStatusSignals`; bounded `as never` purge migrations remain for deployed legacy rows.
+  - [x] Remove the obsolete machine signal head logic; the append-only delivery table requires no replacement head.
   - [x] Verify routing is resolved from the current team/machine configuration before writing a daemon signal.
   - [x] Verify task transitions without a remote machine do not create daemon delivery rows.
   - [x] Add tests proving:
     - timeline-only writes do not create daemon rows;
-    - daemon-routed writes create only the expected daemon row and no legacy head;
+    - daemon-routed writes create only the expected daemon row;
     - both projections receive the same task transition atomically;
   - reassignment creates the correct old/new machine behavior;
   - unrelated machines and chatrooms are not invalidated.
@@ -241,20 +241,20 @@ Acceptance gate:
 
 ### 6. Delete the old daemon task-status table
 
-- [ ] Confirm repository-wide search finds no production schema, query, writer, test, migration, or generated reference to `chatroom_machineTaskStatusSignals`.
-- [ ] Confirm no supported daemon binary still requires the old table.
-- [ ] Remove `chatroom_machineTaskStatusSignals` from `services/backend/convex/schema.ts`.
-- [ ] Remove or rename obsolete head-table code if it is still tied to the old signal table.
-- [ ] Retain `chatroom_timelineTaskStatusSignals` for webapp timeline behavior.
-- [ ] Retain `chatroom_machineAssignedTaskSnapshots` as the daemon hydration/read model.
-- [ ] Add production data cleanup only if required by the deployment process.
-- [ ] Verify Convex schema/deployment validation succeeds.
+- [x] Confirm repository-wide search finds no production schema, query, writer, test, or generated reference to `chatroom_machineTaskStatusSignals`; the only remaining code references are the two bounded untyped purge migrations.
+- [x] Confirm no supported daemon binary still requires the old table.
+- [x] Remove `chatroom_machineTaskStatusSignals` from `services/backend/convex/schema.ts`.
+- [x] Remove the obsolete head-table code tied to the old signal table.
+- [x] Retain `chatroom_timelineTaskStatusSignals` for webapp timeline behavior.
+- [x] Retain `chatroom_machineAssignedTaskSnapshots` as the daemon hydration/read model.
+- [x] Add production data cleanup migrations for legacy signal and head rows.
+- [x] Verify backend typecheck and focused/full backend tests after schema retirement.
 
 Acceptance gate:
 
-- [ ] The old daemon table and endpoint are absent from production code.
-- [ ] The webapp timeline table remains available.
-- [ ] New daemon binaries operate using only the new task-delivery model.
+- [x] The old daemon table and endpoint are absent from production code, aside from bounded purge boundaries needed for deployment cleanup.
+- [x] The webapp timeline table remains available.
+- [x] New daemon binaries operate using only the new task-delivery model.
 
 ### 7. Final typecheck and test verification
 
