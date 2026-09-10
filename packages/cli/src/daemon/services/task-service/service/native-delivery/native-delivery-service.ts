@@ -1,5 +1,6 @@
 import { logNativeDeliveryDecision } from './native-delivery-log.js';
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
+import { getRoleDeliveryState } from './role-delivery-state.js';
 import {
   processTasksUpdate,
   type TaskDeliveryContext,
@@ -11,7 +12,6 @@ import {
 } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import { getRoleDeliveryState } from '../../../../entry/role-delivery-state.js';
 import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { TaskSnapshotStateReader } from '../../../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../../../infrastructure/inbox/task.js';
