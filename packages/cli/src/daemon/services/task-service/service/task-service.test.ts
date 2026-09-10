@@ -71,11 +71,12 @@ describe('TaskService.loadAssignedTaskForAction', () => {
 describe('TaskService.syncAssignedTaskSnapshots', () => {
   test('delegates to the adapter with service-owned credentials', async () => {
     const mutation = vi.fn(async () => undefined);
+    const query = vi.fn(async () => ({ tasks: [backendRow()] }));
     const service = createTaskService({
       sessionId: 'session-1',
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
-      backend: { mutation, query: vi.fn(async () => null) },
+      backend: { mutation, query },
       agentProcessService: {
         getSlot: vi.fn(),
         resumeTurnForSlot: vi.fn(),
@@ -90,5 +91,12 @@ describe('TaskService.syncAssignedTaskSnapshots', () => {
       sessionId: 'session-1',
       machineId: 'machine-1',
     });
+    expect(query).toHaveBeenCalledWith(api.machines.listMachineAssignedTaskSnapshots, {
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+    });
+    expect(service.taskSnapshotState.listAll()).toEqual([
+      expect.objectContaining({ taskId: 'task-1', status: 'pending' }),
+    ]);
   });
 });
