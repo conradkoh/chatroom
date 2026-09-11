@@ -27,6 +27,22 @@ import {
 import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
 
+export interface WorkspaceTaskInboxEvent {
+  readonly eventId: string;
+  readonly machineId: string;
+  readonly chatroomId: string;
+  readonly eventType: 'task_assigned';
+  readonly status: 'pending' | 'processed';
+  readonly createdAt: number;
+  readonly processedAt?: number;
+  readonly task: AssignedTaskWithContent & {
+    readonly createdBy: string;
+    readonly sourceMessageId?: string;
+    readonly queuePosition: number;
+    readonly [key: string]: unknown;
+  };
+}
+
 export type TaskServiceNotification = {
   readonly kind: 'bootstrap';
   readonly snapshots: readonly AssignedTaskSnapshotView[];
@@ -39,6 +55,8 @@ export interface TaskService {
   startTaskInbox(): Promise<void>;
   subscribe(listener: TaskServiceListener): () => void;
   stopTaskInbox(): void;
+  listPendingTaskInboxEvents(): Promise<readonly WorkspaceTaskInboxEvent[]>;
+  markTaskInboxEventProcessed(eventId: string): Promise<boolean>;
   listTasksForRole(chatroomId: string, role: string): readonly AssignedTaskSnapshotView[];
   listAllTasks(): readonly AssignedTaskSnapshotView[];
   readonly taskSnapshotState: TaskSnapshotStateReader;
@@ -69,12 +87,6 @@ export interface TaskService {
     role: string;
     taskId: string;
   }): Promise<AssignedTaskWithContent | null>;
-  /**
-   * Synchronizes the machine's assigned-task snapshot projection. Convex
-   * remains durable authority; this is a projection sync, not a new source
-   * of truth.
-   */
-  syncAssignedTaskSnapshots(): Promise<void>;
   explainNativeDeliveryBlock(
     task: AssignedTaskSnapshotView,
     options: {
@@ -129,7 +141,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const service: TaskService = {
     startTaskInbox: async () => {
-      await service.syncAssignedTaskSnapshots();
       await notify({ kind: 'bootstrap', snapshots: taskSnapshotState.listAll() });
     },
     subscribe: (listener) => {
@@ -139,6 +150,17 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     stopTaskInbox: () => {
       nativeTaskDeliveryQueue.stop();
     },
+    listPendingTaskInboxEvents: () =>
+      gateway.listPendingTaskInboxEvents({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+      }),
+    markTaskInboxEventProcessed: (eventId) =>
+      gateway.markTaskInboxEventProcessed({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        eventId,
+      }),
     listTasksForRole: (chatroomId, role) => taskSnapshotState.listForRole(chatroomId, role),
     listAllTasks: () => taskSnapshotState.listAll(),
     taskSnapshotState,
@@ -170,16 +192,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         role,
       });
       return task?.chatroomId === chatroomId ? task : null;
-    },
-    syncAssignedTaskSnapshots: async () => {
-      // Refresh the daemon-owned read model after asking Convex to rebuild the
-      // projection. Restart reconciliation must not continue using snapshots
-      // retained from the previous agent process when a signal was missed.
-      await gateway.syncAssignedTaskSnapshots({
-        sessionId: deps.sessionId,
-        machineId: deps.machineId,
-      });
-      taskSnapshotState.replace([]);
     },
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
     createNativeDeliveryService: (deliveryDeps) => {

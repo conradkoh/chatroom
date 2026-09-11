@@ -50,7 +50,6 @@ type TaskDeliveryService = Pick<
   | 'snapshotRequestsNativeColdSession'
   | 'explainNativeDeliveryBlock'
   | 'loadAssignedTaskForAction'
-  | 'syncAssignedTaskSnapshots'
 > &
   Partial<Pick<TaskService, 'subscribe'>>;
 
@@ -315,7 +314,6 @@ export class NativeDeliveryService {
   // fallow-ignore-next-line unused-class-member
   async reconcileAfterAgentRestart(args: { chatroomId: string; role: string }): Promise<string[]> {
     const delivered: string[] = [];
-    await this.deps.taskService.syncAssignedTaskSnapshots();
     await this.requestReconcile({
       chatroomId: args.chatroomId,
       role: args.role,

@@ -34,6 +34,7 @@ export {
   type TaskService,
   type TaskServiceCompositionDependencies,
   type TaskServiceNotification,
+  type WorkspaceTaskInboxEvent,
 } from './service/task-service.js';
 export { createConvexNativeTaskDeliveryGateway } from './infrastructure/adapters/convex-native-task-delivery-gateway.js';
 export { createDaemonAuditPort } from './infrastructure/adapters/daemon-audit-port.js';

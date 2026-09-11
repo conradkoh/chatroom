@@ -13,7 +13,6 @@ function createService(
       args: Record<string, string>
     ) => Promise<{ released: boolean; status: 'pending'; updatedAt: number }>;
     readonly enqueueFact?: (fact: Record<string, unknown>) => Promise<unknown>;
-    readonly syncAssignedTaskSnapshots?: () => Promise<void>;
   } = {}
 ): NativeDeliveryService {
   return new NativeDeliveryService({
@@ -51,7 +50,6 @@ function createService(
       snapshotRequestsNativeColdSession: () => false,
       explainNativeDeliveryBlock: () => null,
       deliverNativeTask: async () => undefined,
-      syncAssignedTaskSnapshots: options.syncAssignedTaskSnapshots ?? (async () => undefined),
     },
   });
 }
@@ -75,12 +73,9 @@ function failedTurnEvent(overrides: Record<string, unknown> = {}): Record<string
 }
 
 describe('NativeDeliveryService', () => {
-  test('reconcileAfterAgentRestart syncs snapshots before reconciling and returns delivered task ids', async () => {
+  test('reconcileAfterAgentRestart returns delivered task ids', async () => {
+    const service = createService();
     const order: string[] = [];
-    const syncAssignedTaskSnapshots = vi.fn(async () => {
-      order.push('sync');
-    });
-    const service = createService({ syncAssignedTaskSnapshots });
     const requestReconcile = vi
       .spyOn(service, 'requestReconcile')
       .mockImplementation(async (params) => {
@@ -110,9 +105,8 @@ describe('NativeDeliveryService', () => {
       role: 'builder',
     });
 
-    expect(syncAssignedTaskSnapshots).toHaveBeenCalledTimes(1);
     expect(requestReconcile).toHaveBeenCalledTimes(1);
-    expect(order).toEqual(['sync', 'reconcile']);
+    expect(order).toEqual(['reconcile']);
     expect(delivered).toEqual(['task-1', 'task-2']);
     service.dispose();
   });
