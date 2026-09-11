@@ -1,10 +1,10 @@
 import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';

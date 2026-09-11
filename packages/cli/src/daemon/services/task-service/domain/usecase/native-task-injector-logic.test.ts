@@ -60,7 +60,7 @@ describe('isNativeHarness', () => {
 });
 
 describe('shouldDeliverNativeTask', () => {
- test('delivers when native + pending + ready invariant satisfied', () => {
+  test('delivers when native + pending + ready invariant satisfied', () => {
     expect(
       shouldDeliverNativeTask(makeTask(), {
         slot: runningSlot,

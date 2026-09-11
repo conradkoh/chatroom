@@ -56,9 +56,7 @@ export type NativeDeliveryExecution =
   { kind: 'delivered'; delivered?: NativeDeliveryDelivered } | { kind: 'task-unavailable' };
 
 export type NativeDeliveryExecutors = {
-  startAgent: (
-    task: AssignedTaskSnapshotView
-  ) => Promise<unknown>;
+  startAgent: (task: AssignedTaskSnapshotView) => Promise<unknown>;
   injectTask: (
     task: AssignedTaskSnapshotView,
     harnessSessionId: string | undefined
@@ -116,14 +114,7 @@ export class NativeTaskDeliveryCoordinator {
   }): Promise<void> {
     const tasks = params.tasks;
     if (tasks.length === 0) return;
-    const {
-      runtime,
-      effectContext,
-      agentMgr,
-      isTaskActive,
-      onTaskDelivered,
-      executors,
-    } = params;
+    const { runtime, effectContext, agentMgr, isTaskActive, onTaskDelivered, executors } = params;
     const deliveryState = getRoleDeliveryState();
     const taskService = params.taskService;
 

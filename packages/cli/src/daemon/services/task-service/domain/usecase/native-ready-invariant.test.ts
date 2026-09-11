@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { explainAgentReadyForNativeDeliveryBlock } from './native-ready-invariant.js';
 
 const task = (overrides: Record<string, unknown> = {}) =>
@@ -33,10 +34,7 @@ const idleSlot = (overrides: Record<string, unknown> = {}) =>
 describe('native-ready-invariant', () => {
   it('allows delivery-owned cold spawn when slot is down', () => {
     expect(
-      explainAgentReadyForNativeDeliveryBlock(
-        task({ requestsNativeColdSession: true }),
-        undefined
-      )
+      explainAgentReadyForNativeDeliveryBlock(task({ requestsNativeColdSession: true }), undefined)
     ).toBeNull();
   });
 
