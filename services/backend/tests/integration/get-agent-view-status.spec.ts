@@ -3,8 +3,8 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
-import { getAgentViewStatus } from '../../src/domain/usecase/chatroom/get-agent-view-status';
 import { transitionAgentStatus } from '../../src/domain/usecase/agent/transition-agent-status';
+import { getAgentViewStatus } from '../../src/domain/usecase/chatroom/get-agent-view-status';
 import { markAgentViewHasHistory } from '../../src/domain/usecase/chatroom/project-agent-view-metadata';
 import { t } from '../../test.setup';
 import {
@@ -107,12 +107,6 @@ describe('getAgentViewStatus — running and stopped', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
-    await t.mutation(api.agentStops.request, {
-      sessionId: sessionId as any,
-      machineId,
-      chatroomId: room,
-      role: 'builder',
-    });
     await t.run(async (ctx) => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')

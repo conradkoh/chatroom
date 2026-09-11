@@ -20,7 +20,6 @@ import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import {
   AgentStartReasonEnum,
-  agentStopReasonValidator,
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
@@ -1108,8 +1107,6 @@ export const sendCommand = mutation({
         allowNewMachine: v.optional(v.boolean()),
         /** When true (default), resume from the daemon's last session on first launch. */
         wantResume: v.optional(v.boolean()),
-        // For stop-agent: optional reason (defaults to 'user.stop')
-        reason: v.optional(agentStopReasonValidator),
       })
     ),
   },

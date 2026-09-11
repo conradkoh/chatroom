@@ -13,8 +13,6 @@ export interface AgentViewRole {
   machineName?: string | undefined;
   lastSeenAt: number | null;
   lastSeenAction: string | null;
-  stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed' | undefined;
-  activeStopCommandId?: string | undefined;
 }
 export interface AgentViewStatus {
   teamId: string;
@@ -72,8 +70,6 @@ async function getAgentViewStatusLegacy(
       machineName: row?.machineId ? machineNames.get(row.machineId) : undefined,
       lastSeenAt: participant?.lastSeenAt ?? null,
       lastSeenAction: participant?.lastSeenAction ?? null,
-      stopState: row?.stopState,
-      activeStopCommandId: row?.activeStopCommandId,
     };
   });
   return {
@@ -133,8 +129,6 @@ export async function getAgentViewStatus(
       machineName: row?.machineId ? machineNames.get(row.machineId) : undefined,
       lastSeenAt: participant?.lastSeenAt ?? null,
       lastSeenAction: participant?.lastSeenAction ?? null,
-      stopState: row?.stopState,
-      activeStopCommandId: row?.activeStopCommandId,
     };
   });
   return {

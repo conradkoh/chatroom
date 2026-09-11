@@ -1,7 +1,7 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
 import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
+import { completeChatroomWorkspaceAgentCommand } from './complete-chatroom-workspace-agent-command';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
-import { reconcileOrphanedStopCommandsForMachine } from './reconcile-orphaned-stop-commands-for-machine';
 import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -57,6 +57,14 @@ export type AgentLifecycleFactInput =
       revisionKey: string;
       emittedAt: number;
     }
+  | {
+      kind: 'chatroom_shutdown_complete';
+      chatroomId: Id<'chatroom_rooms'>;
+      commandId: Id<'chatroomWorkspaceAgentCommandsInbox'>;
+      finalizeChatroom?: boolean | undefined;
+      revisionKey: string;
+      emittedAt: number;
+    }
   | { kind: 'cleared_all_pids'; revisionKey: string; emittedAt: number };
 
 export async function projectAgentLifecycleFact(
@@ -101,11 +109,7 @@ export async function projectAgentLifecycleFact(
         { config }
       );
     }
-    const { reconciledExecutionCount } = await reconcileOrphanedStopCommandsForMachine(
-      ctx,
-      machineId
-    );
-    return { success: true, clearedCount, reconciledExecutionCount };
+    return { success: true, clearedCount };
   }
   if (fact.kind === 'exited') {
     const result = await agentExitedUseCase(ctx, {
@@ -124,6 +128,16 @@ export async function projectAgentLifecycleFact(
       errorMessage: `${fact.source}${fact.error ? `: ${fact.error}` : ''}`,
     });
     return { success: true };
+  }
+  if (fact.kind === 'chatroom_shutdown_complete') {
+    return {
+      success: true,
+      ...(await completeChatroomWorkspaceAgentCommand(ctx, {
+        commandId: fact.commandId,
+        machineId,
+        finalizeChatroom: fact.finalizeChatroom,
+      })),
+    };
   }
   const registration = await registerSpawnedAgentIfAuthorized(ctx, {
     ...fact,

@@ -282,7 +282,7 @@ export async function addEnhancerToTeamRoles(chatroomId: Id<'chatroom_rooms'>): 
 // ---------------------------------------------------------------------------
 
 /**
- * Get command events (agent.requestStart / agent.requestStop / daemon.ping) from the event stream for a machine.
+ * Get command events (agent.requestStart / daemon.ping) from the event stream for a machine.
  */
 /**
  * Assert chatroom has only duo team roles (planner, builder).

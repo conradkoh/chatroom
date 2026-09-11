@@ -483,15 +483,6 @@ export const backfillTeamAgentConfigLifecycleDefaults = migrations.define({
   },
 });
 
-/** Existing stop commands are operator stops and therefore restore stopped state. */
-export const backfillAgentStopCommandPostStopDesiredState = migrations.define({
-  table: 'chatroom_agentStopCommands',
-  migrateOne: async (_ctx, row) =>
-    row.postStopDesiredState === undefined
-      ? { postStopDesiredState: 'stopped' as const }
-      : undefined,
-});
-
 // Enhancer unified runtime: cold-path migration from legacy enhancer records.
 export const migrateEnhancerConfigToTeamAgentConfig = migrations.define({
   table: 'chatroom_enhancerConfigs',
@@ -1088,7 +1079,6 @@ const allMigrationReferences = [
   // Agent Config
   internal.migrations.setDuoBuilderWantResumeFalse,
   internal.migrations.backfillTeamAgentConfigLifecycleDefaults,
-  internal.migrations.backfillAgentStopCommandPostStopDesiredState,
   // Enhancer unified runtime
   internal.migrations.migrateEnhancerConfigToTeamAgentConfig,
   internal.migrations.migrateAddEnhancerToRoomTeamRoles,

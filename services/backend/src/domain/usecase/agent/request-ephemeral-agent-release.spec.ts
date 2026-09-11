@@ -54,16 +54,15 @@ describe('requestEphemeralAgentRelease', () => {
       await requestEphemeralAgentRelease(ctx, (await ctx.db.get(taskId)) as any);
       return { configId };
     });
-    const command = await t.run((ctx) =>
+    const config = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_agentStopCommands')
-        .withIndex('by_chatroom_scopeKey_status', (q) =>
-          q.eq('chatroomId', chatroomId).eq('scopeKey', 'agent:enhancer')
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'enhancer'))
         )
         .first()
     );
-    expect(command?.reason).toBe('platform.ephemeral_task_complete');
-    expect(command?.postStopDesiredState).toBe('stopped');
+    expect(config?.desiredState).toBe('stopped');
     expect(ids.configId).toBeDefined();
   });
 });

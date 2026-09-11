@@ -4,6 +4,7 @@ import { createDaemonRuntime } from './daemon-runtime.js';
 import { asConvexSessionId } from './daemon-types.js';
 import { createDefaultEventRouterDeps } from './default-router-deps.js';
 import { createDaemonDeps } from './deps.js';
+import { executeChatroomStopCommand } from './execute-chatroom-stop-command.js';
 import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
@@ -72,6 +73,16 @@ export async function startDaemon(): Promise<void> {
     sessionId: asConvexSessionId(init.sessionId),
     machineId: init.machineId,
     router: createDefaultEventRouterDeps(),
+    onWorkspaceAgentCommand: (command) =>
+      executeChatroomStopCommand({
+        apm: init.agentProcessManager,
+        chatroomId: command.chatroomId,
+        commandId: command._id,
+        role: command.command.type === 'stop_agent' ? command.command.role : undefined,
+        finalizeChatroom:
+          command.command.type === 'stop_all_agents' ? command.command.finalizeChatroom : undefined,
+        runSerializedForAgent: init.agentProcessManagerService.runSerializedForAgent,
+      }),
   });
 
   console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/`);

@@ -56,16 +56,6 @@ export async function getInboxCommandsForChatroom(
   });
 }
 
-export async function getStopCommandMachineIdsForRole(
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string
-): Promise<string[]> {
-  const rows = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStop');
-  return rows
-    .filter((row) => row.command.type === 'agent.requestStop' && row.command.role === role)
-    .map((row) => row.machineId);
-}
-
 export async function getGitRefreshCommandsForMachine(
   machineId: string,
   workingDir: string
@@ -73,31 +63,5 @@ export async function getGitRefreshCommandsForMachine(
   const rows = await getInboxCommandsForMachine(machineId, 'daemon.gitRefresh');
   return rows.filter(
     (row) => row.command.type === 'daemon.gitRefresh' && row.command.workingDir === workingDir
-  );
-}
-
-export async function getStopScopeCommandsForChatroom(chatroomId: Id<'chatroom_rooms'>) {
-  return getInboxCommandsForChatroom(chatroomId, 'agent.stopScope');
-}
-export async function getStopCommandTargetCount(stopCommandId: Id<'chatroom_agentStopCommands'>) {
-  return t.run(
-    async (ctx) =>
-      (
-        await ctx.db
-          .query('chatroom_agentStopTargets')
-          .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', stopCommandId))
-          .collect()
-      ).length
-  );
-}
-export async function countStopCommandsForChatroom(chatroomId: Id<'chatroom_rooms'>) {
-  return t.run(
-    async (ctx) =>
-      (
-        await ctx.db
-          .query('chatroom_agentStopCommands')
-          .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId))
-          .collect()
-      ).length
   );
 }

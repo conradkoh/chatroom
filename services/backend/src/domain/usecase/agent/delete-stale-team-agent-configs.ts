@@ -1,5 +1,4 @@
-import { createAgentStopCommand } from './create-agent-stop-command';
-import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
+import { requestWorkspaceAgentStop } from './request-chatroom-workspace-agent-stop';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -11,19 +10,14 @@ export async function deleteStaleTeamAgentConfigs(
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .collect();
-  const grouped = new Map<Id<'chatroom_rooms'>, AgentStopSelectedConfig[]>();
+  const grouped = new Map<Id<'chatroom_rooms'>, { machineId: string; role: string }[]>();
   for (const row of stale)
-    if (row.type === 'remote' && row.spawnedAgentPid != null && row.machineId && row.agentHarness)
+    if (row.type === 'remote' && row.spawnedAgentPid != null && row.machineId)
       grouped.set(row.chatroomId, [
         ...(grouped.get(row.chatroomId) ?? []),
-        row as AgentStopSelectedConfig,
+        { machineId: row.machineId, role: row.role },
       ]);
-  for (const [chatroomId, selectedConfigs] of grouped)
-    await createAgentStopCommand(ctx, {
-      chatroomId,
-      scope: { kind: 'chatroom' },
-      reason: 'platform.dedup',
-      selectedConfigs,
-    });
+  for (const [chatroomId, configs] of grouped)
+    for (const config of configs) await requestWorkspaceAgentStop(ctx, { chatroomId, ...config });
   for (const row of stale) await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
 }

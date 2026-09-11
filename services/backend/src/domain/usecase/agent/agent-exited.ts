@@ -16,7 +16,6 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { AgentStopReasonEnum } from '../../entities/agent';
-import { normalizeAgentStopRole } from '../../entities/agent-stop-command';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
@@ -74,17 +73,6 @@ export async function agentExited(
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
 
-  if (input.revisionKey && !input.revisionKey.startsWith('exited:')) {
-    const target = await ctx.db
-      .query('chatroom_agentStopTargets')
-      .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', normalizeAgentStopRole(role))
-      )
-      .filter((q) => q.eq(q.field('revisionKey'), input.revisionKey))
-      .first();
-    if (!target || target.pid !== pid || target.machineId !== machineId) return { applied: false };
-  }
-
   // 1. Clear PID on config — PID-gated idempotency
   //    Only clear if BOTH the PID and machineId match. This prevents clearing
   //    a newer agent's PID if a stale exit report arrives after a new agent
@@ -108,12 +96,8 @@ export async function agentExited(
       stopReason === AgentStopReasonEnum['platform.task_start_in_new_session'] ||
       stopReason === AgentStopReasonEnum['daemon.respawn'] ||
       stopReason === AgentStopReasonEnum['user.restart'];
-    const participantStatus = isOrchestratedRestart
-        ? 'agent.restart'
-        : 'agent.exited';
-    const participantDesiredState = isOrchestratedRestart
-        ? 'running'
-        : undefined;
+    const participantStatus = isOrchestratedRestart ? 'agent.restart' : 'agent.exited';
+    const participantDesiredState = isOrchestratedRestart ? 'running' : undefined;
     await transitionAgentStatus(ctx, chatroomId, role, participantStatus, participantDesiredState);
 
     // Also mark the participant as exited and clear the connection (matching

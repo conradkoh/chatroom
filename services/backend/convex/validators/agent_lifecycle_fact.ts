@@ -51,11 +51,20 @@ const turnFailedFact = v.object({
   revisionKey: v.string(),
   emittedAt: v.number(),
 });
+const chatroomShutdownCompleteFact = v.object({
+  kind: v.literal('chatroom_shutdown_complete'),
+  chatroomId: v.id('chatroom_rooms'),
+  commandId: v.id('chatroomWorkspaceAgentCommandsInbox'),
+  finalizeChatroom: v.optional(v.boolean()),
+  revisionKey: v.string(),
+  emittedAt: v.number(),
+});
 
 export const agentLifecycleFactValidator = v.union(
   spawnedFact,
   exitedFact,
   clearedAllPidsFact,
   activityFact,
-  turnFailedFact
+  turnFailedFact,
+  chatroomShutdownCompleteFact
 );

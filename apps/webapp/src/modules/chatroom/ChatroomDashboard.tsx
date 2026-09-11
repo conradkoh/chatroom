@@ -78,7 +78,7 @@ import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
-import { isActiveAgentStopState, useAgentStop } from './hooks/useAgentStop';
+import { useAgentStop } from './hooks/useAgentStop';
 import { useChatroomActivityStatus } from './hooks/useChatroomActivityStatus';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
@@ -1088,10 +1088,7 @@ export function ChatroomDashboard({
   const agentPanelData = useAgentPanelData();
   const { requestChatroomStop } = useAgentStop();
   const [isRequestingStop, setIsRequestingStop] = useState(false);
-  const projectedStopActive = agentPanelData.agents.some((a) =>
-    isActiveAgentStopState(a.stopState)
-  );
-  const isStoppingAgents = isRequestingStop || projectedStopActive;
+  const isStoppingAgents = isRequestingStop;
   const lifecycle = agentPanelData.lifecycle;
 
   // Per-role "last used" config derived from the persisted teamAgentConfigs

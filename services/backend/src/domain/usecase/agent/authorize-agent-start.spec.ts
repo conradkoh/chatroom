@@ -70,23 +70,6 @@ describe('authorizeAgentStart', () => {
     ).toBe('not_configured');
   });
 
-  test('rejects an in-flight chatroom stop', async () => {
-    const { chatroomId, machineId } = await setup('authorize-stop');
-    await t.run((ctx) =>
-      ctx.db.insert('chatroom_agentStopCommands', {
-        chatroomId,
-        scope: { kind: 'chatroom' },
-        scopeKey: 'chatroom',
-        reason: 'user.stop',
-        status: 'pending',
-        createdAt: Date.now(),
-      })
-    );
-    expect(
-      await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId }))
-    ).toEqual({ allowed: false, reason: 'stop_in_flight' });
-  });
-
   test('requires an active task for ephemeral enhancer starts', async () => {
     const { chatroomId, machineId } = await setup('authorize-ephemeral');
     const enhancerId = await t.run(async (ctx) =>
