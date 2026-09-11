@@ -1,4 +1,4 @@
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import {
   isSlotIdle,
   isSlotSpawning,
@@ -12,7 +12,7 @@ import { isChatroomStopScopeActive } from '../../../agent-process-contracts.js';
  * Only an explicit `sessionPolicy: 'new'` / `startInNewSession` task may own
  * a delivery cold start.
  */
-export function snapshotRequestsNativeColdSession(task: AssignedTaskSnapshotView): boolean {
+export function taskRequestsNativeColdSession(task: AssignedTask): boolean {
   return task.requestsNativeColdSession === true;
 }
 
@@ -29,10 +29,10 @@ export function isColdStartEligibleSlotState(slot: AgentProcessSlotView | undefi
 
 /** True when delivery's cold-session path should own the next spawn. */
 export function isNativeColdSessionDeliveryOwnedSpawn(
-  task: AssignedTaskSnapshotView,
+  task: AssignedTask,
   slot: AgentProcessSlotView | undefined
 ): boolean {
-  return snapshotRequestsNativeColdSession(task) && isColdStartEligibleSlotState(slot);
+  return taskRequestsNativeColdSession(task) && isColdStartEligibleSlotState(slot);
 }
 
 /**
@@ -49,10 +49,10 @@ export function isNativeColdSessionDeliveryOwnedSpawn(
  */
 // fallow-ignore-next-line complexity
 export function explainColdSessionDeliveryBlock(
-  task: AssignedTaskSnapshotView,
+  task: AssignedTask,
   slot: AgentProcessSlotView | undefined
 ): string | null {
-  if (!snapshotRequestsNativeColdSession(task)) return null;
+  if (!taskRequestsNativeColdSession(task)) return null;
   if (isChatroomStopScopeActive(task.chatroomId)) {
     return 'chatroom_stop_scope_active';
   }

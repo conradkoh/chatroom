@@ -9,19 +9,12 @@ export type AuthorizeAgentStartArgs = {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   machineId: string;
-  lifecycleRevision?: number | undefined;
   taskId?: Id<'chatroom_tasks'> | undefined;
 };
 export type AuthorizeAgentStartReason =
-  | 'stale_revision'
-  | 'stopped'
-  | 'disabled'
-  | 'stop_in_flight'
-  | 'not_configured'
-  | 'no_active_task';
+  'stopped' | 'disabled' | 'stop_in_flight' | 'not_configured' | 'no_active_task';
 export type AuthorizeAgentStartResult =
-  | { allowed: true; lifecycleRevision: number }
-  | { allowed: false; reason: AuthorizeAgentStartReason };
+  { allowed: true } | { allowed: false; reason: AuthorizeAgentStartReason };
 
 async function hasInflightStop(
   ctx: MutationCtx,
@@ -57,9 +50,6 @@ export async function authorizeAgentStart(
     .first();
   if (!config || config.machineId !== args.machineId)
     return { allowed: false, reason: 'not_configured' };
-  const currentRevision = config.lifecycleRevision ?? 0;
-  if (args.lifecycleRevision !== undefined && args.lifecycleRevision !== currentRevision)
-    return { allowed: false, reason: 'stale_revision' };
   if (config.enabled === false) return { allowed: false, reason: 'disabled' };
   if (config.desiredState === 'stopped') return { allowed: false, reason: 'stopped' };
   await expireInflightStopCommandsForRole(ctx, args.chatroomId, args.role);
@@ -75,5 +65,5 @@ export async function authorizeAgentStart(
     )
       return { allowed: false, reason: 'no_active_task' };
   }
-  return { allowed: true, lifecycleRevision: currentRevision };
+  return { allowed: true };
 }

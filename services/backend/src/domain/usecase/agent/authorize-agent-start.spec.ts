@@ -45,23 +45,13 @@ async function configId(chatroomId: any) {
 }
 
 describe('authorizeAgentStart', () => {
-  test('allows matching revision and rejects stale, stopped, disabled, and wrong machine', async () => {
+  test('allows starts and rejects stopped, disabled, and wrong machine', async () => {
     const { chatroomId, machineId } = await setup('authorize-cases');
     expect(
-      await t.run((ctx) =>
-        authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId, lifecycleRevision: 0 })
-      )
-    ).toEqual({ allowed: true, lifecycleRevision: 0 });
+      await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId }))
+    ).toEqual({ allowed: true });
     const config = await configId(chatroomId);
-    await t.run((ctx) => ctx.db.patch(config!._id, { lifecycleRevision: 2 }));
-    expect(
-      await t.run((ctx) =>
-        authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId, lifecycleRevision: 0 })
-      )
-    ).toEqual({ allowed: false, reason: 'stale_revision' });
-    await t.run((ctx) =>
-      ctx.db.patch(config!._id, { lifecycleRevision: 2, desiredState: 'stopped' })
-    );
+    await t.run((ctx) => ctx.db.patch(config!._id, { desiredState: 'stopped' }));
     expect(
       (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })))
         .reason
@@ -111,7 +101,6 @@ describe('authorizeAgentStart', () => {
         workingDir: '/workspace',
         enabled: true,
         desiredState: 'running',
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })
@@ -136,7 +125,7 @@ describe('authorizeAgentStart', () => {
       await t.run((ctx) =>
         authorizeAgentStart(ctx, { chatroomId, role: 'enhancer', machineId, taskId })
       )
-    ).toEqual({ allowed: true, lifecycleRevision: 0 });
+    ).toEqual({ allowed: true });
     await t.run((ctx) => ctx.db.patch('chatroom_tasks', taskId, { status: 'completed' }));
     expect(
       await t.run((ctx) =>

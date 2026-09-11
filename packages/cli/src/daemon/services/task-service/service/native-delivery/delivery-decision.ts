@@ -1,6 +1,6 @@
 import {
   resolveAgentRuntimeConfig,
-  type AssignedTaskSnapshotView,
+  type AssignedTask,
 } from '../../../../domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import {
@@ -47,16 +47,16 @@ export type DeliveryDecisionContext = {
   deliveryInFlight: boolean;
   agentLifecycleInFlight: boolean;
   isNativeHarness: (harness: string) => boolean;
-  snapshotRequestsNativeColdSession: (task: AssignedTaskSnapshotView) => boolean;
+  taskRequestsNativeColdSession: (task: AssignedTask) => boolean;
   explainNativeDeliveryBlock: (
-    task: AssignedTaskSnapshotView,
+    task: AssignedTask,
     options: {
       slot: AgentProcessSlotView | undefined;
     }
   ) => string | null;
 };
 
-function taskSort(a: AssignedTaskSnapshotView, b: AssignedTaskSnapshotView): number {
+function taskSort(a: AssignedTask, b: AssignedTask): number {
   const pendingOrder = Number(b.status === 'pending') - Number(a.status === 'pending');
   return pendingOrder || a.createdAt - b.createdAt;
 }
@@ -86,7 +86,7 @@ function stableBlockReason(reason: string): DeliveryBlockReason {
  */
 // fallow-ignore-next-line complexity
 export function decideNextDelivery(
-  tasks: readonly AssignedTaskSnapshotView[],
+  tasks: readonly AssignedTask[],
   context: DeliveryDecisionContext
 ): DeliveryDecision {
   const assignedTasks = [...tasks]
@@ -141,7 +141,7 @@ export function decideNextDelivery(
     return { kind: 'wait', taskId: task.taskId, reason: 'slot_stopping' };
   }
 
-  const coldSession = context.snapshotRequestsNativeColdSession(task);
+  const coldSession = context.taskRequestsNativeColdSession(task);
   const startAllowed =
     blockReason.startsWith('slot_missing') ||
     blockReason.startsWith('slot_not_running') ||

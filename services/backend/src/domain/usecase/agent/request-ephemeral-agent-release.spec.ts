@@ -38,7 +38,6 @@ describe('requestEphemeralAgentRelease', () => {
         enabled: true,
         desiredState: 'running',
         spawnedAgentPid: 4242,
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });

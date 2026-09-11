@@ -53,7 +53,6 @@ export async function applyAgentStopCommand(
   for (const config of input.selectedConfigs) {
     const now = Date.now();
     await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-      lifecycleRevision: (config.lifecycleRevision ?? 0) + 1,
       desiredState: 'stopped',
       updatedAt: now,
     });

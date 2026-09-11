@@ -743,58 +743,6 @@ export default defineSchema({
   }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
 
   /**
-   * Slim daemon task-monitor rows — one per (machineId, taskId, role).
-   * Written on task/config/participant mutations; read via indexed cursors (no task.content).
-   */
-  chatroom_machineAssignedTaskSnapshots: defineTable({
-    machineId: v.string(),
-    taskId: v.id('chatroom_tasks'),
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-
-    taskStatus: v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress')),
-    taskAssignedTo: v.optional(v.string()),
-    taskCreatedAt: v.number(),
-    taskUpdatedAt: v.number(),
-    sessionAugmentation: v.optional(v.union(v.literal('none'), v.literal('new_session'))),
-    /** Explicit native cold-restart intent (envelope/scalar); distinct from role-default sessionAugmentation. */
-    requestsNativeColdSession: v.optional(v.boolean()),
-
-    agentHarness: v.string(),
-    model: v.optional(v.string()),
-    workingDir: v.optional(v.string()),
-    /** @deprecated Operational state moved to team config and projection; retained for legacy rows. */
-    spawnedAgentPid: v.optional(v.number()),
-    /** @deprecated See spawnedAgentPid. */
-    desiredState: v.optional(v.string()),
-    /** @deprecated See spawnedAgentPid. */
-    circuitState: v.optional(v.string()),
-    configUpdatedAt: v.number(),
-
-    /** @deprecated Participant presence is no longer written to snapshots. */
-    lastSeenAt: v.optional(v.number()),
-    /** @deprecated Participant presence is no longer written to snapshots. */
-    lastSeenAction: v.optional(v.string()),
-    /** @deprecated Participant presence is no longer written to snapshots. */
-    lastStatus: v.optional(v.string()),
-    presenceUpdatedAt: v.number(),
-    presenceKey: v.string(),
-
-    /** Excludes pure lastSeenAt heartbeats — used for signal subscribe cursor. */
-    revisionKey: v.string(),
-    signalUpdatedAt: v.number(),
-    /** Config lifecycle revision copied at projection time. */
-    configLifecycleRevision: v.optional(v.number()),
-  })
-    .index('by_machineId', ['machineId'])
-    .index('by_machineId_chatroomId', ['machineId', 'chatroomId'])
-    .index('by_machineId_taskId_role', ['machineId', 'taskId', 'role'])
-    .index('by_machineId_revisionKey', ['machineId', 'revisionKey'])
-    .index('by_machineId_presenceKey', ['machineId', 'presenceKey'])
-    .index('by_taskId', ['taskId'])
-    .index('by_chatroomId_role', ['chatroomId', 'role']),
-
-  /**
    * Backlog items for chatroom planning.
    * Long-lived planning items managed by the user, separate from active task queue.
    *
@@ -1262,7 +1210,6 @@ export default defineSchema({
     /** Future-task eligibility; permanent configs default true. */
     enabled: v.optional(v.boolean()),
     /** Monotonic revision advanced by accepted start/stop intents. */
-    lifecycleRevision: v.optional(v.number()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])

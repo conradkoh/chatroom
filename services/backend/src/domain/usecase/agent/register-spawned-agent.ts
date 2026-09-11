@@ -11,7 +11,6 @@ export type RegisterSpawnedAgentArgs = {
   role: string;
   machineId: string;
   pid: number;
-  lifecycleRevision: number;
   model?: string | undefined;
   harnessSessionId?: string | undefined;
   reason?: string | undefined;

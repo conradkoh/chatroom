@@ -18,7 +18,7 @@ export {
   isNativeHarness,
   isDeliverableNativeTaskStatus,
   shouldDeliverNativeTask,
-  snapshotRequestsNativeColdSession,
+  taskRequestsNativeColdSession,
   isAgentReadyForNativeDelivery,
   explainAgentReadyForNativeDeliveryBlock,
   resetRoleDeliveryState,

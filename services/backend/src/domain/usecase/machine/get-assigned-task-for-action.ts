@@ -60,7 +60,6 @@ export async function getAssignedTaskForAction(
     agentConfig: {
       role: config.role,
       machineId: input.machineId,
-      configLifecycleRevision: config.lifecycleRevision,
     },
     assignee: ephemeral
       ? { type: WorkspaceTaskAssigneeType.Ephemeral, ephemeral }

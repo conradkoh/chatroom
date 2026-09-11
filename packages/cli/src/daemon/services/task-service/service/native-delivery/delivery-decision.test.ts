@@ -1,12 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { decideNextDelivery } from './delivery-decision.js';
-import {
-  TaskAssigneeType,
-  type AssignedTaskSnapshotView,
-} from '../../../../domain/entities/assigned-task.js';
+import { TaskAssigneeType, type AssignedTask } from '../../../../domain/entities/assigned-task.js';
 
-const task = (overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView => ({
+const task = (overrides: Partial<AssignedTask> = {}): AssignedTask => ({
   taskId: 'task-1',
   chatroomId: 'room-1',
   status: 'pending',
@@ -34,7 +31,7 @@ function context(
     deliveryInFlight: false,
     agentLifecycleInFlight: false,
     isNativeHarness: (harness) => harness.endsWith('-sdk'),
-    snapshotRequestsNativeColdSession: (row) => row.requestsNativeColdSession === true,
+    taskRequestsNativeColdSession: (row) => row.requestsNativeColdSession === true,
     explainNativeDeliveryBlock: vi.fn(() => null),
     ...overrides,
   };

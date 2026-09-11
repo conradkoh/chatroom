@@ -26,7 +26,6 @@ export interface AgentRestartEventPayload {
   correlationId: string;
   deadline: number;
   wantResume: boolean;
-  lifecycleRevision?: number | undefined;
 }
 
 export const onRequestRestartAgentEffect = (
@@ -56,7 +55,6 @@ export const onRequestRestartAgentEffect = (
           correlationId: event.correlationId,
           deadline: event.deadline,
           wantResume: event.wantResume,
-          lifecycleRevision: event.lifecycleRevision,
         }
       )
     );

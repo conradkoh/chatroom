@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { AgentWorkManager } from './agent-work-manager.js';
-import { TaskStateManager } from '../../../infrastructure/inbox/task-state-manager.js';
+import { TaskInboxState } from '../../../infrastructure/inbox/task-inbox-state.js';
 import { createAgentTaskStateService } from '../index.js';
 
 function createService(
@@ -42,7 +42,7 @@ function createService(
       )) as never,
     sessionDeps: {} as never,
     machineId: 'machine-1',
-    taskSnapshotState: new TaskStateManager(),
+    taskInboxState: new TaskInboxState(),
     agentTaskState: createAgentTaskStateService(),
     lifecycleOutbox: { enqueue: (options.enqueueFact ?? (async () => undefined)) as never },
     taskService: {
@@ -53,12 +53,12 @@ function createService(
       markTaskInboxEventProcessed: async () => true,
       listTasksForRole: () => [],
       listAllTasks: () => [],
-      taskSnapshotState: new TaskStateManager(),
+      taskInboxState: new TaskInboxState(),
       isNativeHarness: () => true,
       loadAssignedTaskForAction: async () => null,
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
-      snapshotRequestsNativeColdSession: () => false,
+      taskRequestsNativeColdSession: () => false,
       explainNativeDeliveryBlock: () => null,
     } as never,
   });
@@ -280,7 +280,7 @@ describe('AgentWorkManager', () => {
       agentConfig: { role: 'builder' },
     } as never;
 
-    await service.handleTaskServiceNotification({ kind: 'bootstrap', snapshots: [snapshot] });
+    await service.handleTaskServiceNotification({ kind: 'bootstrap', tasks: [snapshot] });
 
     expect(requestReconcile).toHaveBeenNthCalledWith(1, {
       chatroomId: 'room-1',

@@ -471,24 +471,16 @@ export const setDuoBuilderWantResumeFalse = migrations.define({
   },
 });
 
-/** Backfill additive lifecycle defaults on existing team agent configs. */
+/** Backfill additive defaults on existing team agent configs. */
 export const backfillTeamAgentConfigLifecycleDefaults = migrations.define({
   table: 'chatroom_teamAgentConfigs',
   migrateOne: async (_ctx, config) => {
     const patch: Record<string, unknown> = {};
     if (config.enabled === undefined) patch.enabled = true;
-    if (config.lifecycleRevision === undefined) patch.lifecycleRevision = 0;
     return Object.keys(patch).length > 0
       ? migrationPatch<Doc<'chatroom_teamAgentConfigs'>>(patch)
       : undefined;
   },
-});
-
-/** Backfill snapshot lifecycle revisions; safe to rerun. */
-export const backfillMachineAssignedTaskSnapshotLifecycleRevision = migrations.define({
-  table: 'chatroom_machineAssignedTaskSnapshots',
-  migrateOne: async (_ctx, row) =>
-    row.configLifecycleRevision === undefined ? { configLifecycleRevision: 0 } : undefined,
 });
 
 /** Existing stop commands are operator stops and therefore restore stopped state. */
@@ -986,23 +978,6 @@ export const stripTimelineMachineSignalFields = migrations.define({
   },
 });
 
-/**
- * Migration: Strip legacy operational fields from machine task snapshots.
- * These fields were removed from the write path by the operational-status
- * projection refactor; schema tolerance remains until this migration runs.
- * Idempotent: already-clean rows are skipped.
- */
-export const stripMachineAssignedTaskSnapshotOperationalFields = migrations.define({
-  table: 'chatroom_machineAssignedTaskSnapshots',
-  migrateOne: async (_ctx, row) => {
-    const r = row as Record<string, unknown>;
-    const legacyFields = ['circuitState', 'desiredState', 'spawnedAgentPid'] as const;
-    const present = legacyFields.filter((field) => r[field] !== undefined);
-    if (present.length === 0) return;
-    return Object.fromEntries(present.map((field) => [field, undefined]));
-  },
-});
-
 /** Purge legacy direct-harness rows before their tables are removed from schema. */
 export const purgeHarnessSessionMessages = migrations.define({
   table: 'chatroom_harnessSessionMessages' as never,
@@ -1101,7 +1076,6 @@ const allMigrationReferences = [
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
   internal.migrations.stripTimelineMachineSignalFields,
-  internal.migrations.stripMachineAssignedTaskSnapshotOperationalFields,
   // Workspace File Tree
   internal.migrations.backfillWorkspaceFileTreeSyncDisabled,
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
@@ -1114,7 +1088,6 @@ const allMigrationReferences = [
   // Agent Config
   internal.migrations.setDuoBuilderWantResumeFalse,
   internal.migrations.backfillTeamAgentConfigLifecycleDefaults,
-  internal.migrations.backfillMachineAssignedTaskSnapshotLifecycleRevision,
   internal.migrations.backfillAgentStopCommandPostStopDesiredState,
   // Enhancer unified runtime
   internal.migrations.migrateEnhancerConfigToTeamAgentConfig,

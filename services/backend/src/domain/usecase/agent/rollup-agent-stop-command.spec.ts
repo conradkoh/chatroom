@@ -70,7 +70,6 @@ describe('rollupAgentStopCommandStatus', () => {
         machineId: 'm',
         desiredState: 'stopped',
         enabled: true,
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });

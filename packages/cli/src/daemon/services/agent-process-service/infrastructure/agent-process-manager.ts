@@ -132,7 +132,6 @@ export interface AgentSlot {
   recentLogLines?: string[] | undefined;
   /** User's persisted reconnect-on-start preference for this run. */
   wantResume?: boolean | undefined;
-  authorizedLifecycleRevision?: number | undefined;
   /** Turn-end already emitted startFailed for a terminal provider error. */
   terminalProviderFailureHandled?: boolean | undefined;
   /** Provider-unavailable event already emitted for this spawn. */
@@ -403,14 +402,6 @@ export class AgentProcessManager {
     } else if (slot.stopRequested) {
       return { success: false, error: 'stop_requested' };
     }
-    if (
-      slot.state !== 'idle' &&
-      opts.lifecycleRevision !== undefined &&
-      slot.authorizedLifecycleRevision !== opts.lifecycleRevision
-    ) {
-      return { success: false, error: 'stale_revision' };
-    }
-
     // Stale slot — process died without onExit; reset before kill/spawn
     if (
       slot.state === 'running' &&
@@ -1433,12 +1424,6 @@ export class AgentProcessManager {
       console.log(`   ⚠️  Failed to record agent.started event: ${err.message}`);
     });
 
-    const lifecycleRevision = slot.authorizedLifecycleRevision ?? opts.lifecycleRevision;
-    if (lifecycleRevision === undefined) {
-      this.deps.processes.kill(pid, 'SIGTERM');
-      this.resetSlotIdle(slot);
-      return Promise.resolve();
-    }
     const emittedAt = this.deps.clock.now();
     return this.deps.lifecycleOutbox
       .enqueue({
@@ -1456,15 +1441,8 @@ export class AgentProcessManager {
           emittedAt,
         }),
         emittedAt,
-        lifecycleRevision,
       })
-      .then((result) => {
-        if (result.rejectionReason) {
-          console.log(`   ⚠️  Spawn rejected by backend: ${result.rejectionReason}`);
-          this.deps.processes.kill(pid, 'SIGTERM');
-          this.resetSlotIdle(slot);
-        }
-      })
+      .then(() => undefined)
       .catch((err: Error) =>
         console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`)
       );
@@ -1661,14 +1639,12 @@ export class AgentProcessManager {
       machineId: this.deps.machineId,
       chatroomId: opts.chatroomId,
       role: opts.role,
-      lifecycleRevision: opts.lifecycleRevision,
       taskId: opts.taskId as any,
     });
     if (!authorization.allowed) {
       this.resetSlotIdle(slot);
       return { success: false, error: authorization.reason };
     }
-    slot.authorizedLifecycleRevision = authorization.lifecycleRevision;
     const wantResume = opts.wantResume;
 
     console.log(

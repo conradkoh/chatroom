@@ -1,4 +1,3 @@
-import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { getAgentConfig } from './get-agent-config';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -103,17 +102,6 @@ async function persistRestartAndEmit(
     });
   }
   const teamId = chatroom?.teamId;
-  const lifecycleConfig = teamId
-    ? await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, teamId, input.role))
-        )
-        .first()
-    : null;
-  const lifecycleRevision = lifecycleConfig
-    ? await advanceAgentLifecycleRevision(ctx, lifecycleConfig._id)
-    : 0;
   await enqueueMachineCommand(ctx, {
     machineId: resolved.machineId,
     now,
@@ -126,7 +114,6 @@ async function persistRestartAndEmit(
       workingDir: resolved.workingDir,
       correlationId,
       wantResume: resolved.wantResume,
-      lifecycleRevision,
     },
   });
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');

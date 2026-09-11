@@ -37,11 +37,6 @@ export function createAgentLifecycleSend(
       api.machines.projectAgentLifecycleFact,
       args
     )) as AgentLifecycleOutboxResult;
-    return {
-      ...result,
-      ...(result.skipped && result.rejectionReason
-        ? { rejectionReason: result.rejectionReason }
-        : {}),
-    };
+    return result;
   };
 }

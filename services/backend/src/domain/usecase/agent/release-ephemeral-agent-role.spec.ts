@@ -81,7 +81,6 @@ describe('createAgentStopCommand chatroom stop', () => {
         workingDir: '/tmp',
         enabled: true,
         desiredState: 'running',
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -186,7 +185,6 @@ describe('createAgentStopCommand chatroom stop', () => {
         workingDir: '/tmp',
         enabled: true,
         desiredState: 'running',
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -255,7 +253,6 @@ describe('requestEphemeralAgentRelease without PID', () => {
         workingDir: '/tmp',
         enabled: true,
         desiredState: 'stopped',
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });

@@ -30,7 +30,6 @@ export type AgentLifecycleFactInput =
       harnessSessionId?: string | undefined;
       revisionKey: string;
       emittedAt: number;
-      lifecycleRevision?: number | undefined;
     }
   | {
       kind: 'exited';
@@ -126,12 +125,9 @@ export async function projectAgentLifecycleFact(
     });
     return { success: true };
   }
-  if (fact.lifecycleRevision === undefined)
-    return { success: true, skipped: true, rejectionReason: 'stale_revision' };
   const registration = await registerSpawnedAgentIfAuthorized(ctx, {
     ...fact,
     machineId,
-    lifecycleRevision: fact.lifecycleRevision,
   });
   if (!registration.accepted)
     return { success: true, skipped: true, rejectionReason: registration.reason };

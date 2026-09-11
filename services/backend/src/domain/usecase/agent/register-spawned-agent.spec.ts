@@ -50,7 +50,6 @@ describe('registerSpawnedAgentIfAuthorized', () => {
         role: 'builder',
         machineId,
         pid: 12345,
-        lifecycleRevision: 0,
       })
     );
     expect(result).toEqual({ accepted: true });
@@ -63,21 +62,5 @@ describe('registerSpawnedAgentIfAuthorized', () => {
         .first()
     );
     expect(config?.spawnedAgentPid).toBe(12345);
-  });
-
-  test('rejects stale revision without changing PID', async () => {
-    const { chatroomId, machineId, config } = await setup('register-stale');
-    await t.run((ctx) => ctx.db.patch(config._id, { lifecycleRevision: 1, spawnedAgentPid: 111 }));
-    const result = await t.run((ctx) =>
-      registerSpawnedAgentIfAuthorized(ctx, {
-        chatroomId,
-        role: 'builder',
-        machineId,
-        pid: 999,
-        lifecycleRevision: 0,
-      })
-    );
-    expect(result).toEqual({ accepted: false, reason: 'stale_revision' });
-    expect((await t.run((ctx) => ctx.db.get(config._id)))?.spawnedAgentPid).toBe(111);
   });
 });

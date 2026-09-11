@@ -1,5 +1,5 @@
 import type {
-  AssignedTaskSnapshotView,
+  AssignedTask,
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
 import type {
@@ -37,7 +37,7 @@ export interface NativeTaskDeliveryGateway {
     taskId: string;
   }): Promise<{
     released: boolean;
-    status: AssignedTaskSnapshotView['status'];
+    status: AssignedTask['status'];
     updatedAt: number;
   }>;
   loadDeliveryPrompt(args: {

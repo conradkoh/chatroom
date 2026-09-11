@@ -76,7 +76,7 @@ describe('task-delivery-processor exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          snapshotRequestsNativeColdSession: () => false,
+          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         } as never,
         {
@@ -89,7 +89,7 @@ describe('task-delivery-processor exact-task hydration', () => {
         'bootstrap',
         { enqueue: async () => undefined } as never,
         () => false,
-        { snapshots: [row] }
+        { tasks: [row] }
       );
 
       expect(capturedInject).toBeDefined();
@@ -129,7 +129,7 @@ describe('task-delivery-processor exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          snapshotRequestsNativeColdSession: () => false,
+          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         } as never,
         {
@@ -142,7 +142,7 @@ describe('task-delivery-processor exact-task hydration', () => {
         'bootstrap',
         { enqueue: async () => undefined } as never,
         () => false,
-        { snapshots: [row] }
+        { tasks: [row] }
       );
 
       const result = await capturedInject?.(row as never, undefined);

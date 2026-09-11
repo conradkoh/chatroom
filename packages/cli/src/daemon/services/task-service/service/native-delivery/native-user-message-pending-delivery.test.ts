@@ -25,10 +25,10 @@ import {
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
 import {
-  createTaskSnapshot,
-  snapshotDocToSignal,
-  type TaskSnapshotFixtureDoc,
-} from './test-fixtures/task-snapshot-fixture.js';
+  createTaskState,
+  taskDocToSignal,
+  type TaskFixtureDoc,
+} from './test-fixtures/task-fixture.js';
 import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
 import {
@@ -51,8 +51,8 @@ const SPAWNED_PID = 42_424;
 const MESSAGE_CONTENT = '## Goal\nPlease fix the pending delivery bug';
 
 function makeUserMessagePendingSnapshotDoc(
-  overrides: Partial<TaskSnapshotFixtureDoc> = {}
-): TaskSnapshotFixtureDoc {
+  overrides: Partial<TaskFixtureDoc> = {}
+): TaskFixtureDoc {
   const now = 1_700_000_000_000;
   return {
     machineId: MACHINE_ID,
@@ -82,7 +82,7 @@ function makeIdleNativeSlot(overrides: Record<string, unknown> = {}) {
 }
 
 function makeFullTaskFromRow(
-  row: NonNullable<ReturnType<ReturnType<typeof createTaskSnapshot>['mergeSignal']>>
+  row: NonNullable<ReturnType<ReturnType<typeof createTaskState>['mergeSignal']>>
 ): AssignedTaskWithContent {
   return {
     ...row,
@@ -92,10 +92,10 @@ function makeFullTaskFromRow(
 
 describe('user message pending delivery path', () => {
   test('signal from sendMessage merges into daemon snapshot as deliverable pending row', () => {
-    const snapshot = createTaskSnapshot();
+    const snapshot = createTaskState();
     snapshot.replaceAll([]);
 
-    const signal = snapshotDocToSignal(makeUserMessagePendingSnapshotDoc());
+    const signal = taskDocToSignal(makeUserMessagePendingSnapshotDoc());
     const row = snapshot.mergeSignal(signal);
 
     expect(row).toBeDefined();
@@ -121,9 +121,9 @@ describe('user message pending delivery path', () => {
   });
 
   test('coordinator injects first pending user-message task when agent slot is idle', async () => {
-    const snapshot = createTaskSnapshot();
+    const snapshot = createTaskState();
     snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
+    const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
     row!.agentConfig.spawnedAgentPid = SPAWNED_PID;
 
@@ -211,9 +211,9 @@ describe('user message pending delivery path', () => {
   });
 
   test('stuck pending: does not inject when harness turn is still in flight', async () => {
-    const snapshot = createTaskSnapshot();
+    const snapshot = createTaskState();
     snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
+    const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
 
     expect(
@@ -257,9 +257,9 @@ describe('user message pending delivery path', () => {
   });
 
   test('stuck pending: does not inject when harness session id is missing on slot', async () => {
-    const snapshot = createTaskSnapshot();
+    const snapshot = createTaskState();
     snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
+    const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
 
     expect(
@@ -301,9 +301,9 @@ describe('user message pending delivery path', () => {
   });
 
   test('stuck pending: does not inject when local slot is spawning with a mismatched PID', async () => {
-    const snapshot = createTaskSnapshot();
+    const snapshot = createTaskState();
     snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
+    const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
     row!.agentConfig.spawnedAgentPid = SPAWNED_PID;
 

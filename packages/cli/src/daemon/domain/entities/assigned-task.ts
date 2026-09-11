@@ -34,7 +34,6 @@ export interface AssignedTaskAgentConfig {
   spawnedAgentPid?: number | undefined;
   desiredState?: AgentDesiredState | undefined;
   circuitState?: AgentCircuitState | undefined;
-  configLifecycleRevision?: number | undefined;
 }
 
 export interface AssignedTaskParticipant {
@@ -79,9 +78,6 @@ export function isDeliverableTaskStatus(status: ActiveTaskStatus): boolean {
 export function isAgentDesiredRunning(desiredState: AgentDesiredState | undefined): boolean {
   return desiredState === 'running';
 }
-
-/** Gradual migration alias — structurally identical to backend AssignedTaskSnapshotView. */
-export type AssignedTaskSnapshotView = AssignedTask;
 
 /** Full task view including content — for one-shot action fetches. */
 export interface AssignedTaskWithContent extends AssignedTask {

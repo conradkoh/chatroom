@@ -6,7 +6,7 @@ import {
 } from './native-cold-session-delivery.js';
 import {
   resolveAgentRuntimeConfig,
-  type AssignedTaskSnapshotView,
+  type AssignedTask,
 } from '../../../../domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../../domain/usecase/check-agent-slot.js';
@@ -15,7 +15,7 @@ import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 // fallow-ignore-next-line unused-export
 export function isAgentReadyForNativeDelivery(
-  task: AssignedTaskSnapshotView,
+  task: AssignedTask,
   slot: AgentProcessSlotView | undefined
 ): boolean {
   return explainAgentReadyForNativeDeliveryBlock(task, slot) === null;
@@ -24,7 +24,7 @@ export function isAgentReadyForNativeDelivery(
 /** Human-readable reason when agent/slot is not ready; null when ready. */
 // fallow-ignore-next-line complexity
 export function explainAgentReadyForNativeDeliveryBlock(
-  task: AssignedTaskSnapshotView,
+  task: AssignedTask,
   slot: AgentProcessSlotView | undefined
 ): string | null {
   const runtimeConfig = resolveAgentRuntimeConfig(task, slot);
@@ -71,6 +71,6 @@ export function explainAgentReadyForNativeDeliveryBlock(
 }
 
 /** Pending or acknowledged tasks eligible for (re)delivery when agent is ready. */
-export function isDeliverableNativeTaskStatus(status: AssignedTaskSnapshotView['status']): boolean {
+export function isDeliverableNativeTaskStatus(status: AssignedTask['status']): boolean {
   return isDeliverableTaskStatus(status);
 }

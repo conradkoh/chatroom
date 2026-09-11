@@ -73,7 +73,6 @@ function mockBackendMutation(defaultResult: Record<string, unknown> = {}) {
     ) {
       return Promise.resolve({
         allowed: true,
-        lifecycleRevision: args.lifecycleRevision ?? 0,
       });
     }
     return Promise.resolve(defaultResult);

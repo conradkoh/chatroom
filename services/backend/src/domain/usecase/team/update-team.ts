@@ -145,7 +145,6 @@ export async function updateTeam(
           updatedAt: now,
           desiredState: 'stopped',
           enabled: true,
-          lifecycleRevision: 0,
           ...seedFields,
         });
         affectedMachineIds.add(seedFields.machineId);

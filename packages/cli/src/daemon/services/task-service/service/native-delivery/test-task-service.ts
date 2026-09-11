@@ -10,7 +10,7 @@ import {
   explainNativeDeliveryBlock,
   isNativeHarness,
   runNativeInjectionEffect,
-  snapshotRequestsNativeColdSession,
+  taskRequestsNativeColdSession,
 } from '../../index.js';
 
 type ReconcileLike = {
@@ -45,7 +45,7 @@ export function withTestTaskService<T extends ReconcileLike>(
     taskService: {
       ...taskService,
       isNativeHarness,
-      snapshotRequestsNativeColdSession,
+      taskRequestsNativeColdSession,
       explainNativeDeliveryBlock,
       deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
         Effect.runPromise(
