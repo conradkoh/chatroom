@@ -7,45 +7,36 @@ import {
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../../domain/usecase/check-agent-slot.js';
-import { isOperationalDesiredRunning, type TaskOperationalAgent } from '../entities/operational-agent.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(
   task: AssignedTaskSnapshotView,
-  slot: AgentProcessSlotView | undefined,
-  operational?: TaskOperationalAgent | undefined
+  slot: AgentProcessSlotView | undefined
 ): boolean {
-  return explainAgentReadyForNativeDeliveryBlock(task, slot, operational) === null;
+  return explainAgentReadyForNativeDeliveryBlock(task, slot) === null;
 }
 
 /** Human-readable reason when agent/slot is not ready; null when ready. */
 // fallow-ignore-next-line complexity
 export function explainAgentReadyForNativeDeliveryBlock(
   task: AssignedTaskSnapshotView,
-  slot: AgentProcessSlotView | undefined,
-  explicitOperational?: TaskOperationalAgent | undefined
+  slot: AgentProcessSlotView | undefined
 ): string | null {
   const { agentConfig } = task;
   if (!isNativeHarness(agentConfig.agentHarness)) {
     return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
-  // Readiness is evaluated from the caller's explicit operational snapshot.
-  // The delivery-session registry is intentionally not consulted here.
-  const operational = explicitOperational;
   // Explicit cold-session tasks: apply stop/circuit/transition guards first.
   // When the slot is down (missing/idle) and unblocked, delivery owns the
   // cold start and bypasses the running-slot gates below; a running slot
   // falls through so the injector can cold-replace the existing session.
-  const coldBlock = explainColdSessionDeliveryBlock(task, slot, operational);
+  const coldBlock = explainColdSessionDeliveryBlock(task, slot);
   if (coldBlock) {
     return coldBlock;
   }
   if (isNativeColdSessionDeliveryOwnedSpawn(task, slot)) {
     return null;
-  }
-  if (!isOperationalDesiredRunning(operational)) {
-    return `operational_state_not_running (state=${operational?.operationalState ?? 'missing'})`;
   }
   if (!slot) {
     return agentConfig.spawnedAgentPid == null

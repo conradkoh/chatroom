@@ -1,5 +1,5 @@
 // fallow-ignore-file unused-file
-import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
+import type { MachineAgentOperationalRow } from './operational-signal-feeds.js';
 
 export function operationalRow(
   chatroomId: string,

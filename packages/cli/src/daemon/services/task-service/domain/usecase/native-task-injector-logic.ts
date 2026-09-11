@@ -1,24 +1,20 @@
 import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
-import type { TaskOperationalAgent } from '../entities/operational-agent.js';
+import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';
 export { isDeliverableNativeTaskStatus } from './native-ready-invariant.js';
 
 /**
- * Readiness inputs for native delivery gating. Callers with an explicit
- * operational read model should pass the row directly; legacy callers omit it
- * and fall back to the delivery-session registry lookup.
+ * Readiness inputs for native delivery gating.
  */
 export type NativeDeliveryReadinessOptions = {
   slot: AgentProcessSlotView | undefined;
-  operational?: TaskOperationalAgent | undefined;
 };
 
 /** True when daemon should deliver a task into a live native harness session. */
@@ -46,7 +42,7 @@ export function explainNativeDeliveryBlock(
       return `acknowledged_wrong_role (assignedTo=${assignedTo ?? 'none'}, role=${role})`;
     }
   }
- return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.operational);
+  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot);
 }
 
 const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {

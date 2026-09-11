@@ -7,8 +7,6 @@ import {
   resetRoleDeliveryState,
 } from './native-task-delivery-coordinator.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
-import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 
 const CHATROOM_ID = 'room_coordinator_facade';
 const ROLE = 'builder';
@@ -52,8 +50,6 @@ function agentMgr() {
 }
 
 function baseParams(overrides: Record<string, unknown> = {}) {
-  const operationalModel = new AgentOperationalReadModel();
-  operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
   return {
     tasks: [acknowledgedRow()],
     runtime: Runtime.defaultRuntime as never,
@@ -67,7 +63,6 @@ function baseParams(overrides: Record<string, unknown> = {}) {
       backend: { mutation: vi.fn(), query: vi.fn() },
     } as never,
     lifecycleOutbox: { enqueue: async () => undefined },
-    operationalModel,
     isTaskActive: () => false,
     machineId: 'machine_coordinator',
     ...overrides,

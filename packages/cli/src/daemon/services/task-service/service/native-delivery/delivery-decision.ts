@@ -7,19 +7,11 @@ import {
 } from '../../../../domain/usecase/check-agent-slot.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
-type TaskOperationalAgent = {
-  operationalState: 'running' | 'stopped' | 'starting' | 'circuit_open';
-  stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed' | undefined;
-};
-
 export type DeliveryBlockReason =
   | 'not_native_harness'
   | 'task_status_not_deliverable'
   | 'acknowledged_wrong_role'
   | 'chatroom_stop_scope_active'
-  | 'operational_stop_intent_active'
-  | 'operational_circuit_open'
-  | 'operational_state_not_running'
   | 'slot_missing'
   | 'slot_not_running'
   | 'slot_pid_missing'
@@ -47,7 +39,6 @@ export type DeliveryDecision =
 export type DeliveryDecisionContext = {
   role: string;
   slot: AgentProcessSlotView | undefined;
-  operational: TaskOperationalAgent | undefined;
   activeTaskId: string | undefined;
   deliveryInFlight: boolean;
   agentLifecycleInFlight: boolean;
@@ -57,7 +48,6 @@ export type DeliveryDecisionContext = {
     task: AssignedTaskSnapshotView,
     options: {
       slot: AgentProcessSlotView | undefined;
-      operational: TaskOperationalAgent | undefined;
     }
   ) => string | null;
 };
@@ -73,9 +63,6 @@ function stableBlockReason(reason: string): DeliveryBlockReason {
     'task_status_not_deliverable',
     'acknowledged_wrong_role',
     'chatroom_stop_scope_active',
-    'operational_stop_intent_active',
-    'operational_circuit_open',
-    'operational_state_not_running',
     'slot_missing',
     'slot_not_running',
     'slot_pid_missing',
@@ -129,7 +116,6 @@ export function decideNextDelivery(
 
   const blockReason = context.explainNativeDeliveryBlock(task, {
     slot: context.slot,
-    operational: context.operational,
   });
   if (blockReason === null) {
     return {

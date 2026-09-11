@@ -1,4 +1,4 @@
-import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
+import type { MachineAgentOperationalRow } from './operational-signal-feeds.js';
 import { api } from '../../../api.js';
 import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 

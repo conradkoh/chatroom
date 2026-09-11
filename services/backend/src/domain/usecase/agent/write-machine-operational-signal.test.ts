@@ -3,10 +3,8 @@ import { describe, expect, test } from 'vitest';
 
 import {
   buildMachineOperationalSignalKey,
-  writeMachineAgentRemovalSignal,
   writeMachineAgentOperationalSignal,
   writeMachineAgentStopSignal,
-  writeMachineConnectivitySignal,
 } from './write-machine-operational-signal';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
@@ -100,9 +98,7 @@ describe('writeMachineAgentOperationalSignal', () => {
 
     await t.run(async (ctx) => {
       await writeMachineAgentOperationalSignal(ctx, input);
-      await writeMachineConnectivitySignal(ctx, { ...input, daemonConnected: true });
       await writeMachineAgentStopSignal(ctx, { ...input, stopState: 'pending' });
-      await writeMachineAgentRemovalSignal(ctx, input);
     });
 
     const counts = await t.run(async (ctx) =>
@@ -114,30 +110,16 @@ describe('writeMachineAgentOperationalSignal', () => {
           )
           .collect(),
         ctx.db
-          .query('chatroom_machineConnectivitySignals')
-          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
-          )
-          .collect(),
-        ctx.db
           .query('chatroom_machineAgentStopSignals')
-          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
-          )
-          .collect(),
-        ctx.db
-          .query('chatroom_machineAgentRemovalSignals')
           .withIndex('by_machineId_chatroomId_signalKey', (q) =>
             q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
           )
           .collect(),
       ])
     );
-    expect(counts.map((rows) => rows.length)).toEqual([1, 1, 1, 1]);
+    expect(counts.map((rows) => rows.length)).toEqual([1, 1]);
 
     expect(counts[0][0]).toMatchObject({ kind: 'agent-operational' });
-    expect(counts[1][0]).toMatchObject({ kind: 'connectivity', daemonConnected: true });
-    expect(counts[2][0]).toMatchObject({ kind: 'agent-stop', stopState: 'pending' });
-    expect(counts[3][0]).toMatchObject({ kind: 'agent-removal', reason: 'role-removed' });
+    expect(counts[1][0]).toMatchObject({ kind: 'agent-stop', stopState: 'pending' });
   });
 });

@@ -25,7 +25,6 @@ function context(
   return {
     role: 'builder',
     slot: { state: 'running', pid: 42, harnessSessionId: 'session-1', nativeTurnPhase: 'idle' },
-    operational: { operationalState: 'running', stopState: 'idle' },
     activeTaskId: undefined,
     deliveryInFlight: false,
     agentLifecycleInFlight: false,
@@ -123,32 +122,10 @@ describe('decideNextDelivery', () => {
     ).toEqual({ kind: 'idle', reason: 'not_assigned' });
   });
 
-  test('keeps operational stop and circuit reasons blocked', () => {
-    expect(
-      decideNextDelivery(
-        [task()],
-        context({
-          explainNativeDeliveryBlock: vi.fn(() => 'operational_stop_intent_active'),
-        })
-      )
-    ).toEqual({
-      kind: 'blocked',
-      taskId: 'task-1',
-      reason: 'operational_stop_intent_active',
-    });
-    expect(
-      decideNextDelivery(
-        [task()],
-        context({ explainNativeDeliveryBlock: vi.fn(() => 'operational_circuit_open') })
-      )
-    ).toEqual({ kind: 'blocked', taskId: 'task-1', reason: 'operational_circuit_open' });
-  });
-
   test.each([
     'not_native_harness',
     'acknowledged_wrong_role',
     'chatroom_stop_scope_active',
-    'operational_state_not_running',
     'slot_missing',
     'slot_not_running',
     'slot_pid_missing',

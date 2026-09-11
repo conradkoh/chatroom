@@ -1,13 +1,28 @@
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
 import type { Id } from '../../../api.js';
 import { api } from '../../../api.js';
 import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 
-export type OperationalSignalKind =
-  'agent-operational' | 'connectivity' | 'agent-stop' | 'agent-removal';
+export type OperationalSignalKind = 'agent-operational' | 'agent-stop';
+
+export type MachineAgentOperationalRow = {
+  readonly chatroomId: string;
+  readonly role: string;
+  readonly operationalState: 'running' | 'stopped' | 'starting' | 'circuit_open';
+  readonly isAlive: boolean;
+  readonly isRunning: boolean;
+  readonly daemonConnected: boolean;
+  readonly revisionKey: string;
+  readonly stopState?:
+    | 'idle'
+    | 'pending'
+    | 'stopping'
+    | 'stopped'
+    | 'failed'
+    | undefined;
+};
 
 export type OperationalStatusSignal = {
   readonly chatroomId: string;
@@ -25,7 +40,6 @@ export type OperationalSignalPage = {
 
 export type OperationalSignalHydration = {
   readonly rows: readonly MachineAgentOperationalRow[];
-  readonly removed: readonly { chatroomId: string; role: string }[];
   readonly nextSignalKey: string | null;
   readonly hasMore: boolean;
 };
@@ -174,22 +188,10 @@ export const operationalSignalFeeds: Record<OperationalSignalKind, OperationalSi
     hydrate: api.machines.listMachineAgentOperationalStatusForSignalRange,
     acknowledge: api.machines.ackMachineAgentOperationalSignals,
   }),
-  connectivity: createMachineFeed({
-    kind: 'connectivity',
-    subscribe: api.machines.subscribeMachineConnectivitySignalsSince,
-    hydrate: api.machines.listMachineConnectivityStatusForSignalRange,
-    acknowledge: api.machines.ackMachineConnectivitySignals,
-  }),
   'agent-stop': createMachineFeed({
     kind: 'agent-stop',
     subscribe: api.machines.subscribeMachineAgentStopSignalsSince,
     hydrate: api.machines.listMachineAgentStopStatusForSignalRange,
     acknowledge: api.machines.ackMachineAgentStopSignals,
-  }),
-  'agent-removal': createMachineFeed({
-    kind: 'agent-removal',
-    subscribe: api.machines.subscribeMachineAgentRemovalSignalsSince,
-    hydrate: api.machines.listMachineAgentRemovalStatusForSignalRange,
-    acknowledge: api.machines.ackMachineAgentRemovalSignals,
   }),
 };

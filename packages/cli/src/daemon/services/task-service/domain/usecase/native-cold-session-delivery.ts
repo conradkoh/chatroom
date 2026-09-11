@@ -4,11 +4,6 @@ import {
   isSlotSpawning,
   isSlotStopping,
 } from '../../../../domain/usecase/check-agent-slot.js';
-import {
-  isOperationalCircuitOpen,
-  isOperationalStopIntentActive,
-  type TaskOperationalAgent,
-} from '../entities/operational-agent.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 import { isChatroomStopScopeActive } from '../../../agent-process-contracts.js';
 
@@ -50,24 +45,16 @@ export function isNativeColdSessionDeliveryOwnedSpawn(
  *   launching another operation. Expired stops are normalized via
  *   `clearStuckStoppingSlot` before owner selection; a still-present
  *   stopping slot blocks here.
- * - Stop-scope, operational stop intent, and circuit guards apply before any
- *   cold start.
+ * - Stop-scope guards apply before any cold start.
  */
 // fallow-ignore-next-line complexity
 export function explainColdSessionDeliveryBlock(
   task: AssignedTaskSnapshotView,
-  slot: AgentProcessSlotView | undefined,
-  operational: TaskOperationalAgent | undefined
+  slot: AgentProcessSlotView | undefined
 ): string | null {
   if (!snapshotRequestsNativeColdSession(task)) return null;
   if (isChatroomStopScopeActive(task.chatroomId)) {
     return 'chatroom_stop_scope_active';
-  }
-  if (isOperationalStopIntentActive(operational)) {
-    return 'operational_stop_intent_active';
-  }
-  if (isOperationalCircuitOpen(operational)) {
-    return 'operational_circuit_open';
   }
   if (slot && isSlotSpawning(slot.state)) {
     return `slot_spawning (slotState=${slot.state})`;

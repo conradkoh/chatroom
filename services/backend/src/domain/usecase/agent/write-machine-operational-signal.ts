@@ -42,17 +42,6 @@ export async function writeMachineAgentOperationalSignal(
   });
 }
 
-export async function writeMachineConnectivitySignal(
-  ctx: MutationCtx,
-  input: MachineSignalInput & { daemonConnected: boolean }
-): Promise<void> {
-  await ctx.db.insert('chatroom_machineConnectivitySignals', {
-    ...baseMachineSignal(input),
-    kind: 'connectivity',
-    daemonConnected: input.daemonConnected,
-  });
-}
-
 export async function writeMachineAgentStopSignal(
   ctx: MutationCtx,
   input: MachineSignalInput & { stopState: RoleStopState }
@@ -61,16 +50,5 @@ export async function writeMachineAgentStopSignal(
     ...baseMachineSignal(input),
     kind: 'agent-stop',
     stopState: input.stopState,
-  });
-}
-
-export async function writeMachineAgentRemovalSignal(
-  ctx: MutationCtx,
-  input: MachineSignalInput
-): Promise<void> {
-  await ctx.db.insert('chatroom_machineAgentRemovalSignals', {
-    ...baseMachineSignal(input),
-    kind: 'agent-removal',
-    reason: 'role-removed',
   });
 }

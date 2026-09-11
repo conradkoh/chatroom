@@ -12,7 +12,6 @@ import {
 } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { TaskSnapshotStateReader } from '../../../../infrastructure/inbox/task-snapshot-state.js';
 import type { TaskInboxUpdate } from '../../../../infrastructure/inbox/task.js';
 import type {
@@ -69,7 +68,6 @@ export interface NativeDeliveryServiceDependencies {
   /** Read-only compatibility façade; the instance is owned by TaskService. */
   readonly taskSnapshotState: TaskSnapshotStateReader;
   readonly agentTaskState: AgentTaskStateService;
-  readonly agentOperationalReadModel: AgentOperationalReadModel;
   readonly lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
   readonly taskService: TaskDeliveryService;
 }
@@ -374,7 +372,6 @@ export class NativeDeliveryService {
       this.deps.machineId,
       pass,
       this.deps.lifecycleOutbox,
-      this.deps.agentOperationalReadModel,
       ({ chatroomId, role, taskId }) =>
         this.deps.agentTaskState.get({ chatroomId, role })?.taskId === taskId,
       {

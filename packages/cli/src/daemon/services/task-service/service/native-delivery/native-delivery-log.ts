@@ -20,7 +20,6 @@ export function logNativeDeliveryDecision(
     slotState?: string;
     nativeTurnPhase?: string;
     harnessSessionPresent?: boolean;
-    operationalState?: string;
   }
 ): void {
   const taskSuffix = taskId ? ` task=${taskId}` : '';

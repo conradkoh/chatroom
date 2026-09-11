@@ -6,7 +6,6 @@ import {
   deriveAgentOperationalState,
   deriveAgentRoleViewState,
   deriveRoleOperationalState,
-  removeRoleFromSummary,
   type RoleConfigSnapshot,
   normalizeOperationalSummary,
   operationalSummariesEqual,
@@ -15,9 +14,7 @@ import {
 import { deriveRoleStopState } from './derive-agent-stop-state';
 import {
   writeMachineAgentOperationalSignal,
-  writeMachineAgentRemovalSignal,
   writeMachineAgentStopSignal,
-  writeMachineConnectivitySignal,
 } from './write-machine-operational-signal';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -290,39 +287,6 @@ export async function projectAgentStopStateForRole(
   }
 }
 
-/** HOT PATH: remove one role and update its summary without scanning configs. */
-export async function projectAgentOperationalStatusForRoleRemoved(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string
-): Promise<void> {
-  const row = await ctx.db
-    .query('chatroom_agentRoleOperationalStatus')
-    .withIndex('by_chatroom_role', (q) =>
-      q.eq('chatroomId', chatroomId).eq('role', role.toLowerCase())
-    )
-    .first();
-  if (row?.machineId) {
-    const projectedAt = Date.now();
-    await writeMachineAgentRemovalSignal(ctx, {
-      machineId: row.machineId,
-      chatroomId,
-      role,
-      revisionKey: `operational:${chatroomId}:${projectedAt}:removed`,
-      projectedAt,
-    });
-  }
-  if (row) await ctx.db.delete('chatroom_agentRoleOperationalStatus', row._id);
-  const summary = await summaryFor(ctx, chatroomId);
-  const room = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (summary && room)
-    await writeOperationalSummary(ctx, {
-      ...removeRoleFromSummary(summary, role),
-      chatroomId,
-      ownerId: room.ownerId,
-    });
-}
-
 /** HOT PATH: patch connectivity for machine-bound role rows and summaries. */
 export async function projectDaemonConnectivityForMachine(
   ctx: MutationCtx,
@@ -378,16 +342,6 @@ export async function projectDaemonConnectivityForMachine(
         projectedAt,
         revisionKey,
       });
-      if (row.machineId) {
-        await writeMachineConnectivitySignal(ctx, {
-          machineId: row.machineId,
-          chatroomId: config.chatroomId,
-          role: row.role,
-          revisionKey,
-          projectedAt,
-          daemonConnected,
-        });
-      }
       const projections = changed.get(config.chatroomId) ?? [];
       projections.push({
         role: row.role,

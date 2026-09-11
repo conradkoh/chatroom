@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { startOperationalInboxEffect } from './operational-inbox-runtime.js';
 import { refreshWorkspaceMembership } from './workspace-membership-refresh-registry.js';
 import { type AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
-import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/agent-operational-read-model.js';
+import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/operational-signal-feeds.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
 import {
   NativeDeliveryService,
@@ -492,7 +492,6 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     await operationalHandlers()[0]({
       chatroomId: 'room-1',
       rows: [updatedOpRow('room-1')],
-      removed: [],
       throughSignalKey: 'key-1',
     } as never);
 
@@ -565,7 +564,6 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
       operationalHandlers()[0]({
         chatroomId: 'room-1',
         rows: [updatedOpRow('room-1')],
-        removed: [],
         throughSignalKey: 'key-1',
       } as never)
     ).rejects.toThrow('processing failed');
@@ -590,7 +588,6 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
       operationalHandlers()[0]({
         chatroomId: 'room-1',
         rows: [opRow('room-1')],
-        removed: [],
         throughSignalKey: 'key-1',
       } as never)
     ).resolves.toBeUndefined();
@@ -693,8 +690,8 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
       operationalInboxImpl: reconnectableInboxImpl,
     });
 
-    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(4);
-    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(4);
+    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(2);
+    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(2);
     expect(calls.find((call) => call.chatroomId === 'room-2')?.signal.aborted).toBe(false);
 
     const taskCalls = vi.mocked(runTaskInbox).mock.calls;
@@ -707,8 +704,8 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
 
     // Room-1 restarts after the backoff; room-2 is untouched.
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(5);
-    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(4);
+    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(3);
+    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(2);
     expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(2);
 
     handle.stop();
@@ -734,13 +731,11 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
     const first = handler1({
       chatroomId: 'room-1',
       rows: [updatedOpRow('room-1')],
-      removed: [],
       throughSignalKey: 'k1',
     } as never);
     const second = handler2({
       chatroomId: 'room-2',
       rows: [updatedOpRow('room-2')],
-      removed: [],
       throughSignalKey: 'k2',
     } as never);
 

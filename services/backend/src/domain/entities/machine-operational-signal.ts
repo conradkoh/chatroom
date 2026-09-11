@@ -17,12 +17,7 @@ export const machineOperationalSignalScopeValidator = {
   chatroomId: v.id('chatroom_rooms'),
 } as const;
 
-export const MACHINE_OPERATIONAL_SIGNAL_KINDS = [
-  'agent-operational',
-  'connectivity',
-  'agent-stop',
-  'agent-removal',
-] as const;
+export const MACHINE_OPERATIONAL_SIGNAL_KINDS = ['agent-operational', 'agent-stop'] as const;
 
 export type MachineOperationalSignalKind = (typeof MACHINE_OPERATIONAL_SIGNAL_KINDS)[number];
 
@@ -45,12 +40,6 @@ export const machineAgentOperationalSignalValidator = v.object({
   kind: v.literal('agent-operational'),
 });
 
-export const machineConnectivitySignalValidator = v.object({
-  ...machineOperationalSignalSyncFields,
-  kind: v.literal('connectivity'),
-  daemonConnected: v.boolean(),
-});
-
 export const machineAgentStopSignalValidator = v.object({
   ...machineOperationalSignalSyncFields,
   kind: v.literal('agent-stop'),
@@ -63,21 +52,11 @@ export const machineAgentStopSignalValidator = v.object({
   ),
 });
 
-export const machineAgentRemovalSignalValidator = v.object({
-  ...machineOperationalSignalSyncFields,
-  kind: v.literal('agent-removal'),
-  reason: v.literal('role-removed'),
-});
-
 export const machineOperationalSignalValidator = v.union(
   machineAgentOperationalSignalValidator,
-  machineConnectivitySignalValidator,
-  machineAgentStopSignalValidator,
-  machineAgentRemovalSignalValidator
+  machineAgentStopSignalValidator
 );
 
 export type MachineAgentOperationalSignal = typeof machineAgentOperationalSignalValidator.type;
-export type MachineConnectivitySignal = typeof machineConnectivitySignalValidator.type;
 export type MachineAgentStopSignal = typeof machineAgentStopSignalValidator.type;
-export type MachineAgentRemovalSignal = typeof machineAgentRemovalSignalValidator.type;
 export type MachineOperationalSignal = typeof machineOperationalSignalValidator.type;
