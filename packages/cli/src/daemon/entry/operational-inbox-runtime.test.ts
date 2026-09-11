@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { startOperationalInboxEffect } from './operational-inbox-runtime.js';
 import { refreshWorkspaceMembership } from './workspace-membership-refresh-registry.js';
 import { type AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
-import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/agent-operational-read-model.js';
+import type { MachineAgentOperationalRow } from '../infrastructure/agent-operational/operational-signal-feeds.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
 import {
   NativeDeliveryService,

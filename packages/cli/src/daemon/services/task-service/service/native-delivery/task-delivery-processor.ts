@@ -23,7 +23,6 @@ import type {
   DaemonAgentProcessManagerServiceShape,
 } from '../../../../entry/daemon-services.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
-import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentProcessManagerService, TaskService } from '../../../service-interfaces.js';
 
 type TaskDeliveryService = Pick<
@@ -71,7 +70,6 @@ export async function processTasksUpdate(
   machineId: string,
   pass: TaskDeliveryPass | LegacyTaskDeliveryPass,
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> },
-  operationalModel: AgentOperationalReadModel,
   isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean,
   options: ProcessTasksUpdateOptions
 ): Promise<void> {
@@ -133,7 +131,6 @@ export async function processTasksUpdate(
     taskService,
     sessionDeps,
     lifecycleOutbox,
-    operationalModel,
     isTaskActive,
     machineId,
     onTaskDelivered: options.onTaskDelivered,

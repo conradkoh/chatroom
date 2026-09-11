@@ -6,7 +6,6 @@ import {
   deriveAgentOperationalState,
   deriveAgentRoleViewState,
   deriveRoleOperationalState,
-  removeRoleFromSummary,
   type RoleConfigSnapshot,
   normalizeOperationalSummary,
   operationalSummariesEqual,
@@ -286,29 +285,6 @@ export async function projectAgentStopStateForRole(
       stopState: stop.stopState,
     });
   }
-}
-
-/** HOT PATH: remove one role and update its summary without scanning configs. */
-export async function projectAgentOperationalStatusForRoleRemoved(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string
-): Promise<void> {
-  const row = await ctx.db
-    .query('chatroom_agentRoleOperationalStatus')
-    .withIndex('by_chatroom_role', (q) =>
-      q.eq('chatroomId', chatroomId).eq('role', role.toLowerCase())
-    )
-    .first();
-  if (row) await ctx.db.delete('chatroom_agentRoleOperationalStatus', row._id);
-  const summary = await summaryFor(ctx, chatroomId);
-  const room = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (summary && room)
-    await writeOperationalSummary(ctx, {
-      ...removeRoleFromSummary(summary, role),
-      chatroomId,
-      ownerId: room.ownerId,
-    });
 }
 
 /** HOT PATH: patch connectivity for machine-bound role rows and summaries. */

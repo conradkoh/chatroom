@@ -11,12 +11,12 @@
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
 import {
   operationalSignalFeeds,
   type OperationalSignalFeed,
   type OperationalSignalPage,
   type OperationalStatusSignal,
+  type MachineAgentOperationalRow,
 } from './operational-signal-feeds.js';
 
 const DEFAULT_SIGNAL_PAGE_LIMIT = 100;

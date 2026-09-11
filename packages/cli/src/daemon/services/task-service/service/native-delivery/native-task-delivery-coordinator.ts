@@ -9,6 +9,7 @@ import {
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
+import type { TaskOperationalAgent } from '../../domain/entities/operational-agent.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
@@ -20,7 +21,6 @@ import type {
 } from '../../../../entry/daemon-services.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
 import { isRestartOrchestratorInFlight } from '../../../../entry/restart-orchestrator-in-flight.js';
-import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
@@ -104,7 +104,6 @@ export class NativeTaskDeliveryCoordinator {
     lifecycleOutbox: {
       enqueue: (fact: AgentLifecycleFact) => Promise<unknown>;
     };
-    operationalModel: AgentOperationalReadModel;
     isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean;
     machineId: string;
     onTaskDelivered?:
@@ -123,7 +122,6 @@ export class NativeTaskDeliveryCoordinator {
       runtime,
       effectContext,
       agentMgr,
-      operationalModel,
       isTaskActive,
       onTaskDelivered,
       executors,
@@ -149,7 +147,7 @@ export class NativeTaskDeliveryCoordinator {
       if (!firstTask) continue;
       const { role } = firstTask.agentConfig;
       const slot = agentMgr.getSlot(firstTask.chatroomId, role);
-      const operational = operationalModel.get(firstTask.chatroomId, role);
+      let operational: TaskOperationalAgent | undefined;
       const activeTaskId = roleTasks.find((candidate) =>
         isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
       )?.taskId;

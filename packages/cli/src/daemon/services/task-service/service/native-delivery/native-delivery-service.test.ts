@@ -1,7 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { NativeDeliveryService } from './native-delivery-service.js';
-import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { MachineTaskSnapshotState } from '../../../../infrastructure/inbox/task-snapshot-state.js';
 import { createAgentTaskStateService } from '../../../agent-process-service/index.js';
 
@@ -43,7 +42,6 @@ function createService(
     machineId: 'machine-1',
     taskSnapshotState: new MachineTaskSnapshotState(),
     agentTaskState: createAgentTaskStateService(),
-    agentOperationalReadModel: new AgentOperationalReadModel(),
     lifecycleOutbox: { enqueue: (options.enqueueFact ?? (async () => undefined)) as never },
     taskService: {
       isNativeHarness: () => true,

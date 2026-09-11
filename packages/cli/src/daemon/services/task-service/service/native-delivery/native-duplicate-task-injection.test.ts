@@ -13,7 +13,6 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { withTestTaskService } from './test-task-service.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
@@ -76,8 +75,6 @@ describe('native duplicate task injection', () => {
 
     const coordinator = new NativeTaskDeliveryCoordinator();
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const operationalModel = new AgentOperationalReadModel();
-    operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
     const activeTaskIds = new Set<string>();
 
     const reconcileParams = withTestTaskService({
@@ -103,7 +100,6 @@ describe('native duplicate task injection', () => {
       },
       machineId: 'machine_dup',
       lifecycleOutbox: { enqueue: async () => undefined },
-      operationalModel,
       isTaskActive: ({ taskId }: { taskId: string }) => activeTaskIds.has(taskId),
       onTaskDelivered: ({ taskId }: { taskId: string }) => activeTaskIds.add(taskId),
     });
@@ -128,8 +124,6 @@ describe('native duplicate task injection', () => {
   test('uses explicit production executors for start and injection side effects', async () => {
     const row = makeAcknowledgedRow();
     const agentMgr = makeAgentMgr(vi.fn());
-    const operationalModel = new AgentOperationalReadModel();
-    operationalModel.replace([operationalRow(CHATROOM_ID, ROLE)]);
     const delivered = {
       chatroomId: CHATROOM_ID,
       role: ROLE,
@@ -156,7 +150,6 @@ describe('native duplicate task injection', () => {
       },
       machineId: 'machine_dup',
       lifecycleOutbox: { enqueue: async () => undefined },
-      operationalModel,
       isTaskActive: () => false,
       onTaskDelivered,
       executors: {

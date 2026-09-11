@@ -1,12 +1,28 @@
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import type { MachineAgentOperationalRow } from './agent-operational-read-model.js';
 import type { Id } from '../../../api.js';
 import { api } from '../../../api.js';
 import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 
 export type OperationalSignalKind = 'agent-operational' | 'agent-stop';
+
+export type MachineAgentOperationalRow = {
+  readonly chatroomId: string;
+  readonly role: string;
+  readonly operationalState: 'running' | 'stopped' | 'starting' | 'circuit_open';
+  readonly isAlive: boolean;
+  readonly isRunning: boolean;
+  readonly daemonConnected: boolean;
+  readonly revisionKey: string;
+  readonly stopState?:
+    | 'idle'
+    | 'pending'
+    | 'stopping'
+    | 'stopped'
+    | 'failed'
+    | undefined;
+};
 
 export type OperationalStatusSignal = {
   readonly chatroomId: string;
