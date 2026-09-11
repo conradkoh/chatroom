@@ -44,7 +44,6 @@ describe('projectAgentRoleStatusReadModel', () => {
         workingDir: '/tmp',
         enabled: true,
         desiredState: 'running',
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });

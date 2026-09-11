@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
-import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
@@ -50,7 +49,7 @@ import { useMachineConfigFavorites } from '../features/machine-config/hooks/useM
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
 import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
 import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
-import { isActiveAgentStopState, useAgentStop } from '../hooks/useAgentStop';
+import { useAgentStop } from '../hooks/useAgentStop';
 import { en } from '../lang/en';
 import type {
   AgentHarness,
@@ -202,7 +201,6 @@ export function useAgentControls({
   teamConfigMachineId,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
-  agentRoleView,
   lockedMachineId,
   lockedWorkingDir,
   teamId,
@@ -225,7 +223,6 @@ export function useAgentControls({
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
-  agentRoleView?: AgentRoleView;
   /** Setup wizard: lock machine and working directory. */
   lockedMachineId?: string;
   lockedWorkingDir?: string;
@@ -402,9 +399,8 @@ export function useAgentControls({
   ]);
 
   const isAgentRunning = !!displayAgentConfig;
-  const stopState = agentRoleView?.stopState ?? 'idle';
-  const isStopping = isStopSubmitting || isActiveAgentStopState(stopState);
-  const stopFailed = stopState === 'failed';
+  const isStopping = isStopSubmitting;
+  const stopFailed = false;
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
@@ -599,7 +595,6 @@ export function useAgentControls({
     isStarting,
     isStopping,
     stopFailed,
-    stopState,
     error,
     success,
     roleConfigs,

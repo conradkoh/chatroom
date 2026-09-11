@@ -13,9 +13,8 @@ import { startTargetTeamAgentsOnSwitch } from './start-target-team-agents-on-swi
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
-import { createAgentStopCommand } from '../agent/create-agent-stop-command';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
-import type { AgentStopSelectedConfig } from '../agent/select-agent-stop-configs';
+import { requestChatroomWorkspaceAgentStop } from '../agent/request-chatroom-workspace-agent-stop';
 import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
 
@@ -67,19 +66,10 @@ export async function updateTeam(
     (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
   );
   const outgoingStoppable = outgoingConfigs.filter(
-    (c): c is AgentStopSelectedConfig =>
-      c.type === 'remote' &&
-      c.machineId != null &&
-      c.spawnedAgentPid != null &&
-      c.agentHarness != null
+    (c) => c.type === 'remote' && c.machineId != null && c.spawnedAgentPid != null
   );
   if (outgoingStoppable.length > 0) {
-    await createAgentStopCommand(ctx, {
-      chatroomId,
-      scope: { kind: 'chatroom' },
-      reason: 'platform.team_switch',
-      selectedConfigs: outgoingStoppable,
-    });
+    await requestChatroomWorkspaceAgentStop(ctx, { chatroomId, finalizeChatroom: false });
     stoppedAgentCount = outgoingStoppable.length;
   }
 
@@ -145,7 +135,6 @@ export async function updateTeam(
           updatedAt: now,
           desiredState: 'stopped',
           enabled: true,
-          lifecycleRevision: 0,
           ...seedFields,
         });
         affectedMachineIds.add(seedFields.machineId);

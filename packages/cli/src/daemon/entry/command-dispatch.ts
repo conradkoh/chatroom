@@ -34,8 +34,6 @@ import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event
 import type { AgentWorkManager } from '../services/service-interfaces.js';
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
-import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
-import { onStopScopeAgentEffect } from './events/agent/on-stop-scope-agent.js';
 import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
@@ -140,18 +138,6 @@ function handleRequestRestartEffect(
       event as unknown as Parameters<typeof onRequestRestartAgentEffect>[0],
       nativeDelivery
     );
-    tracker.commandIds.set(eventId, Date.now());
-  });
-}
-
-function handleRequestStopEffect(
-  event: CommandEvent,
-  tracker: DedupTracker
-): Effect.Effect<void, never, DaemonAgentProcessManagerService> {
-  return Effect.gen(function* () {
-    const eventId = event._id.toString();
-    if (tracker.commandIds.has(eventId)) return;
-    yield* onRequestStopAgentEffect(event as Parameters<typeof onRequestStopAgentEffect>[0]);
     tracker.commandIds.set(eventId, Date.now());
   });
 }
@@ -315,14 +301,6 @@ const commandEventHandlers: {
 } = {
   'agent.requestStart': handleRequestStartEffect,
   'agent.restart': handleRequestRestartEffect,
-  'agent.requestStop': handleRequestStopEffect,
-  'agent.stopScope': (event, tracker) =>
-    Effect.gen(function* () {
-      const eventId = String((event as any).commandId ?? (event as any)._id);
-      if (tracker.commandIds.has(eventId)) return;
-      yield* onStopScopeAgentEffect(event as any);
-      tracker.commandIds.set(eventId, Date.now());
-    }),
   'daemon.ping': handlePingCommandEffect,
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.workspaceListChanged': handleWorkspaceListChangedCommandEffect,

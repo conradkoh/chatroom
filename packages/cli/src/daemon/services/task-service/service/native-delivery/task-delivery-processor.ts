@@ -4,7 +4,7 @@
  * Task delivery processor for inbox updates and periodic reconciliation.
  *
  * Lifecycle activation is owned by the agent process manager service. This
- * module only filters snapshots and delegates ready work to native delivery.
+ * module only filters tasks and delegates ready work to native delivery.
  */
 
 import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
@@ -19,7 +19,7 @@ import type { TaskDeliveryService } from './task-delivery-service.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import {
   resolveAgentRuntimeConfig,
-  type AssignedTaskSnapshotView,
+  type AssignedTask,
 } from '../../../../domain/entities/assigned-task.js';
 import type {
   DaemonAgentProcessManagerService,
@@ -36,7 +36,7 @@ export type TaskDeliveryContext = Context.Context<
   DaemonSessionService | DaemonAgentProcessManagerService
 >;
 export type ProcessTasksUpdateOptions = {
-  snapshots: readonly AssignedTaskSnapshotView[];
+  tasks: readonly AssignedTask[];
   onTaskDelivered?: (args: {
     chatroomId: string;
     role: string;
@@ -67,11 +67,11 @@ export async function processTasksUpdate(
   isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean,
   options: ProcessTasksUpdateOptions
 ): Promise<void> {
-  const first = options.snapshots[0];
+  const first = options.tasks[0];
   if (!first) return;
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
-    startAgent: (task: AssignedTaskSnapshotView) => {
+    startAgent: (task: AssignedTask) => {
       const runtimeConfig = resolveAgentRuntimeConfig(
         task,
         agentMgr.getSlot(task.chatroomId, task.agentConfig.role)
@@ -90,14 +90,13 @@ export async function processTasksUpdate(
               workingDir: runtimeConfig.workingDir,
               reason: AgentStartReasonEnum['platform.pending_task_wake'],
               wantResume: false,
-              lifecycleRevision: task.agentConfig.configLifecycleRevision,
               taskId: task.taskId,
             },
             context.signal
           )
       );
     },
-    injectTask: async (task: AssignedTaskSnapshotView, harnessSessionId: string | undefined) => {
+    injectTask: async (task: AssignedTask, harnessSessionId: string | undefined) => {
       const full = await taskService.loadAssignedTaskForAction({
         chatroomId: task.chatroomId,
         role: task.agentConfig.role,
@@ -119,7 +118,7 @@ export async function processTasksUpdate(
     },
   };
   await getNativeTaskDeliveryCoordinator().reconcileRoleTasks({
-    tasks: [...options.snapshots],
+    tasks: [...options.tasks],
     pass,
     runtime,
     effectContext,

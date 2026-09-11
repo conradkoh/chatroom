@@ -126,12 +126,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         const currentSlot = yield* getSlotFromRef(key);
 
         if (currentSlot && currentSlot.state !== 'idle') {
-          if (
-            opts.lifecycleRevision !== undefined &&
-            currentSlot.authorizedLifecycleRevision !== opts.lifecycleRevision
-          ) {
-            return { success: false, error: 'stale_revision' };
-          }
           return {
             success: true,
             pid: currentSlot.pid,
@@ -182,10 +176,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         // Actual stop via harness port (if pid exists)
         if (stoppingSlot.pid) {
           yield* ports.harness
-            .stop(
-              stoppingSlot.pid,
-              (stoppingSlot as AgentLifecycleSlot).harness
-            )
+            .stop(stoppingSlot.pid, (stoppingSlot as AgentLifecycleSlot).harness)
             .pipe(Effect.ignore);
         }
 

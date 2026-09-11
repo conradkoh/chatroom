@@ -4,7 +4,7 @@ import {
   explainColdSessionDeliveryBlock,
   isColdStartEligibleSlotState,
   isNativeColdSessionDeliveryOwnedSpawn,
-  snapshotRequestsNativeColdSession,
+  taskRequestsNativeColdSession,
 } from './native-cold-session-delivery.js';
 
 const coldTask = {
@@ -24,11 +24,11 @@ const coldTask = {
 };
 
 describe('native-cold-session-delivery', () => {
-  it('detects explicit cold-session intent on snapshots', () => {
-    expect(snapshotRequestsNativeColdSession(coldTask)).toBe(true);
-    expect(
-      snapshotRequestsNativeColdSession({ ...coldTask, requestsNativeColdSession: false })
-    ).toBe(false);
+  it('detects explicit cold-session intent on tasks', () => {
+    expect(taskRequestsNativeColdSession(coldTask)).toBe(true);
+    expect(taskRequestsNativeColdSession({ ...coldTask, requestsNativeColdSession: false })).toBe(
+      false
+    );
   });
 
   it('treats missing or idle slots as delivery-owned spawn for cold-session tasks', () => {

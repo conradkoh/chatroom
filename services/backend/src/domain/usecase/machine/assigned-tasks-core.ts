@@ -2,7 +2,7 @@
  * Shared helpers for machine assigned-task queries.
  */
 
-import type { AssignedTaskSnapshotView } from './assigned-tasks-types';
+import type { AssignedTask } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 
@@ -53,7 +53,7 @@ export async function getParticipantForChatroomRole(
 // fallow-ignore-next-line complexity
 export function toParticipantView(
   participant: Doc<'chatroom_participants'> | null
-): AssignedTaskSnapshotView['participant'] {
+): AssignedTask['participant'] {
   if (!participant) {
     return {
       lastSeenAction: null,

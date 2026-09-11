@@ -9,8 +9,7 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
-import { createAgentStopCommand } from './create-agent-stop-command';
-import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
+import { requestWorkspaceAgentStop } from './request-chatroom-workspace-agent-stop';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
@@ -45,26 +44,11 @@ export async function ensureOnlyAgentForRole(
       config.type === 'remote' && config.machineId != null && config.machineId !== excludeMachineId
   );
 
-  const affectedMachineIds = new Set<string>();
-
-  const stoppable = conflicting.filter(
-    (config): config is AgentStopSelectedConfig =>
-      config.type === 'remote' &&
-      config.machineId != null &&
-      config.spawnedAgentPid != null &&
-      config.agentHarness != null
-  );
-  if (stoppable.length > 0) {
-    await createAgentStopCommand(ctx, {
-      chatroomId,
-      scope: { kind: 'agent', role },
-      reason: 'platform.dedup',
-      selectedConfigs: stoppable,
-    });
-  }
-  for (const config of stoppable) {
-    if (config.machineId) {
-      affectedMachineIds.add(config.machineId);
-    }
-  }
+  for (const config of conflicting)
+    if (config.machineId)
+      await requestWorkspaceAgentStop(ctx, {
+        chatroomId,
+        machineId: config.machineId,
+        role,
+      });
 }

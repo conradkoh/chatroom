@@ -9,21 +9,20 @@
 
 import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
-import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { ConvexClient, SessionId, WorkspaceForSync } from './daemon-types.js';
-import type { AgentRequestStopEventPayload } from './events/agent/on-request-stop-agent.js';
 import type { DaemonEventBus } from './events/event-bus.js';
-import type { ScopedStopExecutionSummary } from './execute-scoped-stop-command.js';
-import { executeScopedStopForCommand } from './execute-scoped-stop-command.js';
-import { isAgentStopReason } from '../../../../../services/backend/src/domain/entities/agent.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
 import type { TryConsumeResult } from '../../infrastructure/services/harness-spawning/index.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
-import type { AgentStopReason } from '../domain/entities/agent-stop.js';
+import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
+import type {
+  AgentLifecycleOutboxRegistry,
+  AgentLifecycleOutboxResult,
+} from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type {
   AgentProcessManager,
   AgentProcessSlotView,
@@ -35,13 +34,8 @@ import type {
   OperationResult,
   StopOpts,
 } from '../services/agent-process-service/index.js';
-import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
-import type {
-  AgentLifecycleOutboxRegistry,
-  AgentLifecycleOutboxResult,
-} from '../infrastructure/outbox/agent-lifecycle-outbox.js';
-import type { AgentProcessManagerService } from '../services/service-interfaces.js';
-import type { TaskService } from '../services/service-interfaces.js';
+import type { AgentProcessManagerService, TaskService } from '../services/service-interfaces.js';
+
 export { createTaskService, type TaskService } from '../services/service-interfaces.js';
 
 export interface AgentLifecycleOutboxServiceShape {
@@ -123,28 +117,6 @@ export const DaemonSpawningServiceLive = (ops: SpawningOps): Layer.Layer<DaemonS
 
 /** Effect service wrapping AgentProcessManager — precise types from the class. */
 export interface DaemonAgentProcessManagerServiceShape {
-  executeScopedStopForCommand?:
-    | ((args: {
-        stopCommandId: string;
-        chatroomId: string;
-        scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
-        reason: AgentStopReason;
-        inboxCommandId: string;
-      }) => Effect.Effect<ScopedStopExecutionSummary>)
-    | undefined;
-  runInboxRoleScopedStop?:
-    ((event: AgentRequestStopEventPayload) => Effect.Effect<void>) | undefined;
-  runInboxScopedStop?:
-    | ((event: {
-        commandId?: string | undefined;
-        _id?: string | undefined;
-        stopCommandId: string;
-        chatroomId: string;
-        scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
-        reason: string;
-        deadline: number;
-      }) => Effect.Effect<void>)
-    | undefined;
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
@@ -174,92 +146,9 @@ export class DaemonAgentProcessManagerService extends Context.Tag(
 
 export const DaemonAgentProcessManagerServiceLive = (
   mgr: AgentProcessManager,
-  processManagerService: AgentProcessManagerService,
-  sessionDeps?: {
-    sessionId: string;
-    machineId: string;
-    backend: DaemonSessionServiceShape['backend'];
-  }
+  processManagerService: AgentProcessManagerService
 ): Layer.Layer<DaemonAgentProcessManagerService> =>
   Layer.succeed(DaemonAgentProcessManagerService, {
-    executeScopedStopForCommand: (args) =>
-      Effect.promise(async () => {
-        if (!sessionDeps) return { stoppedCount: 0, failedCount: 0 };
-        return executeScopedStopForCommand({
-          ...sessionDeps,
-          apm: mgr,
-          runSerializedForAgent: processManagerService.runSerializedForAgent,
-          ...args,
-        });
-      }),
-    runInboxRoleScopedStop: (event) =>
-      Effect.promise(async () => {
-        const { runRoleScopedStop } =
-          await import('../services/service-interfaces.js');
-        const legacyReason: Record<string, string> = {
-          'team.switch': 'platform.team_switch',
-          dedup: 'platform.dedup',
-          'stale-config': 'platform.dedup',
-        };
-        const reason = isAgentStopReason(event.reason)
-          ? event.reason
-          : (legacyReason[event.reason] ?? 'user.stop');
-        if (Date.now() > event.deadline) return;
-        const execute = async (
-          stopAgent: (opts: StopOpts, signal: AbortSignal) => Promise<{ success: boolean }>,
-          signal: AbortSignal
-        ) => {
-          const result = await runRoleScopedStop({
-            apm: mgr,
-            confirmedDeps: mgr.getConfirmedStopAdapterDeps(),
-            chatroomId: event.chatroomId as string,
-            role: event.role,
-            reason: reason as AgentStopReason,
-          });
-          if (result.targets.length === 0 && result.failures.length === 0 && event.pid) {
-            await stopAgent(
-              {
-                chatroomId: event.chatroomId as string,
-                role: event.role,
-                reason: reason as never,
-                pid: event.pid,
-              },
-              signal
-            );
-          }
-          for (const failure of result.failures)
-            console.warn(
-              `[daemon] scoped stop failed for ${failure.target.targetKey}`,
-              failure.error
-            );
-        };
-        await processManagerService.runSerializedForAgent(
-          { chatroomId: event.chatroomId as string, role: event.role },
-          { timeoutMs: SCOPE_TARGET_STOP_TIMEOUT_MS },
-          async (ops, context) => {
-            if (context.signal.aborted) throw context.signal.reason;
-            await execute(ops.stopAgent, context.signal);
-          }
-        );
-      }),
-    runInboxScopedStop: (event) =>
-      Effect.promise(async () => {
-        if (!sessionDeps) return;
-        const inboxCommandId = (event.commandId ?? event._id) as string;
-        const reason = isAgentStopReason(event.reason) ? event.reason : 'user.stop';
-        await executeScopedStopForCommand({
-          sessionId: sessionDeps.sessionId,
-          machineId: sessionDeps.machineId,
-          backend: sessionDeps.backend,
-          apm: mgr,
-          stopCommandId: event.stopCommandId,
-          chatroomId: event.chatroomId,
-          scope: event.scope,
-          reason: reason as AgentStopReason,
-          inboxCommandId,
-          runSerializedForAgent: processManagerService.runSerializedForAgent,
-        });
-      }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),
@@ -271,7 +160,8 @@ export const DaemonAgentProcessManagerServiceLive = (
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
     subscribeAgentTurnEnded: (handler) => processManagerService.subscribeAgentTurnEnded(handler),
     subscribeAgentStarted: (handler) => processManagerService.subscribeAgentStarted(handler),
-    subscribeAgentSessionLost: (handler) => processManagerService.subscribeAgentSessionLost(handler),
+    subscribeAgentSessionLost: (handler) =>
+      processManagerService.subscribeAgentSessionLost(handler),
   });
 
 /**

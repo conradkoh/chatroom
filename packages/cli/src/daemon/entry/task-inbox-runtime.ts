@@ -55,7 +55,7 @@ export const startTaskInboxEffect = (): Effect.Effect<
       runSerializedForAgent: commandService.runSerializedForAgent,
       sessionDeps,
       machineId: session.machineId,
-      taskSnapshotState: session.taskService.taskSnapshotState,
+      taskInboxState: session.taskService.taskInboxState,
       agentTaskState,
       lifecycleOutbox,
       taskService: session.taskService,

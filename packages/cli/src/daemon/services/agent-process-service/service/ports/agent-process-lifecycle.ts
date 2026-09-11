@@ -17,7 +17,6 @@ export interface EnsureAgentProcessInput {
   readonly workingDir: string;
   readonly reason: string;
   readonly wantResume: boolean;
-  readonly lifecycleRevision?: number | undefined;
   readonly taskId?: string | undefined;
   readonly initPrompt?: string | undefined;
   readonly systemPrompt?: string | undefined;

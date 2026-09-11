@@ -17,10 +17,10 @@ import {
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
 import {
-  createTaskSnapshot,
-  snapshotDocToSignal,
-  type TaskSnapshotFixtureDoc,
-} from './test-fixtures/task-snapshot-fixture.js';
+  createTaskState,
+  taskDocToSignal,
+  type TaskFixtureDoc,
+} from './test-fixtures/task-fixture.js';
 import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
@@ -31,9 +31,7 @@ const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
 const SESSION_ID = 'session-native-queued-delivery';
 
-function makePostAgentEndSnapshotDoc(
-  overrides: Partial<TaskSnapshotFixtureDoc> = {}
-): TaskSnapshotFixtureDoc {
+function makePostAgentEndSnapshotDoc(overrides: Partial<TaskFixtureDoc> = {}): TaskFixtureDoc {
   const now = 1_700_000_000_000;
   return {
     machineId: MACHINE_ID,
@@ -53,7 +51,7 @@ function makePostAgentEndSnapshotDoc(
 }
 
 function makeFullTaskFromSnapshot(
-  row: NonNullable<ReturnType<ReturnType<typeof createTaskSnapshot>['mergeSignal']>>
+  row: NonNullable<ReturnType<ReturnType<typeof createTaskState>['mergeSignal']>>
 ): AssignedTaskWithContent {
   return {
     ...row,
@@ -63,9 +61,9 @@ function makeFullTaskFromSnapshot(
 
 describe('native queued delivery after agent_end', () => {
   test('coordinator injects promoted pending task when participant is idle-after-complete', async () => {
-    const snapshot = createTaskSnapshot();
+    const snapshot = createTaskState();
     snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(snapshotDocToSignal(makePostAgentEndSnapshotDoc()));
+    const row = snapshot.mergeSignal(taskDocToSignal(makePostAgentEndSnapshotDoc()));
     expect(row).toBeDefined();
 
     const backendMutation = vi.fn().mockResolvedValue(undefined);
@@ -141,9 +139,9 @@ describe('native queued delivery after agent_end', () => {
   });
 
   test('shouldDeliverNativeTask true for post-agent_end participant shape', () => {
-    const snapshot = createTaskSnapshot();
+    const snapshot = createTaskState();
     snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(snapshotDocToSignal(makePostAgentEndSnapshotDoc()));
+    const row = snapshot.mergeSignal(taskDocToSignal(makePostAgentEndSnapshotDoc()));
     expect(row).toBeDefined();
 
     const slot = {

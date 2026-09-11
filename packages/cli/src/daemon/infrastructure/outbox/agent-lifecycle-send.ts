@@ -18,6 +18,9 @@ function toConvexLifecycleFact(fact: AgentLifecycleFact): ConvexLifecycleFact {
   return {
     ...normalized,
     chatroomId: normalized.chatroomId as Id<'chatroom_rooms'>,
+    ...(normalized.kind === 'chatroom_shutdown_complete'
+      ? { commandId: normalized.commandId as Id<'chatroomWorkspaceAgentCommandsInbox'> }
+      : {}),
     ...((normalized.kind === 'activity' || normalized.kind === 'turn_failed') && normalized.taskId
       ? { taskId: normalized.taskId as Id<'chatroom_tasks'> }
       : {}),
@@ -37,11 +40,6 @@ export function createAgentLifecycleSend(
       api.machines.projectAgentLifecycleFact,
       args
     )) as AgentLifecycleOutboxResult;
-    return {
-      ...result,
-      ...(result.skipped && result.rejectionReason
-        ? { rejectionReason: result.rejectionReason }
-        : {}),
-    };
+    return result;
   };
 }

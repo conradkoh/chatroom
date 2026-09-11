@@ -7,9 +7,9 @@ import type {
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 
 import { api, type Id } from '../../../../../api.js';
-import { mapAssignedTaskView } from '../../../../../infrastructure/mappers/map-assigned-task.js';
+import { mapAssignedTaskView } from '../../../../../infrastructure/mappers/map-assigned-task-view.js';
 import type {
-  AssignedTaskSnapshotView,
+  AssignedTask,
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
 import type { NativeTaskDeliveryGateway } from '../../service/ports/native-task-delivery.js';
@@ -59,7 +59,7 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
     releaseTaskAfterTurnFailure: (args) =>
       backend.mutation(api.tasks.releaseTaskAfterTurnFailure, args) as Promise<{
         released: boolean;
-        status: AssignedTaskSnapshotView['status'];
+        status: AssignedTask['status'];
         updatedAt: number;
       }>,
     loadDeliveryPrompt: (args) =>

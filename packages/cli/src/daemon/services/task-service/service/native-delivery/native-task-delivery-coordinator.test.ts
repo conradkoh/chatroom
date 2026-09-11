@@ -25,8 +25,6 @@ function acknowledgedRow() {
     agentConfig: {
       role: ROLE,
       machineId: 'machine_coordinator',
-      spawnedAgentPid: 42_001,
-      desiredState: 'running' as const,
     },
     assignee: {
       type: TaskAssigneeType.Ephemeral,
@@ -109,7 +107,7 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          snapshotRequestsNativeColdSession: () => false,
+          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         },
         onTaskDelivered,
@@ -143,7 +141,7 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          snapshotRequestsNativeColdSession: () => false,
+          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         },
       })

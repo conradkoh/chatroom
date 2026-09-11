@@ -25,7 +25,7 @@ export {
   explainAgentReadyForNativeDeliveryBlock,
 } from './domain/usecase/native-ready-invariant.js';
 export {
-  snapshotRequestsNativeColdSession,
+  taskRequestsNativeColdSession,
   isNativeColdSessionDeliveryOwnedSpawn,
   explainColdSessionDeliveryBlock,
 } from './domain/usecase/native-cold-session-delivery.js';
