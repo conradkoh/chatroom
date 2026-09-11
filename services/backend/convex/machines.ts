@@ -24,8 +24,6 @@ import {
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
-import { machineOperationalSignalScopeValidator } from '../src/domain/entities/machine-operational-signal';
-import { ackMachineSignalRows } from '../src/domain/usecase/agent/ack-machine-operational-signals';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
@@ -45,13 +43,7 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
-import { listMachineAgentOperationalStatus as listMachineAgentOperationalStatusUseCase } from '../src/domain/usecase/machine/list-machine-agent-operational-status';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
-import {
-  listOperationalStatusForMachineSignalRange as listOperationalStatusForMachineSignalRangeUseCase,
-  type OperationalSignalTable,
-  type ListOperationalStatusForMachineSignalRangeResult,
-} from '../src/domain/usecase/machine/list-operational-status-for-machine-signal-range';
 import {
   patchTeamAgentConfig,
   projectAfterTeamConfigRegistration,
@@ -682,8 +674,6 @@ export const getDaemonStatus = query({
 });
 
 const MAX_DAEMON_STATUS_BATCH = 10;
-const DEFAULT_OPERATIONAL_SIGNALS_LIMIT = 100;
-const MAX_OPERATIONAL_SIGNALS_LIMIT = 500;
 
 /** Batch daemon connectivity for multiple machines in one subscription. */
 export const getDaemonStatusesBatch = query({
@@ -2214,189 +2204,6 @@ export const listMachineAssignedTaskSnapshots = query({
     });
   },
 });
-
-const operationalSignalTables = {
-  agentOperational: 'chatroom_machineAgentOperationalSignals',
-  agentStop: 'chatroom_machineAgentStopSignals',
-} as const satisfies Record<string, OperationalSignalTable>;
-
-type MachineSignalArgs = {
-  sessionId: string;
-  machineId: string;
-  chatroomId: Id<'chatroom_rooms'>;
-  afterKey: string;
-  limit?: number;
-};
-
-async function listMachineSignalPage(
-  ctx: QueryCtx,
-  args: MachineSignalArgs,
-  signalTable: OperationalSignalTable
-) {
-  const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-  if (!auth) return null;
-
-  const limit = Math.min(
-    Math.max(args.limit ?? DEFAULT_OPERATIONAL_SIGNALS_LIMIT, 1),
-    MAX_OPERATIONAL_SIGNALS_LIMIT
-  );
-  const page = await ctx.db
-    .query(signalTable)
-    .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-      q
-        .eq('machineId', args.machineId)
-        .eq('chatroomId', args.chatroomId)
-        .gt('signalKey', args.afterKey)
-    )
-    .order('asc')
-    .take(limit + 1);
-  const items = page.slice(0, limit).map((row) => ({
-    chatroomId: row.chatroomId,
-    role: row.role,
-    revisionKey: row.revisionKey,
-    signalKey: row.signalKey,
-    projectedAt: row.projectedAt,
-  }));
-  const lastItem = items.at(-1);
-  if (!lastItem) return null;
-  return { items, highKey: lastItem.signalKey, hasMore: page.length > limit };
-}
-
-/** Reactive cursor-pinned role operational-state signals. */
-export const subscribeMachineAgentOperationalSignalsSince = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
-    return listMachineSignalPage(ctx, args, operationalSignalTables.agentOperational);
-  },
-});
-
-/** Reactive cursor-pinned role stop-state signals. */
-export const subscribeMachineAgentStopSignalsSince = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
-    return listMachineSignalPage(ctx, args, operationalSignalTables.agentStop);
-  },
-});
-
-async function listOperationalRowsForSignalRange(
-  ctx: QueryCtx,
-  args: {
-    sessionId: string;
-    machineId: string;
-    chatroomId: Id<'chatroom_rooms'>;
-    afterSignalKey: string;
-    throughSignalKey: string;
-    limit?: number;
-  },
-  signalTable: OperationalSignalTable
-): Promise<ListOperationalStatusForMachineSignalRangeResult> {
-  const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-  if (!auth) return { rows: [], nextSignalKey: null, hasMore: false };
-  return listOperationalStatusForMachineSignalRangeUseCase(
-    ctx,
-    {
-      machineId: args.machineId,
-      chatroomId: String(args.chatroomId),
-      userId: auth.userId,
-      afterSignalKey: args.afterSignalKey,
-      throughSignalKey: args.throughSignalKey,
-      limit: Math.min(
-        Math.max(args.limit ?? MAX_OPERATIONAL_SIGNALS_LIMIT, 1),
-        MAX_OPERATIONAL_SIGNALS_LIMIT
-      ),
-    },
-    signalTable
-  );
-}
-
-/** Hydrate rows for role operational-state signal delivery. */
-export const listMachineAgentOperationalStatusForSignalRange = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterSignalKey: v.string(),
-    throughSignalKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
-      return { rows: [], nextSignalKey: null, hasMore: false };
-    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentOperational);
-  },
-});
-
-/** Hydrate rows for role stop-state signal delivery. */
-export const listMachineAgentStopStatusForSignalRange = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterSignalKey: v.string(),
-    throughSignalKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
-      return { rows: [], nextSignalKey: null, hasMore: false };
-    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentStop);
-  },
-});
-
-/** One-shot operational-status bootstrap for this machine. */
-export const listMachineAgentOperationalStatus = query({
-  args: { ...SessionIdArg, machineId: v.string() },
-  handler: async (ctx, args) => {
-    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) return [];
-    return listMachineAgentOperationalStatusUseCase(ctx, {
-      machineId: args.machineId,
-      userId: auth.userId,
-    });
-  },
-});
-
-function ackMachineSignalMutation(signalTable: OperationalSignalTable) {
-  return mutation({
-    args: {
-      ...SessionIdArg,
-      ...machineOperationalSignalScopeValidator,
-      throughSignalKey: v.string(),
-    },
-    handler: async (ctx, args) => {
-      await requireMachineOwner(ctx, args.sessionId, args.machineId);
-      return ackMachineSignalRows(
-        ctx,
-        {
-          machineId: args.machineId,
-          chatroomId: args.chatroomId,
-          throughSignalKey: args.throughSignalKey,
-        },
-        signalTable
-      );
-    },
-  });
-}
-
-/** Acknowledge role operational-state signals. */
-export const ackMachineAgentOperationalSignals = ackMachineSignalMutation(
-  operationalSignalTables.agentOperational
-);
-
-/** Acknowledge role stop-state signals. */
-export const ackMachineAgentStopSignals = ackMachineSignalMutation(
-  operationalSignalTables.agentStop
-);
 
 /**
  * Rebuild snapshot projection rows for this machine (daemon startup backfill).

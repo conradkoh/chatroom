@@ -7,6 +7,11 @@ const unregisterFileInboundHandler = vi.fn();
 const registerWorkspaceGitInboundHandler = vi.fn();
 const unregisterWorkspaceGitInboundHandler = vi.fn();
 const drainPendingFileTreeReleaseRequests = vi.fn().mockResolvedValue(undefined);
+const taskInboxStop = vi.fn();
+const nativeDelivery = {
+  dispose: vi.fn(),
+  agentTaskState: { clearAll: vi.fn() },
+};
 
 vi.mock('./command-inbound-registry.js', () => ({
   registerCommandInboundHandler,
@@ -20,6 +25,12 @@ vi.mock('./workspace-git-inbound-registry.js', () => ({
   registerWorkspaceGitInboundHandler,
   unregisterWorkspaceGitInboundHandler,
 }));
+vi.mock('./task-inbox-runtime.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    startTaskInboxEffect: () => Effect.succeed({ stop: taskInboxStop, nativeDelivery }),
+  };
+});
 
 vi.mock('./workspace-git/git-subscription.js', async () => {
   const { Effect } = await import('effect');
@@ -49,10 +60,6 @@ vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
 vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: () => ({ stop: vi.fn() }),
 }));
-vi.mock('./operational-inbox-runtime.js', async () => {
-  const { Effect } = await import('effect');
-  return { startOperationalInboxEffect: () => Effect.succeed({ stop: vi.fn() }) };
-});
 vi.mock('../../commands/machine/pid.js', () => ({
   releaseLock: vi.fn(),
 }));

@@ -1,12 +1,7 @@
 type NativeDeliveryPass =
-  | 'inbox-signal'
-  | 'periodic-reconcile'
-  | 'bootstrap'
-  | 'operational-status'
-  | 'restart'
-  | 'agent-started';
+  'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'restart' | 'agent-started';
 type ExtendedNativeDeliveryPass =
-  NativeDeliveryPass | 'task-signal' | 'operational-signal' | 'turn-ended' | 'restart-completed';
+  NativeDeliveryPass | 'task-signal' | 'agent-session-lost' | 'turn-ended' | 'restart-completed';
 
 export function logNativeDeliveryDecision(
   source: ExtendedNativeDeliveryPass,

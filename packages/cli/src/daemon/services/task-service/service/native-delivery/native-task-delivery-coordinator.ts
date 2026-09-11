@@ -64,15 +64,10 @@ export type NativeDeliveryExecutors = {
 };
 
 type DeliveryPass =
-  | 'inbox-signal'
-  | 'periodic-reconcile'
-  | 'bootstrap'
-  | 'operational-status'
-  | 'restart'
-  | 'agent-started';
+  'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'restart' | 'agent-started';
 type ExtendedDeliveryPass =
-  DeliveryPass | 'task-signal' | 'operational-signal' | 'turn-ended' | 'restart-completed';
-type LegacyDeliveryPass = 'inbox-signal' | 'operational-status' | 'restart';
+  DeliveryPass | 'task-signal' | 'agent-session-lost' | 'turn-ended' | 'restart-completed';
+type LegacyDeliveryPass = 'inbox-signal' | 'restart';
 
 // fallow-ignore-next-line unused-export
 export class NativeTaskDeliveryCoordinator {

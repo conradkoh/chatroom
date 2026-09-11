@@ -12,10 +12,6 @@ import {
   type ChatroomOperationalSummary,
 } from './derive-agent-operational-state';
 import { deriveRoleStopState } from './derive-agent-stop-state';
-import {
-  writeMachineAgentOperationalSignal,
-  writeMachineAgentStopSignal,
-} from './write-machine-operational-signal';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
@@ -184,20 +180,6 @@ export async function projectAgentOperationalStatusForRole(
     .query('chatroom_agentRoleOperationalStatus')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', roleKey))
     .first();
-  const operationalStateChanged =
-    !existing ||
-    existing.operationalState !== fields.operationalState ||
-    existing.isAlive !== fields.isAlive ||
-    existing.isRunning !== fields.isRunning ||
-    existing.daemonConnected !== fields.daemonConnected ||
-    existing.viewState !== fields.viewState ||
-    existing.machineId !== fields.machineId ||
-    existing.teamId !== fields.teamId ||
-    existing.acceptsTasks !== fields.acceptsTasks;
-  const stopStateChanged =
-    !existing ||
-    existing.stopState !== fields.stopState ||
-    existing.activeStopCommandId !== fields.activeStopCommandId;
   if (
     !existing ||
     existing.operationalState !== fields.operationalState ||
@@ -213,18 +195,6 @@ export async function projectAgentOperationalStatusForRole(
   ) {
     if (existing) await ctx.db.patch('chatroom_agentRoleOperationalStatus', existing._id, fields);
     else await ctx.db.insert('chatroom_agentRoleOperationalStatus', fields);
-    if (fields.machineId) {
-      const signalInput = {
-        machineId: fields.machineId,
-        chatroomId,
-        role: roleKey,
-        revisionKey: fields.revisionKey,
-        projectedAt,
-      };
-      if (operationalStateChanged) await writeMachineAgentOperationalSignal(ctx, signalInput);
-      if (stopStateChanged)
-        await writeMachineAgentStopSignal(ctx, { ...signalInput, stopState: fields.stopState });
-    }
   }
   const summary = await summaryFor(ctx, chatroomId);
   const base = summary ?? {
@@ -275,16 +245,6 @@ export async function projectAgentStopStateForRole(
     projectedAt,
     revisionKey,
   });
-  if (row.machineId) {
-    await writeMachineAgentStopSignal(ctx, {
-      machineId: row.machineId,
-      chatroomId,
-      role: row.role,
-      revisionKey,
-      projectedAt,
-      stopState: stop.stopState,
-    });
-  }
 }
 
 /** HOT PATH: patch connectivity for machine-bound role rows and summaries. */
