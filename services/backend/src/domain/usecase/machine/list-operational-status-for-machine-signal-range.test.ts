@@ -6,7 +6,7 @@ import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
 
 describe('listOperationalStatusForMachineSignalRange', () => {
-  test('hydrates current rows and returns removed signals separately', async () => {
+  test('hydrates current rows', async () => {
     const sessionId = `operational-hydrate-${Math.random()}` as SessionId;
     await t.mutation(api.auth.loginAnon, { sessionId });
     const chatroomId = await t.mutation(api.chatrooms.create, {
@@ -25,7 +25,6 @@ describe('listOperationalStatusForMachineSignalRange', () => {
     });
     const machineId = 'operational-hydrate-machine';
     const firstKey = `0000000000000100:${chatroomId}:builder`;
-    const removedKey = `0000000000000101:${chatroomId}:planner`;
     const otherRoomKey = `0000000000000102:${otherChatroomId}:builder`;
 
     await t.run(async (ctx) => {
@@ -62,16 +61,6 @@ describe('listOperationalStatusForMachineSignalRange', () => {
         signalKey: firstKey,
         projectedAt: 100,
       });
-      await ctx.db.insert('chatroom_machineAgentRemovalSignals', {
-        machineId,
-        chatroomId,
-        kind: 'agent-removal',
-        role: 'planner',
-        reason: 'role-removed',
-        revisionKey: 'revision-removed',
-        signalKey: removedKey,
-        projectedAt: 101,
-      });
       await ctx.db.insert('chatroom_machineAgentOperationalSignals', {
         machineId,
         chatroomId: otherChatroomId,
@@ -105,27 +94,8 @@ describe('listOperationalStatusForMachineSignalRange', () => {
         revisionKey: 'revision-1',
       },
     ]);
-    expect(result.removed).toEqual([]);
     expect(result.nextSignalKey).toBe(firstKey);
     expect(result.hasMore).toBe(false);
-
-    const removedResult = await t.run((ctx) =>
-      listOperationalStatusForMachineSignalRange(
-        ctx,
-        {
-          machineId,
-          chatroomId: String(chatroomId),
-          userId: 'unused',
-          afterSignalKey: '',
-          throughSignalKey: removedKey,
-          limit: 10,
-        },
-        'chatroom_machineAgentRemovalSignals'
-      )
-    );
-    expect(removedResult.rows).toEqual([]);
-    expect(removedResult.removed).toEqual([{ chatroomId, role: 'planner' }]);
-    expect(removedResult.nextSignalKey).toBe(removedKey);
 
     const otherRoom = await t.run((ctx) =>
       listOperationalStatusForMachineSignalRange(ctx, {
@@ -148,6 +118,5 @@ describe('listOperationalStatusForMachineSignalRange', () => {
         revisionKey: 'revision-other',
       },
     ]);
-    expect(otherRoom.removed).toEqual([]);
   });
 });

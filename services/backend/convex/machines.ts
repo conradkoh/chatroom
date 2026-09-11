@@ -2218,7 +2218,6 @@ export const listMachineAssignedTaskSnapshots = query({
 const operationalSignalTables = {
   agentOperational: 'chatroom_machineAgentOperationalSignals',
   agentStop: 'chatroom_machineAgentStopSignals',
-  agentRemoval: 'chatroom_machineAgentRemovalSignals',
 } as const satisfies Record<string, OperationalSignalTable>;
 
 type MachineSignalArgs = {
@@ -2291,20 +2290,6 @@ export const subscribeMachineAgentStopSignalsSince = query({
   },
 });
 
-/** Reactive cursor-pinned role-removal signals. */
-export const subscribeMachineAgentRemovalSignalsSince = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
-    return listMachineSignalPage(ctx, args, operationalSignalTables.agentRemoval);
-  },
-});
-
 async function listOperationalRowsForSignalRange(
   ctx: QueryCtx,
   args: {
@@ -2318,7 +2303,7 @@ async function listOperationalRowsForSignalRange(
   signalTable: OperationalSignalTable
 ): Promise<ListOperationalStatusForMachineSignalRangeResult> {
   const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-  if (!auth) return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+  if (!auth) return { rows: [], nextSignalKey: null, hasMore: false };
   return listOperationalStatusForMachineSignalRangeUseCase(
     ctx,
     {
@@ -2347,7 +2332,7 @@ export const listMachineAgentOperationalStatusForSignalRange = query({
   },
   handler: async (ctx, args) => {
     if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
-      return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+      return { rows: [], nextSignalKey: null, hasMore: false };
     return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentOperational);
   },
 });
@@ -2363,24 +2348,8 @@ export const listMachineAgentStopStatusForSignalRange = query({
   },
   handler: async (ctx, args) => {
     if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
-      return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
+      return { rows: [], nextSignalKey: null, hasMore: false };
     return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentStop);
-  },
-});
-
-/** Return removed roles for role-removal signal delivery. */
-export const listMachineAgentRemovalStatusForSignalRange = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterSignalKey: v.string(),
-    throughSignalKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
-      return { rows: [], removed: [], nextSignalKey: null, hasMore: false };
-    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentRemoval);
   },
 });
 
@@ -2427,11 +2396,6 @@ export const ackMachineAgentOperationalSignals = ackMachineSignalMutation(
 /** Acknowledge role stop-state signals. */
 export const ackMachineAgentStopSignals = ackMachineSignalMutation(
   operationalSignalTables.agentStop
-);
-
-/** Acknowledge role-removal signals. */
-export const ackMachineAgentRemovalSignals = ackMachineSignalMutation(
-  operationalSignalTables.agentRemoval
 );
 
 /**

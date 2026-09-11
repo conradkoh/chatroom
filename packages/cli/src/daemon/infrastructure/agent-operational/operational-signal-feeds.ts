@@ -6,7 +6,7 @@ import type { Id } from '../../../api.js';
 import { api } from '../../../api.js';
 import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 
-export type OperationalSignalKind = 'agent-operational' | 'agent-stop' | 'agent-removal';
+export type OperationalSignalKind = 'agent-operational' | 'agent-stop';
 
 export type OperationalStatusSignal = {
   readonly chatroomId: string;
@@ -24,7 +24,6 @@ export type OperationalSignalPage = {
 
 export type OperationalSignalHydration = {
   readonly rows: readonly MachineAgentOperationalRow[];
-  readonly removed: readonly { chatroomId: string; role: string }[];
   readonly nextSignalKey: string | null;
   readonly hasMore: boolean;
 };
@@ -178,11 +177,5 @@ export const operationalSignalFeeds: Record<OperationalSignalKind, OperationalSi
     subscribe: api.machines.subscribeMachineAgentStopSignalsSince,
     hydrate: api.machines.listMachineAgentStopStatusForSignalRange,
     acknowledge: api.machines.ackMachineAgentStopSignals,
-  }),
-  'agent-removal': createMachineFeed({
-    kind: 'agent-removal',
-    subscribe: api.machines.subscribeMachineAgentRemovalSignalsSince,
-    hydrate: api.machines.listMachineAgentRemovalStatusForSignalRange,
-    acknowledge: api.machines.ackMachineAgentRemovalSignals,
   }),
 };

@@ -3,7 +3,6 @@ import { describe, expect, test } from 'vitest';
 
 import {
   buildMachineOperationalSignalKey,
-  writeMachineAgentRemovalSignal,
   writeMachineAgentOperationalSignal,
   writeMachineAgentStopSignal,
 } from './write-machine-operational-signal';
@@ -100,7 +99,6 @@ describe('writeMachineAgentOperationalSignal', () => {
     await t.run(async (ctx) => {
       await writeMachineAgentOperationalSignal(ctx, input);
       await writeMachineAgentStopSignal(ctx, { ...input, stopState: 'pending' });
-      await writeMachineAgentRemovalSignal(ctx, input);
     });
 
     const counts = await t.run(async (ctx) =>
@@ -117,18 +115,11 @@ describe('writeMachineAgentOperationalSignal', () => {
             q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
           )
           .collect(),
-        ctx.db
-          .query('chatroom_machineAgentRemovalSignals')
-          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
-          )
-          .collect(),
       ])
     );
-    expect(counts.map((rows) => rows.length)).toEqual([1, 1, 1]);
+    expect(counts.map((rows) => rows.length)).toEqual([1, 1]);
 
     expect(counts[0][0]).toMatchObject({ kind: 'agent-operational' });
     expect(counts[1][0]).toMatchObject({ kind: 'agent-stop', stopState: 'pending' });
-    expect(counts[2][0]).toMatchObject({ kind: 'agent-removal', reason: 'role-removed' });
   });
 });

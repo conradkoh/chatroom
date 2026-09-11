@@ -34,9 +34,7 @@ describe('operational inbox', () => {
         deliverPage = onPage;
         return vi.fn();
       }),
-      query: vi
-        .fn()
-        .mockResolvedValue({ rows: [], removed: [], nextSignalKey: null, hasMore: false }),
+      query: vi.fn().mockResolvedValue({ rows: [], nextSignalKey: null, hasMore: false }),
     };
     const updates: unknown[] = [];
     const runPromise = runOperationalInbox(
@@ -91,9 +89,7 @@ describe('operational inbox', () => {
         deliverPage = onPage;
         return vi.fn();
       }),
-      query: vi
-        .fn()
-        .mockResolvedValue({ rows: [], removed: [], nextSignalKey: null, hasMore: false }),
+      query: vi.fn().mockResolvedValue({ rows: [], nextSignalKey: null, hasMore: false }),
     };
     const controller = new AbortController();
     const runPromise = runOperationalInbox(

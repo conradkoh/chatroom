@@ -16,7 +16,6 @@ import {
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 import {
   machineAgentOperationalSignalValidator,
-  machineAgentRemovalSignalValidator,
   machineAgentStopSignalValidator,
 } from '../src/domain/entities/machine-operational-signal';
 import {
@@ -766,12 +765,6 @@ export default defineSchema({
 
   /** Slim role stop-state change signals, scoped per machine/chatroom. */
   chatroom_machineAgentStopSignals: defineTable(machineAgentStopSignalValidator).index(
-    'by_machineId_chatroomId_signalKey',
-    ['machineId', 'chatroomId', 'signalKey']
-  ),
-
-  /** Slim role-removal signals, scoped per machine/chatroom. */
-  chatroom_machineAgentRemovalSignals: defineTable(machineAgentRemovalSignalValidator).index(
     'by_machineId_chatroomId_signalKey',
     ['machineId', 'chatroomId', 'signalKey']
   ),

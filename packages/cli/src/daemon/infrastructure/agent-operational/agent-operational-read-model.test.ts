@@ -39,18 +39,13 @@ describe('AgentOperationalReadModel', () => {
     expect(isOperationalCircuitOpen(undefined)).toBe(false);
   });
 
-  it('applies hydrated signal rows and removals incrementally', () => {
+  it('applies hydrated signal rows incrementally', () => {
     const model = new AgentOperationalReadModel();
     model.replace([row('one')]);
 
-    expect(model.applySignalPage([row('two')], [])).toEqual([
+    expect(model.applySignalPage([row('two')])).toEqual([
       { chatroomId: 'room-1', role: 'Builder' },
     ]);
     expect(model.get('room-1', 'builder')?.revisionKey).toBe('two');
-
-    expect(model.applySignalPage([], [{ chatroomId: 'room-1', role: 'builder' }])).toEqual([
-      { chatroomId: 'room-1', role: 'builder' },
-    ]);
-    expect(model.get('room-1', 'builder')).toBeUndefined();
   });
 });

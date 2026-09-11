@@ -28,7 +28,6 @@ export interface OperationalInboxUpdate {
   readonly chatroomId: string;
   readonly signals: readonly OperationalStatusSignal[];
   readonly rows: readonly MachineAgentOperationalRow[];
-  readonly removed: readonly { chatroomId: string; role: string }[];
   readonly afterSignalKey: string;
   readonly throughSignalKey: string;
 }
@@ -143,10 +142,8 @@ async function fetchRowsForSignalPage(
   page: OperationalSignalPage
 ): Promise<{
   rows: readonly MachineAgentOperationalRow[];
-  removed: readonly { chatroomId: string; role: string }[];
 }> {
   const rows: MachineAgentOperationalRow[] = [];
-  const removed: { chatroomId: string; role: string }[] = [];
   let afterSignalKey = page.afterSignalKey;
   while (true) {
     throwIfAborted(options.signal);
@@ -159,11 +156,10 @@ async function fetchRowsForSignalPage(
       limit: options.operationalPageLimit ?? DEFAULT_OPERATIONAL_PAGE_LIMIT,
     });
     rows.push(...result.rows);
-    removed.push(...result.removed);
     if (!result.hasMore || !result.nextSignalKey) break;
     afterSignalKey = result.nextSignalKey;
   }
-  return { rows, removed };
+  return { rows };
 }
 
 export async function runOperationalInbox(
@@ -176,7 +172,6 @@ export async function runOperationalInbox(
       chatroomId: options.chatroomId,
       signals: page.items,
       rows: hydrated.rows,
-      removed: hydrated.removed,
       afterSignalKey: page.afterSignalKey,
       throughSignalKey: page.highSignalKey,
     });

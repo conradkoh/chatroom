@@ -52,14 +52,3 @@ export async function writeMachineAgentStopSignal(
     stopState: input.stopState,
   });
 }
-
-export async function writeMachineAgentRemovalSignal(
-  ctx: MutationCtx,
-  input: MachineSignalInput
-): Promise<void> {
-  await ctx.db.insert('chatroom_machineAgentRemovalSignals', {
-    ...baseMachineSignal(input),
-    kind: 'agent-removal',
-    reason: 'role-removed',
-  });
-}

@@ -158,7 +158,7 @@ export const startOperationalInboxEffect = (
       update: OperationalInboxUpdate
     ): Promise<void> => {
       const chatroomId = update.chatroomId;
-      const changed = agentOperationalReadModel.applySignalPage(update.rows, update.removed);
+      const changed = agentOperationalReadModel.applySignalPage(update.rows);
       await Promise.all(
         changed.map(({ chatroomId: roomId, role }) =>
           nativeDelivery.requestReconcile({
@@ -222,7 +222,7 @@ export const startOperationalInboxEffect = (
           }
         }
         await Promise.all(
-          (['agent-operational', 'agent-stop', 'agent-removal'] as const).map(async (kind) => {
+          (['agent-operational', 'agent-stop'] as const).map(async (kind) => {
             const operationalRoomKey = {
               inboxType: `operational:${kind}`,
               scopeKey: roomScopeKey(session.machineId, chatroomId),

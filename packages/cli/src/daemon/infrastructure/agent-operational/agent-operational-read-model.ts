@@ -51,10 +51,10 @@ export class AgentOperationalReadModel {
     }
     return changed;
   }
-  applySignalPage(
-    rows: readonly MachineAgentOperationalRow[],
-    removed: readonly { chatroomId: string; role: string }[]
-  ): { chatroomId: string; role: string }[] {
+  applySignalPage(rows: readonly MachineAgentOperationalRow[]): {
+    chatroomId: string;
+    role: string;
+  }[] {
     const changed: { chatroomId: string; role: string }[] = [];
     for (const row of rows) {
       const key = roleKey(row.chatroomId, row.role);
@@ -63,11 +63,6 @@ export class AgentOperationalReadModel {
         changed.push({ chatroomId: row.chatroomId, role: row.role });
       }
       this.rows.set(key, row);
-    }
-    for (const item of removed) {
-      const key = roleKey(item.chatroomId, item.role);
-      if (this.rows.has(key)) changed.push(item);
-      this.rows.delete(key);
     }
     return changed;
   }

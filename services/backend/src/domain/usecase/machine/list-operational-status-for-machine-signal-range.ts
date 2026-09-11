@@ -12,9 +12,7 @@ export type ListOperationalStatusForMachineSignalRangeInput = {
 };
 
 export type OperationalSignalTable =
-  | 'chatroom_machineAgentOperationalSignals'
-  | 'chatroom_machineAgentStopSignals'
-  | 'chatroom_machineAgentRemovalSignals';
+  'chatroom_machineAgentOperationalSignals' | 'chatroom_machineAgentStopSignals';
 
 export type MachineAgentOperationalRowView = {
   chatroomId: string;
@@ -25,12 +23,10 @@ export type MachineAgentOperationalRowView = {
   daemonConnected: boolean;
   revisionKey: string;
   stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
-  removed?: boolean;
 };
 
 export type ListOperationalStatusForMachineSignalRangeResult = {
   rows: MachineAgentOperationalRowView[];
-  removed: { chatroomId: string; role: string }[];
   nextSignalKey: string | null;
   hasMore: boolean;
 };
@@ -54,14 +50,7 @@ export async function listOperationalStatusForMachineSignalRange(
     .take(input.limit + 1);
   const page = signals.slice(0, input.limit);
   const rows: MachineAgentOperationalRowView[] = [];
-  const removed: { chatroomId: string; role: string }[] = [];
-  const isRemovalSignal = signalTable === 'chatroom_machineAgentRemovalSignals';
-
   for (const signal of page) {
-    if (isRemovalSignal) {
-      removed.push({ chatroomId: signal.chatroomId, role: signal.role });
-      continue;
-    }
     const row = await ctx.db
       .query('chatroom_agentRoleOperationalStatus')
       .withIndex('by_chatroom_role', (q) =>
@@ -83,7 +72,6 @@ export async function listOperationalStatusForMachineSignalRange(
 
   return {
     rows,
-    removed,
     nextSignalKey: page.at(-1)?.signalKey ?? null,
     hasMore: signals.length > input.limit,
   };

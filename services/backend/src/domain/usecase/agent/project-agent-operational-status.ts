@@ -15,7 +15,6 @@ import {
 import { deriveRoleStopState } from './derive-agent-stop-state';
 import {
   writeMachineAgentOperationalSignal,
-  writeMachineAgentRemovalSignal,
   writeMachineAgentStopSignal,
 } from './write-machine-operational-signal';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
@@ -301,16 +300,6 @@ export async function projectAgentOperationalStatusForRoleRemoved(
       q.eq('chatroomId', chatroomId).eq('role', role.toLowerCase())
     )
     .first();
-  if (row?.machineId) {
-    const projectedAt = Date.now();
-    await writeMachineAgentRemovalSignal(ctx, {
-      machineId: row.machineId,
-      chatroomId,
-      role,
-      revisionKey: `operational:${chatroomId}:${projectedAt}:removed`,
-      projectedAt,
-    });
-  }
   if (row) await ctx.db.delete('chatroom_agentRoleOperationalStatus', row._id);
   const summary = await summaryFor(ctx, chatroomId);
   const room = await ctx.db.get('chatroom_rooms', chatroomId);
