@@ -6,12 +6,6 @@ export { AgentRoleLifecycleTag as TaskAssigneeType } from '@workspace/shared/dom
 export const ACTIVE_TASK_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
 export type ActiveTaskStatus = (typeof ACTIVE_TASK_STATUSES)[number];
 
-export const AGENT_DESIRED_STATES = ['running', 'stopped'] as const;
-export type AgentDesiredState = (typeof AGENT_DESIRED_STATES)[number];
-
-export const AGENT_CIRCUIT_STATES = ['closed', 'open', 'half-open'] as const;
-export type AgentCircuitState = (typeof AGENT_CIRCUIT_STATES)[number];
-
 export interface EphemeralAgentConfig {
   agentHarness: string;
   model: string;
@@ -31,9 +25,6 @@ export interface AgentRuntimeConfig {
 export interface AssignedTaskAgentConfig {
   role: string;
   machineId: string;
-  spawnedAgentPid?: number | undefined;
-  desiredState?: AgentDesiredState | undefined;
-  circuitState?: AgentCircuitState | undefined;
 }
 
 export interface AssignedTaskParticipant {
@@ -42,7 +33,7 @@ export interface AssignedTaskParticipant {
   lastStatus: string | null;
 }
 
-/** Daemon working-row snapshot for assigned tasks (SSOT). */
+/** Task inbox view used by the daemon task service. */
 export interface AssignedTask {
   taskId: string;
   chatroomId: string;
@@ -73,10 +64,6 @@ export function resolveAgentRuntimeConfig(
 
 export function isDeliverableTaskStatus(status: ActiveTaskStatus): boolean {
   return status === 'pending' || status === 'acknowledged';
-}
-
-export function isAgentDesiredRunning(desiredState: AgentDesiredState | undefined): boolean {
-  return desiredState === 'running';
 }
 
 /** Full task view including content — for one-shot action fetches. */

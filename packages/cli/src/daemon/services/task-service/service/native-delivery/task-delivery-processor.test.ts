@@ -21,8 +21,6 @@ function snapshotRow() {
       machineId: 'machine_processor',
       agentHarness: 'cursor-sdk',
       workingDir: '/test',
-      spawnedAgentPid: 42_001,
-      desiredState: 'running' as const,
     },
     participant: {
       lastSeenAction: NATIVE_TASK_INJECTED_ACTION,

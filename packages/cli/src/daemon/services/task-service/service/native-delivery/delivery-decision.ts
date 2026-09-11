@@ -19,14 +19,16 @@ export type DeliveryBlockReason =
   | 'slot_missing'
   | 'slot_not_running'
   | 'slot_pid_missing'
-  | 'spawned_pid_missing'
-  | 'pid_mismatch'
   | 'harness_session_missing'
   | 'turn_not_idle'
   | 'working_dir_missing';
 
 export type DeliveryWaitReason =
-  'slot_spawning' | 'slot_stopping' | 'agent_start_in_flight' | 'session_not_ready';
+  | 'slot_spawning'
+  | 'slot_stopping'
+  | 'agent_start_in_flight'
+  | 'session_not_ready'
+  | 'turn_not_idle';
 
 export type DeliveryDecision =
   | { kind: 'idle'; reason: 'no_deliverable_task' | 'not_assigned'; taskId?: string }
@@ -71,8 +73,6 @@ function stableBlockReason(reason: string): DeliveryBlockReason {
     'slot_missing',
     'slot_not_running',
     'slot_pid_missing',
-    'spawned_pid_missing',
-    'pid_mismatch',
     'harness_session_missing',
     'turn_not_idle',
     'working_dir_missing',
@@ -143,13 +143,7 @@ export function decideNextDelivery(
 
   const coldSession = context.taskRequestsNativeColdSession(task);
   const startAllowed =
-    blockReason.startsWith('slot_missing') ||
-    blockReason.startsWith('slot_not_running') ||
-    // A desired-running role with neither a local slot nor a backend PID is
-    // still startable. The readiness invariant reports this as
-    // `spawned_pid_missing`, so pending work must not be left permanently
-    // blocked in that transitional state.
-    blockReason.startsWith('spawned_pid_missing');
+    blockReason.startsWith('slot_missing') || blockReason.startsWith('slot_not_running');
   if (
     startAllowed &&
     !coldSession &&
@@ -162,6 +156,9 @@ export function decideNextDelivery(
 
   if (blockReason.startsWith('harness_session_missing')) {
     return { kind: 'wait', taskId: task.taskId, reason: 'session_not_ready' };
+  }
+  if (blockReason.startsWith('turn_not_idle')) {
+    return { kind: 'wait', taskId: task.taskId, reason: 'turn_not_idle' };
   }
 
   return { kind: 'blocked', taskId: task.taskId, reason: stableBlockReason(blockReason) };

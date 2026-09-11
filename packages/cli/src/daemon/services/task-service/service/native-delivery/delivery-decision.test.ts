@@ -47,7 +47,7 @@ describe('decideNextDelivery', () => {
   });
 
   test('returns start-agent for pending work and an idle slot', () => {
-    const explain = vi.fn(() => 'slot_missing (expectedPid=none)');
+    const explain = vi.fn(() => 'slot_missing');
     expect(
       decideNextDelivery(
         [task()],
@@ -57,7 +57,7 @@ describe('decideNextDelivery', () => {
   });
 
   test('starts pending work when the local slot and backend PID are both missing', () => {
-    const explain = vi.fn(() => 'spawned_pid_missing');
+    const explain = vi.fn(() => 'slot_missing');
     expect(
       decideNextDelivery(
         [task()],
@@ -67,7 +67,7 @@ describe('decideNextDelivery', () => {
   });
 
   test('waits for a spawning or stopping slot', () => {
-    const explain = vi.fn(() => 'slot_not_running (slotState=spawning, expectedPid=none)');
+    const explain = vi.fn(() => 'slot_not_running (slotState=spawning)');
     expect(
       decideNextDelivery(
         [task()],
@@ -76,7 +76,7 @@ describe('decideNextDelivery', () => {
     ).toEqual({ kind: 'wait', taskId: 'task-1', reason: 'slot_spawning' });
   });
 
-  test('returns an explicit blocked reason for a non-idle turn', () => {
+  test('waits for the agent to become idle before delivering', () => {
     const explain = vi.fn(() => 'turn_not_idle (nativeTurnPhase=turn_in_flight)');
     expect(
       decideNextDelivery(
@@ -91,7 +91,7 @@ describe('decideNextDelivery', () => {
           explainNativeDeliveryBlock: explain,
         })
       )
-    ).toEqual({ kind: 'blocked', taskId: 'task-1', reason: 'turn_not_idle' });
+    ).toEqual({ kind: 'wait', taskId: 'task-1', reason: 'turn_not_idle' });
   });
 
   test('deduplicates an active task and an in-flight delivery', () => {
@@ -131,8 +131,6 @@ describe('decideNextDelivery', () => {
     'slot_missing',
     'slot_not_running',
     'slot_pid_missing',
-    'spawned_pid_missing',
-    'pid_mismatch',
     'working_dir_missing',
   ] as const)('preserves stable blocked reason %s', (reason) => {
     expect(

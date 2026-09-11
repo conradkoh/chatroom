@@ -24,8 +24,6 @@ function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTas
     agentConfig: {
       role: 'builder',
       machineId: 'machine_1',
-      spawnedAgentPid: 12345,
-      desiredState: 'running',
     },
     assignee: {
       type: TaskAssigneeType.Ephemeral,

@@ -16,7 +16,7 @@ import {
 } from './map-assigned-task-view.js';
 import { TaskAssigneeType } from '../../daemon/domain/entities/assigned-task.js';
 
-const backendSnapshot = {
+const backendTask = {
   taskId: 'task_1',
   chatroomId: 'room_1',
   status: 'pending' as const,
@@ -26,9 +26,6 @@ const backendSnapshot = {
   agentConfig: {
     role: 'builder',
     machineId: 'machine_1',
-    spawnedAgentPid: 42,
-    desiredState: 'running' as const,
-    circuitState: 'closed' as const,
   },
   assignee: {
     type: TaskAssigneeType.Ephemeral,
@@ -42,8 +39,8 @@ const backendSnapshot = {
 } as BackendAssignedTask;
 
 describe('map-assigned-task', () => {
-  test('mapAssignedTask preserves snapshot fields', () => {
-    const mapped = mapAssignedTask(backendSnapshot);
+  test('mapAssignedTask preserves task view fields', () => {
+    const mapped = mapAssignedTask(backendTask);
 
     expect(mapped.taskId).toBe('task_1');
     expect(mapped.chatroomId).toBe('room_1');
@@ -55,7 +52,7 @@ describe('map-assigned-task', () => {
 
   test('mapAssignedTaskView includes taskContent', () => {
     const mapped = mapAssignedTaskView({
-      ...backendSnapshot,
+      ...backendTask,
       taskContent: 'Do the thing',
     } as BackendAssignedTaskView);
 
@@ -74,7 +71,7 @@ describe('map-assigned-task', () => {
     expect(envelope.handoffWorkflow.phase).not.toBe('entry');
 
     const mapped = mapAssignedTaskView({
-      ...backendSnapshot,
+      ...backendTask,
       taskContent: 'Do the thing',
       taskEnvelope: envelope,
       startInNewSession: false,
@@ -87,7 +84,7 @@ describe('map-assigned-task', () => {
   });
 
   test('mapAssignedTaskList maps each row', () => {
-    const mapped = mapAssignedTaskList([backendSnapshot, backendSnapshot]);
+    const mapped = mapAssignedTaskList([backendTask, backendTask]);
 
     expect(mapped).toHaveLength(2);
     expect(mapped[0]?.taskId).toBe('task_1');

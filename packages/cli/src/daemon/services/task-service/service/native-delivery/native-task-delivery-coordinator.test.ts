@@ -25,8 +25,6 @@ function acknowledgedRow() {
     agentConfig: {
       role: ROLE,
       machineId: 'machine_coordinator',
-      spawnedAgentPid: 42_001,
-      desiredState: 'running' as const,
     },
     assignee: {
       type: TaskAssigneeType.Ephemeral,

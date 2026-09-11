@@ -11,7 +11,6 @@
  * Stuck-pending causes exercised here:
  * - slot.nativeTurnPhase !== 'idle' (turn still in flight)
  * - slot.harnessSessionId missing (agent not fully spawned)
- * - spawnedAgentPid mismatch between snapshot and local slot
  */
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel.js';
@@ -125,7 +124,6 @@ describe('user message pending delivery path', () => {
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
-    row!.agentConfig.spawnedAgentPid = SPAWNED_PID;
 
     const backendMutation = vi.fn().mockResolvedValue(undefined);
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
@@ -305,7 +303,6 @@ describe('user message pending delivery path', () => {
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
-    row!.agentConfig.spawnedAgentPid = SPAWNED_PID;
 
     expect(
       shouldDeliverNativeTask(row!, {

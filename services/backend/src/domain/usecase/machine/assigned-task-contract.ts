@@ -54,10 +54,6 @@ const chatroomRoomIdSchema = convexIdSchema('chatroom_rooms');
 export const assignedTaskAgentConfigSchema = z.object({
   role: z.string(),
   machineId: z.string(),
-  // Legacy optional fields retained for daemon compatibility; backend tasks no longer write them.
-  spawnedAgentPid: z.number().optional(),
-  desiredState: agentDesiredStateSchema.optional(),
-  circuitState: agentCircuitStateSchema.optional(),
 });
 
 export const assignedTaskParticipantSchema = z.object({

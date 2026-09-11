@@ -44,22 +44,16 @@ export function explainAgentReadyForNativeDeliveryBlock(
     return null;
   }
   if (!slot) {
-    return task.agentConfig.spawnedAgentPid == null
-      ? 'spawned_pid_missing'
-      : `slot_missing (expectedPid=${task.agentConfig.spawnedAgentPid})`;
+    return 'slot_missing';
   }
   if (!isSlotRunning(slot.state)) {
-    if (task.agentConfig.spawnedAgentPid != null && slot.pid !== task.agentConfig.spawnedAgentPid) {
-      return `pid_mismatch (slotPid=${slot.pid ?? 'none'}, expectedPid=${task.agentConfig.spawnedAgentPid})`;
-    }
-    return `slot_not_running (slotState=${slot.state}, expectedPid=${task.agentConfig.spawnedAgentPid ?? 'none'})`;
+    return `slot_not_running (slotState=${slot.state})`;
   }
   if (slot.pid == null) {
     return 'slot_pid_missing';
   }
   // The backend PID can lag behind a successful local spawn. Once the local
   // slot is healthy, it is the authoritative process identity for delivery.
-  // Snapshot PID can lag or remain stale after agent exit + re-spawn.
   if (typeof slot.harnessSessionId !== 'string' || slot.harnessSessionId.length === 0) {
     return 'harness_session_missing';
   }

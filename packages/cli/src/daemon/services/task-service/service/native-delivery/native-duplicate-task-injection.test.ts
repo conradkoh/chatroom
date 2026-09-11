@@ -31,8 +31,6 @@ function makeAcknowledgedRow() {
     agentConfig: {
       role: ROLE,
       machineId: 'machine_dup',
-      spawnedAgentPid: 42_001,
-      desiredState: 'running' as const,
     },
     assignee: {
       type: TaskAssigneeType.Ephemeral,

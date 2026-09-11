@@ -21,9 +21,6 @@ export function mapAssignedTask(row: BackendAssignedTask): AssignedTask {
     agentConfig: {
       role: row.agentConfig.role,
       machineId: row.agentConfig.machineId,
-      spawnedAgentPid: row.agentConfig.spawnedAgentPid,
-      desiredState: row.agentConfig.desiredState,
-      circuitState: row.agentConfig.circuitState,
     },
     assignee: row.assignee,
     participant: row.participant,

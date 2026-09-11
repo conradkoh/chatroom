@@ -92,8 +92,6 @@ Add payments API
         agentConfig: {
           role: 'builder',
           machineId: 'machine_1',
-          spawnedAgentPid: 12345,
-          desiredState: 'running',
         },
         assignee: {
           type: TaskAssigneeType.Ephemeral,
@@ -127,8 +125,6 @@ Add payments API
         agentConfig: {
           role: 'builder',
           machineId: 'machine_1',
-          spawnedAgentPid: 12345,
-          desiredState: 'running',
         },
         assignee: {
           type: TaskAssigneeType.Ephemeral,
