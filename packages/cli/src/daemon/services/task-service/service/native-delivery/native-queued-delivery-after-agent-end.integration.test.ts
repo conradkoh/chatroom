@@ -22,7 +22,6 @@ import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
@@ -118,7 +117,6 @@ describe('native queued delivery after agent_end', () => {
         } satisfies NativeTaskDeliverySessionDeps,
         machineId: MACHINE_ID,
         lifecycleOutbox: { enqueue: async () => undefined },
-        operationalModel: new AgentOperationalReadModel(),
         isTaskActive: () => false,
       })
     );

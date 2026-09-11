@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+
 import { explainAgentReadyForNativeDeliveryBlock } from './native-ready-invariant.js';
-import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 
 const task = (overrides: Record<string, unknown> = {}) =>
   ({
@@ -31,41 +31,11 @@ const idleSlot = (overrides: Record<string, unknown> = {}) =>
     ...overrides,
   }) as never;
 
-const runningOperational = operationalRow('room-1', 'builder', 'running');
-
 describe('native-ready-invariant', () => {
-  it('allows delivery-owned cold spawn when slot is down and operational is starting', () => {
+  it('allows delivery-owned cold spawn when slot is down', () => {
     expect(
-      explainAgentReadyForNativeDeliveryBlock(
-        task({ requestsNativeColdSession: true }),
-        undefined,
-        runningOperational
-      )
+      explainAgentReadyForNativeDeliveryBlock(task({ requestsNativeColdSession: true }), undefined)
     ).toBeNull();
-  });
-
-  it('blocks a stopped task when no local slot exists', () => {
-    expect(
-      explainAgentReadyForNativeDeliveryBlock(
-        task(),
-        undefined,
-        operationalRow('room-1', 'builder', 'stopped')
-      )
-    ).toBe(
-      'operational_state_not_running (state=stopped)'
-    );
-  });
-
-  it('blocks a pending task when its fresh snapshot says stopped', () => {
-    expect(
-      explainAgentReadyForNativeDeliveryBlock(
-        task(),
-        idleSlot(),
-        operationalRow('room-1', 'builder', 'stopped')
-      )
-    ).toBe(
-      'operational_state_not_running (state=stopped)'
-    );
   });
 
   it('still blocks when the locally running slot has a turn in flight', () => {
@@ -81,8 +51,7 @@ describe('native-ready-invariant', () => {
             desiredState: 'running',
           },
         }),
-        idleSlot({ pid: 42, nativeTurnPhase: 'turn_in_flight' }),
-        runningOperational
+        idleSlot({ pid: 42, nativeTurnPhase: 'turn_in_flight' })
       )
     ).toBe('turn_not_idle (nativeTurnPhase=turn_in_flight)');
   });
@@ -99,8 +68,7 @@ describe('native-ready-invariant', () => {
             desiredState: 'running',
           },
         }),
-        idleSlot({ pid: 123 }),
-        runningOperational
+        idleSlot({ pid: 123 })
       )
     ).toBeNull();
   });
@@ -117,8 +85,7 @@ describe('native-ready-invariant', () => {
             spawnedAgentPid: 42,
           },
         }),
-        idleSlot({ pid: 99 }),
-        runningOperational
+        idleSlot({ pid: 99 })
       )
     ).toBeNull();
   });
@@ -135,8 +102,7 @@ describe('native-ready-invariant', () => {
             spawnedAgentPid: 42,
           },
         }),
-        idleSlot({ pid: 99, state: 'spawning' }),
-        runningOperational
+        idleSlot({ pid: 99, state: 'spawning' })
       )
     ).toContain('pid_mismatch');
   });

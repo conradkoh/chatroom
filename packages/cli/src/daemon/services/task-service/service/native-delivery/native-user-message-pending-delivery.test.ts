@@ -30,15 +30,11 @@ import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
-import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
-const operationalModel = new AgentOperationalReadModel();
 const lifecycleOutbox = { enqueue: vi.fn().mockResolvedValue(undefined) };
 
 beforeEach(() => {
-  operationalModel.replace([operationalRow('room_1', 'builder')]);
   lifecycleOutbox.enqueue.mockClear();
 });
 
@@ -115,7 +111,6 @@ describe('user message pending delivery path', () => {
     expect(
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot(),
-        operational: operationalRow('room_1', 'builder'),
       })
     ).toBe(true);
   });
@@ -174,7 +169,6 @@ describe('user message pending delivery path', () => {
         } satisfies NativeTaskDeliverySessionDeps,
         machineId: MACHINE_ID,
         lifecycleOutbox,
-        operationalModel,
         isTaskActive: () => false,
       })
     );
@@ -249,7 +243,6 @@ describe('user message pending delivery path', () => {
         },
         machineId: MACHINE_ID,
         lifecycleOutbox,
-        operationalModel,
         isTaskActive: () => false,
       })
     );
@@ -294,7 +287,6 @@ describe('user message pending delivery path', () => {
         },
         machineId: MACHINE_ID,
         lifecycleOutbox,
-        operationalModel,
         isTaskActive: () => false,
       })
     );
@@ -342,7 +334,6 @@ describe('user message pending delivery path', () => {
         },
         machineId: MACHINE_ID,
         lifecycleOutbox,
-        operationalModel,
         isTaskActive: () => false,
       })
     );

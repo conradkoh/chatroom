@@ -20,7 +20,6 @@ import type {
 } from '../../../../entry/daemon-services.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
 import { isRestartOrchestratorInFlight } from '../../../../entry/restart-orchestrator-in-flight.js';
-import type { AgentOperationalReadModel } from '../../../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
@@ -57,10 +56,7 @@ export type NativeDeliveryExecution =
   { kind: 'delivered'; delivered?: NativeDeliveryDelivered } | { kind: 'task-unavailable' };
 
 export type NativeDeliveryExecutors = {
-  startAgent: (
-    task: AssignedTaskSnapshotView,
-    operationalState: string | undefined
-  ) => Promise<unknown>;
+  startAgent: (task: AssignedTaskSnapshotView) => Promise<unknown>;
   injectTask: (
     task: AssignedTaskSnapshotView,
     harnessSessionId: string | undefined
@@ -68,15 +64,10 @@ export type NativeDeliveryExecutors = {
 };
 
 type DeliveryPass =
-  | 'inbox-signal'
-  | 'periodic-reconcile'
-  | 'bootstrap'
-  | 'operational-status'
-  | 'restart'
-  | 'agent-started';
+  'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'restart' | 'agent-started';
 type ExtendedDeliveryPass =
-  DeliveryPass | 'task-signal' | 'operational-signal' | 'turn-ended' | 'restart-completed';
-type LegacyDeliveryPass = 'inbox-signal' | 'operational-status' | 'restart';
+  DeliveryPass | 'task-signal' | 'agent-session-lost' | 'turn-ended' | 'restart-completed';
+type LegacyDeliveryPass = 'inbox-signal' | 'restart';
 
 // fallow-ignore-next-line unused-export
 export class NativeTaskDeliveryCoordinator {
@@ -104,7 +95,6 @@ export class NativeTaskDeliveryCoordinator {
     lifecycleOutbox: {
       enqueue: (fact: AgentLifecycleFact) => Promise<unknown>;
     };
-    operationalModel: AgentOperationalReadModel;
     isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean;
     machineId: string;
     onTaskDelivered?:
@@ -119,15 +109,7 @@ export class NativeTaskDeliveryCoordinator {
   }): Promise<void> {
     const tasks = params.tasks;
     if (tasks.length === 0) return;
-    const {
-      runtime,
-      effectContext,
-      agentMgr,
-      operationalModel,
-      isTaskActive,
-      onTaskDelivered,
-      executors,
-    } = params;
+    const { runtime, effectContext, agentMgr, isTaskActive, onTaskDelivered, executors } = params;
     const deliveryState = getRoleDeliveryState();
     const taskService = params.taskService;
 
@@ -149,14 +131,12 @@ export class NativeTaskDeliveryCoordinator {
       if (!firstTask) continue;
       const { role } = firstTask.agentConfig;
       const slot = agentMgr.getSlot(firstTask.chatroomId, role);
-      const operational = operationalModel.get(firstTask.chatroomId, role);
       const activeTaskId = roleTasks.find((candidate) =>
         isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
       )?.taskId;
       const decision = decideNextDelivery(roleTasks, {
         role,
         slot,
-        operational,
         activeTaskId,
         deliveryInFlight: false,
         agentLifecycleInFlight: isRestartOrchestratorInFlight(firstTask.chatroomId, role),
@@ -180,7 +160,6 @@ export class NativeTaskDeliveryCoordinator {
           slotState: slot?.state ?? 'missing',
           nativeTurnPhase: slot?.nativeTurnPhase ?? 'unknown',
           harnessSessionPresent: Boolean(slot?.harnessSessionId),
-          operationalState: operational?.operationalState ?? 'missing',
         }
       );
 
@@ -203,7 +182,7 @@ export class NativeTaskDeliveryCoordinator {
         if (!row.agentConfig.workingDir || (slot && !isSlotIdle(slot.state))) continue;
         try {
           if (executors) {
-            const startResult = await executors.startAgent(row, operational?.operationalState);
+            const startResult = await executors.startAgent(row);
             console.log(
               `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=start-agent result=${startResult && typeof startResult === 'object' && 'success' in startResult ? startResult.success : 'completed'}`
             );
@@ -220,10 +199,7 @@ export class NativeTaskDeliveryCoordinator {
                   agentHarness: row.agentConfig.agentHarness as AgentHarness,
                   model: row.agentConfig.model ?? '',
                   workingDir: row.agentConfig.workingDir as string,
-                  reason:
-                    operational?.operationalState === 'running'
-                      ? AgentStartReasonEnum['platform.task_monitor_nudge']
-                      : AgentStartReasonEnum['platform.pending_task_wake'],
+                  reason: AgentStartReasonEnum['platform.pending_task_wake'],
                   wantResume: false,
                   lifecycleRevision: row.agentConfig.configLifecycleRevision,
                   taskId: row.taskId,

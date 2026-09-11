@@ -11,7 +11,6 @@ import {
 import { NativeTaskDeliveryQueue } from './native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
-import { api } from '../../../../api.js';
 import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type {
   AssignedTaskSnapshotView,
@@ -33,7 +32,6 @@ import {
   type TaskInboxUpdate,
 } from '../../../infrastructure/inbox/task.js';
 import type { AgentProcessManagerService } from '../../agent-process-contracts.js';
-import type { TaskOperationalAgent } from '../domain/entities/operational-agent.js';
 import { snapshotRequestsNativeColdSession } from '../domain/usecase/native-cold-session-delivery.js';
 import {
   explainNativeDeliveryBlock,
@@ -96,7 +94,6 @@ export interface TaskService {
     task: AssignedTaskSnapshotView,
     options: {
       slot: ReturnType<AgentProcessManagerService['getSlot']>;
-      operational?: TaskOperationalAgent | undefined;
     }
   ): string | null;
   createNativeDeliveryService(
@@ -214,10 +211,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       inboxStore = createInboxStateStore(resolveInboxDbPath(deps.machineId));
       serviceStartedAt = Date.now();
       try {
-        await deps.backend.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
-          sessionId: deps.sessionId,
-          machineId: deps.machineId,
-        });
         await service.syncAssignedTaskSnapshots();
         const snapshots = await fetchMachineAssignedTaskSnapshots(
           { ...deps, convexUrl: deps.convexUrl },

@@ -88,7 +88,6 @@ describe('task-delivery-processor exact-task hydration', () => {
         'machine_processor',
         'task-signal',
         { enqueue: async () => undefined } as never,
-        {} as never,
         () => false,
         { snapshots: [row] }
       );
@@ -142,7 +141,6 @@ describe('task-delivery-processor exact-task hydration', () => {
         'machine_processor',
         'task-signal',
         { enqueue: async () => undefined } as never,
-        {} as never,
         () => false,
         { snapshots: [row] }
       );
