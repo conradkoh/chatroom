@@ -14,10 +14,7 @@ import {
   agentStopTargetStatusValidator,
 } from '../src/domain/entities/agent-stop-command';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
-import {
-  machineAgentOperationalSignalValidator,
-  machineAgentStopSignalValidator,
-} from '../src/domain/entities/machine-operational-signal';
+import { machineAgentOperationalSignalValidator } from '../src/domain/entities/machine-operational-signal';
 import {
   machineTaskDeliverySignalValidator,
   taskTransitionSourceValidator,
@@ -762,12 +759,6 @@ export default defineSchema({
   chatroom_machineAgentOperationalSignals: defineTable(
     machineAgentOperationalSignalValidator
   ).index('by_machineId_chatroomId_signalKey', ['machineId', 'chatroomId', 'signalKey']),
-
-  /** Slim role stop-state change signals, scoped per machine/chatroom. */
-  chatroom_machineAgentStopSignals: defineTable(machineAgentStopSignalValidator).index(
-    'by_machineId_chatroomId_signalKey',
-    ['machineId', 'chatroomId', 'signalKey']
-  ),
 
   /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).

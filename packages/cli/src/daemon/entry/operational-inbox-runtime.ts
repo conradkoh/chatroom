@@ -220,7 +220,7 @@ export const startOperationalInboxEffect = (
           }
         }
         await Promise.all(
-          (['agent-operational', 'agent-stop'] as const).map(async (kind) => {
+          (['agent-operational'] as const).map(async (kind) => {
             const operationalRoomKey = {
               inboxType: `operational:${kind}`,
               scopeKey: roomScopeKey(session.machineId, chatroomId),

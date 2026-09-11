@@ -4,7 +4,6 @@ import { describe, expect, test } from 'vitest';
 import {
   buildMachineOperationalSignalKey,
   writeMachineAgentOperationalSignal,
-  writeMachineAgentStopSignal,
 } from './write-machine-operational-signal';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
@@ -76,50 +75,5 @@ describe('writeMachineAgentOperationalSignal', () => {
       'revision-1',
       'revision-2',
     ]);
-  });
-
-  test('writes each purpose to its own signal table', async () => {
-    const sessionId = 'operational-signal-purpose-tables' as SessionId;
-    await t.mutation(api.auth.loginAnon, { sessionId });
-    const chatroomId = await t.mutation(api.chatrooms.create, {
-      sessionId,
-      teamId: 'duo',
-      teamName: 'Duo',
-      teamRoles: ['planner', 'builder'],
-      teamEntryPoint: 'planner',
-    });
-    const input = {
-      machineId: `operational-signal-purpose-machine-${Math.random()}`,
-      chatroomId,
-      role: 'builder',
-      revisionKey: 'revision-purpose',
-      projectedAt: 200,
-    };
-
-    await t.run(async (ctx) => {
-      await writeMachineAgentOperationalSignal(ctx, input);
-      await writeMachineAgentStopSignal(ctx, { ...input, stopState: 'pending' });
-    });
-
-    const counts = await t.run(async (ctx) =>
-      Promise.all([
-        ctx.db
-          .query('chatroom_machineAgentOperationalSignals')
-          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
-          )
-          .collect(),
-        ctx.db
-          .query('chatroom_machineAgentStopSignals')
-          .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-            q.eq('machineId', input.machineId).eq('chatroomId', chatroomId)
-          )
-          .collect(),
-      ])
-    );
-    expect(counts.map((rows) => rows.length)).toEqual([1, 1]);
-
-    expect(counts[0][0]).toMatchObject({ kind: 'agent-operational' });
-    expect(counts[1][0]).toMatchObject({ kind: 'agent-stop', stopState: 'pending' });
   });
 });

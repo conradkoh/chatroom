@@ -4,8 +4,7 @@ import type { MachineAgentOperationalRow } from './operational-signal-feeds.js';
 export function operationalRow(
   chatroomId: string,
   role: string,
-  operationalState: MachineAgentOperationalRow['operationalState'] = 'running',
-  stopState?: MachineAgentOperationalRow['stopState']
+  operationalState: MachineAgentOperationalRow['operationalState'] = 'running'
 ): MachineAgentOperationalRow {
   return {
     chatroomId,
@@ -15,6 +14,5 @@ export function operationalRow(
     isRunning: operationalState === 'running',
     daemonConnected: true,
     revisionKey: `test:${chatroomId}:${role}:${operationalState}`,
-    stopState,
   };
 }

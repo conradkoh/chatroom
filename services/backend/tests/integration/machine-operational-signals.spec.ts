@@ -21,10 +21,7 @@ describe('machine operational signals', () => {
       teamRoles: ['planner', 'builder'],
       teamEntryPoint: 'planner',
     });
-    const signalRows = [
-      ['chatroom_machineAgentOperationalSignals', 'agent-operational'],
-      ['chatroom_machineAgentStopSignals', 'agent-stop'],
-    ] as const;
+    const signalRows = [['chatroom_machineAgentOperationalSignals', 'agent-operational']] as const;
     await t.run(async (ctx) => {
       for (const [index, [table, suffix]] of signalRows.entries()) {
         const base = {
@@ -37,8 +34,6 @@ describe('machine operational signals', () => {
         };
         if (table === 'chatroom_machineAgentOperationalSignals')
           await ctx.db.insert(table, { ...base, kind: 'agent-operational' });
-        else if (table === 'chatroom_machineAgentStopSignals')
-          await ctx.db.insert(table, { ...base, kind: 'agent-stop', stopState: 'pending' });
       }
     });
 
@@ -47,7 +42,6 @@ describe('machine operational signals', () => {
         api.machines.subscribeMachineAgentOperationalSignalsSince,
         api.machines.ackMachineAgentOperationalSignals,
       ],
-      [api.machines.subscribeMachineAgentStopSignalsSince, api.machines.ackMachineAgentStopSignals],
     ] as const;
     const pages = await Promise.all(
       feeds.map(([subscribe]) =>
@@ -66,7 +60,6 @@ describe('machine operational signals', () => {
       Promise.all(signalRows.map(([table]) => ctx.db.query(table).collect()))
     );
     expect(remaining[0]).toHaveLength(0);
-    expect(remaining.slice(1).every((rows) => rows.length === 1)).toBe(true);
   });
 
   test('projects a row into signal, subscription, and hydration pages', async () => {

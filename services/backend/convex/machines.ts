@@ -49,7 +49,6 @@ import { listMachineAgentOperationalStatus as listMachineAgentOperationalStatusU
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import {
   listOperationalStatusForMachineSignalRange as listOperationalStatusForMachineSignalRangeUseCase,
-  type OperationalSignalTable,
   type ListOperationalStatusForMachineSignalRangeResult,
 } from '../src/domain/usecase/machine/list-operational-status-for-machine-signal-range';
 import {
@@ -2217,8 +2216,7 @@ export const listMachineAssignedTaskSnapshots = query({
 
 const operationalSignalTables = {
   agentOperational: 'chatroom_machineAgentOperationalSignals',
-  agentStop: 'chatroom_machineAgentStopSignals',
-} as const satisfies Record<string, OperationalSignalTable>;
+} as const;
 
 type MachineSignalArgs = {
   sessionId: string;
@@ -2228,11 +2226,7 @@ type MachineSignalArgs = {
   limit?: number;
 };
 
-async function listMachineSignalPage(
-  ctx: QueryCtx,
-  args: MachineSignalArgs,
-  signalTable: OperationalSignalTable
-) {
+async function listMachineSignalPage(ctx: QueryCtx, args: MachineSignalArgs) {
   const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
   if (!auth) return null;
 
@@ -2241,7 +2235,7 @@ async function listMachineSignalPage(
     MAX_OPERATIONAL_SIGNALS_LIMIT
   );
   const page = await ctx.db
-    .query(signalTable)
+    .query(operationalSignalTables.agentOperational)
     .withIndex('by_machineId_chatroomId_signalKey', (q) =>
       q
         .eq('machineId', args.machineId)
@@ -2272,21 +2266,7 @@ export const subscribeMachineAgentOperationalSignalsSince = query({
   },
   handler: async (ctx, args) => {
     if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
-    return listMachineSignalPage(ctx, args, operationalSignalTables.agentOperational);
-  },
-});
-
-/** Reactive cursor-pinned role stop-state signals. */
-export const subscribeMachineAgentStopSignalsSince = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId))) return null;
-    return listMachineSignalPage(ctx, args, operationalSignalTables.agentStop);
+    return listMachineSignalPage(ctx, args);
   },
 });
 
@@ -2299,26 +2279,21 @@ async function listOperationalRowsForSignalRange(
     afterSignalKey: string;
     throughSignalKey: string;
     limit?: number;
-  },
-  signalTable: OperationalSignalTable
+  }
 ): Promise<ListOperationalStatusForMachineSignalRangeResult> {
   const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
   if (!auth) return { rows: [], nextSignalKey: null, hasMore: false };
-  return listOperationalStatusForMachineSignalRangeUseCase(
-    ctx,
-    {
-      machineId: args.machineId,
-      chatroomId: String(args.chatroomId),
-      userId: auth.userId,
-      afterSignalKey: args.afterSignalKey,
-      throughSignalKey: args.throughSignalKey,
-      limit: Math.min(
-        Math.max(args.limit ?? MAX_OPERATIONAL_SIGNALS_LIMIT, 1),
-        MAX_OPERATIONAL_SIGNALS_LIMIT
-      ),
-    },
-    signalTable
-  );
+  return listOperationalStatusForMachineSignalRangeUseCase(ctx, {
+    machineId: args.machineId,
+    chatroomId: String(args.chatroomId),
+    userId: auth.userId,
+    afterSignalKey: args.afterSignalKey,
+    throughSignalKey: args.throughSignalKey,
+    limit: Math.min(
+      Math.max(args.limit ?? MAX_OPERATIONAL_SIGNALS_LIMIT, 1),
+      MAX_OPERATIONAL_SIGNALS_LIMIT
+    ),
+  });
 }
 
 /** Hydrate rows for role operational-state signal delivery. */
@@ -2333,23 +2308,7 @@ export const listMachineAgentOperationalStatusForSignalRange = query({
   handler: async (ctx, args) => {
     if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
       return { rows: [], nextSignalKey: null, hasMore: false };
-    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentOperational);
-  },
-});
-
-/** Hydrate rows for role stop-state signal delivery. */
-export const listMachineAgentStopStatusForSignalRange = query({
-  args: {
-    ...SessionIdArg,
-    ...machineOperationalSignalScopeValidator,
-    afterSignalKey: v.string(),
-    throughSignalKey: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!(await getMachineOwner(ctx, args.sessionId, args.machineId)))
-      return { rows: [], nextSignalKey: null, hasMore: false };
-    return listOperationalRowsForSignalRange(ctx, args, operationalSignalTables.agentStop);
+    return listOperationalRowsForSignalRange(ctx, args);
   },
 });
 
@@ -2366,7 +2325,7 @@ export const listMachineAgentOperationalStatus = query({
   },
 });
 
-function ackMachineSignalMutation(signalTable: OperationalSignalTable) {
+function ackMachineSignalMutation() {
   return mutation({
     args: {
       ...SessionIdArg,
@@ -2375,28 +2334,17 @@ function ackMachineSignalMutation(signalTable: OperationalSignalTable) {
     },
     handler: async (ctx, args) => {
       await requireMachineOwner(ctx, args.sessionId, args.machineId);
-      return ackMachineSignalRows(
-        ctx,
-        {
-          machineId: args.machineId,
-          chatroomId: args.chatroomId,
-          throughSignalKey: args.throughSignalKey,
-        },
-        signalTable
-      );
+      return ackMachineSignalRows(ctx, {
+        machineId: args.machineId,
+        chatroomId: args.chatroomId,
+        throughSignalKey: args.throughSignalKey,
+      });
     },
   });
 }
 
 /** Acknowledge role operational-state signals. */
-export const ackMachineAgentOperationalSignals = ackMachineSignalMutation(
-  operationalSignalTables.agentOperational
-);
-
-/** Acknowledge role stop-state signals. */
-export const ackMachineAgentStopSignals = ackMachineSignalMutation(
-  operationalSignalTables.agentStop
-);
+export const ackMachineAgentOperationalSignals = ackMachineSignalMutation();
 
 /**
  * Rebuild snapshot projection rows for this machine (daemon startup backfill).

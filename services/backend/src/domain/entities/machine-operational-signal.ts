@@ -9,21 +9,17 @@
 
 import { v } from 'convex/values';
 
-import { toLiteralValidators } from './_shared/v-literals-of';
-
 /** Required scope for every machine operational-signal endpoint. */
 export const machineOperationalSignalScopeValidator = {
   machineId: v.string(),
   chatroomId: v.id('chatroom_rooms'),
 } as const;
 
-export const MACHINE_OPERATIONAL_SIGNAL_KINDS = ['agent-operational', 'agent-stop'] as const;
+export const MACHINE_OPERATIONAL_SIGNAL_KINDS = ['agent-operational'] as const;
 
 export type MachineOperationalSignalKind = (typeof MACHINE_OPERATIONAL_SIGNAL_KINDS)[number];
 
-export const machineOperationalSignalKindValidator = v.union(
-  ...toLiteralValidators(MACHINE_OPERATIONAL_SIGNAL_KINDS)
-);
+export const machineOperationalSignalKindValidator = v.literal('agent-operational');
 
 /** Fields shared by every feed for cursoring, scoping, and hydration. */
 export const machineOperationalSignalSyncFields = {
@@ -40,23 +36,7 @@ export const machineAgentOperationalSignalValidator = v.object({
   kind: v.literal('agent-operational'),
 });
 
-export const machineAgentStopSignalValidator = v.object({
-  ...machineOperationalSignalSyncFields,
-  kind: v.literal('agent-stop'),
-  stopState: v.union(
-    v.literal('idle'),
-    v.literal('pending'),
-    v.literal('stopping'),
-    v.literal('stopped'),
-    v.literal('failed')
-  ),
-});
-
-export const machineOperationalSignalValidator = v.union(
-  machineAgentOperationalSignalValidator,
-  machineAgentStopSignalValidator
-);
+export const machineOperationalSignalValidator = machineAgentOperationalSignalValidator;
 
 export type MachineAgentOperationalSignal = typeof machineAgentOperationalSignalValidator.type;
-export type MachineAgentStopSignal = typeof machineAgentStopSignalValidator.type;
 export type MachineOperationalSignal = typeof machineOperationalSignalValidator.type;

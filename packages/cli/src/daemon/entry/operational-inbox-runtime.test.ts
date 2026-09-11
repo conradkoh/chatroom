@@ -690,8 +690,8 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
       operationalInboxImpl: reconnectableInboxImpl,
     });
 
-    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(2);
-    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(2);
+    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(1);
+    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(1);
     expect(calls.find((call) => call.chatroomId === 'room-2')?.signal.aborted).toBe(false);
 
     const taskCalls = vi.mocked(runTaskInbox).mock.calls;
@@ -704,8 +704,8 @@ describe('startOperationalInboxEffect operational room supervisor', () => {
 
     // Room-1 restarts after the backoff; room-2 is untouched.
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(3);
-    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(2);
+    expect(calls.filter((call) => call.chatroomId === 'room-1')).toHaveLength(2);
+    expect(calls.filter((call) => call.chatroomId === 'room-2')).toHaveLength(1);
     expect(vi.mocked(runTaskInbox).mock.calls).toHaveLength(2);
 
     handle.stop();

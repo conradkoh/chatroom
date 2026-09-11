@@ -11,9 +11,6 @@ export type ListOperationalStatusForMachineSignalRangeInput = {
   limit: number;
 };
 
-export type OperationalSignalTable =
-  'chatroom_machineAgentOperationalSignals' | 'chatroom_machineAgentStopSignals';
-
 export type MachineAgentOperationalRowView = {
   chatroomId: string;
   role: string;
@@ -22,7 +19,6 @@ export type MachineAgentOperationalRowView = {
   isRunning: boolean;
   daemonConnected: boolean;
   revisionKey: string;
-  stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
 };
 
 export type ListOperationalStatusForMachineSignalRangeResult = {
@@ -33,12 +29,11 @@ export type ListOperationalStatusForMachineSignalRangeResult = {
 
 export async function listOperationalStatusForMachineSignalRange(
   ctx: QueryCtx,
-  input: ListOperationalStatusForMachineSignalRangeInput,
-  signalTable: OperationalSignalTable = 'chatroom_machineAgentOperationalSignals'
+  input: ListOperationalStatusForMachineSignalRangeInput
 ): Promise<ListOperationalStatusForMachineSignalRangeResult> {
   void input.userId;
   const signals = await ctx.db
-    .query(signalTable)
+    .query('chatroom_machineAgentOperationalSignals')
     .withIndex('by_machineId_chatroomId_signalKey', (q) =>
       q
         .eq('machineId', input.machineId)
@@ -66,7 +61,6 @@ export async function listOperationalStatusForMachineSignalRange(
       isRunning: row.isRunning,
       daemonConnected: row.daemonConnected,
       revisionKey: row.revisionKey,
-      ...(row.stopState ? { stopState: row.stopState } : {}),
     });
   }
 
