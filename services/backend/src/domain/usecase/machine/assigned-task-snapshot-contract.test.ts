@@ -9,7 +9,6 @@ import {
   parseAssignedTaskPresenceSignal,
   parseAssignedTaskSignal,
 } from './assigned-task-snapshot-contract';
-import { applyAssignedTaskSignal } from './assigned-task-snapshot-row';
 import type { AssignedTaskSignal } from './assigned-tasks-types';
 
 function minimalSignal(): AssignedTaskSignal {
@@ -72,11 +71,7 @@ describe('assignedTaskSignalSchema', () => {
 
   it('bootstrap helpers align with schema fields', () => {
     const signal = minimalSignal();
-    applyAssignedTaskSignal(undefined, signal);
-    applyAssignedTaskSignal(applyAssignedTaskSignal(undefined, signal), {
-      ...signal,
-      status: 'acknowledged',
-    });
+    expect(assignedTaskSignalSchema.parse(signal)).toMatchObject(signal);
   });
 
   it('bootstrap row fields are covered by schema keys', () => {
@@ -95,8 +90,7 @@ describe('assignedTaskSignalSchema', () => {
     for (const key of bootstrapKeys) {
       expect(schemaKeys.has(key), `schema missing bootstrap field: ${key}`).toBe(true);
     }
-    // Exercise bootstrap path so drift surfaces in tests.
-    applyAssignedTaskSignal(undefined, minimalSignal());
+    expect(assignedTaskSignalSchema.safeParse(minimalSignal()).success).toBe(true);
   });
 
   it('participant fields are absent from signal schema', () => {

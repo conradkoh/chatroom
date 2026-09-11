@@ -1,8 +1,11 @@
+// fallow-ignore-file complexity
+
 import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
+import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
+import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 
 /**
  * Consumes a one-shot "start in a new session" request exactly once.
@@ -33,6 +36,9 @@ export async function consumeTaskStartInNewSession(
     sessionPolicyConsumedAt: consumedAt,
     updatedAt: consumedAt,
   });
-  await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
+  const updatedTask = await ctx.db.get('chatroom_tasks', taskId);
+  if (updatedTask) {
+    await writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskUpdated, updatedTask);
+  }
   return true;
 }

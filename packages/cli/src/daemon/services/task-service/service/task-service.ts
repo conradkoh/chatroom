@@ -1,9 +1,7 @@
 // fallow-ignore-file complexity
 
-import type {
-  WorkspaceTaskInboxEventStatus,
-  WorkspaceTaskInboxEventType,
-} from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
+import type { WorkspaceTaskInboxEventStatus } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
+import { WorkspaceTaskInboxEventType } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { Effect } from 'effect';
 
 import {
@@ -35,6 +33,11 @@ interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
   readonly machineId: string;
   readonly chatroomId: string;
+  readonly taskId: string;
+  readonly role: string;
+  readonly agentHarness?: string;
+  readonly model?: string;
+  readonly workingDir?: string;
   readonly status: WorkspaceTaskInboxEventStatus;
   readonly createdAt: number;
   readonly processedAt?: number;
@@ -51,13 +54,21 @@ export type WorkspaceTaskInboxEvent =
       readonly eventType: WorkspaceTaskInboxEventType.TaskAssigned;
     })
   | (WorkspaceTaskInboxEventFields & {
+      readonly eventType: WorkspaceTaskInboxEventType.TaskUpdated;
+    })
+  | (WorkspaceTaskInboxEventFields & {
       readonly eventType: WorkspaceTaskInboxEventType.TaskDeleted;
     });
 
-export type TaskServiceNotification = {
-  readonly kind: 'bootstrap';
-  readonly snapshots: readonly AssignedTaskSnapshotView[];
-};
+export type TaskServiceNotification =
+  | {
+      readonly kind: 'bootstrap';
+      readonly snapshots: readonly AssignedTaskSnapshotView[];
+    }
+  | {
+      readonly kind: 'inbox-event';
+      readonly event: WorkspaceTaskInboxEvent;
+    };
 
 export type TaskServiceListener = (notification: TaskServiceNotification) => Promise<void> | void;
 
@@ -133,6 +144,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const taskSnapshotState = new MachineTaskSnapshotState();
   const listeners = new Set<TaskServiceListener>();
+  let inboxPollTimer: ReturnType<typeof setInterval> | undefined;
+  let inboxPollInFlight = false;
   const nativeTaskDeliveryQueue = new NativeTaskDeliveryQueue(async (entry) => {
     await Effect.runPromise(
       runNativeInjectionEffect(entry.task, entry.harnessSessionId, {
@@ -150,9 +163,64 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     await Promise.all([...listeners].map((listener) => Promise.resolve(listener(notification))));
   };
 
+  const applyInboxEvent = (event: WorkspaceTaskInboxEvent): void => {
+    if (
+      event.eventType === WorkspaceTaskInboxEventType.TaskDeleted ||
+      (event.task.status as string) === 'completed'
+    ) {
+      taskSnapshotState.remove(event.chatroomId, event.role, event.taskId);
+      return;
+    }
+
+    taskSnapshotState.upsert([
+      {
+        taskId: event.task.taskId,
+        chatroomId: event.task.chatroomId,
+        status: event.task.status as AssignedTaskSnapshotView['status'],
+        assignedTo: event.task.assignedTo,
+        updatedAt: event.task.updatedAt,
+        createdAt: event.task.createdAt,
+        requestsNativeColdSession: event.task.startInNewSession,
+        agentConfig: {
+          role: event.role,
+          machineId: event.machineId,
+          agentHarness: event.agentHarness ?? 'opencode',
+          model: event.model,
+          workingDir: event.workingDir,
+        },
+      },
+    ]);
+  };
+
+  const pollTaskInbox = async (): Promise<void> => {
+    if (inboxPollInFlight) return;
+    inboxPollInFlight = true;
+    try {
+      const events = await gateway.listPendingTaskInboxEvents({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+      });
+      for (const event of events) {
+        applyInboxEvent(event);
+        await notify({ kind: 'inbox-event', event });
+        await gateway.markTaskInboxEventProcessed({
+          sessionId: deps.sessionId,
+          machineId: deps.machineId,
+          eventId: event.eventId,
+        });
+      }
+    } catch (error) {
+      console.warn('[TaskService] task inbox poll failed:', error);
+    } finally {
+      inboxPollInFlight = false;
+    }
+  };
+
   const service: TaskService = {
     startTaskInbox: async () => {
-      await notify({ kind: 'bootstrap', snapshots: taskSnapshotState.listAll() });
+      await pollTaskInbox();
+      inboxPollTimer ??= setInterval(() => void pollTaskInbox(), 1_000);
+      inboxPollTimer.unref?.();
     },
     subscribe: (listener) => {
       listeners.add(listener);
@@ -160,6 +228,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
     stopTaskInbox: () => {
       nativeTaskDeliveryQueue.stop();
+      if (inboxPollTimer) clearInterval(inboxPollTimer);
+      inboxPollTimer = undefined;
     },
     listPendingTaskInboxEvents: () =>
       gateway.listPendingTaskInboxEvents({
@@ -211,7 +281,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         taskSnapshotState,
         taskService: service,
       });
-      nativeDelivery.startPeriodicReconciliation();
       return nativeDelivery;
     },
   };

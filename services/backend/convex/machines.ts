@@ -24,6 +24,7 @@ import {
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
+import { WorkspaceTaskInboxEventType } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
@@ -45,11 +46,10 @@ import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-mac
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import {
   patchTeamAgentConfig,
-  projectAfterTeamConfigRegistration,
-  projectAssignedTaskSnapshotsForMachines,
   upsertTeamAgentConfigByTeamRoleKey,
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { writeWorkspaceTaskInboxEventsForRole } from '../src/domain/usecase/machine/write-workspace-task-inbox-event';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -1483,7 +1483,7 @@ async function runRecordCustomAgentRegistered(
     desiredState: 'running' as const,
   };
 
-  const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+  await upsertTeamAgentConfigByTeamRoleKey(ctx, {
     teamRoleKey,
     fields: nextConfig,
     createdAt: now,
@@ -1494,9 +1494,6 @@ async function runRecordCustomAgentRegistered(
     role: args.role,
     excludeMachineId: undefined,
   });
-  if (previousMachineId) {
-    await projectAssignedTaskSnapshotsForMachines(ctx, [previousMachineId]);
-  }
 
   await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
@@ -1690,7 +1687,7 @@ export const saveTeamAgentConfig = mutation({
       desiredState: 'running' as const,
     };
 
-    const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+    await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey,
       fields: config,
       createdAt: now,
@@ -1701,12 +1698,11 @@ export const saveTeamAgentConfig = mutation({
       role: args.role,
       excludeMachineId: args.type === 'remote' ? args.machineId : undefined,
     });
-    await projectAfterTeamConfigRegistration(ctx, {
+    await writeWorkspaceTaskInboxEventsForRole(ctx, {
       chatroomId: args.chatroomId,
-      machineId: args.type === 'remote' ? args.machineId : undefined,
-      previousMachineId,
+      role: args.role,
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
     });
-
     // Emit agent.registered event to the event stream
 
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
@@ -2177,28 +2173,6 @@ export const listAgentOverview = query({
     return listChatroomAgentOverview(ctx, {
       userId: auth.userId,
     });
-  },
-});
-
-// ============================================================================
-// DAEMON TASK MONITOR
-// Slim snapshot projection + indexed subscribe cursors for assigned tasks.
-// ============================================================================
-
-/**
- * Rebuild snapshot projection rows for this machine (daemon startup backfill).
- */
-export const syncMachineAssignedTaskSnapshotsMutation = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
-
-    await getOwnedMachine(ctx, args.machineId, auth.userId);
-    return { success: true };
   },
 });
 

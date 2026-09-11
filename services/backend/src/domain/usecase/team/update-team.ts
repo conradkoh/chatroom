@@ -17,7 +17,6 @@ import { createAgentStopCommand } from '../agent/create-agent-stop-command';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 import type { AgentStopSelectedConfig } from '../agent/select-agent-stop-configs';
 import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
-import { projectAssignedTaskSnapshotsForMachines } from '../machine/patch-team-agent-config';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -155,7 +154,6 @@ export async function updateTeam(
     }
   }
 
-  await projectAssignedTaskSnapshotsForMachines(ctx, affectedMachineIds);
   await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, { pruneStale: true });
 
   const startedAgentCount = await startTargetTeamAgentsOnSwitch(ctx, {

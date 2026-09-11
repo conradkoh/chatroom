@@ -43,7 +43,7 @@ The standard pattern is **cursor-pinned incremental (delta) subscription** plus 
 
 A reconcile snapshot query **strips large fields from the HTTP response** (e.g. `task.content`). That reduces **wire bandwidth** and daemon memory — it does **not** automatically reduce Convex DB read cost.
 
-Read/subscribe queries use `chatroom_machineAssignedTaskSnapshots` (slim rows, indexed cursors). Write path may still read full `chatroom_tasks` once to populate `sessionAugmentation`.
+Task delivery uses the workspace task inbox (slim, indexed event rows). The daemon polls and acknowledges inbox events; write paths may still read full `chatroom_tasks` once to populate the event payload.
 
 **True DB bandwidth reduction** requires a backend follow-up: write-time projection tables so subscribe/reconcile queries read only the columns they need. The consumer snapshot pattern stays the same when that lands.
 

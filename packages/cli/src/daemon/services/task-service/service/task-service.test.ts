@@ -1,3 +1,7 @@
+import {
+  WorkspaceTaskInboxEventStatus,
+  WorkspaceTaskInboxEventType,
+} from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { describe, expect, test, vi } from 'vitest';
 
 import { createTaskService } from './task-service.js';
@@ -65,5 +69,58 @@ describe('TaskService.loadAssignedTaskForAction', () => {
       taskId: 'task-1',
       role: 'builder',
     });
+  });
+});
+
+describe('TaskService inbox consumption', () => {
+  test('hydrates task state from pending inbox events and acknowledges them', async () => {
+    const event = {
+      _id: 'event-1',
+      machineId: 'machine-1',
+      chatroomId: 'room-1',
+      taskId: 'task-1',
+      role: 'builder',
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 1_000,
+      task: {
+        taskId: 'task-1',
+        chatroomId: 'room-1',
+        status: 'pending',
+        assignedTo: 'builder',
+        updatedAt: 1_000,
+        createdAt: 900,
+        startInNewSession: false,
+      },
+    } as never;
+    const query = vi.fn(async () => [event]);
+    const mutation = vi.fn(async () => ({ processed: true }));
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      backend: { mutation, query },
+      agentProcessService: {
+        getSlot: vi.fn(),
+        resumeTurnForSlot: vi.fn(),
+        runSerializedForAgent: vi.fn(),
+      } as never,
+      lifecycleOutbox: { enqueue: vi.fn(async () => undefined) },
+    } as never);
+
+    await service.startTaskInbox();
+
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      {
+        taskId: 'task-1',
+        chatroomId: 'room-1',
+        status: 'pending',
+        agentConfig: { role: 'builder', machineId: 'machine-1' },
+      },
+    ]);
+    expect(mutation).toHaveBeenCalledTimes(1);
+    expect((mutation.mock.calls as unknown[][])[0]?.[1]).toMatchObject({ eventId: 'event-1' });
+
+    service.stopTaskInbox();
   });
 });

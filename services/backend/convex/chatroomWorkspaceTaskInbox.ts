@@ -3,11 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireMachineOwner } from './auth/cli/machineAccess';
-import {
-  WorkspaceTaskInboxEventStatus,
-  WorkspaceTaskInboxEventType,
-  workspaceTaskInboxTaskValidator,
-} from '../src/domain/entities/chatroom-workspace-task-inbox';
+import { WorkspaceTaskInboxEventStatus } from '../src/domain/entities/chatroom-workspace-task-inbox';
 
 export const listPending = query({
   args: { ...SessionIdArg, machineId: v.string() },
@@ -35,28 +31,5 @@ export const markProcessed = mutation({
       processedAt: Date.now(),
     });
     return { processed: true };
-  },
-});
-
-/** Backend writer for future task-assignment wiring; intentionally not called yet. */
-export const createTaskAssigned = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
-    task: workspaceTaskInboxTaskValidator,
-  },
-  handler: async (ctx, args) => {
-    await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    const eventId = await ctx.db.insert('chatroomWorkspaceTaskInbox', {
-      machineId: args.machineId,
-      chatroomId: args.chatroomId,
-      taskId: args.task.taskId,
-      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
-      status: WorkspaceTaskInboxEventStatus.Pending,
-      task: args.task,
-      createdAt: Date.now(),
-    });
-    return { eventId };
   },
 });

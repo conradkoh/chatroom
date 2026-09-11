@@ -1,3 +1,5 @@
+// fallow-ignore-file complexity
+
 import type {
   WorkspaceTaskInboxEventStatus,
   WorkspaceTaskInboxEventType,
@@ -29,6 +31,11 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
         eventId: row._id as string,
         machineId: row.machineId as string,
         chatroomId: row.chatroomId as string,
+        taskId: row.taskId as string,
+        role: row.role as string,
+        ...(row.agentHarness === undefined ? {} : { agentHarness: row.agentHarness as string }),
+        ...(row.model === undefined ? {} : { model: row.model as string }),
+        ...(row.workingDir === undefined ? {} : { workingDir: row.workingDir as string }),
         eventType: row.eventType as WorkspaceTaskInboxEventType,
         status: row.status as WorkspaceTaskInboxEventStatus,
         createdAt: row.createdAt as number,

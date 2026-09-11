@@ -2,8 +2,8 @@
  * User message → pending task → native daemon delivery path.
  *
  * Flow under test (happy path):
- * 1. Backend: messages.sendMessage → createTask(status=pending) → projectAssignedTaskSnapshots
- * 2. Backend: machine task-status signals feed the daemon task inbox
+ * 1. Backend: messages.sendMessage → createTask(status=pending) → task inbox
+ * 2. Backend: task inbox events feed the daemon task state
  * 3. Daemon: task-monitor onSignalRow → requestReconcile → reconcileRoleTasks
  * 4. Daemon: shouldDeliverNativeTask(slot idle + pid match) → runNativeInjectionEffect
  * 5. Daemon: claimTask → getTaskDeliveryPrompt → participants.join(native:task-injected) → resumeTurn
@@ -14,10 +14,9 @@
  * - spawnedAgentPid mismatch between snapshot and local slot
  */
 
-import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Runtime } from 'effect';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
@@ -25,7 +24,11 @@ import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import {
+  createTaskSnapshot,
+  snapshotDocToSignal,
+  type TaskSnapshotFixtureDoc,
+} from './test-fixtures/task-snapshot-fixture.js';
 import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
@@ -45,12 +48,10 @@ const SPAWNED_PID = 42_424;
 const MESSAGE_CONTENT = '## Goal\nPlease fix the pending delivery bug';
 
 function makeUserMessagePendingSnapshotDoc(
-  overrides: Partial<Doc<'chatroom_machineAssignedTaskSnapshots'>> = {}
-): Doc<'chatroom_machineAssignedTaskSnapshots'> {
+  overrides: Partial<TaskSnapshotFixtureDoc> = {}
+): TaskSnapshotFixtureDoc {
   const now = 1_700_000_000_000;
   return {
-    _id: 'snapshot_user_msg' as Id<'chatroom_machineAssignedTaskSnapshots'>,
-    _creationTime: now,
     machineId: MACHINE_ID,
     taskId: 'task_user_msg' as Id<'chatroom_tasks'>,
     chatroomId: 'room_1' as Id<'chatroom_rooms'>,
@@ -62,10 +63,7 @@ function makeUserMessagePendingSnapshotDoc(
     agentHarness: 'cursor-sdk',
     workingDir: '/test/workspace',
     configUpdatedAt: now,
-    presenceUpdatedAt: now,
-    presenceKey: 'presence-key',
     revisionKey: 'revision-key',
-    signalUpdatedAt: now,
     ...overrides,
   };
 }

@@ -7,7 +7,9 @@ import {
 } from './resolve-user-message-task-link';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { normalizeMarkdownContent } from '../../entities/markdown-content';
+import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 
 export type UpdateUserMessageOrTaskArgs =
   | { type: 'task'; taskId: Id<'chatroom_tasks'>; content: string }
@@ -122,4 +124,8 @@ async function patchTaskContent(
     content,
     updatedAt: Date.now(),
   });
+  const updatedTask = await ctx.db.get('chatroom_tasks', taskId);
+  if (updatedTask) {
+    await writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskUpdated, updatedTask);
+  }
 }

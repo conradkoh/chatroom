@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 export enum WorkspaceTaskInboxEventType {
   TaskAssigned = 'task_assigned',
+  TaskUpdated = 'task_updated',
   TaskDeleted = 'task_deleted',
 }
 
@@ -16,7 +17,7 @@ const workspaceTaskInboxEventStatusValidator = v.union(
 );
 
 /** The complete task payload needed by a daemon to handle an assignment. */
-export const workspaceTaskInboxTaskValidator = v.object({
+const workspaceTaskInboxTaskValidator = v.object({
   taskId: v.id('chatroom_tasks'),
   chatroomId: v.id('chatroom_rooms'),
   createdBy: v.string(),
@@ -49,6 +50,10 @@ const workspaceTaskInboxEventFields = {
   machineId: v.string(),
   chatroomId: v.id('chatroom_rooms'),
   taskId: v.id('chatroom_tasks'),
+  role: v.string(),
+  agentHarness: v.optional(v.string()),
+  model: v.optional(v.string()),
+  workingDir: v.optional(v.string()),
   status: workspaceTaskInboxEventStatusValidator,
   task: workspaceTaskInboxTaskValidator,
   createdAt: v.number(),
@@ -60,6 +65,10 @@ export const workspaceTaskInboxEventValidator = v.union(
   v.object({
     ...workspaceTaskInboxEventFields,
     eventType: v.literal(WorkspaceTaskInboxEventType.TaskAssigned),
+  }),
+  v.object({
+    ...workspaceTaskInboxEventFields,
+    eventType: v.literal(WorkspaceTaskInboxEventType.TaskUpdated),
   }),
   v.object({
     ...workspaceTaskInboxEventFields,

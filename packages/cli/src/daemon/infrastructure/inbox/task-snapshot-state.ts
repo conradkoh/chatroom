@@ -77,6 +77,13 @@ export class MachineTaskSnapshotState {
     }
   }
 
+  remove(chatroomId: string, role: string, taskId: string): boolean {
+    const key = snapshotKey(taskId, role);
+    const snapshot = this.snapshots.get(key);
+    if (!snapshot || snapshot.chatroomId !== chatroomId) return false;
+    return this.snapshots.delete(key);
+  }
+
   /**
    * Patches the status of an existing snapshot after a backend-confirmed
    * transition. Never creates a snapshot; returns false when no matching

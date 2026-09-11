@@ -1,3 +1,5 @@
+// fallow-ignore-file complexity
+
 import { logNativeDeliveryDecision } from './native-delivery-log.js';
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
@@ -27,6 +29,7 @@ import type { TaskServiceNotification } from '../../index.js';
 export type NativeDeliveryPass =
   | 'periodic-reconcile'
   | 'bootstrap'
+  | 'inbox-signal'
   | 'agent-session-lost'
   | 'agent-started'
   | 'turn-ended'
@@ -52,8 +55,6 @@ type TaskDeliveryService = Pick<
   | 'loadAssignedTaskForAction'
 > &
   Partial<Pick<TaskService, 'subscribe'>>;
-
-const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 
 export interface NativeDeliveryServiceDependencies {
   readonly runtime: TaskDeliveryRuntime;
@@ -88,8 +89,6 @@ export class NativeDeliveryService {
     }
   >();
   private unsubscribeTaskService: (() => void) | undefined;
-  private periodicReconcileTimer: ReturnType<typeof setInterval> | undefined;
-  private periodicReconcileInFlight = false;
 
   constructor(private readonly deps: NativeDeliveryServiceDependencies) {
     this.unsubscribeAgentTurnEnded = deps.agentMgr.subscribeAgentTurnEnded((event) =>
@@ -223,40 +222,6 @@ export class NativeDeliveryService {
     this.unsubscribeAgentSessionLost();
     this.unsubscribeTaskService?.();
     this.unsubscribeTaskService = undefined;
-    if (this.periodicReconcileTimer) {
-      clearInterval(this.periodicReconcileTimer);
-      this.periodicReconcileTimer = undefined;
-    }
-  }
-
-  startPeriodicReconciliation(intervalMs = NATIVE_DELIVERY_RECONCILE_MS): void {
-    if (this.periodicReconcileTimer) return;
-    this.periodicReconcileTimer = setInterval(() => {
-      if (this.periodicReconcileInFlight) return;
-      this.periodicReconcileInFlight = true;
-      const roleKeys = new Set(
-        this.deps.taskSnapshotState
-          .listAll()
-          .map((snapshot) => `${snapshot.chatroomId}:${snapshot.agentConfig.role.toLowerCase()}`)
-      );
-      void Promise.all(
-        [...roleKeys].map((key) => {
-          const separator = key.indexOf(':');
-          return this.requestReconcile({
-            chatroomId: key.slice(0, separator),
-            role: key.slice(separator + 1),
-            source: 'periodic-reconcile',
-          });
-        })
-      )
-        .catch((error) => {
-          console.warn('[TaskService] local delivery reconciliation failed:', error);
-        })
-        .finally(() => {
-          this.periodicReconcileInFlight = false;
-        });
-    }, intervalMs);
-    this.periodicReconcileTimer.unref?.();
   }
 
   // fallow-ignore-next-line unused-class-member
@@ -267,7 +232,13 @@ export class NativeDeliveryService {
   async handleTaskServiceNotification(notification: TaskServiceNotification): Promise<void> {
     if (notification.kind === 'bootstrap') {
       await this.requestReconcileForSnapshots(notification.snapshots, 'bootstrap');
+      return;
     }
+    await this.requestReconcile({
+      chatroomId: notification.event.chatroomId,
+      role: notification.event.role,
+      source: 'inbox-signal',
+    });
   }
 
   async requestReconcile(params: {

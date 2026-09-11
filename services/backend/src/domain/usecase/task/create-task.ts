@@ -29,8 +29,9 @@ import {
 import { writeTaskStatusSignals } from './write-task-status-signals';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { normalizeMarkdownContent } from '../../entities/markdown-content';
-import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
+import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 
 type MaterializedTaskCounts = {
   pending: number;
@@ -185,10 +186,9 @@ export async function createTask(
   // Note: Agent restart for pending tasks is now handled by the daemon's task monitor.
   // No backend scheduling needed here.
 
-  await projectAssignedTaskSnapshotsForChatroom(ctx, args.chatroomId);
-
   const createdTask = await ctx.db.get('chatroom_tasks', taskId);
   if (createdTask) {
+    await writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskAssigned, createdTask);
     await writeTaskStatusSignals(ctx, createdTask);
   }
 

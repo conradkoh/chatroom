@@ -1,14 +1,10 @@
-/**
- * Centralized team agent config writes that always refresh the assigned-task
- * snapshot projection for the affected machine or chatroom.
- */
+// fallow-ignore-file complexity
 
-import {
-  projectAssignedTaskSnapshotsForChatroom,
-  projectAssignedTaskSnapshotsForMachine,
-} from './machine-assigned-task-snapshot-sync';
+/** Centralized team agent config writes and operational-state projection. */
+import { writeWorkspaceTaskInboxEventsForRole } from './write-workspace-task-inbox-event';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { deleteStaleTeamAgentConfigs } from '../agent/delete-stale-team-agent-configs';
 import { projectAgentOperationalStatusForRole } from '../agent/project-agent-operational-status';
 
@@ -38,9 +34,7 @@ export type UpsertTeamAgentConfigResult = {
 };
 
 /**
- * Patch a team agent config and refresh daemon snapshot projection.
- * Use this instead of raw `ctx.db.patch('chatroom_teamAgentConfigs', …)` +
- * manual `syncChatroomAssignedTaskSnapshots`.
+ * Patch a team agent config and refresh its operational-state projection.
  */
 // fallow-ignore-next-line complexity
 export async function patchTeamAgentConfig(
@@ -64,13 +58,25 @@ export async function patchTeamAgentConfig(
     return existing;
   }
 
+  if (
+    Object.prototype.hasOwnProperty.call(patch, 'machineId') ||
+    Object.prototype.hasOwnProperty.call(patch, 'agentHarness') ||
+    Object.prototype.hasOwnProperty.call(patch, 'model') ||
+    Object.prototype.hasOwnProperty.call(patch, 'workingDir')
+  ) {
+    await writeWorkspaceTaskInboxEventsForRole(ctx, {
+      chatroomId: existing.chatroomId,
+      role: existing.role,
+      eventType: WorkspaceTaskInboxEventType.TaskUpdated,
+    });
+  }
+
   await projectTeamAgentConfigPatch(ctx, existing, options?.projectScope);
   return existing;
 }
 
 /**
- * Insert or patch a team agent config by teamRoleKey (no projection).
- * Call `projectAfterTeamConfigRegistration` or `projectAssignedTaskSnapshotsForMachines` after.
+ * Insert or patch a team agent config by teamRoleKey.
  */
 export async function upsertTeamAgentConfigByTeamRoleKey(
   ctx: MutationCtx,
@@ -115,56 +121,23 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
   return { configId, wasInsert: true };
 }
 
-/** Rebuild projection after saveTeamAgentConfig / remote registration. */
-export async function projectAfterTeamConfigRegistration(
-  ctx: MutationCtx,
-  args: {
-    chatroomId: Id<'chatroom_rooms'>;
-    machineId?: string | undefined;
-    previousMachineId?: string | undefined;
-  }
-): Promise<void> {
-  await projectAssignedTaskSnapshotsForChatroom(ctx, args.chatroomId);
-  if (args.previousMachineId && args.previousMachineId !== args.machineId) {
-    await projectAssignedTaskSnapshotsForMachine(ctx, args.previousMachineId);
-  }
-}
-
-/** Rebuild projection for each machine once (e.g. team switch teardown). */
-export async function projectAssignedTaskSnapshotsForMachines(
-  ctx: MutationCtx,
-  machineIds: Iterable<string>
-): Promise<void> {
-  const seen = new Set<string>();
-  for (const machineId of machineIds) {
-    if (seen.has(machineId)) {
-      continue;
-    }
-    seen.add(machineId);
-    await projectAssignedTaskSnapshotsForMachine(ctx, machineId);
-  }
-}
-
 async function projectTeamAgentConfigPatch(
   ctx: MutationCtx,
   existing: Doc<'chatroom_teamAgentConfigs'>,
   scope: PatchTeamAgentConfigOptions['projectScope'] = 'machine'
 ): Promise<void> {
   if (scope === 'chatroom') {
-    await projectAssignedTaskSnapshotsForChatroom(ctx, existing.chatroomId);
     await projectAgentOperationalStatusForRole(ctx, existing.chatroomId, existing.role, undefined, {
       config: existing,
     });
     return;
   }
   if (existing.machineId) {
-    await projectAssignedTaskSnapshotsForMachine(ctx, existing.machineId);
     await projectAgentOperationalStatusForRole(ctx, existing.chatroomId, existing.role, undefined, {
       config: existing,
     });
     return;
   }
-  await projectAssignedTaskSnapshotsForChatroom(ctx, existing.chatroomId);
   await projectAgentOperationalStatusForRole(ctx, existing.chatroomId, existing.role, undefined, {
     config: existing,
   });

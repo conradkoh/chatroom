@@ -61,12 +61,18 @@ function taskPayload(chatroomId: Id<'chatroom_rooms'>, taskId: Id<'chatroom_task
 describe('chatroomWorkspaceTaskInbox', () => {
   test('creates pending assignment events and marks them processed without retry state', async () => {
     const { sessionId, machineId, chatroomId, taskId } = await setup();
-    const { eventId } = await t.mutation(api.chatroomWorkspaceTaskInbox.createTaskAssigned, {
-      sessionId,
-      machineId,
-      chatroomId,
-      task: taskPayload(chatroomId, taskId),
-    });
+    const eventId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroomWorkspaceTaskInbox', {
+        machineId,
+        chatroomId,
+        taskId,
+        role: 'planner',
+        eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+        status: WorkspaceTaskInboxEventStatus.Pending,
+        task: taskPayload(chatroomId, taskId),
+        createdAt: Date.now(),
+      })
+    );
 
     const pending = await t.query(api.chatroomWorkspaceTaskInbox.listPending, {
       sessionId,

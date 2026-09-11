@@ -16,13 +16,14 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
+import { WorkspaceTaskInboxEventType } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import {
   normalizeMarkdownContent,
   withMarkdownContent,
 } from '../src/domain/entities/markdown-content';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
-import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import { writeWorkspaceTaskInboxEvent } from '../src/domain/usecase/machine/write-workspace-task-inbox-event';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
   createTask as createTaskUsecase,
@@ -144,7 +145,10 @@ export const updateTaskStartInNewSession = mutation({
       ...deriveTaskPolicyProjection(next),
       updatedAt: Date.now(),
     });
-    await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
+    const updatedTask = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (updatedTask) {
+      await writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskUpdated, updatedTask);
+    }
   },
 });
 
@@ -287,6 +291,11 @@ export const startTask = mutation({
           });
           const reassignedTask = await ctx.db.get('chatroom_tasks', acknowledgedTask._id);
           if (reassignedTask) {
+            await writeWorkspaceTaskInboxEvent(
+              ctx,
+              WorkspaceTaskInboxEventType.TaskUpdated,
+              reassignedTask
+            );
             await writeTaskStatusSignals(ctx, reassignedTask);
           }
         }
