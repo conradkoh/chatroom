@@ -88,12 +88,7 @@ async function listSignals(chatroomId: Id<'chatroom_rooms'>) {
       .withIndex('by_chatroom_signalKey', (q) => q.eq('chatroomId', chatroomId))
       .collect();
   });
-  const delivery = (
-    await t.run(async (ctx) => {
-      return await ctx.db.query('chatroom_machineTaskDeliverySignals').collect();
-    })
-  ).filter((row) => row.chatroomId === chatroomId);
-  return { timeline, delivery };
+  return { timeline };
 }
 
 async function getSnapshot(taskId: Id<'chatroom_tasks'>) {
@@ -131,18 +126,11 @@ describe('releaseTaskAfterTurnFailure', () => {
     expect(task?.acknowledgedAt).toBeUndefined();
     expect(task?.startedAt).toBeUndefined();
 
-    const { timeline, delivery } = await listSignals(chatroomId);
+    const { timeline } = await listSignals(chatroomId);
     expect(timeline).toHaveLength(1);
     expect(timeline[0]).toMatchObject({
       taskId,
       taskStatus: 'pending',
-      source: 'task_service',
-    });
-    expect(delivery).toHaveLength(1);
-    expect(delivery[0]).toMatchObject({
-      taskId,
-      taskStatus: 'pending',
-      targetRole: 'builder',
       source: 'task_service',
     });
 
@@ -183,9 +171,8 @@ describe('releaseTaskAfterTurnFailure', () => {
     });
     expect(second).toMatchObject({ released: false, status: 'pending' });
 
-    const { timeline, delivery } = await listSignals(chatroomId);
+    const { timeline } = await listSignals(chatroomId);
     expect(timeline).toHaveLength(1);
-    expect(delivery).toHaveLength(1);
   });
 
   test('completed task is a no-op returning current status', async () => {

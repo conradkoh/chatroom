@@ -34,8 +34,8 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import type { TaskTransitionSource } from '../../entities/machine-task-delivery-signal';
 import { TERMINAL_TASK_STATUSES } from '../../entities/task';
+import type { TaskTransitionSource } from '../../entities/task-status-signal';
 import { requestEphemeralAgentRelease } from '../agent/request-ephemeral-agent-release';
 import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
 import { syncMessageReadModel } from '../message/message-read-model';
@@ -46,7 +46,7 @@ import { syncMessageReadModel } from '../message/message-read-model';
 
 /**
  * Narrow typed marker for the origin of a task transition signal.
- * Canonical definition lives in `machine-task-delivery-signal`; re-exported
+ * Canonical definition lives in `task-status-signal`; re-exported
  * here so transition callers need only one import path. Currently only the
  * turn-failure recovery path sets this; all other callers omit it. It is
  * audit/diagnostic metadata and must never be used to suppress propagation.

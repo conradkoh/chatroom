@@ -217,9 +217,8 @@ Unit-test merge rules in `daemon-start/<feed>-snapshot.test.ts`. Transport/orche
 
 ---
 
-Task discovery is owned by the machine-scoped task inbox at
-`packages/cli/src/daemon/infrastructure/inbox/task.ts`; it consumes routed task-status
-signals and hydrates snapshots from the backend as needed.
+Task discovery is owned by the daemon task service; it hydrates machine-assigned
+task snapshots from the backend and reconciles delivery from local lifecycle events.
 
 ---
 

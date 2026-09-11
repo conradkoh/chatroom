@@ -237,7 +237,7 @@ describe('NativeDeliveryService', () => {
     service.dispose();
   });
 
-  test('routes task-signal and bootstrap notifications by affected role', async () => {
+  test('routes bootstrap notifications by affected role', async () => {
     const service = createService();
     const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
     const snapshot = {
@@ -245,20 +245,9 @@ describe('NativeDeliveryService', () => {
       agentConfig: { role: 'builder' },
     } as never;
 
-    await service.handleTaskInboxUpdate({
-      signals: [],
-      snapshots: [snapshot],
-      afterSignalKey: 'a',
-      throughSignalKey: 'b',
-    });
     await service.handleTaskServiceNotification({ kind: 'bootstrap', snapshots: [snapshot] });
 
     expect(requestReconcile).toHaveBeenNthCalledWith(1, {
-      chatroomId: 'room-1',
-      role: 'builder',
-      source: 'task-signal',
-    });
-    expect(requestReconcile).toHaveBeenNthCalledWith(2, {
       chatroomId: 'room-1',
       role: 'builder',
       source: 'bootstrap',
@@ -280,7 +269,7 @@ describe('NativeDeliveryService', () => {
     const first = service.requestReconcile({
       chatroomId: 'room-1',
       role: 'Builder',
-      source: 'task-signal',
+      source: 'periodic-reconcile',
     });
     const second = service.requestReconcile({
       chatroomId: 'room-1',

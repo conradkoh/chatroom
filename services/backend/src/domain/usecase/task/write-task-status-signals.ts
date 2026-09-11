@@ -1,17 +1,15 @@
-import { writeTaskDeliverySignal } from './write-task-delivery-signal';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import {
   buildTaskStatusSignalKey,
   type TaskTransitionSource,
-} from '../../entities/machine-task-delivery-signal';
+} from '../../entities/task-status-signal';
 
 /**
  * Sole production entry point for task-status projection writes.
  *
- * Both projections are written in one Convex transaction: a thrown error rolls
- * back the timeline row and the daemon delivery row together.
+ * Writes the chatroom task-status timeline signal.
  */
 export async function writeTaskStatusSignals(
   ctx: MutationCtx,
@@ -31,9 +29,4 @@ export async function writeTaskStatusSignals(
       source: options?.source,
     })
   );
-  await writeTaskDeliverySignal(ctx, task, {
-    signalKey,
-    taskUpdatedAt,
-    source: options?.source,
-  });
 }

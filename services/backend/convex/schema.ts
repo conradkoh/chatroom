@@ -14,10 +14,7 @@ import {
   agentStopTargetStatusValidator,
 } from '../src/domain/entities/agent-stop-command';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
-import {
-  machineTaskDeliverySignalValidator,
-  taskTransitionSourceValidator,
-} from '../src/domain/entities/machine-task-delivery-signal';
+import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
 
 const attachedSnippetValidator = v.object({
   reference: v.string(),
@@ -725,7 +722,6 @@ export default defineSchema({
   /**
    * Slim timeline task-status signals — one row per FSM transition.
    * Chatroom-scoped only; webapp subscribes via by_chatroom_signalKey.
-   * Machine-routed task signals live in chatroom_machineTaskDeliverySignals.
    */
   chatroom_timelineTaskStatusSignals: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -744,15 +740,6 @@ export default defineSchema({
     taskUpdatedAt: v.number(),
     source: v.optional(taskTransitionSourceValidator),
   }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
-
-  /**
-   * Daemon-owned task-delivery signals. Payload is routing/status metadata only;
-   * task content is hydrated imperatively from assigned-task snapshots.
-   * Per-chatroom append-only cursors isolate invalidation between active rooms.
-   */
-  chatroom_machineTaskDeliverySignals: defineTable(machineTaskDeliverySignalValidator)
-    .index('by_machineId_signalKey', ['machineId', 'signalKey'])
-    .index('by_machineId_chatroomId_signalKey', ['machineId', 'chatroomId', 'signalKey']),
 
   /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).

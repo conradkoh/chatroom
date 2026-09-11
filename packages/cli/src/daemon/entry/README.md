@@ -4,7 +4,7 @@ Composition root — wiring only. **No business logic.**
 
 ## Task discovery
 
-TaskService owns the task inbox implementation: task inbox subscriptions, cursors, snapshot hydration (`listMachineAssignedTaskSnapshots`), task notifications, and task-room registration (`startTaskInbox`, `registerTaskChatroom`, `unregisterTaskChatroom`, `stopTaskInbox`). Entry only calls that facade as composition wiring.
+TaskService owns task snapshot hydration (`listMachineAssignedTaskSnapshots`) and native task delivery composition. Entry only calls that facade as composition wiring.
 
 Task inbox startup is composed in `entry/task-inbox-runtime.ts` and registers active workspace rooms with the task service. Workspace membership refresh (`entry/workspace-membership-refresh-registry.ts`) is composition wiring shared by task, enhancer, and Git watchers — a workspace nudge keeps all of them in sync.
 

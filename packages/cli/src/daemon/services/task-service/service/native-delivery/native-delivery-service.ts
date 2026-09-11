@@ -13,7 +13,6 @@ import {
 import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
 import type { TaskSnapshotStateReader } from '../../../../infrastructure/inbox/task-snapshot-state.js';
-import type { TaskInboxUpdate } from '../../../../infrastructure/inbox/task.js';
 import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
@@ -26,7 +25,6 @@ import type {
 import type { TaskServiceNotification } from '../../index.js';
 
 export type NativeDeliveryPass =
-  | 'task-signal'
   | 'periodic-reconcile'
   | 'bootstrap'
   | 'agent-session-lost'
@@ -267,16 +265,10 @@ export class NativeDeliveryService {
     return this.deps.agentTaskState;
   }
 
-  async handleTaskInboxUpdate(update: TaskInboxUpdate): Promise<void> {
-    await this.requestReconcileForSnapshots(update.snapshots, 'task-signal');
-  }
-
   async handleTaskServiceNotification(notification: TaskServiceNotification): Promise<void> {
     if (notification.kind === 'bootstrap') {
       await this.requestReconcileForSnapshots(notification.snapshots, 'bootstrap');
-      return;
     }
-    await this.handleTaskInboxUpdate(notification.update);
   }
 
   async requestReconcile(params: {

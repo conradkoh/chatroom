@@ -1,6 +1,6 @@
 /**
  * Tests for writeTaskStatusSignals — sole production entry point for
- * task-status projection writes (timeline + daemon delivery).
+ * task-status timeline projection writes.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -74,11 +74,10 @@ async function seedTask(
 }
 
 describe('writeTaskStatusSignals', () => {
-  test('remote-routed task creates one timeline row and one delivery row with equal cursor/timestamp', async () => {
+  test('remote-routed task creates one timeline row', async () => {
     const { sessionId } = await createTestSession('task-signals-routed');
     const chatroomId = await createChatroom(sessionId);
-    const machineId = 'task-signals-machine-1';
-    await seedRemoteConfig(chatroomId, 'planner', machineId);
+    await seedRemoteConfig(chatroomId, 'planner', 'task-signals-machine-1');
 
     const task = await seedTask(chatroomId, { assignedTo: 'planner' });
     await t.run(async (ctx) => {
@@ -92,29 +91,7 @@ describe('writeTaskStatusSignals', () => {
         .withIndex('by_chatroom_signalKey', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    const delivery = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_machineTaskDeliverySignals')
-        .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-          q.eq('machineId', machineId).eq('chatroomId', chatroomId)
-        )
-        .collect();
-    });
-
     expect(timeline).toHaveLength(1);
-    expect(delivery).toHaveLength(1);
-    expect(delivery[0].signalKey).toBe(timeline[0].signalKey);
-    expect(delivery[0].taskUpdatedAt).toBe(timeline[0].taskUpdatedAt);
-    expect(delivery[0]).toMatchObject({
-      machineId,
-      chatroomId,
-      taskId: task._id,
-      targetRole: 'planner',
-      taskStatus: 'pending',
-    });
-    // Slim contract: no task content or row metadata.
-    expect(delivery[0]).not.toHaveProperty('content');
-    // Exact retained-table evidence: one timeline row and one delivery row.
     expect(timeline[0]).toMatchObject({
       chatroomId,
       taskId: task._id,
@@ -153,59 +130,19 @@ describe('writeTaskStatusSignals', () => {
         .withIndex('by_chatroom_signalKey', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    const oldDelivery = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_machineTaskDeliverySignals')
-        .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-          q.eq('machineId', oldMachineId).eq('chatroomId', chatroomId)
-        )
-        .collect();
-    });
-    const newDelivery = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_machineTaskDeliverySignals')
-        .withIndex('by_machineId_chatroomId_signalKey', (q) =>
-          q.eq('machineId', newMachineId).eq('chatroomId', chatroomId)
-        )
-        .collect();
-    });
-
     expect(timeline).toHaveLength(2);
-    expect(oldDelivery).toHaveLength(1);
-    expect(newDelivery).toHaveLength(1);
-    expect(oldDelivery[0]).toMatchObject({
-      chatroomId,
-      taskId: task._id,
-      targetRole: 'planner',
-      taskStatus: 'pending',
-    });
-    expect(newDelivery[0]).toMatchObject({
-      chatroomId,
-      taskId: task._id,
-      targetRole: 'builder',
-      taskStatus: 'pending',
-    });
-
-    // Each transition's timeline/delivery pair shares cursor and timestamp.
     const [first, second] = [...timeline].sort((a, b) => (a.signalKey < b.signalKey ? -1 : 1));
-    expect(oldDelivery[0].signalKey).toBe(first.signalKey);
-    expect(oldDelivery[0].taskUpdatedAt).toBe(first.taskUpdatedAt);
-    expect(newDelivery[0].signalKey).toBe(second.signalKey);
-    expect(newDelivery[0].taskUpdatedAt).toBe(second.taskUpdatedAt);
 
     // The reassignment key is strictly ordered after the original transition.
     expect(second.signalKey > first.signalKey).toBe(true);
     expect(second.taskUpdatedAt).toBeGreaterThan(first.taskUpdatedAt);
-    // Append-only history keeps the old row, but no new signal went to the old route.
-    expect(oldDelivery[0].signalKey).not.toBe(newDelivery[0].signalKey);
   });
 
   test('local/user/no-machine task creates a timeline row and no daemon row', async () => {
     const { sessionId } = await createTestSession('task-signals-local');
     const chatroomId = await createChatroom(sessionId);
 
-    // No remote config seeded: unassigned resolves to the entry point but has
-    // no machine route; assignedTo=user is explicitly local.
+    // No remote config seeded: assignedTo=user is explicitly local.
     const unassigned = await seedTask(chatroomId);
     await t.run(async (ctx) => {
       const row = (await ctx.db.get('chatroom_tasks', unassigned._id))!;
@@ -223,15 +160,7 @@ describe('writeTaskStatusSignals', () => {
         .withIndex('by_chatroom_signalKey', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    // Scoped per chatroom: the shared test DB retains rows from other tests.
-    const delivery = (
-      await t.run(async (ctx) => {
-        return await ctx.db.query('chatroom_machineTaskDeliverySignals').collect();
-      })
-    ).filter((row) => row.chatroomId === chatroomId);
-
     expect(timeline).toHaveLength(2);
-    expect(delivery).toHaveLength(0);
   });
 
   test('a failed transaction leaves neither projection row', async () => {
@@ -256,13 +185,6 @@ describe('writeTaskStatusSignals', () => {
         .withIndex('by_chatroom_signalKey', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    // Scoped per chatroom: the shared test DB retains rows from other tests.
-    const delivery = (
-      await t.run(async (ctx) => {
-        return await ctx.db.query('chatroom_machineTaskDeliverySignals').collect();
-      })
-    ).filter((row) => row.chatroomId === chatroomId);
     expect(timeline).toHaveLength(0);
-    expect(delivery).toHaveLength(0);
   });
 });
