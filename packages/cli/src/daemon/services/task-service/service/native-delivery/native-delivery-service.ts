@@ -29,13 +29,13 @@ export type NativeDeliveryPass =
   | 'task-signal'
   | 'periodic-reconcile'
   | 'bootstrap'
-  | 'operational-signal'
+  | 'agent-session-lost'
   | 'agent-started'
   | 'turn-ended'
   | 'restart-completed';
 // Compatibility aliases remain accepted by the internal delivery adapter while
 // callers migrate to requestReconcile and the canonical trigger names above.
-export type LegacyNativeDeliveryPass = 'inbox-signal' | 'operational-status' | 'restart';
+export type LegacyNativeDeliveryPass = 'inbox-signal' | 'restart';
 
 export type NativeTaskDeliveredHandler = (args: {
   chatroomId: string;
@@ -127,7 +127,7 @@ export class NativeDeliveryService {
     void this.requestReconcile({
       chatroomId: event.chatroomId,
       role: event.role,
-      source: 'operational-signal',
+      source: 'agent-session-lost',
     }).catch((error: unknown) => {
       console.warn(
         `[NativeDelivery:failure] role=${event.role} chatroom=${event.chatroomId} operation=session-loss-reconcile error=${error instanceof Error ? error.message : String(error)}`

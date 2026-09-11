@@ -2,7 +2,7 @@
  * Task inbox primitives.
  *
  * The inbox deliberately subscribes only to daemon task-delivery signals for one
- * machine AND one chatroom (mirrors operational-inbox). Assigned-task snapshots
+ * machine AND one chatroom. Assigned-task snapshots
  * are hydrated imperatively after a signal arrives, which keeps task content out
  * of the reactive subscription payload.
  */

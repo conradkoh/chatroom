@@ -232,7 +232,7 @@ describe('NativeDeliveryService', () => {
     expect(requestReconcile).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'builder',
-      source: 'operational-signal',
+      source: 'agent-session-lost',
     });
     service.dispose();
   });
@@ -285,7 +285,7 @@ describe('NativeDeliveryService', () => {
     const second = service.requestReconcile({
       chatroomId: 'room-1',
       role: 'builder',
-      source: 'operational-signal',
+      source: 'agent-session-lost',
     });
 
     release();
@@ -294,7 +294,7 @@ describe('NativeDeliveryService', () => {
     expect(reconcileRole).toHaveBeenCalledTimes(2);
     expect(reconcileRole).toHaveBeenNthCalledWith(
       2,
-      'operational-signal',
+      'agent-session-lost',
       expect.any(Array),
       undefined
     );

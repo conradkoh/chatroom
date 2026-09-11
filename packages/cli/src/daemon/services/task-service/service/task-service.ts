@@ -11,7 +11,6 @@ import {
 import { NativeTaskDeliveryQueue } from './native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
-import { api } from '../../../../api.js';
 import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type {
   AssignedTaskSnapshotView,
@@ -212,10 +211,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       inboxStore = createInboxStateStore(resolveInboxDbPath(deps.machineId));
       serviceStartedAt = Date.now();
       try {
-        await deps.backend.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
-          sessionId: deps.sessionId,
-          machineId: deps.machineId,
-        });
         await service.syncAssignedTaskSnapshots();
         const snapshots = await fetchMachineAssignedTaskSnapshots(
           { ...deps, convexUrl: deps.convexUrl },

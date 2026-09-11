@@ -11,7 +11,6 @@ vi.mock('../../api.js', () => ({
   api: {
     machines: {
       listMachineAssignedTaskSnapshots: 'listMachineAssignedTaskSnapshots',
-      listMachineAgentOperationalStatus: 'listMachineAgentOperationalStatus',
       getAssignedTaskForAction: 'getAssignedTaskForAction',
     },
     participants: {
@@ -30,9 +29,7 @@ function createMockDeps(overrides?: {
   });
   const backend = {
     mutation: vi.fn(async () => undefined),
-    query: vi.fn(async (fn: unknown) =>
-      fn === 'listMachineAgentOperationalStatus' ? [] : { tasks: [] }
-    ),
+    query: vi.fn(async () => ({ tasks: [] })),
   };
   const agentMgr = {
     stop: vi.fn().mockResolvedValue({ success: true }),

@@ -54,11 +54,11 @@ type TaskDeliveryPass =
   | 'task-signal'
   | 'periodic-reconcile'
   | 'bootstrap'
-  | 'operational-signal'
+  | 'agent-session-lost'
   | 'agent-started'
   | 'turn-ended'
   | 'restart-completed';
-type LegacyTaskDeliveryPass = 'inbox-signal' | 'operational-status' | 'restart';
+type LegacyTaskDeliveryPass = 'inbox-signal' | 'restart';
 
 export async function processTasksUpdate(
   runtime: TaskDeliveryRuntime,
