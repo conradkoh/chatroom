@@ -40,10 +40,6 @@ export interface AssignedTaskView extends AssignedTaskSnapshotView {
   startInNewSession?: boolean | undefined;
 }
 
-export interface ListMachineAssignedTaskSnapshotsResult {
-  tasks: AssignedTaskSnapshotView[];
-}
-
 export interface MachineAssignedTasksInput {
   machineId: string;
   userId: Id<'users'>;

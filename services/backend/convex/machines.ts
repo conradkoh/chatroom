@@ -43,7 +43,6 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
-import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import {
   patchTeamAgentConfig,
   projectAfterTeamConfigRegistration,
@@ -2185,25 +2184,6 @@ export const listAgentOverview = query({
 // DAEMON TASK MONITOR
 // Slim snapshot projection + indexed subscribe cursors for assigned tasks.
 // ============================================================================
-
-/**
- * One-shot hydrate of slim assigned-task rows for this machine (no task.content).
- */
-export const listMachineAssignedTaskSnapshots = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return { tasks: [] };
-
-    return listMachineAssignedTaskSnapshotsUseCase(ctx, {
-      machineId: args.machineId,
-      userId: auth.userId,
-    });
-  },
-});
 
 /**
  * Rebuild snapshot projection rows for this machine (daemon startup backfill).

@@ -14,7 +14,6 @@ import type {
   AssignedTaskSnapshotView,
   AssignedTaskWithContent,
 } from '../../../domain/entities/assigned-task.js';
-import { fetchMachineAssignedTaskSnapshots } from '../../../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import {
   MachineTaskSnapshotState,
   type TaskSnapshotStateReader,
@@ -180,11 +179,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         sessionId: deps.sessionId,
         machineId: deps.machineId,
       });
-      const snapshots = await fetchMachineAssignedTaskSnapshots(
-        { ...deps, convexUrl: deps.convexUrl },
-        deps.machineId
-      );
-      taskSnapshotState.replace(snapshots);
+      taskSnapshotState.replace([]);
     },
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
     createNativeDeliveryService: (deliveryDeps) => {
