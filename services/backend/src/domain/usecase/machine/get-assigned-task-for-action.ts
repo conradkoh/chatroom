@@ -8,6 +8,7 @@ import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 import type { AssignedTaskView, GetAssignedTaskForActionInput } from './assigned-tasks-types';
 import type { QueryCtx } from '../../../../convex/_generated/server';
+import { WorkspaceTaskAssigneeType } from '../../entities/chatroom-workspace-task-inbox';
 
 export async function getAssignedTaskForAction(
   ctx: QueryCtx,
@@ -61,7 +62,9 @@ export async function getAssignedTaskForAction(
       machineId: input.machineId,
       configLifecycleRevision: config.lifecycleRevision,
     },
-    ...(ephemeral ? { ephemeral } : {}),
+    assignee: ephemeral
+      ? { type: WorkspaceTaskAssigneeType.Ephemeral, ephemeral }
+      : { type: WorkspaceTaskAssigneeType.Permanent },
     taskContent: task.content,
     taskEnvelope: task.taskEnvelope,
     startInNewSession: task.startInNewSession,

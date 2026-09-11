@@ -12,6 +12,7 @@
 import { z } from 'zod';
 
 import { convexIdSchema } from '../../entities/_shared/convex-id';
+import { WorkspaceTaskAssigneeType } from '../../entities/chatroom-workspace-task-inbox';
 
 export const ACTIVE_TASK_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
 export type ActiveTaskStatus = (typeof ACTIVE_TASK_STATUSES)[number];
@@ -38,6 +39,14 @@ export const ephemeralAgentConfigSchema = z.object({
   model: z.string(),
   workingDir: z.string(),
 });
+
+export const assignedTaskAssigneeSchema = z.union([
+  z.object({ type: z.literal(WorkspaceTaskAssigneeType.Permanent) }),
+  z.object({
+    type: z.literal(WorkspaceTaskAssigneeType.Ephemeral),
+    ephemeral: ephemeralAgentConfigSchema,
+  }),
+]);
 
 const chatroomTaskIdSchema = convexIdSchema('chatroom_tasks');
 const chatroomRoomIdSchema = convexIdSchema('chatroom_rooms');
@@ -108,7 +117,7 @@ export const assignedTaskSnapshotRowSchema = z
     agentConfig: assignedTaskAgentConfigSchema,
     participant: assignedTaskParticipantSchema.optional(),
     requestsNativeColdSession: z.boolean().optional(),
-    ephemeral: ephemeralAgentConfigSchema.optional(),
+    assignee: assignedTaskAssigneeSchema.optional(),
   })
   .transform((row) => ({
     ...row,

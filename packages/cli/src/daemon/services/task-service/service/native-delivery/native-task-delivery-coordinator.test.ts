@@ -6,6 +6,7 @@ import {
   NativeTaskDeliveryCoordinator,
   resetRoleDeliveryState,
 } from './native-task-delivery-coordinator.js';
+import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
 
 const CHATROOM_ID = 'room_coordinator_facade';
@@ -27,7 +28,10 @@ function acknowledgedRow() {
       spawnedAgentPid: 42_001,
       desiredState: 'running' as const,
     },
-    ephemeral: { agentHarness: 'cursor-sdk', model: 'model-1', workingDir: '/test' },
+    assignee: {
+      type: TaskAssigneeType.Ephemeral,
+      ephemeral: { agentHarness: 'cursor-sdk', model: 'model-1', workingDir: '/test' },
+    },
     participant: {
       lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
       lastSeenAt: 1_700_000_000_000,

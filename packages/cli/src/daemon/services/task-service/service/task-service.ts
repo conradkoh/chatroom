@@ -16,6 +16,7 @@ import type {
   AssignedTaskSnapshotView,
   AssignedTaskWithContent,
 } from '../../../domain/entities/assigned-task.js';
+import { TaskAssigneeType } from '../../../domain/entities/assigned-task.js';
 import {
   MachineTaskSnapshotState,
   type TaskSnapshotStateReader,
@@ -35,11 +36,16 @@ interface WorkspaceTaskInboxEventFields {
   readonly chatroomId: string;
   readonly taskId: string;
   readonly role: string;
-  readonly ephemeral?: {
-    readonly agentHarness: string;
-    readonly model: string;
-    readonly workingDir: string;
-  };
+  readonly assignee?:
+    | { readonly type: TaskAssigneeType.Permanent }
+    | {
+        readonly type: TaskAssigneeType.Ephemeral;
+        readonly ephemeral: {
+          readonly agentHarness: string;
+          readonly model: string;
+          readonly workingDir: string;
+        };
+      };
   readonly status: WorkspaceTaskInboxEventStatus;
   readonly createdAt: number;
   readonly processedAt?: number;
@@ -176,7 +182,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
     const processConfig = deps.agentProcessService.getSlot(event.chatroomId, event.role);
     const hasRuntimeConfig =
-      event.ephemeral || (processConfig?.harness && processConfig.workingDir);
+      event.assignee?.type === TaskAssigneeType.Ephemeral ||
+      (processConfig?.harness && processConfig.workingDir);
     if (!hasRuntimeConfig) return false;
 
     taskSnapshotState.upsert([
@@ -192,7 +199,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           role: event.role,
           machineId: event.machineId,
         },
-        ephemeral: event.ephemeral,
+        assignee: event.assignee,
       },
     ]);
     return true;

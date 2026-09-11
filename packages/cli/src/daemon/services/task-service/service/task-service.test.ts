@@ -6,6 +6,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { createTaskService } from './task-service.js';
 import { api } from '../../../../api.js';
+import { TaskAssigneeType } from '../../../domain/entities/assigned-task.js';
 
 function backendRow() {
   return {
@@ -80,10 +81,13 @@ describe('TaskService inbox consumption', () => {
       chatroomId: 'room-1',
       taskId: 'task-1',
       role: 'builder',
-      ephemeral: {
-        agentHarness: 'cursor-sdk',
-        model: 'gpt-4',
-        workingDir: '/tmp/ws',
+      assignee: {
+        type: TaskAssigneeType.Ephemeral,
+        ephemeral: {
+          agentHarness: 'cursor-sdk',
+          model: 'gpt-4',
+          workingDir: '/tmp/ws',
+        },
       },
       eventType: WorkspaceTaskInboxEventType.TaskAssigned,
       status: WorkspaceTaskInboxEventStatus.Pending,
@@ -124,10 +128,13 @@ describe('TaskService inbox consumption', () => {
           role: 'builder',
           machineId: 'machine-1',
         },
-        ephemeral: {
-          agentHarness: 'cursor-sdk',
-          model: 'gpt-4',
-          workingDir: '/tmp/ws',
+        assignee: {
+          type: TaskAssigneeType.Ephemeral,
+          ephemeral: {
+            agentHarness: 'cursor-sdk',
+            model: 'gpt-4',
+            workingDir: '/tmp/ws',
+          },
         },
       },
     ]);

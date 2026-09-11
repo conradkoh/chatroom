@@ -14,6 +14,7 @@ import {
   mapAssignedTaskSnapshotList,
   mapAssignedTaskView,
 } from './map-assigned-task.js';
+import { TaskAssigneeType } from '../../daemon/domain/entities/assigned-task.js';
 
 const backendSnapshot = {
   taskId: 'task_1',
@@ -29,7 +30,10 @@ const backendSnapshot = {
     desiredState: 'running' as const,
     circuitState: 'closed' as const,
   },
-  ephemeral: { agentHarness: 'cursor', model: 'gpt-4', workingDir: '/tmp/ws' },
+  assignee: {
+    type: TaskAssigneeType.Ephemeral,
+    ephemeral: { agentHarness: 'cursor', model: 'gpt-4', workingDir: '/tmp/ws' },
+  },
   participant: {
     lastSeenAction: 'waiting',
     lastSeenAt: 950,
@@ -57,7 +61,10 @@ describe('map-assigned-task', () => {
 
     expect(mapped.taskContent).toBe('Do the thing');
     expect(mapped.taskId).toBe('task_1');
-    expect(mapped.ephemeral?.workingDir).toBe('/tmp/ws');
+    expect(mapped.assignee?.type).toBe(TaskAssigneeType.Ephemeral);
+    if (mapped.assignee?.type !== TaskAssigneeType.Ephemeral)
+      throw new Error('expected ephemeral assignee');
+    expect(mapped.assignee.ephemeral.workingDir).toBe('/tmp/ws');
   });
 
   test('mapAssignedTaskView passes the explicit envelope through unchanged', () => {

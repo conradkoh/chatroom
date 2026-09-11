@@ -28,7 +28,7 @@ export function mapAssignedTaskSnapshot(
       circuitState: row.agentConfig.circuitState,
       configLifecycleRevision: row.agentConfig.configLifecycleRevision,
     },
-    ephemeral: row.ephemeral,
+    assignee: row.assignee,
     participant: row.participant,
     requestsNativeColdSession: row.requestsNativeColdSession,
   };

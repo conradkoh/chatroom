@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig } from '../../types/machine';
@@ -32,9 +33,9 @@ const duoStructure = {
   teamName: 'Duo',
   entryPoint: 'planner',
   roles: [
-    { role: 'planner', lifecycle: 'permanent' as const, optional: false },
-    { role: 'enhancer', lifecycle: 'ephemeral' as const, optional: true },
-    { role: 'builder', lifecycle: 'permanent' as const, optional: false },
+    { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+    { role: 'enhancer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+    { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
   ],
 };
 

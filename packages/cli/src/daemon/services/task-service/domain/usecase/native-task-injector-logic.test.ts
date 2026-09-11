@@ -11,6 +11,7 @@ import {
   isNativeHarness,
   shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
+import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
 import type { AgentSlot } from '../../../agent-process-service/index.js';
 
 const runningSlot: AgentSlot = {
@@ -35,7 +36,10 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
       spawnedAgentPid: 12345,
       desiredState: 'running',
     },
-    ephemeral: { agentHarness: 'cursor-sdk', model: 'composer-1', workingDir: '/tmp/project' },
+    assignee: {
+      type: TaskAssigneeType.Ephemeral,
+      ephemeral: { agentHarness: 'cursor-sdk', model: 'composer-1', workingDir: '/tmp/project' },
+    },
     participant: {
       lastSeenAction: NATIVE_WAITING_ACTION,
       lastSeenAt: 500,

@@ -7,6 +7,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import {
   WorkspaceTaskInboxEventStatus,
+  WorkspaceTaskAssigneeType,
   WorkspaceTaskInboxEventType,
 } from '../../entities/chatroom-workspace-task-inbox';
 
@@ -72,7 +73,9 @@ export async function writeWorkspaceTaskInboxEvent(
       targets.set(`${event.machineId}:${event.role.toLowerCase()}`, {
         machineId: event.machineId,
         role: event.role,
-        ...(event.ephemeral ? { ephemeral: event.ephemeral } : {}),
+        ...(event.assignee?.type === WorkspaceTaskAssigneeType.Ephemeral
+          ? { ephemeral: event.assignee.ephemeral }
+          : {}),
       });
     }
   }
@@ -99,7 +102,12 @@ export async function writeWorkspaceTaskInboxEvent(
       chatroomId: task.chatroomId,
       taskId: task._id,
       role: target.role,
-      ...(target.ephemeral ? { ephemeral: target.ephemeral } : {}),
+      assignee: target.ephemeral
+        ? {
+            type: WorkspaceTaskAssigneeType.Ephemeral,
+            ephemeral: target.ephemeral,
+          }
+        : { type: WorkspaceTaskAssigneeType.Permanent },
       eventType,
       status: WorkspaceTaskInboxEventStatus.Pending,
       task: taskPayload,

@@ -6,6 +6,7 @@ import { describe, expect, test } from 'vitest';
 
 import { NativeOrchestrationSimulator } from './native-orchestration-simulator.js';
 import { RecordingHarness } from './recording-harness.js';
+import { TaskAssigneeType } from '../daemon/domain/entities/assigned-task.js';
 
 const PLANNER_DELIVERY = ['<task>', 'hello', '</task>', '<handoffs>', '**user**'].join('\n');
 
@@ -94,7 +95,10 @@ Add payments API
           spawnedAgentPid: 12345,
           desiredState: 'running',
         },
-        ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
+        assignee: {
+          type: TaskAssigneeType.Ephemeral,
+          ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
+        },
       }),
       deliveryOutput: BUILDER_DELIVERY,
     });
@@ -126,7 +130,10 @@ Add payments API
           spawnedAgentPid: 12345,
           desiredState: 'running',
         },
-        ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
+        assignee: {
+          type: TaskAssigneeType.Ephemeral,
+          ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
+        },
       }),
       deliveryOutput: BUILDER_DELIVERY,
     });

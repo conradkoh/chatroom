@@ -33,21 +33,17 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
         chatroomId: row.chatroomId as string,
         taskId: row.taskId as string,
         role: row.role as string,
-        ...(row.ephemeral === undefined
+        ...(row.assignee === undefined
           ? {}
           : {
-              ephemeral: row.ephemeral as {
-                agentHarness: string;
-                model: string;
-                workingDir: string;
-              },
+              assignee: row.assignee as WorkspaceTaskInboxEvent['assignee'],
             }),
         eventType: row.eventType as WorkspaceTaskInboxEventType,
         status: row.status as WorkspaceTaskInboxEventStatus,
         createdAt: row.createdAt as number,
         ...(row.processedAt === undefined ? {} : { processedAt: row.processedAt as number }),
         task: row.task as WorkspaceTaskInboxEvent['task'],
-      }));
+      })) as WorkspaceTaskInboxEvent[];
     },
     markTaskInboxEventProcessed: async ({ sessionId, machineId, eventId }) => {
       const result = await backend.mutation(api.chatroomWorkspaceTaskInbox.markProcessed, {

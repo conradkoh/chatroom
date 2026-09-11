@@ -1,3 +1,4 @@
+import { AgentRoleLifecycleTag as WorkspaceTaskAssigneeType } from '@workspace/shared/domain/agent-role';
 import { v } from 'convex/values';
 
 export enum WorkspaceTaskInboxEventType {
@@ -10,6 +11,26 @@ export enum WorkspaceTaskInboxEventStatus {
   Pending = 'pending',
   Processed = 'processed',
 }
+
+export { WorkspaceTaskAssigneeType };
+
+const ephemeralAssigneeValidator = v.object({
+  type: v.literal(WorkspaceTaskAssigneeType.Ephemeral),
+  ephemeral: v.object({
+    agentHarness: v.string(),
+    model: v.string(),
+    workingDir: v.string(),
+  }),
+});
+
+const permanentAssigneeValidator = v.object({
+  type: v.literal(WorkspaceTaskAssigneeType.Permanent),
+});
+
+const workspaceTaskAssigneeValidator = v.union(
+  permanentAssigneeValidator,
+  ephemeralAssigneeValidator
+);
 
 const workspaceTaskInboxEventStatusValidator = v.union(
   v.literal(WorkspaceTaskInboxEventStatus.Pending),
@@ -57,14 +78,8 @@ const workspaceTaskInboxEventFields = {
   model: v.optional(v.string()),
   /** @deprecated Agent configuration moved to the daemon/agent process service. */
   workingDir: v.optional(v.string()),
-  /** Runtime configuration carried only for ephemeral agents. */
-  ephemeral: v.optional(
-    v.object({
-      agentHarness: v.string(),
-      model: v.string(),
-      workingDir: v.string(),
-    })
-  ),
+  /** Assignment discriminator; absent only on legacy inbox rows. */
+  assignee: v.optional(workspaceTaskAssigneeValidator),
   status: workspaceTaskInboxEventStatusValidator,
   task: workspaceTaskInboxTaskValidator,
   createdAt: v.number(),

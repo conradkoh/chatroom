@@ -12,6 +12,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { withTestTaskService } from './test-task-service.js';
+import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
@@ -33,7 +34,10 @@ function makeAcknowledgedRow() {
       spawnedAgentPid: 42_001,
       desiredState: 'running' as const,
     },
-    ephemeral: { agentHarness: 'cursor-sdk', model: 'model-1', workingDir: '/test' },
+    assignee: {
+      type: TaskAssigneeType.Ephemeral,
+      ephemeral: { agentHarness: 'cursor-sdk', model: 'model-1', workingDir: '/test' },
+    },
     participant: {
       lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
       lastSeenAt: 1_700_000_000_000,

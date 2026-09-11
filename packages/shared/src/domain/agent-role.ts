@@ -1,5 +1,12 @@
-export const AGENT_ROLE_LIFECYCLE_TAGS = ['permanent', 'ephemeral'] as const;
-export type AgentRoleLifecycleTag = (typeof AGENT_ROLE_LIFECYCLE_TAGS)[number];
+export enum AgentRoleLifecycleTag {
+  Permanent = 'permanent',
+  Ephemeral = 'ephemeral',
+}
+
+export const AGENT_ROLE_LIFECYCLE_TAGS = [
+  AgentRoleLifecycleTag.Permanent,
+  AgentRoleLifecycleTag.Ephemeral,
+] as const;
 
 export type AgentRoleDefinition = {
   role: string;
@@ -8,10 +15,10 @@ export type AgentRoleDefinition = {
 
 /** Known roles have one lifecycle tag; unknown roles default to permanent. */
 export const AGENT_ROLE_DEFINITIONS = {
-  planner: { role: 'planner', tags: ['permanent'] },
-  builder: { role: 'builder', tags: ['permanent'] },
-  solo: { role: 'solo', tags: ['permanent'] },
-  enhancer: { role: 'enhancer', tags: ['ephemeral'] },
+  planner: { role: 'planner', tags: [AgentRoleLifecycleTag.Permanent] },
+  builder: { role: 'builder', tags: [AgentRoleLifecycleTag.Permanent] },
+  solo: { role: 'solo', tags: [AgentRoleLifecycleTag.Permanent] },
+  enhancer: { role: 'enhancer', tags: [AgentRoleLifecycleTag.Ephemeral] },
 } as const satisfies Record<string, AgentRoleDefinition>;
 
 export function normalizeAgentRole(role: string): string {
@@ -23,7 +30,7 @@ export function getAgentRoleTags(role: string): readonly AgentRoleLifecycleTag[]
   const definition = Object.values(AGENT_ROLE_DEFINITIONS).find(
     (candidate) => normalizeAgentRole(candidate.role) === normalized
   );
-  return definition?.tags ?? ['permanent'];
+  return definition?.tags ?? [AgentRoleLifecycleTag.Permanent];
 }
 
 export function hasAgentRoleTag(role: string, tag: AgentRoleLifecycleTag): boolean {
@@ -31,13 +38,13 @@ export function hasAgentRoleTag(role: string, tag: AgentRoleLifecycleTag): boole
 }
 
 export function getPermanentRoleNames(roles: readonly string[]): string[] {
-  return roles.filter((role) => hasAgentRoleTag(role, 'permanent'));
+  return roles.filter((role) => hasAgentRoleTag(role, AgentRoleLifecycleTag.Permanent));
 }
 
 export function isEphemeralAgentRole(role: string): boolean {
-  return hasAgentRoleTag(role, 'ephemeral');
+  return hasAgentRoleTag(role, AgentRoleLifecycleTag.Ephemeral);
 }
 
 export function isPermanentAgentRole(role: string): boolean {
-  return hasAgentRoleTag(role, 'permanent');
+  return hasAgentRoleTag(role, AgentRoleLifecycleTag.Permanent);
 }

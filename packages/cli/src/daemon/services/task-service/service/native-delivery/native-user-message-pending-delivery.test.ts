@@ -31,7 +31,10 @@ import {
 } from './test-fixtures/task-snapshot-fixture.js';
 import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
-import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
+import {
+  TaskAssigneeType,
+  type AssignedTaskWithContent,
+} from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
@@ -100,7 +103,14 @@ describe('user message pending delivery path', () => {
       taskId: 'task_user_msg',
       status: 'pending',
       assignedTo: 'builder',
-      ephemeral: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test/workspace' },
+      assignee: {
+        type: TaskAssigneeType.Ephemeral,
+        ephemeral: {
+          agentHarness: 'cursor-sdk',
+          model: 'test-model',
+          workingDir: '/test/workspace',
+        },
+      },
     });
 
     expect(

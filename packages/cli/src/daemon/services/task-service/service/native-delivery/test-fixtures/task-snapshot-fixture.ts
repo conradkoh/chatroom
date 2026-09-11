@@ -12,7 +12,10 @@ import {
   WorkingSnapshot,
   type WorkingSnapshotOptions,
 } from '../../../../../../infrastructure/incremental-sync/working-snapshot.js';
-import type { AssignedTaskSnapshotView } from '../../../../../domain/entities/assigned-task.js';
+import {
+  TaskAssigneeType,
+  type AssignedTaskSnapshotView,
+} from '../../../../../domain/entities/assigned-task.js';
 
 export type TaskSnapshotFixtureDoc = {
   taskId: AssignedTaskSignal['taskId'];
@@ -73,10 +76,13 @@ const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
         },
         ...(signal.workingDir
           ? {
-              ephemeral: {
-                agentHarness: signal.agentHarness,
-                model: 'test-model',
-                workingDir: signal.workingDir,
+              assignee: {
+                type: TaskAssigneeType.Ephemeral,
+                ephemeral: {
+                  agentHarness: signal.agentHarness,
+                  model: 'test-model',
+                  workingDir: signal.workingDir,
+                },
               },
             }
           : {}),
