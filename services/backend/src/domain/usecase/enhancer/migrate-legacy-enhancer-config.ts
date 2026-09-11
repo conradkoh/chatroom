@@ -90,7 +90,6 @@ export async function migrateEnhancerConfigRow(
       workingDir,
       enabled: workingDir?.trim() ? legacy.enabled : false,
       desiredState: 'stopped',
-      lifecycleRevision: 0,
       updatedAt: now,
     },
   });

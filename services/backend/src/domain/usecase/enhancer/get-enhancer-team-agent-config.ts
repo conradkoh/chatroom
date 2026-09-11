@@ -56,7 +56,6 @@ export async function syncEnhancerTeamAgentConfig(
       // Ephemeral agents are never started as part of the persistent team.
       desiredState: existing?.desiredState ?? 'stopped',
       circuitState: existing?.circuitState ?? 'closed',
-      lifecycleRevision: existing?.lifecycleRevision ?? 0,
       updatedAt: Date.now(),
     },
   });

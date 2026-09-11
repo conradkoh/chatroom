@@ -4,7 +4,7 @@ import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';
@@ -20,7 +20,7 @@ export type NativeDeliveryReadinessOptions = {
 /** True when daemon should deliver a task into a live native harness session. */
 // fallow-ignore-next-line unused-export
 export function shouldDeliverNativeTask(
-  task: AssignedTaskSnapshotView,
+  task: AssignedTask,
   opts: NativeDeliveryReadinessOptions
 ): boolean {
   return explainNativeDeliveryBlock(task, opts) === null;
@@ -29,7 +29,7 @@ export function shouldDeliverNativeTask(
 /** Human-readable reason when delivery is blocked; null when shouldDeliverNativeTask is true. */
 // fallow-ignore-next-line complexity
 export function explainNativeDeliveryBlock(
-  task: AssignedTaskSnapshotView,
+  task: AssignedTask,
   opts: NativeDeliveryReadinessOptions
 ): string | null {
   if (!isDeliverableNativeTaskStatus(task.status)) {

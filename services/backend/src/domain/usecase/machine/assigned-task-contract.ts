@@ -1,10 +1,10 @@
 /**
- * Zod wire contracts for daemon assigned-task monitor feeds.
+ * Zod wire contracts for daemon assigned-task views.
  *
  * Wire types are derived from these schemas (single source of truth).
  *
  * @see docs/conventions/domain-models.md
- * @see docs/design/assigned-task-snapshot-contract-refactor-plan.md
+ * @see docs/design/assigned-task-contract-refactor-plan.md
  */
 // fallow-ignore-file unused-export
 // fallow-ignore-file unused-type
@@ -54,11 +54,6 @@ const chatroomRoomIdSchema = convexIdSchema('chatroom_rooms');
 export const assignedTaskAgentConfigSchema = z.object({
   role: z.string(),
   machineId: z.string(),
-  // Legacy optional fields retained for daemon compatibility; backend snapshots no longer write them.
-  spawnedAgentPid: z.number().optional(),
-  desiredState: agentDesiredStateSchema.optional(),
-  circuitState: agentCircuitStateSchema.optional(),
-  configLifecycleRevision: z.number().optional(),
 });
 
 export const assignedTaskParticipantSchema = z.object({
@@ -106,7 +101,7 @@ export const assignedTaskPresenceDeltaSchema = z.object({
 
 export type AssignedTaskPresenceDelta = z.infer<typeof assignedTaskPresenceDeltaSchema>;
 
-export const assignedTaskSnapshotRowSchema = z
+export const assignedTaskRowSchema = z
   .object({
     taskId: chatroomTaskIdSchema,
     chatroomId: chatroomRoomIdSchema,
@@ -126,7 +121,7 @@ export const assignedTaskSnapshotRowSchema = z
 
 export type AssignedTaskAgentConfigView = z.infer<typeof assignedTaskAgentConfigSchema>;
 export type AssignedTaskParticipantView = z.infer<typeof assignedTaskParticipantSchema>;
-export type AssignedTaskSnapshotView = z.output<typeof assignedTaskSnapshotRowSchema>;
+export type AssignedTask = z.output<typeof assignedTaskRowSchema>;
 export type AssignedTaskSignal = z.infer<typeof assignedTaskSignalSchema>;
 export type AssignedTaskPresenceSignal = z.infer<typeof assignedTaskPresenceSignalSchema>;
 export type EphemeralAgentConfig = z.infer<typeof ephemeralAgentConfigSchema>;
@@ -165,15 +160,15 @@ export function parseAssignedTaskPresenceSignal(raw: unknown): AssignedTaskPrese
   return assignedTaskPresenceSignalSchema.parse(raw);
 }
 
-/** Parse one hydrate snapshot row; throws ZodError on mismatch. */
-function parseAssignedTaskSnapshotRow(raw: unknown): AssignedTaskSnapshotView {
-  return assignedTaskSnapshotRowSchema.parse(raw);
+/** Parse one assigned-task row; throws ZodError on mismatch. */
+function parseAssignedTaskRow(raw: unknown): AssignedTask {
+  return assignedTaskRowSchema.parse(raw);
 }
 
-/** Parse hydrate snapshot row list; throws on non-array or invalid rows. */
-export function parseAssignedTaskSnapshotRows(raw: unknown): AssignedTaskSnapshotView[] {
+/** Parse an assigned-task row list; throws on non-array or invalid rows. */
+export function parseAssignedTaskRows(raw: unknown): AssignedTask[] {
   if (!Array.isArray(raw)) {
     throw new Error('Expected hydrate tasks array');
   }
-  return raw.map((row) => parseAssignedTaskSnapshotRow(row));
+  return raw.map((row) => parseAssignedTaskRow(row));
 }

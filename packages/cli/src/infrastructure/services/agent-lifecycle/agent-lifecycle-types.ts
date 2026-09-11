@@ -29,7 +29,6 @@ export interface AgentLifecycleSlot extends AgentSlotSnapshot {
   readonly workingDir?: string | undefined;
   readonly startedAt?: number | undefined;
   readonly wantResume?: boolean | undefined;
-  readonly authorizedLifecycleRevision?: number | undefined;
   readonly recentLogLines?: string[] | undefined;
   readonly _stopReasonCode?: number | undefined;
   readonly _stopReasonSignal?: string | null | undefined;
@@ -55,7 +54,6 @@ export interface EnsureRunningOpts {
   readonly workingDir: string;
   readonly reason: string;
   readonly wantResume: boolean;
-  readonly lifecycleRevision?: number | undefined;
   readonly taskId?: string | undefined;
   readonly initPrompt?: string | undefined;
   readonly systemPrompt?: string | undefined;
@@ -100,10 +98,7 @@ export interface HarnessSpawnPort {
     },
     Error
   >;
-  stop: (
-    pid: number,
-    harness?: AgentHarness
-  ) => Effect.Effect<void, Error>;
+  stop: (pid: number, harness?: AgentHarness) => Effect.Effect<void, Error>;
   isAlive: (pid: number) => Effect.Effect<boolean>;
 }
 

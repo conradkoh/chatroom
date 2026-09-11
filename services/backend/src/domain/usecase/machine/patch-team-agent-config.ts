@@ -115,7 +115,6 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
   const configId = await ctx.db.insert('chatroom_teamAgentConfigs', {
     ...fields,
     enabled: fields.enabled ?? true,
-    lifecycleRevision: fields.lifecycleRevision ?? 0,
     createdAt: args.createdAt ?? now,
   } as unknown as Omit<Doc<'chatroom_teamAgentConfigs'>, '_id' | '_creationTime'>);
   return { configId, wasInsert: true };

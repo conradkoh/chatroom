@@ -15,7 +15,6 @@ export type AgentLifecycleOutboxResult = {
   success: true;
   skipped?: boolean | undefined;
   clearedCount?: number | undefined;
-  rejectionReason?: string | undefined;
 };
 export type AgentLifecycleOutboxRegistry = KeyedFifoBatchedOutboxRegistry<
   AgentLifecycleFact,
@@ -25,7 +24,7 @@ export type AgentLifecycleOutboxRegistry = KeyedFifoBatchedOutboxRegistry<
 export function createAgentLifecycleOutboxRegistry(
   machineId: string,
   createSend: (key: string) => (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult>,
-  options?: { onError?:( (key: string, error: unknown) => void) | undefined }
+  options?: { onError?: ((key: string, error: unknown) => void) | undefined }
 ): AgentLifecycleOutboxRegistry {
   const store = openDurableFifoQueueStore(resolveOutboxDbPath(machineId, 'agent-lifecycle'));
   return createKeyedFifoBatchedOutboxRegistry({

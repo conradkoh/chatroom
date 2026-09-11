@@ -16,8 +16,6 @@ export interface AgentRoleView {
   machineId?: string;
   machineName?: string;
   model?: string;
-  stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
-  activeStopCommandId?: string;
 }
 
 export interface AgentPanelData {

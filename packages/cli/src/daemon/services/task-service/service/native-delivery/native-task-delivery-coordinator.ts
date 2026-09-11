@@ -14,7 +14,7 @@ import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import {
   resolveAgentRuntimeConfig,
-  type AssignedTaskSnapshotView,
+  type AssignedTask,
 } from '../../../../domain/entities/assigned-task.js';
 import { isSlotIdle } from '../../../../domain/usecase/check-agent-slot.js';
 import type {
@@ -50,9 +50,9 @@ export type NativeDeliveryExecution =
   { kind: 'delivered'; delivered?: NativeDeliveryDelivered } | { kind: 'task-unavailable' };
 
 export type NativeDeliveryExecutors = {
-  startAgent: (task: AssignedTaskSnapshotView) => Promise<unknown>;
+  startAgent: (task: AssignedTask) => Promise<unknown>;
   injectTask: (
-    task: AssignedTaskSnapshotView,
+    task: AssignedTask,
     harnessSessionId: string | undefined
   ) => Promise<NativeDeliveryExecution>;
 };
@@ -71,7 +71,7 @@ export class NativeTaskDeliveryCoordinator {
 
   // fallow-ignore-next-line complexity
   async reconcileRoleTasks(params: {
-    tasks: AssignedTaskSnapshotView[];
+    tasks: AssignedTask[];
     pass?: ExtendedDeliveryPass | LegacyDeliveryPass;
     runtime: TaskDeliveryRuntime;
     effectContext: TaskDeliveryContext;
@@ -107,7 +107,7 @@ export class NativeTaskDeliveryCoordinator {
     const deliveryState = getRoleDeliveryState();
     const taskService = params.taskService;
 
-    const groups = new Map<string, AssignedTaskSnapshotView[]>();
+    const groups = new Map<string, AssignedTask[]>();
     for (const task of tasks) {
       const key = `${task.chatroomId}:${task.agentConfig.role.toLowerCase()}`;
       const group = groups.get(key) ?? [];
@@ -136,7 +136,7 @@ export class NativeTaskDeliveryCoordinator {
         deliveryInFlight: false,
         agentLifecycleInFlight: isRestartOrchestratorInFlight(firstTask.chatroomId, role),
         isNativeHarness: taskService.isNativeHarness,
-        snapshotRequestsNativeColdSession: taskService.snapshotRequestsNativeColdSession,
+        taskRequestsNativeColdSession: taskService.taskRequestsNativeColdSession,
         explainNativeDeliveryBlock: taskService.explainNativeDeliveryBlock,
       });
       const attemptId = `${Date.now()}-${firstTask.taskId}`;
@@ -196,7 +196,6 @@ export class NativeTaskDeliveryCoordinator {
                   workingDir: runtimeConfig.workingDir,
                   reason: AgentStartReasonEnum['platform.pending_task_wake'],
                   wantResume: false,
-                  lifecycleRevision: row.agentConfig.configLifecycleRevision,
                   taskId: row.taskId,
                 },
                 context.signal

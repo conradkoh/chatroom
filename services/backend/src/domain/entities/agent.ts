@@ -190,9 +190,8 @@ export const isExplicitDaemonStart = (reason: string): reason is ExplicitDaemonS
   (EXPLICIT_DAEMON_START_REASONS as readonly string[]).includes(reason);
 
 /**
- * Why an agent was stopped. Used in `agent.requestStop` events and
- * `agent.exited` stopReason field. Same type flows from request through
- * to exit — the daemon passes through the reason it received.
+ * Why an agent was stopped. Used by daemon stop intents and the
+ * `agent.exited` stopReason field.
  *
  * - `user.stop`: User explicitly stopped the agent via UI or CLI
  * - `platform.dedup`: Agent stopped to deduplicate roles (another agent took over)

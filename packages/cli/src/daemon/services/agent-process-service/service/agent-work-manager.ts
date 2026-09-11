@@ -8,9 +8,9 @@ import {
   buildAgentLifecycleRevisionKey,
   type AgentLifecycleFact,
 } from '../../../domain/entities/agent-lifecycle-fact.js';
-import type { AssignedTaskSnapshotView } from '../../../domain/entities/assigned-task.js';
+import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
-import type { TaskSnapshotStateReader } from '../../../infrastructure/inbox/task-state-manager.js';
+import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
 import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
@@ -20,7 +20,7 @@ import type {
   AgentProcessManagerService,
   TaskService,
 } from '../../service-interfaces.js';
-import { snapshotRequestsNativeColdSession } from '../../task-service/domain/usecase/native-cold-session-delivery.js';
+import { taskRequestsNativeColdSession } from '../../task-service/domain/usecase/native-cold-session-delivery.js';
 import {
   explainNativeDeliveryBlock,
   isNativeHarness,
@@ -66,8 +66,8 @@ export interface AgentWorkManagerDependencies {
   readonly runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
   readonly sessionDeps: NativeTaskDeliverySessionDeps;
   readonly machineId: string;
-  /** Read-only task snapshot owned and mutated by TaskService. */
-  readonly taskSnapshotState: TaskSnapshotStateReader;
+  /** Read-only task inbox state owned and mutated by TaskService. */
+  readonly taskInboxState: TaskInboxStateReader;
   readonly agentTaskState: AgentTaskStateService;
   readonly lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
   readonly taskService: TaskService;
@@ -117,7 +117,7 @@ export class AgentWorkManager {
     });
     this.deliveryTaskService = {
       isNativeHarness,
-      snapshotRequestsNativeColdSession,
+      taskRequestsNativeColdSession,
       explainNativeDeliveryBlock,
       releaseTaskAfterTurnFailure: deps.taskService.releaseTaskAfterTurnFailure,
       loadAssignedTaskForAction: deps.taskService.loadAssignedTaskForAction,
@@ -225,7 +225,7 @@ export class AgentWorkManager {
     // A completed native turn leaves the harness idle. The task may still be
     // acknowledged (for example, if the agent did not read it), so retaining
     // the local marker would make every subsequent reconcile look like a
-    // duplicate forever. In-progress/completed task snapshots are filtered by
+    // duplicate forever. In-progress/completed task tasks are filtered by
     // the normal task-status gate on the next pass.
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
     // The manager invokes this handler while the agent's lifecycle operation
@@ -265,7 +265,7 @@ export class AgentWorkManager {
 
   async handleTaskServiceNotification(notification: TaskServiceNotification): Promise<void> {
     if (notification.kind === 'bootstrap') {
-      await this.requestReconcileForSnapshots(notification.snapshots, 'bootstrap');
+      await this.requestReconcileForTasks(notification.tasks, 'bootstrap');
       return;
     }
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
@@ -336,14 +336,14 @@ export class AgentWorkManager {
         do {
           const source = state.pendingSource ?? params.source;
           state.pendingSource = undefined;
-          const snapshots = this.deps.taskSnapshotState.listForRole(params.chatroomId, params.role);
-          if (snapshots.length === 0) {
+          const tasks = this.deps.taskInboxState.listForRole(params.chatroomId, params.role);
+          if (tasks.length === 0) {
             logNativeDeliveryDecision(source, params.role, params.chatroomId, 'idle', undefined, {
               reason: 'no_deliverable_task',
               attemptId: `${Date.now()}-${params.chatroomId}-${params.role}`,
             });
           }
-          await this.reconcileRole(source, snapshots, params.onTaskDelivered);
+          await this.reconcileRole(source, tasks, params.onTaskDelivered);
         } while (state.pendingSource !== undefined);
       } finally {
         if (this.reconcileStates.get(key) === state) this.reconcileStates.delete(key);
@@ -367,14 +367,12 @@ export class AgentWorkManager {
     return delivered;
   }
 
-  private async requestReconcileForSnapshots(
-    snapshots: readonly AssignedTaskSnapshotView[],
+  private async requestReconcileForTasks(
+    tasks: readonly AssignedTask[],
     source: AgentWorkPass
   ): Promise<void> {
     const roles = new Set(
-      snapshots.map(
-        (snapshot) => `${snapshot.chatroomId}:${snapshot.agentConfig.role.toLowerCase()}`
-      )
+      tasks.map((snapshot) => `${snapshot.chatroomId}:${snapshot.agentConfig.role.toLowerCase()}`)
     );
     await Promise.all(
       [...roles].map((key) => {
@@ -390,10 +388,10 @@ export class AgentWorkManager {
 
   private async reconcileRole(
     pass: AgentWorkPass | LegacyAgentWorkPass,
-    snapshots: readonly AssignedTaskSnapshotView[],
+    tasks: readonly AssignedTask[],
     onTaskDelivered?: AgentTaskDeliveredHandler
   ): Promise<void> {
-    if (snapshots.length === 0) return;
+    if (tasks.length === 0) return;
     await processTasksUpdate(
       this.deps.runtime,
       this.deps.effectContext,
@@ -407,7 +405,7 @@ export class AgentWorkManager {
       ({ chatroomId, role, taskId }) =>
         this.deps.agentTaskState.get({ chatroomId, role })?.taskId === taskId,
       {
-        snapshots,
+        tasks,
         onTaskDelivered: (args) => {
           this.recordTaskDelivered(args);
           onTaskDelivered?.(args);

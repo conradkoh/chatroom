@@ -6,13 +6,13 @@ import { WorkspaceTaskInboxEventType } from '@workspace/backend/src/domain/entit
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
 import type {
   TaskAssigneeType,
-  AssignedTaskSnapshotView,
+  AssignedTask,
   AssignedTaskWithContent,
 } from '../../../domain/entities/assigned-task.js';
 import {
-  TaskStateManager,
-  type TaskSnapshotStateReader,
-} from '../../../infrastructure/inbox/task-state-manager.js';
+  TaskInboxState,
+  type TaskInboxStateReader,
+} from '../../../infrastructure/inbox/task-inbox-state.js';
 import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 
 interface WorkspaceTaskInboxEventFields {
@@ -56,7 +56,7 @@ export type WorkspaceTaskInboxEvent =
 export type TaskServiceNotification =
   | {
       readonly kind: 'bootstrap';
-      readonly snapshots: readonly AssignedTaskSnapshotView[];
+      readonly tasks: readonly AssignedTask[];
     }
   | {
       readonly kind: 'inbox-event';
@@ -66,23 +66,23 @@ export type TaskServiceNotification =
 export type TaskServiceListener = (notification: TaskServiceNotification) => Promise<void> | void;
 
 export interface TaskService {
-  /** Loads the daemon's assigned-task snapshot. */
+  /** Loads the initial task inbox state. */
   startTaskInbox(): Promise<void>;
   subscribe(listener: TaskServiceListener): () => void;
   stopTaskInbox(): void;
   listPendingTaskInboxEvents(): Promise<readonly WorkspaceTaskInboxEvent[]>;
   markTaskInboxEventProcessed(eventId: string): Promise<boolean>;
-  listTasksForRole(chatroomId: string, role: string): readonly AssignedTaskSnapshotView[];
-  listAllTasks(): readonly AssignedTaskSnapshotView[];
-  readonly taskSnapshotState: TaskSnapshotStateReader;
+  listTasksForRole(chatroomId: string, role: string): readonly AssignedTask[];
+  listAllTasks(): readonly AssignedTask[];
+  readonly taskInboxState: TaskInboxStateReader;
   /**
    * Releases a single in-flight task back to backend `pending` after a native
-   * turn failure, then patches the local snapshot from the authoritative
+   * turn failure, then patches the local state from the authoritative
    * backend response. The cache update happens only after backend success.
    */
   releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
     released: boolean;
-    status: AssignedTaskSnapshotView['status'];
+    status: AssignedTask['status'];
     updatedAt: number;
   }>;
   loadAssignedTaskForAction(args: {
@@ -99,7 +99,7 @@ export interface TaskServiceCompositionDependencies extends NativeDeliverySessio
 export function createTaskService(deps: TaskServiceCompositionDependencies): TaskService {
   const gateway = createConvexNativeTaskDeliveryGateway(deps.backend);
 
-  const taskSnapshotState = new TaskStateManager();
+  const taskInboxState = new TaskInboxState();
   const listeners = new Set<TaskServiceListener>();
   let inboxPollTimer: ReturnType<typeof setInterval> | undefined;
   let inboxPollInFlight = false;
@@ -113,15 +113,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       event.eventType === WorkspaceTaskInboxEventType.TaskDeleted ||
       (event.task.status as string) === 'completed'
     ) {
-      taskSnapshotState.remove(event.chatroomId, event.role, event.taskId);
+      taskInboxState.remove(event.chatroomId, event.role, event.taskId);
       return true;
     }
 
-    taskSnapshotState.upsert([
+    taskInboxState.upsert([
       {
         taskId: event.task.taskId,
         chatroomId: event.task.chatroomId,
-        status: event.task.status as AssignedTaskSnapshotView['status'],
+        status: event.task.status as AssignedTask['status'],
         assignedTo: event.task.assignedTo,
         updatedAt: event.task.updatedAt,
         createdAt: event.task.createdAt,
@@ -185,9 +185,9 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         machineId: deps.machineId,
         eventId,
       }),
-    listTasksForRole: (chatroomId, role) => taskSnapshotState.listForRole(chatroomId, role),
-    listAllTasks: () => taskSnapshotState.listAll(),
-    taskSnapshotState,
+    listTasksForRole: (chatroomId, role) => taskInboxState.listForRole(chatroomId, role),
+    listAllTasks: () => taskInboxState.listAll(),
+    taskInboxState,
     releaseTaskAfterTurnFailure: async (args) => {
       const result = await gateway.releaseTaskAfterTurnFailure({
         sessionId: deps.sessionId,
@@ -195,7 +195,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         role: args.role,
         taskId: args.taskId,
       });
-      taskSnapshotState.markStatus(
+      taskInboxState.markStatus(
         args.chatroomId,
         args.role,
         args.taskId,

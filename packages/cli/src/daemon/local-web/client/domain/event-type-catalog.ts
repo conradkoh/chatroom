@@ -6,7 +6,6 @@ const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = 
   'agent.exited': ['Agent Exited', 'error'],
   'agent.circuitOpen': ['Circuit Open', 'warning'],
   'agent.requestStart': ['Agent Request Start', 'warning'],
-  'agent.requestStop': ['Agent Request Stop', 'error'],
   'agent.registered': ['Agent Registered', 'success'],
   'agent.waiting': ['Agent Waiting', 'success'],
   'agent.startFailed': ['Agent Start Failed', 'error'],

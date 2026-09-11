@@ -1,19 +1,19 @@
 import type {
-  AssignedTaskSnapshotView,
+  AssignedTask,
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
 import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
 
 export interface TaskDeliveryService {
   isNativeHarness(harness: string): boolean;
-  snapshotRequestsNativeColdSession(task: AssignedTaskSnapshotView): boolean;
+  taskRequestsNativeColdSession(task: AssignedTask): boolean;
   explainNativeDeliveryBlock(
-    task: AssignedTaskSnapshotView,
+    task: AssignedTask,
     options: { slot: AgentProcessSlotView | undefined }
   ): string | null;
   releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
     released: boolean;
-    status: AssignedTaskSnapshotView['status'];
+    status: AssignedTask['status'];
     updatedAt: number;
   }>;
   loadAssignedTaskForAction(args: {

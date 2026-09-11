@@ -195,24 +195,12 @@ export async function updateSpawnedAgentInTest(
   role: string,
   pid: number
 ): Promise<void> {
-  const lifecycleRevision = await t.run(async (ctx) => {
-    const room = await ctx.db.get('chatroom_rooms', chatroomId);
-    if (!room?.teamId) return 0;
-    const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, room.teamId, role))
-      )
-      .first();
-    return config?.lifecycleRevision ?? 0;
-  });
   const result = await t.mutation(api.machines.updateSpawnedAgent, {
     sessionId,
     machineId,
     chatroomId,
     role,
     pid,
-    lifecycleRevision,
   });
   expect(result.accepted).toBe(true);
 }
@@ -271,7 +259,6 @@ export async function enableEnhancerTeamAgent(
       workingDir: '/workspace',
       enabled: true,
       desiredState: 'stopped',
-      lifecycleRevision: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -295,7 +282,7 @@ export async function addEnhancerToTeamRoles(chatroomId: Id<'chatroom_rooms'>): 
 // ---------------------------------------------------------------------------
 
 /**
- * Get command events (agent.requestStart / agent.requestStop / daemon.ping) from the event stream for a machine.
+ * Get command events (agent.requestStart / daemon.ping) from the event stream for a machine.
  */
 /**
  * Assert chatroom has only duo team roles (planner, builder).

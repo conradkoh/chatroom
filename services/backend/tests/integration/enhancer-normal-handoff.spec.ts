@@ -40,7 +40,6 @@ describe('enhancer normal handoff completion', () => {
         workingDir: '/workspace',
         enabled: true,
         desiredState: 'running',
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -133,7 +132,6 @@ describe('enhancer normal handoff completion', () => {
         workingDir: '/workspace',
         enabled: true,
         desiredState: 'running',
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });

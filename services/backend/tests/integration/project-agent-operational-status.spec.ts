@@ -56,7 +56,6 @@ describe('agent operational status projection', () => {
         workingDir: '/workspace',
         enabled: true,
         desiredState: 'running',
-        lifecycleRevision: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -114,7 +113,7 @@ describe('agent operational status projection', () => {
         chatroomId,
         role: 'builder',
         pid: 51001,
-        revisionKey: 'operational:exit',
+        revisionKey: 'exited:operational:exit',
         emittedAt: Date.now(),
       },
     });

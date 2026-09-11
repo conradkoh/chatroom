@@ -35,7 +35,6 @@ export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
     lastStatus === 'agent.sessionResumeRequested'
   )
     return { status: 'starting' };
-  if (lastStatus === 'agent.requestStop') return { status: 'stopping' };
   if (lastStatus === 'agent.startFailed' || lastStatus === 'agent.providerUnavailable')
     return {
       status: 'error',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { TaskStateManager } from './task-state-manager.js';
+import { TaskInboxState } from './task-inbox-state.js';
 
 function row(taskId: string, role = 'builder') {
   return {
@@ -15,9 +15,9 @@ function row(taskId: string, role = 'builder') {
   };
 }
 
-describe('TaskStateManager', () => {
+describe('TaskInboxState', () => {
   it('is uninitialized until the bootstrap snapshot is replaced', () => {
-    const state = new TaskStateManager();
+    const state = new TaskInboxState();
 
     expect(state.isInitialized()).toBe(false);
     state.replace([]);
@@ -25,7 +25,7 @@ describe('TaskStateManager', () => {
   });
 
   it('replaces bootstrap state and filters by role', () => {
-    const state = new TaskStateManager();
+    const state = new TaskInboxState();
     state.replace([row('task-1'), row('task-2', 'planner')]);
 
     expect(state.listForRole('room-1', 'BUILDER')).toHaveLength(1);
@@ -36,7 +36,7 @@ describe('TaskStateManager', () => {
 
   describe('markStatus', () => {
     it('applies a normal post-backend-success in_progress → pending patch', () => {
-      const state = new TaskStateManager();
+      const state = new TaskInboxState();
       state.replace([{ ...row('task-1'), status: 'in_progress' as const, updatedAt: 100 }]);
 
       expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 200)).toBe(true);
@@ -48,7 +48,7 @@ describe('TaskStateManager', () => {
     });
 
     it('refuses to regress a newer local snapshot with an older backend response', () => {
-      const state = new TaskStateManager();
+      const state = new TaskInboxState();
       state.replace([{ ...row('task-1'), status: 'in_progress' as const, updatedAt: 200 }]);
 
       expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
@@ -60,7 +60,7 @@ describe('TaskStateManager', () => {
     });
 
     it('refuses to regress equal-timestamp completed back to pending', () => {
-      const state = new TaskStateManager();
+      const state = new TaskInboxState();
       state.replace([{ ...row('task-1'), status: 'completed' as never, updatedAt: 100 }]);
 
       expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
@@ -72,7 +72,7 @@ describe('TaskStateManager', () => {
     });
 
     it('returns false without creating a snapshot when nothing matches', () => {
-      const state = new TaskStateManager();
+      const state = new TaskInboxState();
 
       expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
 

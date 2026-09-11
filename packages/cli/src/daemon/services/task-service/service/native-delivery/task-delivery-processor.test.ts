@@ -21,8 +21,6 @@ function snapshotRow() {
       machineId: 'machine_processor',
       agentHarness: 'cursor-sdk',
       workingDir: '/test',
-      spawnedAgentPid: 42_001,
-      desiredState: 'running' as const,
     },
     participant: {
       lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
@@ -76,7 +74,7 @@ describe('task-delivery-processor exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          snapshotRequestsNativeColdSession: () => false,
+          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         } as never,
         {
@@ -89,7 +87,7 @@ describe('task-delivery-processor exact-task hydration', () => {
         'bootstrap',
         { enqueue: async () => undefined } as never,
         () => false,
-        { snapshots: [row] }
+        { tasks: [row] }
       );
 
       expect(capturedInject).toBeDefined();
@@ -129,7 +127,7 @@ describe('task-delivery-processor exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          snapshotRequestsNativeColdSession: () => false,
+          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         } as never,
         {
@@ -142,7 +140,7 @@ describe('task-delivery-processor exact-task hydration', () => {
         'bootstrap',
         { enqueue: async () => undefined } as never,
         () => false,
-        { snapshots: [row] }
+        { tasks: [row] }
       );
 
       const result = await capturedInject?.(row as never, undefined);

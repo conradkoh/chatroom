@@ -10,8 +10,6 @@
 
 import type * as admin_invites from "../admin/invites.js";
 import type * as admin_users from "../admin/users.js";
-import type * as agentStopReaper from "../agentStopReaper.js";
-import type * as agentStops from "../agentStops.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
 import type * as allTabConversation from "../allTabConversation.js";
 import type * as api_agenticQueryHelpers from "../api/agenticQueryHelpers.js";
@@ -31,6 +29,7 @@ import type * as backlog from "../backlog.js";
 import type * as capabilitiesRefreshCron from "../capabilitiesRefreshCron.js";
 import type * as chatroomCleanup from "../chatroomCleanup.js";
 import type * as chatroomSkillCustomizations from "../chatroomSkillCustomizations.js";
+import type * as chatroomWorkspaceAgentCommandsInbox from "../chatroomWorkspaceAgentCommandsInbox.js";
 import type * as chatroomWorkspaceTaskInbox from "../chatroomWorkspaceTaskInbox.js";
 import type * as chatrooms from "../chatrooms.js";
 import type * as checklists from "../checklists.js";
@@ -171,8 +170,6 @@ import type {
 declare const fullApi: ApiFromModules<{
   "admin/invites": typeof admin_invites;
   "admin/users": typeof admin_users;
-  agentStopReaper: typeof agentStopReaper;
-  agentStops: typeof agentStops;
   agenticQueryCleanup: typeof agenticQueryCleanup;
   allTabConversation: typeof allTabConversation;
   "api/agenticQueryHelpers": typeof api_agenticQueryHelpers;
@@ -192,6 +189,7 @@ declare const fullApi: ApiFromModules<{
   capabilitiesRefreshCron: typeof capabilitiesRefreshCron;
   chatroomCleanup: typeof chatroomCleanup;
   chatroomSkillCustomizations: typeof chatroomSkillCustomizations;
+  chatroomWorkspaceAgentCommandsInbox: typeof chatroomWorkspaceAgentCommandsInbox;
   chatroomWorkspaceTaskInbox: typeof chatroomWorkspaceTaskInbox;
   chatrooms: typeof chatrooms;
   checklists: typeof checklists;

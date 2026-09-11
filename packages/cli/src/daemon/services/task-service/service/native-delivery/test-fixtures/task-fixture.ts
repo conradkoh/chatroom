@@ -14,10 +14,10 @@ import {
 } from '../../../../../../infrastructure/incremental-sync/working-snapshot.js';
 import {
   TaskAssigneeType,
-  type AssignedTaskSnapshotView,
+  type AssignedTask,
 } from '../../../../../domain/entities/assigned-task.js';
 
-export type TaskSnapshotFixtureDoc = {
+export type TaskFixtureDoc = {
   taskId: AssignedTaskSignal['taskId'];
   chatroomId: AssignedTaskSignal['chatroomId'];
   role: string;
@@ -33,7 +33,7 @@ export type TaskSnapshotFixtureDoc = {
   revisionKey: string;
 };
 
-export function snapshotDocToSignal(doc: TaskSnapshotFixtureDoc): AssignedTaskSignal {
+export function taskDocToSignal(doc: TaskFixtureDoc): AssignedTaskSignal {
   return {
     taskId: doc.taskId,
     chatroomId: doc.chatroomId,
@@ -50,16 +50,13 @@ export function snapshotDocToSignal(doc: TaskSnapshotFixtureDoc): AssignedTaskSi
   };
 }
 
-function taskSnapshotKey(taskId: string, role: string): string {
+function taskStateKey(taskId: string, role: string): string {
   return `${taskId}:${role}`;
 }
 
-const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
-  AssignedTaskSnapshotView,
-  AssignedTaskSignal
-> = {
-  rowKey: (row) => taskSnapshotKey(row.taskId, row.agentConfig.role),
-  signalKey: (signal) => taskSnapshotKey(signal.taskId, signal.role),
+const taskMonitorStateOptions: WorkingSnapshotOptions<AssignedTask, AssignedTaskSignal> = {
+  rowKey: (row) => taskStateKey(row.taskId, row.agentConfig.role),
+  signalKey: (signal) => taskStateKey(signal.taskId, signal.role),
   mergeSignal: (row, signal) => {
     if (!row) {
       return {
@@ -96,16 +93,13 @@ const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
   },
 };
 
-export function createTaskSnapshot(): WorkingSnapshot<
-  AssignedTaskSnapshotView,
-  AssignedTaskSignal
-> & {
-  mergePresence(presence: AssignedTaskPresenceSignal): AssignedTaskSnapshotView | undefined;
+export function createTaskState(): WorkingSnapshot<AssignedTask, AssignedTaskSignal> & {
+  mergePresence(presence: AssignedTaskPresenceSignal): AssignedTask | undefined;
 } {
-  const base = new WorkingSnapshot(taskMonitorSnapshotOptions);
+  const base = new WorkingSnapshot(taskMonitorStateOptions);
   return Object.assign(base, {
     mergePresence(presence: AssignedTaskPresenceSignal) {
-      const key = taskSnapshotKey(presence.taskId, presence.role);
+      const key = taskStateKey(presence.taskId, presence.role);
       return base.getByKey(key);
     },
   });

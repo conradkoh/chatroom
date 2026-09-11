@@ -27,7 +27,7 @@ Adapter layer — transport and machine-local I/O. **No business logic.**
 
 ## Event flow
 
-- Task discovery transport: the task service hydrates machine-assigned task snapshots from Convex and periodically reconciles native delivery.
+- Task discovery transport: the task service consumes the machine task inbox from Convex and periodically reconciles native delivery.
 
 ```
 Convex → subscribers/ → InboundEvent → entry/event-router → usecase/

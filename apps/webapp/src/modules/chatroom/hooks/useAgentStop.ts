@@ -11,22 +11,18 @@ export interface AgentStopTarget {
   role: string;
 }
 
-export type AgentStopState = 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
-
-export function isActiveAgentStopState(state?: AgentStopState | string | null) {
-  return state === 'pending' || state === 'stopping';
-}
-
 export function useAgentStop() {
-  const requestAgent = useSessionMutation(api.agentStops.requestAgent);
-  const requestChatroom = useSessionMutation(api.agentStops.requestChatroom);
+  const requestAgent = useSessionMutation(api.chatroomWorkspaceAgentCommandsInbox.requestStopAgent);
+  const requestChatroom = useSessionMutation(
+    api.chatroomWorkspaceAgentCommandsInbox.requestStopAll
+  );
 
   const requestAgentStop = useCallback(
-    (target: AgentStopTarget) => requestAgent({ ...target, reason: 'user.stop' }),
+    (target: AgentStopTarget) => requestAgent(target),
     [requestAgent]
   );
   const requestChatroomStop = useCallback(
-    (chatroomId: Id<'chatroom_rooms'>) => requestChatroom({ chatroomId, reason: 'user.stop' }),
+    (chatroomId: Id<'chatroom_rooms'>) => requestChatroom({ chatroomId }),
     [requestChatroom]
   );
 

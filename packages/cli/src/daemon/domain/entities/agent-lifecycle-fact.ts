@@ -19,7 +19,6 @@ export type AgentLifecycleFact =
       harnessSessionId?: string | undefined;
       revisionKey: string;
       emittedAt: number;
-      lifecycleRevision?: number | undefined;
     }
   | {
       kind: 'exited';
@@ -44,6 +43,14 @@ export type AgentLifecycleFact =
       status: string;
       source: string;
       error?: string | undefined;
+      revisionKey: string;
+      emittedAt: number;
+    }
+  | {
+      kind: 'chatroom_shutdown_complete';
+      chatroomId: string;
+      commandId: string;
+      finalizeChatroom?: boolean | undefined;
       revisionKey: string;
       emittedAt: number;
     }
@@ -99,7 +106,13 @@ export function normalizeAgentLifecycleFact(raw: unknown): AgentLifecycleFact {
       emittedAt: Number(rest.emittedAt),
     };
   }
-  if (kind === 'spawned' || kind === 'exited' || kind === 'activity' || kind === 'turn_failed') {
+  if (
+    kind === 'spawned' ||
+    kind === 'exited' ||
+    kind === 'activity' ||
+    kind === 'turn_failed' ||
+    kind === 'chatroom_shutdown_complete'
+  ) {
     return rest as AgentLifecycleFact;
   }
   throw new Error(`Unknown agent lifecycle fact kind: ${String(kind)}`);
@@ -126,6 +139,8 @@ export function buildActivityLifecycleFact(params: {
 
 export function agentLifecycleDeliveryKey(machineId: string, fact: AgentLifecycleFact): string {
   if (fact.kind === 'cleared_all_pids') return `${machineId}:__machine__`;
+  if (fact.kind === 'chatroom_shutdown_complete')
+    return `${machineId}:${fact.chatroomId}:shutdown:${fact.commandId}`;
   return `${machineId}:${fact.chatroomId}:${fact.role.toLowerCase()}`;
 }
 

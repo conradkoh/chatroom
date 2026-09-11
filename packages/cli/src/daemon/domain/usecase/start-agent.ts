@@ -10,7 +10,6 @@ export interface StartAgentInput {
   reason: string;
   deadline: number;
   wantResume: boolean;
-  lifecycleRevision?: number | undefined;
 }
 
 export interface AgentProcessManagerPort {
@@ -22,7 +21,6 @@ export interface AgentProcessManagerPort {
     workingDir: string;
     reason: string;
     wantResume: boolean;
-    lifecycleRevision?: number | undefined;
   }): Promise<void>;
 }
 
@@ -64,9 +62,6 @@ export async function startAgent(deps: StartAgentDeps, input: StartAgentInput): 
       workingDir: input.workingDir,
       reason: input.reason,
       wantResume: input.wantResume,
-      ...(input.lifecycleRevision !== undefined
-        ? { lifecycleRevision: input.lifecycleRevision }
-        : {}),
     });
   } catch (error) {
     const message =

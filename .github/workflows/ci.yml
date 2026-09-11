@@ -36,23 +36,16 @@ jobs:
       - name: Test CLI (full)
         run: pnpm turbo run test --filter=chatroom-cli
 
-      - name: Test backend stop suites
+      - name: Test backend agent lifecycle suites
         run: >
           pnpm --dir services/backend exec vitest run
-          src/domain/entities/agent-stop-command.spec.ts
-          src/domain/usecase/agent/agent-stop-reaper.spec.ts
-          src/domain/usecase/agent/begin-machine-stop-execution.spec.ts
-          src/domain/usecase/agent/complete-machine-stop-execution.spec.ts
-          src/domain/usecase/agent/create-agent-stop-command.spec.ts
-          src/domain/usecase/agent/derive-agent-stop-state.spec.ts
-          src/domain/usecase/agent/reconcile-unreported-stop-targets.spec.ts
-          src/domain/usecase/agent/rollup-agent-stop-command.spec.ts
-          src/domain/usecase/agent/supersede-inflight-agent-stop-commands.spec.ts
+          src/domain/usecase/agent/authorize-agent-start.spec.ts
+          src/domain/usecase/agent/request-ephemeral-agent-release.spec.ts
+          src/domain/usecase/agent/start-agent.spec.ts
 
       - name: Test webapp stop suites
         run: >
           pnpm --dir apps/webapp exec vitest run
           src/modules/chatroom/hooks/useAgentStop.test.ts
-          src/modules/chatroom/components/AgentControls.stop.test.tsx
           src/modules/chatroom/components/AgentPanel/RemoteAgentQuickActions.test.tsx
           src/modules/chatroom/components/ChatroomSidebar.test.tsx

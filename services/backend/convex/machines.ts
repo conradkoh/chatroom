@@ -20,7 +20,6 @@ import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import {
   AgentStartReasonEnum,
-  agentStopReasonValidator,
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
@@ -1108,8 +1107,6 @@ export const sendCommand = mutation({
         allowNewMachine: v.optional(v.boolean()),
         /** When true (default), resume from the daemon's last session on first launch. */
         wantResume: v.optional(v.boolean()),
-        // For stop-agent: optional reason (defaults to 'user.stop')
-        reason: v.optional(agentStopReasonValidator),
       })
     ),
   },
@@ -1262,7 +1259,6 @@ export const updateSpawnedAgent = mutation({
     model: v.optional(v.string()), // Save model alongside PID for config persistence
     reason: v.optional(v.string()),
     harnessSessionId: v.optional(v.string()),
-    lifecycleRevision: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1271,8 +1267,6 @@ export const updateSpawnedAgent = mutation({
     }
     await getOwnedMachine(ctx, args.machineId, auth.userId);
 
-    if (args.pid !== undefined && args.lifecycleRevision === undefined)
-      return { success: true, accepted: false, reason: 'stale_revision' as const };
     const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!spawnChatroom?.teamId) {
       throw new Error('Chatroom has no teamId — cannot look up agent config');
@@ -1302,9 +1296,6 @@ export const updateSpawnedAgent = mutation({
       });
       return { success: true, accepted: true };
     }
-    if (args.lifecycleRevision === undefined) {
-      return { success: true, accepted: false, reason: 'stale_revision' };
-    }
     return {
       success: true,
       ...(await registerSpawnedAgentIfAuthorized(ctx, {
@@ -1312,7 +1303,6 @@ export const updateSpawnedAgent = mutation({
         role: args.role,
         machineId: args.machineId,
         pid: args.pid,
-        lifecycleRevision: args.lifecycleRevision,
         model: args.model,
         harnessSessionId: args.harnessSessionId,
         reason: args.reason,
@@ -1327,7 +1317,6 @@ export const authorizeAgentStart = mutation({
     machineId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    lifecycleRevision: v.optional(v.number()),
     taskId: v.optional(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {

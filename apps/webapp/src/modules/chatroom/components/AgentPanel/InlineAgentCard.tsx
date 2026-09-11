@@ -158,7 +158,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigMachineId: roleConfig?.machineId ?? agentRoleView?.machineId,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
-    agentRoleView,
     lockedMachineId,
     lockedWorkingDir,
     teamId,

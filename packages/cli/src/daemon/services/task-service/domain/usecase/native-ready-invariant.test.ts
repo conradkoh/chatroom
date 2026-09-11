@@ -16,8 +16,6 @@ const task = (overrides: Record<string, unknown> = {}) =>
       machineId: 'machine-1',
       agentHarness: 'cursor-sdk',
       workingDir: '/tmp',
-      spawnedAgentPid: 42,
-      desiredState: 'stopped',
     },
     assignee: {
       type: TaskAssigneeType.Ephemeral,
@@ -56,8 +54,6 @@ describe('native-ready-invariant', () => {
             machineId: 'machine-1',
             agentHarness: 'cursor-sdk',
             workingDir: '/tmp',
-            spawnedAgentPid: 42,
-            desiredState: 'running',
           },
         }),
         idleSlot({ pid: 42, nativeTurnPhase: 'turn_in_flight' })
@@ -65,7 +61,7 @@ describe('native-ready-invariant', () => {
     ).toBe('turn_not_idle (nativeTurnPhase=turn_in_flight)');
   });
 
-  it('allows a healthy local slot while the backend PID is still missing', () => {
+  it('allows a healthy local slot without backend process metadata', () => {
     expect(
       explainAgentReadyForNativeDeliveryBlock(
         task({
@@ -74,7 +70,6 @@ describe('native-ready-invariant', () => {
             machineId: 'machine-1',
             agentHarness: 'cursor-sdk',
             workingDir: '/tmp',
-            desiredState: 'running',
           },
         }),
         idleSlot({ pid: 123 })
@@ -82,7 +77,7 @@ describe('native-ready-invariant', () => {
     ).toBeNull();
   });
 
-  it('allows a healthy local slot when snapshot spawnedAgentPid is stale from a prior agent', () => {
+  it('blocks when the local slot is not running', () => {
     expect(
       explainAgentReadyForNativeDeliveryBlock(
         task({
@@ -91,28 +86,10 @@ describe('native-ready-invariant', () => {
             machineId: 'machine-1',
             agentHarness: 'cursor-sdk',
             workingDir: '/tmp',
-            spawnedAgentPid: 42,
-          },
-        }),
-        idleSlot({ pid: 99 })
-      )
-    ).toBeNull();
-  });
-
-  it('still blocks pid mismatch when local slot is not running', () => {
-    expect(
-      explainAgentReadyForNativeDeliveryBlock(
-        task({
-          agentConfig: {
-            role: 'builder',
-            machineId: 'machine-1',
-            agentHarness: 'cursor-sdk',
-            workingDir: '/tmp',
-            spawnedAgentPid: 42,
           },
         }),
         idleSlot({ pid: 99, state: 'spawning' })
       )
-    ).toContain('pid_mismatch');
+    ).toBe('slot_not_running (slotState=spawning)');
   });
 });

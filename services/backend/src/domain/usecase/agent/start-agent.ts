@@ -17,10 +17,8 @@
 
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
-import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
-import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-stop-commands';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -63,7 +61,6 @@ export interface StartAgentInput {
    * session. For user starts this is runtime-only and is not persisted.
    */
   wantResume?: boolean | undefined;
-  lifecycleRevision?: number | undefined;
 }
 
 /** Successful result of a start-agent operation. */
@@ -108,9 +105,6 @@ export async function startAgent(
     );
   }
 
-  if (reason === 'user.start' || reason === 'user.restart')
-    await supersedeInflightAgentStopCommands(ctx, { chatroomId });
-
   // ── Step 1: Verify harness is available on the machine ────────────────
 
   if (!machine.availableHarnesses.includes(agentHarness)) {
@@ -130,7 +124,7 @@ export async function startAgent(
     const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
     const teamConfigNow = Date.now();
 
-    const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+    await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey,
       createdAt: teamConfigNow,
       fields: {
@@ -150,18 +144,6 @@ export async function startAgent(
         circuitOpenedAt: undefined,
       },
     });
-
-    const currentConfig = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-    if (currentConfig) {
-      const lifecycleRevision = await advanceAgentLifecycleRevision(ctx, currentConfig._id);
-      input.lifecycleRevision = lifecycleRevision;
-    }
-
-    if (previousMachineId != null && previousMachineId !== machineId) {
-    }
   }
 
   // ── Step 3: Write agent.requestStart event to stream ──────────────────
@@ -177,9 +159,6 @@ export async function startAgent(
     workingDir,
     reason,
     wantResume: resolvedWantResume,
-    ...(input.lifecycleRevision !== undefined
-      ? { lifecycleRevision: input.lifecycleRevision }
-      : {}),
   };
 
   await enqueueMachineCommand(ctx, {
@@ -189,8 +168,8 @@ export async function startAgent(
   });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
-  // Refresh the daemon snapshot projection so the task monitor sees the new
-  // config (desiredState/model/workingDir) without waiting for a task transition.
+  // Refresh the operational projection so the daemon sees the new config
+  // without waiting for a task transition.
   const startedConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) =>

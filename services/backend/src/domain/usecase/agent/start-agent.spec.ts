@@ -110,7 +110,6 @@ describe('startAgent use case — desiredState', () => {
     });
 
     // Mark it as stopped (no spawned PID on this config — patch intent directly)
-    await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' });
     await t.run(async (ctx) => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')

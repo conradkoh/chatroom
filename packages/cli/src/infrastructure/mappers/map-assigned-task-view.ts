@@ -1,18 +1,16 @@
 // fallow-ignore-file unused-export
 
 import type {
-  AssignedTaskSnapshotView as BackendAssignedTaskSnapshotView,
+  AssignedTask as BackendAssignedTask,
   AssignedTaskView as BackendAssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import type {
-  AssignedTaskSnapshotView,
+  AssignedTask,
   AssignedTaskWithContent,
 } from '../../daemon/domain/entities/assigned-task.js';
 
-export function mapAssignedTaskSnapshot(
-  row: BackendAssignedTaskSnapshotView
-): AssignedTaskSnapshotView {
+export function mapAssignedTask(row: BackendAssignedTask): AssignedTask {
   return {
     taskId: row.taskId,
     chatroomId: row.chatroomId,
@@ -23,10 +21,6 @@ export function mapAssignedTaskSnapshot(
     agentConfig: {
       role: row.agentConfig.role,
       machineId: row.agentConfig.machineId,
-      spawnedAgentPid: row.agentConfig.spawnedAgentPid,
-      desiredState: row.agentConfig.desiredState,
-      circuitState: row.agentConfig.circuitState,
-      configLifecycleRevision: row.agentConfig.configLifecycleRevision,
     },
     assignee: row.assignee,
     participant: row.participant,
@@ -36,15 +30,13 @@ export function mapAssignedTaskSnapshot(
 
 export function mapAssignedTaskView(row: BackendAssignedTaskView): AssignedTaskWithContent {
   return {
-    ...mapAssignedTaskSnapshot(row),
+    ...mapAssignedTask(row),
     taskContent: row.taskContent,
     taskEnvelope: row.taskEnvelope,
     startInNewSession: row.startInNewSession,
   };
 }
 
-export function mapAssignedTaskSnapshotList(
-  rows: readonly BackendAssignedTaskSnapshotView[]
-): AssignedTaskSnapshotView[] {
-  return rows.map(mapAssignedTaskSnapshot);
+export function mapAssignedTaskList(rows: readonly BackendAssignedTask[]): AssignedTask[] {
+  return rows.map(mapAssignedTask);
 }
