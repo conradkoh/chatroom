@@ -3,10 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireMachineOwner } from './auth/cli/machineAccess';
-import {
-  workspaceTaskInboxEventTypeValidator,
-  workspaceTaskInboxTaskValidator,
-} from '../src/domain/entities/chatroom-workspace-task-inbox';
+import { workspaceTaskInboxTaskValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
 
 export const listPending = query({
   args: { ...SessionIdArg, machineId: v.string() },
@@ -51,7 +48,7 @@ export const createTaskAssigned = mutation({
       machineId: args.machineId,
       chatroomId: args.chatroomId,
       taskId: args.task.taskId,
-      eventType: workspaceTaskInboxEventTypeValidator.type,
+      eventType: 'task_assigned',
       status: 'pending',
       task: args.task,
       createdAt: Date.now(),
