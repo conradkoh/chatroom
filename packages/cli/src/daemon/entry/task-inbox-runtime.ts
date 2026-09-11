@@ -9,13 +9,13 @@ import {
 } from './daemon-services.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import {
-  type NativeDeliveryService,
+  AgentWorkManager,
   type NativeTaskDeliverySessionDeps,
 } from '../services/service-interfaces.js';
 import { createAgentTaskStateService } from '../services/service-interfaces.js';
 
 export const startTaskInboxEffect = (): Effect.Effect<
-  { stop: () => void; nativeDelivery: NativeDeliveryService },
+  { stop: () => void; nativeDelivery: AgentWorkManager },
   never,
   | DaemonSessionService
   | DaemonAgentProcessManagerService
@@ -48,15 +48,17 @@ export const startTaskInboxEffect = (): Effect.Effect<
       },
     };
     const agentTaskState = createAgentTaskStateService();
-    const nativeDelivery = session.taskService.createNativeDeliveryService({
+    const nativeDelivery = new AgentWorkManager({
       runtime,
       effectContext,
       agentMgr,
       runSerializedForAgent: commandService.runSerializedForAgent,
       sessionDeps,
       machineId: session.machineId,
+      taskSnapshotState: session.taskService.taskSnapshotState,
       agentTaskState,
       lifecycleOutbox,
+      taskService: session.taskService,
     });
     yield* Effect.tryPromise(() => session.taskService.startTaskInbox()).pipe(
       Effect.catchAll((error) => {

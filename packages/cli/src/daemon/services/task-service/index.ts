@@ -39,12 +39,6 @@ export {
 export { createConvexNativeTaskDeliveryGateway } from './infrastructure/adapters/convex-native-task-delivery-gateway.js';
 export { createDaemonAuditPort } from './infrastructure/adapters/daemon-audit-port.js';
 export {
-  NativeDeliveryService,
-  type NativeDeliveryPass,
-  type NativeDeliveryServiceDependencies,
-  type NativeTaskDeliveredHandler,
-} from './service/native-delivery/native-delivery-service.js';
-export {
   resetRoleDeliveryState,
   type NativeDeliveryDelivered,
   type NativeDeliveryExecution,

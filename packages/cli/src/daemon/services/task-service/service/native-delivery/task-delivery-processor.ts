@@ -15,6 +15,7 @@ import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
+import type { TaskDeliveryService } from './task-delivery-service.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import {
   resolveAgentRuntimeConfig,
@@ -26,16 +27,7 @@ import type {
   DaemonAgentProcessManagerServiceShape,
 } from '../../../../entry/daemon-services.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
-import type { AgentProcessManagerService, TaskService } from '../../../service-interfaces.js';
-
-type TaskDeliveryService = Pick<
-  TaskService,
-  | 'deliverNativeTask'
-  | 'isNativeHarness'
-  | 'snapshotRequestsNativeColdSession'
-  | 'explainNativeDeliveryBlock'
-  | 'loadAssignedTaskForAction'
->;
+import type { AgentProcessManagerService } from '../../../service-interfaces.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
   DaemonSessionService | DaemonAgentProcessManagerService

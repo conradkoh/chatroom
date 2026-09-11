@@ -5,7 +5,7 @@ import type { StartAgentDeps } from '../../domain/usecase/start-agent.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import type {
   AgentProcessManagerService,
-  NativeDeliveryService,
+  AgentWorkManager,
 } from '../../services/service-interfaces.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
@@ -78,7 +78,7 @@ export function createRestartAgentDeps(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   session: DaemonSessionServiceShape,
   processManagerService: AgentProcessManagerService,
-  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
+  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>
 ): RestartAgentDeps {
   return {
     restartOrchestrator: {

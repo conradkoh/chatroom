@@ -2,7 +2,16 @@
 
 import { Effect } from 'effect';
 
-import { createTaskService, type TaskService } from '../../index.js';
+import type { TaskDeliveryService } from './task-delivery-service.js';
+import {
+  createTaskService,
+  createConvexNativeTaskDeliveryGateway,
+  createDaemonAuditPort,
+  explainNativeDeliveryBlock,
+  isNativeHarness,
+  runNativeInjectionEffect,
+  snapshotRequestsNativeColdSession,
+} from '../../index.js';
 
 type ReconcileLike = {
   sessionDeps: {
@@ -25,21 +34,39 @@ type ReconcileLike = {
 
 export function withTestTaskService<T extends ReconcileLike>(
   params: T
-): T & { taskService: TaskService } {
+): T & { taskService: TaskDeliveryService } {
+  const taskService = createTaskService({
+    ...params.sessionDeps,
+  });
+  const taskGateway = createConvexNativeTaskDeliveryGateway(params.sessionDeps.backend);
+  const audit = createDaemonAuditPort(params.sessionDeps.logEvent ?? (async () => undefined));
   return {
     ...params,
-    taskService: createTaskService({
-      ...params.sessionDeps,
-      agentProcessService: {
-        getSlot: params.agentMgr.getSlot,
-        resumeTurnForSlot: async (input: { chatroomId: string; role: string; prompt: string }) => {
-          const result = params.agentMgr.resumeTurnForSlot(input) as any;
-          if (result && typeof result.then === 'function') return result;
-          return Effect.runPromise(result);
-        },
-        runSerializedForAgent: params.runSerializedForAgent,
-      } as never,
-      lifecycleOutbox: params.lifecycleOutbox as never,
-    }),
+    taskService: {
+      ...taskService,
+      isNativeHarness,
+      snapshotRequestsNativeColdSession,
+      explainNativeDeliveryBlock,
+      deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
+        Effect.runPromise(
+          runNativeInjectionEffect(task, harnessSessionId, {
+            ...params.sessionDeps,
+            agentMgr: {
+              resumeTurnForSlot: (args) => {
+                const result = params.agentMgr.resumeTurnForSlot(args) as any;
+                return result && typeof result.then === 'function'
+                  ? result
+                  : Effect.runPromise(result);
+              },
+              getSlot: params.agentMgr.getSlot as never,
+            },
+            runSerializedForAgent: params.runSerializedForAgent as never,
+            taskGateway,
+            audit,
+            lifecycleOutbox: params.lifecycleOutbox,
+            onTaskDelivered,
+          })
+        ),
+    } as TaskDeliveryService,
   };
 }

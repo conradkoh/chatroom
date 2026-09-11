@@ -413,10 +413,6 @@ function assembleDaemonSessionInit(args: {
     convexUrl,
     backend: deps.backend,
     logEvent: activeLogEvent ?? (async () => undefined),
-    agentProcessService: agentProcessManagerService,
-    lifecycleOutbox: {
-      enqueue: (fact) => enqueueAgentLifecycleFact(agentLifecycleOutbox, machineId, fact),
-    },
   });
 
   return {
@@ -474,7 +470,9 @@ const connectDaemonEffect = (
     })
   );
 
-const cleanPreviousDaemonStateEffect = (init: DaemonSessionInit): Effect.Effect<void, never, never> =>
+const cleanPreviousDaemonStateEffect = (
+  init: DaemonSessionInit
+): Effect.Effect<void, never, never> =>
   Effect.gen(function* () {
     yield* Effect.catchAllCause(
       Effect.gen(function* () {

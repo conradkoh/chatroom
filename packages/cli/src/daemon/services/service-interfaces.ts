@@ -21,11 +21,15 @@ export {
   snapshotRequestsNativeColdSession,
   isAgentReadyForNativeDelivery,
   explainAgentReadyForNativeDeliveryBlock,
-  NativeDeliveryService,
-  type NativeDeliveryServiceDependencies,
   resetRoleDeliveryState,
   type NativeTaskDeliverySessionDeps,
   createConvexNativeTaskDeliveryGateway,
   createDaemonAuditPort,
   runNativeInjectionEffect,
 } from './task-service/index.js';
+export {
+  AgentWorkManager,
+  type AgentWorkManagerDependencies,
+  type AgentWorkPass,
+  type AgentTaskDeliveredHandler,
+} from './agent-process-service/index.js';

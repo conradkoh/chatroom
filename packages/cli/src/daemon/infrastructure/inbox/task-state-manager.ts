@@ -35,7 +35,7 @@ function isStaleStatusPatch(
  * idle delivery read from it instead of rehydrating the full machine snapshot
  * projection from Convex.
  */
-export class MachineTaskSnapshotState {
+export class TaskStateManager {
   private readonly snapshots = new Map<string, AssignedTaskSnapshotView>();
   private initialized = false;
 

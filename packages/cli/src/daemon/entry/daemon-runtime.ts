@@ -58,7 +58,7 @@ import type { BoundHarness } from '../domain/entities/bound-harness.js';
 import type { SessionHandle } from '../domain/usecase/open-harness-session.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type {
-  NativeDeliveryService,
+  AgentWorkManager,
   AgentProcessManagerService,
 } from '../services/service-interfaces.js';
 
@@ -91,7 +91,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let enhancerWorkerHandle: { stop: () => void } | null = null;
-  let taskInboxHandle: { stop: () => void; nativeDelivery: NativeDeliveryService } | null = null;
+  let taskInboxHandle: { stop: () => void; nativeDelivery: AgentWorkManager } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 

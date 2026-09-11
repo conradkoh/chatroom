@@ -74,6 +74,51 @@ describe('TaskService.loadAssignedTaskForAction', () => {
 });
 
 describe('TaskService inbox consumption', () => {
+  test('keeps a permanent assignment visible when no agent slot exists yet', async () => {
+    const event = {
+      _id: 'event-permanent-1',
+      machineId: 'machine-1',
+      chatroomId: 'room-1',
+      taskId: 'task-1',
+      role: 'builder',
+      assignee: { type: TaskAssigneeType.Permanent },
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 1_000,
+      task: {
+        taskId: 'task-1',
+        chatroomId: 'room-1',
+        status: 'pending',
+        assignedTo: 'builder',
+        updatedAt: 1_000,
+        createdAt: 900,
+        startInNewSession: false,
+      },
+    } as never;
+    const query = vi.fn(async () => [event]);
+    const mutation = vi.fn(async () => ({ processed: true }));
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      backend: { mutation, query },
+    });
+    const notifications: unknown[] = [];
+    service.subscribe((notification) => {
+      notifications.push(notification);
+    });
+
+    await service.startTaskInbox();
+
+    expect(service.listTasksForRole('room-1', 'builder')).toHaveLength(1);
+    expect(notifications).toHaveLength(1);
+    expect(mutation).toHaveBeenCalledWith(
+      api.chatroomWorkspaceTaskInbox.markProcessed,
+      expect.objectContaining({ eventId: 'event-permanent-1' })
+    );
+    service.stopTaskInbox();
+  });
+
   test('hydrates task state from pending inbox events and acknowledges them', async () => {
     const event = {
       _id: 'event-1',

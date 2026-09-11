@@ -9,6 +9,7 @@ import {
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
+import type { TaskDeliveryService } from './task-delivery-service.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import {
@@ -29,17 +30,7 @@ import type {
   SerializedAgentOperationOptions,
   SerializedAgentOperationContext,
   NativeDeliverySessionHandles,
-  TaskService,
 } from '../../../service-interfaces.js';
-
-type TaskDeliveryService = Pick<
-  TaskService,
-  | 'deliverNativeTask'
-  | 'isNativeHarness'
-  | 'snapshotRequestsNativeColdSession'
-  | 'explainNativeDeliveryBlock'
-  | 'loadAssignedTaskForAction'
->;
 
 type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskDeliveryContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
