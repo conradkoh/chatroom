@@ -1212,60 +1212,17 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_machineId', ['machineId']),
 
-  chatroom_agentRoleOperationalStatus: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    teamId: v.string(),
-    machineId: v.optional(v.string()),
-    operationalState: v.union(
-      v.literal('running'),
-      v.literal('stopped'),
-      v.literal('starting'),
-      v.literal('circuit_open')
-    ),
-    viewState: v.optional(
-      v.union(
-        v.literal('idle'),
-        v.literal('running'),
-        v.literal('stopped'),
-        v.literal('starting'),
-        v.literal('circuit_open')
-      )
-    ),
-    isAlive: v.boolean(),
-    isRunning: v.boolean(),
-    daemonConnected: v.boolean(),
-    /** @deprecated Legacy projected stop state; retained for old documents only. */
-    stopState: v.optional(
-      v.union(
-        v.literal('idle'),
-        v.literal('pending'),
-        v.literal('stopping'),
-        v.literal('stopped'),
-        v.literal('failed')
-      )
-    ),
-    /** @deprecated Legacy reference to the removed agent stop command table. */
-    activeStopCommandId: v.optional(v.string()),
-    /** Derived eligibility to accept tasks; populated by later projection logic. */
-    acceptsTasks: v.optional(v.boolean()),
-    projectedAt: v.number(),
-    revisionKey: v.string(),
-  })
-    .index('by_chatroom', ['chatroomId'])
-    .index('by_chatroom_role', ['chatroomId', 'role'])
-    .index('by_machineId', ['machineId']),
-
   /**
    * Consumer-facing per-role status read model.
    *
-   * This is a derived projection for frontend subscriptions. Domain decisions
-   * must continue to use team config, lifecycle facts, tasks, and jobs.
+   * This is the single derived projection for frontend subscriptions. Domain
+   * decisions must continue to use team config, lifecycle facts, tasks, and jobs.
    */
   chatroom_agentRoleStatusReadModel: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     roleKind: v.union(v.literal('persistent'), v.literal('ephemeral')),
+    agentType: v.optional(agentTypeValidator),
     status: v.union(
       v.literal('offline'),
       v.literal('starting'),
@@ -1276,6 +1233,30 @@ export default defineSchema({
     ),
     machineId: v.optional(v.string()),
     lastSeenAt: v.optional(v.number()),
+    lastSeenAction: v.optional(v.string()),
+    teamId: v.optional(v.string()),
+    operationalState: v.optional(
+      v.union(
+        v.literal('running'),
+        v.literal('stopped'),
+        v.literal('starting'),
+        v.literal('circuit_open')
+      )
+    ),
+    viewState: v.optional(
+      v.union(
+        v.literal('idle'),
+        v.literal('running'),
+        v.literal('stopped'),
+        v.literal('starting'),
+        v.literal('circuit_open')
+      )
+    ),
+    isAlive: v.optional(v.boolean()),
+    isRunning: v.optional(v.boolean()),
+    daemonConnected: v.optional(v.boolean()),
+    acceptsTasks: v.optional(v.boolean()),
+    revisionKey: v.optional(v.string()),
     activeWork: v.optional(
       v.union(
         v.object({ kind: v.literal('task'), id: v.string() }),

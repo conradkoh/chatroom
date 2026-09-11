@@ -59,7 +59,9 @@ export async function projectAgentRoleStatusReadModel(
     role: string;
     event?: StatusEvent | undefined;
     config?: Doc<'chatroom_teamAgentConfigs'> | undefined;
+    agentType?: Doc<'chatroom_participants'>['agentType'] | undefined;
     lastSeenAt?: number | undefined;
+    lastSeenAction?: string | undefined;
   }
 ): Promise<void> {
   const role = args.role.trim().toLowerCase();
@@ -100,6 +102,7 @@ export async function projectAgentRoleStatusReadModel(
     chatroomId: args.chatroomId,
     role,
     roleKind: isEphemeralAgentRole(role) ? ('ephemeral' as const) : ('persistent' as const),
+    agentType: args.agentType ?? config?.type,
     status: event.status,
     machineId: config?.machineId,
     ...(args.lastSeenAt !== undefined
@@ -107,6 +110,7 @@ export async function projectAgentRoleStatusReadModel(
       : existing?.lastSeenAt !== undefined
         ? { lastSeenAt: existing.lastSeenAt }
         : {}),
+    ...(args.lastSeenAction !== undefined ? { lastSeenAction: args.lastSeenAction } : {}),
     activeWork: activeTask ? { kind: 'task' as const, id: activeTask._id } : undefined,
     error,
     projectedAt: now,
@@ -117,7 +121,13 @@ export async function projectAgentRoleStatusReadModel(
 
 export async function touchAgentRoleStatusLastSeen(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string; lastSeenAt?: number | undefined }
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    lastSeenAt?: number | undefined;
+    lastSeenAction?: string | undefined;
+    agentType?: Doc<'chatroom_participants'>['agentType'] | undefined;
+  }
 ): Promise<void> {
   const role = args.role.trim().toLowerCase();
   const existing = await ctx.db
@@ -128,5 +138,7 @@ export async function touchAgentRoleStatusLastSeen(
   await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, {
     lastSeenAt: args.lastSeenAt ?? Date.now(),
     projectedAt: Date.now(),
+    ...(args.lastSeenAction !== undefined ? { lastSeenAction: args.lastSeenAction } : {}),
+    ...(args.agentType !== undefined ? { agentType: args.agentType } : {}),
   });
 }

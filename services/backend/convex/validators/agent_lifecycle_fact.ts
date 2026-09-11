@@ -29,7 +29,7 @@ const clearedAllPidsFact = v.object({
   revisionKey: v.string(),
   emittedAt: v.number(),
 });
-const activityFact = v.object({
+export const agentActivityFactValidator = v.object({
   kind: v.literal('activity'),
   chatroomId: v.id('chatroom_rooms'),
   role: v.string(),
@@ -64,7 +64,7 @@ export const agentLifecycleFactValidator = v.union(
   spawnedFact,
   exitedFact,
   clearedAllPidsFact,
-  activityFact,
+  agentActivityFactValidator,
   turnFailedFact,
   chatroomShutdownCompleteFact
 );

@@ -164,6 +164,8 @@ export const join = mutation({
       chatroomId: args.chatroomId,
       role: args.role,
       lastSeenAt: now,
+      lastSeenAction: args.action,
+      agentType: args.agentType,
     });
 
     // Auto-promote queued tasks when the entry point role joins.
@@ -218,7 +220,6 @@ export const join = mutation({
         role: args.role,
         action: args.action,
         taskId: args.taskId,
-        participantId,
       });
     }
 

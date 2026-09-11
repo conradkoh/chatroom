@@ -13,7 +13,7 @@ import {
 async function projectionFor(chatroomId: any, role = 'builder') {
   return t.run(async (ctx) => ({
     role: await ctx.db
-      .query('chatroom_agentRoleOperationalStatus')
+      .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
       .first(),
     summary: await ctx.db
@@ -162,11 +162,10 @@ describe('agent operational status projection', () => {
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await t.run(async (ctx) => {
       const roles = await ctx.db
-        .query('chatroom_agentRoleOperationalStatus')
+        .query('chatroom_agentRoleStatusReadModel')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
-      for (const role of roles)
-        await ctx.db.delete('chatroom_agentRoleOperationalStatus', role._id);
+      for (const role of roles) await ctx.db.delete('chatroom_agentRoleStatusReadModel', role._id);
       const summary = await ctx.db
         .query('chatroom_agentOperationalSummary')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))

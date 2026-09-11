@@ -22,9 +22,7 @@ export async function registerEphemeralParticipant(
 
   const existing = await ctx.db
     .query('chatroom_participants')
-    .withIndex('by_chatroom_and_role', (q) =>
-      q.eq('chatroomId', input.chatroomId).eq('role', role)
-    )
+    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', input.chatroomId).eq('role', role))
     .first();
   const fields = {
     machineId: input.machineId,
@@ -48,5 +46,8 @@ export async function registerEphemeralParticipant(
     chatroomId: input.chatroomId,
     role,
     event: { status: 'starting' },
+    agentType: 'remote',
+    lastSeenAction: input.action,
+    lastSeenAt: fields.lastSeenAt,
   });
 }

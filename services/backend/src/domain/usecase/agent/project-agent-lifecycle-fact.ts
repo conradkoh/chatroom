@@ -7,7 +7,6 @@ import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
-import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =
@@ -79,8 +78,7 @@ export async function projectAgentLifecycleFact(
 }> {
   const { machineId, fact } = args;
   if (fact.kind === 'activity') {
-    const participant = await getParticipantForChatroomRole(ctx, fact.chatroomId, fact.role);
-    await applyAgentActivityHeartbeat(ctx, { ...fact, participantId: participant?._id });
+    await applyAgentActivityHeartbeat(ctx, fact);
     return { success: true };
   }
   if (fact.kind === 'cleared_all_pids') {

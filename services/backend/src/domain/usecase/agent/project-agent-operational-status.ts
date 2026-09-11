@@ -148,6 +148,7 @@ export async function projectAgentOperationalStatusForRole(
     chatroomId,
     role: roleKey,
     teamId: room.teamId,
+    agentType: config.type,
     machineId: projection.machineId,
     operationalState: projection.operationalState,
     isAlive: projection.isAlive,
@@ -168,7 +169,7 @@ export async function projectAgentOperationalStatusForRole(
     revisionKey: key,
   });
   const existing = await ctx.db
-    .query('chatroom_agentRoleOperationalStatus')
+    .query('chatroom_agentRoleStatusReadModel')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', roleKey))
     .first();
   if (
@@ -182,8 +183,13 @@ export async function projectAgentOperationalStatusForRole(
     existing.teamId !== fields.teamId ||
     existing.acceptsTasks !== fields.acceptsTasks
   ) {
-    if (existing) await ctx.db.patch('chatroom_agentRoleOperationalStatus', existing._id, fields);
-    else await ctx.db.insert('chatroom_agentRoleOperationalStatus', fields);
+    if (existing) await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, fields);
+    else
+      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+        ...fields,
+        roleKind: isEphemeralAgentRole(roleKey) ? 'ephemeral' : 'persistent',
+        status: 'offline',
+      });
   }
   const summary = await summaryFor(ctx, chatroomId);
   const base = summary ?? {
@@ -237,7 +243,7 @@ export async function projectDaemonConnectivityForMachine(
       daemonConnected
     ).operationalState;
     const row = await ctx.db
-      .query('chatroom_agentRoleOperationalStatus')
+      .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_chatroom_role', (q) =>
         q.eq('chatroomId', config.chatroomId).eq('role', config.role.toLowerCase())
       )
@@ -250,7 +256,7 @@ export async function projectDaemonConnectivityForMachine(
     ) {
       const projectedAt = Date.now();
       const revisionKey = `operational:${config.chatroomId}:${projectedAt}`;
-      await ctx.db.patch('chatroom_agentRoleOperationalStatus', row._id, {
+      await ctx.db.patch('chatroom_agentRoleStatusReadModel', row._id, {
         daemonConnected,
         isRunning: row.isAlive && daemonConnected,
         viewState,
@@ -260,12 +266,12 @@ export async function projectDaemonConnectivityForMachine(
       const projections = changed.get(config.chatroomId) ?? [];
       projections.push({
         role: row.role,
-        machineId: row.machineId,
-        isAlive: row.isAlive,
-        isRunning: row.isAlive && daemonConnected,
+        machineId: row.machineId ?? config.machineId,
+        isAlive: row.isAlive ?? false,
+        isRunning: (row.isAlive ?? false) && daemonConnected,
         daemonConnected,
-        teamId: row.teamId,
-        operationalState: row.operationalState,
+        teamId: row.teamId ?? room.teamId,
+        operationalState: row.operationalState ?? 'stopped',
         viewState,
       });
       changed.set(config.chatroomId, projections);
@@ -326,11 +332,11 @@ export async function rebuildAgentOperationalStatusForChatroom(
   if (options?.pruneStale) {
     const keep = new Set(derived.roles.map((p) => p.role.toLowerCase()));
     const rows = await ctx.db
-      .query('chatroom_agentRoleOperationalStatus')
+      .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect();
     for (const row of rows)
-      if (!keep.has(row.role)) await ctx.db.delete('chatroom_agentRoleOperationalStatus', row._id);
+      if (!keep.has(row.role)) await ctx.db.delete('chatroom_agentRoleStatusReadModel', row._id);
   }
 }
 

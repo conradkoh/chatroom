@@ -11,7 +11,10 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { upsertMachineLastSeenAt } from './lib/lastAtProjections';
 import { str } from './utils/types';
-import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
+import {
+  agentActivityFactValidator,
+  agentLifecycleFactValidator,
+} from './validators/agent_lifecycle_fact';
 import { validateWorkingDir } from './workspacePathSecurity';
 import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
@@ -25,6 +28,7 @@ import {
 } from '../src/domain/entities/agent';
 import { WorkspaceTaskInboxEventType } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
+import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
@@ -1330,6 +1334,20 @@ export const projectAgentLifecycleFact = mutation({
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     return projectAgentLifecycleFactUseCase(ctx, { machineId: args.machineId, fact: args.fact });
+  },
+});
+
+/** Records a daemon activity heartbeat without entering the heavier lifecycle dispatcher. */
+export const recordAgentActivityHeartbeat = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    fact: agentActivityFactValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    await applyAgentActivityHeartbeat(ctx, args.fact);
+    return { success: true };
   },
 });
 
