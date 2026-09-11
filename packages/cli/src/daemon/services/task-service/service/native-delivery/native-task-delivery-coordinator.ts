@@ -66,7 +66,7 @@ export type NativeDeliveryExecutors = {
 type DeliveryPass =
   'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'restart' | 'agent-started';
 type ExtendedDeliveryPass =
-  DeliveryPass | 'task-signal' | 'agent-session-lost' | 'turn-ended' | 'restart-completed';
+  DeliveryPass | 'agent-session-lost' | 'turn-ended' | 'restart-completed';
 type LegacyDeliveryPass = 'inbox-signal' | 'restart';
 
 // fallow-ignore-next-line unused-export

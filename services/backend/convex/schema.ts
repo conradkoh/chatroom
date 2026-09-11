@@ -13,11 +13,13 @@ import {
   agentStopStatusValidator,
   agentStopTargetStatusValidator,
 } from '../src/domain/entities/agent-stop-command';
-import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 import {
-  machineTaskDeliverySignalValidator,
-  taskTransitionSourceValidator,
-} from '../src/domain/entities/machine-task-delivery-signal';
+  workspaceTaskInboxEventStatusValidator,
+  workspaceTaskInboxEventTypeValidator,
+  workspaceTaskInboxTaskValidator,
+} from '../src/domain/entities/chatroom-workspace-task-inbox';
+import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
+import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
 
 const attachedSnippetValidator = v.object({
   reference: v.string(),
@@ -725,7 +727,6 @@ export default defineSchema({
   /**
    * Slim timeline task-status signals — one row per FSM transition.
    * Chatroom-scoped only; webapp subscribes via by_chatroom_signalKey.
-   * Machine-routed task signals live in chatroom_machineTaskDeliverySignals.
    */
   chatroom_timelineTaskStatusSignals: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -744,15 +745,6 @@ export default defineSchema({
     taskUpdatedAt: v.number(),
     source: v.optional(taskTransitionSourceValidator),
   }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
-
-  /**
-   * Daemon-owned task-delivery signals. Payload is routing/status metadata only;
-   * task content is hydrated imperatively from assigned-task snapshots.
-   * Per-chatroom append-only cursors isolate invalidation between active rooms.
-   */
-  chatroom_machineTaskDeliverySignals: defineTable(machineTaskDeliverySignalValidator)
-    .index('by_machineId_signalKey', ['machineId', 'signalKey'])
-    .index('by_machineId_chatroomId_signalKey', ['machineId', 'chatroomId', 'signalKey']),
 
   /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).
@@ -1560,6 +1552,23 @@ export default defineSchema({
     .index('by_machine_status_deadline', ['machineId', 'status', 'deadline'])
     .index('by_status_leaseExpiresAt', ['status', 'leaseExpiresAt'])
     .index('by_deadline', ['deadline']),
+
+  /**
+   * One-shot task assignment events for workspace daemons. Events are not
+   * leased or retried: the daemon marks an event processed after receiving it.
+   */
+  chatroomWorkspaceTaskInbox: defineTable({
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+    eventType: workspaceTaskInboxEventTypeValidator,
+    status: workspaceTaskInboxEventStatusValidator,
+    task: workspaceTaskInboxTaskValidator,
+    createdAt: v.number(),
+    processedAt: v.optional(v.number()),
+  })
+    .index('by_machine_status_createdAt', ['machineId', 'status', 'createdAt'])
+    .index('by_chatroom_taskId', ['chatroomId', 'taskId']),
 
   /**
    * Pre-aggregated agent restart metrics.

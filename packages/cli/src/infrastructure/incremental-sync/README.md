@@ -217,9 +217,8 @@ Unit-test merge rules in `daemon-start/<feed>-snapshot.test.ts`. Transport/orche
 
 ---
 
-Task discovery is owned by the machine-scoped task inbox at
-`packages/cli/src/daemon/infrastructure/inbox/task.ts`; it consumes routed task-status
-signals and hydrates snapshots from the backend as needed.
+Task discovery is owned by the daemon task service; it hydrates machine-assigned
+task snapshots from the backend and reconciles delivery from local lifecycle events.
 
 ---
 
@@ -307,16 +306,15 @@ Periodic rehydrate ──► reconcile current machine snapshots
 getAssignedTaskForAction (full task.content)
 ```
 
-| Piece            | Location                                                                                      |
-| ---------------- | --------------------------------------------------------------------------------------------- |
-| Hydrate snapshot | `services/backend/convex/machines.ts` → `listMachineAssignedTaskSnapshots`                    |
-| Action fetch     | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                            |
-| Backend core     | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                          |
-| Feed def         | Removed in Stage 1 cleanup; task inbox uses machine-scoped signals via `messageList.ts`       |
-| Orchestration    | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`) |
-| Consumer         | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                              |
-| Domain snapshot  | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |
-| Handler logic    | `packages/cli/src/daemon/entry/task-delivery/task-delivery-logic.ts`                          |
+| Piece           | Location                                                                                      |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| Action fetch    | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                            |
+| Backend core    | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                          |
+| Feed def        | Removed in Stage 1 cleanup; task inbox uses machine-scoped signals via `messageList.ts`       |
+| Orchestration   | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`) |
+| Consumer        | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                              |
+| Domain snapshot | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |
+| Handler logic   | `packages/cli/src/daemon/entry/task-delivery/task-delivery-logic.ts`                          |
 
 Signal buffer: max 200, dedupe on. Subscribe page limit: 50. Reconcile interval: 15s (independent reconciliation cadence).
 

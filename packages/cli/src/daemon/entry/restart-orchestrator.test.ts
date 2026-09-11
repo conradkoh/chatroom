@@ -10,7 +10,6 @@ import type {
 vi.mock('../../api.js', () => ({
   api: {
     machines: {
-      listMachineAssignedTaskSnapshots: 'listMachineAssignedTaskSnapshots',
       getAssignedTaskForAction: 'getAssignedTaskForAction',
     },
     participants: {

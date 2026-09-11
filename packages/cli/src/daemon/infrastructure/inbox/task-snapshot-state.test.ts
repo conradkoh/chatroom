@@ -34,27 +34,6 @@ describe('MachineTaskSnapshotState', () => {
     expect(state.getForRole('other-room', 'builder', 'task-1')).toBeNull();
   });
 
-  it('removes tasks whose signal no longer has an active snapshot', () => {
-    const state = new MachineTaskSnapshotState();
-    state.replace([row('task-1')]);
-
-    state.applySignalPage(
-      [
-        {
-          taskId: 'task-1' as never,
-          chatroomId: 'room-1' as never,
-          targetRole: 'builder',
-          taskStatus: 'completed',
-          signalKey: '0000000000000001:task-1',
-          taskUpdatedAt: 1,
-        },
-      ],
-      []
-    );
-
-    expect(state.listForRole('room-1', 'builder')).toHaveLength(0);
-  });
-
   describe('markStatus', () => {
     it('applies a normal post-backend-success in_progress → pending patch', () => {
       const state = new MachineTaskSnapshotState();

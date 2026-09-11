@@ -1,7 +1,5 @@
 // fallow-ignore-file complexity
 
-import type { ConvexClient } from 'convex/browser';
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
 
 import {
@@ -16,21 +14,10 @@ import type {
   AssignedTaskSnapshotView,
   AssignedTaskWithContent,
 } from '../../../domain/entities/assigned-task.js';
-import { fetchMachineAssignedTaskSnapshots } from '../../../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
-import {
-  createInboxStateStore,
-  resolveInboxDbPath,
-  type InboxStateStore,
-} from '../../../infrastructure/inbox/index.js';
 import {
   MachineTaskSnapshotState,
   type TaskSnapshotStateReader,
 } from '../../../infrastructure/inbox/task-snapshot-state.js';
-import {
-  runTaskInbox,
-  taskSignalCursorAt,
-  type TaskInboxUpdate,
-} from '../../../infrastructure/inbox/task.js';
 import type { AgentProcessManagerService } from '../../agent-process-contracts.js';
 import { snapshotRequestsNativeColdSession } from '../domain/usecase/native-cold-session-delivery.js';
 import {
@@ -40,20 +27,36 @@ import {
 import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
 
-export type TaskServiceNotification =
-  | { readonly kind: 'bootstrap'; readonly snapshots: readonly AssignedTaskSnapshotView[] }
-  | { readonly kind: 'inbox'; readonly update: TaskInboxUpdate };
+export interface WorkspaceTaskInboxEvent {
+  readonly eventId: string;
+  readonly machineId: string;
+  readonly chatroomId: string;
+  readonly eventType: 'task_assigned';
+  readonly status: 'pending' | 'processed';
+  readonly createdAt: number;
+  readonly processedAt?: number;
+  readonly task: AssignedTaskWithContent & {
+    readonly createdBy: string;
+    readonly sourceMessageId?: string;
+    readonly queuePosition: number;
+    readonly [key: string]: unknown;
+  };
+}
+
+export type TaskServiceNotification = {
+  readonly kind: 'bootstrap';
+  readonly snapshots: readonly AssignedTaskSnapshotView[];
+};
 
 export type TaskServiceListener = (notification: TaskServiceNotification) => Promise<void> | void;
 
 export interface TaskService {
-  /** Starts the sole daemon subscription to task-status signals. */
-  startTaskInbox(client: ConvexClient): Promise<void>;
-  /** Adds a chatroom to the task-inbox subscription set. */
-  registerTaskChatroom(chatroomId: string): Promise<void>;
-  unregisterTaskChatroom(chatroomId: string): void;
+  /** Loads the daemon's assigned-task snapshot. */
+  startTaskInbox(): Promise<void>;
   subscribe(listener: TaskServiceListener): () => void;
   stopTaskInbox(): void;
+  listPendingTaskInboxEvents(): Promise<readonly WorkspaceTaskInboxEvent[]>;
+  markTaskInboxEventProcessed(eventId: string): Promise<boolean>;
   listTasksForRole(chatroomId: string, role: string): readonly AssignedTaskSnapshotView[];
   listAllTasks(): readonly AssignedTaskSnapshotView[];
   readonly taskSnapshotState: TaskSnapshotStateReader;
@@ -84,12 +87,6 @@ export interface TaskService {
     role: string;
     taskId: string;
   }): Promise<AssignedTaskWithContent | null>;
-  /**
-   * Synchronizes the machine's assigned-task snapshot projection. Convex
-   * remains durable authority; this is a projection sync, not a new source
-   * of truth.
-   */
-  syncAssignedTaskSnapshots(): Promise<void>;
   explainNativeDeliveryBlock(
     task: AssignedTaskSnapshotView,
     options: {
@@ -124,12 +121,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   };
 
   const taskSnapshotState = new MachineTaskSnapshotState();
-  let inboxStore: InboxStateStore | undefined;
   const listeners = new Set<TaskServiceListener>();
-  const roomControllers = new Map<string, AbortController>();
-  let inboxClient: ConvexClient | undefined;
-  let serviceStartedAt = 0;
-  let stopped = false;
   const nativeTaskDeliveryQueue = new NativeTaskDeliveryQueue(async (entry) => {
     await Effect.runPromise(
       runNativeInjectionEffect(entry.task, entry.harnessSessionId, {
@@ -147,106 +139,28 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     await Promise.all([...listeners].map((listener) => Promise.resolve(listener(notification))));
   };
 
-  const runRoomInbox = async (
-    chatroomId: string,
-    initialCursor: string,
-    controller: AbortController
-  ) => {
-    const client = inboxClient;
-    if (!client) return;
-    let cursor = initialCursor;
-    let backoffMs = 1_000;
-    while (!stopped && !controller.signal.aborted) {
-      try {
-        await runTaskInbox(
-          {
-            client,
-            sessionId: deps.sessionId as SessionId,
-            machineId: deps.machineId,
-            chatroomId,
-            serviceStartedAt,
-            initialAfterSignalKey: cursor,
-            signal: controller.signal,
-          },
-          async (update) => {
-            taskSnapshotState.applySignalPage(update.signals, update.snapshots);
-            await notify({ kind: 'inbox', update });
-            inboxStore?.save(
-              { inboxType: 'task', scopeKey: JSON.stringify([deps.machineId, chatroomId]) },
-              { afterSignalKey: update.throughSignalKey }
-            );
-            cursor = update.throughSignalKey;
-          }
-        );
-        return;
-      } catch (error) {
-        if (stopped || controller.signal.aborted) return;
-        console.warn(
-          `[TaskInbox room=${chatroomId}] loop error, restarting in ${backoffMs}ms:`,
-          error
-        );
-        await new Promise((resolve) => setTimeout(resolve, backoffMs));
-        backoffMs = Math.min(backoffMs * 2, 30_000);
-      }
-    }
-  };
-
-  const registerTaskChatroom = async (chatroomId: string): Promise<void> => {
-    if (!inboxClient || !inboxStore || roomControllers.has(chatroomId) || stopped) return;
-    const key = {
-      inboxType: 'task' as const,
-      scopeKey: JSON.stringify([deps.machineId, chatroomId]),
-    };
-    const persisted = inboxStore.get<{ afterSignalKey: string }>(key);
-    const cursor = persisted?.state.afterSignalKey ?? taskSignalCursorAt(serviceStartedAt);
-    if (!persisted) inboxStore.save(key, { afterSignalKey: cursor });
-    const controller = new AbortController();
-    roomControllers.set(chatroomId, controller);
-    void runRoomInbox(chatroomId, cursor, controller);
-  };
-
   const service: TaskService = {
-    startTaskInbox: async (client) => {
-      if (inboxClient) return;
-      inboxStore = createInboxStateStore(resolveInboxDbPath(deps.machineId));
-      serviceStartedAt = Date.now();
-      try {
-        await service.syncAssignedTaskSnapshots();
-        const snapshots = await fetchMachineAssignedTaskSnapshots(
-          { ...deps, convexUrl: deps.convexUrl },
-          deps.machineId
-        );
-        taskSnapshotState.replace(snapshots);
-        inboxClient = client;
-        await Promise.all(
-          [...new Set(snapshots.map((snapshot) => snapshot.chatroomId))].map((chatroomId) =>
-            registerTaskChatroom(chatroomId)
-          )
-        );
-        await notify({ kind: 'bootstrap', snapshots });
-      } catch (error) {
-        inboxStore?.close();
-        inboxStore = undefined;
-        throw error;
-      }
-    },
-    registerTaskChatroom,
-    unregisterTaskChatroom: (chatroomId) => {
-      roomControllers.get(chatroomId)?.abort();
-      roomControllers.delete(chatroomId);
+    startTaskInbox: async () => {
+      await notify({ kind: 'bootstrap', snapshots: taskSnapshotState.listAll() });
     },
     subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     stopTaskInbox: () => {
-      stopped = true;
-      for (const controller of roomControllers.values()) controller.abort();
-      roomControllers.clear();
       nativeTaskDeliveryQueue.stop();
-      inboxStore?.close();
-      inboxStore = undefined;
     },
+    listPendingTaskInboxEvents: () =>
+      gateway.listPendingTaskInboxEvents({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+      }),
+    markTaskInboxEventProcessed: (eventId) =>
+      gateway.markTaskInboxEventProcessed({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        eventId,
+      }),
     listTasksForRole: (chatroomId, role) => taskSnapshotState.listForRole(chatroomId, role),
     listAllTasks: () => taskSnapshotState.listAll(),
     taskSnapshotState,
@@ -278,20 +192,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         role,
       });
       return task?.chatroomId === chatroomId ? task : null;
-    },
-    syncAssignedTaskSnapshots: async () => {
-      // Refresh the daemon-owned read model after asking Convex to rebuild the
-      // projection. Restart reconciliation must not continue using snapshots
-      // retained from the previous agent process when a signal was missed.
-      await gateway.syncAssignedTaskSnapshots({
-        sessionId: deps.sessionId,
-        machineId: deps.machineId,
-      });
-      const snapshots = await fetchMachineAssignedTaskSnapshots(
-        { ...deps, convexUrl: deps.convexUrl },
-        deps.machineId
-      );
-      taskSnapshotState.replace(snapshots);
     },
     explainNativeDeliveryBlock: (task, options) => explainNativeDeliveryBlock(task, options),
     createNativeDeliveryService: (deliveryDeps) => {

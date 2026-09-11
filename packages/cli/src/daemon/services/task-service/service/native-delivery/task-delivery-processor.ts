@@ -51,7 +51,6 @@ export type ProcessTasksUpdateOptions = {
 };
 
 type TaskDeliveryPass =
-  | 'task-signal'
   | 'periodic-reconcile'
   | 'bootstrap'
   | 'agent-session-lost'
