@@ -77,7 +77,7 @@ export async function processTasksUpdate(
   if (!first) return;
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
-    startAgent: (task: AssignedTaskSnapshotView, operationalState: string | undefined) =>
+    startAgent: (task: AssignedTaskSnapshotView) =>
       runSerializedForAgent(
         { chatroomId: task.chatroomId, role: task.agentConfig.role },
         { timeoutMs: 120_000 },
@@ -89,10 +89,7 @@ export async function processTasksUpdate(
               agentHarness: task.agentConfig.agentHarness as AgentHarness,
               model: task.agentConfig.model ?? '',
               workingDir: task.agentConfig.workingDir as string,
-              reason:
-                operationalState === 'running'
-                  ? AgentStartReasonEnum['platform.task_monitor_nudge']
-                  : AgentStartReasonEnum['platform.pending_task_wake'],
+              reason: AgentStartReasonEnum['platform.pending_task_wake'],
               wantResume: false,
               lifecycleRevision: task.agentConfig.configLifecycleRevision,
               taskId: task.taskId,

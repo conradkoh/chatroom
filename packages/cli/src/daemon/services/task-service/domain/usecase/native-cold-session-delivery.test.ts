@@ -6,7 +6,6 @@ import {
   isNativeColdSessionDeliveryOwnedSpawn,
   snapshotRequestsNativeColdSession,
 } from './native-cold-session-delivery.js';
-import type { MachineAgentOperationalRow } from '../../../../infrastructure/agent-operational/operational-signal-feeds.js';
 
 const coldTask = {
   taskId: 'task-1',
@@ -23,22 +22,6 @@ const coldTask = {
     workingDir: '/tmp',
   },
 };
-
-function operational(
-  overrides: Partial<MachineAgentOperationalRow> = {}
-): MachineAgentOperationalRow {
-  return {
-    chatroomId: 'room-1',
-    role: 'builder',
-    operationalState: 'starting',
-    isAlive: false,
-    isRunning: false,
-    daemonConnected: true,
-    revisionKey: 'test:room-1:builder:starting',
-    stopState: 'idle',
-    ...overrides,
-  };
-}
 
 describe('native-cold-session-delivery', () => {
   it('detects explicit cold-session intent on snapshots', () => {
@@ -72,29 +55,17 @@ describe('native-cold-session-delivery', () => {
     ).toBe(false);
   });
 
-  it('allows delivery-owned spawn when operational is starting and slot is idle', () => {
-    expect(explainColdSessionDeliveryBlock(coldTask, undefined, operational())).toBeNull();
+  it('allows delivery-owned spawn when slot is idle', () => {
+    expect(explainColdSessionDeliveryBlock(coldTask, undefined)).toBeNull();
   });
 
   it('blocks cold delivery while spawning or stopping', () => {
     expect(
-      explainColdSessionDeliveryBlock(coldTask, { state: 'spawning' } as never, operational())
+      explainColdSessionDeliveryBlock(coldTask, { state: 'spawning' } as never)
     ).toContain('slot_spawning');
     expect(
-      explainColdSessionDeliveryBlock(coldTask, { state: 'stopping' } as never, operational())
+      explainColdSessionDeliveryBlock(coldTask, { state: 'stopping' } as never)
     ).toContain('slot_stopping');
   });
 
-  it('blocks cold delivery on stop scope, stop intent, and circuit', () => {
-    expect(
-      explainColdSessionDeliveryBlock(coldTask, undefined, operational({ stopState: 'stopping' }))
-    ).toBe('operational_stop_intent_active');
-    expect(
-      explainColdSessionDeliveryBlock(
-        coldTask,
-        undefined,
-        operational({ operationalState: 'circuit_open' })
-      )
-    ).toBe('operational_circuit_open');
-  });
 });

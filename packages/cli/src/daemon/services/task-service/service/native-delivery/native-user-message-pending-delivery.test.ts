@@ -30,7 +30,6 @@ import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
 const lifecycleOutbox = { enqueue: vi.fn().mockResolvedValue(undefined) };
@@ -112,7 +111,6 @@ describe('user message pending delivery path', () => {
     expect(
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot(),
-        operational: operationalRow('room_1', 'builder'),
       })
     ).toBe(true);
   });

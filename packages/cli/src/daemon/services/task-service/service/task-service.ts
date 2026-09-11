@@ -33,7 +33,6 @@ import {
   type TaskInboxUpdate,
 } from '../../../infrastructure/inbox/task.js';
 import type { AgentProcessManagerService } from '../../agent-process-contracts.js';
-import type { TaskOperationalAgent } from '../domain/entities/operational-agent.js';
 import { snapshotRequestsNativeColdSession } from '../domain/usecase/native-cold-session-delivery.js';
 import {
   explainNativeDeliveryBlock,
@@ -96,7 +95,6 @@ export interface TaskService {
     task: AssignedTaskSnapshotView,
     options: {
       slot: ReturnType<AgentProcessManagerService['getSlot']>;
-      operational?: TaskOperationalAgent | undefined;
     }
   ): string | null;
   createNativeDeliveryService(

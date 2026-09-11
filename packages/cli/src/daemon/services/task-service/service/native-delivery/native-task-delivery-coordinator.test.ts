@@ -7,7 +7,6 @@ import {
   resetRoleDeliveryState,
 } from './native-task-delivery-coordinator.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
-import { operationalRow } from '../../../../infrastructure/agent-operational/test-support.js';
 
 const CHATROOM_ID = 'room_coordinator_facade';
 const ROLE = 'builder';
