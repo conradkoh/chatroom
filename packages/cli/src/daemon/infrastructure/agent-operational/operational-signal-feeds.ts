@@ -6,8 +6,7 @@ import type { Id } from '../../../api.js';
 import { api } from '../../../api.js';
 import type { NativeTaskDeliverySessionDeps } from '../../services/service-interfaces.js';
 
-export type OperationalSignalKind =
-  'agent-operational' | 'connectivity' | 'agent-stop' | 'agent-removal';
+export type OperationalSignalKind = 'agent-operational' | 'agent-stop' | 'agent-removal';
 
 export type OperationalStatusSignal = {
   readonly chatroomId: string;
@@ -173,12 +172,6 @@ export const operationalSignalFeeds: Record<OperationalSignalKind, OperationalSi
     subscribe: api.machines.subscribeMachineAgentOperationalSignalsSince,
     hydrate: api.machines.listMachineAgentOperationalStatusForSignalRange,
     acknowledge: api.machines.ackMachineAgentOperationalSignals,
-  }),
-  connectivity: createMachineFeed({
-    kind: 'connectivity',
-    subscribe: api.machines.subscribeMachineConnectivitySignalsSince,
-    hydrate: api.machines.listMachineConnectivityStatusForSignalRange,
-    acknowledge: api.machines.ackMachineConnectivitySignals,
   }),
   'agent-stop': createMachineFeed({
     kind: 'agent-stop',

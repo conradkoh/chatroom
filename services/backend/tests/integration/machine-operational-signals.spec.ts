@@ -23,7 +23,6 @@ describe('machine operational signals', () => {
     });
     const signalRows = [
       ['chatroom_machineAgentOperationalSignals', 'agent-operational'],
-      ['chatroom_machineConnectivitySignals', 'connectivity'],
       ['chatroom_machineAgentStopSignals', 'agent-stop'],
       ['chatroom_machineAgentRemovalSignals', 'agent-removal'],
     ] as const;
@@ -39,8 +38,6 @@ describe('machine operational signals', () => {
         };
         if (table === 'chatroom_machineAgentOperationalSignals')
           await ctx.db.insert(table, { ...base, kind: 'agent-operational' });
-        else if (table === 'chatroom_machineConnectivitySignals')
-          await ctx.db.insert(table, { ...base, kind: 'connectivity', daemonConnected: true });
         else if (table === 'chatroom_machineAgentStopSignals')
           await ctx.db.insert(table, { ...base, kind: 'agent-stop', stopState: 'pending' });
         else await ctx.db.insert(table, { ...base, kind: 'agent-removal', reason: 'role-removed' });
@@ -51,10 +48,6 @@ describe('machine operational signals', () => {
       [
         api.machines.subscribeMachineAgentOperationalSignalsSince,
         api.machines.ackMachineAgentOperationalSignals,
-      ],
-      [
-        api.machines.subscribeMachineConnectivitySignalsSince,
-        api.machines.ackMachineConnectivitySignals,
       ],
       [api.machines.subscribeMachineAgentStopSignalsSince, api.machines.ackMachineAgentStopSignals],
       [

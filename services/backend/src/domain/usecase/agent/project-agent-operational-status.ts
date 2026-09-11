@@ -17,7 +17,6 @@ import {
   writeMachineAgentOperationalSignal,
   writeMachineAgentRemovalSignal,
   writeMachineAgentStopSignal,
-  writeMachineConnectivitySignal,
 } from './write-machine-operational-signal';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -378,16 +377,6 @@ export async function projectDaemonConnectivityForMachine(
         projectedAt,
         revisionKey,
       });
-      if (row.machineId) {
-        await writeMachineConnectivitySignal(ctx, {
-          machineId: row.machineId,
-          chatroomId: config.chatroomId,
-          role: row.role,
-          revisionKey,
-          projectedAt,
-          daemonConnected,
-        });
-      }
       const projections = changed.get(config.chatroomId) ?? [];
       projections.push({
         role: row.role,
