@@ -1,5 +1,7 @@
 // fallow-ignore-file complexity
 
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
@@ -57,7 +59,7 @@ export async function writeWorkspaceTaskInboxEvent(
 
   const targets = new Map<
     string,
-    { machineId: string; role: string; agentHarness?: string; model?: string; workingDir?: string }
+    { machineId: string; role: string; ephemeral?: EphemeralAgentConfig }
   >();
   if (eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
     const existingEvents = await ctx.db
@@ -70,9 +72,7 @@ export async function writeWorkspaceTaskInboxEvent(
       targets.set(`${event.machineId}:${event.role.toLowerCase()}`, {
         machineId: event.machineId,
         role: event.role,
-        ...(event.agentHarness ? { agentHarness: event.agentHarness } : {}),
-        ...(event.model ? { model: event.model } : {}),
-        ...(event.workingDir ? { workingDir: event.workingDir } : {}),
+        ...(event.ephemeral ? { ephemeral: event.ephemeral } : {}),
       });
     }
   }
@@ -85,28 +85,48 @@ export async function writeWorkspaceTaskInboxEvent(
       targets.set(`${config.machineId}:${config.role.toLowerCase()}`, {
         machineId: config.machineId,
         role: config.role,
-        ...(config.agentHarness ? { agentHarness: config.agentHarness } : {}),
-        ...(config.model ? { model: config.model } : {}),
-        ...(config.workingDir ? { workingDir: config.workingDir } : {}),
+        ...(isEphemeralAgentRole(config.role)
+          ? { ephemeral: requireEphemeralAgentConfig(config) }
+          : {}),
       });
     }
   }
 
   for (const target of targets.values()) {
+    if (isEphemeralAgentRole(target.role) && !target.ephemeral) continue;
     await ctx.db.insert('chatroomWorkspaceTaskInbox', {
       machineId: target.machineId,
       chatroomId: task.chatroomId,
       taskId: task._id,
       role: target.role,
-      ...(target.agentHarness ? { agentHarness: target.agentHarness } : {}),
-      ...(target.model ? { model: target.model } : {}),
-      ...(target.workingDir ? { workingDir: target.workingDir } : {}),
+      ...(target.ephemeral ? { ephemeral: target.ephemeral } : {}),
       eventType,
       status: WorkspaceTaskInboxEventStatus.Pending,
       task: taskPayload,
       createdAt: Date.now(),
     });
   }
+}
+
+type EphemeralAgentConfig = {
+  agentHarness: string;
+  model: string;
+  workingDir: string;
+};
+
+function requireEphemeralAgentConfig(target: {
+  agentHarness?: string;
+  model?: string;
+  workingDir?: string;
+}): { agentHarness: string; model: string; workingDir: string } {
+  if (!target.agentHarness || !target.model || !target.workingDir) {
+    throw new Error('Ephemeral task inbox events require agentHarness, model, and workingDir');
+  }
+  return {
+    agentHarness: target.agentHarness,
+    model: target.model,
+    workingDir: target.workingDir,
+  };
 }
 
 /** Replays active tasks to a role when a remote daemon config becomes available. */

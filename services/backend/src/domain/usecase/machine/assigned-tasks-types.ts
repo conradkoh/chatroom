@@ -22,6 +22,7 @@ export type {
   AssignedTaskSignal,
   AssignedTaskSignalType,
   AssignedTaskSnapshotView,
+  EphemeralAgentConfig,
   SessionAugmentationMode,
 } from './assigned-task-snapshot-contract';
 export {

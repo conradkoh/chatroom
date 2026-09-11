@@ -2,13 +2,14 @@
  * Shared helpers for machine assigned-task queries.
  */
 
-import type { AssignedTaskAgentConfigView, AssignedTaskSnapshotView } from './assigned-tasks-types';
+import type { AssignedTaskSnapshotView } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type CollectCtx = QueryCtx | MutationCtx;
 
+// fallow-ignore-next-line unused-export
 export async function loadRemoteAgentConfigsForMachine(
   ctx: CollectCtx,
   machineId: string
@@ -47,21 +48,9 @@ export async function getParticipantForChatroomRole(
   );
 }
 
-export function toAgentConfigView(
-  config: RemoteAgentConfig,
-  machineId: string
-): AssignedTaskAgentConfigView {
-  return {
-    role: config.role,
-    machineId: config.machineId ?? machineId,
-    agentHarness: config.agentHarness ?? 'opencode',
-    model: config.model,
-    workingDir: config.workingDir,
-  };
-}
-
 // fallow-ignore-next-line complexity
 /** @deprecated Legacy snapshot mapping only; new projections omit participant presence. */
+// fallow-ignore-next-line complexity
 export function toParticipantView(
   participant: Doc<'chatroom_participants'> | null
 ): AssignedTaskSnapshotView['participant'] {

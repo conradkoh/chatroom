@@ -20,12 +20,10 @@ function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTas
     agentConfig: {
       role: 'planner',
       machineId: 'machine_1',
-      agentHarness: 'cursor-sdk',
-      model: 'composer-1',
-      workingDir: '/tmp/project',
       spawnedAgentPid: 12345,
       desiredState: 'running',
     },
+    ephemeral: { agentHarness: 'cursor-sdk', model: 'composer-1', workingDir: '/tmp/project' },
     participant: {
       lastSeenAction: 'native:waiting',
       lastSeenAt: 500,

@@ -39,11 +39,10 @@ function makeBaseTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskVi
     agentConfig: {
       role: 'planner',
       machineId: 'machine_1',
-      agentHarness: 'opencode-sdk',
-      workingDir: '/tmp/project',
       spawnedAgentPid: 12345,
       desiredState: 'running',
     },
+    ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
     participant: {
       lastSeenAction: 'native:waiting',
       lastSeenAt: 500,

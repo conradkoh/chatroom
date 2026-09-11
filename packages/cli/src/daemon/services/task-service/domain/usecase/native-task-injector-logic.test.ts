@@ -32,11 +32,10 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
     agentConfig: {
       role: 'builder',
       machineId: 'machine_1',
-      agentHarness: 'cursor-sdk',
-      workingDir: '/tmp/project',
       spawnedAgentPid: 12345,
       desiredState: 'running',
     },
+    ephemeral: { agentHarness: 'cursor-sdk', model: 'composer-1', workingDir: '/tmp/project' },
     participant: {
       lastSeenAction: NATIVE_WAITING_ACTION,
       lastSeenAt: 500,

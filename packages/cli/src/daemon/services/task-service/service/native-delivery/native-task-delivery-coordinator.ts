@@ -11,7 +11,10 @@ import {
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import {
+  resolveAgentRuntimeConfig,
+  type AssignedTaskSnapshotView,
+} from '../../../../domain/entities/assigned-task.js';
 import { isSlotIdle } from '../../../../domain/usecase/check-agent-slot.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
@@ -131,6 +134,7 @@ export class NativeTaskDeliveryCoordinator {
       if (!firstTask) continue;
       const { role } = firstTask.agentConfig;
       const slot = agentMgr.getSlot(firstTask.chatroomId, role);
+      const runtimeConfig = resolveAgentRuntimeConfig(firstTask, slot);
       const activeTaskId = roleTasks.find((candidate) =>
         isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
       )?.taskId;
@@ -179,7 +183,7 @@ export class NativeTaskDeliveryCoordinator {
         continue;
       }
       if (decision.kind === 'start-agent') {
-        if (!row.agentConfig.workingDir || (slot && !isSlotIdle(slot.state))) continue;
+        if (!runtimeConfig || (slot && !isSlotIdle(slot.state))) continue;
         try {
           if (executors) {
             const startResult = await executors.startAgent(row);
@@ -196,9 +200,9 @@ export class NativeTaskDeliveryCoordinator {
                 {
                   chatroomId: row.chatroomId,
                   role,
-                  agentHarness: row.agentConfig.agentHarness as AgentHarness,
-                  model: row.agentConfig.model ?? '',
-                  workingDir: row.agentConfig.workingDir as string,
+                  agentHarness: runtimeConfig.agentHarness as AgentHarness,
+                  model: runtimeConfig.model ?? '',
+                  workingDir: runtimeConfig.workingDir,
                   reason: AgentStartReasonEnum['platform.pending_task_wake'],
                   wantResume: false,
                   lifecycleRevision: row.agentConfig.configLifecycleRevision,

@@ -80,6 +80,11 @@ describe('TaskService inbox consumption', () => {
       chatroomId: 'room-1',
       taskId: 'task-1',
       role: 'builder',
+      ephemeral: {
+        agentHarness: 'cursor-sdk',
+        model: 'gpt-4',
+        workingDir: '/tmp/ws',
+      },
       eventType: WorkspaceTaskInboxEventType.TaskAssigned,
       status: WorkspaceTaskInboxEventStatus.Pending,
       createdAt: 1_000,
@@ -115,7 +120,15 @@ describe('TaskService inbox consumption', () => {
         taskId: 'task-1',
         chatroomId: 'room-1',
         status: 'pending',
-        agentConfig: { role: 'builder', machineId: 'machine-1' },
+        agentConfig: {
+          role: 'builder',
+          machineId: 'machine-1',
+        },
+        ephemeral: {
+          agentHarness: 'cursor-sdk',
+          model: 'gpt-4',
+          workingDir: '/tmp/ws',
+        },
       },
     ]);
     expect(mutation).toHaveBeenCalledTimes(1);

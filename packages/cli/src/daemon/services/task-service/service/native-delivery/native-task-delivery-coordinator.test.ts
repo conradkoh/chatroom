@@ -24,11 +24,10 @@ function acknowledgedRow() {
     agentConfig: {
       role: ROLE,
       machineId: 'machine_coordinator',
-      agentHarness: 'cursor-sdk',
-      workingDir: '/test',
       spawnedAgentPid: 42_001,
       desiredState: 'running' as const,
     },
+    ephemeral: { agentHarness: 'cursor-sdk', model: 'model-1', workingDir: '/test' },
     participant: {
       lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
       lastSeenAt: 1_700_000_000_000,
@@ -41,6 +40,9 @@ function agentMgr() {
   return {
     getSlot: vi.fn().mockReturnValue({
       state: 'running',
+      harness: 'cursor-sdk',
+      model: 'model-1',
+      workingDir: '/test',
       pid: 42_001,
       harnessSessionId: HARNESS_SESSION_ID,
       nativeTurnPhase: 'idle' as const,

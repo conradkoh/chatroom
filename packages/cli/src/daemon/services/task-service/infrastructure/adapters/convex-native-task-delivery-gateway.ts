@@ -33,9 +33,15 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
         chatroomId: row.chatroomId as string,
         taskId: row.taskId as string,
         role: row.role as string,
-        ...(row.agentHarness === undefined ? {} : { agentHarness: row.agentHarness as string }),
-        ...(row.model === undefined ? {} : { model: row.model as string }),
-        ...(row.workingDir === undefined ? {} : { workingDir: row.workingDir as string }),
+        ...(row.ephemeral === undefined
+          ? {}
+          : {
+              ephemeral: row.ephemeral as {
+                agentHarness: string;
+                model: string;
+                workingDir: string;
+              },
+            }),
         eventType: row.eventType as WorkspaceTaskInboxEventType,
         status: row.status as WorkspaceTaskInboxEventStatus,
         createdAt: row.createdAt as number,

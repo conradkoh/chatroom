@@ -25,13 +25,11 @@ const backendSnapshot = {
   agentConfig: {
     role: 'builder',
     machineId: 'machine_1',
-    agentHarness: 'cursor',
-    model: 'gpt-4',
-    workingDir: '/tmp/ws',
     spawnedAgentPid: 42,
     desiredState: 'running' as const,
     circuitState: 'closed' as const,
   },
+  ephemeral: { agentHarness: 'cursor', model: 'gpt-4', workingDir: '/tmp/ws' },
   participant: {
     lastSeenAction: 'waiting',
     lastSeenAt: 950,
@@ -59,7 +57,7 @@ describe('map-assigned-task', () => {
 
     expect(mapped.taskContent).toBe('Do the thing');
     expect(mapped.taskId).toBe('task_1');
-    expect(mapped.agentConfig.workingDir).toBe('/tmp/ws');
+    expect(mapped.ephemeral?.workingDir).toBe('/tmp/ws');
   });
 
   test('mapAssignedTaskView passes the explicit envelope through unchanged', () => {

@@ -51,9 +51,20 @@ const workspaceTaskInboxEventFields = {
   chatroomId: v.id('chatroom_rooms'),
   taskId: v.id('chatroom_tasks'),
   role: v.string(),
+  /** @deprecated Agent configuration moved to the daemon/agent process service. */
   agentHarness: v.optional(v.string()),
+  /** @deprecated Agent configuration moved to the daemon/agent process service. */
   model: v.optional(v.string()),
+  /** @deprecated Agent configuration moved to the daemon/agent process service. */
   workingDir: v.optional(v.string()),
+  /** Runtime configuration carried only for ephemeral agents. */
+  ephemeral: v.optional(
+    v.object({
+      agentHarness: v.string(),
+      model: v.string(),
+      workingDir: v.string(),
+    })
+  ),
   status: workspaceTaskInboxEventStatusValidator,
   task: workspaceTaskInboxTaskValidator,
   createdAt: v.number(),

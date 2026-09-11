@@ -5,14 +5,19 @@ import {
 } from '@workspace/backend/src/domain/entities/agent.js';
 import { taskRequestsNativeColdSession } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 
-import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
-import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
 import type { NativeInjectorDeps } from './native-task-injector.js';
+import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
+import {
+  resolveAgentRuntimeConfig,
+  type AssignedTaskWithContent,
+} from '../../../domain/entities/assigned-task.js';
 
+// fallow-ignore-next-line complexity
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// fallow-ignore-next-line complexity
 async function waitForHarnessSessionId(
   agentMgr: NativeInjectorDeps['agentMgr'],
   chatroomId: string,
@@ -55,10 +60,12 @@ export async function ensureColdSessionBeforeNativeInject(
   }
 
   const { chatroomId, agentConfig, taskId } = task;
-  const { role, agentHarness, model, workingDir } = agentConfig;
-  if (!workingDir || !model) return null;
+  const { role } = agentConfig;
 
   const slot = deps.agentMgr.getSlot(chatroomId, role);
+  const runtimeConfig = resolveAgentRuntimeConfig(task, slot);
+  if (!runtimeConfig?.model) return null;
+  const { agentHarness, model, workingDir } = runtimeConfig;
   const slotState = slot?.state;
   if (slotState === 'spawning' || slotState === 'stopping') {
     return null;

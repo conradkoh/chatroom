@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-export
+
 import type {
   AssignedTaskSnapshotView as BackendAssignedTaskSnapshotView,
   AssignedTaskView as BackendAssignedTaskView,
@@ -21,14 +23,12 @@ export function mapAssignedTaskSnapshot(
     agentConfig: {
       role: row.agentConfig.role,
       machineId: row.agentConfig.machineId,
-      agentHarness: row.agentConfig.agentHarness,
-      model: row.agentConfig.model,
-      workingDir: row.agentConfig.workingDir,
       spawnedAgentPid: row.agentConfig.spawnedAgentPid,
       desiredState: row.agentConfig.desiredState,
       circuitState: row.agentConfig.circuitState,
       configLifecycleRevision: row.agentConfig.configLifecycleRevision,
     },
+    ephemeral: row.ephemeral,
     participant: row.participant,
     requestsNativeColdSession: row.requestsNativeColdSession,
   };

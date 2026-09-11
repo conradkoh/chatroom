@@ -4,6 +4,8 @@
  * Use Case: Fetch one assigned task with full content for daemon action (nudge/inject).
  */
 
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+
 import type { AssignedTaskView, GetAssignedTaskForActionInput } from './assigned-tasks-types';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
@@ -36,6 +38,16 @@ export async function getAssignedTaskForAction(
       candidate.type === 'remote' && candidate.role.toLowerCase() === input.role.toLowerCase()
   );
   if (!config) return null;
+  const ephemeral = isEphemeralAgentRole(config.role)
+    ? config.agentHarness && config.model && config.workingDir
+      ? {
+          agentHarness: config.agentHarness,
+          model: config.model,
+          workingDir: config.workingDir,
+        }
+      : null
+    : undefined;
+  if (ephemeral === null) return null;
 
   return {
     taskId: task._id,
@@ -47,11 +59,9 @@ export async function getAssignedTaskForAction(
     agentConfig: {
       role: config.role,
       machineId: input.machineId,
-      agentHarness: config.agentHarness ?? 'opencode',
-      model: config.model,
-      workingDir: config.workingDir,
       configLifecycleRevision: config.lifecycleRevision,
     },
+    ...(ephemeral ? { ephemeral } : {}),
     taskContent: task.content,
     taskEnvelope: task.taskEnvelope,
     startInNewSession: task.startInNewSession,

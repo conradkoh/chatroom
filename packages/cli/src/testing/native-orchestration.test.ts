@@ -91,11 +91,10 @@ Add payments API
         agentConfig: {
           role: 'builder',
           machineId: 'machine_1',
-          agentHarness: 'opencode-sdk',
-          workingDir: '/tmp/project',
           spawnedAgentPid: 12345,
           desiredState: 'running',
         },
+        ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
       }),
       deliveryOutput: BUILDER_DELIVERY,
     });
@@ -124,11 +123,10 @@ Add payments API
         agentConfig: {
           role: 'builder',
           machineId: 'machine_1',
-          agentHarness: 'opencode-sdk',
-          workingDir: '/tmp/project',
           spawnedAgentPid: 12345,
           desiredState: 'running',
         },
+        ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
       }),
       deliveryOutput: BUILDER_DELIVERY,
     });

@@ -13,9 +13,8 @@ const task = (overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSn
   agentConfig: {
     role: 'builder',
     machineId: 'machine-1',
-    agentHarness: 'codex-sdk',
-    workingDir: '/workspace',
   },
+  ephemeral: { agentHarness: 'codex-sdk', model: 'model-1', workingDir: '/workspace' },
   ...overrides,
 });
 

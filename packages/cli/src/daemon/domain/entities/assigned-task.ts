@@ -9,12 +9,21 @@ export type AgentDesiredState = (typeof AGENT_DESIRED_STATES)[number];
 export const AGENT_CIRCUIT_STATES = ['closed', 'open', 'half-open'] as const;
 export type AgentCircuitState = (typeof AGENT_CIRCUIT_STATES)[number];
 
+export interface EphemeralAgentConfig {
+  agentHarness: string;
+  model: string;
+  workingDir: string;
+}
+
+export interface AgentRuntimeConfig {
+  agentHarness: string;
+  model?: string | undefined;
+  workingDir: string;
+}
+
 export interface AssignedTaskAgentConfig {
   role: string;
   machineId: string;
-  agentHarness: string;
-  model?: string | undefined;
-  workingDir?: string | undefined;
   spawnedAgentPid?: number | undefined;
   desiredState?: AgentDesiredState | undefined;
   circuitState?: AgentCircuitState | undefined;
@@ -36,9 +45,24 @@ export interface AssignedTask {
   updatedAt: number;
   createdAt: number;
   agentConfig: AssignedTaskAgentConfig;
+  ephemeral?: EphemeralAgentConfig | undefined;
   participant?: AssignedTaskParticipant | undefined;
   /** Explicit native cold-restart intent projected at write time. */
   requestsNativeColdSession?: boolean | undefined;
+}
+
+// fallow-ignore-next-line complexity
+export function resolveAgentRuntimeConfig(
+  task: AssignedTask,
+  slot?: {
+    harness?: string | undefined;
+    model?: string | undefined;
+    workingDir?: string | undefined;
+  }
+): AgentRuntimeConfig | undefined {
+  if (task.ephemeral) return task.ephemeral;
+  if (!slot?.harness || !slot.workingDir) return undefined;
+  return { agentHarness: slot.harness, model: slot.model, workingDir: slot.workingDir };
 }
 
 export function isDeliverableTaskStatus(status: ActiveTaskStatus): boolean {

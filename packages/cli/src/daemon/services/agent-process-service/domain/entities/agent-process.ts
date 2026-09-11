@@ -7,6 +7,10 @@ export type AgentProcessSlotState = 'idle' | 'spawning' | 'running' | 'stopping'
 export interface AgentProcessSlotView {
   readonly state: AgentProcessSlotState;
   readonly pid?: number | undefined;
+  /** Configuration of the current/last process, owned by the agent process service. */
+  readonly harness?: string | undefined;
+  readonly model?: string | undefined;
+  readonly workingDir?: string | undefined;
   readonly harnessSessionId?: string | undefined;
   readonly nativeTurnPhase?: NativeTurnPhase | undefined;
 }

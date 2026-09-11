@@ -35,9 +35,11 @@ interface WorkspaceTaskInboxEventFields {
   readonly chatroomId: string;
   readonly taskId: string;
   readonly role: string;
-  readonly agentHarness?: string;
-  readonly model?: string;
-  readonly workingDir?: string;
+  readonly ephemeral?: {
+    readonly agentHarness: string;
+    readonly model: string;
+    readonly workingDir: string;
+  };
   readonly status: WorkspaceTaskInboxEventStatus;
   readonly createdAt: number;
   readonly processedAt?: number;
@@ -163,14 +165,19 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     await Promise.all([...listeners].map((listener) => Promise.resolve(listener(notification))));
   };
 
-  const applyInboxEvent = (event: WorkspaceTaskInboxEvent): void => {
+  const applyInboxEvent = (event: WorkspaceTaskInboxEvent): boolean => {
     if (
       event.eventType === WorkspaceTaskInboxEventType.TaskDeleted ||
       (event.task.status as string) === 'completed'
     ) {
       taskSnapshotState.remove(event.chatroomId, event.role, event.taskId);
-      return;
+      return true;
     }
+
+    const processConfig = deps.agentProcessService.getSlot(event.chatroomId, event.role);
+    const hasRuntimeConfig =
+      event.ephemeral || (processConfig?.harness && processConfig.workingDir);
+    if (!hasRuntimeConfig) return false;
 
     taskSnapshotState.upsert([
       {
@@ -184,12 +191,11 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         agentConfig: {
           role: event.role,
           machineId: event.machineId,
-          agentHarness: event.agentHarness ?? 'opencode',
-          model: event.model,
-          workingDir: event.workingDir,
         },
+        ephemeral: event.ephemeral,
       },
     ]);
+    return true;
   };
 
   const pollTaskInbox = async (): Promise<void> => {
@@ -201,7 +207,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         machineId: deps.machineId,
       });
       for (const event of events) {
-        applyInboxEvent(event);
+        if (!applyInboxEvent(event)) continue;
         await notify({ kind: 'inbox-event', event });
         await gateway.markTaskInboxEventProcessed({
           sessionId: deps.sessionId,

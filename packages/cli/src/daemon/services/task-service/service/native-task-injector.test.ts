@@ -3,9 +3,9 @@ import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { runNativeInjectionEffect, type NativeInjectorDeps } from './native-task-injector.js';
+import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
-import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 
 const HARNESS_SESSION_ID = 'sess_1';
 
@@ -21,12 +21,10 @@ function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTas
     agentConfig: {
       role: 'builder',
       machineId: 'machine_1',
-      agentHarness: 'cursor-sdk',
-      model: 'composer-1',
-      workingDir: '/tmp/project',
       spawnedAgentPid: 12345,
       desiredState: 'running',
     },
+    ephemeral: { agentHarness: 'cursor-sdk', model: 'composer-1', workingDir: '/tmp/project' },
     participant: {
       lastSeenAction: 'native:waiting',
       lastSeenAt: 500,
@@ -175,8 +173,8 @@ describe('runNativeInjectionEffect', () => {
       agentConfig: {
         ...makeTask().agentConfig,
         role: 'planner',
-        model: 'composer-1',
       },
+      ephemeral: { agentHarness: 'cursor-sdk', model: 'composer-1', workingDir: '/tmp/project' },
     });
     const augmentedCalls: Record<string, unknown>[] = [];
     const order: string[] = [];
@@ -247,8 +245,8 @@ describe('runNativeInjectionEffect', () => {
       agentConfig: {
         ...makeTask().agentConfig,
         role: 'planner',
-        model: 'composer-1',
       },
+      ephemeral: { agentHarness: 'cursor-sdk', model: 'composer-1', workingDir: '/tmp/project' },
     });
     const augmentedCalls: Record<string, unknown>[] = [];
 

@@ -4,12 +4,16 @@ import {
   explainColdSessionDeliveryBlock,
   isNativeColdSessionDeliveryOwnedSpawn,
 } from './native-cold-session-delivery.js';
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import {
+  resolveAgentRuntimeConfig,
+  type AssignedTaskSnapshotView,
+} from '../../../../domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../../domain/usecase/check-agent-slot.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
+// fallow-ignore-next-line unused-export
 export function isAgentReadyForNativeDelivery(
   task: AssignedTaskSnapshotView,
   slot: AgentProcessSlotView | undefined
@@ -23,9 +27,10 @@ export function explainAgentReadyForNativeDeliveryBlock(
   task: AssignedTaskSnapshotView,
   slot: AgentProcessSlotView | undefined
 ): string | null {
-  const { agentConfig } = task;
-  if (!isNativeHarness(agentConfig.agentHarness)) {
-    return `not_native_harness (harness=${agentConfig.agentHarness})`;
+  const runtimeConfig = resolveAgentRuntimeConfig(task, slot);
+  if (!runtimeConfig) return 'agent_config_missing';
+  if (!isNativeHarness(runtimeConfig.agentHarness)) {
+    return `not_native_harness (harness=${runtimeConfig.agentHarness})`;
   }
   // Explicit cold-session tasks: apply stop/circuit/transition guards first.
   // When the slot is down (missing/idle) and unblocked, delivery owns the
@@ -39,15 +44,15 @@ export function explainAgentReadyForNativeDeliveryBlock(
     return null;
   }
   if (!slot) {
-    return agentConfig.spawnedAgentPid == null
+    return task.agentConfig.spawnedAgentPid == null
       ? 'spawned_pid_missing'
-      : `slot_missing (expectedPid=${agentConfig.spawnedAgentPid})`;
+      : `slot_missing (expectedPid=${task.agentConfig.spawnedAgentPid})`;
   }
   if (!isSlotRunning(slot.state)) {
-    if (agentConfig.spawnedAgentPid != null && slot.pid !== agentConfig.spawnedAgentPid) {
-      return `pid_mismatch (slotPid=${slot.pid ?? 'none'}, snapshotPid=${agentConfig.spawnedAgentPid})`;
+    if (task.agentConfig.spawnedAgentPid != null && slot.pid !== task.agentConfig.spawnedAgentPid) {
+      return `pid_mismatch (slotPid=${slot.pid ?? 'none'}, expectedPid=${task.agentConfig.spawnedAgentPid})`;
     }
-    return `slot_not_running (slotState=${slot.state}, expectedPid=${agentConfig.spawnedAgentPid ?? 'none'})`;
+    return `slot_not_running (slotState=${slot.state}, expectedPid=${task.agentConfig.spawnedAgentPid ?? 'none'})`;
   }
   if (slot.pid == null) {
     return 'slot_pid_missing';

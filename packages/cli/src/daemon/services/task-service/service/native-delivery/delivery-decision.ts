@@ -1,4 +1,7 @@
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import {
+  resolveAgentRuntimeConfig,
+  type AssignedTaskSnapshotView,
+} from '../../../../domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import {
   isSlotIdle,
@@ -9,6 +12,7 @@ import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 
 export type DeliveryBlockReason =
   | 'not_native_harness'
+  | 'agent_config_missing'
   | 'task_status_not_deliverable'
   | 'acknowledged_wrong_role'
   | 'chatroom_stop_scope_active'
@@ -60,6 +64,7 @@ function taskSort(a: AssignedTaskSnapshotView, b: AssignedTaskSnapshotView): num
 function stableBlockReason(reason: string): DeliveryBlockReason {
   const reasons: DeliveryBlockReason[] = [
     'not_native_harness',
+    'agent_config_missing',
     'task_status_not_deliverable',
     'acknowledged_wrong_role',
     'chatroom_stop_scope_active',
@@ -106,7 +111,11 @@ export function decideNextDelivery(
     return { kind: 'deduplicated', taskId: task.taskId, reason: 'delivery_in_flight' };
   }
 
-  if (!context.isNativeHarness(task.agentConfig.agentHarness)) {
+  const runtimeConfig = resolveAgentRuntimeConfig(task, context.slot);
+  if (!runtimeConfig) {
+    return { kind: 'blocked', taskId: task.taskId, reason: 'working_dir_missing' };
+  }
+  if (!context.isNativeHarness(runtimeConfig.agentHarness)) {
     return { kind: 'blocked', taskId: task.taskId, reason: 'not_native_harness' };
   }
 
@@ -146,7 +155,7 @@ export function decideNextDelivery(
     !coldSession &&
     task.status === 'pending' &&
     isSlotIdle(context.slot?.state ?? 'idle') &&
-    task.agentConfig.workingDir
+    runtimeConfig.workingDir
   ) {
     return { kind: 'start-agent', taskId: task.taskId };
   }

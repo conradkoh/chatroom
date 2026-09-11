@@ -100,10 +100,7 @@ describe('user message pending delivery path', () => {
       taskId: 'task_user_msg',
       status: 'pending',
       assignedTo: 'builder',
-      agentConfig: {
-        role: 'builder',
-        agentHarness: 'cursor-sdk',
-      },
+      ephemeral: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test/workspace' },
     });
 
     expect(

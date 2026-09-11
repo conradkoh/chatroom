@@ -70,9 +70,16 @@ const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
         agentConfig: {
           role: signal.role,
           machineId: signal.machineId,
-          agentHarness: signal.agentHarness,
-          workingDir: signal.workingDir,
         },
+        ...(signal.workingDir
+          ? {
+              ephemeral: {
+                agentHarness: signal.agentHarness,
+                model: 'test-model',
+                workingDir: signal.workingDir,
+              },
+            }
+          : {}),
       };
     }
     return {
