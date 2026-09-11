@@ -4,6 +4,10 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import {
+  WorkspaceTaskInboxEventStatus,
+  WorkspaceTaskInboxEventType,
+} from '../src/domain/entities/chatroom-workspace-task-inbox';
 
 let sequence = 0;
 
@@ -70,8 +74,8 @@ describe('chatroomWorkspaceTaskInbox', () => {
     });
     expect(pending).toHaveLength(1);
     expect(pending[0]).toMatchObject({
-      eventType: 'task_assigned',
-      status: 'pending',
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+      status: WorkspaceTaskInboxEventStatus.Pending,
       task: taskPayload(chatroomId, taskId),
     });
     expect(pending[0]).not.toHaveProperty('attemptCount');

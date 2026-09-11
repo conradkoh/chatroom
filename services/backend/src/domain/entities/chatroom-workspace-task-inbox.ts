@@ -1,9 +1,18 @@
 import { v } from 'convex/values';
 
-export const workspaceTaskInboxEventTypeValidator = v.literal('task_assigned');
-export const workspaceTaskInboxEventStatusValidator = v.union(
-  v.literal('pending'),
-  v.literal('processed')
+export enum WorkspaceTaskInboxEventType {
+  TaskAssigned = 'task_assigned',
+  TaskDeleted = 'task_deleted',
+}
+
+export enum WorkspaceTaskInboxEventStatus {
+  Pending = 'pending',
+  Processed = 'processed',
+}
+
+const workspaceTaskInboxEventStatusValidator = v.union(
+  v.literal(WorkspaceTaskInboxEventStatus.Pending),
+  v.literal(WorkspaceTaskInboxEventStatus.Processed)
 );
 
 /** The complete task payload needed by a daemon to handle an assignment. */
@@ -35,3 +44,25 @@ export const workspaceTaskInboxTaskValidator = v.object({
   taskEnvelope: v.optional(v.any()),
   sessionPolicyConsumedAt: v.optional(v.number()),
 });
+
+const workspaceTaskInboxEventFields = {
+  machineId: v.string(),
+  chatroomId: v.id('chatroom_rooms'),
+  taskId: v.id('chatroom_tasks'),
+  status: workspaceTaskInboxEventStatusValidator,
+  task: workspaceTaskInboxTaskValidator,
+  createdAt: v.number(),
+  processedAt: v.optional(v.number()),
+};
+
+/** Event payload is discriminated so each event type has an explicit contract. */
+export const workspaceTaskInboxEventValidator = v.union(
+  v.object({
+    ...workspaceTaskInboxEventFields,
+    eventType: v.literal(WorkspaceTaskInboxEventType.TaskAssigned),
+  }),
+  v.object({
+    ...workspaceTaskInboxEventFields,
+    eventType: v.literal(WorkspaceTaskInboxEventType.TaskDeleted),
+  })
+);

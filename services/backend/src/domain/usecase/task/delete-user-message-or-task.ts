@@ -7,7 +7,9 @@ import {
 import { adjustTaskCount, statusToCountField } from './task-counts';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { ACTIVE_TASK_STATUSES } from '../../entities/task';
+import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 import { deleteMessageReadModel } from '../message/message-read-model';
 
 export type DeleteUserMessageOrTaskArgs =
@@ -91,6 +93,7 @@ async function deleteTaskAndLinkedMessages(
   ctx: MutationCtx,
   task: Doc<'chatroom_tasks'>
 ): Promise<void> {
+  await writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskDeleted, task);
   await decrementTaskStatusCount(ctx, task);
   await deleteMessagesForTask(ctx, task);
   await ctx.db.delete('chatroom_tasks', task._id);

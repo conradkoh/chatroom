@@ -3,7 +3,11 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireMachineOwner } from './auth/cli/machineAccess';
-import { workspaceTaskInboxTaskValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
+import {
+  WorkspaceTaskInboxEventStatus,
+  WorkspaceTaskInboxEventType,
+  workspaceTaskInboxTaskValidator,
+} from '../src/domain/entities/chatroom-workspace-task-inbox';
 
 export const listPending = query({
   args: { ...SessionIdArg, machineId: v.string() },
@@ -12,7 +16,7 @@ export const listPending = query({
     return await ctx.db
       .query('chatroomWorkspaceTaskInbox')
       .withIndex('by_machine_status_createdAt', (q) =>
-        q.eq('machineId', args.machineId).eq('status', 'pending')
+        q.eq('machineId', args.machineId).eq('status', WorkspaceTaskInboxEventStatus.Pending)
       )
       .order('asc')
       .collect();
@@ -25,9 +29,9 @@ export const markProcessed = mutation({
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     const event = await ctx.db.get('chatroomWorkspaceTaskInbox', args.eventId);
     if (!event || event.machineId !== args.machineId) return { processed: false };
-    if (event.status === 'processed') return { processed: false };
+    if (event.status === WorkspaceTaskInboxEventStatus.Processed) return { processed: false };
     await ctx.db.patch('chatroomWorkspaceTaskInbox', args.eventId, {
-      status: 'processed',
+      status: WorkspaceTaskInboxEventStatus.Processed,
       processedAt: Date.now(),
     });
     return { processed: true };
@@ -48,8 +52,8 @@ export const createTaskAssigned = mutation({
       machineId: args.machineId,
       chatroomId: args.chatroomId,
       taskId: args.task.taskId,
-      eventType: 'task_assigned',
-      status: 'pending',
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+      status: WorkspaceTaskInboxEventStatus.Pending,
       task: args.task,
       createdAt: Date.now(),
     });

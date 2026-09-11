@@ -13,11 +13,7 @@ import {
   agentStopStatusValidator,
   agentStopTargetStatusValidator,
 } from '../src/domain/entities/agent-stop-command';
-import {
-  workspaceTaskInboxEventStatusValidator,
-  workspaceTaskInboxEventTypeValidator,
-  workspaceTaskInboxTaskValidator,
-} from '../src/domain/entities/chatroom-workspace-task-inbox';
+import { workspaceTaskInboxEventValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
 
@@ -1557,16 +1553,7 @@ export default defineSchema({
    * One-shot task assignment events for workspace daemons. Events are not
    * leased or retried: the daemon marks an event processed after receiving it.
    */
-  chatroomWorkspaceTaskInbox: defineTable({
-    machineId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
-    taskId: v.id('chatroom_tasks'),
-    eventType: workspaceTaskInboxEventTypeValidator,
-    status: workspaceTaskInboxEventStatusValidator,
-    task: workspaceTaskInboxTaskValidator,
-    createdAt: v.number(),
-    processedAt: v.optional(v.number()),
-  })
+  chatroomWorkspaceTaskInbox: defineTable(workspaceTaskInboxEventValidator)
     .index('by_machine_status_createdAt', ['machineId', 'status', 'createdAt'])
     .index('by_chatroom_taskId', ['chatroomId', 'taskId']),
 

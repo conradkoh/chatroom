@@ -1,3 +1,7 @@
+import type {
+  WorkspaceTaskInboxEventStatus,
+  WorkspaceTaskInboxEventType,
+} from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 
 import { api, type Id } from '../../../../../api.js';
@@ -25,8 +29,8 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
         eventId: row._id as string,
         machineId: row.machineId as string,
         chatroomId: row.chatroomId as string,
-        eventType: row.eventType as 'task_assigned',
-        status: row.status as 'pending' | 'processed',
+        eventType: row.eventType as WorkspaceTaskInboxEventType,
+        status: row.status as WorkspaceTaskInboxEventStatus,
         createdAt: row.createdAt as number,
         ...(row.processedAt === undefined ? {} : { processedAt: row.processedAt as number }),
         task: row.task as WorkspaceTaskInboxEvent['task'],

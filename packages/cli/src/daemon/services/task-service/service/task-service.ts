@@ -1,5 +1,9 @@
 // fallow-ignore-file complexity
 
+import type {
+  WorkspaceTaskInboxEventStatus,
+  WorkspaceTaskInboxEventType,
+} from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { Effect } from 'effect';
 
 import {
@@ -27,12 +31,11 @@ import {
 import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
 
-export interface WorkspaceTaskInboxEvent {
+interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
   readonly machineId: string;
   readonly chatroomId: string;
-  readonly eventType: 'task_assigned';
-  readonly status: 'pending' | 'processed';
+  readonly status: WorkspaceTaskInboxEventStatus;
   readonly createdAt: number;
   readonly processedAt?: number;
   readonly task: AssignedTaskWithContent & {
@@ -42,6 +45,14 @@ export interface WorkspaceTaskInboxEvent {
     readonly [key: string]: unknown;
   };
 }
+
+export type WorkspaceTaskInboxEvent =
+  | (WorkspaceTaskInboxEventFields & {
+      readonly eventType: WorkspaceTaskInboxEventType.TaskAssigned;
+    })
+  | (WorkspaceTaskInboxEventFields & {
+      readonly eventType: WorkspaceTaskInboxEventType.TaskDeleted;
+    });
 
 export type TaskServiceNotification = {
   readonly kind: 'bootstrap';
