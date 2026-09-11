@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { explainAgentReadyForNativeDeliveryBlock } from './native-ready-invariant.js';
+import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
 
 const task = (overrides: Record<string, unknown> = {}) =>
   ({
@@ -17,6 +18,14 @@ const task = (overrides: Record<string, unknown> = {}) =>
       workingDir: '/tmp',
       spawnedAgentPid: 42,
       desiredState: 'stopped',
+    },
+    assignee: {
+      type: TaskAssigneeType.Ephemeral,
+      ephemeral: {
+        agentHarness: 'cursor-sdk',
+        model: 'test-model',
+        workingDir: '/tmp',
+      },
     },
     participant: { lastSeenAction: null, lastSeenAt: null, lastStatus: null },
     ...overrides,
