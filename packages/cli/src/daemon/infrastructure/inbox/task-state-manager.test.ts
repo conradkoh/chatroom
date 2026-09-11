@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MachineTaskSnapshotState } from './task-snapshot-state.js';
+import { TaskStateManager } from './task-state-manager.js';
 
 function row(taskId: string, role = 'builder') {
   return {
@@ -15,9 +15,9 @@ function row(taskId: string, role = 'builder') {
   };
 }
 
-describe('MachineTaskSnapshotState', () => {
+describe('TaskStateManager', () => {
   it('is uninitialized until the bootstrap snapshot is replaced', () => {
-    const state = new MachineTaskSnapshotState();
+    const state = new TaskStateManager();
 
     expect(state.isInitialized()).toBe(false);
     state.replace([]);
@@ -25,7 +25,7 @@ describe('MachineTaskSnapshotState', () => {
   });
 
   it('replaces bootstrap state and filters by role', () => {
-    const state = new MachineTaskSnapshotState();
+    const state = new TaskStateManager();
     state.replace([row('task-1'), row('task-2', 'planner')]);
 
     expect(state.listForRole('room-1', 'BUILDER')).toHaveLength(1);
@@ -34,30 +34,9 @@ describe('MachineTaskSnapshotState', () => {
     expect(state.getForRole('other-room', 'builder', 'task-1')).toBeNull();
   });
 
-  it('removes tasks whose signal no longer has an active snapshot', () => {
-    const state = new MachineTaskSnapshotState();
-    state.replace([row('task-1')]);
-
-    state.applySignalPage(
-      [
-        {
-          taskId: 'task-1' as never,
-          chatroomId: 'room-1' as never,
-          targetRole: 'builder',
-          taskStatus: 'completed',
-          signalKey: '0000000000000001:task-1',
-          taskUpdatedAt: 1,
-        },
-      ],
-      []
-    );
-
-    expect(state.listForRole('room-1', 'builder')).toHaveLength(0);
-  });
-
   describe('markStatus', () => {
     it('applies a normal post-backend-success in_progress → pending patch', () => {
-      const state = new MachineTaskSnapshotState();
+      const state = new TaskStateManager();
       state.replace([{ ...row('task-1'), status: 'in_progress' as const, updatedAt: 100 }]);
 
       expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 200)).toBe(true);
@@ -69,7 +48,7 @@ describe('MachineTaskSnapshotState', () => {
     });
 
     it('refuses to regress a newer local snapshot with an older backend response', () => {
-      const state = new MachineTaskSnapshotState();
+      const state = new TaskStateManager();
       state.replace([{ ...row('task-1'), status: 'in_progress' as const, updatedAt: 200 }]);
 
       expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
@@ -81,7 +60,7 @@ describe('MachineTaskSnapshotState', () => {
     });
 
     it('refuses to regress equal-timestamp completed back to pending', () => {
-      const state = new MachineTaskSnapshotState();
+      const state = new TaskStateManager();
       state.replace([{ ...row('task-1'), status: 'completed' as never, updatedAt: 100 }]);
 
       expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
@@ -93,7 +72,7 @@ describe('MachineTaskSnapshotState', () => {
     });
 
     it('returns false without creating a snapshot when nothing matches', () => {
-      const state = new MachineTaskSnapshotState();
+      const state = new TaskStateManager();
 
       expect(state.markStatus('room-1', 'builder', 'task-1', 'pending', 100)).toBe(false);
 

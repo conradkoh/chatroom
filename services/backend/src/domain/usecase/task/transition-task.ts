@@ -34,10 +34,11 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import type { TaskTransitionSource } from '../../entities/machine-task-delivery-signal';
+import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { TERMINAL_TASK_STATUSES } from '../../entities/task';
+import type { TaskTransitionSource } from '../../entities/task-status-signal';
 import { requestEphemeralAgentRelease } from '../agent/request-ephemeral-agent-release';
-import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
+import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 import { syncMessageReadModel } from '../message/message-read-model';
 
 // ============================================================================
@@ -46,7 +47,7 @@ import { syncMessageReadModel } from '../message/message-read-model';
 
 /**
  * Narrow typed marker for the origin of a task transition signal.
- * Canonical definition lives in `machine-task-delivery-signal`; re-exported
+ * Canonical definition lives in `task-status-signal`; re-exported
  * here so transition callers need only one import path. Currently only the
  * turn-failure recovery path sets this; all other callers omit it. It is
  * audit/diagnostic metadata and must never be used to suppress propagation.
@@ -120,11 +121,15 @@ export async function transitionTask(
 
   // 1. Delegate the FSM transition (validates rules, applies patches, logs)
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
-  await projectAssignedTaskSnapshotsAfterTaskChange(ctx, taskId);
 
   // 1a. Write timeline task-status signal for live cursor subscription
   const transitionedTask = await ctx.db.get('chatroom_tasks', taskId);
   if (transitionedTask) {
+    await writeWorkspaceTaskInboxEvent(
+      ctx,
+      WorkspaceTaskInboxEventType.TaskUpdated,
+      transitionedTask
+    );
     await writeTaskStatusSignals(ctx, transitionedTask, {
       source: options?.source,
     });

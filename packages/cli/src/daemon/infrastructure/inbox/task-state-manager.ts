@@ -1,7 +1,6 @@
 // fallow-ignore-file unused-class-member
 import type { ChatroomRole } from '@workspace/shared/domain/chatroom-role';
 
-import type { TaskStatusSignal } from './task.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 
 function snapshotKey(taskId: string, role: string): string {
@@ -30,13 +29,13 @@ function isStaleStatusPatch(
 }
 
 /**
- * In-memory task read model owned by the machine task inbox.
+ * In-memory task read model owned by the daemon task service.
  *
- * The inbox is the only component that mutates this state. Consumers such as
+ * The task service is the only component that mutates this state. Consumers such as
  * idle delivery read from it instead of rehydrating the full machine snapshot
  * projection from Convex.
  */
-export class MachineTaskSnapshotState {
+export class TaskStateManager {
   private readonly snapshots = new Map<string, AssignedTaskSnapshotView>();
   private initialized = false;
 
@@ -44,30 +43,6 @@ export class MachineTaskSnapshotState {
     this.snapshots.clear();
     this.upsert(snapshots);
     this.initialized = true;
-  }
-
-  applySignalPage(
-    signals: readonly TaskStatusSignal[],
-    snapshots: readonly AssignedTaskSnapshotView[]
-  ): void {
-    const snapshotsByKey = new Map(
-      snapshots.map((snapshot) => [
-        snapshotKey(snapshot.taskId, snapshot.agentConfig.role),
-        snapshot,
-      ])
-    );
-
-    for (const signal of signals) {
-      const key = snapshotKey(signal.taskId, signal.targetRole);
-      const snapshot = snapshotsByKey.get(key);
-      if (snapshot) {
-        this.snapshots.set(key, snapshot);
-      } else {
-        // The projection intentionally contains active tasks only. A missing
-        // row therefore means the task was completed, deleted, or reassigned.
-        this.snapshots.delete(key);
-      }
-    }
   }
 
   listForRole(chatroomId: string, role: ChatroomRole): AssignedTaskSnapshotView[] {
@@ -100,6 +75,13 @@ export class MachineTaskSnapshotState {
     for (const snapshot of snapshots) {
       this.snapshots.set(snapshotKey(snapshot.taskId, snapshot.agentConfig.role), snapshot);
     }
+  }
+
+  remove(chatroomId: string, role: string, taskId: string): boolean {
+    const key = snapshotKey(taskId, role);
+    const snapshot = this.snapshots.get(key);
+    if (!snapshot || snapshot.chatroomId !== chatroomId) return false;
+    return this.snapshots.delete(key);
   }
 
   /**

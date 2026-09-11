@@ -6,6 +6,7 @@ import {
   NativeTaskDeliveryCoordinator,
   resetRoleDeliveryState,
 } from './native-task-delivery-coordinator.js';
+import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
 
 const CHATROOM_ID = 'room_coordinator_facade';
@@ -24,10 +25,12 @@ function acknowledgedRow() {
     agentConfig: {
       role: ROLE,
       machineId: 'machine_coordinator',
-      agentHarness: 'cursor-sdk',
-      workingDir: '/test',
       spawnedAgentPid: 42_001,
       desiredState: 'running' as const,
+    },
+    assignee: {
+      type: TaskAssigneeType.Ephemeral,
+      ephemeral: { agentHarness: 'cursor-sdk', model: 'model-1', workingDir: '/test' },
     },
     participant: {
       lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
@@ -41,6 +44,9 @@ function agentMgr() {
   return {
     getSlot: vi.fn().mockReturnValue({
       state: 'running',
+      harness: 'cursor-sdk',
+      model: 'model-1',
+      workingDir: '/test',
       pid: 42_001,
       harnessSessionId: HARNESS_SESSION_ID,
       nativeTurnPhase: 'idle' as const,

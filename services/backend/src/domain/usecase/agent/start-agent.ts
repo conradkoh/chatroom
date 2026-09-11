@@ -28,7 +28,6 @@ import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
 import type { MachineCommandPayload } from '../../entities/machine-command';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -192,9 +191,6 @@ export async function startAgent(
 
   // Refresh the daemon snapshot projection so the task monitor sees the new
   // config (desiredState/model/workingDir) without waiting for a task transition.
-  // Refresh delivery-config fields on snapshot rows (harness/model/workingDir).
-  // Operational state (desiredState/PID) is NOT written to snapshots — daemon reads operational projection.
-  await refreshSnapshotDeliveryConfigForChatroomRole(ctx, chatroomId, role);
   const startedConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) =>

@@ -1,7 +1,10 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { decideNextDelivery } from './delivery-decision.js';
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import {
+  TaskAssigneeType,
+  type AssignedTaskSnapshotView,
+} from '../../../../domain/entities/assigned-task.js';
 
 const task = (overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView => ({
   taskId: 'task-1',
@@ -13,8 +16,10 @@ const task = (overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSn
   agentConfig: {
     role: 'builder',
     machineId: 'machine-1',
-    agentHarness: 'codex-sdk',
-    workingDir: '/workspace',
+  },
+  assignee: {
+    type: TaskAssigneeType.Ephemeral,
+    ephemeral: { agentHarness: 'codex-sdk', model: 'model-1', workingDir: '/workspace' },
   },
   ...overrides,
 });

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  AgentRoleLifecycleTag,
   getAgentRoleTags,
   getPermanentRoleNames,
   hasAgentRoleTag,
@@ -10,17 +11,17 @@ import {
 
 describe('agent-role lifecycle tags', () => {
   test('known roles carry exactly one lifecycle tag', () => {
-    expect(getAgentRoleTags('planner')).toEqual(['permanent']);
-    expect(getAgentRoleTags('builder')).toEqual(['permanent']);
-    expect(getAgentRoleTags('solo')).toEqual(['permanent']);
-    expect(getAgentRoleTags('enhancer')).toEqual(['ephemeral']);
+    expect(getAgentRoleTags('planner')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getAgentRoleTags('builder')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getAgentRoleTags('solo')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getAgentRoleTags('enhancer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
   });
 
   test('unknown roles default to permanent', () => {
-    expect(getAgentRoleTags('architect')).toEqual(['permanent']);
-    expect(getAgentRoleTags(' custom-role ')).toEqual(['permanent']);
-    expect(hasAgentRoleTag('architect', 'permanent')).toBe(true);
-    expect(hasAgentRoleTag('architect', 'ephemeral')).toBe(false);
+    expect(getAgentRoleTags('architect')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getAgentRoleTags(' custom-role ')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(hasAgentRoleTag('architect', AgentRoleLifecycleTag.Permanent)).toBe(true);
+    expect(hasAgentRoleTag('architect', AgentRoleLifecycleTag.Ephemeral)).toBe(false);
   });
 
   test('tag helpers are case-insensitive', () => {

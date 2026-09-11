@@ -17,7 +17,6 @@ import {
   type AgentStopScope,
 } from '../../entities/agent-stop-command';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
 
 export interface ApplyAgentStopCommandInput {
   chatroomId: Id<'chatroom_rooms'>;
@@ -58,9 +57,6 @@ export async function applyAgentStopCommand(
       desiredState: 'stopped',
       updatedAt: now,
     });
-  }
-  if (input.selectedConfigs.length > 0) {
-    await projectAssignedTaskSnapshotsForChatroom(ctx, input.chatroomId);
   }
   for (const target of input.selectedConfigs) {
     if (target.machineId === undefined || target.spawnedAgentPid === undefined) continue;

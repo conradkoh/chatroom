@@ -86,7 +86,7 @@ describe('task-delivery-processor exact-task hydration', () => {
           backend: { mutation: vi.fn(), query: vi.fn() },
         } as never,
         'machine_processor',
-        'task-signal',
+        'bootstrap',
         { enqueue: async () => undefined } as never,
         () => false,
         { snapshots: [row] }
@@ -139,7 +139,7 @@ describe('task-delivery-processor exact-task hydration', () => {
           backend: { mutation: vi.fn(), query: vi.fn() },
         } as never,
         'machine_processor',
-        'task-signal',
+        'bootstrap',
         { enqueue: async () => undefined } as never,
         () => false,
         { snapshots: [row] }

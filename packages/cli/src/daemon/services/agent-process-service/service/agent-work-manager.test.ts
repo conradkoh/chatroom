@@ -1,8 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { NativeDeliveryService } from './native-delivery-service.js';
-import { MachineTaskSnapshotState } from '../../../../infrastructure/inbox/task-snapshot-state.js';
-import { createAgentTaskStateService } from '../../../agent-process-service/index.js';
+import { AgentWorkManager } from './agent-work-manager.js';
+import { TaskStateManager } from '../../../infrastructure/inbox/task-state-manager.js';
+import { createAgentTaskStateService } from '../index.js';
 
 function createService(
   options: {
@@ -13,10 +13,11 @@ function createService(
       args: Record<string, string>
     ) => Promise<{ released: boolean; status: 'pending'; updatedAt: number }>;
     readonly enqueueFact?: (fact: Record<string, unknown>) => Promise<unknown>;
-    readonly syncAssignedTaskSnapshots?: () => Promise<void>;
+    readonly getSlot?: () => { state: 'running' | 'idle' | 'spawning' | 'stopping'; pid?: number };
+    readonly stopAgent?: ReturnType<typeof vi.fn>;
   } = {}
-): NativeDeliveryService {
-  return new NativeDeliveryService({
+): AgentWorkManager {
+  return new AgentWorkManager({
     runtime: {} as never,
     effectContext: {} as never,
     agentMgr: {
@@ -32,27 +33,34 @@ function createService(
         options.onSessionLost?.(handler);
         return () => undefined;
       },
+      getSlot: options.getSlot ?? (() => undefined),
     } as never,
     runSerializedForAgent: (async (_key: never, _options: never, operation: any) =>
       operation(
-        { startAgent: vi.fn(), stopAgent: vi.fn() },
+        { startAgent: vi.fn(), stopAgent: options.stopAgent ?? vi.fn() },
         { signal: new AbortController().signal }
       )) as never,
     sessionDeps: {} as never,
     machineId: 'machine-1',
-    taskSnapshotState: new MachineTaskSnapshotState(),
+    taskSnapshotState: new TaskStateManager(),
     agentTaskState: createAgentTaskStateService(),
     lifecycleOutbox: { enqueue: (options.enqueueFact ?? (async () => undefined)) as never },
     taskService: {
+      subscribe: () => () => undefined,
+      startTaskInbox: async () => undefined,
+      stopTaskInbox: () => undefined,
+      listPendingTaskInboxEvents: async () => [],
+      markTaskInboxEventProcessed: async () => true,
+      listTasksForRole: () => [],
+      listAllTasks: () => [],
+      taskSnapshotState: new TaskStateManager(),
       isNativeHarness: () => true,
       loadAssignedTaskForAction: async () => null,
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
       snapshotRequestsNativeColdSession: () => false,
       explainNativeDeliveryBlock: () => null,
-      deliverNativeTask: async () => undefined,
-      syncAssignedTaskSnapshots: options.syncAssignedTaskSnapshots ?? (async () => undefined),
-    },
+    } as never,
   });
 }
 
@@ -74,13 +82,41 @@ function failedTurnEvent(overrides: Record<string, unknown> = {}): Record<string
   };
 }
 
-describe('NativeDeliveryService', () => {
-  test('reconcileAfterAgentRestart syncs snapshots before reconciling and returns delivered task ids', async () => {
-    const order: string[] = [];
-    const syncAssignedTaskSnapshots = vi.fn(async () => {
-      order.push('sync');
+describe('AgentWorkManager', () => {
+  test('stops the active agent when its task is cancelled', async () => {
+    const stopAgent = vi.fn().mockResolvedValue({ success: true });
+    const service = createService({
+      getSlot: () => ({ state: 'running', pid: 42 }),
+      stopAgent,
     });
-    const service = createService({ syncAssignedTaskSnapshots });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleTaskServiceNotification({
+      kind: 'inbox-event',
+      event: {
+        eventType: 'task_deleted',
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      } as never,
+    });
+
+    expect(stopAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatroomId: 'room-1',
+        role: 'builder',
+        pid: 42,
+        reason: 'platform.task_cancelled',
+      }),
+      expect.any(AbortSignal)
+    );
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    service.dispose();
+  });
+
+  test('reconcileAfterAgentRestart returns delivered task ids', async () => {
+    const service = createService();
+    const order: string[] = [];
     const requestReconcile = vi
       .spyOn(service, 'requestReconcile')
       .mockImplementation(async (params) => {
@@ -110,9 +146,8 @@ describe('NativeDeliveryService', () => {
       role: 'builder',
     });
 
-    expect(syncAssignedTaskSnapshots).toHaveBeenCalledTimes(1);
     expect(requestReconcile).toHaveBeenCalledTimes(1);
-    expect(order).toEqual(['sync', 'reconcile']);
+    expect(order).toEqual(['reconcile']);
     expect(delivered).toEqual(['task-1', 'task-2']);
     service.dispose();
   });
@@ -237,7 +272,7 @@ describe('NativeDeliveryService', () => {
     service.dispose();
   });
 
-  test('routes task-signal and bootstrap notifications by affected role', async () => {
+  test('routes bootstrap notifications by affected role', async () => {
     const service = createService();
     const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
     const snapshot = {
@@ -245,20 +280,9 @@ describe('NativeDeliveryService', () => {
       agentConfig: { role: 'builder' },
     } as never;
 
-    await service.handleTaskInboxUpdate({
-      signals: [],
-      snapshots: [snapshot],
-      afterSignalKey: 'a',
-      throughSignalKey: 'b',
-    });
     await service.handleTaskServiceNotification({ kind: 'bootstrap', snapshots: [snapshot] });
 
     expect(requestReconcile).toHaveBeenNthCalledWith(1, {
-      chatroomId: 'room-1',
-      role: 'builder',
-      source: 'task-signal',
-    });
-    expect(requestReconcile).toHaveBeenNthCalledWith(2, {
       chatroomId: 'room-1',
       role: 'builder',
       source: 'bootstrap',
@@ -280,7 +304,7 @@ describe('NativeDeliveryService', () => {
     const first = service.requestReconcile({
       chatroomId: 'room-1',
       role: 'Builder',
-      source: 'task-signal',
+      source: 'periodic-reconcile',
     });
     const second = service.requestReconcile({
       chatroomId: 'room-1',

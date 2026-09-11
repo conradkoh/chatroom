@@ -1,7 +1,12 @@
+import {
+  WorkspaceTaskInboxEventStatus,
+  WorkspaceTaskInboxEventType,
+} from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { describe, expect, test, vi } from 'vitest';
 
 import { createTaskService } from './task-service.js';
 import { api } from '../../../../api.js';
+import { TaskAssigneeType } from '../../../domain/entities/assigned-task.js';
 
 function backendRow() {
   return {
@@ -68,10 +73,82 @@ describe('TaskService.loadAssignedTaskForAction', () => {
   });
 });
 
-describe('TaskService.syncAssignedTaskSnapshots', () => {
-  test('delegates to the adapter with service-owned credentials', async () => {
-    const mutation = vi.fn(async () => undefined);
-    const query = vi.fn(async () => ({ tasks: [backendRow()] }));
+describe('TaskService inbox consumption', () => {
+  test('keeps a permanent assignment visible when no agent slot exists yet', async () => {
+    const event = {
+      _id: 'event-permanent-1',
+      machineId: 'machine-1',
+      chatroomId: 'room-1',
+      taskId: 'task-1',
+      role: 'builder',
+      assignee: { type: TaskAssigneeType.Permanent },
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 1_000,
+      task: {
+        taskId: 'task-1',
+        chatroomId: 'room-1',
+        status: 'pending',
+        assignedTo: 'builder',
+        updatedAt: 1_000,
+        createdAt: 900,
+        startInNewSession: false,
+      },
+    } as never;
+    const query = vi.fn(async () => [event]);
+    const mutation = vi.fn(async () => ({ processed: true }));
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      backend: { mutation, query },
+    });
+    const notifications: unknown[] = [];
+    service.subscribe((notification) => {
+      notifications.push(notification);
+    });
+
+    await service.startTaskInbox();
+
+    expect(service.listTasksForRole('room-1', 'builder')).toHaveLength(1);
+    expect(notifications).toHaveLength(1);
+    expect(mutation).toHaveBeenCalledWith(
+      api.chatroomWorkspaceTaskInbox.markProcessed,
+      expect.objectContaining({ eventId: 'event-permanent-1' })
+    );
+    service.stopTaskInbox();
+  });
+
+  test('hydrates task state from pending inbox events and acknowledges them', async () => {
+    const event = {
+      _id: 'event-1',
+      machineId: 'machine-1',
+      chatroomId: 'room-1',
+      taskId: 'task-1',
+      role: 'builder',
+      assignee: {
+        type: TaskAssigneeType.Ephemeral,
+        ephemeral: {
+          agentHarness: 'cursor-sdk',
+          model: 'gpt-4',
+          workingDir: '/tmp/ws',
+        },
+      },
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 1_000,
+      task: {
+        taskId: 'task-1',
+        chatroomId: 'room-1',
+        status: 'pending',
+        assignedTo: 'builder',
+        updatedAt: 1_000,
+        createdAt: 900,
+        startInNewSession: false,
+      },
+    } as never;
+    const query = vi.fn(async () => [event]);
+    const mutation = vi.fn(async () => ({ processed: true }));
     const service = createTaskService({
       sessionId: 'session-1',
       machineId: 'machine-1',
@@ -85,18 +162,30 @@ describe('TaskService.syncAssignedTaskSnapshots', () => {
       lifecycleOutbox: { enqueue: vi.fn(async () => undefined) },
     } as never);
 
-    await service.syncAssignedTaskSnapshots();
+    await service.startTaskInbox();
 
-    expect(mutation).toHaveBeenCalledWith(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-      sessionId: 'session-1',
-      machineId: 'machine-1',
-    });
-    expect(query).toHaveBeenCalledWith(api.machines.listMachineAssignedTaskSnapshots, {
-      sessionId: 'session-1',
-      machineId: 'machine-1',
-    });
-    expect(service.taskSnapshotState.listAll()).toEqual([
-      expect.objectContaining({ taskId: 'task-1', status: 'pending' }),
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      {
+        taskId: 'task-1',
+        chatroomId: 'room-1',
+        status: 'pending',
+        agentConfig: {
+          role: 'builder',
+          machineId: 'machine-1',
+        },
+        assignee: {
+          type: TaskAssigneeType.Ephemeral,
+          ephemeral: {
+            agentHarness: 'cursor-sdk',
+            model: 'gpt-4',
+            workingDir: '/tmp/ws',
+          },
+        },
+      },
     ]);
+    expect(mutation).toHaveBeenCalledTimes(1);
+    expect((mutation.mock.calls as unknown[][])[0]?.[1]).toMatchObject({ eventId: 'event-1' });
+
+    service.stopTaskInbox();
   });
 });

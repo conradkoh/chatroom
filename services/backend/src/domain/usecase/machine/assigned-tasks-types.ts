@@ -22,6 +22,7 @@ export type {
   AssignedTaskSignal,
   AssignedTaskSignalType,
   AssignedTaskSnapshotView,
+  EphemeralAgentConfig,
   SessionAugmentationMode,
 } from './assigned-task-snapshot-contract';
 export {
@@ -38,10 +39,6 @@ export interface AssignedTaskView extends AssignedTaskSnapshotView {
   taskContent: string;
   taskEnvelope?: TaskEnvelopeV1 | undefined;
   startInNewSession?: boolean | undefined;
-}
-
-export interface ListMachineAssignedTaskSnapshotsResult {
-  tasks: AssignedTaskSnapshotView[];
 }
 
 export interface MachineAssignedTasksInput {

@@ -10,6 +10,7 @@ import { Effect } from 'effect';
 
 import { RecordingHarness } from './recording-harness.js';
 import { api } from '../api.js';
+import { TaskAssigneeType } from '../daemon/domain/entities/assigned-task.js';
 import {
   buildNativeInjectionPrompt,
   createConvexNativeTaskDeliveryGateway,
@@ -39,10 +40,12 @@ function makeBaseTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskVi
     agentConfig: {
       role: 'planner',
       machineId: 'machine_1',
-      agentHarness: 'opencode-sdk',
-      workingDir: '/tmp/project',
       spawnedAgentPid: 12345,
       desiredState: 'running',
+    },
+    assignee: {
+      type: TaskAssigneeType.Ephemeral,
+      ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
     },
     participant: {
       lastSeenAction: 'native:waiting',

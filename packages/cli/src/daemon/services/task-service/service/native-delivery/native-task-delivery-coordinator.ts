@@ -9,9 +9,13 @@ import {
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
+import type { TaskDeliveryService } from './task-delivery-service.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import {
+  resolveAgentRuntimeConfig,
+  type AssignedTaskSnapshotView,
+} from '../../../../domain/entities/assigned-task.js';
 import { isSlotIdle } from '../../../../domain/usecase/check-agent-slot.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
@@ -26,17 +30,7 @@ import type {
   SerializedAgentOperationOptions,
   SerializedAgentOperationContext,
   NativeDeliverySessionHandles,
-  TaskService,
 } from '../../../service-interfaces.js';
-
-type TaskDeliveryService = Pick<
-  TaskService,
-  | 'deliverNativeTask'
-  | 'isNativeHarness'
-  | 'snapshotRequestsNativeColdSession'
-  | 'explainNativeDeliveryBlock'
-  | 'loadAssignedTaskForAction'
->;
 
 type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskDeliveryContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -66,7 +60,7 @@ export type NativeDeliveryExecutors = {
 type DeliveryPass =
   'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'restart' | 'agent-started';
 type ExtendedDeliveryPass =
-  DeliveryPass | 'task-signal' | 'agent-session-lost' | 'turn-ended' | 'restart-completed';
+  DeliveryPass | 'agent-session-lost' | 'turn-ended' | 'restart-completed';
 type LegacyDeliveryPass = 'inbox-signal' | 'restart';
 
 // fallow-ignore-next-line unused-export
@@ -131,6 +125,7 @@ export class NativeTaskDeliveryCoordinator {
       if (!firstTask) continue;
       const { role } = firstTask.agentConfig;
       const slot = agentMgr.getSlot(firstTask.chatroomId, role);
+      const runtimeConfig = resolveAgentRuntimeConfig(firstTask, slot);
       const activeTaskId = roleTasks.find((candidate) =>
         isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
       )?.taskId;
@@ -179,7 +174,7 @@ export class NativeTaskDeliveryCoordinator {
         continue;
       }
       if (decision.kind === 'start-agent') {
-        if (!row.agentConfig.workingDir || (slot && !isSlotIdle(slot.state))) continue;
+        if (!runtimeConfig || (slot && !isSlotIdle(slot.state))) continue;
         try {
           if (executors) {
             const startResult = await executors.startAgent(row);
@@ -196,9 +191,9 @@ export class NativeTaskDeliveryCoordinator {
                 {
                   chatroomId: row.chatroomId,
                   role,
-                  agentHarness: row.agentConfig.agentHarness as AgentHarness,
-                  model: row.agentConfig.model ?? '',
-                  workingDir: row.agentConfig.workingDir as string,
+                  agentHarness: runtimeConfig.agentHarness as AgentHarness,
+                  model: runtimeConfig.model ?? '',
+                  workingDir: runtimeConfig.workingDir,
                   reason: AgentStartReasonEnum['platform.pending_task_wake'],
                   wantResume: false,
                   lifecycleRevision: row.agentConfig.configLifecycleRevision,

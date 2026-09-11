@@ -357,6 +357,12 @@ export default [
   // agent-process service must not depend on task-service internals or API.
   {
     files: ['packages/cli/src/daemon/services/agent-process-service/**/*.{ts,tsx}'],
+    ignores: [
+      // This application service is the deliberate integration boundary for
+      // task work: it coordinates TaskService snapshots with agent lifecycle.
+      'packages/cli/src/daemon/services/agent-process-service/service/agent-work-manager.ts',
+      'packages/cli/src/daemon/services/agent-process-service/service/agent-work-manager.test.ts',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',

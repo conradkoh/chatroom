@@ -12,9 +12,11 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { getTeamEntryPoint } from '../../entities/team';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
+import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 
 const RELEASE_FROM_STATUSES: TaskStatus[] = ['acknowledged', 'in_progress'];
 
@@ -127,6 +129,11 @@ export async function reassignInFlightTasksOnTeamSwitch(
     });
     const reassignedTask = await ctx.db.get('chatroom_tasks', task._id);
     if (reassignedTask) {
+      await writeWorkspaceTaskInboxEvent(
+        ctx,
+        WorkspaceTaskInboxEventType.TaskUpdated,
+        reassignedTask
+      );
       await writeTaskStatusSignals(ctx, reassignedTask);
     }
     reassigned++;

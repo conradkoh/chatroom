@@ -15,24 +15,19 @@ import {
   getNativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
+import type { TaskDeliveryService } from './task-delivery-service.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
-import type { AssignedTaskSnapshotView } from '../../../../domain/entities/assigned-task.js';
+import {
+  resolveAgentRuntimeConfig,
+  type AssignedTaskSnapshotView,
+} from '../../../../domain/entities/assigned-task.js';
 import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
   DaemonAgentProcessManagerServiceShape,
 } from '../../../../entry/daemon-services.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
-import type { AgentProcessManagerService, TaskService } from '../../../service-interfaces.js';
-
-type TaskDeliveryService = Pick<
-  TaskService,
-  | 'deliverNativeTask'
-  | 'isNativeHarness'
-  | 'snapshotRequestsNativeColdSession'
-  | 'explainNativeDeliveryBlock'
-  | 'loadAssignedTaskForAction'
->;
+import type { AgentProcessManagerService } from '../../../service-interfaces.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
   DaemonSessionService | DaemonAgentProcessManagerService
@@ -51,7 +46,6 @@ export type ProcessTasksUpdateOptions = {
 };
 
 type TaskDeliveryPass =
-  | 'task-signal'
   | 'periodic-reconcile'
   | 'bootstrap'
   | 'agent-session-lost'
@@ -77,8 +71,13 @@ export async function processTasksUpdate(
   if (!first) return;
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
-    startAgent: (task: AssignedTaskSnapshotView) =>
-      runSerializedForAgent(
+    startAgent: (task: AssignedTaskSnapshotView) => {
+      const runtimeConfig = resolveAgentRuntimeConfig(
+        task,
+        agentMgr.getSlot(task.chatroomId, task.agentConfig.role)
+      );
+      if (!runtimeConfig) return Promise.resolve({ success: false, error: 'agent config missing' });
+      return runSerializedForAgent(
         { chatroomId: task.chatroomId, role: task.agentConfig.role },
         { timeoutMs: 120_000 },
         (ops, context) =>
@@ -86,9 +85,9 @@ export async function processTasksUpdate(
             {
               chatroomId: task.chatroomId,
               role: task.agentConfig.role,
-              agentHarness: task.agentConfig.agentHarness as AgentHarness,
-              model: task.agentConfig.model ?? '',
-              workingDir: task.agentConfig.workingDir as string,
+              agentHarness: runtimeConfig.agentHarness as AgentHarness,
+              model: runtimeConfig.model ?? '',
+              workingDir: runtimeConfig.workingDir,
               reason: AgentStartReasonEnum['platform.pending_task_wake'],
               wantResume: false,
               lifecycleRevision: task.agentConfig.configLifecycleRevision,
@@ -96,7 +95,8 @@ export async function processTasksUpdate(
             },
             context.signal
           )
-      ),
+      );
+    },
     injectTask: async (task: AssignedTaskSnapshotView, harnessSessionId: string | undefined) => {
       const full = await taskService.loadAssignedTaskForAction({
         chatroomId: task.chatroomId,

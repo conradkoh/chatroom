@@ -31,7 +31,7 @@ import { executeLocalAction } from '../../infrastructure/local-actions/index.js'
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
-import type { NativeDeliveryService } from '../services/service-interfaces.js';
+import type { AgentWorkManager } from '../services/service-interfaces.js';
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
@@ -131,7 +131,7 @@ function handleRequestStartEffect(
 function handleRequestRestartEffect(
   event: CommandEvent,
   tracker: DedupTracker,
-  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
+  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>
 ): Effect.Effect<void, never, CommandDispatchDeps> {
   return Effect.gen(function* () {
     const eventId = event._id.toString();
@@ -310,7 +310,7 @@ const commandEventHandlers: {
   [K in DaemonCommandEventType]?: (
     event: CommandEvent,
     tracker: DedupTracker,
-    nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
+    nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>
   ) => Effect.Effect<void, never, CommandDispatchDeps>;
 } = {
   'agent.requestStart': handleRequestStartEffect,
@@ -334,7 +334,7 @@ const commandEventHandlers: {
 export const dispatchCommandEventEffect = (
   event: CommandEvent,
   tracker: DedupTracker,
-  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
+  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>
 ): Effect.Effect<void, never, CommandDispatchDeps> => {
   if (!isDaemonCommandEventType(event.type)) return Effect.void;
   const factory = commandEventHandlers[event.type];
@@ -347,7 +347,7 @@ export async function handleInboundCommandEvent(
   effectContext: Context.Context<CommandDispatchDeps>,
   session: DaemonSessionServiceShape,
   claimedCommand: ClaimedMachineCommand,
-  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
+  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>
 ): Promise<void> {
   if (claimedCommand.commandId !== commandId) return;
   const renewTimer = setInterval(() => {

@@ -22,7 +22,7 @@ import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 import { resetRoleDeliveryState } from '../services/service-interfaces.js';
 import type {
-  NativeDeliveryService,
+  AgentWorkManager,
   AgentProcessManagerService,
 } from '../services/service-interfaces.js';
 
@@ -51,7 +51,7 @@ interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
-  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>;
+  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>;
 }
 
 async function emitPhase(

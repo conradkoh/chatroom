@@ -6,6 +6,7 @@ import { describe, expect, test } from 'vitest';
 
 import { NativeOrchestrationSimulator } from './native-orchestration-simulator.js';
 import { RecordingHarness } from './recording-harness.js';
+import { TaskAssigneeType } from '../daemon/domain/entities/assigned-task.js';
 
 const PLANNER_DELIVERY = ['<task>', 'hello', '</task>', '<handoffs>', '**user**'].join('\n');
 
@@ -91,10 +92,12 @@ Add payments API
         agentConfig: {
           role: 'builder',
           machineId: 'machine_1',
-          agentHarness: 'opencode-sdk',
-          workingDir: '/tmp/project',
           spawnedAgentPid: 12345,
           desiredState: 'running',
+        },
+        assignee: {
+          type: TaskAssigneeType.Ephemeral,
+          ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
         },
       }),
       deliveryOutput: BUILDER_DELIVERY,
@@ -124,10 +127,12 @@ Add payments API
         agentConfig: {
           role: 'builder',
           machineId: 'machine_1',
-          agentHarness: 'opencode-sdk',
-          workingDir: '/tmp/project',
           spawnedAgentPid: 12345,
           desiredState: 'running',
+        },
+        assignee: {
+          type: TaskAssigneeType.Ephemeral,
+          ephemeral: { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/tmp/project' },
         },
       }),
       deliveryOutput: BUILDER_DELIVERY,

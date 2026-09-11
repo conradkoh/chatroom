@@ -200,6 +200,7 @@ export const isExplicitDaemonStart = (reason: string): reason is ExplicitDaemonS
  * - `daemon.respawn`: Daemon killed agent to spawn a fresh instance
  * - `daemon.shutdown`: Daemon process shutting down (SIGINT/SIGTERM/SIGHUP) — all agents stopped
  * - `platform.ephemeral_task_complete`: Ephemeral enhancer capacity released after task completion
+ * - `platform.task_cancelled`: The active task was cancelled and the agent work was interrupted
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_STOP_REASONS = [
@@ -213,6 +214,7 @@ export const AGENT_STOP_REASONS = [
   'daemon.shutdown',
   'daemon.stop_timeout',
   'platform.ephemeral_task_complete',
+  'platform.task_cancelled',
   'test',
 ] as const;
 

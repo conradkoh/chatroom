@@ -13,7 +13,6 @@ import {
   type RunnableRemoteAgentConfig,
 } from '../../entities/agent-restart';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 import { releaseTasksOnAgentExit } from '../task/release-tasks-on-agent-exit';
 
@@ -131,7 +130,6 @@ async function persistRestartAndEmit(
     },
   });
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');
-  await refreshSnapshotDeliveryConfigForChatroomRole(ctx, input.chatroomId, input.role);
   const restartedConfig = teamId
     ? await ctx.db
         .query('chatroom_teamAgentConfigs')

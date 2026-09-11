@@ -8,7 +8,7 @@ import { Effect } from 'effect';
 import type { Id } from '../../../../api.js';
 import { restartAgent } from '../../../../daemon/domain/usecase/restart-agent.js';
 import { createRestartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
-import type { NativeDeliveryService } from '../../../../daemon/services/service-interfaces.js';
+import type { AgentWorkManager } from '../../../../daemon/services/service-interfaces.js';
 import {
   DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
@@ -31,7 +31,7 @@ export interface AgentRestartEventPayload {
 
 export const onRequestRestartAgentEffect = (
   event: AgentRestartEventPayload,
-  nativeDelivery: Pick<NativeDeliveryService, 'reconcileAfterAgentRestart'>
+  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>
 ): Effect.Effect<
   void,
   never,

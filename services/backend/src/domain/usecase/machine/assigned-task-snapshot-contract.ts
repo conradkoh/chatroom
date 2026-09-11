@@ -12,6 +12,7 @@
 import { z } from 'zod';
 
 import { convexIdSchema } from '../../entities/_shared/convex-id';
+import { WorkspaceTaskAssigneeType } from '../../entities/chatroom-workspace-task-inbox';
 
 export const ACTIVE_TASK_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
 export type ActiveTaskStatus = (typeof ACTIVE_TASK_STATUSES)[number];
@@ -33,15 +34,26 @@ export const AGENT_CIRCUIT_STATES = ['closed', 'open', 'half-open'] as const;
 export type AgentCircuitState = (typeof AGENT_CIRCUIT_STATES)[number];
 export const agentCircuitStateSchema = z.enum(AGENT_CIRCUIT_STATES);
 
+export const ephemeralAgentConfigSchema = z.object({
+  agentHarness: z.string(),
+  model: z.string(),
+  workingDir: z.string(),
+});
+
+export const assignedTaskAssigneeSchema = z.union([
+  z.object({ type: z.literal(WorkspaceTaskAssigneeType.Permanent) }),
+  z.object({
+    type: z.literal(WorkspaceTaskAssigneeType.Ephemeral),
+    ephemeral: ephemeralAgentConfigSchema,
+  }),
+]);
+
 const chatroomTaskIdSchema = convexIdSchema('chatroom_tasks');
 const chatroomRoomIdSchema = convexIdSchema('chatroom_rooms');
 
 export const assignedTaskAgentConfigSchema = z.object({
   role: z.string(),
   machineId: z.string(),
-  agentHarness: z.string(),
-  model: z.string().optional(),
-  workingDir: z.string().optional(),
   // Legacy optional fields retained for daemon compatibility; backend snapshots no longer write them.
   spawnedAgentPid: z.number().optional(),
   desiredState: agentDesiredStateSchema.optional(),
@@ -64,8 +76,10 @@ export const assignedTaskSignalBootstrapFields = {
   signalType: assignedTaskSignalTypeSchema,
   revisionKey: z.string(),
   machineId: z.string(),
+  /** @deprecated Legacy signal field; task delivery uses agent-process config or ephemeral. */
   agentHarness: z.string(),
   createdAt: z.number(),
+  /** @deprecated Legacy signal field; task delivery uses agent-process config or ephemeral. */
   workingDir: z.string().optional(),
   assignedTo: z.string().optional(),
   sessionAugmentation: sessionAugmentationSchema.optional(),
@@ -103,6 +117,7 @@ export const assignedTaskSnapshotRowSchema = z
     agentConfig: assignedTaskAgentConfigSchema,
     participant: assignedTaskParticipantSchema.optional(),
     requestsNativeColdSession: z.boolean().optional(),
+    assignee: assignedTaskAssigneeSchema.optional(),
   })
   .transform((row) => ({
     ...row,
@@ -114,6 +129,7 @@ export type AssignedTaskParticipantView = z.infer<typeof assignedTaskParticipant
 export type AssignedTaskSnapshotView = z.output<typeof assignedTaskSnapshotRowSchema>;
 export type AssignedTaskSignal = z.infer<typeof assignedTaskSignalSchema>;
 export type AssignedTaskPresenceSignal = z.infer<typeof assignedTaskPresenceSignalSchema>;
+export type EphemeralAgentConfig = z.infer<typeof ephemeralAgentConfigSchema>;
 export function isDeliverableTaskStatus(status: ActiveTaskStatus): boolean {
   return status === 'pending' || status === 'acknowledged';
 }

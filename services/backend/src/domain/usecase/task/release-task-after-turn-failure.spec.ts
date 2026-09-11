@@ -10,6 +10,10 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
+import {
+  WorkspaceTaskInboxEventStatus,
+  WorkspaceTaskInboxEventType,
+} from '../../entities/chatroom-workspace-task-inbox';
 
 async function createTestSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
@@ -88,37 +92,25 @@ async function listSignals(chatroomId: Id<'chatroom_rooms'>) {
       .withIndex('by_chatroom_signalKey', (q) => q.eq('chatroomId', chatroomId))
       .collect();
   });
-  const delivery = (
-    await t.run(async (ctx) => {
-      return await ctx.db.query('chatroom_machineTaskDeliverySignals').collect();
-    })
-  ).filter((row) => row.chatroomId === chatroomId);
-  return { timeline, delivery };
+  return { timeline };
 }
 
-async function getSnapshot(taskId: Id<'chatroom_tasks'>) {
+async function listInboxEvents(chatroomId: Id<'chatroom_rooms'>, taskId: Id<'chatroom_tasks'>) {
   return await t.run(async (ctx) => {
     return await ctx.db
-      .query('chatroom_machineAssignedTaskSnapshots')
-      .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
-      .first();
+      .query('chatroomWorkspaceTaskInbox')
+      .withIndex('by_chatroom_taskId', (q) => q.eq('chatroomId', chatroomId).eq('taskId', taskId))
+      .collect();
   });
 }
 
 describe('releaseTaskAfterTurnFailure', () => {
-  test('in_progress task transitions to pending with task_service source signals and snapshot update', async () => {
+  test('in_progress task transitions to pending with task_service source signals and inbox update', async () => {
     const { sessionId } = await createTestSession('turn-failure-inprogress');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'turn-failure-machine-1';
     await seedRemoteConfig(chatroomId, 'builder', machineId);
     const taskId = await seedTask(chatroomId, { status: 'in_progress', assignedTo: 'builder' });
-    // Project the initial snapshot for the in-flight task.
-    await t.run(async (ctx) => {
-      const { projectAssignedTaskSnapshotsForChatroom } =
-        await import('../machine/machine-assigned-task-snapshot-sync');
-      await projectAssignedTaskSnapshotsForChatroom(ctx, chatroomId);
-    });
-
     const result = await t.run(async (ctx) => {
       return await releaseTaskAfterTurnFailure(ctx, { chatroomId, role: 'builder', taskId });
     });
@@ -131,23 +123,24 @@ describe('releaseTaskAfterTurnFailure', () => {
     expect(task?.acknowledgedAt).toBeUndefined();
     expect(task?.startedAt).toBeUndefined();
 
-    const { timeline, delivery } = await listSignals(chatroomId);
+    const { timeline } = await listSignals(chatroomId);
     expect(timeline).toHaveLength(1);
     expect(timeline[0]).toMatchObject({
       taskId,
       taskStatus: 'pending',
       source: 'task_service',
     });
-    expect(delivery).toHaveLength(1);
-    expect(delivery[0]).toMatchObject({
-      taskId,
-      taskStatus: 'pending',
-      targetRole: 'builder',
-      source: 'task_service',
-    });
 
-    const snapshot = await getSnapshot(taskId);
-    expect(snapshot?.taskStatus).toBe('pending');
+    const inboxEvents = await listInboxEvents(chatroomId, taskId);
+    expect(inboxEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: WorkspaceTaskInboxEventType.TaskUpdated,
+          status: WorkspaceTaskInboxEventStatus.Pending,
+          task: expect.objectContaining({ status: 'pending' }),
+        }),
+      ])
+    );
   });
 
   test('acknowledged task follows the same transition', async () => {
@@ -183,9 +176,8 @@ describe('releaseTaskAfterTurnFailure', () => {
     });
     expect(second).toMatchObject({ released: false, status: 'pending' });
 
-    const { timeline, delivery } = await listSignals(chatroomId);
+    const { timeline } = await listSignals(chatroomId);
     expect(timeline).toHaveLength(1);
-    expect(delivery).toHaveLength(1);
   });
 
   test('completed task is a no-op returning current status', async () => {

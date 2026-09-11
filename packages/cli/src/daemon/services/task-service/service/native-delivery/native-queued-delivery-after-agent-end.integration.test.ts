@@ -6,10 +6,9 @@
  * Wires NativeTaskDeliveryCoordinator → runNativeInjectionEffect → resumeTurn.
  */
 
-import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
@@ -17,7 +16,11 @@ import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import {
+  createTaskSnapshot,
+  snapshotDocToSignal,
+  type TaskSnapshotFixtureDoc,
+} from './test-fixtures/task-snapshot-fixture.js';
 import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
@@ -29,12 +32,10 @@ const MACHINE_ID = 'machine-native-queued-delivery';
 const SESSION_ID = 'session-native-queued-delivery';
 
 function makePostAgentEndSnapshotDoc(
-  overrides: Partial<Doc<'chatroom_machineAssignedTaskSnapshots'>> = {}
-): Doc<'chatroom_machineAssignedTaskSnapshots'> {
+  overrides: Partial<TaskSnapshotFixtureDoc> = {}
+): TaskSnapshotFixtureDoc {
   const now = 1_700_000_000_000;
   return {
-    _id: 'snapshot_promoted' as Id<'chatroom_machineAssignedTaskSnapshots'>,
-    _creationTime: now,
     machineId: MACHINE_ID,
     taskId: 'task_promoted' as Id<'chatroom_tasks'>,
     chatroomId: 'room_1' as Id<'chatroom_rooms'>,
@@ -46,13 +47,7 @@ function makePostAgentEndSnapshotDoc(
     agentHarness: 'cursor-sdk',
     workingDir: '/test/workspace',
     configUpdatedAt: now,
-    presenceUpdatedAt: now,
-    presenceKey: 'presence-key',
     revisionKey: 'revision-key',
-    signalUpdatedAt: now,
-    lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
-    lastStatus: 'task.completed',
-    lastSeenAt: now - 1_000,
     ...overrides,
   };
 }

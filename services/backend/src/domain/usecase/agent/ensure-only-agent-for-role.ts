@@ -14,7 +14,6 @@ import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
-import { projectAssignedTaskSnapshotsForMachines } from '../machine/patch-team-agent-config';
 
 export interface EnsureOnlyAgentForRoleInput {
   chatroomId: Id<'chatroom_rooms'>;
@@ -67,9 +66,5 @@ export async function ensureOnlyAgentForRole(
     if (config.machineId) {
       affectedMachineIds.add(config.machineId);
     }
-  }
-
-  if (affectedMachineIds.size > 0) {
-    await projectAssignedTaskSnapshotsForMachines(ctx, affectedMachineIds);
   }
 }
