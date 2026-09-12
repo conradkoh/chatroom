@@ -22,6 +22,8 @@ export interface UseChatroomLifecycleReturn {
   activeWorkspace: ChatroomActiveWorkspace | null;
   /** All workspaces for the chatroom (including unconnected). */
   workspaces: Workspace[];
+  /** Whether the authoritative workspace selection is still loading. */
+  workspaceLoading: boolean;
   /** Current activity view, persisted per chatroom. */
   activityView: ActivityView;
   /** Setter for the activity view. */
@@ -47,7 +49,11 @@ export interface UseChatroomLifecycleReturn {
  */
 export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatroomLifecycleReturn {
   const fileTabs = useFileTabs({ chatroomId: chatroomId as string });
-  const { activeWorkspace, workspaces } = useChatroomActiveWorkspace(chatroomId);
+  const {
+    activeWorkspace,
+    workspaces,
+    isLoading: workspaceLoading,
+  } = useChatroomActiveWorkspace(chatroomId);
   const [activityView, setActivityView] = useActivityView(chatroomId);
   const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] =
     useExplorerSplitViewEnabled(chatroomId);
@@ -57,6 +63,7 @@ export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatr
     fileTabs,
     activeWorkspace,
     workspaces,
+    workspaceLoading,
     activityView,
     setActivityView,
     explorerSplitViewEnabled,

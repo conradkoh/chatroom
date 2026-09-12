@@ -1033,6 +1033,34 @@ export const backfillAgentRoleStatusWorkingDir = migrations.define({
   },
 });
 
+/** Seed one deterministic primary workspace for existing chatrooms. */
+export const backfillPrimaryWorkspaceForChatroom = migrations.define({
+  table: 'chatroom_workspaces',
+  migrateOne: async (ctx, workspace) => {
+    if (workspace.removedAt !== undefined) return;
+
+    const existing = await ctx.db
+      .query('chatroom_primaryWorkspaces')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', workspace.chatroomId))
+      .first();
+    if (existing) return;
+
+    const activeWorkspaces = await ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', workspace.chatroomId))
+      .filter((q) => q.eq(q.field('removedAt'), undefined))
+      .collect();
+    const newest = activeWorkspaces.slice().sort((a, b) => b.registeredAt - a.registeredAt)[0];
+    if (!newest || newest._id !== workspace._id) return;
+
+    await ctx.db.insert('chatroom_primaryWorkspaces', {
+      chatroomId: workspace.chatroomId,
+      workspaceId: workspace._id,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const stripTimelineMachineSignalFields = migrations.define({
   table: 'chatroom_timelineTaskStatusSignals',
   migrateOne: async (_ctx, row) => {
@@ -1179,6 +1207,7 @@ const allMigrationReferences = [
   internal.migrations.backfillMachineIdentities,
   internal.migrations.backfillAgentViewMetadata,
   internal.migrations.backfillMachineObservedWorkspaceViews,
+  internal.migrations.backfillPrimaryWorkspaceForChatroom,
   internal.migrations.backfillMessageReadModels,
   internal.migrations.backfillMessageReadModelState,
   // Direct-harness data purge (children before parents, then command rows)

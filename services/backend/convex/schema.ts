@@ -1862,6 +1862,14 @@ export default defineSchema({
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 
+  // The workspace selected as the primary workspace for a chatroom.
+  // This is UI/application state, not a daemon or machine liveness signal.
+  chatroom_primaryWorkspaces: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    workspaceId: v.id('chatroom_workspaces'),
+    updatedAt: v.number(),
+  }).index('by_chatroom', ['chatroomId']),
+
   // ─── Workspace File Tree ─────────────────────────────────────────────────────
   // Stores file tree snapshots and on-demand file content per workspace.
 

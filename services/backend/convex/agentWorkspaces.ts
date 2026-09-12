@@ -18,7 +18,7 @@ function normalizeWorkingDir(value: string): string {
   return value.trim().replace(/[/\\]+$/, '');
 }
 
-async function getAccessibleWorkspace(
+async function requireChatroomAccessForWorkspace(
   ctx: QueryCtx,
   sessionId: string,
   workspaceId: Id<'chatroom_workspaces'>
@@ -48,7 +48,7 @@ export const listAgentsForWorkspace = query({
     workspaceId: v.id('chatroom_workspaces'),
   },
   handler: async (ctx, args) => {
-    const access = await getAccessibleWorkspace(ctx, args.sessionId, args.workspaceId);
+    const access = await requireChatroomAccessForWorkspace(ctx, args.sessionId, args.workspaceId);
     if (!access) return [];
 
     const configs = await ctx.db
@@ -80,7 +80,7 @@ export const getAgentConfigForWorkspaceRole = query({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    const access = await getAccessibleWorkspace(ctx, args.sessionId, args.workspaceId);
+    const access = await requireChatroomAccessForWorkspace(ctx, args.sessionId, args.workspaceId);
     if (!access) return null;
 
     const configs = await ctx.db
@@ -125,7 +125,7 @@ export const getAgentStatusForWorkspaceRole = query({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    const access = await getAccessibleWorkspace(ctx, args.sessionId, args.workspaceId);
+    const access = await requireChatroomAccessForWorkspace(ctx, args.sessionId, args.workspaceId);
     if (!access) return null;
 
     const row = await ctx.db

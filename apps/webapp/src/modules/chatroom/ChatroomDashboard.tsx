@@ -62,6 +62,7 @@ import { Z_LAYOUT_CHROME, Z_PANEL } from './components/shared/overlayLayers';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { WorkQueue } from './components/WorkQueue';
+import { ChatroomWorkspaceProvider } from './context/ChatroomWorkspaceContext';
 import { useCommandDialogActions } from './context/CommandDialogContext';
 import {
   getCommandPaletteRunsActive,
@@ -659,7 +660,15 @@ function useIsSmallScreen(): boolean | undefined {
   return mounted ? isSmall : undefined;
 }
 
-export function ChatroomDashboard({
+export function ChatroomDashboard(props: ChatroomDashboardProps) {
+  return (
+    <ChatroomWorkspaceProvider chatroomId={props.chatroomId as Id<'chatroom_rooms'>}>
+      <ChatroomDashboardContent {...props} />
+    </ChatroomWorkspaceProvider>
+  );
+}
+
+function ChatroomDashboardContent({
   chatroomId,
   onBack,
   focusModeEnabled = false,
@@ -676,6 +685,7 @@ export function ChatroomDashboard({
     setActivityView,
     activeWorkspace,
     workspaces: chatroomWorkspaces,
+    workspaceLoading,
     explorerSplitViewEnabled,
     setExplorerSplitViewEnabled,
     explorerSyncEnabled,
@@ -1810,7 +1820,12 @@ export function ChatroomDashboard({
   ]);
 
   // Wait for all required data and hydration before rendering to prevent flickering
-  if (chatroom === undefined || lifecycle === undefined || isSmallScreen === undefined) {
+  if (
+    chatroom === undefined ||
+    lifecycle === undefined ||
+    isSmallScreen === undefined ||
+    workspaceLoading
+  ) {
     return (
       <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
         <ChatroomLoader size="md" />
@@ -2075,11 +2090,7 @@ export function ChatroomDashboard({
                       />
                     </div>
                   </div>
-                  <WorkspaceBottomBar
-                    workspaces={chatroomWorkspaces}
-                    chatroomId={chatroomId}
-                    onSwitchToSourceControl={handleSwitchToSourceControl}
-                  />
+                  <WorkspaceBottomBar onSwitchToSourceControl={handleSwitchToSourceControl} />
                 </div>
 
                 <PromptModal

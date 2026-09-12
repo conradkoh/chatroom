@@ -869,7 +869,7 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
 
 /** Agents tab — shows the agents configured for the active workspace. */
 const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
-  const { agents, isLoading } = useWorkspaceAgentDirectory(chatroomId);
+  const { agents, isLoading } = useWorkspaceAgentDirectory();
   return (
     <div className="space-y-6">
       <div>

@@ -29,13 +29,18 @@ async function registerWorkspace(
 }
 
 describe('workspace-scoped agent queries', () => {
-  test('returns the most recently registered active workspace without liveness filtering', async () => {
+  test('uses the persisted primary workspace without liveness filtering', async () => {
     const { sessionId } = await createTestSession('test-wsq-active-workspace');
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const machineId = 'machine-wsq-active-workspace';
     await registerMachineWithDaemon(sessionId as any, machineId);
 
-    await registerWorkspace(sessionId, chatroomId, machineId, '/workspace/old');
+    const oldWorkspaceId = await registerWorkspace(
+      sessionId,
+      chatroomId,
+      machineId,
+      '/workspace/old'
+    );
     const newestWorkspaceId = await registerWorkspace(
       sessionId,
       chatroomId,
@@ -52,13 +57,26 @@ describe('workspace-scoped agent queries', () => {
       machineId,
     });
 
+    await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workspaceId: oldWorkspaceId,
+    });
+
+    const primary = await t.query(api.workspaces.getPrimaryWorkspaceForChatroom, {
+      sessionId: sessionId as any,
+      chatroomId,
+    });
+    expect(primary?._id).toBe(oldWorkspaceId);
+    expect(primary?.workingDir).toBe('/workspace/old');
+
     const result = await t.query(api.workspaces.getActiveWorkspaceForChatroom, {
       sessionId: sessionId as any,
       chatroomId,
     });
 
-    expect(result?._id).toBe(newestWorkspaceId);
-    expect(result?.workingDir).toBe('/workspace/new');
+    expect(result?._id).toBe(oldWorkspaceId);
+    expect(result?.workingDir).toBe('/workspace/old');
   });
 
   test('lists and reads config independently from the status projection', async () => {

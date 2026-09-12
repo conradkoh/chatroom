@@ -9,9 +9,9 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { omitUndefined } from './lib/omitUndefined';
@@ -26,6 +26,23 @@ import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '.
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
+
+async function getPrimaryWorkspaceView(ctx: QueryCtx, chatroomId: Id<'chatroom_rooms'>) {
+  const workspaces = await listWorkspacesForChatroomUseCase(ctx, { chatroomId });
+  if (workspaces.length === 0) return null;
+
+  const selection = await ctx.db
+    .query('chatroom_primaryWorkspaces')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .first();
+  const selected = selection
+    ? workspaces.find((workspace) => workspace._id === selection.workspaceId)
+    : undefined;
+
+  // Existing chatrooms have no selection row yet. Keep the old deterministic
+  // fallback until the user chooses a workspace in the bottom bar.
+  return selected ?? workspaces.slice().sort((a, b) => b.registeredAt - a.registeredAt)[0] ?? null;
+}
 
 /**
  * Remove keys whose value is `undefined` so `db.patch` does not treat them as
@@ -104,7 +121,15 @@ export const removeWorkspace = mutation({
   },
   handler: async (ctx, args) => {
     // Verify the user has write-access to the machine this workspace belongs to
-    await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
+    const { workspace } = await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
+
+    const primarySelection = await ctx.db
+      .query('chatroom_primaryWorkspaces')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', workspace.chatroomId))
+      .first();
+    if (primarySelection?.workspaceId === args.workspaceId) {
+      await ctx.db.delete('chatroom_primaryWorkspaces', primarySelection._id);
+    }
 
     return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
   },
@@ -250,12 +275,12 @@ export const listWorkspacesForChatroom = query({
 });
 
 /**
- * Returns the default active workspace for a chatroom.
+ * Returns the active workspace for a chatroom.
  *
- * Workspace selection is currently client-local, so the backend fallback is
- * the most recently registered active workspace. This query intentionally
- * contains no machine/daemon liveness check: registration is the workspace
- * source of truth and liveness belongs to agent status queries.
+ * This compatibility alias now reads the persisted primary selection. When no
+ * selection exists yet, it falls back to the most recently registered active
+ * workspace. It intentionally contains no machine/daemon liveness check.
+ * @deprecated Use getPrimaryWorkspaceForChatroom for new callers.
  */
 export const getActiveWorkspaceForChatroom = query({
   args: {
@@ -264,10 +289,51 @@ export const getActiveWorkspaceForChatroom = query({
   },
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const workspaces = await listWorkspacesForChatroomUseCase(ctx, {
+    return getPrimaryWorkspaceView(ctx, chatroom._id);
+  },
+});
+
+/** Returns the authoritative primary workspace selection for a chatroom. */
+export const getPrimaryWorkspaceForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return getPrimaryWorkspaceView(ctx, chatroom._id);
+  },
+});
+
+/** Persists the workspace selected in the chatroom workspace picker. */
+export const setPrimaryWorkspaceForChatroom = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workspaceId: v.id('chatroom_workspaces'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
+    if (!workspace || workspace.chatroomId !== chatroom._id || workspace.removedAt !== undefined) {
+      throw new Error('Workspace is not active in this chatroom');
+    }
+
+    const existing = await ctx.db
+      .query('chatroom_primaryWorkspaces')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+      .first();
+    const selection = {
       chatroomId: chatroom._id,
-    });
-    return workspaces.slice().sort((a, b) => b.registeredAt - a.registeredAt)[0] ?? null;
+      workspaceId: workspace._id,
+      updatedAt: Date.now(),
+    };
+
+    if (existing) {
+      await ctx.db.patch('chatroom_primaryWorkspaces', existing._id, selection);
+      return existing._id;
+    }
+    return ctx.db.insert('chatroom_primaryWorkspaces', selection);
   },
 });
 

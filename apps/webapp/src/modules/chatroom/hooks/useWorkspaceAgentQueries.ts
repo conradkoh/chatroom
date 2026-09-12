@@ -6,6 +6,7 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { useMemo } from 'react';
 
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
+import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
 import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
 
 export interface WorkspaceAgentRole {
@@ -40,18 +41,6 @@ export interface WorkspaceAgentConfig {
   workingDir: string | null;
   desiredState: 'running' | 'stopped' | null;
   updatedAt: number;
-}
-
-/** Low-frequency workspace selection query. */
-function useActiveWorkspaceForChatroom(chatroomId: string) {
-  const result = useSessionQuery(api.workspaces.getActiveWorkspaceForChatroom, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
-
-  return {
-    workspace: result ?? null,
-    isLoading: result === undefined,
-  };
 }
 
 /** Low-frequency agent directory query for one workspace. */
@@ -104,12 +93,14 @@ export function useWorkspaceAgentConfig(workspaceId: string | null, role: string
 }
 
 /** Composes only the low-frequency active-workspace and agent-directory queries. */
-export function useWorkspaceAgentDirectory(chatroomId: string) {
-  const { workspace, isLoading: isLoadingWorkspace } = useActiveWorkspaceForChatroom(chatroomId);
-  const { agents, isLoading: isLoadingAgents } = useWorkspaceAgents(workspace?._id ?? null);
+export function useWorkspaceAgentDirectory() {
+  const { activeWorkspace, isLoading: isLoadingWorkspace } = useChatroomWorkspace();
+  const { agents, isLoading: isLoadingAgents } = useWorkspaceAgents(
+    activeWorkspace?._registryId ?? null
+  );
 
   return {
-    workspace,
+    workspace: activeWorkspace,
     agents,
     isLoading: isLoadingWorkspace || isLoadingAgents,
   };

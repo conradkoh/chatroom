@@ -27,7 +27,7 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   onClose,
   chatroomId,
 }: UnifiedAgentListModalProps) {
-  const { agents } = useWorkspaceAgentDirectory(chatroomId);
+  const { agents } = useWorkspaceAgentDirectory();
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">

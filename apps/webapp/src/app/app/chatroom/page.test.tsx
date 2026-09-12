@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatroomPageClient } from './ChatroomPageClient';
 
 import type * as ChatroomModule from '@/modules/chatroom';
+import { ChatroomWorkspaceProvider } from '@/modules/chatroom/context/ChatroomWorkspaceContext';
+
 
 const mockUseSessionQuery = vi.fn();
 const CHATROOM_ID = 'n576raxak4gfqyr503d22dmf718a9p4w';
@@ -33,7 +35,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
   useSessionQuery: (query: unknown, args: unknown) => {
     mockUseSessionQuery(query, args);
-    if (query === 'workspaces:getActiveWorkspaceForChatroom') {
+    if (query === 'workspaces:getPrimaryWorkspaceForChatroom') {
       return {
         _id: 'r1',
         machineId: 'machine-a',
@@ -124,7 +126,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
     },
     workspaces: {
-      getActiveWorkspaceForChatroom: 'workspaces:getActiveWorkspaceForChatroom',
+      getPrimaryWorkspaceForChatroom: 'workspaces:getPrimaryWorkspaceForChatroom',
+      setPrimaryWorkspaceForChatroom: 'workspaces:setPrimaryWorkspaceForChatroom',
     },
   },
 }));
@@ -237,14 +240,16 @@ vi.mock('@/modules/chatroom', async (importOriginal) => {
   return {
     ...actual,
     ChatroomDashboard: ({ chatroomId }: { chatroomId: string }) => (
-      <AgentSettingsModal
-        isOpen
-        onClose={() => undefined}
-        chatroomId={chatroomId}
-        currentTeamId="duo"
-        currentTeamRoles={['planner']}
-        initialTab="agents"
-      />
+      <ChatroomWorkspaceProvider chatroomId={chatroomId as never}>
+        <AgentSettingsModal
+          isOpen
+          onClose={() => undefined}
+          chatroomId={chatroomId}
+          currentTeamId="duo"
+          currentTeamRoles={['planner']}
+          initialTab="agents"
+        />
+      </ChatroomWorkspaceProvider>
     ),
   };
 });
@@ -272,9 +277,12 @@ describe('Chatroom page agents settings', () => {
     render(<ChatroomPageClient />);
 
     await waitFor(() => {
-      expect(mockUseSessionQuery).toHaveBeenCalledWith('workspaces:getActiveWorkspaceForChatroom', {
-        chatroomId: CHATROOM_ID,
-      });
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'workspaces:getPrimaryWorkspaceForChatroom',
+        {
+          chatroomId: CHATROOM_ID,
+        }
+      );
       expect(mockUseSessionQuery).toHaveBeenCalledWith('agentWorkspaces:listAgentsForWorkspace', {
         workspaceId: 'r1',
       });

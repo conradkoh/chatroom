@@ -26,11 +26,7 @@ export const WorkspaceInlineAgentListPanel = memo(function WorkspaceInlineAgentL
   variant = 'plain',
   emptyClassName,
 }: WorkspaceInlineAgentListPanelProps) {
-  const {
-    workspace,
-    agents,
-    isLoading: isLoadingDirectory,
-  } = useWorkspaceAgentDirectory(chatroomId);
+  const { workspace, agents, isLoading: isLoadingDirectory } = useWorkspaceAgentDirectory();
   const promptsContext = useContext(PromptsContext);
   const generatePrompt = useCallback(
     (role: string) => promptsContext?.getAgentPrompt(role) ?? '',
@@ -65,7 +61,7 @@ export const WorkspaceInlineAgentListPanel = memo(function WorkspaceInlineAgentL
     );
   }
 
-  if (!workspace) {
+  if (!workspace || !workspace._registryId) {
     return (
       <div
         className={
@@ -94,7 +90,7 @@ export const WorkspaceInlineAgentListPanel = memo(function WorkspaceInlineAgentL
   const list = (
     <WorkspaceInlineAgentCards
       chatroomId={chatroomId}
-      workspaceId={workspace._id}
+      workspaceId={workspace._registryId}
       agents={agents}
       roles={roles}
       generatePrompt={generatePrompt}
