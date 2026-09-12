@@ -17,17 +17,16 @@ export interface PartitionedChatroomListing {
 export function partitionChatroomListing(
   chatrooms: ChatroomWithStatus[]
 ): PartitionedChatroomListing {
-  const completed = chatrooms.filter((c) => c.chatStatus === 'completed');
+  const completed = chatrooms.filter((c) => c.chatroomStatus.state === 'completed');
 
   const active = chatrooms
-    .filter(
-      (c) =>
-        c.chatStatus === 'working' || c.chatStatus === 'active' || c.chatStatus === 'transitioning'
-    )
+    .filter((c) => c.chatroomStatus.state === 'active' || c.chatroomStatus.state === 'attention')
     .sort((a, b) => a._creationTime - b._creationTime);
 
   const activeIds = new Set(active.map((c) => c._id));
-  const remaining = chatrooms.filter((c) => !activeIds.has(c._id) && c.chatStatus !== 'completed');
+  const remaining = chatrooms.filter(
+    (c) => !activeIds.has(c._id) && c.chatroomStatus.state !== 'completed'
+  );
 
   return {
     active,

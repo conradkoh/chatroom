@@ -1,9 +1,14 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatroomSidebar } from './ChatroomSidebar';
+import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { useChatroomListing } from '../context/ChatroomListingContext';
+
+import type { ChatroomRemoteAgentStatus } from '@/domain/entities/chatroom-status';
+import { createChatroomStatus } from '@/domain/entities/chatroom-status';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -102,55 +107,47 @@ vi.mock('../context/ChatroomListingContext', () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-interface TestChatroom {
-  _id: string;
-  _creationTime: number;
-  status: 'active' | 'completed';
-  chatStatus: 'working' | 'active' | 'transitioning' | 'idle' | 'completed';
-  name?: string;
-  teamId?: string;
-  teamName?: string;
-  teamRoles?: string[];
-  agents: { isAlive: boolean; machineId: string; role: string }[];
-  isFavorite: boolean;
-  hasUnread: boolean;
-  hasUnreadHandoff: boolean;
-  remoteAgentStatus: 'running' | 'stopped' | 'none';
-  runningRoles: string[];
-  runningAgentConfigs: { machineId: string; role: string }[];
-  lastActivityAt?: number;
-}
+type TestChatroomOverrides = Partial<Omit<ChatroomWithStatus, 'chatroomStatus'>> & {
+  activityStatus?: ChatroomActivityStatus;
+  remoteAgentStatus?: ChatroomRemoteAgentStatus;
+};
 
-const makeChatroom = (overrides: Partial<TestChatroom> = {}): TestChatroom =>
-  ({
+const makeChatroom = (overrides: TestChatroomOverrides = {}): ChatroomWithStatus => {
+  const chatroomId = overrides._id ?? 'chr-1';
+  const activityStatus = overrides.activityStatus ?? 'active';
+  const remoteAgentStatus = overrides.remoteAgentStatus ?? 'none';
+  const {
+    activityStatus: _activityStatus,
+    remoteAgentStatus: _remoteAgentStatus,
+    ...chatroomOverrides
+  } = overrides;
+
+  return {
     _id: 'chr-1',
     _creationTime: 1_000_000,
     status: 'active',
-    chatStatus: 'active',
     name: 'Test Chat',
     teamId: 'team-1',
     teamName: 'Team',
     teamRoles: ['builder'],
-    agents: [],
     isFavorite: false,
     hasUnread: false,
     hasUnreadHandoff: false,
-    remoteAgentStatus: 'none',
-    runningRoles: [],
-    runningAgentConfigs: [],
     lastActivityAt: 1_000_000,
-    ...overrides,
-  }) as TestChatroom;
+    ...chatroomOverrides,
+    chatroomStatus: createChatroomStatus(chatroomId, activityStatus, remoteAgentStatus),
+  };
+};
 
-const makeCompletedChatroom = (): TestChatroom =>
+const makeCompletedChatroom = (): ChatroomWithStatus =>
   makeChatroom({
     _id: 'chr-2',
-    chatStatus: 'completed',
+    activityStatus: 'completed',
     status: 'completed',
     name: 'Completed Chat',
   });
 
-const renderSidebar = (chatrooms: TestChatroom[]) => {
+const renderSidebar = (chatrooms: ChatroomWithStatus[]) => {
   (useChatroomListing as ReturnType<typeof vi.fn>).mockReturnValue({
     chatrooms,
     isLoading: false,
@@ -339,25 +336,25 @@ describe('ChatroomSidebar', () => {
       makeChatroom({
         _id: 'day',
         name: 'Day Chat',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: startOfYesterday.getTime() + 60_000,
       }),
       makeChatroom({
         _id: 'week',
         name: 'Week Chat',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: now - 2 * dayMs,
       }),
       makeChatroom({
         _id: 'month',
         name: 'Month Chat',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: now - 10 * dayMs,
       }),
       makeChatroom({
         _id: 'older',
         name: 'Older Chat',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: now - 40 * dayMs,
       }),
     ]);
@@ -410,10 +407,20 @@ describe('ChatroomSidebar', () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it('shows stop for a projected active chatroom even when the daemon summary is stopped', () => {
+    renderSidebar([
+      makeChatroom({
+        activityStatus: 'active',
+        remoteAgentStatus: 'stopped',
+      }),
+    ]);
+
+    expect(screen.getByTitle('Stop agents and command runs')).toBeInTheDocument();
+  });
+
   it('confirms then stops agents and command processes separately', async () => {
     const chatroom = makeChatroom({
       remoteAgentStatus: 'running',
-      runningAgentConfigs: [{ machineId: 'machine-1', role: 'builder' }],
     });
     renderSidebar([chatroom]);
 

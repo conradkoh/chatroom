@@ -40,7 +40,7 @@ function ListingProbe() {
     <ul>
       {chatrooms.map((c) => (
         <li key={c._id} data-testid="room">
-          {c._id}:{c.chatStatus}
+          {c._id}:{c.chatroomStatus.activityStatus}
         </li>
       ))}
     </ul>
@@ -75,7 +75,7 @@ describe('ChatroomListingProvider agent/status derivation', () => {
     sessionQueryMocks['machines:listAgentOverview'] = [];
   });
 
-  it('shows working chatStatus from the projected role status', () => {
+  it('shows working activityStatus from the projected role status', () => {
     sessionQueryMocks['machines:listAgentOverview'] = [
       {
         chatroomId: CHATROOM_ID,

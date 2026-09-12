@@ -8,6 +8,7 @@ describe('RemoteAgentQuickActions', () => {
     render(
       <RemoteAgentQuickActions
         hasRunningAgents
+        canStop
         onStart={vi.fn()}
         onStop={vi.fn()}
         onRestart={vi.fn()}
@@ -23,6 +24,7 @@ describe('RemoteAgentQuickActions', () => {
     render(
       <RemoteAgentQuickActions
         hasRunningAgents={false}
+        canStop={false}
         onStart={vi.fn()}
         onStop={vi.fn()}
         onRestart={vi.fn()}
@@ -34,10 +36,26 @@ describe('RemoteAgentQuickActions', () => {
     expect(screen.getByTitle('Restart agents')).toBeDisabled();
   });
 
+  test('enables stop for a stale non-offline read-model status', () => {
+    render(
+      <RemoteAgentQuickActions
+        hasRunningAgents={false}
+        canStop
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        onRestart={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTitle('Stop agents')).not.toBeDisabled();
+    expect(screen.getByTitle('Restart agents')).toBeDisabled();
+  });
+
   test('uses the backend running state even during a restart', () => {
     render(
       <RemoteAgentQuickActions
         hasRunningAgents={false}
+        canStop={false}
         onStart={vi.fn()}
         onStop={vi.fn()}
         onRestart={vi.fn()}
@@ -50,7 +68,7 @@ describe('RemoteAgentQuickActions', () => {
   });
 
   test('renders all three buttons even without handlers (all disabled)', () => {
-    render(<RemoteAgentQuickActions hasRunningAgents={false} />);
+    render(<RemoteAgentQuickActions hasRunningAgents={false} canStop={false} />);
 
     expect(screen.getByTitle('Start agents')).toBeDisabled();
     expect(screen.getByTitle('Stop agents')).toBeDisabled();
@@ -58,14 +76,20 @@ describe('RemoteAgentQuickActions', () => {
   });
 
   test('renders fixed-width container', () => {
-    render(<RemoteAgentQuickActions hasRunningAgents={false} onStart={vi.fn()} />);
+    render(<RemoteAgentQuickActions hasRunningAgents={false} canStop={false} onStart={vi.fn()} />);
 
     expect(screen.getByTestId('remote-agent-quick-actions')).toHaveClass('w-[4.5rem]');
   });
 
   test('disabled prop disables all buttons when running', () => {
     render(
-      <RemoteAgentQuickActions hasRunningAgents onStop={vi.fn()} onRestart={vi.fn()} disabled />
+      <RemoteAgentQuickActions
+        hasRunningAgents
+        canStop
+        onStop={vi.fn()}
+        onRestart={vi.fn()}
+        disabled
+      />
     );
 
     expect(screen.getByTitle('Start agents')).toBeDisabled();
@@ -74,7 +98,14 @@ describe('RemoteAgentQuickActions', () => {
   });
 
   test('disabled prop disables start when stopped', () => {
-    render(<RemoteAgentQuickActions hasRunningAgents={false} onStart={vi.fn()} disabled />);
+    render(
+      <RemoteAgentQuickActions
+        hasRunningAgents={false}
+        canStop={false}
+        onStart={vi.fn()}
+        disabled
+      />
+    );
 
     expect(screen.getByTitle('Start agents')).toBeDisabled();
   });
@@ -83,6 +114,7 @@ describe('RemoteAgentQuickActions', () => {
     render(
       <RemoteAgentQuickActions
         hasRunningAgents
+        canStop
         isStopping
         onStart={vi.fn()}
         onStop={vi.fn()}
@@ -103,6 +135,7 @@ describe('RemoteAgentQuickActions', () => {
     const { rerender } = render(
       <RemoteAgentQuickActions
         hasRunningAgents
+        canStop
         onStart={onStart}
         onStop={onStop}
         onRestart={onRestart}
@@ -118,6 +151,7 @@ describe('RemoteAgentQuickActions', () => {
     rerender(
       <RemoteAgentQuickActions
         hasRunningAgents={false}
+        canStop={false}
         onStart={onStart}
         onStop={onStop}
         onRestart={onRestart}

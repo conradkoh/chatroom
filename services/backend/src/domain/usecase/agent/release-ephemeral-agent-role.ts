@@ -6,6 +6,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
+import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
 /** Clear ephemeral role presence after on-demand work finishes without a tracked PID. */
 // fallow-ignore-next-line complexity
@@ -33,10 +34,7 @@ export async function releaseEphemeralAgentRole(
     }
   }
 
-  const participant = await ctx.db
-    .query('chatroom_participants')
-    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
-    .first();
+  const participant = await getParticipantForChatroomRole(ctx, args.chatroomId, role);
 
   if (participant) {
     await ctx.db.patch('chatroom_participants', participant._id, {

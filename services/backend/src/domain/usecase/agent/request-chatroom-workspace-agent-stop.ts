@@ -1,12 +1,13 @@
+import { listTeamAgentConfigsForChatroom } from './list-team-agent-configs-for-chatroom';
 import { shutdownChatroomTeam } from './shutdown-chatroom-team';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 
 function newOperationId(chatroomId: Id<'chatroom_rooms'>): string {
   return `${chatroomId}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
+// fallow-ignore-next-line complexity
 export async function requestChatroomWorkspaceAgentStop(
   ctx: MutationCtx,
   args: { chatroomId: Id<'chatroom_rooms'>; finalizeChatroom?: boolean }
@@ -14,11 +15,8 @@ export async function requestChatroomWorkspaceAgentStop(
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
   if (!room) return { commandIds: [] };
 
-  const [allConfigs, participants, enhancerJobs] = await Promise.all([
-    ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect(),
+  const [configs, participants, enhancerJobs] = await Promise.all([
+    listTeamAgentConfigsForChatroom(ctx, args.chatroomId),
     ctx.db
       .query('chatroom_participants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -30,16 +28,20 @@ export async function requestChatroomWorkspaceAgentStop(
       )
       .collect(),
   ]);
-  const configs = filterTeamAgentConfigsForTeam(allConfigs, args.chatroomId, room.teamId);
   const machineIds = new Set<string>();
   for (const config of configs) if (config.machineId) machineIds.add(config.machineId);
   for (const participant of participants)
     if (participant.machineId) machineIds.add(participant.machineId);
   for (const job of enhancerJobs) if (job.machineId) machineIds.add(job.machineId);
 
+  // A user stop is also a read-model reset. Do this at request time so stale
+  // WAITING/STARTING/ERROR rows cannot keep the UI active while a daemon is
+  // offline or still draining its stop command. Daemon completion repeats the
+  // same idempotent convergence after physical shutdown.
+  if (args.finalizeChatroom !== false)
+    await shutdownChatroomTeam(ctx, { chatroomId: args.chatroomId });
+
   if (machineIds.size === 0) {
-    if (args.finalizeChatroom !== false)
-      await shutdownChatroomTeam(ctx, { chatroomId: args.chatroomId });
     return { commandIds: [] };
   }
 

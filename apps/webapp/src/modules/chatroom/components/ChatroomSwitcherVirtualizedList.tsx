@@ -12,7 +12,7 @@ import { getChatroomSwitcherKeywords } from './chatroomSwitcherRows';
 import { VirtualizedScrollList } from './virtual-list';
 
 import { CommandItem } from '@/components/ui/command';
-import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStatusDisplay';
+import { getChatroomActivityIndicatorClasses } from '@/modules/chatroom/utils/activityStatusDisplay';
 import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
 
 const LIST_HEIGHT = 244;
@@ -57,7 +57,9 @@ export function ChatroomSwitcherVirtualizedList({
           className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary box-border overflow-hidden"
           style={{ height: CHATROOM_SWITCHER_ITEM_ROW_HEIGHT }}
         >
-          <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
+          <span
+            className={getChatroomActivityIndicatorClasses(chatroom.chatroomStatus.activityStatus)}
+          />
           <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
             {getChatroomDisplayName(chatroom)}
           </span>

@@ -80,8 +80,8 @@ import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { useAgentStop } from './hooks/useAgentStop';
-import { useChatroomActivityStatus } from './hooks/useChatroomActivityStatus';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
+import { useChatroomStatus } from './hooks/useChatroomStatus';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
@@ -1146,7 +1146,7 @@ function ChatroomDashboardContent({
     );
   }, [teamRoles, agentPanelData.statusReadModel]);
 
-  const chatStatus = useChatroomActivityStatus(chatroomId);
+  const { status: chatroomStatus } = useChatroomStatus(chatroomId);
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
@@ -1488,8 +1488,8 @@ function ChatroomDashboardContent({
   const isAnyAgentRestartInProgress = isRestartingAllAgents || restartingAgentRole !== null;
 
   const hasRunningRemoteAgents = useMemo(
-    () => agentPanelData.remoteAgentStatus === 'running',
-    [agentPanelData.remoteAgentStatus]
+    () => chatroomStatus?.remoteAgentStatus === 'running',
+    [chatroomStatus?.remoteAgentStatus]
   );
 
   useEffect(() => {
@@ -1761,7 +1761,7 @@ function ChatroomDashboardContent({
           <ChatroomHeaderCenter
             displayName={displayName}
             chatroomId={chatroomId}
-            chatStatus={chatStatus}
+            activityStatus={chatroomStatus?.activityStatus ?? 'idle'}
             isDesktop={isSmallScreen === false}
             onOpenSettings={handleOpenSettings}
             onSwitchChatrooms={handleOpenChatroomSwitcher}
@@ -1802,7 +1802,7 @@ function ChatroomDashboardContent({
     onBack,
     focusModeEnabled,
     sidebarVisible,
-    chatStatus,
+    chatroomStatus,
     focusModeActive,
     setHeaderContent,
     clearHeaderContent,
@@ -2075,12 +2075,13 @@ function ChatroomDashboardContent({
                         agentConfigs={agentPanelData.machineConfigs}
                         onOpenAgents={handleOpenAgents}
                         hasRunningRemoteAgents={hasRunningRemoteAgents}
+                        canStopRemoteAgents={chatroomStatus?.canStop ?? false}
                         onStartAllRemoteAgents={handleStartAllRemoteAgents}
                         onStopAllRemoteAgents={handleStopAllRemoteAgents}
                         onRestartAllRemoteAgents={handleRestartAllRemoteAgents}
                         isStoppingAgents={isStoppingAgents}
                         isStartingAllAgents={
-                          isStartingAllAgents || agentPanelData.remoteAgentStatus === undefined
+                          isStartingAllAgents || chatroomStatus?.remoteAgentStatus === undefined
                         }
                       />
                       <WorkQueue

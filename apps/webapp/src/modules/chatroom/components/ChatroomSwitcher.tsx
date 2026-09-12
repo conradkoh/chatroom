@@ -28,8 +28,8 @@ import {
   subscribeActiveContextManagedDialog,
 } from '@/modules/chatroom/context/contextManagedDialogsController';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
-import { requestComposerFocusAfterNavigation } from '@/modules/chatroom/utils/pendingComposerFocus';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
+import { requestComposerFocusAfterNavigation } from '@/modules/chatroom/utils/pendingComposerFocus';
 import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
 
 /**
@@ -70,7 +70,9 @@ export function ChatroomSwitcher() {
   const { chatrooms } = useChatroomListing();
   const switcherChatrooms = useMemo(() => {
     if (!chatrooms) return undefined;
-    const activeChatrooms = chatrooms.filter((chatroom) => chatroom.chatStatus !== 'completed');
+    const activeChatrooms = chatrooms.filter(
+      (chatroom) => chatroom.chatroomStatus.state !== 'completed'
+    );
     return sortChatroomsWithCurrentFirst(activeChatrooms, activeChatroomId);
   }, [chatrooms, activeChatroomId]);
 

@@ -23,7 +23,7 @@ import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { useAgentStop } from '../hooks/useAgentStop';
-import { getChatStatusIndicatorClasses } from '../utils/chatStatusDisplay';
+import { getChatroomStateIndicatorClasses } from '../utils/activityStatusDisplay';
 import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
@@ -115,12 +115,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     }
   }, [chatroom.hasUnread, chatroom._id, markAsRead, markAsUnread]);
 
-  const isCompleted = chatroom.chatStatus === 'completed' || chatroom.status === 'completed';
+  const { chatroomStatus } = chatroom;
+  const isCompleted = chatroomStatus.state === 'completed' || chatroom.status === 'completed';
 
   const showStartButton =
     chatroom.status !== 'completed' &&
     chatroom.teamId &&
-    (chatroom.remoteAgentStatus === 'stopped' || chatroom.remoteAgentStatus === 'none');
+    (chatroomStatus.remoteAgentStatus === 'stopped' || chatroomStatus.remoteAgentStatus === 'none');
 
   return (
     <>
@@ -141,7 +142,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           }
         >
           {/* Status indicator - square per theme guidelines */}
-          <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
+          <span className={getChatroomStateIndicatorClasses(chatroomStatus.state)} />
 
           {/* Name + inline unread */}
           <span className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
@@ -159,7 +160,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           )}
 
           {/* Remote agent stop button */}
-          {chatroom.remoteAgentStatus === 'running' && (
+          {chatroomStatus.canStop && (
             <button
               onClick={handleStop}
               title="Stop agents and command runs"
@@ -281,7 +282,7 @@ function SidebarSectionHeader({
  * Designed for desktop use within the chatroom view to allow quick switching.
  *
  * Sections:
- * - Active: Chatrooms with chatStatus 'working', 'active', or 'transitioning' (agents online)
+ * - Active: Chatrooms with state 'active' or 'attention' (projected activity)
  * - Last Day / Last Week / Last Month / Older: Non-active chatrooms grouped by last activity
  * - Completed: Collapsible section for completed chatrooms
  *

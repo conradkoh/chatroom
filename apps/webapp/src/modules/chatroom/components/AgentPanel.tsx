@@ -38,6 +38,7 @@ interface AgentPanelProps {
   /** Called when user clicks an agent row — opens settings to agents tab */
   onOpenAgents: (() => void) | undefined;
   hasRunningRemoteAgents: boolean;
+  canStopRemoteAgents: boolean;
   onStartAllRemoteAgents: (() => void) | undefined;
   onStopAllRemoteAgents: (() => void) | undefined;
   onRestartAllRemoteAgents: (() => void) | undefined;
@@ -165,6 +166,7 @@ export const AgentPanel = memo(function AgentPanel({
   agentConfigs,
   onOpenAgents,
   hasRunningRemoteAgents,
+  canStopRemoteAgents,
   onStartAllRemoteAgents,
   onStopAllRemoteAgents,
   onRestartAllRemoteAgents,
@@ -275,6 +277,7 @@ export const AgentPanel = memo(function AgentPanel({
           </div>
           <RemoteAgentQuickActions
             hasRunningAgents={hasRunningRemoteAgents}
+            canStop={canStopRemoteAgents}
             isStopping={isStoppingAgents}
             onStart={onStartAllRemoteAgents}
             onStop={onStopAllRemoteAgents}

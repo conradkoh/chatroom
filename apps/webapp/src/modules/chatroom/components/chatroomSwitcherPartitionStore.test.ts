@@ -11,6 +11,7 @@ import {
   resetChatroomSwitcherPartitionRegistryForTests,
 } from './chatroomSwitcherPartitionStore';
 
+import { createChatroomStatus } from '@/domain/entities/chatroom-status';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
 
 const sampleChatrooms = [
@@ -18,7 +19,7 @@ const sampleChatrooms = [
     _id: 'room-1',
     name: 'Alpha',
     teamName: 'Team A',
-    chatStatus: 'active',
+    chatroomStatus: createChatroomStatus('room-1', 'active', 'none'),
     isFavorite: false,
     hasUnread: false,
   },

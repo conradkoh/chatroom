@@ -51,6 +51,7 @@ const panelProps = {
   agentConfigs: [],
   onOpenAgents: undefined,
   hasRunningRemoteAgents: false,
+  canStopRemoteAgents: false,
   onStartAllRemoteAgents: undefined,
   onStopAllRemoteAgents: undefined,
   onRestartAllRemoteAgents: undefined,

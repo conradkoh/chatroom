@@ -1,11 +1,13 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import { deriveChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import type { ChatroomStatus } from '@workspace/shared/domain/chatroom-status';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
+
+import { createChatroomStatus } from '../../../domain/entities/chatroom-status';
+import type { ChatroomStatus as ChatroomStatusEntity } from '../../../domain/entities/chatroom-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -19,13 +21,10 @@ export interface ChatroomWithStatus {
   teamRoles?: string[];
   teamEntryPoint?: string;
   lastActivityAt?: number;
-  chatStatus: ChatroomActivityStatus;
+  chatroomStatus: ChatroomStatusEntity;
   isFavorite: boolean;
   hasUnread: boolean;
   hasUnreadHandoff: boolean;
-  remoteAgentStatus: 'running' | 'stopped' | 'none';
-  runningRoles: string[];
-  runningAgentConfigs: { machineId: string; role: string }[];
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -95,30 +94,23 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     }
 
     return baseChatrooms.map((chatroom) => {
-      const chatStatus = deriveChatroomActivityStatus(
+      const activityStatus = deriveChatroomActivityStatus(
         chatroom.status,
         agentActivityStatusMap.get(chatroom._id) ?? []
       );
+      const remoteAgentStatus = (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as
+        'running' | 'stopped' | 'none';
+      const chatroomStatus = createChatroomStatus(chatroom._id, activityStatus, remoteAgentStatus);
 
       return {
         ...chatroom,
-        chatStatus,
+        chatroomStatus,
         isFavorite: favoriteSet.has(chatroom._id),
         hasUnread: unreadMap.get(chatroom._id) ?? false,
         hasUnreadHandoff: unreadHandoffMap.get(chatroom._id) ?? false,
-        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as
-          'running' | 'stopped' | 'none',
-        runningRoles: remoteAgentStatusMap.get(chatroom._id)?.runningRoles ?? [],
-        runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningAgents ?? [],
-      } as ChatroomWithStatus;
+      };
     });
-  }, [
-    baseChatrooms,
-    favoriteIds,
-    unreadStatus,
-    remoteAgentStatusData,
-    agentActivityStatusData,
-  ]);
+  }, [baseChatrooms, favoriteIds, unreadStatus, remoteAgentStatusData, agentActivityStatusData]);
 
   const value = useMemo(
     () => ({
