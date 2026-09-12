@@ -1,4 +1,5 @@
 // fallow-ignore-file code-duplication complexity
+import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
 import {
@@ -14,7 +15,9 @@ import {
 } from '../services/service-interfaces.js';
 import { createAgentTaskStateService } from '../services/service-interfaces.js';
 
-export const startTaskInboxEffect = (): Effect.Effect<
+export const startTaskInboxEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<
   { stop: () => void; nativeDelivery: AgentWorkManager },
   never,
   | DaemonSessionService
@@ -60,7 +63,7 @@ export const startTaskInboxEffect = (): Effect.Effect<
       lifecycleOutbox,
       taskService: session.taskService,
     });
-    yield* Effect.tryPromise(() => session.taskService.startTaskInbox()).pipe(
+    yield* Effect.tryPromise(() => session.taskService.startTaskInbox(wsClient)).pipe(
       Effect.catchAll((error) => {
         console.warn('[TaskService] task inbox bootstrap failed:', error);
         return Effect.void;

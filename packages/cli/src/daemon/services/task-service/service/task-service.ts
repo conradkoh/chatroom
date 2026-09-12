@@ -2,8 +2,11 @@
 
 import type { WorkspaceTaskInboxEventStatus } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { WorkspaceTaskInboxEventType } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
+import type { ConvexClient } from 'convex/browser';
+import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
+import { api } from '../../../../api.js';
 import type {
   TaskAssigneeType,
   AssignedTask,
@@ -13,7 +16,10 @@ import {
   TaskInboxState,
   type TaskInboxStateReader,
 } from '../../../infrastructure/inbox/task-inbox-state.js';
-import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
+import {
+  mapPendingTaskInboxRows,
+  createConvexNativeTaskDeliveryGateway,
+} from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 
 interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
@@ -67,7 +73,7 @@ export type TaskServiceListener = (notification: TaskServiceNotification) => Pro
 
 export interface TaskService {
   /** Loads the initial task inbox state. */
-  startTaskInbox(): Promise<void>;
+  startTaskInbox(wsClient?: ConvexClient): Promise<void>;
   subscribe(listener: TaskServiceListener): () => void;
   stopTaskInbox(): void;
   listPendingTaskInboxEvents(): Promise<readonly WorkspaceTaskInboxEvent[]>;
@@ -101,8 +107,14 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const taskInboxState = new TaskInboxState();
   const listeners = new Set<TaskServiceListener>();
-  let inboxPollTimer: ReturnType<typeof setInterval> | undefined;
-  let inboxPollInFlight = false;
+  let stopInboxWatch: (() => void) | undefined;
+  let inboxStopped = false;
+  const pendingEvents = new Map<string, WorkspaceTaskInboxEvent>();
+  const scheduledEventIds = new Set<string>();
+  const deliveredEventIds = new Set<string>();
+  const deliveryRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const acknowledgementRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const taskChains = new Map<string, Promise<void>>();
 
   const notify = async (notification: TaskServiceNotification): Promise<void> => {
     await Promise.all([...listeners].map((listener) => Promise.resolve(listener(notification))));
@@ -136,43 +148,138 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     return true;
   };
 
-  const pollTaskInbox = async (): Promise<void> => {
-    if (inboxPollInFlight) return;
-    inboxPollInFlight = true;
+  const taskKey = (event: WorkspaceTaskInboxEvent): string =>
+    `${event.chatroomId}:${event.role.toLowerCase()}:${event.taskId}`;
+
+  const retryDelivery = (eventId: string): void => {
+    if (inboxStopped || deliveryRetryTimers.has(eventId) || !pendingEvents.has(eventId)) return;
+    const timer = setTimeout(() => {
+      deliveryRetryTimers.delete(eventId);
+      const event = pendingEvents.get(eventId);
+      if (event) scheduleEvent(event);
+    }, 1_000);
+    deliveryRetryTimers.set(eventId, timer);
+    timer.unref?.();
+  };
+
+  const retryAcknowledgement = (eventId: string): void => {
+    if (inboxStopped || acknowledgementRetryTimers.has(eventId) || !pendingEvents.has(eventId)) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      acknowledgementRetryTimers.delete(eventId);
+      const event = pendingEvents.get(eventId);
+      if (event) void acknowledgeEvent(event);
+    }, 1_000);
+    acknowledgementRetryTimers.set(eventId, timer);
+    timer.unref?.();
+  };
+
+  const acknowledgeEvent = async (event: WorkspaceTaskInboxEvent): Promise<void> => {
     try {
-      const events = await gateway.listPendingTaskInboxEvents({
+      await gateway.markTaskInboxEventProcessed({
         sessionId: deps.sessionId,
         machineId: deps.machineId,
+        eventId: event.eventId,
       });
-      for (const event of events) {
-        if (!applyInboxEvent(event)) continue;
-        await notify({ kind: 'inbox-event', event });
-        await gateway.markTaskInboxEventProcessed({
-          sessionId: deps.sessionId,
-          machineId: deps.machineId,
-          eventId: event.eventId,
-        });
-      }
     } catch (error) {
-      console.warn('[TaskService] task inbox poll failed:', error);
-    } finally {
-      inboxPollInFlight = false;
+      console.warn('[TaskService] task inbox acknowledgement failed:', error);
+      retryAcknowledgement(event.eventId);
     }
   };
 
+  const scheduleEvent = (event: WorkspaceTaskInboxEvent): Promise<void> => {
+    if (
+      inboxStopped ||
+      deliveredEventIds.has(event.eventId) ||
+      scheduledEventIds.has(event.eventId)
+    ) {
+      return Promise.resolve();
+    }
+
+    scheduledEventIds.add(event.eventId);
+    const previous = taskChains.get(taskKey(event)) ?? Promise.resolve();
+    const current = previous
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          if (!applyInboxEvent(event)) return;
+          await notify({ kind: 'inbox-event', event });
+          deliveredEventIds.add(event.eventId);
+        } catch (error) {
+          console.warn('[TaskService] task inbox delivery failed:', error);
+          retryDelivery(event.eventId);
+          return;
+        } finally {
+          scheduledEventIds.delete(event.eventId);
+        }
+        await acknowledgeEvent(event);
+      });
+    taskChains.set(taskKey(event), current);
+    void current.finally(() => {
+      if (taskChains.get(taskKey(event)) === current) taskChains.delete(taskKey(event));
+    });
+    return current;
+  };
+
+  const reconcilePendingEvents = (events: readonly WorkspaceTaskInboxEvent[]): Promise<void> => {
+    const nextIds = new Set(events.map((event) => event.eventId));
+    for (const eventId of pendingEvents.keys()) {
+      if (!nextIds.has(eventId)) {
+        pendingEvents.delete(eventId);
+        deliveredEventIds.delete(eventId);
+        const deliveryTimer = deliveryRetryTimers.get(eventId);
+        if (deliveryTimer) clearTimeout(deliveryTimer);
+        deliveryRetryTimers.delete(eventId);
+        const acknowledgementTimer = acknowledgementRetryTimers.get(eventId);
+        if (acknowledgementTimer) clearTimeout(acknowledgementTimer);
+        acknowledgementRetryTimers.delete(eventId);
+      }
+    }
+    return Promise.all(
+      events.map((event) => {
+        pendingEvents.set(event.eventId, event);
+        return scheduleEvent(event);
+      })
+    ).then(() => undefined);
+  };
+
   const service: TaskService = {
-    startTaskInbox: async () => {
-      await pollTaskInbox();
-      inboxPollTimer ??= setInterval(() => void pollTaskInbox(), 1_000);
-      inboxPollTimer.unref?.();
+    startTaskInbox: async (wsClient) => {
+      inboxStopped = false;
+      if (wsClient && !stopInboxWatch) {
+        stopInboxWatch = wsClient.onUpdate(
+          api.chatroomWorkspaceTaskInbox.listPending,
+          { sessionId: deps.sessionId as SessionId, machineId: deps.machineId },
+          (rows) => {
+            void reconcilePendingEvents(mapPendingTaskInboxRows(rows));
+          },
+          (error) => console.warn(`[daemon] task-inbox watch error: ${String(error)}`)
+        );
+      } else if (!wsClient) {
+        const events = await gateway.listPendingTaskInboxEvents({
+          sessionId: deps.sessionId,
+          machineId: deps.machineId,
+        });
+        await reconcilePendingEvents(events);
+      }
     },
     subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     stopTaskInbox: () => {
-      if (inboxPollTimer) clearInterval(inboxPollTimer);
-      inboxPollTimer = undefined;
+      inboxStopped = true;
+      stopInboxWatch?.();
+      stopInboxWatch = undefined;
+      pendingEvents.clear();
+      scheduledEventIds.clear();
+      deliveredEventIds.clear();
+      for (const timer of deliveryRetryTimers.values()) clearTimeout(timer);
+      deliveryRetryTimers.clear();
+      for (const timer of acknowledgementRetryTimers.values()) clearTimeout(timer);
+      acknowledgementRetryTimers.clear();
+      taskChains.clear();
     },
     listPendingTaskInboxEvents: () =>
       gateway.listPendingTaskInboxEvents({
