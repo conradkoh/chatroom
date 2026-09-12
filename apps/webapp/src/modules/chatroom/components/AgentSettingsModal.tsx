@@ -35,7 +35,7 @@ import { ChatroomDestructiveTextButton } from './ui/ChatroomDestructiveTextButto
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
 import { useClearWorkspaceFileTree } from '../workspace/hooks/useClearWorkspaceFileTree';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -539,21 +539,30 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
 // ─── Agents Content ─────────────────────────────────────────────────
 
 /**
- * Workspaces tab — lists all registered workspaces and allows deletion.
+ * Workspaces tab — lists all registered workspaces, selects the active workspace, and allows deletion.
  * Deletion is disabled for workspaces that have active remote agents.
  */
-const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chatroomId: string }) {
+const WorkspacesContent = memo(function WorkspacesContent() {
   const { machineConfigs } = useAgentPanelData();
-
-  // Pass agentViews so workspaces are enriched with their agent roles
-  const agentViews = useMemo(
-    () => machineConfigs.map((c) => ({ role: c.role, workingDir: c.workingDir })),
-    [machineConfigs]
+  const {
+    workspaces: registeredWorkspaces,
+    activeWorkspace,
+    isLoading,
+    removeWorkspace,
+    setPrimaryWorkspace,
+  } = useChatroomWorkspace();
+  const workspaces = useMemo(
+    () =>
+      registeredWorkspaces.map((workspace) => ({
+        ...workspace,
+        agentRoles: machineConfigs
+          .filter((config) => config.workingDir === workspace.workingDir)
+          .map((config) => config.role),
+      })),
+    [machineConfigs, registeredWorkspaces]
   );
-  const { workspaces, removeWorkspace, isLoading } = useChatroomWorkspaces(chatroomId, {
-    agentViews,
-  });
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [settingPrimaryId, setSettingPrimaryId] = useState<string | null>(null);
   const purgeFileTreeMutation = useSessionMutation(api.workspaceFiles.purgeFileTreeV2);
   const purgeFileContentMutation = useSessionMutation(api.workspaceFiles.purgeFileContentV2);
   const purgeFullDiffMutation = useSessionMutation(api.workspaces.purgeFullDiffV2);
@@ -576,6 +585,7 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
   }, [machineConfigs]);
 
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [primaryError, setPrimaryError] = useState<string | null>(null);
 
   const handleRemove = useCallback(
     async (registryId: string) => {
@@ -590,6 +600,21 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
       }
     },
     [removeWorkspace]
+  );
+
+  const handleSetPrimary = useCallback(
+    async (registryId: string) => {
+      setSettingPrimaryId(registryId);
+      setPrimaryError(null);
+      try {
+        await setPrimaryWorkspace(registryId);
+      } catch (err) {
+        setPrimaryError(err instanceof Error ? err.message : 'Failed to set active workspace');
+      } finally {
+        setSettingPrimaryId(null);
+      }
+    },
+    [setPrimaryWorkspace]
   );
 
   // Toggle file-tree sync for a single workspace (per registry id). No optimistic
@@ -691,12 +716,17 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
   return (
     <div className="space-y-3 p-1">
       <p className="text-xs text-chatroom-text-muted px-2">
-        Workspaces are registered when machine daemons connect. Remove a workspace to disassociate
-        it from this chatroom.
+        Choose an active workspace for the file explorer, commands, git panels, and workspace-scoped
+        agent views. Remove a workspace to disassociate it from this chatroom.
       </p>
       {removeError && (
         <div className="text-xs text-red-600 dark:text-red-400 px-2 py-1 bg-red-50 dark:bg-red-950/20 rounded">
           {removeError}
+        </div>
+      )}
+      {primaryError && (
+        <div className="text-xs text-red-600 dark:text-red-400 px-2 py-1 bg-red-50 dark:bg-red-950/20 rounded">
+          {primaryError}
         </div>
       )}
       {workspaces.map((ws) => {
@@ -707,6 +737,8 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
           : false;
         const isRemoving = removingId === ws._registryId;
         const canRemove = !hasActiveRemote && !isRemoving && !!registryId;
+        const isActive = Boolean(registryId && activeWorkspace?._registryId === registryId);
+        const isSettingPrimary = settingPrimaryId === registryId;
 
         return (
           <div
@@ -759,6 +791,25 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
                 <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
                   <AlertTriangle size={10} />
                   Active team agents use this workspace
+                </div>
+              )}
+              {registryId && (
+                <div className="mt-2 flex items-center gap-2">
+                  {isActive ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-status-success">
+                      <Check size={11} aria-hidden="true" />
+                      Active workspace
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void handleSetPrimary(registryId)}
+                      disabled={isSettingPrimary}
+                      className="text-[10px] font-bold uppercase tracking-wide text-chatroom-accent hover:text-chatroom-text-primary transition-colors disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      {isSettingPrimary ? 'Setting active…' : 'Set as active'}
+                    </button>
+                  )}
                 </div>
               )}
               {/* Data purge controls */}
@@ -993,7 +1044,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           )}
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
           {activeTab === 'agents' && <AgentsContent chatroomId={chatroomId} />}
-          {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
+          {activeTab === 'workspaces' && <WorkspacesContent />}
           {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
         </FixedModalBody>

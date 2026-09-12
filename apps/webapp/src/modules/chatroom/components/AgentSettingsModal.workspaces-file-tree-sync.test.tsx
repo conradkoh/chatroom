@@ -7,8 +7,10 @@ import type { Workspace } from '../types/workspace';
 
 const mocks = vi.hoisted(() => ({
   useAgentPanelData: vi.fn(),
-  useChatroomWorkspaces: vi.fn(),
+  useChatroomWorkspace: vi.fn(),
   setFileTreeSyncEnabled: vi.fn(),
+  setPrimaryWorkspace: vi.fn(),
+  removeWorkspace: vi.fn(),
   toastError: vi.fn(),
 }));
 
@@ -25,6 +27,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     workspaces: {
       setFileTreeSyncEnabled: 'workspaces.setFileTreeSyncEnabled',
+      setPrimaryWorkspaceForChatroom: 'workspaces.setPrimaryWorkspaceForChatroom',
       removeWorkspace: 'workspaces.removeWorkspace',
       purgeFullDiffV2: 'workspaces.purgeFullDiffV2',
       purgeCommitDetailV2: 'workspaces.purgeCommitDetailV2',
@@ -45,8 +48,8 @@ vi.mock('../hooks/useAgentPanelData', () => ({
   useAgentPanelData: (...args: unknown[]) => mocks.useAgentPanelData(...args),
 }));
 
-vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
-  useChatroomWorkspaces: (...args: unknown[]) => mocks.useChatroomWorkspaces(...args),
+vi.mock('../context/ChatroomWorkspaceContext', () => ({
+  useChatroomWorkspace: (...args: unknown[]) => mocks.useChatroomWorkspace(...args),
 }));
 
 vi.mock('../workspace/hooks/useClearWorkspaceFileTree', () => ({
@@ -132,11 +135,13 @@ function renderModal() {
   );
 }
 
-function mockWorkspaces(workspaces: Workspace[]) {
-  mocks.useChatroomWorkspaces.mockReturnValue({
+function mockWorkspaces(workspaces: Workspace[], activeWorkspace: Workspace | null = null) {
+  mocks.useChatroomWorkspace.mockReturnValue({
     workspaces,
     isLoading: false,
-    removeWorkspace: vi.fn(),
+    activeWorkspace,
+    setPrimaryWorkspace: mocks.setPrimaryWorkspace,
+    removeWorkspace: mocks.removeWorkspace,
   });
 }
 
@@ -144,7 +149,47 @@ describe('AgentSettingsModal workspaces file-tree sync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.setFileTreeSyncEnabled.mockResolvedValue(undefined);
+    mocks.setPrimaryWorkspace.mockResolvedValue(undefined);
+    mocks.removeWorkspace.mockResolvedValue(undefined);
     mocks.useAgentPanelData.mockReturnValue({ machineConfigs: [] });
+  });
+
+  it('marks the active workspace and offers activation for the others', () => {
+    const active = makeWorkspace();
+    mockWorkspaces(
+      [
+        active,
+        makeWorkspace({
+          id: 'm2::/repo-b',
+          _registryId: 'registry-2',
+          hostname: 'host-b',
+          workingDir: '/repo-b',
+        }),
+      ],
+      active
+    );
+
+    renderModal();
+
+    expect(screen.getByText('Active workspace')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set as active' })).toBeInTheDocument();
+  });
+
+  it('sets the selected workspace as active by registry id', async () => {
+    const nextActive = makeWorkspace({
+      id: 'm2::/repo-b',
+      _registryId: 'registry-2',
+      hostname: 'host-b',
+      workingDir: '/repo-b',
+    });
+    mockWorkspaces([makeWorkspace(), nextActive]);
+
+    renderModal();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Set as active' })[1]);
+
+    await waitFor(() => {
+      expect(mocks.setPrimaryWorkspace).toHaveBeenCalledWith('registry-2');
+    });
   });
 
   it('renders the sync switch unchecked when fileTreeSyncEnabled is false', () => {

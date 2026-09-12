@@ -14,6 +14,7 @@ export interface ChatroomWorkspaceContextValue {
   activeWorkspace: Workspace | null;
   isLoading: boolean;
   setPrimaryWorkspace: (workspaceId: string) => Promise<void>;
+  removeWorkspace: (workspaceId: string) => Promise<void>;
 }
 
 const ChatroomWorkspaceContext = createContext<ChatroomWorkspaceContextValue | null>(null);
@@ -32,6 +33,7 @@ export function ChatroomWorkspaceProvider({
   const setPrimaryWorkspaceMutation = useSessionMutation(
     api.workspaces.setPrimaryWorkspaceForChatroom
   );
+  const removeWorkspaceMutation = useSessionMutation(api.workspaces.removeWorkspace);
 
   const activeWorkspace = useMemo(() => {
     if (!primaryResult) return null;
@@ -48,6 +50,15 @@ export function ChatroomWorkspaceProvider({
     [chatroomId, setPrimaryWorkspaceMutation]
   );
 
+  const removeWorkspace = useCallback(
+    async (workspaceId: string) => {
+      await removeWorkspaceMutation({
+        workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+      });
+    },
+    [removeWorkspaceMutation]
+  );
+
   const value = useMemo<ChatroomWorkspaceContextValue>(
     () => ({
       chatroomId,
@@ -55,12 +66,14 @@ export function ChatroomWorkspaceProvider({
       activeWorkspace,
       isLoading: isLoadingWorkspaces || primaryResult === undefined,
       setPrimaryWorkspace,
+      removeWorkspace,
     }),
     [
       activeWorkspace,
       chatroomId,
       isLoadingWorkspaces,
       primaryResult,
+      removeWorkspace,
       setPrimaryWorkspace,
       workspaces,
     ]

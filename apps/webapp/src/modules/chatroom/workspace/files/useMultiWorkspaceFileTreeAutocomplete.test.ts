@@ -1,7 +1,4 @@
-/**
- * Regression: @ autocomplete reads from workspaceFileTreeStore via useMultiWorkspaceFiles,
- * while useMultiWorkspaceFileTrees (producer) must not clear the store on unmount.
- */
+/** Regression: @ autocomplete reads from workspaceFileTreeStore via useMultiWorkspaceFiles. */
 
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

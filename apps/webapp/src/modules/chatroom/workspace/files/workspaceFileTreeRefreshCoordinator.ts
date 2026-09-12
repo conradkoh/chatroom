@@ -4,7 +4,7 @@
  * - Reads: always from workspaceFileTreeStore (SSOT).
  * - Hydration: useWorkspaceFileTree (producer) loads Convex snapshots into store.
  * - Freshness: useWorkspaceFileTreeDeltaSync applies Convex deltas.
- * - Daemon nudge: requestFileTree mutation via refreshWorkspaceFileTree() only.
+ * - Daemon nudge: requestFileTree mutation via requestWorkspaceFileTreeRefresh() only.
  * - Dedup: requestWorkspaceFileTreeRefresh coalesces calls per workspace key (1.5s).
  */
 
@@ -16,23 +16,6 @@ const lastRefreshAtByKey = new Map<string, number>();
 // fallow-ignore-next-line unused-export
 export function __resetWorkspaceFileTreeRefreshCoordinatorForTests(): void {
   lastRefreshAtByKey.clear();
-}
-
-/** Canonical daemon nudge entry point — delegates to dedup coordinator. */
-export function refreshWorkspaceFileTree({
-  workspaceKey,
-  machineId,
-  workingDir,
-  request,
-  force = false,
-}: {
-  workspaceKey: string;
-  machineId: string;
-  workingDir: string;
-  request: WorkspaceFileTreeRefreshRequest;
-  force?: boolean;
-}): void {
-  requestWorkspaceFileTreeRefresh({ workspaceKey, machineId, workingDir, force, request });
 }
 
 export type WorkspaceFileTreeRefreshRequest = (args: {
