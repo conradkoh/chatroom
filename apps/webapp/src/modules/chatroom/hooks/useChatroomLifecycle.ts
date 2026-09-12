@@ -49,11 +49,7 @@ export interface UseChatroomLifecycleReturn {
  */
 export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatroomLifecycleReturn {
   const fileTabs = useFileTabs({ chatroomId: chatroomId as string });
-  const {
-    activeWorkspace,
-    workspaces,
-    isLoading: workspaceLoading,
-  } = useChatroomActiveWorkspace(chatroomId);
+  const { activeWorkspace, workspaces, isLoading: workspaceLoading } = useChatroomActiveWorkspace();
   const [activityView, setActivityView] = useActivityView(chatroomId);
   const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] =
     useExplorerSplitViewEnabled(chatroomId);

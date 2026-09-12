@@ -10,7 +10,6 @@
  * existing machine/path shape used by file and command surfaces.
  */
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useMemo } from 'react';
 
 import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
@@ -36,20 +35,14 @@ export interface ChatroomActiveWorkspace {
 /**
  * Returns the currently-active workspace for a chatroom and the full workspace list.
  *
- * @param chatroomId  The chatroom to look up workspaces for.
- * @param activeWorkspaceIndex Deprecated compatibility argument. Selection is
- *                             now persisted per chatroom by the provider.
+ * The provider supplies the chatroom identity and selection; callers do not
+ * maintain a local index or selection state.
  */
-export function useChatroomActiveWorkspace(
-  chatroomId: Id<'chatroom_rooms'>,
-  activeWorkspaceIndex = 0
-): {
+export function useChatroomActiveWorkspace(): {
   activeWorkspace: ChatroomActiveWorkspace | null;
   workspaces: Workspace[];
   isLoading: boolean;
 } {
-  void chatroomId;
-  void activeWorkspaceIndex;
   const { workspaces, activeWorkspace: selected, isLoading } = useChatroomWorkspace();
 
   // Memoize activeWorkspace to stabilise its reference between renders.

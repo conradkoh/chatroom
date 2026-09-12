@@ -274,25 +274,6 @@ export const listWorkspacesForChatroom = query({
   },
 });
 
-/**
- * Returns the active workspace for a chatroom.
- *
- * This compatibility alias now reads the persisted primary selection. When no
- * selection exists yet, it falls back to the most recently registered active
- * workspace. It intentionally contains no machine/daemon liveness check.
- * @deprecated Use getPrimaryWorkspaceForChatroom for new callers.
- */
-export const getActiveWorkspaceForChatroom = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return getPrimaryWorkspaceView(ctx, chatroom._id);
-  },
-});
-
 /** Returns the authoritative primary workspace selection for a chatroom. */
 export const getPrimaryWorkspaceForChatroom = query({
   args: {

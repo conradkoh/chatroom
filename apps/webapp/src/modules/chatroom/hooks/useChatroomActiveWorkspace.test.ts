@@ -16,8 +16,6 @@ vi.mock('../context/ChatroomWorkspaceContext', () => ({
   }),
 }));
 
-const CHATROOM_ID = 'cr1' as never;
-
 function makeWorkspace(overrides: {
   id?: string;
   machineId?: string | null;
@@ -44,7 +42,7 @@ describe('useChatroomActiveWorkspace', () => {
   it('returns null when no workspaces exist', () => {
     mockWorkspaces.mockReturnValue([]);
     mockActiveWorkspace.mockReturnValue(null);
-    const { result } = renderHook(() => useChatroomActiveWorkspace(CHATROOM_ID));
+    const { result } = renderHook(() => useChatroomActiveWorkspace());
     expect(result.current.activeWorkspace).toBeNull();
     expect(result.current.workspaces).toHaveLength(0);
   });
@@ -53,7 +51,7 @@ describe('useChatroomActiveWorkspace', () => {
     const ws = makeWorkspace({ machineId: 'm1', workingDir: '/code', hostname: 'box' });
     mockWorkspaces.mockReturnValue([ws]);
     mockActiveWorkspace.mockReturnValue(ws);
-    const { result } = renderHook(() => useChatroomActiveWorkspace(CHATROOM_ID));
+    const { result } = renderHook(() => useChatroomActiveWorkspace());
     expect(result.current.activeWorkspace).not.toBeNull();
     expect(result.current.activeWorkspace?.machineId).toBe('m1');
     expect(result.current.activeWorkspace?.workingDir).toBe('/code');
@@ -65,7 +63,7 @@ describe('useChatroomActiveWorkspace', () => {
     const connected = makeWorkspace({ machineId: 'm2', workingDir: '/proj2', hostname: 'srv' });
     mockWorkspaces.mockReturnValue([unassigned, connected]);
     mockActiveWorkspace.mockReturnValue(connected);
-    const { result } = renderHook(() => useChatroomActiveWorkspace(CHATROOM_ID));
+    const { result } = renderHook(() => useChatroomActiveWorkspace());
     expect(result.current.activeWorkspace?.machineId).toBe('m2');
   });
 
@@ -75,7 +73,7 @@ describe('useChatroomActiveWorkspace', () => {
     mockWorkspaces.mockReturnValue([ws0, ws1]);
     mockActiveWorkspace.mockReturnValue(ws1);
 
-    const { result: r0 } = renderHook(() => useChatroomActiveWorkspace(CHATROOM_ID, 0));
+    const { result: r0 } = renderHook(() => useChatroomActiveWorkspace());
     expect(r0.current.activeWorkspace?.machineId).toBe('mB');
   });
 
@@ -83,7 +81,7 @@ describe('useChatroomActiveWorkspace', () => {
     const ws = makeWorkspace({ machineId: 'm1', hostname: 'raw-host', machineAlias: 'My Mac' });
     mockWorkspaces.mockReturnValue([ws]);
     mockActiveWorkspace.mockReturnValue(ws);
-    const { result } = renderHook(() => useChatroomActiveWorkspace(CHATROOM_ID));
+    const { result } = renderHook(() => useChatroomActiveWorkspace());
     expect(result.current.activeWorkspace?.hostname).toBe('My Mac');
   });
 });

@@ -70,7 +70,7 @@ describe('workspace-scoped agent queries', () => {
     expect(primary?._id).toBe(oldWorkspaceId);
     expect(primary?.workingDir).toBe('/workspace/old');
 
-    const result = await t.query(api.workspaces.getActiveWorkspaceForChatroom, {
+    const result = await t.query(api.workspaces.getPrimaryWorkspaceForChatroom, {
       sessionId: sessionId as any,
       chatroomId,
     });
