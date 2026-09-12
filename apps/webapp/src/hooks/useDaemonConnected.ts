@@ -4,8 +4,8 @@
  * Replaces the localhost-based `useLocalDaemon` hook to work around Safari's
  * mixed-content blocking of http://localhost from HTTPS production pages.
  *
- * Uses the existing `daemonConnected` and `lastSeenAt` fields from the
- * `chatroom_machines` table, which are updated by the daemon's liveness heartbeat.
+ * Reads the thin machine status and liveness read models maintained by the
+ * daemon heartbeat and lifecycle events.
  */
 
 'use client';
@@ -25,7 +25,7 @@ export interface UseDaemonConnectedResult {
 /**
  * Staleness threshold in milliseconds.
  * If lastSeenAt is older than this, we consider the daemon disconnected
- * even if `daemonConnected` is true (in case of unclean shutdown).
+ * even if the status model is still online (in case of an unclean shutdown).
  */
 const STALENESS_THRESHOLD_MS = DAEMON_HEARTBEAT_TTL_MS;
 

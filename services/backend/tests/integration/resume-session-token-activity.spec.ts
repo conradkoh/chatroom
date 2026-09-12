@@ -190,10 +190,9 @@ describe('Resume session token activity', () => {
         opencode: [TEST_MODEL_OPENCODE],
       },
     });
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOnline, {
       sessionId,
       machineId,
-      connected: true,
     });
 
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -291,10 +290,9 @@ describe('Resume session token activity', () => {
         opencode: [TEST_MODEL_OPENCODE],
       },
     });
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOnline, {
       sessionId,
       machineId,
-      connected: true,
     });
 
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
@@ -383,10 +381,9 @@ describe('Resume session token activity', () => {
         opencode: [TEST_MODEL_OPENCODE],
       },
     });
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOnline, {
       sessionId,
       machineId,
-      connected: true,
     });
 
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -470,10 +467,9 @@ describe('Resume session token activity', () => {
         opencode: [TEST_MODEL_OPENCODE],
       },
     });
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOnline, {
       sessionId,
       machineId,
-      connected: true,
     });
 
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);

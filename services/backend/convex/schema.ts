@@ -842,7 +842,7 @@ export default defineSchema({
      * @deprecated Read/write chatroom_cliSessionLastUsedAt instead. Retained as
      * an optional migration input until the projection backfill has completed in
      * every environment; remove in a later release only after that rollout gate.
-    */
+     */
     lastUsedAt: v.optional(v.number()),
     /**
      * @deprecated CLI sessions do not expire; retained only for compatibility
@@ -1010,8 +1010,8 @@ export default defineSchema({
      * This is not chatroom_machineLiveness.lastSeenAt.
      */
     lastSeenAt: v.optional(v.number()),
-    // Whether daemon is currently connected (for UI status display)
-    daemonConnected: v.boolean(),
+    /** @deprecated Connectivity is maintained in chatroom_machineStatus and chatroom_machineLiveness. */
+    daemonConnected: v.optional(v.boolean()),
     // Last time the user requested a capabilities refresh for this machine (cooldown)
     lastCapabilitiesRefreshRequestedAt: v.optional(v.number()),
   })
@@ -1045,7 +1045,8 @@ export default defineSchema({
   chatroom_machineLiveness: defineTable({
     machineId: v.string(),
     lastSeenAt: v.number(),
-    daemonConnected: v.boolean(),
+    /** @deprecated Connectivity is represented by chatroom_machineStatus.status. */
+    daemonConnected: v.optional(v.boolean()),
   }).index('by_machineId', ['machineId']),
 
   /**
@@ -1257,6 +1258,7 @@ export default defineSchema({
     ),
     isAlive: v.optional(v.boolean()),
     isRunning: v.optional(v.boolean()),
+    /** @deprecated Connectivity is machine-scoped, not role-projection state. */
     daemonConnected: v.optional(v.boolean()),
     acceptsTasks: v.optional(v.boolean()),
     revisionKey: v.optional(v.string()),

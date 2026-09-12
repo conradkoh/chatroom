@@ -161,10 +161,9 @@ describe('startAgent — harness validation', () => {
       availableHarnesses: [],
       availableModels: {},
     });
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOnline, {
       sessionId,
       machineId,
-      connected: true,
     });
 
     // ===== ACTION + VERIFY =====

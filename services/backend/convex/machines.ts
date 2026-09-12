@@ -36,7 +36,6 @@ import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-co
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
 import {
-  projectDaemonConnectivityForMachine,
   projectAgentOperationalStatusForRole,
   rebuildAgentOperationalStatusForMachine,
 } from '../src/domain/usecase/agent/project-agent-operational-status';
@@ -232,7 +231,6 @@ export const register = mutation({
       ...(args.harnessVersions !== undefined ? { harnessVersions: args.harnessVersions } : {}),
       ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
       registeredAt: now,
-      daemonConnected: false,
     });
     await upsertMachineLastSeenAt(ctx, args.machineId, now);
 
@@ -745,16 +743,6 @@ export const getMachineAgentConfigs = query({
       .collect();
     const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
-    // Read status from materialized machineStatus table
-    const statusMap = new Map<string, { daemonConnected: boolean }>();
-    for (const machine of userMachines) {
-      const machineStatus = await ctx.db
-        .query('chatroom_machineStatus')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
-        .first();
-      statusMap.set(machine.machineId, { daemonConnected: machineStatus?.status === 'online' });
-    }
-
     const allConfigs = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -777,7 +765,6 @@ export const getMachineAgentConfigs = query({
       const machineId = config.machineId;
       if (!machineId) return [];
       const machine = userMachineMap.get(machineId);
-      const status = statusMap.get(machineId);
       return [
         {
           machineId,
@@ -787,7 +774,6 @@ export const getMachineAgentConfigs = query({
           agentType: config.agentHarness,
           workingDir: config.workingDir,
           model: config.model,
-          daemonConnected: status?.daemonConnected ?? false,
           availableHarnesses: machine?.availableHarnesses ?? [],
           updatedAt: config.updatedAt,
           spawnedAgentPid: config.spawnedAgentPid,
@@ -803,74 +789,72 @@ export const getMachineAgentConfigs = query({
 // COMMAND MANAGEMENT
 // ============================================================================
 
-/** Updates daemon connection status (connected or disconnected). */
-export const updateDaemonStatus = mutation({
+/** Marks a daemon online during startup. */
+export const markDaemonOnline = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    connected: v.boolean(),
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    const machine = await getMachineByMachineId(ctx, args.machineId);
-
-    const now = Date.now();
-
-    // TODO: Remove once chatroom_machineStatus is the sole source of truth.
-    // Kept for backward compatibility during migration.
-    await ctx.db.patch('chatroom_machines', machine._id, {
-      daemonConnected: args.connected,
-    });
-    // Last-seen recency is recorded in the dedicated projection below.
-    await upsertMachineLastSeenAt(ctx, args.machineId, now);
-
-    // Also update liveness table
-    const existingLiveness = await ctx.db
-      .query('chatroom_machineLiveness')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (existingLiveness) {
-      await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
-        lastSeenAt: now,
-        daemonConnected: args.connected,
-      });
-    } else {
-      await ctx.db.insert('chatroom_machineLiveness', {
-        machineId: args.machineId,
-        lastSeenAt: now,
-        daemonConnected: args.connected,
-      });
-    }
-
-    // Update materialized machine status — only write on actual transition
-    const desiredStatus: 'online' | 'offline' = args.connected ? 'online' : 'offline';
-    const machineStatus = await ctx.db
-      .query('chatroom_machineStatus')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (!machineStatus) {
-      // No row yet — insert with desired status
-      await ctx.db.insert('chatroom_machineStatus', {
-        machineId: args.machineId,
-        status: desiredStatus,
-        lastTransitionAt: now,
-      });
-    } else if (machineStatus.status !== desiredStatus) {
-      // Actual state transition — write
-      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
-        status: desiredStatus,
-        lastTransitionAt: now,
-      });
-    }
-    // If status matches desired, do NOT write (write suppression)
-
-    await projectDaemonConnectivityForMachine(ctx, args.machineId, args.connected);
-
+    await setDaemonStatus(ctx, args.machineId, 'online');
     return { success: true };
   },
 });
+
+/** Marks a daemon offline during graceful shutdown. */
+export const markDaemonOffline = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    await setDaemonStatus(ctx, args.machineId, 'offline');
+    return { success: true };
+  },
+});
+
+async function setDaemonStatus(
+  ctx: MutationCtx,
+  machineId: string,
+  desiredStatus: 'online' | 'offline'
+): Promise<void> {
+  const now = Date.now();
+  const existingLiveness = await ctx.db
+    .query('chatroom_machineLiveness')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+    .first();
+
+  if (existingLiveness) {
+    await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
+      lastSeenAt: now,
+    });
+  } else {
+    await ctx.db.insert('chatroom_machineLiveness', {
+      machineId,
+      lastSeenAt: now,
+    });
+  }
+
+  const machineStatus = await ctx.db
+    .query('chatroom_machineStatus')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+    .first();
+
+  if (!machineStatus) {
+    await ctx.db.insert('chatroom_machineStatus', {
+      machineId,
+      status: desiredStatus,
+      lastTransitionAt: now,
+    });
+  } else if (machineStatus.status !== desiredStatus) {
+    await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
+      status: desiredStatus,
+      lastTransitionAt: now,
+    });
+  }
+}
 
 async function upsertDaemonLiveness(
   ctx: MutationCtx,
@@ -880,18 +864,15 @@ async function upsertDaemonLiveness(
 ): Promise<void> {
   if (existing) {
     const livenessStale = now - existing.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
-    const needsDaemonConnected = existing.daemonConnected !== true;
-    if (!livenessStale && !needsDaemonConnected) return;
+    if (!livenessStale) return;
     await ctx.db.patch('chatroom_machineLiveness', existing._id, {
       ...(livenessStale ? { lastSeenAt: now } : {}),
-      ...(needsDaemonConnected ? { daemonConnected: true } : {}),
     });
     return;
   }
   await ctx.db.insert('chatroom_machineLiveness', {
     machineId,
     lastSeenAt: now,
-    daemonConnected: true,
   });
 }
 
@@ -925,12 +906,11 @@ function isDaemonHeartbeatNoop(
   const livenessFresh =
     existingLiveness != null &&
     now - existingLiveness.lastSeenAt < DAEMON_LIVENESS_WRITE_INTERVAL_MS;
-  const alreadyOnline =
-    existingLiveness?.daemonConnected === true && machineStatus?.status === 'online';
+  const alreadyOnline = machineStatus?.status === 'online';
   return livenessFresh && alreadyOnline;
 }
 
-/** Updates lastSeenAt for liveness detection; sets daemonConnected to true. */
+/** Updates lastSeenAt for liveness detection and keeps machine status online. */
 export const daemonHeartbeat = mutation({
   args: {
     ...SessionIdArg,

@@ -45,7 +45,6 @@ export interface AgentConfig {
   agentType: AgentHarness;
   workingDir: string;
   model?: string;
-  daemonConnected?: boolean;
   availableHarnesses: AgentHarness[];
   updatedAt: number;
   spawnedAgentPid?: number;

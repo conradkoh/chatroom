@@ -125,10 +125,9 @@ export async function registerMachineWithDaemon(
     availableHarnesses: ['opencode'],
     availableModels: { opencode: [TEST_MODEL_OPENCODE] },
   });
-  await t.mutation(api.machines.updateDaemonStatus, {
+  await t.mutation(api.machines.markDaemonOnline, {
     sessionId,
     machineId,
-    connected: true,
   });
   return { machineId };
 }

@@ -32,14 +32,6 @@ function snapshot(config: Doc<'chatroom_teamAgentConfigs'>, teamId: string): Rol
   };
 }
 
-async function machineConnected(ctx: MutationCtx, machineId: string): Promise<boolean> {
-  const status = await ctx.db
-    .query('chatroom_machineStatus')
-    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-    .first();
-  return status?.status === 'online';
-}
-
 async function summaryFor(ctx: MutationCtx, chatroomId: Id<'chatroom_rooms'>) {
   return ctx.db
     .query('chatroom_agentOperationalSummary')
@@ -135,10 +127,7 @@ export async function projectAgentOperationalStatusForRole(
     !filterTeamAgentConfigsForTeam([config], chatroomId, room.teamId).length
   )
     return;
-  const projection = deriveRoleOperationalState(
-    snapshot(config, room.teamId),
-    await machineConnected(ctx, config.machineId)
-  );
+  const projection = deriveRoleOperationalState(snapshot(config, room.teamId));
   const projectedAt = Date.now();
   const key = revisionKey ?? `operational:${chatroomId}:${projectedAt}`;
   const roleKey = role.toLowerCase();
@@ -153,16 +142,11 @@ export async function projectAgentOperationalStatusForRole(
     operationalState: projection.operationalState,
     isAlive: projection.isAlive,
     isRunning: projection.isRunning,
-    daemonConnected: projection.daemonConnected,
     viewState:
       isEphemeralAgentRole(roleKey) && acceptsTasks && !projection.isAlive
         ? ('idle' as const)
         : opts?.lastStatus != null
-          ? deriveAgentRoleViewState(
-              snapshot(config, room.teamId),
-              projection.daemonConnected,
-              opts.lastStatus
-            )
+          ? deriveAgentRoleViewState(snapshot(config, room.teamId), opts.lastStatus)
           : projection.operationalState,
     acceptsTasks,
     projectedAt,
@@ -177,7 +161,6 @@ export async function projectAgentOperationalStatusForRole(
     existing.operationalState !== fields.operationalState ||
     existing.isAlive !== fields.isAlive ||
     existing.isRunning !== fields.isRunning ||
-    existing.daemonConnected !== fields.daemonConnected ||
     existing.viewState !== fields.viewState ||
     existing.machineId !== fields.machineId ||
     existing.teamId !== fields.teamId ||
@@ -208,94 +191,6 @@ export async function projectAgentOperationalStatusForRole(
   await writeOperationalSummary(ctx, { ...next, chatroomId, ownerId: room.ownerId });
 }
 
-/** HOT PATH: patch connectivity for machine-bound role rows and summaries. */
-export async function projectDaemonConnectivityForMachine(
-  ctx: MutationCtx,
-  machineId: string,
-  daemonConnected: boolean
-): Promise<void> {
-  const configs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-    .collect();
-  const changed = new Map<
-    Id<'chatroom_rooms'>,
-    {
-      role: string;
-      machineId?: string | undefined;
-      isAlive: boolean;
-      isRunning: boolean;
-      daemonConnected: boolean;
-      teamId: string;
-      operationalState: 'running' | 'stopped' | 'starting' | 'circuit_open';
-      viewState: 'running' | 'stopped' | 'starting' | 'circuit_open';
-    }[]
-  >();
-  for (const config of configs) {
-    const room = await ctx.db.get('chatroom_rooms', config.chatroomId);
-    if (
-      !room?.teamId ||
-      !filterTeamAgentConfigsForTeam([config], config.chatroomId, room.teamId).length
-    )
-      continue;
-    const viewState = deriveRoleOperationalState(
-      snapshot(config, room.teamId),
-      daemonConnected
-    ).operationalState;
-    const row = await ctx.db
-      .query('chatroom_agentRoleStatusReadModel')
-      .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', config.chatroomId).eq('role', config.role.toLowerCase())
-      )
-      .first();
-    if (
-      row &&
-      (row.daemonConnected !== daemonConnected ||
-        row.isRunning !== (row.isAlive && daemonConnected) ||
-        row.viewState !== viewState)
-    ) {
-      const projectedAt = Date.now();
-      const revisionKey = `operational:${config.chatroomId}:${projectedAt}`;
-      await ctx.db.patch('chatroom_agentRoleStatusReadModel', row._id, {
-        daemonConnected,
-        isRunning: row.isAlive && daemonConnected,
-        viewState,
-        projectedAt,
-        revisionKey,
-      });
-      const projections = changed.get(config.chatroomId) ?? [];
-      projections.push({
-        role: row.role,
-        machineId: row.machineId ?? config.machineId,
-        isAlive: row.isAlive ?? false,
-        isRunning: (row.isAlive ?? false) && daemonConnected,
-        daemonConnected,
-        teamId: row.teamId ?? room.teamId,
-        operationalState: row.operationalState ?? 'stopped',
-        viewState,
-      });
-      changed.set(config.chatroomId, projections);
-    }
-  }
-  for (const [chatroomId, projections] of changed) {
-    const summary = await summaryFor(ctx, chatroomId);
-    const room = await ctx.db.get('chatroom_rooms', chatroomId);
-    if (summary && room) {
-      let next = {
-        teamId: summary.teamId,
-        agentStatus: summary.agentStatus,
-        runningRoles: summary.runningRoles,
-        aliveRoles: summary.aliveRoles,
-        runningAgents: summary.runningAgents,
-        remoteConfigCount: summary.remoteConfigCount,
-      };
-      for (const projection of projections)
-        next = applyRoleToSummary(next, projection, { isNewConfig: false });
-      await writeOperationalSummary(ctx, { ...next, chatroomId, ownerId: room.ownerId });
-    }
-  }
-}
-
 /** COLD PATH: rebuild all current-team remote role rows and optionally prune stale rows. */
 export async function rebuildAgentOperationalStatusForChatroom(
   ctx: MutationCtx,
@@ -313,14 +208,9 @@ export async function rebuildAgentOperationalStatusForChatroom(
   const configs = filterTeamAgentConfigsForTeam(all, chatroomId, teamId).filter(
     (c) => c.machineId != null
   );
-  const statuses = new Map<string, boolean>();
-  for (const c of configs) {
-    if (c.machineId) statuses.set(c.machineId, await machineConnected(ctx, c.machineId));
-  }
   const derived = deriveAgentOperationalState({
     teamId,
     configs: configs.map((c) => snapshot(c, teamId)),
-    daemonConnectedByMachineId: statuses,
   });
   const projectedAt = Date.now();
   const key = revisionKey ?? `operational:${chatroomId}:${projectedAt}`;

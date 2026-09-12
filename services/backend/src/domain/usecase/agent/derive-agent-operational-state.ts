@@ -18,18 +18,16 @@ export type RoleOperationalProjection = RoleConfigSnapshot & {
   operationalState: OperationalState;
   isAlive: boolean;
   isRunning: boolean;
-  daemonConnected: boolean;
 };
-/** UI-facing state: daemon-gated running plus in-flight start inference. */
+/** UI-facing state derived from agent configuration and lifecycle facts. */
 export function deriveAgentRoleViewState(
   config: Pick<RoleConfigSnapshot, 'desiredState' | 'circuitState' | 'spawnedAgentPid'>,
-  daemonConnected: boolean,
   lastStatus?: string | null
 ): OperationalState {
   if (config.circuitState === 'open') return 'circuit_open';
-  if (config.spawnedAgentPid != null && daemonConnected) return 'running';
+  if (config.spawnedAgentPid != null) return 'running';
   if (config.desiredState !== 'running') return 'stopped';
-  if (daemonConnected && lastStatus && IN_FLIGHT_START_STATUSES.has(lastStatus)) return 'starting';
+  if (lastStatus && IN_FLIGHT_START_STATUSES.has(lastStatus)) return 'starting';
   return 'stopped';
 }
 export type ChatroomOperationalSummary = {
@@ -68,10 +66,7 @@ export function operationalSummariesEqual(
   const nb = normalizeOperationalSummary(b);
   return JSON.stringify(na) === JSON.stringify(nb);
 }
-export function deriveRoleOperationalState(
-  config: RoleConfigSnapshot,
-  daemonConnected: boolean
-): RoleOperationalProjection {
+export function deriveRoleOperationalState(config: RoleConfigSnapshot): RoleOperationalProjection {
   let operationalState: OperationalState = 'stopped';
   if (config.circuitState === 'open') operationalState = 'circuit_open';
   else if (config.desiredState === 'running')
@@ -81,8 +76,7 @@ export function deriveRoleOperationalState(
     ...config,
     operationalState,
     isAlive,
-    isRunning: isAlive && daemonConnected,
-    daemonConnected,
+    isRunning: isAlive,
   };
 }
 export function deriveChatroomOperationalSummary(
@@ -180,14 +174,8 @@ export function stripRoleFromSummaryArrays(
 export function deriveAgentOperationalState(args: {
   teamId: string;
   configs: RoleConfigSnapshot[];
-  daemonConnectedByMachineId: Map<string, boolean>;
 }) {
-  const roles = args.configs.map((c) =>
-    deriveRoleOperationalState(
-      c,
-      c.machineId ? (args.daemonConnectedByMachineId.get(c.machineId) ?? false) : false
-    )
-  );
+  const roles = args.configs.map((c) => deriveRoleOperationalState(c));
   return {
     roles,
     summary: deriveChatroomOperationalSummary(args.teamId, roles, args.configs.length > 0),

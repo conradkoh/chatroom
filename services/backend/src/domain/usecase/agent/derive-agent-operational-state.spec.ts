@@ -12,37 +12,34 @@ import {
 const base = { role: 'builder', teamId: 'team', machineId: 'm' };
 describe('derive agent operational state', () => {
   test('reports running when PID alive despite desiredState stopped', () => {
-    expect(deriveAgentRoleViewState({ desiredState: 'stopped', spawnedAgentPid: 42 }, true)).toBe(
+    expect(deriveAgentRoleViewState({ desiredState: 'stopped', spawnedAgentPid: 42 })).toBe(
       'running'
     );
   });
   test.each([
-    [{}, 'stopped', false, false, false],
-    [{ desiredState: 'running' }, 'starting', false, false, true],
-    [{ desiredState: 'running', spawnedAgentPid: 1 }, 'running', true, true, true],
-    [{ desiredState: 'running', spawnedAgentPid: 1 }, 'running', true, false, false],
-    [{ circuitState: 'open', spawnedAgentPid: 1 }, 'circuit_open', true, true, true],
-  ])('derives role state', (extra, state, alive, running, daemon) => {
-    const p = deriveRoleOperationalState({ ...base, ...extra }, daemon);
+    [{}, 'stopped', false, false],
+    [{ desiredState: 'running' }, 'starting', false, false],
+    [{ desiredState: 'running', spawnedAgentPid: 1 }, 'running', true, true],
+    [{ circuitState: 'open', spawnedAgentPid: 1 }, 'circuit_open', true, true],
+  ])('derives role state', (extra, state, alive, running) => {
+    const p = deriveRoleOperationalState({ ...base, ...extra });
     expect(p.operationalState).toBe(state);
     expect(p.isAlive).toBe(alive);
     expect(p.isRunning).toBe(running);
   });
-  test('summarizes no configs and offline alive roles', () => {
+  test('summarizes no configs and alive roles', () => {
     const none = deriveAgentOperationalState({
       teamId: 'team',
       configs: [],
-      daemonConnectedByMachineId: new Map(),
     });
     expect(none.summary.agentStatus).toBe('none');
     const result = deriveAgentOperationalState({
       teamId: 'team',
       configs: [{ ...base, spawnedAgentPid: 1 }],
-      daemonConnectedByMachineId: new Map([['m', false]]),
     });
     expect(result.summary.aliveRoles).toEqual(['builder']);
-    expect(result.summary.runningRoles).toEqual([]);
-    expect(result.summary.agentStatus).toBe('stopped');
+    expect(result.summary.runningRoles).toEqual(['builder']);
+    expect(result.summary.agentStatus).toBe('running');
   });
   test('applies and removes role deltas while preserving alive/running arrays', () => {
     const summary = {
@@ -53,7 +50,7 @@ describe('derive agent operational state', () => {
       runningAgents: [],
       remoteConfigCount: 0,
     };
-    const projection = deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }, true);
+    const projection = deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 });
     const running = applyRoleToSummary(summary, projection, { isNewConfig: true });
     expect(running.remoteConfigCount).toBe(1);
     expect(running.agentStatus).toBe('running');
@@ -84,12 +81,12 @@ describe('derive agent operational state', () => {
     };
     let summary = applyRoleToSummary(
       emptySummary,
-      deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }, true),
+      deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }),
       { isNewConfig: true }
     );
     summary = applyRoleToSummary(
       summary,
-      deriveRoleOperationalState({ ...base, role: 'planner', desiredState: 'running' }, true),
+      deriveRoleOperationalState({ ...base, role: 'planner', desiredState: 'running' }),
       { isNewConfig: true }
     );
     expect(summary.remoteConfigCount).toBe(2);
@@ -105,12 +102,12 @@ describe('derive agent operational state', () => {
     };
     let summary = applyRoleToSummary(
       emptySummary,
-      deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }, true),
+      deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }),
       { isNewConfig: true }
     );
     summary = applyRoleToSummary(
       summary,
-      deriveRoleOperationalState({ ...base, spawnedAgentPid: 2 }, true),
+      deriveRoleOperationalState({ ...base, spawnedAgentPid: 2 }),
       { isNewConfig: false }
     );
     expect(summary.remoteConfigCount).toBe(1);

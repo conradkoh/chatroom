@@ -86,7 +86,7 @@ describe('Daemon Heartbeat', () => {
     expect(after).toBeGreaterThan(before);
   });
 
-  test('daemonHeartbeat recovers disconnected daemon in liveness table (self-healing)', async () => {
+  test('daemonHeartbeat recovers offline machine status (self-healing)', async () => {
     const { sessionId } = await createTestSession('test-hb-recovery');
     const machineId = 'machine-hb-recovery';
 
@@ -99,44 +99,44 @@ describe('Daemon Heartbeat', () => {
       machineId,
     });
 
-    // Manually mark daemon as disconnected in liveness table
+    // Manually mark machine status offline.
     await t.run(async (ctx) => {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
+      const status = await ctx.db
+        .query('chatroom_machineStatus')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      if (liveness) {
-        await ctx.db.patch(liveness._id, { daemonConnected: false });
+      if (status) {
+        await ctx.db.patch(status._id, { status: 'offline' });
       }
     });
 
-    // Verify daemon is disconnected in liveness table
+    // Verify machine is offline.
     const beforeHeartbeat = await t.run(async (ctx) => {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
+      const status = await ctx.db
+        .query('chatroom_machineStatus')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      if (!liveness) throw new Error('liveness record not found');
-      return liveness.daemonConnected;
+      if (!status) throw new Error('machine status not found');
+      return status.status;
     });
-    expect(beforeHeartbeat).toBe(false);
+    expect(beforeHeartbeat).toBe('offline');
 
-    // Send heartbeat — should recover daemonConnected to true
+    // Send heartbeat — should recover machine status to online.
     await t.mutation(api.machines.daemonHeartbeat, {
       sessionId,
       machineId,
     });
 
-    // Verify daemon is now connected again in liveness table
+    // Verify machine is now online again.
     const afterHeartbeat = await t.run(async (ctx) => {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
+      const status = await ctx.db
+        .query('chatroom_machineStatus')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      if (!liveness) throw new Error('liveness record not found');
-      return liveness.daemonConnected;
+      if (!status) throw new Error('machine status not found');
+      return status.status;
     });
-    expect(afterHeartbeat).toBe(true);
+    expect(afterHeartbeat).toBe('online');
   });
 
   test('daemonHeartbeat does NOT touch the chatroom_machines doc timestamp', async () => {

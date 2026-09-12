@@ -158,8 +158,8 @@ describe('listChatroomAgentOverview — solo team', () => {
   });
 });
 
-describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
-  test('returns stopped status when agent has PID but daemon is disconnected', async () => {
+describe('listChatroomAgentOverview — daemon status is machine-scoped', () => {
+  test('does not rewrite agent overview when daemon disconnects with PID', async () => {
     const { sessionId } = await createTestSession('test-lcao-disconn-1');
     const machineId = 'machine-lcao-disconn-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
@@ -172,10 +172,9 @@ describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
     await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 88888);
 
     // Now disconnect the daemon
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOffline, {
       sessionId: sessionId as any,
       machineId,
-      connected: false,
     });
 
     const results = await t.run(async (ctx) => {
@@ -184,10 +183,10 @@ describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
 
     const entry = results.find((r) => r.chatroomId === chatroomId);
     expect(entry).toBeDefined();
-    // Agent has PID but daemon is disconnected → "stopped" for operational running state...
-    expect(entry!.agentStatus).toBe('stopped');
-    expect(entry!.runningRoles).toEqual([]);
-    expect(entry!.runningAgents).toEqual([]);
+    // Agent status is not rewritten by machine connectivity changes.
+    expect(entry!.agentStatus).toBe('running');
+    expect(entry!.runningRoles).toEqual(['builder']);
+    expect(entry!.runningAgents).toEqual([{ role: 'builder', machineId }]);
     // ...but the agent is still alive (spawned PID) so the listing dot is not grey idle.
     expect(entry!.aliveRoles).toContain('builder');
   });

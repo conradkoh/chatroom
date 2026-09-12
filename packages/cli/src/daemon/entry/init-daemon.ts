@@ -442,7 +442,7 @@ function assembleDaemonSessionInit(args: {
   };
 }
 
-/** Connect the daemon to the backend by updating daemon status. */
+/** Mark the daemon online after connecting to the backend. */
 const connectDaemonEffect = (
   client: ConvexHttpClient,
   sessionId: SessionId,
@@ -450,10 +450,9 @@ const connectDaemonEffect = (
 ): Effect.Effect<void, unknown, never> =>
   Effect.tryPromise({
     try: () =>
-      client.mutation(api.machines.updateDaemonStatus, {
+      client.mutation(api.machines.markDaemonOnline, {
         sessionId: asConvexSessionId(sessionId),
         machineId,
-        connected: true,
       }),
     catch: (e) => e,
   }).pipe(

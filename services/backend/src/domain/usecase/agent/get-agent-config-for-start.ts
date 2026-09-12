@@ -54,28 +54,20 @@ export async function getAgentConfigForStart(
     return null;
   }
 
-  // Get connected machines for this user
+  // Get registered machines for this user. Daemon connectivity is surfaced
+  // separately and must not determine which machine configurations are
+  // available to the start form.
   const userMachines = await ctx.db
     .query('chatroom_machines')
     .withIndex('by_userId', (q) => q.eq('userId', input.userId))
     .collect();
 
-  // Read connection status from machineStatus table (transition-driven, not heartbeat-driven)
-  const connectedMachines: ConnectedMachineView[] = [];
-  for (const m of userMachines) {
-    const machineStatus = await ctx.db
-      .query('chatroom_machineStatus')
-      .withIndex('by_machineId', (q) => q.eq('machineId', m.machineId))
-      .first();
-    if (machineStatus?.status === 'online') {
-      connectedMachines.push({
-        machineId: m.machineId,
-        hostname: m.hostname,
-        availableHarnesses: m.availableHarnesses as AgentHarness[],
-        availableModels: (m.availableModels ?? {}) as Record<string, string[]>,
-      });
-    }
-  }
+  const connectedMachines: ConnectedMachineView[] = userMachines.map((m) => ({
+    machineId: m.machineId,
+    hostname: m.hostname,
+    availableHarnesses: m.availableHarnesses as AgentHarness[],
+    availableModels: (m.availableModels ?? {}) as Record<string, string[]>,
+  }));
 
   // Resolve defaults from the authoritative team-level config.
 

@@ -212,17 +212,6 @@ describe('Machine Status', () => {
       machineId,
     });
 
-    // Set machineLiveness to disconnected (stale data)
-    await t.run(async (ctx) => {
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      if (liveness) {
-        await ctx.db.patch(liveness._id, { daemonConnected: false });
-      }
-    });
-
     // listMachines no longer returns connectivity — use getDaemonStatus instead.
     // machineStatus is still "online" — getDaemonStatus should reflect that.
     const result = await t.query(api.machines.listMachines, { sessionId });

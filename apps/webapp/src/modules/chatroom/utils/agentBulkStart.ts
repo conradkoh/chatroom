@@ -35,7 +35,6 @@ function withRestartDefaults(
     agentType: required.agentType,
     workingDir: source.workingDir as string,
     model: source.model ?? agentView?.model,
-    daemonConnected: source.daemonConnected,
     availableHarnesses: source.availableHarnesses as AgentConfig['availableHarnesses'],
     updatedAt: source.updatedAt as number,
     spawnedAgentPid: source.spawnedAgentPid,

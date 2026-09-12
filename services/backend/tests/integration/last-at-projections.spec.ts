@@ -60,7 +60,6 @@ async function insertMachine(machineId: string, lastSeenAt?: number): Promise<vo
       os: 'darwin',
       availableHarnesses: ['opencode'],
       registeredAt: 1_000,
-      daemonConnected: false,
       ...(lastSeenAt !== undefined ? { lastSeenAt } : {}),
     });
   });
@@ -777,7 +776,7 @@ describe('last-at projections: machine dual writes', () => {
     expect(Number.isFinite(state.projections[0].lastSeenAt)).toBe(true);
   });
 
-  test('machines.updateDaemonStatus dual-writes projection, liveness stays separate', async () => {
+  test('machines.markDaemonOnline updates thin status models only', async () => {
     const suffix = Math.random().toString(36).slice(2);
     const { sessionId } = await createTestSession(`lastat-machine-status-${suffix}`);
     const machineId = `lastat-status-${suffix}`;
@@ -790,14 +789,12 @@ describe('last-at projections: machine dual writes', () => {
       availableHarnesses: ['opencode'],
       availableModels: { opencode: [TEST_MODEL_OPENCODE] },
     });
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOnline, {
       sessionId,
       machineId,
-      connected: true,
     });
 
     const { machine, projections, liveness } = await readMachineAndProjection(machineId);
-    expect(machine.daemonConnected).toBe(true);
     expectNoLegacyTimestamp(machine, 'lastSeenAt');
     expect(projections).toHaveLength(1);
     expect(Number.isFinite(projections[0].lastSeenAt)).toBe(true);
@@ -820,15 +817,14 @@ describe('last-at projections: machine dual writes', () => {
       availableModels: { opencode: [TEST_MODEL_OPENCODE] },
     });
     // Disconnect so the heartbeat performs a real liveness write (not a noop).
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOffline, {
       sessionId,
       machineId,
-      connected: false,
     });
 
     const before = await readMachineAndProjection(machineId);
     expect(before.projections).toHaveLength(1);
-    expect(before.liveness?.daemonConnected).toBe(false);
+    expect(before.liveness).not.toBeNull();
 
     const heartbeat = await t.mutation(api.machines.daemonHeartbeat, {
       sessionId,
@@ -839,7 +835,7 @@ describe('last-at projections: machine dual writes', () => {
     const after = await readMachineAndProjection(machineId);
     // Heartbeat flipped liveness connectivity but left the parent without
     // the optional compatibility field and the dedicated cleanup projection untouched.
-    expect(after.liveness?.daemonConnected).toBe(true);
+    expect(after.liveness).not.toBeNull();
     expectNoLegacyTimestamp(after.machine, 'lastSeenAt');
     expect(after.projections).toHaveLength(1);
     expect(after.projections[0].lastSeenAt).toBe(before.projections[0].lastSeenAt);
@@ -864,7 +860,6 @@ describe('last-at projections: machine dual writes', () => {
         os: 'darwin',
         availableHarnesses: ['opencode'],
         registeredAt: staleLastSeenAt,
-        daemonConnected: false,
       });
       await upsertMachineLastSeenAt(ctx, machineId, staleLastSeenAt);
     });
@@ -1061,7 +1056,6 @@ describe('last-at projections: projection-backed readers and cleanup', () => {
         os: 'darwin',
         availableHarnesses: ['opencode'],
         registeredAt: now,
-        daemonConnected: false,
       });
       await upsertMachineLastSeenAt(ctx, staleMachineId, stale);
       // Orphan projection: parent deleted before cleanup runs.
@@ -1072,7 +1066,6 @@ describe('last-at projections: projection-backed readers and cleanup', () => {
         os: 'darwin',
         availableHarnesses: ['opencode'],
         registeredAt: now,
-        daemonConnected: false,
       });
       await upsertMachineLastSeenAt(ctx, orphanMachineId, stale);
       const orphanParent = await ctx.db
@@ -1088,7 +1081,6 @@ describe('last-at projections: projection-backed readers and cleanup', () => {
         os: 'darwin',
         availableHarnesses: ['opencode'],
         registeredAt: now,
-        daemonConnected: false,
       });
       await upsertMachineLastSeenAt(ctx, freshMachineId, now);
     });
@@ -1175,10 +1167,9 @@ describe('last-at projections: projection-backed readers and cleanup', () => {
       availableHarnesses: ['opencode'],
       availableModels: { opencode: [TEST_MODEL_OPENCODE] },
     });
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOnline, {
       sessionId,
       machineId,
-      connected: true,
     });
 
     // Every parent omits its optional compatibility field; every projection is populated.

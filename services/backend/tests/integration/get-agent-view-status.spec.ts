@@ -120,31 +120,29 @@ describe('getAgentViewStatus — running and stopped', () => {
   });
 });
 
-describe('getAgentViewStatus — daemon disconnected', () => {
-  test('returns stopped with PID when disconnected', async () => {
+describe('getAgentViewStatus — daemon status is machine-scoped', () => {
+  test('does not rewrite role state when daemon disconnects with PID', async () => {
     const { sessionId } = await createTestSession('view-disconn-pid');
     const machineId = 'view-disconn-pid-machine';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId as any, machineId, room, 'builder', 88888);
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOffline, {
       sessionId: sessionId as any,
       machineId,
-      connected: false,
     });
     expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('running');
   });
-  test('returns stopped without PID when disconnected', async () => {
+  test('does not rewrite role state when daemon disconnects without PID', async () => {
     const { sessionId } = await createTestSession('view-disconn-none');
     const machineId = 'view-disconn-none-machine';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOffline, {
       sessionId: sessionId as any,
       machineId,
-      connected: false,
     });
     expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
   });

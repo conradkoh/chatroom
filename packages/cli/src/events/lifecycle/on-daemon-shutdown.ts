@@ -65,13 +65,12 @@ export const onDaemonShutdownEffect: Effect.Effect<
     }
   }
 
-  // Update daemon status to disconnected (best-effort)
+  // Mark daemon offline (best-effort)
   yield* Effect.promise(() =>
     session.backend
-      .mutation(api.machines.updateDaemonStatus, {
+      .mutation(api.machines.markDaemonOffline, {
         sessionId: session.sessionId,
         machineId: session.machineId,
-        connected: false,
       })
       .catch(() => {})
   );

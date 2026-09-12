@@ -32,7 +32,6 @@ describe('migration: dropEmbeddedAvailableModels', () => {
         availableHarnesses: ['opencode'],
         availableModels: { opencode: [TEST_MODEL_PROVIDER_A] },
         registeredAt: Date.now(),
-        daemonConnected: false,
       });
     });
 
@@ -76,7 +75,6 @@ describe('migration: dropEmbeddedAvailableModels', () => {
         availableHarnesses: ['opencode'],
         // No availableModels
         registeredAt: Date.now(),
-        daemonConnected: false,
       });
     });
 

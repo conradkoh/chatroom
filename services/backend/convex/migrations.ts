@@ -90,6 +90,44 @@ export const unsetCliSessionExpiration = migrations.define({
 });
 
 /**
+ * Migration: Remove the obsolete connectivity flag from chatroom_machines.
+ * Connectivity is maintained in the thin machine status/liveness tables.
+ */
+export const unsetMachineDaemonConnected = migrations.define({
+  table: 'chatroom_machines',
+  migrateOne: async (_ctx, machine) => {
+    if ((machine as Record<string, unknown>).daemonConnected !== undefined) {
+      return migrationPatch<Doc<'chatroom_machines'>>({ daemonConnected: undefined });
+    }
+  },
+});
+
+/**
+ * Migration: Remove daemon connectivity from the agent/role read model.
+ * Connectivity is a machine-level UI concern, not role projection state.
+ */
+export const unsetAgentRoleDaemonConnected = migrations.define({
+  table: 'chatroom_agentRoleStatusReadModel',
+  migrateOne: async (_ctx, row) => {
+    if ((row as Record<string, unknown>).daemonConnected !== undefined) {
+      return migrationPatch<Doc<'chatroom_agentRoleStatusReadModel'>>({
+        daemonConnected: undefined,
+      });
+    }
+  },
+});
+
+/** Remove the redundant connectivity flag from the thin liveness read model. */
+export const unsetMachineLivenessDaemonConnected = migrations.define({
+  table: 'chatroom_machineLiveness',
+  migrateOne: async (_ctx, row) => {
+    if ((row as Record<string, unknown>).daemonConnected !== undefined) {
+      return migrationPatch<Doc<'chatroom_machineLiveness'>>({ daemonConnected: undefined });
+    }
+  },
+});
+
+/**
  * Migration: Set default access level for users.
  * Sets `accessLevel` to 'user' for all users where it is undefined.
  */
@@ -1066,6 +1104,9 @@ const allMigrationReferences = [
   // Session & User
   internal.migrations.unsetSessionExpiration,
   internal.migrations.unsetCliSessionExpiration,
+  internal.migrations.unsetMachineDaemonConnected,
+  internal.migrations.unsetAgentRoleDaemonConnected,
+  internal.migrations.unsetMachineLivenessDaemonConnected,
   internal.migrations.setUserAccessLevelDefault,
   // Last-at projections
   internal.migrations.backfillCliSessionLastUsedAt,
