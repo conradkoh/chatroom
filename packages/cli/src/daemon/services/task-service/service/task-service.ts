@@ -21,6 +21,8 @@ import {
   createConvexNativeTaskDeliveryGateway,
 } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 
+const TASK_INBOX_RETRY_DELAY_MS = 1_000;
+
 interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
   readonly machineId: string;
@@ -109,6 +111,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const listeners = new Set<TaskServiceListener>();
   let stopInboxWatch: (() => void) | undefined;
   let inboxStopped = false;
+  // These in-memory sets prevent duplicate work during this daemon run. A restart
+  // intentionally replays any event that was not durably marked as processed.
   const pendingEvents = new Map<string, WorkspaceTaskInboxEvent>();
   const scheduledEventIds = new Set<string>();
   const deliveredEventIds = new Set<string>();
@@ -151,17 +155,28 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const taskKey = (event: WorkspaceTaskInboxEvent): string =>
     `${event.chatroomId}:${event.role.toLowerCase()}:${event.taskId}`;
 
+  const clearRetryTimer = (
+    timers: Map<string, ReturnType<typeof setTimeout>>,
+    eventId: string
+  ): void => {
+    const timer = timers.get(eventId);
+    if (timer) clearTimeout(timer);
+    timers.delete(eventId);
+  };
+
+  /** Retry local delivery while the event remains durably pending. */
   const retryDelivery = (eventId: string): void => {
     if (inboxStopped || deliveryRetryTimers.has(eventId) || !pendingEvents.has(eventId)) return;
     const timer = setTimeout(() => {
       deliveryRetryTimers.delete(eventId);
       const event = pendingEvents.get(eventId);
       if (event) scheduleEvent(event);
-    }, 1_000);
+    }, TASK_INBOX_RETRY_DELAY_MS);
     deliveryRetryTimers.set(eventId, timer);
     timer.unref?.();
   };
 
+  /** Retry only the durable acknowledgement after delivery has succeeded. */
   const retryAcknowledgement = (eventId: string): void => {
     if (inboxStopped || acknowledgementRetryTimers.has(eventId) || !pendingEvents.has(eventId)) {
       return;
@@ -170,11 +185,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       acknowledgementRetryTimers.delete(eventId);
       const event = pendingEvents.get(eventId);
       if (event) void acknowledgeEvent(event);
-    }, 1_000);
+    }, TASK_INBOX_RETRY_DELAY_MS);
     acknowledgementRetryTimers.set(eventId, timer);
     timer.unref?.();
   };
 
+  /**
+   * Delivery and acknowledgement are separate failure boundaries. If the
+   * acknowledgement fails after delivery, retrying it must not redeliver.
+   */
   const acknowledgeEvent = async (event: WorkspaceTaskInboxEvent): Promise<void> => {
     try {
       await gateway.markTaskInboxEventProcessed({
@@ -188,6 +207,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     }
   };
 
+  /** Queue one event behind other events for the same chatroom, role, and task. */
   const scheduleEvent = (event: WorkspaceTaskInboxEvent): Promise<void> => {
     if (
       inboxStopped ||
@@ -222,18 +242,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     return current;
   };
 
+  /** Reconcile a reactive snapshot and schedule only newly observed events. */
   const reconcilePendingEvents = (events: readonly WorkspaceTaskInboxEvent[]): Promise<void> => {
     const nextIds = new Set(events.map((event) => event.eventId));
     for (const eventId of pendingEvents.keys()) {
       if (!nextIds.has(eventId)) {
         pendingEvents.delete(eventId);
         deliveredEventIds.delete(eventId);
-        const deliveryTimer = deliveryRetryTimers.get(eventId);
-        if (deliveryTimer) clearTimeout(deliveryTimer);
-        deliveryRetryTimers.delete(eventId);
-        const acknowledgementTimer = acknowledgementRetryTimers.get(eventId);
-        if (acknowledgementTimer) clearTimeout(acknowledgementTimer);
-        acknowledgementRetryTimers.delete(eventId);
+        clearRetryTimer(deliveryRetryTimers, eventId);
+        clearRetryTimer(acknowledgementRetryTimers, eventId);
       }
     }
     return Promise.all(
