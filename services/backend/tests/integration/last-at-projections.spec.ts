@@ -287,6 +287,28 @@ describe('last-at projections: helpers', () => {
 });
 
 describe('last-at projections: backfills', () => {
+  test('unsets deprecated CLI session expiry values', async () => {
+    await createTestSession('unset-cli-session-expiration');
+    const cliSessionId = await t.run(async (ctx: any) => {
+      const user = await ctx.db.query('users').first();
+      return await ctx.db.insert('cliSessions', {
+        sessionId: `cli-expiry-${Math.random().toString(36).slice(2)}`,
+        userId: user!._id,
+        isActive: true,
+        createdAt: 1_000,
+        expiresAt: 2_000,
+      });
+    });
+
+    await t.mutation(internal.migrations.unsetCliSessionExpiration, {
+      cursor: null,
+      batchSize: 100,
+    });
+
+    const after = await t.run(async (ctx: any) => ctx.db.get(cliSessionId));
+    expect(Object.prototype.hasOwnProperty.call(after, 'expiresAt')).toBe(false);
+  });
+
   test('backfills copy historical values, preserve newer projections, stay idempotent', async () => {
     await createTestSession('lastat-backfill');
     const suffix = Math.random().toString(36).slice(2);
@@ -479,9 +501,8 @@ describe('last-at projections: session dual writes', () => {
     });
     expect(result.projection).not.toBeNull();
     expect(Number.isFinite(result.projection.lastUsedAt)).toBe(true);
-    // Touch extends expiry on the parent; recency lives only in the projection.
+    // Touch updates recency in the projection, never the parent.
     expectNoLegacyTimestamp(result.parent, 'lastUsedAt');
-    expect(Number.isFinite(result.parent.expiresAt)).toBe(true);
   });
 
   test('sessions.updateSessionActivity dual-writes session projection', async () => {

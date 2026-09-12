@@ -11,7 +11,6 @@
 export interface CliSessionRecord {
   userId: string;
   isActive: boolean;
-  expiresAt?: number | undefined;
 }
 
 /** Minimal web session shape needed for validation. */
@@ -65,10 +64,6 @@ async function checkCliSession(
 
   if (!session.isActive) {
     return { ok: false, reason: 'CLI session revoked' };
-  }
-
-  if (session.expiresAt && Date.now() > session.expiresAt) {
-    return { ok: false, reason: 'CLI session expired' };
   }
 
   const user = await deps.getUser(session.userId);

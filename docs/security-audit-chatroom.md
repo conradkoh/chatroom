@@ -19,7 +19,7 @@ The chatroom system has **strong authentication and authorization** with session
 
 - All endpoints require `sessionId` authentication
 - Supports both CLI sessions (`cliSessions`) and web sessions (`sessions`)
-- CLI sessions properly check expiration and revocation status
+- CLI sessions properly check revocation status
 - Ownership-based access control enforced consistently
 
 ### ⚠️ Issues Found
@@ -28,7 +28,8 @@ The chatroom system has **strong authentication and authorization** with session
 
 **Location:** `lib/cliSessionAuth.ts:validateWebSession()`
 
-**Issue:** Web sessions don't validate expiration, unlike CLI sessions which check `expiresAt`.
+**Issue:** Web sessions don't validate expiration. CLI sessions are intentionally non-expiring
+and rely on explicit revocation.
 
 **Risk:** Expired web sessions could remain valid indefinitely.
 

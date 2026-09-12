@@ -77,6 +77,19 @@ export const unsetSessionExpiration = migrations.define({
 });
 
 /**
+ * Migration: Remove the deprecated CLI session expiration field.
+ * CLI sessions are non-expiring and remain valid until explicitly revoked.
+ */
+export const unsetCliSessionExpiration = migrations.define({
+  table: 'cliSessions',
+  migrateOne: async (_ctx, cliSession) => {
+    if (cliSession.expiresAt !== undefined) {
+      return migrationPatch<Doc<'cliSessions'>>({ expiresAt: undefined });
+    }
+  },
+});
+
+/**
  * Migration: Set default access level for users.
  * Sets `accessLevel` to 'user' for all users where it is undefined.
  */
@@ -1052,6 +1065,7 @@ export const purgeMachineTaskStatusSignalHeads = migrations.define({
 const allMigrationReferences = [
   // Session & User
   internal.migrations.unsetSessionExpiration,
+  internal.migrations.unsetCliSessionExpiration,
   internal.migrations.setUserAccessLevelDefault,
   // Last-at projections
   internal.migrations.backfillCliSessionLastUsedAt,

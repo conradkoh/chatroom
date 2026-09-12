@@ -413,8 +413,6 @@ export const cleanupParticipants = internalMutation({
   },
 });
 
-// ─── CLI Sessions Cleanup (inactive) ────────────────────────────────────────
-
 /**
  * Delete CLI sessions that are:
  * - Inactive (isActive === false) AND older than 30 days

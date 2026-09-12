@@ -15,7 +15,7 @@
 
 import { createAuthHelpers, defaultSessionResolver, type SessionResolver } from './session';
 
-/** Resolves a fork CLI session (`cliSessions`) to a userId, honoring isActive + expiry. */
+/** Resolves a fork CLI session (`cliSessions`) to a userId, honoring isActive. */
 // fallow-ignore-next-line complexity
 const cliSessionResolver: SessionResolver = async (ctx, sessionId) => {
   const session = await ctx.db
@@ -23,7 +23,6 @@ const cliSessionResolver: SessionResolver = async (ctx, sessionId) => {
     .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
     .first();
   if (!session?.isActive) return null;
-  if (session.expiresAt && Date.now() > session.expiresAt) return null;
   return session.userId;
 };
 

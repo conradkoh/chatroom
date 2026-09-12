@@ -10,9 +10,6 @@ import { omitUndefined } from './lib/omitUndefined';
 // Auth request expires after 5 minutes
 const AUTH_REQUEST_EXPIRY_MS = 5 * 60 * 1000;
 
-// CLI session expires after 30 days (optional, can be null for no expiry)
-const CLI_SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
-
 /**
  * Generate a cryptographically random ID
  */
@@ -212,8 +209,8 @@ export const approveAuthRequest = mutation({
     const now = Date.now();
     const cliSessionId = generateId(64);
 
-    // Create CLI session. Last-use recency lives in the dedicated
-    // projection table; the parent keeps only creation time.
+    // Mutable session recency lives in a dedicated projection; the parent
+    // keeps identity, revocation state, and creation time only.
     const cliSessionDocId = await ctx.db.insert('cliSessions', {
       sessionId: cliSessionId,
       userId: session.userId,
@@ -221,7 +218,6 @@ export const approveAuthRequest = mutation({
       ...(request.deviceName !== undefined ? { deviceName: request.deviceName } : {}),
       ...(request.cliVersion !== undefined ? { cliVersion: request.cliVersion } : {}),
       createdAt: now,
-      expiresAt: now + CLI_SESSION_EXPIRY_MS,
     });
     await upsertCliSessionLastUsedAt(ctx, cliSessionDocId, now);
 
@@ -316,10 +312,6 @@ export const validateSession = query({
       return { valid: false as const, reason: 'Session revoked' };
     }
 
-    if (session.expiresAt && Date.now() > session.expiresAt) {
-      return { valid: false as const, reason: 'Session expired' };
-    }
-
     // Get user info
     const user = await ctx.db.get('users', session.userId);
     if (!user) {
@@ -334,7 +326,7 @@ export const validateSession = query({
   },
 });
 
-/** Records CLI session activity in the last-used projection and extends expiry (sliding window). */
+/** Records CLI session activity without mutating the parent session row. */
 export const touchSession = mutation({
   args: {
     ...SessionIdArg,
@@ -351,13 +343,6 @@ export const touchSession = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch('cliSessions', session._id, {
-      // Extend expiry on each touch (sliding window) so active sessions
-      // never expire while in use. The fixed creation-time expiry was
-      // causing daemon sessions to silently die after 30 days.
-      // Last-use recency is recorded in the dedicated projection below.
-      expiresAt: now + CLI_SESSION_EXPIRY_MS,
-    });
     await upsertCliSessionLastUsedAt(ctx, session._id, now);
 
     return true;

@@ -842,9 +842,12 @@ export default defineSchema({
      * @deprecated Read/write chatroom_cliSessionLastUsedAt instead. Retained as
      * an optional migration input until the projection backfill has completed in
      * every environment; remove in a later release only after that rollout gate.
-     */
+    */
     lastUsedAt: v.optional(v.number()),
-    // Optional expiry (null = no expiry, just manual revocation)
+    /**
+     * @deprecated CLI sessions do not expire; retained only for compatibility
+     * with documents created before expiry was removed.
+     */
     expiresAt: v.optional(v.number()),
     // Revocation info
     revokedAt: v.optional(v.number()),
