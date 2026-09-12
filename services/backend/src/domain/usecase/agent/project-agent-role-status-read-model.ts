@@ -105,6 +105,7 @@ export async function projectAgentRoleStatusReadModel(
     agentType: args.agentType ?? config?.type,
     status: event.status,
     machineId: config?.machineId,
+    workingDir: config?.workingDir,
     ...(args.lastSeenAt !== undefined
       ? { lastSeenAt: args.lastSeenAt }
       : existing?.lastSeenAt !== undefined

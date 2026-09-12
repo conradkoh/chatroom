@@ -1236,6 +1236,8 @@ export default defineSchema({
       v.literal('error')
     ),
     machineId: v.optional(v.string()),
+    /** Workspace directory associated with the role at projection time. */
+    workingDir: v.optional(v.string()),
     lastSeenAt: v.optional(v.number()),
     lastSeenAction: v.optional(v.string()),
     teamId: v.optional(v.string()),

@@ -139,6 +139,7 @@ export async function projectAgentOperationalStatusForRole(
     teamId: room.teamId,
     agentType: config.type,
     machineId: projection.machineId,
+    workingDir: config.workingDir,
     operationalState: projection.operationalState,
     isAlive: projection.isAlive,
     isRunning: projection.isRunning,
@@ -163,6 +164,7 @@ export async function projectAgentOperationalStatusForRole(
     existing.isRunning !== fields.isRunning ||
     existing.viewState !== fields.viewState ||
     existing.machineId !== fields.machineId ||
+    existing.workingDir !== fields.workingDir ||
     existing.teamId !== fields.teamId ||
     existing.acceptsTasks !== fields.acceptsTasks
   ) {

@@ -11,6 +11,7 @@ import { getMachineDisplayName } from '../../types/machine';
 import { getFailedAgentRoles } from '../../utils/agentBulkStart';
 import { startAgentsBatch } from '../../utils/agentStart';
 import { countJoinedRoles } from '../../utils/countJoinedRoles';
+import { AgentControlDataProvider } from '../AgentPanel/AgentControlDataContext';
 import { InlineAgentCard } from '../AgentPanel/InlineAgentCard';
 
 interface Participant {
@@ -48,7 +49,6 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   isLoadingMachines,
   agentConfigs,
   sendCommand,
-  agentRoleViews,
   onAllAgentsStarted,
   onBack,
 }: SetupAgentTeamStepProps) {
@@ -93,11 +93,6 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     []
   );
 
-  const agentRoleViewMap = useMemo(
-    () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
-    [agentRoleViews]
-  );
-
   const handleStartAll = useCallback(async () => {
     const missing = persistentTeamRoles.filter((role) => !roleConfigs.has(role.toLowerCase()));
     if (missing.length > 0) {
@@ -131,15 +126,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     if (failed.length > 0) {
       setStartError(`Failed to start: ${failed.join(', ')}`);
     }
-  }, [
-    persistentTeamRoles,
-    roleConfigs,
-    agentRoleViewMap,
-    sendCommand,
-    machineId,
-    workingDir,
-    chatroomId,
-  ]);
+  }, [persistentTeamRoles, roleConfigs, sendCommand, machineId, workingDir, chatroomId]);
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
@@ -172,37 +159,42 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
             {joinedCount} of {persistentTeamRoles.length} ready
           </span>
         </div>
-        <div className="border border-chatroom-border">
-          {persistentTeamRoles.map((role) => {
-            const participant = participants.find(
-              (p) => p.role.toLowerCase() === role.toLowerCase()
-            );
-            return (
-              <InlineAgentCard
-                key={role}
-                role={role}
-                allRoles={persistentTeamRoles}
-                lastSeenAt={participant?.lastSeenAt ?? null}
-                statusLabel="OFFLINE"
-                statusVariant="offline"
-                prompt=""
-                chatroomId={chatroomId}
-                teamId={teamId}
-                connectedMachines={connectedMachines}
-                isLoadingMachines={isLoadingMachines}
-                agentConfigs={agentConfigs}
-                sendCommand={sendCommand}
-                agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
-                setupMode
-                lockedMachineId={machineId}
-                lockedWorkingDir={workingDir}
-                onSetupConfigChange={(harness, model) =>
-                  handleSetupConfigChange(role, harness, model)
-                }
-              />
-            );
-          })}
-        </div>
+        <AgentControlDataProvider
+          value={{
+            machines: connectedMachines,
+            daemonConnectivity: new Map(),
+            isLoadingMachines,
+            agentConfigs,
+            sendCommand,
+          }}
+        >
+          <div className="border border-chatroom-border">
+            {persistentTeamRoles.map((role) => {
+              const participant = participants.find(
+                (p) => p.role.toLowerCase() === role.toLowerCase()
+              );
+              return (
+                <InlineAgentCard
+                  key={role}
+                  role={role}
+                  allRoles={persistentTeamRoles}
+                  lastSeenAt={participant?.lastSeenAt ?? null}
+                  statusLabel="OFFLINE"
+                  statusVariant="offline"
+                  prompt=""
+                  chatroomId={chatroomId}
+                  teamId={teamId}
+                  setupMode
+                  lockedMachineId={machineId}
+                  lockedWorkingDir={workingDir}
+                  onSetupConfigChange={(harness, model) =>
+                    handleSetupConfigChange(role, harness, model)
+                  }
+                />
+              );
+            })}
+          </div>
+        </AgentControlDataProvider>
       </div>
 
       {startError && <p className="text-xs text-chatroom-status-error">{startError}</p>}

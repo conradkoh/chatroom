@@ -12,12 +12,13 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { omitUndefined } from './lib/omitUndefined';
 import { str } from './utils/types';
+import { upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
-import { upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
 import { normalizeWorkingDir } from './workspacePathSecurity';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
@@ -245,6 +246,28 @@ export const listWorkspacesForChatroom = query({
     if (!chatroomAccessResult.ok) return [];
 
     return listWorkspacesForChatroomUseCase(ctx, { chatroomId: args.chatroomId });
+  },
+});
+
+/**
+ * Returns the default active workspace for a chatroom.
+ *
+ * Workspace selection is currently client-local, so the backend fallback is
+ * the most recently registered active workspace. This query intentionally
+ * contains no machine/daemon liveness check: registration is the workspace
+ * source of truth and liveness belongs to agent status queries.
+ */
+export const getActiveWorkspaceForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workspaces = await listWorkspacesForChatroomUseCase(ctx, {
+      chatroomId: chatroom._id,
+    });
+    return workspaces.slice().sort((a, b) => b.registeredAt - a.registeredAt)[0] ?? null;
   },
 });
 

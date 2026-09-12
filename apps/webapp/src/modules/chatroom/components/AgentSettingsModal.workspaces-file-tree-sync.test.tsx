@@ -58,9 +58,8 @@ vi.mock('../hooks/use-team-configs', () => ({
 }));
 
 // Light mocks for tab content that is out of scope for these tests.
-vi.mock('./AgentPanel/InlineAgentListPanel', () => ({ InlineAgentListPanel: () => null }));
-vi.mock('./AgentPanel/useInlineAgentList', () => ({
-  useInlineAgentList: () => ({ onlineCount: 0, totalCount: 0 }),
+vi.mock('./AgentPanel/WorkspaceInlineAgentListPanel', () => ({
+  WorkspaceInlineAgentListPanel: () => null,
 }));
 vi.mock('./CopyButton', () => ({ CopyButton: () => null }));
 vi.mock('./IntegrationsTab', () => ({ IntegrationsTab: () => null }));

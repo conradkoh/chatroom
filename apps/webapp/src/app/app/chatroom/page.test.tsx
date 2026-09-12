@@ -33,6 +33,58 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
   useSessionQuery: (query: unknown, args: unknown) => {
     mockUseSessionQuery(query, args);
+    if (query === 'workspaces:getActiveWorkspaceForChatroom') {
+      return {
+        _id: 'r1',
+        machineId: 'machine-a',
+        workingDir: '/code',
+        hostname: 'dev',
+        registeredAt: 1,
+        registeredBy: 'planner',
+        fileTreeSyncEnabled: false,
+      };
+    }
+    if (query === 'agentWorkspaces:listAgentsForWorkspace') {
+      return [{ role: 'planner', type: 'remote', teamId: 'duo' }];
+    }
+    if (query === 'agentWorkspaces:getAgentStatusForWorkspaceRole') {
+      return {
+        role: 'planner',
+        status: 'offline',
+        isRunning: false,
+        workingDir: '/code',
+        lastSeenAt: null,
+        lastSeenAction: null,
+        activeWork: null,
+        error: null,
+        projectedAt: 1,
+      };
+    }
+    if (query === 'agentWorkspaces:getAgentConfigForWorkspaceRole') {
+      return {
+        role: 'planner',
+        type: 'remote',
+        machineId: 'machine-a',
+        agentHarness: 'opencode-sdk',
+        model: 'opencode/big-pickle',
+        workingDir: '/code',
+        desiredState: 'stopped',
+        updatedAt: 1,
+      };
+    }
+    if (query === 'machines:listMachines') {
+      return {
+        machines: [
+          {
+            machineId: 'machine-a',
+            hostname: 'host-a',
+            os: 'darwin',
+            availableHarnesses: ['opencode-sdk'],
+            harnessVersions: {},
+          },
+        ],
+      };
+    }
     if (query === 'machineConfigFavorites:getMachineConfigFavorites' && args !== 'skip') {
       return { favorites: [] };
     }
@@ -57,6 +109,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
     },
     machines: {
+      listMachines: 'machines:listMachines',
       getMachineModels: 'machines:getMachineModels',
       getMachineModelFilters: 'machines:getMachineModelFilters',
       upsertMachineModelFilters: 'machines:upsertMachineModelFilters',
@@ -64,6 +117,14 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getCapabilitiesRefreshBatch: 'machines:getCapabilitiesRefreshBatch',
       getAgentRestartSummariesByRoles: 'machines:getAgentRestartSummariesByRoles',
       getAgentRestartSummaryByRole: 'machines:getAgentRestartSummaryByRole',
+    },
+    agentWorkspaces: {
+      listAgentsForWorkspace: 'agentWorkspaces:listAgentsForWorkspace',
+      getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
+      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
+    },
+    workspaces: {
+      getActiveWorkspaceForChatroom: 'workspaces:getActiveWorkspaceForChatroom',
     },
   },
 }));
@@ -207,16 +268,23 @@ describe('Chatroom page agents settings', () => {
     vi.clearAllMocks();
   });
 
-  it('loads machine config favorites with teamRoleKey when agents tab is open', async () => {
+  it('loads workspace, agent directory, status, and config as separate queries', async () => {
     render(<ChatroomPageClient />);
 
     await waitFor(() => {
+      expect(mockUseSessionQuery).toHaveBeenCalledWith('workspaces:getActiveWorkspaceForChatroom', {
+        chatroomId: CHATROOM_ID,
+      });
+      expect(mockUseSessionQuery).toHaveBeenCalledWith('agentWorkspaces:listAgentsForWorkspace', {
+        workspaceId: 'r1',
+      });
       expect(mockUseSessionQuery).toHaveBeenCalledWith(
-        'machineConfigFavorites:getMachineConfigFavorites',
-        {
-          machineId: 'machine-a',
-          teamRoleKey: 'team_duo#role_planner',
-        }
+        'agentWorkspaces:getAgentStatusForWorkspaceRole',
+        { workspaceId: 'r1', role: 'planner' }
+      );
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'agentWorkspaces:getAgentConfigForWorkspaceRole',
+        { workspaceId: 'r1', role: 'planner' }
       );
     });
   });

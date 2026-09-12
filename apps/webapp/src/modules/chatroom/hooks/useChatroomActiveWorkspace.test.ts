@@ -43,7 +43,7 @@ describe('useChatroomActiveWorkspace', () => {
     expect(result.current.workspaces).toHaveLength(0);
   });
 
-  it('returns first connected workspace when only one exists', () => {
+  it('returns first configured workspace when only one exists', () => {
     const ws = makeWorkspace({ machineId: 'm1', workingDir: '/code', hostname: 'box' });
     mockWorkspaces.mockReturnValue([ws]);
     const { result } = renderHook(() => useChatroomActiveWorkspace(CHATROOM_ID));
@@ -53,7 +53,7 @@ describe('useChatroomActiveWorkspace', () => {
     expect(result.current.activeWorkspace?.hostname).toBe('box');
   });
 
-  it('skips workspaces with null machineId and returns first connected one', () => {
+  it('skips workspaces with null machineId and returns first configured one', () => {
     const unassigned = makeWorkspace({ machineId: null, workingDir: '' });
     const connected = makeWorkspace({ machineId: 'm2', workingDir: '/proj2', hostname: 'srv' });
     mockWorkspaces.mockReturnValue([unassigned, connected]);
@@ -61,7 +61,7 @@ describe('useChatroomActiveWorkspace', () => {
     expect(result.current.activeWorkspace?.machineId).toBe('m2');
   });
 
-  it('respects activeWorkspaceIndex to select among multiple connected workspaces', () => {
+  it('respects activeWorkspaceIndex to select among multiple configured workspaces', () => {
     const ws0 = makeWorkspace({ id: 'a', machineId: 'mA', workingDir: '/a' });
     const ws1 = makeWorkspace({ id: 'b', machineId: 'mB', workingDir: '/b' });
     mockWorkspaces.mockReturnValue([ws0, ws1]);

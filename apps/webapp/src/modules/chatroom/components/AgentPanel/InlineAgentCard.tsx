@@ -3,16 +3,22 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { ChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
+import { deriveChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo, useEffect, useRef } from 'react';
 
-import type { AgentRoleView } from '../../hooks/useAgentPanelData';
-import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
+import type { AgentConfig, AgentHarness, MachineInfo } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentControls';
+import { useAgentControlData } from './AgentControlDataContext';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentStatusRow, getLabelColorClass, formatLastSeen } from './AgentStatusRow';
+import {
+  useWorkspaceAgentConfig,
+  useWorkspaceAgentStatus,
+  type WorkspaceAgentStatus,
+} from '../../hooks/useWorkspaceAgentQueries';
 import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 
 import { getDaemonStartCommand } from '@/lib/environment';
@@ -25,10 +31,10 @@ export { formatLastSeen } from './AgentStatusRow';
 /** Resolves machine display name (alias or hostname) from connected machines by machineId. */
 export function resolveMachineHostname(
   machineId: string | undefined,
-  connectedMachines: MachineInfo[]
+  machines: MachineInfo[]
 ): string | undefined {
   if (!machineId) return undefined;
-  const machine = connectedMachines.find((m) => m.machineId === machineId);
+  const machine = machines.find((m) => m.machineId === machineId);
   return machine ? getMachineDisplayName(machine) : undefined;
 }
 
@@ -39,15 +45,11 @@ export interface InlineAgentCardProps {
   /** All agent roles in the workspace (for shared restart stats modal). */
   allRoles: string[];
   lastSeenAt?: number | null;
-  statusLabel: string;
-  statusVariant: ChatroomAgentActivityVariant;
+  statusLabel?: string;
+  statusVariant?: ChatroomAgentActivityVariant;
   prompt: string;
   chatroomId: string;
-  connectedMachines: MachineInfo[];
-  isLoadingMachines: boolean;
-  agentConfigs: AgentConfig[];
-  sendCommand: SendCommandFn;
-  agentRoleView?: AgentRoleView;
+  workspaceId?: string;
   /** Pre-fetched restart summary from parent batch query.
    * When provided, InlineAgentCard skips its own per-card subscription.
    * Uses 3h/3d time ranges for consistency with AgentRestartChart (default 3d view).
@@ -131,11 +133,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   statusVariant,
   prompt,
   chatroomId,
-  connectedMachines,
-  isLoadingMachines,
-  agentConfigs,
-  sendCommand,
-  agentRoleView,
+  workspaceId,
   restartSummary: restartSummaryProp,
   setupMode = false,
   lockedMachineId,
@@ -143,19 +141,60 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   onSetupConfigChange,
   teamId,
 }: InlineAgentCardProps) {
+  const { machines, agentConfigs: fallbackAgentConfigs, sendCommand } = useAgentControlData();
+  const { config: workspaceConfig } = useWorkspaceAgentConfig(workspaceId ?? null, role);
+  const { status: workspaceStatus } = useWorkspaceAgentStatus(workspaceId ?? null, role);
   const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
     useChatroomWorkspaces(chatroomId);
+
+  const workspaceMachine = workspaceConfig?.machineId
+    ? machines.find((machine) => machine.machineId === workspaceConfig.machineId)
+    : undefined;
+  const workspaceAgentConfig = useMemo<AgentConfig | null>(() => {
+    if (
+      !workspaceConfig ||
+      !workspaceConfig.machineId ||
+      !workspaceConfig.agentHarness ||
+      !workspaceConfig.workingDir
+    ) {
+      return null;
+    }
+    return {
+      machineId: workspaceConfig.machineId,
+      hostname: workspaceMachine?.hostname ?? 'Unknown',
+      alias: workspaceMachine?.alias,
+      role: workspaceConfig.role,
+      agentType: workspaceConfig.agentHarness as AgentHarness,
+      workingDir: workspaceConfig.workingDir,
+      model: workspaceConfig.model ?? undefined,
+      availableHarnesses: workspaceMachine?.availableHarnesses ?? [],
+      updatedAt: workspaceConfig.updatedAt,
+    };
+  }, [workspaceConfig, workspaceMachine]);
+  const agentConfigs = useMemo(
+    () =>
+      workspaceId ? (workspaceAgentConfig ? [workspaceAgentConfig] : []) : fallbackAgentConfigs,
+    [fallbackAgentConfigs, workspaceAgentConfig, workspaceId]
+  );
+  const statusValue = workspaceStatus?.status;
+  const resolvedStatusVariant = statusValue
+    ? deriveChatroomAgentActivityVariant(statusValue)
+    : (statusVariant ?? 'offline');
+  const resolvedStatusLabel = statusValue
+    ? statusLabelForWorkspaceStatus(statusValue)
+    : (statusLabel ?? 'OFFLINE');
+  const resolvedLastSeenAt = workspaceStatus?.lastSeenAt ?? lastSeenAt;
 
   const roleConfig = agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
   const controls = useAgentControls({
     role,
     chatroomId,
-    connectedMachines,
+    connectedMachines: machines,
     agentConfigs,
     sendCommand,
     teamConfigModel: roleConfig?.model,
     teamConfigHarness: roleConfig?.agentType,
-    teamConfigMachineId: roleConfig?.machineId ?? agentRoleView?.machineId,
+    teamConfigMachineId: roleConfig?.machineId,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
     lockedMachineId,
@@ -213,19 +252,19 @@ export const InlineAgentCard = memo(function InlineAgentCard({
         {/* Card header: role + status + last seen */}
         <div className="mb-2 min-w-0">
           <div className="flex items-center justify-between gap-3 min-w-0">
-            <AgentStatusRow role={role} variant={statusVariant} />
+            <AgentStatusRow role={role} variant={resolvedStatusVariant} />
             <div className="flex items-center flex-shrink-0 min-w-0">
               <span
                 className={
                   'text-[10px] font-bold uppercase tracking-wide truncate ' +
-                  getLabelColorClass(statusVariant)
+                  getLabelColorClass(resolvedStatusVariant)
                 }
               >
-                {statusLabel}
+                {resolvedStatusLabel}
               </span>
               <span className="text-[10px] font-bold text-chatroom-text-muted mx-1.5">·</span>
               <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted whitespace-nowrap">
-                {formatLastSeen(lastSeenAt)}
+                {formatLastSeen(resolvedLastSeenAt)}
               </span>
             </div>
           </div>
@@ -233,14 +272,12 @@ export const InlineAgentCard = memo(function InlineAgentCard({
 
         <AgentControlsSection
           controls={controls}
-          connectedMachines={connectedMachines}
-          isLoadingMachines={isLoadingMachines}
           daemonStartCommand={daemonStartCommand}
           chatroomId={chatroomId}
           role={role}
           prompt={prompt}
           linkedMachineIds={linkedMachineIds}
-          initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
+          initialTab={workspaceConfig?.type === 'custom' ? 'custom' : 'remote'}
           setupMode={setupMode}
         />
 
@@ -265,3 +302,20 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     </div>
   );
 });
+
+function statusLabelForWorkspaceStatus(status: WorkspaceAgentStatus['status']): string {
+  switch (status) {
+    case 'starting':
+      return 'STARTING';
+    case 'waiting':
+      return 'WAITING';
+    case 'working':
+      return 'WORKING';
+    case 'stopping':
+      return 'STOPPING';
+    case 'error':
+      return 'OFFLINE (ERROR)';
+    case 'offline':
+      return 'OFFLINE';
+  }
+}

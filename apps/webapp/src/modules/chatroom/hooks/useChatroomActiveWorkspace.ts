@@ -6,7 +6,7 @@
  * to operate on one workspace at a time within a chatroom.
  *
  * Decision logic: pick the workspace at `activeWorkspaceIndex` (defaults to 0)
- * from the filtered list of workspaces that have a connected machineId.
+ * from the filtered list of workspaces that have a configured machineId.
  *
  * Returning `workspaces` alongside `activeWorkspace` lets callers that need the
  * full list (e.g. multi-workspace file subscriptions) avoid a second hook call.
@@ -23,7 +23,7 @@ import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces'
 export interface ChatroomActiveWorkspace {
   /** Convex registry document ID (`chatroom_workspaces._id`). */
   workspaceId: string | null;
-  /** machineId of the connected daemon. */
+  /** machineId associated with the workspace. */
   machineId: string | null;
   /** Absolute working-directory path. */
   workingDir: string | null;
@@ -39,7 +39,7 @@ export interface ChatroomActiveWorkspace {
  * Returns the currently-active workspace for a chatroom and the full workspace list.
  *
  * @param chatroomId  The chatroom to look up workspaces for.
- * @param activeWorkspaceIndex  Index into the list of connected workspaces (default: 0).
+ * @param activeWorkspaceIndex  Index into the list of configured workspaces (default: 0).
  *                              The caller owns the index state for future multi-workspace switching.
  */
 export function useChatroomActiveWorkspace(
@@ -48,12 +48,13 @@ export function useChatroomActiveWorkspace(
 ): {
   activeWorkspace: ChatroomActiveWorkspace | null;
   workspaces: Workspace[];
+  isLoading: boolean;
 } {
-  const { workspaces } = useChatroomWorkspaces(chatroomId);
+  const { workspaces, isLoading } = useChatroomWorkspaces(chatroomId);
 
-  // Only workspaces with a connected machine are eligible as the active workspace.
-  const connectedWorkspaces = workspaces.filter((ws) => ws.machineId);
-  const selected = connectedWorkspaces[activeWorkspaceIndex] ?? null;
+  // Only workspaces with a configured machine are eligible as the active workspace.
+  const configuredWorkspaces = workspaces.filter((ws) => ws.machineId);
+  const selected = configuredWorkspaces[activeWorkspaceIndex] ?? null;
 
   // Memoize activeWorkspace to stabilise its reference between renders.
   // Without this, every render creates a new object, which causes infinite
@@ -84,8 +85,8 @@ export function useChatroomActiveWorkspace(
   // Stabilise the return object so callers that destructure don't get a fresh
   // reference each render.
   return useMemo(
-    () => ({ activeWorkspace, workspaces }),
+    () => ({ activeWorkspace, workspaces, isLoading }),
 
-    [activeWorkspace, workspaces]
+    [activeWorkspace, workspaces, isLoading]
   );
 }

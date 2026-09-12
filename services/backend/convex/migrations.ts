@@ -11,6 +11,7 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
 import type { AgentHarness } from '../src/domain/entities/agent';
 import { migrateFavoriteModelForHarness } from '../src/domain/entities/harness/model-provider';
 import { isActiveWorkspace } from '../src/domain/entities/workspace';
@@ -1007,6 +1008,28 @@ export const backfillAgentRoleStatusReadModel = migrations.define({
         config,
       });
     }
+  },
+});
+
+/** Backfill workspace identity on existing role-status rows for workspace-scoped reads. */
+export const backfillAgentRoleStatusWorkingDir = migrations.define({
+  table: 'chatroom_agentRoleStatusReadModel',
+  migrateOne: async (ctx, row) => {
+    if (row.workingDir !== undefined || row.machineId === undefined) return;
+
+    const chatroom = await ctx.db.get('chatroom_rooms', row.chatroomId);
+    const teamId = chatroom?.teamId;
+    if (!teamId) return;
+
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(row.chatroomId, teamId, row.role))
+      )
+      .first();
+    if (!config?.workingDir || config.machineId !== row.machineId) return;
+
+    return { workingDir: config.workingDir };
   },
 });
 

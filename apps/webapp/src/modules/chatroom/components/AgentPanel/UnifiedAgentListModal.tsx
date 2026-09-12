@@ -2,8 +2,8 @@
 
 import { memo } from 'react';
 
-import { InlineAgentListPanel } from './InlineAgentListPanel';
-import { useInlineAgentList } from './useInlineAgentList';
+import { WorkspaceInlineAgentListPanel } from './WorkspaceInlineAgentListPanel';
+import { useWorkspaceAgentDirectory } from '../../hooks/useWorkspaceAgentQueries';
 
 import {
   FixedModal,
@@ -27,18 +27,18 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   onClose,
   chatroomId,
 }: UnifiedAgentListModalProps) {
-  const { totalCount } = useInlineAgentList(chatroomId);
+  const { agents } = useWorkspaceAgentDirectory(chatroomId);
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
       <FixedModalContent>
         <FixedModalHeader onClose={onClose}>
-          <FixedModalTitle>All Agents ({totalCount})</FixedModalTitle>
+          <FixedModalTitle>Workspace Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
         <FixedModalBody className="flex flex-col p-0 overflow-hidden">
           {/* Agent list — scrollable */}
           <div className="flex-1 overflow-y-auto">
-            <InlineAgentListPanel chatroomId={chatroomId} variant="plain" />
+            <WorkspaceInlineAgentListPanel chatroomId={chatroomId} variant="plain" />
           </div>
         </FixedModalBody>
       </FixedModalContent>

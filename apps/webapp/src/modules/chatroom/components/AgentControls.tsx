@@ -44,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import type { MachineConnectivity } from '../../../hooks/useDaemonConnectivity';
 import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useMachineConfigFavorites } from '../features/machine-config/hooks/useMachineConfigFavorites';
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
@@ -633,6 +634,7 @@ export function useAgentControls({
 interface RemoteTabContentProps {
   controls: ReturnType<typeof useAgentControls>;
   connectedMachines: MachineInfo[];
+  daemonConnectivity?: Map<string, MachineConnectivity>;
   isLoadingMachines: boolean;
   daemonStartCommand: string;
   chatroomId: string;
@@ -645,6 +647,7 @@ interface RemoteTabContentProps {
 export const RemoteTabContent = memo(function RemoteTabContent({
   controls,
   connectedMachines,
+  daemonConnectivity,
   isLoadingMachines,
   daemonStartCommand,
   chatroomId,
@@ -845,7 +848,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <div className="flex items-center gap-2">
             <AlertCircle size={12} className="text-chatroom-status-warning flex-shrink-0" />
             <span className="text-[10px] text-chatroom-text-secondary">
-              No machines online. Run:
+              No machines registered. Run:
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -1017,7 +1020,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 <MachineCapabilitiesRefreshButton
                   chatroomId={chatroomId}
                   machineId={displayMachineId}
-                  daemonConnected={connectedMachines.some((m) => m.machineId === displayMachineId)}
+                  daemonConnected={daemonConnectivity?.get(displayMachineId)?.connected === true}
                   linkedToChatroom={linkedMachineIds.has(displayMachineId)}
                 />
               ) : null}

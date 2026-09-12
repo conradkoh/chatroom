@@ -10,6 +10,7 @@
 
 import type * as admin_invites from "../admin/invites.js";
 import type * as admin_users from "../admin/users.js";
+import type * as agentWorkspaces from "../agentWorkspaces.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
 import type * as allTabConversation from "../allTabConversation.js";
 import type * as api_agenticQueryHelpers from "../api/agenticQueryHelpers.js";
@@ -170,6 +171,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "admin/invites": typeof admin_invites;
   "admin/users": typeof admin_users;
+  agentWorkspaces: typeof agentWorkspaces;
   agenticQueryCleanup: typeof agenticQueryCleanup;
   allTabConversation: typeof allTabConversation;
   "api/agenticQueryHelpers": typeof api_agenticQueryHelpers;

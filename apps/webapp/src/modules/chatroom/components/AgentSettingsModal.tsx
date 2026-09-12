@@ -23,8 +23,8 @@ import { toast } from 'sonner';
 
 import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
-import { InlineAgentListPanel } from './AgentPanel/InlineAgentListPanel';
-import { useInlineAgentList } from './AgentPanel/useInlineAgentList';
+import { WorkspaceInlineAgentListPanel } from './AgentPanel/WorkspaceInlineAgentListPanel';
+import { useWorkspaceAgentDirectory } from '../hooks/useWorkspaceAgentQueries';
 import type { SettingsTab } from './CommandPalette/types';
 import { CopyButton } from './CopyButton';
 import { IntegrationsTab } from './IntegrationsTab';
@@ -867,9 +867,9 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
   );
 });
 
-/** Agents tab — shows a flat list of all agents for the team. */
+/** Agents tab — shows the agents configured for the active workspace. */
 const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
-  const { onlineCount, totalCount } = useInlineAgentList(chatroomId);
+  const { agents, isLoading } = useWorkspaceAgentDirectory(chatroomId);
   return (
     <div className="space-y-6">
       <div>
@@ -877,10 +877,12 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
           Agents
         </h3>
         <p className="text-xs text-chatroom-text-muted">
-          {onlineCount}/{totalCount} agents online.
+          {isLoading
+            ? 'Loading agents...'
+            : `${agents.length} agents configured for this workspace.`}
         </p>
       </div>
-      <InlineAgentListPanel
+      <WorkspaceInlineAgentListPanel
         chatroomId={chatroomId}
         variant="bordered"
         emptyClassName="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary"

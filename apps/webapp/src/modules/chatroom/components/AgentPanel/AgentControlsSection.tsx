@@ -2,17 +2,15 @@
 
 import { memo, useState } from 'react';
 
-import type { MachineInfo } from '../../types/machine';
 import type { useAgentControls } from '../AgentControls';
 import { RemoteTabContent, CustomTabContent } from '../AgentControls';
+import { useAgentControlData } from './AgentControlDataContext';
 
 // ─── AgentControlsSection ────────────────────────────────────────────────────
 
 export interface AgentControlsSectionProps {
   /** Return value of useAgentControls — passed in so the parent manages the hook. */
   controls: ReturnType<typeof useAgentControls>;
-  connectedMachines: MachineInfo[];
-  isLoadingMachines: boolean;
   daemonStartCommand: string;
   chatroomId: string;
   role: string;
@@ -31,8 +29,6 @@ export interface AgentControlsSectionProps {
 // fallow-ignore-next-line complexity
 export const AgentControlsSection = memo(function AgentControlsSection({
   controls,
-  connectedMachines,
-  isLoadingMachines,
   daemonStartCommand,
   chatroomId,
   role,
@@ -41,6 +37,7 @@ export const AgentControlsSection = memo(function AgentControlsSection({
   initialTab = 'remote',
   setupMode = false,
 }: AgentControlsSectionProps) {
+  const { machines, daemonConnectivity, isLoadingMachines } = useAgentControlData();
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>(initialTab);
 
   return (
@@ -75,7 +72,8 @@ export const AgentControlsSection = memo(function AgentControlsSection({
         {setupMode || activeTab === 'remote' ? (
           <RemoteTabContent
             controls={controls}
-            connectedMachines={connectedMachines}
+            connectedMachines={machines}
+            daemonConnectivity={daemonConnectivity}
             isLoadingMachines={isLoadingMachines}
             daemonStartCommand={daemonStartCommand}
             chatroomId={chatroomId}

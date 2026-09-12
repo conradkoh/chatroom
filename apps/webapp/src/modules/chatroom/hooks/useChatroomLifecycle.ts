@@ -18,7 +18,7 @@ import type { UseFileTabsReturn } from '../workspace/hooks/useFileTabs';
 export interface UseChatroomLifecycleReturn {
   /** File tab state (left pane tabs + right pane tabs). */
   fileTabs: UseFileTabsReturn;
-  /** Currently-active workspace (null if none connected). */
+  /** Currently-active configured workspace (null if none registered). */
   activeWorkspace: ChatroomActiveWorkspace | null;
   /** All workspaces for the chatroom (including unconnected). */
   workspaces: Workspace[];
