@@ -176,18 +176,18 @@ export const getNextTaskEffect = (
         .catch(() => undefined as string | undefined)
     );
 
-    // 7. Determine agent type from team agent config (best-effort)
-    type AgentConfig = { role: string; type: 'custom' | 'remote' };
-    const teamConfigs = yield* backend
-      .query<AgentConfig[]>(api.machines.getTeamAgentConfigs, {
+    // 7. Determine agent type from the latest submitted launch request
+    // (best-effort; custom/manual agents have no daemon launch snapshot).
+    type AgentConfig = { agentType: 'custom' | 'remote' };
+    const lastSentRequest = yield* backend
+      .query<AgentConfig | null>(api.agents.getLastSentLaunchRequest, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role: options.role,
       })
-      .pipe(Effect.catchAll(() => Effect.succeed([] as AgentConfig[])));
+      .pipe(Effect.catchAll(() => Effect.succeed(null as AgentConfig | null)));
 
-    const participantAgentType = teamConfigs?.find(
-      (c) => c.role.toLowerCase() === options.role.toLowerCase()
-    )?.type;
+    const participantAgentType = lastSentRequest?.agentType;
 
     // 8. Register presence in the chatroom before starting the subscription
     yield* backend
@@ -211,7 +211,10 @@ export const getNextTaskEffect = (
     }
 
     // 10. Fetch init prompt from backend (non-critical — swallow errors)
-    type InitPromptResult = { prompt?: string | undefined; hasSystemPromptControl?: boolean | undefined } | null;
+    type InitPromptResult = {
+      prompt?: string | undefined;
+      hasSystemPromptControl?: boolean | undefined;
+    } | null;
     const initPromptResult = yield* backend
       .query<InitPromptResult>(api.messages.getInitPrompt, {
         sessionId,

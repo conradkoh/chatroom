@@ -22,15 +22,15 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
-import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { findActiveEnhancerJobForChatroom } from './web/enhancer/jobHelpers';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
-import { findActiveEnhancerJobForChatroom } from './web/enhancer/jobHelpers';
 import {
   assemblePrimaryDeliveryAttachments,
   resolvePrimaryDeliveryAssemblyInput,
@@ -40,9 +40,8 @@ import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
-import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
-import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { getLastSentLaunchRequestForRole } from '../src/domain/usecase/agent/get-last-sent-launch-request';
 import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueue-user-message-at-front';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
@@ -56,11 +55,7 @@ import {
 } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
 import { findEnhancerTaskForOrigin } from '../src/domain/usecase/enhancer/find-enhancer-task-for-origin';
-import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
-import {
-  getEnhancerTeamAgentConfig,
-  syncEnhancerTeamAgentConfig,
-} from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
+import { getEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
   resolvePlannerEnhancerEnabledFromConfig,
@@ -350,7 +345,12 @@ async function _sendMessageHandler(
     taskEnvelope?: TaskEnvelopeV1 | undefined;
   }
 ) {
-  const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  const { chatroom: authorizedChatroom, session } = await requireChatroomAccess(
+    ctx,
+    args.sessionId,
+    args.chatroomId
+  );
+  const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
   // Validate attached tasks if provided
   if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
@@ -638,11 +638,10 @@ export async function runHandoffHandler(
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
   let chatroom;
-  let sessionUserId: Id<'users'>;
+
   try {
     const result = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    chatroom = result.chatroom;
-    sessionUserId = result.session.userId;
+    chatroom = await withActiveTeamStructure(ctx, result.chatroom);
   } catch (error) {
     // Convert generic Error to structured error response
     return {
@@ -662,16 +661,7 @@ export async function runHandoffHandler(
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const normalizedTargetRole = args.targetRole.toLowerCase();
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-  const normalizedStructuralRoles = chatroom.teamId
-    ? getTeamStructure({
-        teamId: chatroom.teamId,
-        ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
-        persistedRoles: teamRoles,
-        ...(chatroom.teamEntryPoint !== undefined
-          ? { persistedEntryPoint: chatroom.teamEntryPoint }
-          : {}),
-      }).roles.map(({ role }) => role.toLowerCase())
-    : normalizedTeamRoles;
+  const normalizedStructuralRoles = normalizedTeamRoles;
   const enhancerEntryPointRole = getEnhancerEntryPointRole(chatroom);
   const normalizedEnhancerEntryPointRole = enhancerEntryPointRole?.toLowerCase();
   const isEnhancerDelivery = normalizedSenderRole === 'enhancer';
@@ -752,16 +742,6 @@ export async function runHandoffHandler(
 
     if (!chatroom.teamId) throw new Error('Chatroom team is required for enhancer handoff');
     enhancerConfig = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, chatroom.teamId);
-    if (!enhancerConfig) {
-      const legacyConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, sessionUserId);
-      if (legacyConfig) {
-        enhancerConfig = await syncEnhancerTeamAgentConfig(ctx, {
-          chatroomId: args.chatroomId,
-          teamId: chatroom.teamId,
-          legacyConfig,
-        });
-      }
-    }
 
     const activeEntryPointTasks = await collectActiveTasks(ctx, args.chatroomId, {
       assignedTo: enhancerEntryPointRole,
@@ -1180,7 +1160,6 @@ export async function runHandoffHandler(
     .unique();
 
   if (participant && !isEnhancerDelivery) {
-    await transitionAgentStatus(ctx, args.chatroomId, args.senderRole, 'agent.waiting');
     await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAt: Date.now(),
     });
@@ -1744,7 +1723,12 @@ export const getLatestForRole = query({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - returns chatroom directly
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+      ctx,
+      args.sessionId,
+      args.chatroomId
+    );
+    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
     // Fetch recent messages (optimized with limit)
     const recentMessages = await ctx.db
@@ -1825,7 +1809,12 @@ export const getRolePrompt = query({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-    const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+      ctx,
+      args.sessionId,
+      args.chatroomId
+    );
+    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
     // Get participants
     const participants = await ctx.db
@@ -1849,7 +1838,11 @@ export const getRolePrompt = query({
 
     let plannerEnhancerActive: boolean | undefined;
     if (isEnhancerEntryPointRole(chatroom, args.role)) {
-      const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
+      const enhancerConfig = await getEnhancerTeamAgentConfig(
+        ctx,
+        args.chatroomId,
+        chatroom.teamId ?? ''
+      );
       plannerEnhancerActive = resolvePlannerEnhancerEnabledFromConfig(enhancerConfig);
     }
 
@@ -1884,18 +1877,18 @@ export const getInitPrompt = query({
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+      ctx,
+      args.sessionId,
+      args.chatroomId
+    );
+    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
-    // Look up existing team agent config to include the agent type in the prompt
-    const teamRoleKey = chatroom.teamId
-      ? buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role)
-      : null;
-    const existingAgentConfig = teamRoleKey
-      ? await ctx.db
-          .query('chatroom_agentDesiredConfigs')
-          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-          .first()
-      : null;
+    // The latest submitted request is the only webapp-owned launch snapshot.
+    const existingAgentRequest = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
 
     const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
     const promptInput = {
@@ -1906,8 +1899,8 @@ export const getInitPrompt = query({
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-      agentType: (existingAgentConfig?.type ?? 'unset') as 'remote' | 'custom' | 'unset',
-      agentHarness: existingAgentConfig?.agentHarness,
+      agentType: (existingAgentRequest?.agentType ?? 'unset') as 'remote' | 'custom' | 'unset',
+      agentHarness: existingAgentRequest?.agentHarness,
       activatedSkills,
     };
 
@@ -1947,7 +1940,12 @@ export const getTaskDeliveryPrompt = query({
   },
   handler: async (ctx, args): Promise<TaskDeliveryPromptResponse> => {
     // Validate session and check chatroom access
-    const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+      ctx,
+      args.sessionId,
+      args.chatroomId
+    );
+    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
     // Fetch the task
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
@@ -1991,7 +1989,11 @@ export const getTaskDeliveryPrompt = query({
 
     const availableRoles = waitingParticipants.map((p) => p.role);
 
-    const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
+    const enhancerConfig = await getEnhancerTeamAgentConfig(
+      ctx,
+      args.chatroomId,
+      chatroom.teamId ?? ''
+    );
 
     const legacyPlannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
       taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
@@ -2040,16 +2042,11 @@ export const getTaskDeliveryPrompt = query({
     const entryPoint = getTeamEntryPoint(chatroom);
     const isEntryPoint = entryPoint ? args.role.toLowerCase() === entryPoint.toLowerCase() : true; // Default to true if no entry point configured
 
-    const teamRoleKey = chatroom.teamId
-      ? buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role)
-      : null;
-    const existingAgentConfig = teamRoleKey
-      ? await ctx.db
-          .query('chatroom_agentDesiredConfigs')
-          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-          .first()
-      : null;
-    const agentHarness = existingAgentConfig?.agentHarness;
+    const existingAgentRequest = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+    const agentHarness = existingAgentRequest?.agentHarness;
     const nativeIntegration = isNativeHarness(agentHarness);
 
     const standingInstructions = getActiveStandingInstructions(chatroom);
@@ -2228,7 +2225,12 @@ export const getContextForRole = query({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+      ctx,
+      args.sessionId,
+      args.chatroomId
+    );
+    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
     // Fetch the current pinned context (if any) from chatroom_contexts
     let currentContext: {

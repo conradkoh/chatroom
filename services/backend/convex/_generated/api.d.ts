@@ -88,6 +88,7 @@ import type * as integrations_telegram_internal from "../integrations/telegram/i
 import type * as integrations_telegram_types from "../integrations/telegram/types.js";
 import type * as integrations_types from "../integrations/types.js";
 import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
+import type * as lib_chatroomTeam from "../lib/chatroomTeam.js";
 import type * as lib_chatroomUtils from "../lib/chatroomUtils.js";
 import type * as lib_fileTreeDeltaOps from "../lib/fileTreeDeltaOps.js";
 import type * as lib_handoffRoles from "../lib/handoffRoles.js";
@@ -124,8 +125,6 @@ import type * as system_auth_google from "../system/auth/google.js";
 import type * as taskDeliveryReceipts from "../taskDeliveryReceipts.js";
 import type * as tasks from "../tasks.js";
 import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteScopeKey.js";
-import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
-import type * as utils_teamRoleKeyFilter from "../utils/teamRoleKeyFilter.js";
 import type * as utils_types from "../utils/types.js";
 import type * as validators_agent_lifecycle_fact from "../validators/agent_lifecycle_fact.js";
 import type * as web_agenticQuery_completeLogic from "../web/agenticQuery/completeLogic.js";
@@ -249,6 +248,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/telegram/types": typeof integrations_telegram_types;
   "integrations/types": typeof integrations_types;
   "lib/backlogStateMachine": typeof lib_backlogStateMachine;
+  "lib/chatroomTeam": typeof lib_chatroomTeam;
   "lib/chatroomUtils": typeof lib_chatroomUtils;
   "lib/fileTreeDeltaOps": typeof lib_fileTreeDeltaOps;
   "lib/handoffRoles": typeof lib_handoffRoles;
@@ -285,8 +285,6 @@ declare const fullApi: ApiFromModules<{
   taskDeliveryReceipts: typeof taskDeliveryReceipts;
   tasks: typeof tasks;
   "utils/machineFavoriteScopeKey": typeof utils_machineFavoriteScopeKey;
-  "utils/teamRoleKey": typeof utils_teamRoleKey;
-  "utils/teamRoleKeyFilter": typeof utils_teamRoleKeyFilter;
   "utils/types": typeof utils_types;
   "validators/agent_lifecycle_fact": typeof validators_agent_lifecycle_fact;
   "web/agenticQuery/completeLogic": typeof web_agenticQuery_completeLogic;

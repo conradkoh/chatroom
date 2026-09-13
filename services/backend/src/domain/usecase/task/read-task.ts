@@ -27,7 +27,6 @@ import { transitionTask } from './transition-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeMarkdownContent } from '../../entities/markdown-content';
-import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { loadCurrentContext } from '../context/load-current-context';
 
 // ============================================================================
@@ -134,8 +133,6 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
       });
     }
 
-    await transitionAgentStatus(ctx, chatroomId, role, 'task.inProgress');
-
     return buildReadTaskResult(ctx, chatroomId, task, taskId);
   }
 
@@ -148,10 +145,7 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
   // Note: transitionTask now emits task.inProgress directly, so no duplicate needed here.
   await transitionTask(ctx, taskId, 'in_progress', 'readTask');
 
-  // 7. Update participant status
-  await transitionAgentStatus(ctx, chatroomId, role, 'task.inProgress');
-
-  // 8–10. Fetch context/attachments and return
+  // 7–9. Fetch context/attachments and return
   return buildReadTaskResult(ctx, chatroomId, task, taskId);
 }
 // ============================================================================

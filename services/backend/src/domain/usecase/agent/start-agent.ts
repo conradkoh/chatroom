@@ -112,9 +112,12 @@ export async function startAgent(
 
   // ── Step 2: Resolve request-only defaults ────────────────────────────
 
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  const activeStructure = await getActiveTeamStructure(ctx, chatroomId);
+  const structure = activeStructure
+    ? getTeamStructure({ teamId: activeStructure.teamStructureId })
+    : null;
   const resolvedWantResume =
-    wantResume ?? (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : false);
+    wantResume ?? (structure ? resolveDefaultWantResume(structure.teamId, role) : false);
 
   // ── Step 3: Write the self-contained agent.requestStart command ───────
 
@@ -141,19 +144,6 @@ export async function startAgent(
   const isWebappLaunchRequest =
     reason === 'user.start' || reason === 'user.restart' || reason === 'user.manual_spawn';
   if (isWebappLaunchRequest) {
-    const activeStructure = await getActiveTeamStructure(ctx, chatroomId);
-    const structure = activeStructure
-      ? getTeamStructure({ teamId: activeStructure.teamStructureId })
-      : chatroom?.teamId
-        ? getTeamStructure({
-            teamId: chatroom.teamId,
-            ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
-            ...(chatroom.teamRoles !== undefined ? { persistedRoles: chatroom.teamRoles } : {}),
-            ...(chatroom.teamEntryPoint !== undefined
-              ? { persistedEntryPoint: chatroom.teamEntryPoint }
-              : {}),
-          })
-        : null;
     if (!structure) throw new Error(`Chatroom ${chatroomId} has no team structure`);
 
     await recordLastSentLaunchRequest(ctx, {

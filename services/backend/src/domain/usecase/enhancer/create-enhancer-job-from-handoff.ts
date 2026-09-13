@@ -18,7 +18,7 @@ export interface CreateEnhancerJobFromHandoffArgs {
   originUserMessageId?: Id<'chatroom_messages'> | undefined;
   attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
   machineId: string;
-  agentHarness: Doc<'chatroom_enhancerConfigs'>['agentHarness'];
+  agentHarness: Doc<'chatroom_agentLastSentLaunchRequests'>['agentHarness'];
   model: string;
 }
 

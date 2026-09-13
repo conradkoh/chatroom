@@ -6,7 +6,6 @@
 import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
-import { getTeamStructure } from '../../entities/team-presets';
 import { getActiveTeamStructure } from '../team/active-team-structure';
 
 export type AssertMachineBelongsToChatroomArgs = {
@@ -30,12 +29,8 @@ export async function assertMachineBelongsToChatroom(
 ): Promise<void> {
   const { chatroomId, machineId, role, allowNewMachine } = args;
 
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom) throw new Error('Chatroom not found');
   const activeStructure = await getActiveTeamStructure(ctx, chatroomId);
-  const structureId =
-    activeStructure?.teamStructureId ??
-    (chatroom.teamId ? getTeamStructure({ teamId: chatroom.teamId }).teamStructureId : undefined);
+  const structureId = activeStructure?.teamStructureId;
   const existing = structureId
     ? await getLastSentLaunchRequestForRole(ctx, {
         chatroomId,

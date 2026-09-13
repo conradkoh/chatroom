@@ -5,25 +5,17 @@ import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { getRolePriority } from './lib/hierarchy';
-import { buildTeamRoleKey } from './utils/teamRoleKey';
 import {
   PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
   CONNECTION_CLOSE_REQUEST_TTL_MS,
 } from '../config/reliability';
 import {
-  NATIVE_TASK_INJECTED_ACTION,
   NATIVE_WAITING_ACTION,
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
-import { getTeamStructure } from '../src/domain/entities/team-presets';
-import {
-  getAgentRuntimeState,
-  patchAgentRuntimeState,
-} from '../src/domain/usecase/agent/agent-runtime-state';
-import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
-import { touchAgentRoleStatusLastSeen } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
@@ -64,26 +56,18 @@ export const join = mutation({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - returns chatroom directly
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+      ctx,
+      args.sessionId,
+      args.chatroomId
+    );
+    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
     // Validate role is in team configuration
     const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-    const structuralRoles = chatroom.teamId
-      ? getTeamStructure({
-          teamId: chatroom.teamId,
-          ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
-          persistedRoles: teamRoles,
-          ...(chatroom.teamEntryPoint !== undefined
-            ? { persistedEntryPoint: chatroom.teamEntryPoint }
-            : {}),
-        }).roles.map(({ role }) => role.toLowerCase())
-      : [];
     if (teamRoles.length > 0) {
       const normalizedRole = args.role.toLowerCase();
-      if (
-        !normalizedTeamRoles.includes(normalizedRole) &&
-        !structuralRoles.includes(normalizedRole)
-      ) {
+      if (!normalizedTeamRoles.includes(normalizedRole)) {
         throw new Error(
           `Invalid role: "${args.role}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`
         );
@@ -163,42 +147,12 @@ export const join = mutation({
       });
     }
 
-    await touchAgentRoleStatusLastSeen(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-      lastSeenAt: now,
-      lastSeenAction: args.action,
-      agentType: args.agentType,
-    });
-
     // Auto-promote queued tasks when the entry point role joins.
     // maybePromoteNextQueuedTask skips non-entry-point roles internally.
     const normalizedRole = args.role.toLowerCase();
     await maybePromoteNextQueuedTask(ctx, args.chatroomId, {
       entryPointRole: normalizedRole,
     });
-
-    // Reset circuit breaker when agent successfully registers (proves it's healthy)
-    let teamConfig = null;
-    if (chatroom.teamId) {
-      const joinTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
-      teamConfig = await ctx.db
-        .query('chatroom_agentDesiredConfigs')
-        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', joinTeamRoleKey))
-        .first();
-    }
-
-    const runtime = teamConfig ? await getAgentRuntimeState(ctx, teamConfig._id) : null;
-    if (
-      teamConfig?.type === 'remote' &&
-      runtime?.circuitState &&
-      runtime.circuitState !== 'closed'
-    ) {
-      await patchAgentRuntimeState(ctx, teamConfig, {
-        circuitState: 'closed',
-        circuitOpenedAt: undefined,
-      });
-    }
 
     if (args.action === NATIVE_WAITING_ACTION) {
       const activeTask = await findActiveAssignedTaskForRole(ctx, {
@@ -208,20 +162,6 @@ export const join = mutation({
       if (activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress')
         return participantId;
     }
-    if (
-      args.action === 'get-next-task:started' ||
-      args.action === 'get-next-task:stopped' ||
-      args.action === NATIVE_WAITING_ACTION ||
-      args.action === NATIVE_TASK_INJECTED_ACTION
-    ) {
-      await applyAgentActivityHeartbeat(ctx, {
-        chatroomId: args.chatroomId,
-        role: args.role,
-        action: args.action,
-        taskId: args.taskId,
-      });
-    }
-
     return participantId;
   },
 });

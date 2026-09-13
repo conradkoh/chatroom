@@ -9,6 +9,7 @@ import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { AssignedTaskView, GetAssignedTaskForActionInput } from './assigned-tasks-types';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import { WorkspaceTaskAssigneeType } from '../../entities/chatroom-workspace-task-inbox';
+import { getLastSentLaunchRequestForRole } from '../agent/get-last-sent-launch-request';
 
 export async function getAssignedTaskForAction(
   ctx: QueryCtx,
@@ -29,22 +30,19 @@ export async function getAssignedTaskForAction(
   }
   if (task.assignedTo?.toLowerCase() !== input.role.toLowerCase()) return null;
 
-  const configs = await ctx.db
-    .query('chatroom_agentDesiredConfigs')
-    .withIndex('by_machineId', (q) => q.eq('machineId', input.machineId))
-    .filter((q) => q.eq(q.field('chatroomId'), task.chatroomId))
-    .collect();
-  const config = configs.find(
-    (candidate) =>
-      candidate.type === 'remote' && candidate.role.toLowerCase() === input.role.toLowerCase()
-  );
-  if (!config) return null;
-  const ephemeral = isEphemeralAgentRole(config.role)
-    ? config.agentHarness && config.model && config.workingDir
+  const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
+    chatroomId: task.chatroomId,
+    role: input.role,
+  });
+  if (!launchRequest || launchRequest.agentType !== 'remote') return null;
+  if (launchRequest.machineId !== input.machineId) return null;
+
+  const ephemeral = isEphemeralAgentRole(launchRequest.role)
+    ? launchRequest.agentHarness && launchRequest.model && launchRequest.workingDir
       ? {
-          agentHarness: config.agentHarness,
-          model: config.model,
-          workingDir: config.workingDir,
+          agentHarness: launchRequest.agentHarness,
+          model: launchRequest.model,
+          workingDir: launchRequest.workingDir,
         }
       : null
     : undefined;
@@ -58,7 +56,7 @@ export async function getAssignedTaskForAction(
     updatedAt: task.updatedAt,
     createdAt: task.createdAt,
     agentConfig: {
-      role: config.role,
+      role: launchRequest.role,
       machineId: input.machineId,
     },
     assignee: ephemeral

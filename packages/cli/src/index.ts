@@ -196,7 +196,7 @@ agentConfigCommand
 
 agentConfigCommand
   .command('set')
-  .description('Save agent harness and model configuration')
+  .description('Send a one-time agent start request with the harness and model')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Agent role')
   .requiredOption('--harness <harness>', 'Agent harness')

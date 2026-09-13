@@ -13,11 +13,6 @@ import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agen
 
 export interface UpdateTeamInput {
   chatroomId: Id<'chatroom_rooms'>;
-  /** Deprecated compatibility fields; structural truth is the active assignment. */
-  teamId: string;
-  teamName: string;
-  teamRoles: string[];
-  teamEntryPoint?: string | undefined;
   userId: Id<'users'>;
 }
 
@@ -36,16 +31,6 @@ export async function updateTeam(
   ctx: MutationCtx,
   input: UpdateTeamInput
 ): Promise<UpdateTeamResult> {
-  // Keep the legacy room fields populated only as a bounded compatibility
-  // bridge for readers that have not migrated to chatroom_activeTeamStructures.
-  // They are never used to select or reconcile agents.
-  await ctx.db.patch('chatroom_rooms', input.chatroomId, {
-    teamId: input.teamId,
-    teamName: input.teamName,
-    teamRoles: input.teamRoles,
-    teamEntryPoint: input.teamEntryPoint,
-  });
-
   // Task routing is a domain consequence of changing the active entry point;
   // it is not agent lifecycle reconciliation.
   await reassignInFlightTasksOnTeamSwitch(ctx, input.chatroomId);

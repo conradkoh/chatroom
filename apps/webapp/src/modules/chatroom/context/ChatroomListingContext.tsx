@@ -44,8 +44,7 @@ const ChatroomListingContext = createContext<ChatroomListingContextValue | null>
  * 1. `listByUser`                    — base chatroom rows (sorted, lightweight)
  * 2. `listFavoriteIds`               — favorited chatroom IDs
  * 3. `listUnreadStatus`              — per-chatroom unread indicator
- * 4. `listAgentOverview`             — remote agent running state per chatroom
- * 5. `listAgentRoleStatusReadModel`  — projected role activity per chatroom
+ * 4. `agents.listChatroomStatus`     — daemon-fed role status per chatroom
  *
  * Activity updates are delivered through the role-status projection.
  */
@@ -60,10 +59,10 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   const unreadStatus = useSessionQuery(api.chatrooms.listUnreadStatus);
 
   // 4. Remote agent running status — re-fires when any machine runtime state changes
-  const remoteAgentStatusData = useSessionQuery(api.machines.listAgentOverview);
+  const remoteAgentStatusData = useSessionQuery(api.agents.listChatroomStatus);
 
   // 5. Projected role activity — the source for chatroom activity status
-  const agentActivityStatusData = useSessionQuery(api.machines.listAgentRoleStatusReadModel);
+  const agentActivityStatusData = useSessionQuery(api.agents.listStatusForAllChatrooms);
 
   // Merge the five subscriptions into a single ChatroomWithStatus[] for consumers
   const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {

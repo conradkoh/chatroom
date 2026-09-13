@@ -1,6 +1,7 @@
 import { promoteNextTask, type PromoteNextTaskResult } from './promote-next-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { withActiveTeamStructure } from '../../../../convex/lib/chatroomTeam';
 import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../../entities/team';
 
@@ -19,7 +20,8 @@ export async function maybePromoteNextQueuedTask(
   options?: MaybePromoteNextQueuedTaskOptions
 ): Promise<MaybePromoteNextQueuedTaskResult> {
   if (options?.entryPointRole) {
-    const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+    const rawChatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+    const chatroom = rawChatroom ? await withActiveTeamStructure(ctx, rawChatroom) : null;
     const entryPoint = getTeamEntryPoint(chatroom ?? {})?.toLowerCase();
     if (entryPoint !== options.entryPointRole.toLowerCase()) {
       return { promoted: null, reason: 'skipped_not_entry_point' };

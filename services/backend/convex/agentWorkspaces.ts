@@ -12,6 +12,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import {
   getLastSentLaunchRequestForRole,
@@ -32,7 +33,7 @@ async function requireChatroomAccessForWorkspace(
   if (!workspace || workspace.removedAt !== undefined) return null;
 
   const { chatroom } = await requireChatroomAccess(ctx, sessionId, workspace.chatroomId);
-  return { workspace, chatroom };
+  return { workspace, chatroom: await withActiveTeamStructure(ctx, chatroom) };
 }
 
 function requestBelongsToWorkspace(
@@ -59,14 +60,7 @@ export const listConfiguredAgentsForWorkspace = query({
     const activeStructure = await getActiveTeamStructure(ctx, access.chatroom._id);
     const structure = activeStructure
       ? getTeamStructure({ teamId: activeStructure.teamStructureId })
-      : access.chatroom.teamId
-        ? getTeamStructure({
-            teamId: access.chatroom.teamId,
-            ...(access.chatroom.teamRoles !== undefined
-              ? { persistedRoles: access.chatroom.teamRoles }
-              : {}),
-          })
-        : null;
+      : null;
     const structureId = structure?.teamStructureId;
     const requests = await listLastSentLaunchRequestsForChatroom(ctx, {
       chatroomId: access.chatroom._id,
@@ -96,11 +90,7 @@ export const getAgentConfigForWorkspaceRole = query({
     if (!access) return null;
 
     const activeStructure = await getActiveTeamStructure(ctx, access.chatroom._id);
-    const structureId =
-      activeStructure?.teamStructureId ??
-      (access.chatroom.teamId
-        ? getTeamStructure({ teamId: access.chatroom.teamId }).teamStructureId
-        : undefined);
+    const structureId = activeStructure?.teamStructureId;
     const config = await getLastSentLaunchRequestForRole(ctx, {
       chatroomId: access.chatroom._id,
       role: args.role.toLowerCase(),
@@ -154,7 +144,7 @@ export const getAgentStatusForWorkspaceRole = query({
     return {
       role: row.role,
       status: row.status,
-      isRunning: row.isRunning === true,
+      isRunning: row.status !== 'offline',
       workingDir: row.workingDir,
       lastSeenAt: row.lastSeenAt ?? null,
       lastSeenAction: row.lastSeenAction ?? null,

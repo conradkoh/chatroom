@@ -1,11 +1,7 @@
 import { isEphemeralAgentRole, normalizeAgentRole } from '@workspace/shared/domain/agent-role';
 
-import { patchAgentRuntimeState } from './agent-runtime-state';
-import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
-import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
@@ -18,32 +14,12 @@ export async function releaseEphemeralAgentRole(
   const role = normalizeAgentRole(args.role);
   if (!isEphemeralAgentRole(role)) return;
 
-  const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  const teamId = room?.teamId;
-  if (teamId) {
-    const config = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, role))
-      )
-      .first();
-    if (config)
-      await patchAgentRuntimeState(ctx, config, { desiredState: 'stopped', status: 'offline' });
-  }
-
   const participant = await getParticipantForChatroomRole(ctx, args.chatroomId, role);
 
   if (participant) {
     await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAction: PARTICIPANT_EXITED_ACTION,
     });
-    await transitionAgentStatus(ctx, args.chatroomId, role, 'agent.exited');
     return;
   }
-
-  await projectAgentRoleStatusReadModel(ctx, {
-    chatroomId: args.chatroomId,
-    role,
-    event: { status: 'offline' },
-  });
 }

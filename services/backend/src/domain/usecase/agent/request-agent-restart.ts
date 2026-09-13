@@ -100,19 +100,9 @@ async function persistRestartAndEmit(
     },
   });
   const activeStructure = await getActiveTeamStructure(ctx, input.chatroomId);
-  const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
   const structure = activeStructure
     ? getTeamStructure({ teamId: activeStructure.teamStructureId })
-    : chatroom?.teamId
-      ? getTeamStructure({
-          teamId: chatroom.teamId,
-          ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
-          ...(chatroom.teamRoles !== undefined ? { persistedRoles: chatroom.teamRoles } : {}),
-          ...(chatroom.teamEntryPoint !== undefined
-            ? { persistedEntryPoint: chatroom.teamEntryPoint }
-            : {}),
-        })
-      : null;
+    : null;
   if (!structure) throw new Error(`Chatroom ${input.chatroomId} has no team structure`);
   await recordLastSentLaunchRequest(ctx, {
     requestId,

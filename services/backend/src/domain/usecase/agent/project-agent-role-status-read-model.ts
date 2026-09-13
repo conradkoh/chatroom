@@ -5,7 +5,6 @@ import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request'
 import type { Id, Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-for-role';
 
 export type AgentRoleStatusReadModelStatus = ChatroomAgentActivityStatusValue;
@@ -59,7 +58,6 @@ export async function projectAgentRoleStatusReadModel(
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
     event?: StatusEvent | undefined;
-    config?: Doc<'chatroom_agentDesiredConfigs'> | undefined;
     launchRequest?: Doc<'chatroom_agentLastSentLaunchRequests'> | undefined;
     agentType?: Doc<'chatroom_participants'>['agentType'] | undefined;
     lastSeenAt?: number | undefined;
@@ -82,17 +80,6 @@ export async function projectAgentRoleStatusReadModel(
       chatroomId: args.chatroomId,
       role,
     }));
-  const legacyTeamId = room.teamId;
-  const config =
-    args.config ??
-    (!launchRequest && legacyTeamId
-      ? await ctx.db
-          .query('chatroom_agentDesiredConfigs')
-          .withIndex('by_teamRoleKey', (q) =>
-            q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, legacyTeamId, role))
-          )
-          .first()
-      : null);
   const event = args.event ?? { status: 'offline' as const };
   const now = Date.now();
   const existing = await ctx.db
@@ -131,10 +118,10 @@ export async function projectAgentRoleStatusReadModel(
     chatroomId: args.chatroomId,
     role,
     roleKind: isEphemeralAgentRole(role) ? ('ephemeral' as const) : ('persistent' as const),
-    agentType: args.agentType ?? launchRequest?.agentType ?? config?.type,
+    agentType: args.agentType ?? launchRequest?.agentType ?? existing?.agentType,
     status: event.status,
-    machineId: args.sourceMachineId ?? launchRequest?.machineId ?? config?.machineId,
-    workingDir: launchRequest?.workingDir ?? config?.workingDir,
+    machineId: args.sourceMachineId ?? launchRequest?.machineId ?? existing?.machineId,
+    workingDir: launchRequest?.workingDir ?? existing?.workingDir,
     ...(args.observedPid !== undefined ? { observedPid: args.observedPid } : {}),
     ...(args.observedAt !== undefined ? { observedAt: args.observedAt } : {}),
     ...(args.lastSeenAt !== undefined

@@ -1,8 +1,5 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -16,51 +13,18 @@ export function useEnhancerConfig(chatroomId: string) {
   const [config, setConfig] = useState<EnhancerConfig | null>(() => getEnhancerConfig(chatroomId));
   const autoDisableAttemptRef = useRef<number | null>(null);
 
-  const serverConfig = useSessionQuery(api.web.enhancer.index.getConfig, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
-
-  const upsertMutation = useSessionMutation(api.web.enhancer.index.upsertConfig);
-  const disableMutation = useSessionMutation(api.web.enhancer.index.disableConfig);
-
-  // Derive authoritative server-active state from the reactive query only.
-  // undefined while loading, false for null, otherwise active check of hydrated shape.
-  const serverIsActive: boolean | undefined =
-    serverConfig === undefined
-      ? undefined
-      : serverConfig === null
-        ? false
-        : isEnhancerConfigActive({
-            enabled: serverConfig.enabled,
-            targetId: serverConfig.targetId,
-            agentHarness: serverConfig.agentHarness,
-            model: serverConfig.model,
-            machineId: serverConfig.machineId,
-          });
+  const serverIsActive: boolean | undefined = undefined;
 
   useEffect(() => {
-    if (serverConfig === undefined) return;
-    if (serverConfig === null) {
-      clearEnhancerConfig(chatroomId);
-      setConfig(null);
-      return;
+    if (config && !isEnhancerConfigActive(config)) {
+      if (autoDisableAttemptRef.current !== 1) {
+        autoDisableAttemptRef.current = 1;
+        const disabled = { ...config, enabled: false };
+        setEnhancerConfig(chatroomId, disabled);
+        setConfig(disabled);
+      }
     }
-    const hydrated: EnhancerConfig = {
-      enabled: serverConfig.enabled,
-      targetId: serverConfig.targetId,
-      agentHarness: serverConfig.agentHarness,
-      model: serverConfig.model,
-      machineId: serverConfig.machineId,
-    };
-    const shouldAutoDisable = hydrated.enabled && !isEnhancerConfigActive(hydrated);
-    const localConfig = shouldAutoDisable ? { ...hydrated, enabled: false } : hydrated;
-    setEnhancerConfig(chatroomId, localConfig);
-    setConfig(localConfig);
-    if (shouldAutoDisable && autoDisableAttemptRef.current !== serverConfig.updatedAt) {
-      autoDisableAttemptRef.current = serverConfig.updatedAt;
-      void disableMutation({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {});
-    }
-  }, [serverConfig, chatroomId, disableMutation]);
+  }, [config, chatroomId]);
 
   const saveConfig = useCallback(
     async (cfg: EnhancerConfig) => {
@@ -68,27 +32,9 @@ export function useEnhancerConfig(chatroomId: string) {
       const priorConfig = getEnhancerConfig(chatroomId);
       setEnhancerConfig(chatroomId, cfg);
       setConfig(cfg);
-      try {
-        await upsertMutation({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          enabled: cfg.enabled,
-          targetId: cfg.targetId,
-          agentHarness: cfg.agentHarness,
-          model: cfg.model,
-          machineId: cfg.machineId,
-        });
-      } catch (err) {
-        // Restore prior optimistic state so a failed enable does not leave stale "enabled" cache.
-        if (priorConfig === null) {
-          clearEnhancerConfig(chatroomId);
-        } else {
-          setEnhancerConfig(chatroomId, priorConfig);
-        }
-        setConfig(priorConfig);
-        throw err;
-      }
+      void priorConfig;
     },
-    [chatroomId, upsertMutation]
+    [chatroomId]
   );
 
   const disable = useCallback(async () => {
@@ -98,8 +44,7 @@ export function useEnhancerConfig(chatroomId: string) {
     }
     clearEnhancerConfig(chatroomId);
     setConfig(null);
-    await disableMutation({ chatroomId: chatroomId as Id<'chatroom_rooms'> });
-  }, [chatroomId, config, saveConfig, disableMutation]);
+  }, [chatroomId, config, saveConfig]);
 
   return {
     config,

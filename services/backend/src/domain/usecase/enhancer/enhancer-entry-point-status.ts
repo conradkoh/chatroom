@@ -4,7 +4,6 @@ import {
   findActiveEnhancerJob,
   findActiveEnhancerJobForChatroom,
 } from '../../../../convex/web/enhancer/jobHelpers';
-import { transitionAgentStatus } from '../agent/transition-agent-status';
 
 const ACTIVE_TASK_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
 
@@ -30,7 +29,11 @@ export async function transitionEnhancerEntryPointToEnhancing(
   chatroomId: Id<'chatroom_rooms'>,
   entryPointRole: string
 ): Promise<void> {
-  await transitionAgentStatus(ctx, chatroomId, entryPointRole, 'agent.enhancing');
+  // Enhancer work is reported by the daemon status outbox. Backend job/task
+  // mutations must not infer an agent lifecycle state.
+  void ctx;
+  void chatroomId;
+  void entryPointRole;
 }
 
 /** Clear the entry-point agent's enhancing status after the advisory pass ends. */
@@ -39,7 +42,9 @@ export async function transitionEnhancerEntryPointToWaiting(
   chatroomId: Id<'chatroom_rooms'>,
   entryPointRole: string
 ): Promise<void> {
-  await transitionAgentStatus(ctx, chatroomId, entryPointRole, 'agent.waiting');
+  void ctx;
+  void chatroomId;
+  void entryPointRole;
 }
 
 export async function hasActiveEntryPointEnhancerJob(

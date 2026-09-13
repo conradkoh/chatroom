@@ -89,7 +89,12 @@ import { StartInNewSessionPreferenceProvider } from './hooks/useStartInNewSessio
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
-import { ensureAgentRolesConfigured, runAgentRestartBatch } from './utils/agentBulkStart';
+import {
+  ensureAgentRolesConfigured,
+  getFailedAgentRoles,
+  runAgentRestartBatch,
+  startAgentsForRoles,
+} from './utils/agentBulkStart';
 import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
@@ -980,7 +985,6 @@ function ChatroomDashboardContent({
   // Send message mutation (used to execute saved commands)
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
-  const startConfiguredAgentsMutation = useSessionMutation(api.machines.startConfiguredAgents);
   const lastRefreshRef = useRef(0);
 
   useHandoffGitRefresh(
@@ -1400,19 +1404,20 @@ function ChatroomDashboardContent({
   const handleStartAllRemoteAgents = useCallback(async () => {
     const agentRoles = getConfiguredAgentRoles();
     if (!agentRoles) return;
-    // Resolve every tuple inside Convex from the desired-config table.
     setIsStartingAllAgents(true);
-    const result = await startConfiguredAgentsMutation({
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      roles: agentRoles,
-    });
-    setIsStartingAllAgents(false);
-
-    const failed = result.failedRoles.map((entry) => entry.role);
-    if (failed.length > 0) {
-      toast.error(`Failed to start: ${failed.join(', ')}`);
+    try {
+      const results = await startAgentsForRoles(
+        agentRoles,
+        roleConfigMap,
+        chatroomId as Id<'chatroom_rooms'>,
+        agentPanelData.sendCommand
+      );
+      const failed = getFailedAgentRoles(results, agentRoles);
+      if (failed.length > 0) toast.error(`Failed to start: ${failed.join(', ')}`);
+    } finally {
+      setIsStartingAllAgents(false);
     }
-  }, [startConfiguredAgentsMutation, chatroomId, getConfiguredAgentRoles]);
+  }, [agentPanelData.sendCommand, chatroomId, getConfiguredAgentRoles, roleConfigMap]);
 
   // Stop all remote agents immediately from the quick-action button.
   const handleStopAllRemoteAgents = useCallback(async () => {
@@ -1446,11 +1451,13 @@ function ChatroomDashboardContent({
       .map((a) => a.role);
     try {
       if (runningRoles.length === 0) {
-        const result = await startConfiguredAgentsMutation({
-          chatroomId: chatroomIdTyped,
-          roles: agentRoles,
-        });
-        const failed = result.failedRoles.map((entry) => entry.role);
+        const results = await startAgentsForRoles(
+          agentRoles,
+          roleConfigMap,
+          chatroomIdTyped,
+          agentPanelData.sendCommand
+        );
+        const failed = getFailedAgentRoles(results, agentRoles);
         if (failed.length > 0) toast.error(`Failed to start: ${failed.join(', ')}`);
         return;
       }

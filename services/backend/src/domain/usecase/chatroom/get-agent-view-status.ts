@@ -2,9 +2,10 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentType } from '../../entities/agent';
 import { getTeamStructure } from '../../entities/team-presets';
-import type { OperationalState } from '../agent/derive-agent-operational-state';
 import { hasActiveEnhancerWork } from '../enhancer/enhancer-entry-point-status';
 import { getActiveTeamStructure } from '../team/active-team-structure';
+
+type OperationalState = 'starting' | 'running' | 'stopped' | 'circuit_open';
 
 export interface AgentViewRole {
   role: string;
@@ -53,18 +54,7 @@ export async function getAgentViewStatus(
   if (!chatroom || chatroom.ownerId !== input.userId) return null;
 
   const active = await getActiveTeamStructure(ctx, input.chatroomId);
-  const structure = active
-    ? getTeamStructure({ teamId: active.teamStructureId })
-    : chatroom.teamId
-      ? getTeamStructure({
-          teamId: chatroom.teamId,
-          ...(chatroom.teamRoles !== undefined ? { persistedRoles: chatroom.teamRoles } : {}),
-          ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
-          ...(chatroom.teamEntryPoint !== undefined
-            ? { persistedEntryPoint: chatroom.teamEntryPoint }
-            : {}),
-        })
-      : null;
+  const structure = active ? getTeamStructure({ teamId: active.teamStructureId }) : null;
   if (!structure) return null;
 
   const rows = await ctx.db

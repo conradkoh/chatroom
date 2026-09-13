@@ -8,17 +8,19 @@ import { mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireMachineOwner } from './auth/cli/machineAccess';
+import { getSession } from './auth/session';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import {
   getLastSentLaunchRequestForRole,
   listLastSentLaunchRequestsForChatroom,
 } from '../src/domain/usecase/agent/get-last-sent-launch-request';
-import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 import {
   requestChatroomWorkspaceAgentStop,
   requestWorkspaceAgentStop,
 } from '../src/domain/usecase/agent/request-chatroom-workspace-agent-stop';
+import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
+import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 
 function normalizeWorkingDir(value: string): string {
   return value.trim().replace(/[/\\]+$/, '');
@@ -37,18 +39,7 @@ function requestBelongsToWorkspace(
 
 async function resolveTeamStructure(ctx: QueryCtx, chatroom: Doc<'chatroom_rooms'>) {
   const active = await getActiveTeamStructure(ctx, chatroom._id);
-  return active
-    ? getTeamStructure({ teamId: active.teamStructureId })
-    : chatroom.teamId
-      ? getTeamStructure({
-          teamId: chatroom.teamId,
-          ...(chatroom.teamRoles !== undefined ? { persistedRoles: chatroom.teamRoles } : {}),
-          ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
-          ...(chatroom.teamEntryPoint !== undefined
-            ? { persistedEntryPoint: chatroom.teamEntryPoint }
-            : {}),
-        })
-      : null;
+  return active ? getTeamStructure({ teamId: active.teamStructureId }) : null;
 }
 
 export const getLastSentLaunchRequest = query({
@@ -119,7 +110,7 @@ export const getStatus = query({
     workspaceId: v.optional(v.id('chatroom_workspaces')),
   },
   handler: async (ctx, args) => {
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const row = await ctx.db
       .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_chatroom_role', (q) =>
@@ -142,15 +133,27 @@ export const getStatus = query({
     return {
       role: row.role,
       status: row.status,
-      isRunning: row.isRunning === true,
+      isRunning: row.status !== 'offline',
       lastSeenAt: row.lastSeenAt ?? null,
       lastSeenAction: row.lastSeenAction ?? null,
       activeWork: row.activeWork ?? null,
       error: row.error ?? null,
       projectedAt: row.projectedAt,
       workingDir: row.workingDir ?? '',
-      teamId: chatroom.teamId ?? null,
+      teamId: (await getActiveTeamStructure(ctx, args.chatroomId))?.teamStructureId ?? null,
     };
+  },
+});
+
+/** Canonical role/team view for the chatroom agent panel. */
+export const getViewStatus = query({
+  args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms') },
+  handler: async (ctx, args) => {
+    const session = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return getAgentViewStatus(ctx, {
+      chatroomId: args.chatroomId,
+      userId: session.session.userId,
+    });
   },
 });
 
@@ -171,10 +174,10 @@ export const listStatus = query({
       const row = byRole.get(role.toLowerCase());
       return {
         role,
-        roleKind: lifecycle,
+        roleKind: lifecycle === 'ephemeral' ? ('ephemeral' as const) : ('persistent' as const),
         optional,
         status: row?.status ?? 'offline',
-        isRunning: row?.isRunning === true,
+        isRunning: row?.status !== undefined && row.status !== 'offline',
         machineId: row?.machineId ?? null,
         workingDir: row?.workingDir ?? null,
         lastSeenAt: row?.lastSeenAt ?? null,
@@ -184,6 +187,60 @@ export const listStatus = query({
         projectedAt: row?.projectedAt ?? null,
       };
     });
+  },
+});
+
+/** Canonical owner-scoped status rows used by chatroom listings. */
+export const listChatroomStatus = query({
+  args: { ...SessionIdArg },
+  handler: async (ctx, args) => {
+    const session = await getSession(ctx, args.sessionId);
+    if (!session) return [];
+    const chatrooms = await ctx.db
+      .query('chatroom_rooms')
+      .withIndex('by_ownerId', (q) => q.eq('ownerId', session.userId))
+      .collect();
+    const results = await Promise.all(
+      chatrooms.map(async (chatroom) => {
+        const rows = await ctx.db
+          .query('chatroom_agentRoleStatusReadModel')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+          .collect();
+        const activeRows = rows.filter((row) => row.status !== 'offline');
+        return {
+          chatroomId: chatroom._id,
+          agentStatus: activeRows.length > 0 ? ('running' as const) : ('none' as const),
+          runningRoles: activeRows.map((row) => row.role),
+          aliveRoles: activeRows.map((row) => row.role),
+          runningAgents: activeRows.flatMap((row) =>
+            row.machineId ? [{ role: row.role, machineId: row.machineId }] : []
+          ),
+        };
+      })
+    );
+    return results;
+  },
+});
+
+/** Owner-scoped role status rows for activity indicators in listings. */
+export const listStatusForAllChatrooms = query({
+  args: { ...SessionIdArg },
+  handler: async (ctx, args) => {
+    const session = await getSession(ctx, args.sessionId);
+    if (!session) return [];
+    const chatrooms = await ctx.db
+      .query('chatroom_rooms')
+      .withIndex('by_ownerId', (q) => q.eq('ownerId', session.userId))
+      .collect();
+    const rows = await Promise.all(
+      chatrooms.map((chatroom) =>
+        ctx.db
+          .query('chatroom_agentRoleStatusReadModel')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+          .collect()
+      )
+    );
+    return rows.flat();
   },
 });
 

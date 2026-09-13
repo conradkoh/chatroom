@@ -6,34 +6,7 @@ import type { AssignedTask } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 
-type RemoteAgentConfig = Doc<'chatroom_agentDesiredConfigs'>;
 type CollectCtx = QueryCtx | MutationCtx;
-
-// fallow-ignore-next-line unused-export
-export async function loadRemoteAgentConfigsForMachine(
-  ctx: CollectCtx,
-  machineId: string
-): Promise<RemoteAgentConfig[] | undefined> {
-  const machine = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-    .first();
-  if (!machine) {
-    return undefined;
-  }
-
-  const agentConfigs = await ctx.db
-    .query('chatroom_agentDesiredConfigs')
-    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-    .filter((q) => q.eq(q.field('type'), 'remote'))
-    .collect();
-
-  if (agentConfigs.length === 0) {
-    return undefined;
-  }
-
-  return agentConfigs;
-}
 
 export async function getParticipantForChatroomRole(
   ctx: CollectCtx,

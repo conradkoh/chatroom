@@ -12,24 +12,9 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
-import { buildTeamRoleKey } from './utils/teamRoleKey';
 import type { AgentHarness } from '../src/domain/entities/agent';
 import { migrateFavoriteModelForHarness } from '../src/domain/entities/harness/model-provider';
 import { isActiveWorkspace } from '../src/domain/entities/workspace';
-import { getAgentRuntimeState } from '../src/domain/usecase/agent/agent-runtime-state';
-import {
-  rebuildAgentOperationalStatusForChatroom,
-  insertEmptyOperationalSummaryForRoom,
-} from '../src/domain/usecase/agent/project-agent-operational-status';
-import {
-  projectAgentRoleStatusReadModel,
-  statusEventForAgentEvent,
-} from '../src/domain/usecase/agent/project-agent-role-status-read-model';
-import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
-import {
-  mergeCanonicalEnhancerIntoTeamRoles,
-  migrateEnhancerConfigRow,
-} from '../src/domain/usecase/enhancer/migrate-legacy-enhancer-config';
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import {
   upsertMessageReadModel,
@@ -325,94 +310,6 @@ export const migrateQueuedTasks = migrations.define({
 });
 
 /**
- * Migration: Add teamId to teamRoleKey in chatroom_agentDesiredConfigs.
- * Old format: chatroom_<chatroomId>#role_<role>
- * New format: chatroom_<chatroomId>#team_<teamId>#role_<role>
- * Idempotent: records already containing '#team_' are skipped.
- */
-export const migrateTeamRoleKeyAddTeamId = migrations.define({
-  table: 'chatroom_agentDesiredConfigs',
-  migrateOne: async (ctx, config) => {
-    if (config.teamRoleKey.includes('#team_')) return; // Already migrated
-
-    const chatroom = await ctx.db.get('chatroom_rooms', config.chatroomId);
-    if (!chatroom || !chatroom.teamId) {
-      await ctx.db.delete('chatroom_agentDesiredConfigs', config._id);
-      return;
-    }
-
-    const newKey = `chatroom_${config.chatroomId}#team_${chatroom.teamId.toLowerCase()}#role_${config.role.toLowerCase()}`;
-
-    // Check for existing record with the new key to avoid duplicates
-    const existing = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', newKey))
-      .first();
-
-    if (existing) {
-      // Duplicate — delete this record
-      await ctx.db.delete('chatroom_agentDesiredConfigs', config._id);
-      return;
-    }
-
-    return { teamRoleKey: newKey };
-  },
-});
-
-/**
- * Migration: Deduplicate chatroom_agentDesiredConfigs by teamRoleKey.
- * Keeps the most recently created row per teamRoleKey and deletes duplicates.
- * Note: This uses a full-table scan approach since dedup requires grouping.
- * Idempotent: if no duplicates exist, no changes are made.
- */
-export const deduplicateTeamAgentConfigs = migrations.define({
-  table: 'chatroom_agentDesiredConfigs',
-  migrateOne: async (ctx, config) => {
-    // Check if a newer document with the same teamRoleKey exists
-    const allWithKey = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', config.teamRoleKey))
-      .collect();
-
-    if (allWithKey.length <= 1) return; // No duplicates
-
-    // Sort by _creationTime descending — keep the newest
-    allWithKey.sort((a, b) => b._creationTime - a._creationTime);
-    const newest = allWithKey[0];
-
-    if (config._id !== newest._id) {
-      await ctx.db.delete('chatroom_agentDesiredConfigs', config._id);
-    }
-  },
-});
-
-/** Remove runtime fields left on desired-config rows by the previous schema. */
-export const stripLegacyAgentRuntimeFields = migrations.define({
-  table: 'chatroom_agentDesiredConfigs',
-  migrateOne: async (_ctx, config) => {
-    const raw = config as Record<string, unknown>;
-    const patch: Record<string, undefined> = {};
-    for (const field of [
-      'desiredState',
-      'circuitState',
-      'circuitOpenedAt',
-      'spawnedAgentPid',
-      'spawnedAt',
-      'autoRestartOnNewContext',
-      'wantResume',
-      'plannerRestartOnHandoffToUser',
-      'wantResumeOnFail',
-      'lifecycleRevision',
-    ]) {
-      if (raw[field] !== undefined) patch[field] = undefined;
-    }
-    return Object.keys(patch).length > 0
-      ? migrationPatch<Doc<'chatroom_agentDesiredConfigs'>>(patch)
-      : undefined;
-  },
-});
-
-/**
  * Migration: Purge all rows from chatroom_workspaceCommitDetail.
  * Required before deploying schema change that adds the `status` discriminated union.
  * Idempotent: safe to run multiple times.
@@ -531,44 +428,6 @@ export const dropEmbeddedAvailableModels = migrations.define({
     if (r.availableModels !== undefined) {
       return migrationPatch<Doc<'chatroom_machines'>>({ availableModels: undefined });
     }
-  },
-});
-
-/** Backfill additive defaults on existing team agent configs. */
-export const backfillTeamAgentConfigLifecycleDefaults = migrations.define({
-  table: 'chatroom_agentDesiredConfigs',
-  migrateOne: async (_ctx, config) => {
-    const patch: Record<string, unknown> = {};
-    if (config.enabled === undefined) patch.enabled = true;
-    return Object.keys(patch).length > 0
-      ? migrationPatch<Doc<'chatroom_agentDesiredConfigs'>>(patch)
-      : undefined;
-  },
-});
-
-// Enhancer unified runtime: cold-path migration from legacy enhancer records.
-export const migrateEnhancerConfigToTeamAgentConfig = migrations.define({
-  table: 'chatroom_enhancerConfigs',
-  migrateOne: async (ctx, row) => {
-    await migrateEnhancerConfigRow(ctx, row);
-  },
-});
-
-export const migrateAddEnhancerToRoomTeamRoles = migrations.define({
-  table: 'chatroom_rooms',
-  migrateOne: async (_ctx, room) => {
-    const merged = mergeCanonicalEnhancerIntoTeamRoles(room.teamId, room.teamRoles ?? []);
-    if (JSON.stringify(merged) === JSON.stringify(room.teamRoles ?? [])) return;
-    return migrationPatch<Doc<'chatroom_rooms'>>({ teamRoles: merged });
-  },
-});
-
-export const migrateAgentViewMetadataEnhancerRole = migrations.define({
-  table: 'chatroom_agentViewMetadata',
-  migrateOne: async (_ctx, row) => {
-    const merged = mergeCanonicalEnhancerIntoTeamRoles(row.teamId, row.teamRoles);
-    if (JSON.stringify(merged) === JSON.stringify(row.teamRoles)) return;
-    return migrationPatch<Doc<'chatroom_agentViewMetadata'>>({ teamRoles: merged });
   },
 });
 
@@ -854,47 +713,6 @@ export const stripManagerRoleNames = migrations.define({
   },
 });
 
-export const backfillAgentOverviewSummaries = migrations.define({
-  table: 'chatroom_rooms',
-  migrateOne: async (ctx, room) => {
-    const existing = await ctx.db
-      .query('chatroom_agentOperationalSummary')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-      .first();
-    const configs = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-      .collect();
-    if (configs.some((c) => c.machineId != null)) {
-      await rebuildAgentOperationalStatusForChatroom(
-        ctx,
-        room._id,
-        'migration:backfillAgentOverviewSummaries'
-      );
-      const rebuilt = await ctx.db
-        .query('chatroom_agentOperationalSummary')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-        .first();
-      if (rebuilt && rebuilt.ownerId !== room.ownerId)
-        await ctx.db.patch('chatroom_agentOperationalSummary', rebuilt._id, {
-          ownerId: room.ownerId,
-        });
-      return;
-    }
-    if (!existing) {
-      await insertEmptyOperationalSummaryForRoom(ctx, {
-        chatroomId: room._id,
-        ownerId: room.ownerId,
-        teamId: room.teamId ?? '',
-      });
-    } else if (existing.ownerId !== room.ownerId) {
-      await ctx.db.patch('chatroom_agentOperationalSummary', existing._id, {
-        ownerId: room.ownerId,
-      });
-    }
-  },
-});
-
 export const backfillMachineIdentities = migrations.define({
   table: 'chatroom_machines',
   migrateOne: async (ctx, machine) =>
@@ -903,27 +721,6 @@ export const backfillMachineIdentities = migrations.define({
       userId: machine.userId,
       hostname: machine.hostname,
     }),
-});
-
-export const backfillAgentViewMetadata = migrations.define({
-  table: 'chatroom_rooms',
-  migrateOne: async (ctx, room) => {
-    if (!room.teamId || !room.teamRoles?.length) return;
-    const firstUserMessage = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', room._id).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .first();
-    await upsertAgentViewMetadata(ctx, {
-      chatroomId: room._id,
-      ownerId: room.ownerId,
-      teamId: room.teamId,
-      teamName: room.teamName ?? room.teamId,
-      teamRoles: room.teamRoles,
-      hasHistory: firstUserMessage !== null,
-    });
-  },
 });
 
 export const backfillMachineObservedWorkspaceViews = migrations.define({
@@ -965,86 +762,6 @@ export const backfillMessageReadModelState = migrations.define({
  * Backfill materialized agent operational status rows from current configs.
  * Idempotent and safe to resume through the migrations component.
  */
-export const backfillAgentOperationalStatus = migrations.define({
-  table: 'chatroom_rooms',
-  migrateOne: async (ctx, room) => {
-    await rebuildAgentOperationalStatusForChatroom(
-      ctx,
-      room._id,
-      'migration:backfillAgentOperationalStatus'
-    );
-  },
-});
-
-/** Seed the frontend-facing role activity projection from existing state. */
-export const backfillAgentRoleStatusReadModel = migrations.define({
-  table: 'chatroom_rooms',
-  migrateOne: async (ctx, room) => {
-    const configs = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-      .collect();
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-      .collect();
-    const roles = new Set([
-      ...(room.teamRoles ?? []),
-      ...configs.map((config) => config.role),
-      ...participants.map((participant) => participant.role),
-    ]);
-
-    for (const role of roles) {
-      const normalizedRole = role.trim().toLowerCase();
-      if (normalizedRole === 'user') continue;
-      const existing = await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_role', (q) =>
-          q.eq('chatroomId', room._id).eq('role', normalizedRole)
-        )
-        .first();
-      if (existing) continue;
-
-      const participant = participants.find((entry) => entry.role.toLowerCase() === normalizedRole);
-      const config = configs.find((entry) => entry.role.toLowerCase() === normalizedRole);
-      const runtime = config ? await getAgentRuntimeState(ctx, config._id) : null;
-      const event = participant?.lastStatus
-        ? statusEventForAgentEvent(participant.lastStatus)
-        : runtime?.pid != null
-          ? statusEventForAgentEvent('agent.started')
-          : statusEventForAgentEvent('agent.exited');
-      await projectAgentRoleStatusReadModel(ctx, {
-        chatroomId: room._id,
-        role: normalizedRole,
-        event,
-        config,
-      });
-    }
-  },
-});
-
-/** Backfill workspace identity on existing role-status rows for workspace-scoped reads. */
-export const backfillAgentRoleStatusWorkingDir = migrations.define({
-  table: 'chatroom_agentRoleStatusReadModel',
-  migrateOne: async (ctx, row) => {
-    if (row.workingDir !== undefined || row.machineId === undefined) return;
-
-    const chatroom = await ctx.db.get('chatroom_rooms', row.chatroomId);
-    const teamId = chatroom?.teamId;
-    if (!teamId) return;
-
-    const config = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(row.chatroomId, teamId, row.role))
-      )
-      .first();
-    if (!config?.workingDir || config.machineId !== row.machineId) return;
-
-    return { workingDir: config.workingDir };
-  },
-});
-
 /** Seed one deterministic primary workspace for existing chatrooms. */
 export const backfillPrimaryWorkspaceForChatroom = migrations.define({
   table: 'chatroom_workspaces',
@@ -1180,10 +897,7 @@ const allMigrationReferences = [
   internal.migrations.stripParticipantStaleFields,
   internal.migrations.deleteLegacyMessageQueueDocuments,
   internal.migrations.migrateQueuedTasks,
-  internal.migrations.migrateTeamRoleKeyAddTeamId,
   // Cleanup
-  internal.migrations.deduplicateTeamAgentConfigs,
-  internal.migrations.stripLegacyAgentRuntimeFields,
   internal.migrations.purgeWorkspaceCommitDetails,
   internal.migrations.stripTimelineMachineSignalFields,
   // Workspace File Tree
@@ -1195,12 +909,6 @@ const allMigrationReferences = [
   internal.migrations.dropEmbeddedAvailableModels,
   // Saved Commands
   internal.migrations.backfillSavedCommandScope,
-  // Agent Config
-  internal.migrations.backfillTeamAgentConfigLifecycleDefaults,
-  // Enhancer unified runtime
-  internal.migrations.migrateEnhancerConfigToTeamAgentConfig,
-  internal.migrations.migrateAddEnhancerToRoomTeamRoles,
-  internal.migrations.migrateAgentViewMetadataEnhancerRole,
   internal.migrations.migrateEnhancerJobOriginToTask,
   internal.migrations.migrateTaskEnhancerEnabledSnapshot,
   // Machine Config Favorites
@@ -1214,10 +922,7 @@ const allMigrationReferences = [
   // RBAC
   internal.migrations.backfillUserRoleNames,
   internal.migrations.stripManagerRoleNames,
-  internal.migrations.backfillAgentOverviewSummaries,
-  internal.migrations.backfillAgentRoleStatusReadModel,
   internal.migrations.backfillMachineIdentities,
-  internal.migrations.backfillAgentViewMetadata,
   internal.migrations.backfillMachineObservedWorkspaceViews,
   internal.migrations.backfillPrimaryWorkspaceForChatroom,
   internal.migrations.backfillMessageReadModels,

@@ -9,7 +9,6 @@
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import { deleteCliSessionLastUsedAt, deleteMachineLastSeenAt } from './lib/lastAtProjections';
-import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import { deleteMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { deleteObservedWorkspaceViewsForMachine } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
@@ -133,7 +132,7 @@ export const cleanupReadCursors = internalMutation({
  * - chatroom_machineLiveness
  * - chatroom_machineStatus
  * - chatroom_machineModelFilters
- * - chatroom_agentDesiredConfigs
+ * - chatroom_agentLastSentLaunchRequests
  * - chatroom_workspaceGitState
  * - chatroom_workspaceFileTree
  * - chatroom_workspaceFileContent
@@ -205,24 +204,19 @@ export const cleanupMachines = internalMutation({
       for (const row of searchConfigFavorites)
         await ctx.db.delete('chatroom_searchConfigFavorites', row._id);
 
-      const teamConfigs = await ctx.db
-        .query('chatroom_agentDesiredConfigs')
+      const launchRequests = await ctx.db
+        .query('chatroom_agentLastSentLaunchRequests')
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))
         .collect();
-      const affectedChatroomIds = [...new Set(teamConfigs.map((row) => row.chatroomId))];
-      for (const row of teamConfigs) {
-        const runtime = await ctx.db
-          .query('chatroom_agentRuntimeStates')
-          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', row._id))
-          .first();
-        if (runtime) await ctx.db.delete('chatroom_agentRuntimeStates', runtime._id);
-        await ctx.db.delete('chatroom_agentDesiredConfigs', row._id);
-      }
-      for (const chatroomId of affectedChatroomIds) {
-        await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, {
-          pruneStale: true,
-        });
-      }
+      for (const row of launchRequests)
+        await ctx.db.delete('chatroom_agentLastSentLaunchRequests', row._id);
+
+      const roleStatusRows = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
+        .collect();
+      for (const row of roleStatusRows)
+        await ctx.db.delete('chatroom_agentRoleStatusReadModel', row._id);
       await deleteMachineIdentity(ctx, mid);
       await deleteObservedWorkspaceViewsForMachine(ctx, mid);
 

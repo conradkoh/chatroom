@@ -4,9 +4,9 @@ import { createTask } from './create-task';
 import { adjustTaskCount } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { withActiveTeamStructure } from '../../../../convex/lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
-import { markAgentViewHasHistory } from '../chatroom/project-agent-view-metadata';
 import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 
 /**
@@ -31,8 +31,9 @@ export async function promoteQueuedMessage(
   const queueRecord = await ctx.db.get('chatroom_messageQueue', queuedMessageId);
   if (!queueRecord) return null;
 
-  const chatroom = await ctx.db.get('chatroom_rooms', queueRecord.chatroomId);
-  if (!chatroom) return null;
+  const rawChatroom = await ctx.db.get('chatroom_rooms', queueRecord.chatroomId);
+  if (!rawChatroom) return null;
+  const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
   const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
   // The canonical envelope is the atomic policy snapshot copied from the queue
@@ -67,9 +68,6 @@ export async function promoteQueuedMessage(
     ...(queueRecord.sourcePlatform ? { sourcePlatform: queueRecord.sourcePlatform } : {}),
     ...(queueRecord.scheduledPromptId ? { scheduledPromptId: queueRecord.scheduledPromptId } : {}),
   });
-  if (queueRecord.senderRole === 'user' && queueRecord.type === 'message') {
-    await markAgentViewHasHistory(ctx, queueRecord.chatroomId);
-  }
 
   // Note: acknowledgedAt is intentionally NOT set here.
   // Context-building queries filter out user messages where acknowledgedAt is undefined,

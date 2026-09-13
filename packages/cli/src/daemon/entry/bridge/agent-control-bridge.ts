@@ -57,16 +57,6 @@ export function createStartAgentDeps(
                 errorMessage: args.error,
               })
             );
-          } else {
-            // Compatibility for isolated bridge tests and older composition
-            // roots; production sessions always provide the durable outbox.
-            await session.backend.mutation(api.daemon.agentEvents.agentStartFailed, {
-              sessionId: session.sessionId,
-              machineId: session.machineId,
-              chatroomId: args.chatroomId as Id<'chatroom_rooms'>,
-              role: args.role,
-              error: args.error,
-            });
           }
         } catch (err) {
           console.log(`   ⚠️  Failed to emit startFailed event: ${(err as Error).message}`);

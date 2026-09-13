@@ -7,7 +7,6 @@ import {
   NATIVE_WAITING_ACTION,
 } from '../../entities/participant';
 import { getAgentConfig } from '../agent/get-agent-config';
-import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { acknowledgePendingTask } from '../task/acknowledge-pending-task';
 import { findAcknowledgedTaskForRole } from '../task/find-acknowledged-task-for-role';
 import { readTask } from '../task/read-task';
@@ -125,7 +124,6 @@ async function ruleRecoveredPending(
     const isRecovered = await isRecoveredPendingTask(ctx, topPending, participant);
     if (!isRecovered) return false;
     await transitionTask(ctx, topPending._id, 'in_progress', 'resumeFromTokenActivity');
-    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
     return true;
   }
 

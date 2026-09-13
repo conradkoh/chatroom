@@ -1,6 +1,5 @@
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
-import { getTeamStructure } from '../../entities/team-presets';
 import { getActiveTeamStructure } from '../team/active-team-structure';
 
 type DbCtx = QueryCtx | MutationCtx;
@@ -14,11 +13,8 @@ export async function getLastSentLaunchRequestForRole(
     teamStructureId?: string | undefined;
   }
 ): Promise<LastSentLaunchRequest | null> {
-  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
   const structureId =
-    args.teamStructureId ??
-    (await getActiveTeamStructure(ctx, args.chatroomId))?.teamStructureId ??
-    (chatroom?.teamId ? getTeamStructure({ teamId: chatroom.teamId }).teamStructureId : undefined);
+    args.teamStructureId ?? (await getActiveTeamStructure(ctx, args.chatroomId))?.teamStructureId;
   if (!structureId) return null;
 
   const requestKey = `${args.chatroomId}:${structureId}:${args.role.trim().toLowerCase()}`;
@@ -34,11 +30,8 @@ export async function listLastSentLaunchRequestsForChatroom(
   ctx: DbCtx,
   args: { chatroomId: Id<'chatroom_rooms'>; teamStructureId?: string | undefined }
 ): Promise<LastSentLaunchRequest[]> {
-  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
   const structureId =
-    args.teamStructureId ??
-    (await getActiveTeamStructure(ctx, args.chatroomId))?.teamStructureId ??
-    (chatroom?.teamId ? getTeamStructure({ teamId: chatroom.teamId }).teamStructureId : undefined);
+    args.teamStructureId ?? (await getActiveTeamStructure(ctx, args.chatroomId))?.teamStructureId;
   if (!structureId) return [];
 
   const rows = await ctx.db

@@ -13,9 +13,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       listFavoriteIds: { name: 'chatrooms:listFavoriteIds' },
       listUnreadStatus: { name: 'chatrooms:listUnreadStatus' },
     },
-    machines: {
-      listAgentOverview: { name: 'machines:listAgentOverview' },
-      listAgentRoleStatusReadModel: { name: 'machines:listAgentRoleStatusReadModel' },
+    agents: {
+      listChatroomStatus: { name: 'agents:listChatroomStatus' },
+      listStatusForAllChatrooms: { name: 'agents:listStatusForAllChatrooms' },
     },
   },
 }));
@@ -71,12 +71,12 @@ describe('ChatroomListingProvider agent/status derivation', () => {
     sessionQueryMocks['chatrooms:listByUser'] = baseChatrooms();
     sessionQueryMocks['chatrooms:listFavoriteIds'] = [];
     sessionQueryMocks['chatrooms:listUnreadStatus'] = [];
-    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [];
-    sessionQueryMocks['machines:listAgentOverview'] = [];
+    sessionQueryMocks['agents:listStatusForAllChatrooms'] = [];
+    sessionQueryMocks['agents:listChatroomStatus'] = [];
   });
 
   it('shows working activityStatus from the projected role status', () => {
-    sessionQueryMocks['machines:listAgentOverview'] = [
+    sessionQueryMocks['agents:listChatroomStatus'] = [
       {
         chatroomId: CHATROOM_ID,
         agentStatus: 'stopped',
@@ -85,7 +85,7 @@ describe('ChatroomListingProvider agent/status derivation', () => {
         runningAgents: [],
       },
     ];
-    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [
+    sessionQueryMocks['agents:listStatusForAllChatrooms'] = [
       {
         chatroomId: CHATROOM_ID,
         role: 'builder',
@@ -105,7 +105,7 @@ describe('ChatroomListingProvider agent/status derivation', () => {
   });
 
   it('shows idle when no agent is alive', () => {
-    sessionQueryMocks['machines:listAgentOverview'] = [
+    sessionQueryMocks['agents:listChatroomStatus'] = [
       {
         chatroomId: CHATROOM_ID,
         agentStatus: 'stopped',
@@ -125,7 +125,7 @@ describe('ChatroomListingProvider agent/status derivation', () => {
   });
 
   it('shows working when both aliveRoles and runningRoles agree the agent is running', () => {
-    sessionQueryMocks['machines:listAgentOverview'] = [
+    sessionQueryMocks['agents:listChatroomStatus'] = [
       {
         chatroomId: CHATROOM_ID,
         agentStatus: 'running',
@@ -134,7 +134,7 @@ describe('ChatroomListingProvider agent/status derivation', () => {
         runningAgents: [{ role: 'builder', machineId: 'machine-1' }],
       },
     ];
-    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [
+    sessionQueryMocks['agents:listStatusForAllChatrooms'] = [
       {
         chatroomId: CHATROOM_ID,
         role: 'builder',

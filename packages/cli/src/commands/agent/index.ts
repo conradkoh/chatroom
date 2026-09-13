@@ -8,11 +8,10 @@ import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/st
 
 interface AgentConfig {
   role: string;
-  agentHarness?: string | undefined;
-  model?: string | undefined;
-  workingDir?: string | undefined;
-  machineId?: string | undefined;
-  desiredState?: string | undefined;
+  agentHarness: string;
+  model: string;
+  workingDir: string;
+  machineId: string;
 }
 
 async function createDefaultDeps(): Promise<AgentDeps> {
@@ -50,7 +49,7 @@ async function getConfigs(
   sessionId: string,
   chatroomId: string
 ): Promise<AgentConfig[]> {
-  return (await deps.backend.query(api.machines.getTeamAgentConfigs, {
+  return (await deps.backend.query(api.agents.listLastSentLaunchRequests, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   })) as AgentConfig[];
@@ -73,7 +72,6 @@ export async function getAgentConfig(
   console.log(`  Model: ${config.model ?? '(unset)'}`);
   console.log(`  Working directory: ${config.workingDir ?? '(unset)'}`);
   console.log(`  Machine ID: ${config.machineId ?? '(unset)'}`);
-  console.log(`  Desired state: ${config.desiredState ?? '(unset)'}`);
 }
 
 export async function setAgentConfig(
@@ -91,17 +89,19 @@ export async function setAgentConfig(
   const machineId = await requireMachineId(d);
   const machineConfig = await d.machine.loadMachineConfig();
   const workingDir = options.workingDir ?? configuredWorkingDir(machineConfig) ?? process.cwd();
-  await d.backend.mutation(api.machines.saveAgentDesiredConfig, {
+  await d.backend.mutation(api.machines.sendCommand, {
     sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    role: options.role,
-    type: 'remote',
     machineId,
-    agentHarness: options.harness as AgentHarness,
-    model: options.model,
-    workingDir,
+    type: 'start-agent',
+    payload: {
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role: options.role,
+      agentHarness: options.harness as AgentHarness,
+      model: options.model,
+      workingDir,
+    },
   });
-  console.log(`✅ Agent config saved for ${options.role}`);
+  console.log(`✅ Start command sent for ${options.role}`);
   console.log(`  Harness: ${options.harness}`);
   console.log(`  Model: ${options.model}`);
   console.log(`  Working directory: ${workingDir}`);

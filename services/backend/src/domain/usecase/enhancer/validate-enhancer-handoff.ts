@@ -3,11 +3,11 @@ import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/do
 import {
   hasRemoteEnhancerConfigFields,
   isCompleteRemoteEnhancerConfig,
+  type EnhancerAgentLaunchConfig,
 } from './get-enhancer-team-agent-config';
-import type { Doc } from '../../../../convex/_generated/dataModel';
 
 export type EnhancerHandoffValidation =
-  | { allowed: true; config: Doc<'chatroom_agentDesiredConfigs'> }
+  | { allowed: true; config: EnhancerAgentLaunchConfig }
   | { allowed: false; code: 'ENHANCER_NOT_ENABLED' | 'ENHANCER_CONFIG_INCOMPLETE' };
 
 export function validateEnhancerHandoff(args: {
@@ -15,7 +15,7 @@ export function validateEnhancerHandoff(args: {
   taskPlannerEnhancerEnabled?: boolean | undefined;
   /** Explicit canonical snapshot; the authoritative policy source when present. */
   taskEnvelope?: TaskEnvelopeV1 | undefined;
-  config: Doc<'chatroom_agentDesiredConfigs'> | null | undefined;
+  config: EnhancerAgentLaunchConfig | null | undefined;
 }): EnhancerHandoffValidation {
   // An explicit envelope is the source of enhancer authorization: only an
   // explicit code:enhanced mode enables enrichment, regardless of stale legacy

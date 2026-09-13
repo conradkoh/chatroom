@@ -1,7 +1,6 @@
 import { transitionTask } from './transition-task';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { syncMessageReadModel } from '../message/message-read-model';
 
 /** Transitions a pending task to acknowledged and emits task.acknowledged for the role. */
@@ -28,6 +27,4 @@ export async function acknowledgePendingTask(
       await syncMessageReadModel(ctx, args.pendingTask.sourceMessageId);
     }
   }
-
-  await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
 }

@@ -57,10 +57,10 @@ export function useAgentPanelDataSubscriptions(
   chatroomId: string,
   options?: { loadConfigs?: boolean }
 ): AgentPanelData {
-  const statusResult = useSessionQuery(api.machines.getAgentViewStatus, {
+  const statusResult = useSessionQuery(api.agents.getViewStatus, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
-  const statusReadModelResult = useSessionQuery(api.machines.getAgentRoleStatusReadModel, {
+  const statusReadModelResult = useSessionQuery(api.agents.listStatus, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
   const teamStructure = useSessionQuery(api.chatrooms.getTeamStructureForChatroom, {
@@ -128,7 +128,15 @@ export function useAgentPanelDataSubscriptions(
     sendCommand,
     teamId: statusResult?.teamId,
     lifecycle,
-    statusReadModel: statusReadModelResult,
+    statusReadModel: statusReadModelResult?.map((row) => ({
+      ...row,
+      roleKind: row.roleKind === 'ephemeral' ? ('ephemeral' as const) : ('persistent' as const),
+      machineId: row.machineId ?? undefined,
+      lastSeenAt: row.lastSeenAt ?? undefined,
+      activeWork: row.activeWork ?? undefined,
+      projectedAt: row.projectedAt ?? 0,
+      error: row.error ?? undefined,
+    })),
   };
 }
 

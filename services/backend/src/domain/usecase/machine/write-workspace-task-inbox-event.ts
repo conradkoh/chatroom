@@ -10,8 +10,7 @@ import {
   WorkspaceTaskAssigneeType,
   WorkspaceTaskInboxEventType,
 } from '../../entities/chatroom-workspace-task-inbox';
-
-const ACTIVE_TASK_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
+import { listLastSentLaunchRequestsForChatroom } from '../agent/get-last-sent-launch-request';
 
 /** Writes a task lifecycle event to every remote agent responsible for the task's role. */
 export async function writeWorkspaceTaskInboxEvent(
@@ -24,10 +23,9 @@ export async function writeWorkspaceTaskInboxEvent(
     return;
   }
 
-  const configs = await ctx.db
-    .query('chatroom_agentDesiredConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', task.chatroomId))
-    .collect();
+  const launchRequests = await listLastSentLaunchRequestsForChatroom(ctx, {
+    chatroomId: task.chatroomId,
+  });
 
   const taskPayload = omitUndefined({
     taskId: task._id,
@@ -79,17 +77,16 @@ export async function writeWorkspaceTaskInboxEvent(
       });
     }
   }
-  for (const config of configs) {
+  for (const launchRequest of launchRequests) {
     if (
-      config.type === 'remote' &&
-      config.machineId &&
-      config.role.toLowerCase() === assignedRole.toLowerCase()
+      launchRequest.agentType === 'remote' &&
+      launchRequest.role.toLowerCase() === assignedRole.toLowerCase()
     ) {
-      targets.set(`${config.machineId}:${config.role.toLowerCase()}`, {
-        machineId: config.machineId,
-        role: config.role,
-        ...(isEphemeralAgentRole(config.role)
-          ? { ephemeral: requireEphemeralAgentConfig(config) }
+      targets.set(`${launchRequest.machineId}:${launchRequest.role.toLowerCase()}`, {
+        machineId: launchRequest.machineId,
+        role: launchRequest.role,
+        ...(isEphemeralAgentRole(launchRequest.role)
+          ? { ephemeral: requireEphemeralAgentConfig(launchRequest) }
           : {}),
       });
     }
@@ -135,28 +132,4 @@ function requireEphemeralAgentConfig(target: {
     model: target.model,
     workingDir: target.workingDir,
   };
-}
-
-/** Replays active tasks to a role when a remote daemon config becomes available. */
-export async function writeWorkspaceTaskInboxEventsForRole(
-  ctx: MutationCtx,
-  args: {
-    chatroomId: Doc<'chatroom_rooms'>['_id'];
-    role: string;
-    eventType: WorkspaceTaskInboxEventType;
-  }
-): Promise<void> {
-  const tasks = await ctx.db
-    .query('chatroom_tasks')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-    .collect();
-  for (const task of tasks) {
-    if (
-      !ACTIVE_TASK_STATUSES.includes(task.status as (typeof ACTIVE_TASK_STATUSES)[number]) ||
-      task.assignedTo?.toLowerCase() !== args.role.toLowerCase()
-    ) {
-      continue;
-    }
-    await writeWorkspaceTaskInboxEvent(ctx, args.eventType, task);
-  }
 }

@@ -63,7 +63,6 @@ function createBackendMock(deliveryOutput: string) {
     if (
       isClaimMutation(args) ||
       'deliveryKind' in args ||
-      fn === api.machines.emitSessionAugmented ||
       fn === api.daemon.agentEvents.sessionAugmented
     ) {
       return undefined;
