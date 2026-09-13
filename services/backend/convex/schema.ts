@@ -312,6 +312,12 @@ export default defineSchema({
     ownerId: v.id('users'),
     // Custom chatroom name (user-defined for easier identification)
     name: v.optional(v.string()),
+    // @deprecated Structural team data is resolved from chatroom_activeTeamStructures.
+    // Retained only so existing deployments can continue validating old documents.
+    teamId: v.optional(v.string()),
+    teamName: v.optional(v.string()),
+    teamRoles: v.optional(v.array(v.string())),
+    teamEntryPoint: v.optional(v.string()),
     // Last activity timestamp - updated when messages are sent
     // Used for sorting chatrooms by recent activity
     lastActivityAt: v.optional(v.number()),
@@ -396,6 +402,10 @@ export default defineSchema({
      * New code no longer writes or reads token-activity timestamps.
      */
     lastSeenTokenAt: v.optional(v.number()),
+    // @deprecated Lifecycle status is daemon-owned and read from the role-status model.
+    lastStatus: v.optional(v.string()),
+    // @deprecated Desired state is no longer persisted by Convex.
+    lastDesiredState: v.optional(v.string()),
     // @deprecated Retained for compatibility with existing participant documents.
     // New code no longer writes this native-harness task correlation field.
     lastInFlightTaskId: v.optional(v.id('chatroom_tasks')),
@@ -972,8 +982,28 @@ export default defineSchema({
     alias: v.optional(v.string()),
     // Operating system (darwin, linux, win32)
     os: v.string(),
+    // @deprecated Capability discovery is read from chatroom_machineCapabilities.
+    availableHarnesses: v.optional(v.array(agentHarnessValidator)),
+    // @deprecated Capability discovery is read from chatroom_machineCapabilities.
+    harnessVersions: v.optional(
+      v.record(
+        v.string(),
+        v.object({
+          version: v.string(),
+          major: v.number(),
+        })
+      )
+    ),
+    // @deprecated Capability discovery is read from chatroom_machineCapabilities.
+    availableModels: v.optional(
+      v.union(v.record(v.string(), v.array(v.string())), v.array(v.string()))
+    ),
     // When machine was first registered
     registeredAt: v.number(),
+    // @deprecated Recency is read from chatroom_machineLiveness/capabilities.
+    lastSeenAt: v.optional(v.number()),
+    // @deprecated Connectivity is read from chatroom_machineStatus.
+    daemonConnected: v.optional(v.boolean()),
     // Last time the user requested a capabilities refresh for this machine (cooldown)
     lastCapabilitiesRefreshRequestedAt: v.optional(v.number()),
   })
@@ -982,6 +1012,14 @@ export default defineSchema({
     // Convex mutations are serializable, so the check-then-insert is race-safe.
     .index('by_machineId', ['machineId'])
     .index('by_userId', ['userId']),
+
+  /** @deprecated Compatibility-only recency projection. */
+  chatroom_machineLastSeenAt: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_lastSeenAt', ['lastSeenAt']),
 
   /**
    * Machine liveness data - volatile fields separated from the main machine record
@@ -1010,6 +1048,13 @@ export default defineSchema({
   })
     .index('by_machineId', ['machineId'])
     .index('by_status', ['status']),
+
+  /** @deprecated Compatibility-only model catalog projection. */
+  chatroom_machineModels: defineTable({
+    machineId: v.string(),
+    availableModels: v.record(v.string(), v.array(v.string())),
+    updatedAt: v.number(),
+  }).index('by_machineId', ['machineId']),
 
   /**
    * Model visibility filters for a machine's harness.
@@ -1073,6 +1118,30 @@ export default defineSchema({
   }).index('by_user_machine_teamRole', ['userId', 'machineId', 'teamRoleKey']),
 
   /**
+   * @deprecated Compatibility-only schema for rows created before launch
+   * requests became the webapp's durable snapshot. No production code reads
+   * or writes this table.
+   */
+  chatroom_agentDesiredConfigs: defineTable({
+    teamRoleKey: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
+    type: agentTypeValidator,
+    machineId: v.optional(v.string()),
+    agentHarness: v.optional(agentHarnessValidator),
+    model: v.optional(v.string()),
+    workingDir: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    enabled: v.optional(v.boolean()),
+  })
+    .index('by_teamRoleKey', ['teamRoleKey'])
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_machineId', ['machineId'])
+    .index('by_chatroom_workspace_role', ['chatroomId', 'workspaceId', 'role']),
+
+  /**
    * Latest exact launch request submitted by the webapp for a chatroom role.
    *
    * This is a durable request snapshot, not desired runtime state. The daemon
@@ -1103,6 +1172,51 @@ export default defineSchema({
     .index('by_machineId', ['machineId']),
 
   /**
+   * @deprecated Compatibility-only schema for rows created by the removed
+   * desired-state reconciler. Daemon lifecycle state is now projected into
+   * chatroom_agentRoleStatusReadModel.
+   */
+  chatroom_agentRuntimeStates: defineTable({
+    desiredConfigId: v.id('chatroom_agentDesiredConfigs'),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
+    machineId: v.optional(v.string()),
+    status: v.union(
+      v.literal('offline'),
+      v.literal('starting'),
+      v.literal('waiting'),
+      v.literal('working'),
+      v.literal('stopping'),
+      v.literal('error')
+    ),
+    desiredState: v.optional(v.union(v.literal('running'), v.literal('stopped'))),
+    circuitState: v.optional(
+      v.union(v.literal('closed'), v.literal('open'), v.literal('half-open'))
+    ),
+    circuitOpenedAt: v.optional(v.number()),
+    pid: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    actualWorkingDir: v.optional(v.string()),
+    actualHarness: v.optional(agentHarnessValidator),
+    actualModel: v.optional(v.string()),
+    wantResume: v.optional(v.boolean()),
+    lastSeenAt: v.optional(v.number()),
+    updatedAt: v.number(),
+    error: v.optional(
+      v.object({
+        code: v.string(),
+        message: v.string(),
+        occurredAt: v.number(),
+      })
+    ),
+  })
+    .index('by_desiredConfig', ['desiredConfigId'])
+    .index('by_chatroom_role', ['chatroomId', 'role'])
+    .index('by_chatroom_workspace_role', ['chatroomId', 'workspaceId', 'role'])
+    .index('by_machineId', ['machineId']),
+
+  /**
    * Consumer-facing per-role status read model.
    *
    * This is the single derived projection for frontend subscriptions. Domain
@@ -1129,6 +1243,29 @@ export default defineSchema({
     observedAt: v.optional(v.number()),
     lastSeenAt: v.optional(v.number()),
     lastSeenAction: v.optional(v.string()),
+    // @deprecated Structural identity is resolved from the active team structure.
+    teamId: v.optional(v.string()),
+    // @deprecated Replaced by status.
+    operationalState: v.optional(
+      v.union(
+        v.literal('running'),
+        v.literal('stopped'),
+        v.literal('starting'),
+        v.literal('circuit_open')
+      )
+    ),
+    // @deprecated Replaced by status.
+    viewState: v.optional(
+      v.union(
+        v.literal('idle'),
+        v.literal('running'),
+        v.literal('stopped'),
+        v.literal('starting'),
+        v.literal('circuit_open')
+      )
+    ),
+    // @deprecated Daemon-owned process state is represented by status and observed fields.
+    isAlive: v.optional(v.boolean()),
     // @deprecated Derived convenience field; the daemon-fed status is canonical.
     isRunning: v.optional(v.boolean()),
     /** @deprecated Connectivity is machine-scoped, not role-projection state. */
@@ -1162,6 +1299,41 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_role', ['chatroomId', 'role'])
     .index('by_machineId', ['machineId']),
+
+  /** @deprecated Compatibility-only sidebar projection. */
+  chatroom_agentOperationalSummary: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    ownerId: v.optional(v.id('users')),
+    teamId: v.string(),
+    remoteConfigCount: v.number(),
+    agentStatus: v.union(v.literal('running'), v.literal('stopped'), v.literal('none')),
+    runningRoles: v.array(v.string()),
+    aliveRoles: v.array(v.string()),
+    runningAgents: v.array(v.object({ role: v.string(), machineId: v.string() })),
+    stoppingRoles: v.optional(v.array(v.string())),
+    projectedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_ownerId', ['ownerId']),
+
+  /** @deprecated Compatibility-only AgentPanel metadata projection. */
+  chatroom_agentViewMetadata: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    ownerId: v.id('users'),
+    teamId: v.string(),
+    teamName: v.string(),
+    teamRoles: v.array(v.string()),
+    hasHistory: v.boolean(),
+  }).index('by_chatroom', ['chatroomId']),
+
+  /** @deprecated Compatibility-only machine identity projection. */
+  chatroom_machineIdentity: defineTable({
+    machineId: v.string(),
+    userId: v.id('users'),
+    hostname: v.string(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_userId', ['userId']),
 
   /**
    * One row per user-initiated "refresh capabilities" wave from the webapp.
@@ -2576,6 +2748,23 @@ export default defineSchema({
     .index('by_messageId', ['messageId']),
 
   /**
+   * @deprecated Compatibility-only enhancer configuration projection. New
+   * enhancer requests are represented by chatroom_enhancerJobs.
+   */
+  chatroom_enhancerConfigs: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    enabled: v.boolean(),
+    targetId: v.literal('handoff:planner-to-builder'),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    machineId: v.string(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom_user', ['chatroomId', 'userId'])
+    .index('by_chatroom', ['chatroomId']),
+
+  /**
    * Per-user conversation-mode preference for a chatroom.
    * Kept separate from enhancer configuration because chat/code selections are
    * valid even when no enhancer has been configured.
@@ -2656,6 +2845,52 @@ export default defineSchema({
   })
     .index('by_chatroom_role_task', ['chatroomId', 'role', 'taskId'])
     .index('by_taskId', ['taskId']),
+
+  /**
+   * @deprecated Compatibility-only capability projection. New daemon
+   * capability snapshots are stored in chatroom_machineCapabilities.
+   */
+  chatroom_machineRegistry: defineTable({
+    machineId: v.string(),
+    lastSeenAt: v.number(),
+    workspaces: v.array(
+      v.object({
+        workspaceId: v.string(),
+        cwd: v.string(),
+        name: v.string(),
+        agents: v.optional(v.array(v.any())),
+        harnesses: v.optional(
+          v.array(
+            v.object({
+              name: v.string(),
+              displayName: v.string(),
+              agents: v.array(
+                v.object({
+                  name: v.string(),
+                  mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
+                  model: v.optional(
+                    v.object({
+                      providerID: v.string(),
+                      modelID: v.string(),
+                    })
+                  ),
+                  description: v.optional(v.string()),
+                })
+              ),
+              providers: v.array(
+                v.object({
+                  providerID: v.string(),
+                  name: v.string(),
+                  models: v.array(v.object({ modelID: v.string(), name: v.string() })),
+                })
+              ),
+              configSchema: v.optional(v.any()),
+            })
+          )
+        ),
+      })
+    ),
+  }).index('by_machineId', ['machineId']),
 
   /**
    * Single daemon-fed capability snapshot for a machine. Stable identity stays

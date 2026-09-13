@@ -38,6 +38,24 @@ status and desired-state mirrors were removed from the participant shape and
 assigned-task transport. Token-activity recovery reads the daemon-fed role
 status model.
 
+### Deployment compatibility boundary
+
+The target architecture and the deployed Convex schema have different
+lifecycles. Existing deployments may still contain documents written by older
+versions, so deprecated fields on populated tables remain registered as
+optional validators until their data has been migrated or retired. Legacy
+tables that may still contain documents also remain registered as
+compatibility-only schema definitions. They have no active production callers,
+are not sources of truth, and must not receive new writes.
+
+This compatibility layer includes the old room/team fields, participant
+lifecycle mirrors, embedded machine capability fields, role-status aliases
+(`teamId`, `operationalState`, `viewState`, and `isAlive`), and the retired
+desired/runtime/summary/view/enhancer/machine projection tables. A later
+cleanup may remove those schema definitions only after an explicit deployment
+audit proves that the corresponding tables are empty or no longer exist in
+every environment.
+
 ## Final table design
 
 This is the target inventory after the unwanted duplicate models are removed.
@@ -90,7 +108,9 @@ not mean that an agent is running.
 
 ## Removed models and functions
 
-The following tables were removed and must not be recreated:
+The following tables are retired from the application model and must not be
+used as active state, although compatibility-only schema definitions remain
+temporarily so existing documents validate:
 
 - `chatroom_agentDesiredConfigs`
 - `chatroom_agentRuntimeStates`
@@ -199,10 +219,16 @@ Mark each item done only after the corresponding validation is true.
       legacy room fields are removed.
 - [x] Legacy participant lifecycle fields are removed by migration.
 - [x] Old machine identity, model, registry, and registration-recency models
-      are removed from the schema and production code.
+      have no active callers; their legacy schema definitions remain only for
+      deployment compatibility until data retirement is verified.
 - [x] Generated Convex bindings are synchronized.
 - [x] Repository search confirms the removed models are absent from active
       production paths.
+- [x] Deprecated populated-table fields remain optional in the schema instead
+      of being removed before deployment compatibility is verified.
+- [x] Dev deployment codegen succeeds with the compatibility schema, and
+      recent dev logs show successful function execution without the legacy
+      role-status schema mismatch.
 
 ### Verification
 
