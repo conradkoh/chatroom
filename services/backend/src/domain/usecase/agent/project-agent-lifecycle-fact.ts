@@ -56,6 +56,17 @@ export type AgentLifecycleFactInput =
       emittedAt: number;
     }
   | {
+      kind: 'status';
+      chatroomId: Id<'chatroom_rooms'>;
+      role: string;
+      status: 'offline' | 'starting' | 'waiting' | 'working' | 'stopping' | 'error';
+      errorSource?: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop' | undefined;
+      errorCode?: string | undefined;
+      errorMessage?: string | undefined;
+      revisionKey: string;
+      emittedAt: number;
+    }
+  | {
       kind: 'chatroom_shutdown_complete';
       chatroomId: Id<'chatroom_rooms'>;
       commandId: Id<'chatroom_machineCommandInbox'>;
@@ -132,6 +143,34 @@ export async function projectAgentLifecycleFact(
       },
       { machineId, emittedAt: fact.emittedAt, revisionKey: fact.revisionKey }
     );
+    return { success: true };
+  }
+  if (fact.kind === 'status') {
+    const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: fact.chatroomId,
+      role: fact.role,
+    });
+    if (!launchRequest || launchRequest.machineId !== machineId)
+      return { success: true, skipped: true, rejectionReason: 'not_configured' };
+    await projectAgentRoleStatusReadModel(ctx, {
+      chatroomId: fact.chatroomId,
+      role: fact.role,
+      event: {
+        status: fact.status,
+        ...(fact.errorSource
+          ? {
+              errorSource: fact.errorSource,
+              errorCode: fact.errorCode ?? 'daemon.status',
+              errorMessage: fact.errorMessage,
+            }
+          : {}),
+      },
+      launchRequest,
+      agentType: launchRequest.agentType,
+      sourceMachineId: machineId,
+      sourceEventAt: fact.emittedAt,
+      sourceRevisionKey: fact.revisionKey,
+    });
     return { success: true };
   }
   if (fact.kind === 'chatroom_shutdown_complete') {

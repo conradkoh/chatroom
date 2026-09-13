@@ -823,6 +823,10 @@ the new canonical path is invalid.
       outbox update the role-status read model with `lastEventAt` and
       `revisionKey`; `cleared_all_pids` no longer reads or writes desired or
       runtime state.
+- [x] Migration slice: daemon start-failure and provider-unavailable reports
+      are emitted as lifecycle status facts through the same durable outbox;
+      their Convex handlers no longer serve as the daemon’s normal status
+      transport.
 
 **Validation criteria**
 

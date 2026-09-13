@@ -47,6 +47,7 @@ import {
 import type { Signals } from '../../../../infrastructure/types/signals.js';
 import {
   buildAgentLifecycleRevisionKey,
+  buildAgentStatusFact,
   buildExitedLifecycleFact,
   type AgentExitAuditArgs,
   type AgentLifecycleFact,
@@ -860,16 +861,18 @@ export class AgentProcessManager {
       model: slot.model ?? '',
       message: classification.message,
     });
-    void this.deps.backend
-      .mutation(api.daemon.agentEvents.agentProviderUnavailable, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId,
-        role,
-        reason: classification.reason,
-        model: slot.model ?? '',
-        message: classification.message,
-      })
+    void this.deps.lifecycleOutbox
+      .enqueue(
+        buildAgentStatusFact({
+          chatroomId,
+          role,
+          status: 'error',
+          errorSource: 'runtime',
+          errorCode: classification.reason,
+          errorMessage: `${classification.message}${slot.model ? ` (model: ${slot.model})` : ''}`,
+          emittedAt: this.deps.clock.now(),
+        })
+      )
       .catch(() => {});
   }
 

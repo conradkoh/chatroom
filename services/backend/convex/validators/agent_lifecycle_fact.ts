@@ -51,6 +51,32 @@ const turnFailedFact = v.object({
   revisionKey: v.string(),
   emittedAt: v.number(),
 });
+const statusFact = v.object({
+  kind: v.literal('status'),
+  chatroomId: v.id('chatroom_rooms'),
+  role: v.string(),
+  status: v.union(
+    v.literal('offline'),
+    v.literal('starting'),
+    v.literal('waiting'),
+    v.literal('working'),
+    v.literal('stopping'),
+    v.literal('error')
+  ),
+  errorSource: v.optional(
+    v.union(
+      v.literal('configuration'),
+      v.literal('runtime'),
+      v.literal('task'),
+      v.literal('enhancer'),
+      v.literal('stop')
+    )
+  ),
+  errorCode: v.optional(v.string()),
+  errorMessage: v.optional(v.string()),
+  revisionKey: v.string(),
+  emittedAt: v.number(),
+});
 const chatroomShutdownCompleteFact = v.object({
   kind: v.literal('chatroom_shutdown_complete'),
   chatroomId: v.id('chatroom_rooms'),
@@ -66,5 +92,6 @@ export const agentLifecycleFactValidator = v.union(
   clearedAllPidsFact,
   agentActivityFactValidator,
   turnFailedFact,
+  statusFact,
   chatroomShutdownCompleteFact
 );
