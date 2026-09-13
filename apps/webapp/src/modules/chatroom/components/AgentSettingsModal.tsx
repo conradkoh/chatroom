@@ -918,7 +918,7 @@ const WorkspacesContent = memo(function WorkspacesContent() {
   );
 });
 
-/** Agents tab — shows the agents configured for the active workspace. */
+/** Agents tab — shows the current team's permanent roles scoped to the active workspace. */
 const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
   const { agents, isLoading } = useWorkspaceAgentDirectory();
   return (
@@ -930,7 +930,7 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
         <p className="text-xs text-chatroom-text-muted">
           {isLoading
             ? 'Loading agents...'
-            : `${agents.length} agents configured for this workspace.`}
+            : `${agents.length} agents available for this workspace.`}
         </p>
       </div>
       <WorkspaceInlineAgentListPanel

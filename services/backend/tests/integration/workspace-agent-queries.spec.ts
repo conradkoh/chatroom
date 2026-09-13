@@ -92,7 +92,7 @@ describe('workspace-scoped agent queries', () => {
     );
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
-    const agents = await t.query(api.agentWorkspaces.listAgentsForWorkspace, {
+    const agents = await t.query(api.agentWorkspaces.listConfiguredAgentsForWorkspace, {
       sessionId: sessionId as any,
       workspaceId,
     });

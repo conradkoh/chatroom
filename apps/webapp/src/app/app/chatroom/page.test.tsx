@@ -7,7 +7,6 @@ import { ChatroomPageClient } from './ChatroomPageClient';
 import type * as ChatroomModule from '@/modules/chatroom';
 import { ChatroomWorkspaceProvider } from '@/modules/chatroom/context/ChatroomWorkspaceContext';
 
-
 const mockUseSessionQuery = vi.fn();
 const CHATROOM_ID = 'n576raxak4gfqyr503d22dmf718a9p4w';
 
@@ -46,10 +45,24 @@ vi.mock('convex-helpers/react/sessions', () => ({
         fileTreeSyncEnabled: false,
       };
     }
-    if (query === 'agentWorkspaces:listAgentsForWorkspace') {
-      return [{ role: 'planner', type: 'remote', teamId: 'duo' }];
+    if (query === 'chatrooms:getTeamStructureForChatroom') {
+      return {
+        teamId: 'duo',
+        teamName: 'Duo',
+        entryPoint: 'planner',
+        roles: [
+          { role: 'planner', lifecycle: 'permanent', optional: false },
+          { role: 'builder', lifecycle: 'permanent', optional: false },
+        ],
+      };
+    }
+    if (query === 'agentWorkspaces:listConfiguredAgentsForWorkspace') {
+      return [];
     }
     if (query === 'agentWorkspaces:getAgentStatusForWorkspaceRole') {
+      if (typeof args === 'object' && args !== null && 'role' in args && args.role !== 'planner') {
+        return null;
+      }
       return {
         role: 'planner',
         status: 'offline',
@@ -63,6 +76,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
       };
     }
     if (query === 'agentWorkspaces:getAgentConfigForWorkspaceRole') {
+      if (typeof args === 'object' && args !== null && 'role' in args && args.role !== 'planner') {
+        return null;
+      }
       return {
         role: 'planner',
         type: 'remote',
@@ -102,6 +118,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
+    chatrooms: {
+      getTeamStructureForChatroom: 'chatrooms:getTeamStructureForChatroom',
+    },
     chatroomWorkspaceAgentCommandsInbox: {
       requestStopAgent: 'chatroomWorkspaceAgentCommandsInbox:requestStopAgent',
       requestStopAll: 'chatroomWorkspaceAgentCommandsInbox:requestStopAll',
@@ -121,7 +140,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getAgentRestartSummaryByRole: 'machines:getAgentRestartSummaryByRole',
     },
     agentWorkspaces: {
-      listAgentsForWorkspace: 'agentWorkspaces:listAgentsForWorkspace',
+      listConfiguredAgentsForWorkspace: 'agentWorkspaces:listConfiguredAgentsForWorkspace',
       getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
       getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
     },
@@ -283,9 +302,12 @@ describe('Chatroom page agents settings', () => {
           chatroomId: CHATROOM_ID,
         }
       );
-      expect(mockUseSessionQuery).toHaveBeenCalledWith('agentWorkspaces:listAgentsForWorkspace', {
-        workspaceId: 'r1',
-      });
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'agentWorkspaces:listConfiguredAgentsForWorkspace',
+        {
+          workspaceId: 'r1',
+        }
+      );
       expect(mockUseSessionQuery).toHaveBeenCalledWith(
         'agentWorkspaces:getAgentStatusForWorkspaceRole',
         { workspaceId: 'r1', role: 'planner' }
@@ -293,6 +315,14 @@ describe('Chatroom page agents settings', () => {
       expect(mockUseSessionQuery).toHaveBeenCalledWith(
         'agentWorkspaces:getAgentConfigForWorkspaceRole',
         { workspaceId: 'r1', role: 'planner' }
+      );
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'agentWorkspaces:getAgentStatusForWorkspaceRole',
+        { workspaceId: 'r1', role: 'builder' }
+      );
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'agentWorkspaces:getAgentConfigForWorkspaceRole',
+        { workspaceId: 'r1', role: 'builder' }
       );
     });
   });

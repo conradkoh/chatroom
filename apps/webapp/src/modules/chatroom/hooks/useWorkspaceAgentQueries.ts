@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
@@ -43,10 +44,39 @@ export interface WorkspaceAgentConfig {
   updatedAt: number;
 }
 
+/**
+ * Builds the workspace agent list from structural team roles plus optional
+ * workspace configuration. Team roles provide candidate cards; configured
+ * rows enrich/override those candidates when they exist.
+ */
+function mergeWorkspaceAgentRoles(
+  configuredAgents: readonly WorkspaceAgentRole[],
+  teamRoles: readonly string[],
+  teamId: string | null | undefined
+): WorkspaceAgentRole[] {
+  const permanentRoles = getPermanentRoleNames(
+    teamRoles.filter((role) => role.toLowerCase() !== 'user')
+  );
+  const merged = new Map<string, WorkspaceAgentRole>();
+  const resolvedTeamId = teamId ?? configuredAgents[0]?.teamId ?? null;
+
+  for (const role of permanentRoles) {
+    merged.set(role.toLowerCase(), {
+      role,
+      type: 'remote',
+      teamId: resolvedTeamId,
+    });
+  }
+  for (const agent of configuredAgents) {
+    merged.set(agent.role.toLowerCase(), agent);
+  }
+  return [...merged.values()].sort((a, b) => a.role.localeCompare(b.role));
+}
+
 /** Low-frequency agent directory query for one workspace. */
 function useWorkspaceAgents(workspaceId: string | null) {
   const result = useSessionQuery(
-    api.agentWorkspaces.listAgentsForWorkspace,
+    api.agentWorkspaces.listConfiguredAgentsForWorkspace,
     workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : 'skip'
   );
 
@@ -92,17 +122,30 @@ export function useWorkspaceAgentConfig(workspaceId: string | null, role: string
   };
 }
 
-/** Composes only the low-frequency active-workspace and agent-directory queries. */
+/** Composes team-role candidates with low-frequency workspace configuration data. */
 export function useWorkspaceAgentDirectory() {
-  const { activeWorkspace, isLoading: isLoadingWorkspace } = useChatroomWorkspace();
-  const { agents, isLoading: isLoadingAgents } = useWorkspaceAgents(
+  const { chatroomId, activeWorkspace, isLoading: isLoadingWorkspace } = useChatroomWorkspace();
+  const teamStructure = useSessionQuery(api.chatrooms.getTeamStructureForChatroom, {
+    chatroomId,
+  });
+  const { agents: configuredAgents, isLoading: isLoadingAgents } = useWorkspaceAgents(
     activeWorkspace?._registryId ?? null
+  );
+
+  const agents = useMemo(
+    () =>
+      mergeWorkspaceAgentRoles(
+        configuredAgents,
+        (teamStructure?.roles ?? []).map(({ role }) => role),
+        teamStructure?.teamId
+      ),
+    [configuredAgents, teamStructure]
   );
 
   return {
     workspace: activeWorkspace,
     agents,
-    isLoading: isLoadingWorkspace || isLoadingAgents,
+    isLoading: isLoadingWorkspace || isLoadingAgents || teamStructure === undefined,
   };
 }
 

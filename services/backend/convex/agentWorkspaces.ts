@@ -41,8 +41,8 @@ function configBelongsToWorkspace(
   );
 }
 
-/** Lists the roles configured for a workspace without loading their live status. */
-export const listAgentsForWorkspace = query({
+/** Lists only roles with persisted desired configuration for a workspace. */
+export const listConfiguredAgentsForWorkspace = query({
   args: {
     ...SessionIdArg,
     workspaceId: v.id('chatroom_workspaces'),
