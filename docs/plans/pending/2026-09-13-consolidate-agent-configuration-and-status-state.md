@@ -57,7 +57,9 @@ all the required concepts. In particular:
 - `chatroom_agentViewMetadata.teamRoles` duplicates structural roles from
   `chatroom_rooms`.
 - `chatroom_agentRoleStatusReadModel` has multiple status representations and
-  multiple projection writers.
+  multiple projection writers. The daemon lifecycle path now persists an
+  event timestamp/revision watermark and rejects stale or cross-machine
+  observations; legacy backend writers still require migration.
 - enhancer settings still exist in both `chatroom_enhancerConfigs` and the
   enhancer row in `chatroom_agentDesiredConfigs`.
 - several queries independently derive “running/stopped/none” from desired
@@ -817,10 +819,19 @@ the new canonical path is invalid.
       model idempotently.
 - [ ] All web agent-status presentation reads the daemon-fed model.
 
+- [x] Migration slice: lifecycle facts delivered through the durable daemon
+      outbox update the role-status read model with `lastEventAt` and
+      `revisionKey`; `cleared_all_pids` no longer reads or writes desired or
+      runtime state.
+
 **Validation criteria**
 
-- [ ] Duplicate delivery produces no duplicate effects, and out-of-order delivery
-      cannot regress a newer role observation.
+- [x] The projection writer regression proves duplicate delivery, out-of-order
+      delivery, and a different machine cannot overwrite a newer role
+      observation.
+- [ ] End-to-end duplicate delivery produces no duplicate effects, and
+      out-of-order delivery cannot regress a newer role observation through the
+      durable daemon outbox.
 - [ ] Daemon restart/reconnect tests prove that unsent outbox events survive and
       eventually reach Convex.
 - [ ] Unauthorized machines, roles, and request correlations are rejected without

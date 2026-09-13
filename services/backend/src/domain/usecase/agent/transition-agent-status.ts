@@ -34,7 +34,12 @@ export async function transitionAgentStatus(
   role: string,
   lastStatus: string,
   _lastDesiredState?: string,
-  statusEvent?: StatusEvent
+  statusEvent?: StatusEvent,
+  projection?: {
+    machineId?: string | undefined;
+    emittedAt?: number | undefined;
+    revisionKey?: string | undefined;
+  }
 ): Promise<void> {
   // 1. Update participant record (denormalized — deprecated as primary source)
   const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
@@ -47,5 +52,8 @@ export async function transitionAgentStatus(
     chatroomId,
     role,
     event: statusEvent ?? statusEventForAgentEvent(lastStatus),
+    sourceMachineId: projection?.machineId,
+    sourceEventAt: projection?.emittedAt,
+    sourceRevisionKey: projection?.revisionKey,
   });
 }

@@ -64,6 +64,8 @@ export async function recordAgentSpawnedState(
     model?: string | undefined;
     harnessSessionId?: string | undefined;
     reason?: string | undefined;
+    emittedAt?: number | undefined;
+    revisionKey?: string | undefined;
   }
 ): Promise<void> {
   const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
@@ -88,7 +90,10 @@ export async function recordAgentSpawnedState(
     event: { status: 'starting' },
     agentType: launchRequest.agentType,
     observedPid: args.pid,
-    observedAt: now,
+    observedAt: args.emittedAt ?? now,
+    sourceMachineId: args.machineId,
+    sourceEventAt: args.emittedAt,
+    sourceRevisionKey: args.revisionKey,
   });
 
   await upsertRestartMetricForHour(ctx, {

@@ -1316,6 +1316,8 @@ export default defineSchema({
     daemonConnected: v.optional(v.boolean()),
     acceptsTasks: v.optional(v.boolean()),
     revisionKey: v.optional(v.string()),
+    /** Latest daemon event timestamp accepted for this role. */
+    lastEventAt: v.optional(v.number()),
     activeWork: v.optional(
       v.union(
         v.object({ kind: v.literal('task'), id: v.string() }),

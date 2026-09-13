@@ -67,6 +67,9 @@ export async function projectAgentRoleStatusReadModel(
     observedPid?: number | undefined;
     observedAt?: number | undefined;
     clearObservedPid?: boolean | undefined;
+    sourceMachineId?: string | undefined;
+    sourceEventAt?: number | undefined;
+    sourceRevisionKey?: string | undefined;
   }
 ): Promise<void> {
   const role = args.role.trim().toLowerCase();
@@ -96,6 +99,21 @@ export async function projectAgentRoleStatusReadModel(
     .query('chatroom_agentRoleStatusReadModel')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
     .first();
+  // Lifecycle facts are retried by the daemon outbox and can arrive out of
+  // order after reconnect. Only accept a newer observation for this role.
+  if (args.sourceMachineId && existing?.machineId && existing.machineId !== args.sourceMachineId)
+    return;
+  if (
+    existing &&
+    args.sourceEventAt !== undefined &&
+    existing.lastEventAt !== undefined &&
+    (args.sourceEventAt < existing.lastEventAt ||
+      (args.sourceEventAt === existing.lastEventAt &&
+        args.sourceRevisionKey !== undefined &&
+        existing.revisionKey !== undefined &&
+        args.sourceRevisionKey <= existing.revisionKey))
+  )
+    return;
   const activeTask =
     event.status === 'working'
       ? await findActiveAssignedTaskForRole(ctx, { chatroomId: args.chatroomId, role })
@@ -115,7 +133,7 @@ export async function projectAgentRoleStatusReadModel(
     roleKind: isEphemeralAgentRole(role) ? ('ephemeral' as const) : ('persistent' as const),
     agentType: args.agentType ?? launchRequest?.agentType ?? config?.type,
     status: event.status,
-    machineId: launchRequest?.machineId ?? config?.machineId,
+    machineId: args.sourceMachineId ?? launchRequest?.machineId ?? config?.machineId,
     workingDir: launchRequest?.workingDir ?? config?.workingDir,
     ...(args.observedPid !== undefined ? { observedPid: args.observedPid } : {}),
     ...(args.observedAt !== undefined ? { observedAt: args.observedAt } : {}),
@@ -125,6 +143,8 @@ export async function projectAgentRoleStatusReadModel(
         ? { lastSeenAt: existing.lastSeenAt }
         : {}),
     ...(args.lastSeenAction !== undefined ? { lastSeenAction: args.lastSeenAction } : {}),
+    ...(args.sourceEventAt !== undefined ? { lastEventAt: args.sourceEventAt } : {}),
+    ...(args.sourceRevisionKey !== undefined ? { revisionKey: args.sourceRevisionKey } : {}),
     activeWork: activeTask ? { kind: 'task' as const, id: activeTask._id } : undefined,
     error,
     projectedAt: now,
@@ -148,18 +168,33 @@ export async function touchAgentRoleStatusLastSeen(
     lastSeenAt?: number | undefined;
     lastSeenAction?: string | undefined;
     agentType?: Doc<'chatroom_participants'>['agentType'] | undefined;
+    machineId?: string | undefined;
+    eventAt?: number | undefined;
+    revisionKey?: string | undefined;
   }
-): Promise<void> {
+): Promise<boolean> {
   const role = args.role.trim().toLowerCase();
   const existing = await ctx.db
     .query('chatroom_agentRoleStatusReadModel')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
     .first();
-  if (!existing) return;
+  if (!existing) return false;
+  if (args.machineId && existing.machineId && existing.machineId !== args.machineId) return false;
+  if (
+    args.eventAt !== undefined &&
+    existing.lastEventAt !== undefined &&
+    (args.eventAt < existing.lastEventAt ||
+      (args.eventAt === existing.lastEventAt &&
+        args.revisionKey !== undefined &&
+        existing.revisionKey !== undefined &&
+        args.revisionKey <= existing.revisionKey))
+  )
+    return false;
   await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, {
     lastSeenAt: args.lastSeenAt ?? Date.now(),
     projectedAt: Date.now(),
     ...(args.lastSeenAction !== undefined ? { lastSeenAction: args.lastSeenAction } : {}),
     ...(args.agentType !== undefined ? { agentType: args.agentType } : {}),
   });
+  return true;
 }

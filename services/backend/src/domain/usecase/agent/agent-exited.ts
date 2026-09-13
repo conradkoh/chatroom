@@ -42,6 +42,8 @@ export interface AgentExitedInput {
   stopSignal?: string | undefined;
   /** Optional agent harness identifier. */
   agentHarness?: string | undefined;
+  /** Daemon outbox ordering metadata. */
+  emittedAt?: number | undefined;
 }
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
@@ -112,7 +114,10 @@ export async function agentExited(
     event: { status: 'offline' },
     agentType: launchRequest.agentType,
     clearObservedPid: true,
-    observedAt: Date.now(),
+    observedAt: input.emittedAt ?? Date.now(),
+    sourceMachineId: machineId,
+    sourceEventAt: input.emittedAt,
+    sourceRevisionKey: input.revisionKey,
   });
   return { applied: true };
 }

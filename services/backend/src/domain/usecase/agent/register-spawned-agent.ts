@@ -13,6 +13,8 @@ export type RegisterSpawnedAgentArgs = {
   model?: string | undefined;
   harnessSessionId?: string | undefined;
   reason?: string | undefined;
+  emittedAt?: number | undefined;
+  revisionKey?: string | undefined;
 };
 export type RegisterSpawnedAgentResult =
   { accepted: true } | { accepted: false; reason: AuthorizeAgentStartReason };
@@ -44,6 +46,8 @@ export async function registerSpawnedAgentIfAuthorized(
     model: args.model,
     harnessSessionId: args.harnessSessionId,
     reason: args.reason,
+    emittedAt: args.emittedAt,
+    revisionKey: args.revisionKey,
   });
   return { accepted: true };
 }
