@@ -6,6 +6,7 @@ import { Effect } from 'effect';
 
 import {
   buildAgentLifecycleRevisionKey,
+  buildAgentStatusFact,
   type AgentLifecycleFact,
 } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
@@ -228,6 +229,20 @@ export class AgentWorkManager {
     // duplicate forever. In-progress/completed task tasks are filtered by
     // the normal task-status gate on the next pass.
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+    try {
+      await this.deps.lifecycleOutbox.enqueue(
+        buildAgentStatusFact({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          status: 'waiting',
+        })
+      );
+    } catch (error) {
+      console.error(
+        `[NativeDelivery:turn-ended-outbox-error] chatroom=${event.chatroomId} role=${event.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+      );
+      return { kind: 'hold-slot', reason: 'turn-ended-outbox-enqueue-failed' };
+    }
     // The manager invokes this handler while the agent's lifecycle operation
     // is still serialized. Schedule delivery for the next turn of the event
     // loop so it cannot attempt to inject while that operation still owns the
