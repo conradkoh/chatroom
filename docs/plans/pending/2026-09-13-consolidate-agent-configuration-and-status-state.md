@@ -3,8 +3,8 @@
 > Status: **in progress**. The active-team, last-sent-launch-request, static-role
 > rendering, and explicit-start migration slices are implemented and verified.
 > The plan is not complete until the remaining legacy backend consumers,
-> daemon-outbox contract, command-inbox consolidation, schema deletions, and
-> full compatibility test migration are finished.
+> daemon-outbox contract, remaining schema deletions, and full compatibility
+> test migration are finished.
 
 ## Objective
 
@@ -66,9 +66,10 @@ all the required concepts. In particular:
   `agent.requestStart`/`agent.restart` payload, but it is short-lived and its
   row is deleted after acknowledgement, so it cannot be the durable “last
   sent” record.
-- agent lifecycle commands are split between `chatroom_machineCommandInbox`
-  and `chatroomWorkspaceAgentCommandsInbox`, increasing ambiguity about the
-  canonical command transport and audit history.
+- agent lifecycle commands were previously split between
+  `chatroom_machineCommandInbox` and `chatroomWorkspaceAgentCommandsInbox`.
+  The stop-command migration now uses the canonical machine inbox; the legacy
+  workspace-agent inbox has been deleted.
 - The team-switch path previously treated the desired-config table as a
   reconciliation queue: it preserved/restored/seeded rows and automatically
   stopped or started agents. That behavior is now removed from the migration
@@ -158,10 +159,11 @@ the work locally, and reports observations independently through its outbox.
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `chatroom_machineCommandInbox` | Self-contained start, restart, stop-role, stop-chatroom, and other machine-directed commands, including request ID, target machine, complete payload, deadline, attempt count, and claim lease. | Written through webapp-facing command mutations, claimed by the daemon, then deleted or archived after transport acknowledgement/expiry. Durable “last sent” launch data remains in `chatroom_agentLastSentLaunchRequests`. |
 
-`chatroom_machineCommandInbox` is the single agent command transport. Move the
-stop commands currently stored in `chatroomWorkspaceAgentCommandsInbox` into
-it and delete the second inbox. Task-delivery inboxes outside agent lifecycle
-remain separate only where they carry a distinct task-domain protocol.
+`chatroom_machineCommandInbox` is the single agent command transport. The
+stop-role and stop-chatroom variants have been moved into it, and the former
+workspace-agent command inbox is deleted. Task-delivery inboxes outside agent
+lifecycle remain separate only where they carry a distinct task-domain
+protocol.
 
 ### Tables absent from the final model
 
@@ -304,11 +306,11 @@ observation. The UI and API should preserve `requestedAt` and request identity
 so this assumption is distinguishable from daemon-confirmed status. No
 background reconciliation follows from that assumption.
 
-The existing short-lived command inbox may remain the transport mechanism, but
-its payload schema should be canonical and its acknowledgement cleanup must not
-delete the durable latest-request snapshot. Move all agent lifecycle command
-variants into `chatroom_machineCommandInbox` and delete
-`chatroomWorkspaceAgentCommandsInbox` after its daemon subscribers migrate.
+The existing short-lived command inbox remains the transport mechanism, with a
+canonical payload schema and acknowledgement cleanup that does not delete the
+durable latest-request snapshot. All agent lifecycle command variants now use
+`chatroom_machineCommandInbox`; the former workspace-agent command inbox and
+its daemon subscriber have been deleted.
 
 ### 4. Actual agent status
 
@@ -613,9 +615,9 @@ not write desired runtime state or claim actual status.
 
 7. **`chatroomWorkspaceAgentCommandsInbox`**
 
-   Move its stop-role and stop-chatroom command variants into
-   `chatroom_machineCommandInbox`, migrate the daemon subscriber, and delete
-   the second agent command transport.
+   **Deleted.** Its stop-role and stop-chatroom command variants now live in
+   `chatroom_machineCommandInbox`, and the daemon consumes that canonical
+   transport.
 
 8. **`chatroom_machineIdentity`**
 
@@ -662,10 +664,9 @@ is a daemon-fed read model and must not be merged with agent status.
 - `chatroom_activeTeamStructures`: retain as the only room-specific active
   team selection. It must contain an immutable definition ID and assignment
   audit timestamps, but no copied structural fields.
-- `chatroom_machineCommandInbox`: retain as the single command transport and
-  add the stop-role/stop-chatroom variants currently handled by
-  `chatroomWorkspaceAgentCommandsInbox`. Transport cleanup must not remove
-  durable last-sent snapshots.
+- `chatroom_machineCommandInbox`: retain as the single command transport,
+  including stop-role and stop-chatroom variants. Transport cleanup must not
+  remove durable last-sent snapshots.
 - `chatroom_agentRoleStatusReadModel`: remove fields no longer needed after the
   daemon status contract is finalized. Keep only the thin web projection.
 - `chatroom_participants`: remove deprecated lifecycle/status mirror fields once
@@ -757,7 +758,7 @@ deleted.
       saved agent configuration/preference API or table.
 - [ ] Every start/restart produces an immutable last-sent snapshot and an identical
       self-contained daemon command in one transaction.
-- [ ] `chatroom_machineCommandInbox` is the single agent lifecycle command
+- [x] `chatroom_machineCommandInbox` is the single agent lifecycle command
       transport, including stop-role and stop-chatroom commands.
 - [ ] Convex contains no desired-runtime field or behavior.
 
@@ -767,6 +768,10 @@ deleted.
 - [x] Migration slice: canonical `agents` reads and the webapp workspace hooks
       read last-sent requests and daemon status; webapp form edits no longer
       call a desired-config mutation.
+- [x] Migration slice: stop-role and stop-chatroom requests enqueue
+      `agent.stop` commands in `chatroom_machineCommandInbox`; the daemon
+      claims the same inbox, and the legacy workspace-agent command inbox,
+      subscriber, and completion path are deleted.
 
 **Validation criteria**
 
@@ -792,8 +797,8 @@ restart integration fixture currently fails during unrelated task setup.
 
 The structural team-switch regression and lifecycle authorization/register
 tests also pass. These validate the new boundary, but do not close the phase:
-legacy desired/runtime consumers and the second command inbox still require
-migration.
+legacy desired/runtime consumers, status-outbox delivery, and compatibility
+test migration still require work.
 
 The full backend suite is intentionally not marked complete: the current
 legacy integration fixtures still seed/read `chatroom_agentDesiredConfigs` and
@@ -874,6 +879,9 @@ the new canonical path is invalid.
 
 - [ ] Only the approved target tables and APIs remain; compatibility wrappers,
       duplicate projections, and deprecated schema fields are gone.
+- [x] The obsolete workspace-agent stop-command API, schema table, daemon
+      subscriber, and completion use case are deleted after migration to the
+      canonical machine command inbox.
 - [ ] Optional favorites and restart-analytics tables have an explicit retain or
       delete decision tied to their visible product feature.
 - [ ] Historical data is retained only in deliberately named audit/metrics models

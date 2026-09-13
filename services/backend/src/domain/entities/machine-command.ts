@@ -46,6 +46,12 @@ export const machineCommandPayloadValidator = v.union(
     correlationId: v.string(),
     wantResume: v.boolean(),
   }),
+  v.object({
+    type: v.literal('agent.stop'),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.optional(v.string()),
+    finalizeChatroom: v.optional(v.boolean()),
+  }),
   v.object({ type: v.literal('daemon.ping') }),
   v.object({ type: v.literal('daemon.gitRefresh'), workingDir: v.string() }),
   v.object({ type: v.literal('daemon.workspaceListChanged') }),
@@ -69,6 +75,7 @@ export type MachineCommandType = MachineCommandPayload['type'];
 export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
   'agent.requestStart': AGENT_REQUEST_DEADLINE_MS,
   'agent.restart': AGENT_REQUEST_DEADLINE_MS,
+  'agent.stop': AGENT_REQUEST_DEADLINE_MS,
   'daemon.ping': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.gitRefresh': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.workspaceListChanged': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,

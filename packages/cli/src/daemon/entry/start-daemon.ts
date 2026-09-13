@@ -9,6 +9,7 @@ import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
 import { startAllSubscribers } from './subscriber-registry.js';
+import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { createLogServer, resolveLogsDbPath } from '../../infrastructure/log-server/index.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
@@ -73,16 +74,22 @@ export async function startDaemon(): Promise<void> {
     sessionId: asConvexSessionId(init.sessionId),
     machineId: init.machineId,
     router: createDefaultEventRouterDeps(),
-    onWorkspaceAgentCommand: (command) =>
-      executeChatroomStopCommand({
+    onAgentStopCommand: (command) => {
+      const stopCommand = command as ClaimedMachineCommand & {
+        type: 'agent.stop';
+        chatroomId: string;
+        role?: string;
+        finalizeChatroom?: boolean;
+      };
+      return executeChatroomStopCommand({
         apm: init.agentProcessManager,
-        chatroomId: command.chatroomId,
-        commandId: command._id,
-        role: command.command.type === 'stop_agent' ? command.command.role : undefined,
-        finalizeChatroom:
-          command.command.type === 'stop_all_agents' ? command.command.finalizeChatroom : undefined,
+        chatroomId: stopCommand.chatroomId,
+        commandId: stopCommand.commandId,
+        role: stopCommand.role,
+        finalizeChatroom: stopCommand.finalizeChatroom,
         runSerializedForAgent: init.agentProcessManagerService.runSerializedForAgent,
-      }),
+      });
+    },
   });
 
   console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/`);

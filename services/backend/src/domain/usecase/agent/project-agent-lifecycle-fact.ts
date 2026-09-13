@@ -1,7 +1,6 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
 import { getAgentRuntimeState, patchAgentRuntimeState } from './agent-runtime-state';
 import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
-import { completeChatroomWorkspaceAgentCommand } from './complete-chatroom-workspace-agent-command';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -59,7 +58,7 @@ export type AgentLifecycleFactInput =
   | {
       kind: 'chatroom_shutdown_complete';
       chatroomId: Id<'chatroom_rooms'>;
-      commandId: Id<'chatroomWorkspaceAgentCommandsInbox'>;
+      commandId: Id<'chatroom_machineCommandInbox'>;
       finalizeChatroom?: boolean | undefined;
       revisionKey: string;
       emittedAt: number;
@@ -129,13 +128,16 @@ export async function projectAgentLifecycleFact(
     return { success: true };
   }
   if (fact.kind === 'chatroom_shutdown_complete') {
+    const command = await ctx.db.get('chatroom_machineCommandInbox', fact.commandId);
+    if (!command || command.machineId !== machineId) {
+      return { success: true, skipped: true, rejectionReason: 'command_not_found' };
+    }
+    if (command.status !== 'processing') {
+      return { success: true, skipped: true, rejectionReason: 'command_not_processing' };
+    }
+    await ctx.db.delete('chatroom_machineCommandInbox', command._id);
     return {
       success: true,
-      ...(await completeChatroomWorkspaceAgentCommand(ctx, {
-        commandId: fact.commandId,
-        machineId,
-        finalizeChatroom: fact.finalizeChatroom,
-      })),
     };
   }
   const registration = await registerSpawnedAgentIfAuthorized(ctx, {

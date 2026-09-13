@@ -5,10 +5,6 @@ import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
 import { startAgenticQuerySessionSubscriber } from '../infrastructure/convex/subscribers/agentic-query-session.js';
-import {
-  startChatroomWorkspaceAgentCommandsSubscriber,
-  type ClaimedWorkspaceAgentCommand,
-} from '../infrastructure/convex/subscribers/chatroom-workspace-agent-commands.js';
 import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/command-run.js';
 import { startEnhancerJobSubscriber } from '../infrastructure/convex/subscribers/enhancer-job.js';
 import { startFileContentRequestSubscriber } from '../infrastructure/convex/subscribers/file-content-request.js';
@@ -16,11 +12,14 @@ import { startFileTreeReleaseRequestSubscriber } from '../infrastructure/convex/
 import { startFileTreeRequestSubscriber } from '../infrastructure/convex/subscribers/file-tree-request.js';
 import { startFileWriteRequestSubscriber } from '../infrastructure/convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
-import { startMachineCommandInboxSubscriber } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
+import {
+  startMachineCommandInboxSubscriber,
+  type ClaimedMachineCommand,
+} from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
   router: EventRouterDeps;
-  onWorkspaceAgentCommand?: ((command: ClaimedWorkspaceAgentCommand) => Promise<void>) | undefined;
+  onAgentStopCommand?: ((command: ClaimedMachineCommand) => Promise<void>) | undefined;
 };
 
 export type SubscriberRegistryHandle = { stopAll(): Promise<void> };
@@ -34,6 +33,10 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
 
   const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
+    if (claimed.type === 'agent.stop') {
+      await deps.onAgentStopCommand?.(claimed);
+      return;
+    }
     // Workspace membership nudges keep task, operational, enhancer, and Git
     // watches in sync (e.g. a newly registered workspace enables all of them).
     if (claimed.type === 'daemon.workspaceListChanged') {
@@ -47,9 +50,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
       claimedCommand: claimed,
     });
   });
-  const workspaceAgentCommands = deps.onWorkspaceAgentCommand
-    ? startChatroomWorkspaceAgentCommandsSubscriber(deps, deps.onWorkspaceAgentCommand)
-    : undefined;
   const commandRun = startCommandRunSubscriber(deps, onEvent);
   const fileTree = startFileTreeRequestSubscriber(deps, onEvent);
   const fileTreeRelease = startFileTreeReleaseRequestSubscriber(deps, onEvent);
@@ -62,7 +62,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     async stopAll() {
       await Promise.all([
         machineCommands.stop(),
-        workspaceAgentCommands?.stop(),
         commandRun.stop(),
         gitRequest.stop(),
         fileTree.stop(),

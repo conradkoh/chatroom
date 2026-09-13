@@ -12,8 +12,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
 }));
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    chatroomWorkspaceAgentCommandsInbox: {
-      requestStopAgent: 'agent',
+    agents: {
+      requestStop: 'agent',
       requestStopAll: 'chatroom',
     },
   },

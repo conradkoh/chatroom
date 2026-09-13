@@ -8,7 +8,7 @@ import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 
 describe('requestChatroomWorkspaceAgentStop', () => {
-  test('resets stale read-model activity before daemon acknowledgement', async () => {
+  test('enqueues an explicit stop command without mutating daemon state', async () => {
     const sessionId = 'request-stop-reset' as SessionId;
     await t.mutation(api.auth.loginAnon, { sessionId });
     const chatroomId = await t.mutation(api.chatrooms.create, {
@@ -49,7 +49,7 @@ describe('requestChatroomWorkspaceAgentStop', () => {
       });
     });
 
-    const result = await t.mutation(api.chatroomWorkspaceAgentCommandsInbox.requestStopAll, {
+    const result = await t.mutation(api.agents.requestStopAll, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
     });
@@ -72,9 +72,20 @@ describe('requestChatroomWorkspaceAgentStop', () => {
             .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
             .first()
         : null;
-      return { desiredState: runtime?.desiredState, status: row?.status };
+      const command = await ctx.db
+        .query('chatroom_machineCommandInbox')
+        .withIndex('by_machine_status_deadline', (q) =>
+          q.eq('machineId', 'offline-daemon').eq('status', 'pending')
+        )
+        .first();
+      return { desiredState: runtime?.desiredState, status: row?.status, command };
     });
 
-    expect(state).toEqual({ desiredState: 'stopped', status: 'offline' });
+    expect(state.desiredState).toBe('running');
+    expect(state.status).toBe('waiting');
+    expect(state.command?.command).toMatchObject({
+      type: 'agent.stop',
+      chatroomId,
+    });
   });
 });

@@ -56,10 +56,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
         ],
       };
     }
-    if (query === 'agentWorkspaces:listConfiguredAgentsForWorkspace') {
+    if (query === 'agents:listLastSentLaunchRequests') {
       return [];
     }
-    if (query === 'agentWorkspaces:getAgentStatusForWorkspaceRole') {
+    if (query === 'agents:getStatus') {
       if (typeof args === 'object' && args !== null && 'role' in args && args.role !== 'planner') {
         return null;
       }
@@ -75,7 +75,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
         projectedAt: 1,
       };
     }
-    if (query === 'agentWorkspaces:getAgentConfigForWorkspaceRole') {
+    if (query === 'agents:getLastSentLaunchRequest') {
       if (typeof args === 'object' && args !== null && 'role' in args && args.role !== 'planner') {
         return null;
       }
@@ -86,8 +86,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
         agentHarness: 'opencode-sdk',
         model: 'opencode/big-pickle',
         workingDir: '/code',
-        desiredState: 'stopped',
-        updatedAt: 1,
+        requestedAt: 1,
       };
     }
     if (query === 'machines:listMachines') {
@@ -121,9 +120,12 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     chatrooms: {
       getTeamStructureForChatroom: 'chatrooms:getTeamStructureForChatroom',
     },
-    chatroomWorkspaceAgentCommandsInbox: {
-      requestStopAgent: 'chatroomWorkspaceAgentCommandsInbox:requestStopAgent',
-      requestStopAll: 'chatroomWorkspaceAgentCommandsInbox:requestStopAll',
+    agents: {
+      requestStop: 'agents:requestStop',
+      requestStopAll: 'agents:requestStopAll',
+      listLastSentLaunchRequests: 'agents:listLastSentLaunchRequests',
+      getStatus: 'agents:getStatus',
+      getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
     },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
@@ -138,11 +140,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getCapabilitiesRefreshBatch: 'machines:getCapabilitiesRefreshBatch',
       getAgentRestartSummariesByRoles: 'machines:getAgentRestartSummariesByRoles',
       getAgentRestartSummaryByRole: 'machines:getAgentRestartSummaryByRole',
-    },
-    agentWorkspaces: {
-      listConfiguredAgentsForWorkspace: 'agentWorkspaces:listConfiguredAgentsForWorkspace',
-      getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
-      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
     },
     workspaces: {
       getPrimaryWorkspaceForChatroom: 'workspaces:getPrimaryWorkspaceForChatroom',
@@ -302,28 +299,30 @@ describe('Chatroom page agents settings', () => {
           chatroomId: CHATROOM_ID,
         }
       );
-      expect(mockUseSessionQuery).toHaveBeenCalledWith(
-        'agentWorkspaces:listConfiguredAgentsForWorkspace',
-        {
-          workspaceId: 'r1',
-        }
-      );
-      expect(mockUseSessionQuery).toHaveBeenCalledWith(
-        'agentWorkspaces:getAgentStatusForWorkspaceRole',
-        { workspaceId: 'r1', role: 'planner' }
-      );
-      expect(mockUseSessionQuery).toHaveBeenCalledWith(
-        'agentWorkspaces:getAgentConfigForWorkspaceRole',
-        { workspaceId: 'r1', role: 'planner' }
-      );
-      expect(mockUseSessionQuery).toHaveBeenCalledWith(
-        'agentWorkspaces:getAgentStatusForWorkspaceRole',
-        { workspaceId: 'r1', role: 'builder' }
-      );
-      expect(mockUseSessionQuery).toHaveBeenCalledWith(
-        'agentWorkspaces:getAgentConfigForWorkspaceRole',
-        { workspaceId: 'r1', role: 'builder' }
-      );
+      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:listLastSentLaunchRequests', {
+        chatroomId: CHATROOM_ID,
+        workspaceId: 'r1',
+      });
+      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:getStatus', {
+        chatroomId: CHATROOM_ID,
+        workspaceId: 'r1',
+        role: 'planner',
+      });
+      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:getLastSentLaunchRequest', {
+        chatroomId: CHATROOM_ID,
+        workspaceId: 'r1',
+        role: 'planner',
+      });
+      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:getStatus', {
+        chatroomId: CHATROOM_ID,
+        workspaceId: 'r1',
+        role: 'builder',
+      });
+      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:getLastSentLaunchRequest', {
+        chatroomId: CHATROOM_ID,
+        workspaceId: 'r1',
+        role: 'builder',
+      });
     });
   });
 });

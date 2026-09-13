@@ -4,9 +4,10 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc } from './_generated/dataModel';
-import { query } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import {
@@ -14,6 +15,10 @@ import {
   listLastSentLaunchRequestsForChatroom,
 } from '../src/domain/usecase/agent/get-last-sent-launch-request';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
+import {
+  requestChatroomWorkspaceAgentStop,
+  requestWorkspaceAgentStop,
+} from '../src/domain/usecase/agent/request-chatroom-workspace-agent-stop';
 
 function normalizeWorkingDir(value: string): string {
   return value.trim().replace(/[/\\]+$/, '');
@@ -179,5 +184,33 @@ export const listStatus = query({
         projectedAt: row?.projectedAt ?? null,
       };
     });
+  },
+});
+
+/** Requests a one-time stop command; it does not write desired or runtime state. */
+export const requestStop = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return requestWorkspaceAgentStop(ctx, args);
+  },
+});
+
+/** Requests one stop-all command per machine that has observed room activity. */
+export const requestStopAll = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    finalizeChatroom: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return requestChatroomWorkspaceAgentStop(ctx, args);
   },
 });

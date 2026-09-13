@@ -54,7 +54,7 @@ const turnFailedFact = v.object({
 const chatroomShutdownCompleteFact = v.object({
   kind: v.literal('chatroom_shutdown_complete'),
   chatroomId: v.id('chatroom_rooms'),
-  commandId: v.id('chatroomWorkspaceAgentCommandsInbox'),
+  commandId: v.id('chatroom_machineCommandInbox'),
   finalizeChatroom: v.optional(v.boolean()),
   revisionKey: v.string(),
   emittedAt: v.number(),

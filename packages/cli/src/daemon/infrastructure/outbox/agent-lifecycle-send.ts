@@ -22,7 +22,7 @@ function toConvexLifecycleFact(fact: AgentLifecycleFact): ConvexLifecycleFact {
     ...normalized,
     chatroomId: normalized.chatroomId as Id<'chatroom_rooms'>,
     ...(normalized.kind === 'chatroom_shutdown_complete'
-      ? { commandId: normalized.commandId as Id<'chatroomWorkspaceAgentCommandsInbox'> }
+      ? { commandId: normalized.commandId as Id<'chatroom_machineCommandInbox'> }
       : {}),
     ...((normalized.kind === 'activity' || normalized.kind === 'turn_failed') && normalized.taskId
       ? { taskId: normalized.taskId as Id<'chatroom_tasks'> }

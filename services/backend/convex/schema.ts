@@ -4,7 +4,6 @@ import { v } from 'convex/values';
 import { storedFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
 import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
-import { workspaceAgentCommandInboxValidator } from '../src/domain/entities/chatroom-workspace-agent-command-inbox';
 import { workspaceTaskInboxEventValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
@@ -1484,12 +1483,6 @@ export default defineSchema({
   chatroomWorkspaceTaskInbox: defineTable(workspaceTaskInboxEventValidator)
     .index('by_machine_status_createdAt', ['machineId', 'status', 'createdAt'])
     .index('by_chatroom_taskId', ['chatroomId', 'taskId']),
-
-  /** One command per workspace daemon for chatroom-wide agent lifecycle actions. */
-  chatroomWorkspaceAgentCommandsInbox: defineTable(workspaceAgentCommandInboxValidator)
-    .index('by_machine_status_createdAt', ['machineId', 'status', 'createdAt'])
-    .index('by_chatroom_createdAt', ['chatroomId', 'createdAt'])
-    .index('by_operationId', ['operationId']),
 
   /**
    * Pre-aggregated agent restart metrics.
