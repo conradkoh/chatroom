@@ -22,7 +22,8 @@ export interface AgentTurnEndedEvent {
   readonly harness: string;
   readonly slot: AgentProcessSlotView;
   readonly eventId: string;
-  readonly completion?: TurnCompletionResult;
+  /** The process manager normalizes missing provider results before publishing. */
+  readonly completion: TurnCompletionResult;
 }
 
 export type AgentTurnDisposition =

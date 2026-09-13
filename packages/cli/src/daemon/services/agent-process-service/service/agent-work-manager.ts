@@ -167,7 +167,7 @@ export class AgentWorkManager {
 
   async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<AgentTurnDisposition> {
     const completion = event.completion;
-    if (completion && completion.status !== 'completed') {
+    if (completion.status !== 'completed') {
       const activeTask = this.deps.agentTaskState.get({
         chatroomId: event.chatroomId,
         role: event.role,

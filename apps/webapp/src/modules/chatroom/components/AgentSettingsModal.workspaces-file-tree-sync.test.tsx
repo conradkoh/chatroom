@@ -131,7 +131,14 @@ function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
 
 function renderModal() {
   return render(
-    <AgentSettingsModal isOpen onClose={vi.fn()} chatroomId={CHATROOM_ID} initialTab="workspaces" />
+    <AgentSettingsModal
+      isOpen
+      onClose={vi.fn()}
+      chatroomId={CHATROOM_ID}
+      currentTeamId={null}
+      currentTeamRoles={[]}
+      initialTab="workspaces"
+    />
   );
 }
 

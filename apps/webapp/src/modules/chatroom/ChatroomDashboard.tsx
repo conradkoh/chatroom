@@ -2097,7 +2097,7 @@ function ChatroomDashboardContent({
                   isOpen={settingsModalOpen}
                   onClose={handleCloseSettings}
                   chatroomId={chatroomId}
-                  currentTeamId={agentPanelData.team.teamId}
+                  currentTeamId={agentPanelData.team.teamId ?? null}
                   currentTeamRoles={teamRoles}
                   initialTab={settingsInitialTab}
                 />

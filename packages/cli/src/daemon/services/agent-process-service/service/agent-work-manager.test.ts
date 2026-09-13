@@ -177,6 +177,11 @@ describe('AgentWorkManager', () => {
       harness: 'cursor-sdk',
       slot: { state: 'running' },
       eventId: 'turn-1',
+      completion: {
+        turnId: 'turn-1',
+        status: 'completed',
+        source: 'provider.result',
+      },
     } as never);
     await vi.waitFor(() => {
       expect(requestReconcile).toHaveBeenCalledWith({

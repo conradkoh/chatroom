@@ -57,8 +57,8 @@ interface AgentSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
-  currentTeamId?: string;
-  currentTeamRoles?: string[];
+  currentTeamId: string | null;
+  currentTeamRoles: string[];
   initialTab?: SettingsTab;
 }
 
@@ -173,11 +173,11 @@ const TeamConfigContent = memo(function TeamConfigContent({
   currentTeamRoles,
 }: {
   chatroomId: string;
-  currentTeamId?: string;
-  currentTeamRoles?: string[];
+  currentTeamId: string | null;
+  currentTeamRoles: string[];
 }) {
   const { teams, defaultTeamId, getById } = useTeamConfigs();
-  const currentTeamSelection = currentTeamId || defaultTeamId;
+  const currentTeamSelection = currentTeamId ?? defaultTeamId;
   const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamSelection);
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null);
@@ -224,7 +224,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
       </div>
 
       {/* Current Team Info */}
-      {currentTeamRoles && currentTeamRoles.length > 0 && (
+      {currentTeamRoles.length > 0 && (
         <div className="space-y-2">
           <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
             Current Team
@@ -232,7 +232,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
           <div className="flex items-center gap-2 p-3 bg-chatroom-bg-tertiary border border-chatroom-border">
             <div className="flex-1">
               <div className="text-xs font-bold text-chatroom-text-primary uppercase tracking-widest">
-                {currentTeamId || 'Unknown'}
+                {currentTeamId ?? 'Unknown'}
               </div>
               <div className="text-[10px] text-chatroom-text-muted">
                 Roles: {currentTeamRoles.join(', ')}
