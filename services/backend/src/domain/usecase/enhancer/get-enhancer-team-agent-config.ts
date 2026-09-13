@@ -7,9 +7,9 @@ export async function getEnhancerTeamAgentConfig(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   teamId: string
-): Promise<Doc<'chatroom_teamAgentConfigs'> | null> {
+): Promise<Doc<'chatroom_agentDesiredConfigs'> | null> {
   return ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) =>
       q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, teamId, 'enhancer'))
     )
@@ -27,7 +27,7 @@ export async function syncEnhancerTeamAgentConfig(
     teamId: string;
     legacyConfig: Doc<'chatroom_enhancerConfigs'>;
   }
-): Promise<Doc<'chatroom_teamAgentConfigs'> | null> {
+): Promise<Doc<'chatroom_agentDesiredConfigs'> | null> {
   const teamRoleKey = buildTeamRoleKey(args.chatroomId, args.teamId, 'enhancer');
   const existing = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, args.teamId);
   const workspaces = await ctx.db
@@ -53,27 +53,24 @@ export async function syncEnhancerTeamAgentConfig(
       model: args.legacyConfig.model,
       workingDir,
       enabled: args.legacyConfig.enabled,
-      // Ephemeral agents are never started as part of the persistent team.
-      desiredState: existing?.desiredState ?? 'stopped',
-      circuitState: existing?.circuitState ?? 'closed',
       updatedAt: Date.now(),
     },
   });
 
   return ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
 }
 
 export function isCompleteRemoteEnhancerConfig(
-  config: Doc<'chatroom_teamAgentConfigs'> | null | undefined
+  config: Doc<'chatroom_agentDesiredConfigs'> | null | undefined
 ): boolean {
   return config?.enabled === true && hasRemoteEnhancerConfigFields(config);
 }
 
 export function hasRemoteEnhancerConfigFields(
-  config: Doc<'chatroom_teamAgentConfigs'> | null | undefined
+  config: Doc<'chatroom_agentDesiredConfigs'> | null | undefined
 ): boolean {
   return Boolean(
     config?.type === 'remote' &&

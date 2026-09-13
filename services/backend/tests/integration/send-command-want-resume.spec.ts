@@ -97,12 +97,18 @@ describe('sendCommand start-agent wantResume', () => {
 
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
-      if (config) await ctx.db.patch(config._id, { wantResume: true });
+      if (config) {
+        const runtime = await ctx.db
+          .query('chatroom_agentRuntimeStates')
+          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+          .first();
+        if (runtime) await ctx.db.patch(runtime._id, { wantResume: true });
+      }
     });
 
     // Second start omits wantResume. It must use the cold-start default instead

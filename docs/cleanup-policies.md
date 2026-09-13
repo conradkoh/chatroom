@@ -64,7 +64,8 @@ When a machine is deleted (90-day inactive), the cleanup removes ALL related row
 | `chatroom_machineLiveness`              | Index: `by_machineId`                 |
 | `chatroom_machineStatus`                | Index: `by_machineId`                 |
 | `chatroom_machineModelFilters`          | Index: `by_machine_harness`           |
-| `chatroom_teamAgentConfigs`             | Index: `by_machineId`                 |
+| `chatroom_agentDesiredConfigs`          | Index: `by_machineId`                 |
+| `chatroom_agentRuntimeStates`           | Index: `by_machineId`                 |
 | `chatroom_workspaces`                   | Index: `by_machine`                   |
 | `chatroom_workspaceGitState`            | Filter: `machineId`                   |
 | `chatroom_workspaceFileTree`            | Filter: `machineId`                   |

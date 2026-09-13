@@ -16,6 +16,7 @@ import {
   createPlannerBuilderDuoChatroom,
   createTestSession,
   joinParticipant,
+  setAgentRuntimeStateInContext,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 import { TEST_MODEL_CURSOR_SDK, TEST_MODEL_OPENCODE } from '../helpers/test-models';
@@ -111,7 +112,7 @@ describe('Resume session token activity', () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'planner'),
         chatroomId,
         role: 'planner',
@@ -224,14 +225,16 @@ describe('Resume session token activity', () => {
 
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
-      if (config) {
-        await ctx.db.patch(config._id, { spawnedAgentPid: 8888, desiredState: 'running' });
-      }
+      if (config)
+        await setAgentRuntimeStateInContext(ctx, config._id, {
+          pid: 8888,
+          desiredState: 'running',
+        });
     });
 
     await t.mutation(api.machines.recordAgentExited, {
@@ -324,14 +327,16 @@ describe('Resume session token activity', () => {
 
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first();
-      if (config) {
-        await ctx.db.patch(config._id, { spawnedAgentPid: 9999, desiredState: 'running' });
-      }
+      if (config)
+        await setAgentRuntimeStateInContext(ctx, config._id, {
+          pid: 9999,
+          desiredState: 'running',
+        });
     });
 
     await t.mutation(api.machines.recordAgentExited, {
@@ -415,14 +420,16 @@ describe('Resume session token activity', () => {
 
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
-      if (config) {
-        await ctx.db.patch(config._id, { spawnedAgentPid: 7777, desiredState: 'running' });
-      }
+      if (config)
+        await setAgentRuntimeStateInContext(ctx, config._id, {
+          pid: 7777,
+          desiredState: 'running',
+        });
     });
 
     await t.mutation(api.machines.recordAgentExited, {
@@ -501,14 +508,16 @@ describe('Resume session token activity', () => {
 
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
         )
         .first();
-      if (config) {
-        await ctx.db.patch(config._id, { spawnedAgentPid: 6666, desiredState: 'running' });
-      }
+      if (config)
+        await setAgentRuntimeStateInContext(ctx, config._id, {
+          pid: 6666,
+          desiredState: 'running',
+        });
     });
 
     await t.mutation(api.machines.recordAgentExited, {

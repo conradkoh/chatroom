@@ -36,7 +36,7 @@ async function setup(id: string) {
 async function configId(chatroomId: any) {
   return t.run((ctx) =>
     ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
@@ -51,12 +51,25 @@ describe('authorizeAgentStart', () => {
       await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId }))
     ).toEqual({ allowed: true });
     const config = await configId(chatroomId);
-    await t.run((ctx) => ctx.db.patch(config!._id, { desiredState: 'stopped' }));
+    await t.run(async (ctx) => {
+      const runtime = await ctx.db
+        .query('chatroom_agentRuntimeStates')
+        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config!._id))
+        .first();
+      if (runtime) await ctx.db.patch(runtime._id, { desiredState: 'stopped' });
+    });
     expect(
       (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })))
         .reason
     ).toBe('stopped');
-    await t.run((ctx) => ctx.db.patch(config!._id, { desiredState: 'running', enabled: false }));
+    await t.run(async (ctx) => {
+      await ctx.db.patch(config!._id, { enabled: false });
+      const runtime = await ctx.db
+        .query('chatroom_agentRuntimeStates')
+        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config!._id))
+        .first();
+      if (runtime) await ctx.db.patch(runtime._id, { desiredState: 'running' });
+    });
     expect(
       (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })))
         .reason
@@ -73,7 +86,7 @@ describe('authorizeAgentStart', () => {
   test('requires an active task for ephemeral enhancer starts', async () => {
     const { chatroomId, machineId } = await setup('authorize-ephemeral');
     const enhancerId = await t.run(async (ctx) =>
-      ctx.db.insert('chatroom_teamAgentConfigs', {
+      ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
         chatroomId,
         role: 'enhancer',
@@ -83,7 +96,6 @@ describe('authorizeAgentStart', () => {
         model: 'test',
         workingDir: '/workspace',
         enabled: true,
-        desiredState: 'running',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })

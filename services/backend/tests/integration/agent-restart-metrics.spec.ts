@@ -48,7 +48,7 @@ async function setupAgentAndSeedMetrics(opts: {
         model,
         agentHarness: 'opencode',
         workingDir,
-        reason: 'test',
+        reason: 'user.manual_spawn',
       },
       machine!
     );
@@ -136,7 +136,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
         model: 'model-x',
         agentHarness: 'opencode',
         workingDir: '/test/ws',
-        reason: 'test',
+        reason: 'user.manual_spawn',
       },
       machine!
     );
@@ -252,7 +252,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
         model: 'model-alpha',
         agentHarness: 'opencode',
         workingDir: '/test/ws',
-        reason: 'test',
+        reason: 'user.manual_spawn',
       },
       machine!
     );

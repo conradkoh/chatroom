@@ -11,13 +11,13 @@
  *
  */
 
+import { getAgentRuntimeState, patchAgentRuntimeState } from './agent-runtime-state';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { AgentStopReasonEnum } from '../../entities/agent';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ export async function agentExited(
 
   const teamRoleKey = buildTeamRoleKey(chatroomId, chatroom.teamId, role);
   const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
 
@@ -77,10 +77,12 @@ export async function agentExited(
   //    Only clear if BOTH the PID and machineId match. This prevents clearing
   //    a newer agent's PID if a stale exit report arrives after a new agent
   //    has been spawned.
-  if (config && config.spawnedAgentPid === pid && config.machineId === machineId) {
-    await patchTeamAgentConfig(ctx, config._id, {
-      spawnedAgentPid: undefined,
-      spawnedAt: undefined,
+  const runtime = config ? await getAgentRuntimeState(ctx, config._id) : null;
+  if (config && runtime?.pid === pid && runtime.machineId === machineId) {
+    await patchAgentRuntimeState(ctx, config, {
+      pid: undefined,
+      startedAt: undefined,
+      status: 'offline',
     });
   }
 

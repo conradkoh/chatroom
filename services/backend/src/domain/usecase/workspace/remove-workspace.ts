@@ -7,7 +7,7 @@
  * Also purges workspace-scoped data to prevent "ghost machines" — stale
  * references that point to a machine that is no longer associated with
  * the chatroom. This includes:
- * - chatroom_teamAgentConfigs (agent configs for this machine+chatroom)
+ * - chatroom_agentDesiredConfigs (agent configs for this machine+chatroom)
  * - chatroom_workspaceGitState (git state for this workspace)
  * - chatroom_workspaceFileTree / chatroom_workspaceFileTreeV2 (file tree snapshots)
  * - chatroom_workspaceFileTreeManifestV3 / chatroom_workspaceFileTreeShardV3 (sharded file trees)
@@ -20,6 +20,7 @@
 import { enqueueWorkspaceListChangedForChatroom } from './enqueue-workspace-list-changed';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { getAgentRuntimeState } from '../agent/agent-runtime-state';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ export async function removeWorkspace(
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Purges `chatroom_teamAgentConfigs` entries for a machine+chatroom combination,
+ * Purges `chatroom_agentDesiredConfigs` entries for a machine+chatroom combination,
  * but only if no other active workspaces remain for that machine in the chatroom.
  *
  * This ensures we don't break multi-workspace setups where the same machine
@@ -88,20 +89,18 @@ async function purgeTeamAgentConfigsForMachine(
     )
     .first();
 
-  if (otherActiveWorkspaces) {
-    // Another active workspace exists for this machine+chatroom — keep the configs
-    return;
-  }
-
-  // No other active workspaces — safe to purge configs for this machine
   const configs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .filter((q) => q.eq(q.field('machineId'), machineId))
     .collect();
 
   for (const config of configs) {
-    await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+    const belongsToRemovedWorkspace = config.workspaceId === excludeWorkspaceId;
+    if (otherActiveWorkspaces && !belongsToRemovedWorkspace) continue;
+    const runtime = await getAgentRuntimeState(ctx, config._id);
+    if (runtime) await ctx.db.delete('chatroom_agentRuntimeStates', runtime._id);
+    await ctx.db.delete('chatroom_agentDesiredConfigs', config._id);
   }
   if (configs.length > 0) {
     await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, {

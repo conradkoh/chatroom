@@ -18,11 +18,14 @@ import {
   isActiveParticipant,
 } from '../src/domain/entities/participant';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
+import {
+  getAgentRuntimeState,
+  patchAgentRuntimeState,
+} from '../src/domain/usecase/agent/agent-runtime-state';
 import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
 import { touchAgentRoleStatusLastSeen } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
-import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
 import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
@@ -180,25 +183,21 @@ export const join = mutation({
     if (chatroom.teamId) {
       const joinTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
       teamConfig = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', joinTeamRoleKey))
         .first();
     }
 
+    const runtime = teamConfig ? await getAgentRuntimeState(ctx, teamConfig._id) : null;
     if (
       teamConfig?.type === 'remote' &&
-      teamConfig.circuitState &&
-      teamConfig.circuitState !== 'closed'
+      runtime?.circuitState &&
+      runtime.circuitState !== 'closed'
     ) {
-      await patchTeamAgentConfig(
-        ctx,
-        teamConfig._id,
-        {
-          circuitState: 'closed',
-          circuitOpenedAt: undefined,
-        },
-        { projectScope: 'chatroom' }
-      );
+      await patchAgentRuntimeState(ctx, teamConfig, {
+        circuitState: 'closed',
+        circuitOpenedAt: undefined,
+      });
     }
 
     if (args.action === NATIVE_WAITING_ACTION) {

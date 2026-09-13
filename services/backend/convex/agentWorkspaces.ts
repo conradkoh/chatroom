@@ -13,6 +13,7 @@ import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { filterTeamAgentConfigsForTeam } from './utils/teamRoleKeyFilter';
+import { getAgentRuntimeState } from '../src/domain/usecase/agent/agent-runtime-state';
 
 function normalizeWorkingDir(value: string): string {
   return value.trim().replace(/[/\\]+$/, '');
@@ -31,7 +32,7 @@ async function requireChatroomAccessForWorkspace(
 }
 
 function configBelongsToWorkspace(
-  config: Doc<'chatroom_teamAgentConfigs'>,
+  config: Doc<'chatroom_agentDesiredConfigs'>,
   workspace: Doc<'chatroom_workspaces'>
 ): boolean {
   return (
@@ -52,7 +53,7 @@ export const listConfiguredAgentsForWorkspace = query({
     if (!access) return [];
 
     const configs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', access.chatroom._id))
       .collect();
     const currentTeamConfigs = filterTeamAgentConfigsForTeam(
@@ -62,7 +63,11 @@ export const listConfiguredAgentsForWorkspace = query({
     );
 
     return currentTeamConfigs
-      .filter((config) => configBelongsToWorkspace(config, access.workspace))
+      .filter(
+        (config) =>
+          config.workspaceId === access.workspace._id ||
+          (config.workspaceId === undefined && configBelongsToWorkspace(config, access.workspace))
+      )
       .map((config) => ({
         role: config.role,
         type: config.type,
@@ -84,7 +89,7 @@ export const getAgentConfigForWorkspaceRole = query({
     if (!access) return null;
 
     const configs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', access.chatroom._id))
       .collect();
     const config = filterTeamAgentConfigsForTeam(
@@ -94,10 +99,13 @@ export const getAgentConfigForWorkspaceRole = query({
     ).find(
       (candidate) =>
         candidate.role.toLowerCase() === args.role.toLowerCase() &&
-        configBelongsToWorkspace(candidate, access.workspace)
+        (candidate.workspaceId === access.workspace._id ||
+          (candidate.workspaceId === undefined &&
+            configBelongsToWorkspace(candidate, access.workspace)))
     );
 
     if (!config) return null;
+    const runtime = await getAgentRuntimeState(ctx, config._id);
     return {
       role: config.role,
       type: config.type,
@@ -105,7 +113,7 @@ export const getAgentConfigForWorkspaceRole = query({
       agentHarness: config.agentHarness ?? null,
       model: config.model ?? null,
       workingDir: config.workingDir ?? null,
-      desiredState: config.desiredState ?? null,
+      desiredState: runtime?.desiredState ?? null,
       updatedAt: config.updatedAt,
     };
   },

@@ -1,3 +1,4 @@
+import { patchAgentRuntimeState } from './agent-runtime-state';
 import { rebuildAgentOperationalStatusForChatroom } from './project-agent-operational-status';
 import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -22,7 +23,7 @@ export async function shutdownChatroomTeam(
 
   const [allConfigs, statusRows] = await Promise.all([
     ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect(),
     ctx.db
@@ -37,11 +38,11 @@ export async function shutdownChatroomTeam(
   for (const row of statusRows) roles.add(row.role.toLowerCase());
 
   for (const config of configs) {
-    if (config.desiredState !== 'stopped')
-      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-        desiredState: 'stopped',
-        updatedAt: Date.now(),
-      });
+    await patchAgentRuntimeState(ctx, config, {
+      desiredState: 'stopped',
+      status: 'offline',
+      pid: undefined,
+    });
   }
 
   for (const role of roles) {

@@ -58,7 +58,7 @@ export async function projectAgentRoleStatusReadModel(
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
     event?: StatusEvent | undefined;
-    config?: Doc<'chatroom_teamAgentConfigs'> | undefined;
+    config?: Doc<'chatroom_agentDesiredConfigs'> | undefined;
     agentType?: Doc<'chatroom_participants'>['agentType'] | undefined;
     lastSeenAt?: number | undefined;
     lastSeenAction?: string | undefined;
@@ -73,7 +73,7 @@ export async function projectAgentRoleStatusReadModel(
     args.config ??
     (teamId
       ? await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) =>
             q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, role))
           )

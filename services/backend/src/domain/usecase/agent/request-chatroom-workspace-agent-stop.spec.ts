@@ -20,7 +20,7 @@ describe('requestChatroomWorkspaceAgentStop', () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
@@ -30,8 +30,16 @@ describe('requestChatroomWorkspaceAgentStop', () => {
         model: 'test-model',
         workingDir: '/tmp/test',
         enabled: true,
-        desiredState: 'running',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert('chatroom_agentRuntimeStates', {
+        desiredConfigId: configId,
+        chatroomId,
+        role: 'builder',
+        machineId: 'offline-daemon',
+        status: 'waiting',
+        desiredState: 'running',
         updatedAt: Date.now(),
       });
       await projectAgentRoleStatusReadModel(ctx, {
@@ -49,7 +57,7 @@ describe('requestChatroomWorkspaceAgentStop', () => {
     expect(result.commandIds).toHaveLength(1);
     const state = await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
@@ -58,7 +66,13 @@ describe('requestChatroomWorkspaceAgentStop', () => {
         .query('chatroom_agentRoleStatusReadModel')
         .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
         .first();
-      return { desiredState: config?.desiredState, status: row?.status };
+      const runtime = config
+        ? await ctx.db
+            .query('chatroom_agentRuntimeStates')
+            .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+            .first()
+        : null;
+      return { desiredState: runtime?.desiredState, status: row?.status };
     });
 
     expect(state).toEqual({ desiredState: 'stopped', status: 'offline' });

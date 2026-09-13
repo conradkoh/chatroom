@@ -1,5 +1,5 @@
 /**
- * Ensures a machineId is allowed for a chatroom role before mutating team agent config
+ * Ensures a machineId is allowed for a chatroom role before mutating desired agent config
  * or dispatching start-related commands.
  */
 
@@ -16,7 +16,7 @@ export type AssertMachineBelongsToChatroomArgs = {
 };
 
 /**
- * Reads `chatroom_teamAgentConfigs` for the current team + role and validates `machineId`.
+ * Reads `chatroom_agentDesiredConfigs` for the current team + role and validates `machineId`.
  *
  * - Bound machine matches `machineId` → OK.
  * - Bound machine differs → OK only if `allowNewMachine` is true; otherwise throws (message mentions allowNewMachine).
@@ -35,7 +35,7 @@ export async function assertMachineBelongsToChatroom(
 
   const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
   const existing = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
 

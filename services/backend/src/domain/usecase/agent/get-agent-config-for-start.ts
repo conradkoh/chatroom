@@ -76,7 +76,7 @@ export async function getAgentConfigForStart(
   if (chatroom.teamId) {
     const startTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role);
     teamConfig = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', startTeamRoleKey))
       .first();
   }

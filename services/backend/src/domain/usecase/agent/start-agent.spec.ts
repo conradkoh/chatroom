@@ -82,14 +82,20 @@ describe('startAgent use case — desiredState', () => {
 
     const teamConfig = await t.run(async (ctx) => {
       return await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
     });
 
-    expect(teamConfig?.desiredState).toBe('running');
+    const runtime = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_agentRuntimeStates')
+        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', teamConfig!._id))
+        .first()
+    );
+    expect(runtime?.desiredState).toBe('running');
   });
 
   test('resets desiredState from stopped to running when agent is started', async () => {
@@ -112,22 +118,34 @@ describe('startAgent use case — desiredState', () => {
     // Mark it as stopped (no spawned PID on this config — patch intent directly)
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
-      if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
+      if (config) {
+        const runtime = await ctx.db
+          .query('chatroom_agentRuntimeStates')
+          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+          .first();
+        if (runtime) await ctx.db.patch(runtime._id, { desiredState: 'stopped' });
+      }
     });
 
     // Verify it's stopped
     const stopped = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_teamAgentConfigs')
+      const config = await ctx.db
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
+      return config
+        ? await ctx.db
+            .query('chatroom_agentRuntimeStates')
+            .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+            .first()
+        : null;
     });
     expect(stopped?.desiredState).toBe('stopped');
 
@@ -136,12 +154,18 @@ describe('startAgent use case — desiredState', () => {
 
     // Verify desiredState is now 'running'
     const running = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_teamAgentConfigs')
+      const config = await ctx.db
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
+      return config
+        ? await ctx.db
+            .query('chatroom_agentRuntimeStates')
+            .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+            .first()
+        : null;
     });
     expect(running?.desiredState).toBe('running');
   });
@@ -157,7 +181,7 @@ describe('startAgent use case — desiredState', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey,
         chatroomId,
         role: 'builder',
@@ -168,9 +192,17 @@ describe('startAgent use case — desiredState', () => {
         workingDir: '/tmp/test',
         createdAt: now,
         updatedAt: now,
+      });
+      await ctx.db.insert('chatroom_agentRuntimeStates', {
+        desiredConfigId: configId,
+        chatroomId,
+        role: 'builder',
+        machineId,
+        status: 'offline',
         desiredState: 'stopped',
-        circuitState: 'open', // Circuit tripped
-        circuitOpenedAt: now - 30_000, // 30s ago
+        circuitState: 'open',
+        circuitOpenedAt: now - 30_000,
+        updatedAt: now,
       });
     });
 
@@ -179,12 +211,18 @@ describe('startAgent use case — desiredState', () => {
 
     // Verify circuit breaker was reset
     const config = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_teamAgentConfigs')
+      const desired = await ctx.db
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
+      return desired
+        ? await ctx.db
+            .query('chatroom_agentRuntimeStates')
+            .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', desired._id))
+            .first()
+        : null;
     });
 
     expect(config?.circuitState).toBe('closed');
@@ -206,7 +244,7 @@ describe('startAgent use case — desiredState', () => {
 
     const config = await t.run(async (ctx) =>
       ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
@@ -267,7 +305,7 @@ describe('startAgent use case — wantResume runtime behavior', () => {
   async function readTeamConfig(chatroomId: Id<'chatroom_rooms'>, role: string) {
     return await t.run(async (ctx) => {
       return await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', role))
         )

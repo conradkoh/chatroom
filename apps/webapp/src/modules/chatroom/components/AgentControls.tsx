@@ -205,6 +205,7 @@ export function useAgentControls({
   lockedMachineId,
   lockedWorkingDir,
   teamId,
+  persistDesiredConfig,
 }: {
   role: string;
   chatroomId: string;
@@ -227,6 +228,13 @@ export function useAgentControls({
   /** Setup wizard: lock machine and working directory. */
   lockedMachineId?: string;
   lockedWorkingDir?: string;
+  /** Persist a user-selected desired tuple. Runtime state is never written here. */
+  persistDesiredConfig?: (patch: {
+    machineId?: string | null;
+    agentHarness?: AgentHarness | null;
+    model?: string | null;
+    workingDir?: string | null;
+  }) => Promise<unknown>;
 }) {
   const { requestAgentStop } = useAgentStop();
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
@@ -247,6 +255,16 @@ export function useAgentControls({
   const [rehomeConfirmOpen, setRehomeConfirmOpen] = useState(false);
   // Guards initialization — fires exactly once when machines become available
   const [isInitialized, setIsInitialized] = useState(false);
+
+  const persistUserConfig = useCallback(
+    (patch: Parameters<NonNullable<typeof persistDesiredConfig>>[0]) => {
+      if (!persistDesiredConfig) return;
+      void persistDesiredConfig(patch).catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to save agent configuration');
+      });
+    },
+    [persistDesiredConfig]
+  );
 
   useEffect(() => {
     if (previousTeamIdRef.current === teamId) return;
@@ -300,12 +318,12 @@ export function useAgentControls({
 
   // ── Single initialize-once effect ────────────────────────────────
   // Fires exactly once — when machines first become available.
-  // The "last used" config is derived solely from the persisted teamAgentConfigs
+  // The "last used" config is derived solely from the persisted desired config.
   // (roleConfigs).
   useEffect(() => {
     if (isInitialized || connectedMachines.length === 0) return;
 
-    // Single source of truth for "last used": persisted teamAgentConfigs.
+    // Single source of truth for "last used": the persisted desired config.
     const machine =
       lockedMachineId ??
       deriveInitialMachineId(
@@ -552,14 +570,25 @@ export function useAgentControls({
       setUserModelByHarness({});
       const wd = deriveInitialWorkingDir(machineId, roleConfigs, chatroomWorkspaces);
       setWorkingDir(wd);
+      if (machineId)
+        persistUserConfig({ machineId, agentHarness: null, model: null, workingDir: wd });
     },
-    [roleConfigs, chatroomWorkspaces, lockedMachineId]
+    [roleConfigs, chatroomWorkspaces, lockedMachineId, persistUserConfig]
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
-  const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
-    setSelectedHarness(harness);
-  }, []);
+  const handleHarnessChange = useCallback(
+    (harness: AgentHarness | null) => {
+      setSelectedHarness(harness);
+      persistUserConfig({
+        machineId: selectedMachineId,
+        agentHarness: harness,
+        model: null,
+        workingDir,
+      });
+    },
+    [persistUserConfig, selectedMachineId, workingDir]
+  );
 
   // Wrapper for user manually selecting a model — stored per harness
   const handleModelChange = useCallback(
@@ -568,6 +597,12 @@ export function useAgentControls({
       if (!harness) return;
       if (model) {
         setUserModelByHarness((prev) => ({ ...prev, [harness]: model }));
+        persistUserConfig({
+          machineId: selectedMachineId,
+          agentHarness: harness,
+          model,
+          workingDir,
+        });
       } else {
         setUserModelByHarness((prev) => {
           const next = { ...prev };
@@ -576,7 +611,7 @@ export function useAgentControls({
         });
       }
     },
-    [selectedHarness]
+    [selectedHarness, persistUserConfig, selectedMachineId, workingDir]
   );
 
   // Wrapper for user manually changing working directory
@@ -587,6 +622,16 @@ export function useAgentControls({
     },
     [lockedWorkingDir]
   );
+
+  const persistWorkingDir = useCallback(() => {
+    if (!workingDir.trim()) return;
+    persistUserConfig({
+      machineId: selectedMachineId,
+      agentHarness: selectedHarness,
+      model: selectedModel,
+      workingDir: workingDir.trim(),
+    });
+  }, [persistUserConfig, selectedMachineId, selectedHarness, selectedModel, workingDir]);
 
   return {
     selectedMachineId,
@@ -619,6 +664,7 @@ export function useAgentControls({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    persistWorkingDir,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -681,6 +727,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
+    persistWorkingDir,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -1034,6 +1081,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 type="text"
                 value={displayWorkingDir}
                 onChange={(e) => handleWorkingDirChange(e.target.value)}
+                onBlur={persistWorkingDir}
                 placeholder="/path/to/project"
                 disabled={isBusy || isAgentRunning}
                 className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"

@@ -25,7 +25,7 @@ export async function writeWorkspaceTaskInboxEvent(
   }
 
   const configs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', task.chatroomId))
     .collect();
 

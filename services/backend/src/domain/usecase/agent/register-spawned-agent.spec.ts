@@ -32,7 +32,7 @@ async function setup(id: string) {
   });
   const config = await t.run((ctx) =>
     ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
@@ -55,12 +55,18 @@ describe('registerSpawnedAgentIfAuthorized', () => {
     expect(result).toEqual({ accepted: true });
     const config = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first()
     );
-    expect(config?.spawnedAgentPid).toBe(12345);
+    const runtime = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_agentRuntimeStates')
+        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config!._id))
+        .first()
+    );
+    expect(runtime?.pid).toBe(12345);
   });
 });

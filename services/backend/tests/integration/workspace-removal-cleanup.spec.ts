@@ -2,7 +2,7 @@
  * Workspace Removal Cleanup — Integration Tests
  *
  * Verifies that when a workspace is removed from a chatroom, related
- * `chatroom_teamAgentConfigs` entries are purged to prevent "ghost machines".
+ * `chatroom_agentDesiredConfigs` entries are purged to prevent "ghost machines".
  *
  * Three cases:
  * 1. Removing the only workspace purges configs for that machine+chatroom
@@ -50,7 +50,7 @@ async function registerWorkspace(
 async function getTeamAgentConfigs(chatroomId: Id<'chatroom_rooms'>) {
   return t.run(async (ctx) => {
     return ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect();
   });

@@ -129,7 +129,7 @@ export const getTaskDeliveryForJob = query({
       : null;
     const existingAgentConfig = teamRoleKey
       ? await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
           .first()
       : null;

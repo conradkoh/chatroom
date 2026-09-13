@@ -78,7 +78,7 @@ describe('legacy enhancer migration helpers', () => {
     );
     const config = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'enhancer'))
         )

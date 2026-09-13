@@ -46,7 +46,7 @@ async function registerMachine(sessionId: SessionId, machineId: string) {
 
 /**
  * Bind a role to a machine via the start-agent command path. This writes to
- * `chatroom_teamAgentConfigs` with `machineId` set, mirroring the production
+ * `chatroom_agentDesiredConfigs` with `machineId` set, mirroring the production
  * flow. (`recordRemoteAgentRegistered` only emits an event and does not bind.)
  */
 async function bindRoleToMachine(
@@ -163,7 +163,7 @@ describe('recordCustomAgentRegistered — allowTypeChange invariant', () => {
       if (!chatroom?.teamId) throw new Error('chatroom missing teamId');
       const teamRoleKey = buildTeamRoleKey(chatroomId, chatroom.teamId, 'builder');
       return await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
         .first();
     });

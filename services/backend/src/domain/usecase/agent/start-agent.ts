@@ -3,7 +3,7 @@
  *
  * Encapsulates the complete logic for starting an agent on a machine:
  *   1. Machine harness availability check
- *   2. Team agent config upsert (for auto-restart awareness)
+ *   2. Desired agent config upsert for explicit user starts
  *   3. Command record dispatch
  *
  * All required config values (model, agentHarness, workingDir) must be
@@ -17,6 +17,7 @@
 
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
+import { patchAgentRuntimeState } from './agent-runtime-state';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -81,8 +82,8 @@ export interface StartAgentResult {
  * Start an agent by persisting its config and dispatching a start-agent
  * command to the machine daemon.
  *
- * This function is the sole mutator of agent configuration during start
- * operations. Whatever is passed in is exactly what gets stored and dispatched.
+ * Explicit user starts persist the desired tuple. Platform and daemon starts
+ * only read the existing desired tuple and update runtime state.
  *
  * @param ctx - Convex mutation context (provides db access)
  * @param input - The start parameters (all config values pre-resolved)
@@ -111,7 +112,7 @@ export async function startAgent(
     throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
   }
 
-  // ── Step 2: Upsert team agent config ──────────────────────────────────
+  // ── Step 2: Persist desired config only for explicit user starts ──────
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const resolvedWantResume =
@@ -123,27 +124,43 @@ export async function startAgent(
     }
     const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
     const teamConfigNow = Date.now();
-
-    await upsertTeamAgentConfigByTeamRoleKey(ctx, {
-      teamRoleKey,
-      createdAt: teamConfigNow,
-      fields: {
-        chatroomId,
-        role,
-        type: 'remote' as AgentType,
-        machineId,
-        agentHarness,
-        model,
-        workingDir,
-        updatedAt: teamConfigNow,
-        desiredState: 'running' as const,
-        ...(reason !== 'user.start' && reason !== 'user.restart'
-          ? { wantResume: resolvedWantResume }
-          : {}),
-        circuitState: 'closed' as const,
+    const existingDesiredConfig = await ctx.db
+      .query('chatroom_agentDesiredConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
+    const isUserConfigurationWrite =
+      reason === 'user.start' || reason === 'user.restart' || reason === 'user.manual_spawn';
+    const desiredConfigId = isUserConfigurationWrite
+      ? (
+          await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+            teamRoleKey,
+            createdAt: existingDesiredConfig?.createdAt ?? teamConfigNow,
+            fields: {
+              chatroomId,
+              role,
+              type: 'remote' as AgentType,
+              machineId,
+              agentHarness,
+              model,
+              workingDir,
+              updatedAt: teamConfigNow,
+            },
+          })
+        ).configId
+      : existingDesiredConfig?._id;
+    const desiredConfig = desiredConfigId
+      ? await ctx.db.get('chatroom_agentDesiredConfigs', desiredConfigId)
+      : null;
+    if (desiredConfig) {
+      await patchAgentRuntimeState(ctx, desiredConfig, {
+        desiredState: 'running',
+        circuitState: 'closed',
         circuitOpenedAt: undefined,
-      },
-    });
+        status: 'starting',
+        machineId,
+        wantResume: resolvedWantResume,
+      });
+    }
   }
 
   // ── Step 3: Write agent.requestStart event to stream ──────────────────
@@ -171,7 +188,7 @@ export async function startAgent(
   // Refresh the operational projection so the daemon sees the new config
   // without waiting for a task transition.
   const startedConfig = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) =>
       q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, chatroom?.teamId ?? '', role))
     )

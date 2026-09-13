@@ -85,7 +85,7 @@ describe('updateTeam use case', () => {
 
     const remaining = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
@@ -122,7 +122,7 @@ describe('updateTeam use case', () => {
     const duoBuilderKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
     const seeded = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', duoBuilderKey))
         .first();
     });
@@ -155,11 +155,11 @@ describe('updateTeam use case', () => {
     const duoPlannerKey = buildTeamRoleKey(chatroomId, 'duo', 'planner');
     await t.run(async (ctx) => {
       const row = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', duoPlannerKey))
         .first();
       if (row) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', row._id, {
+        await ctx.db.patch('chatroom_agentDesiredConfigs', row._id, {
           model: 'restored-model',
           workingDir: '/restored/dir',
         });
@@ -192,7 +192,7 @@ describe('updateTeam use case', () => {
 
     const restored = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', duoPlannerKey))
         .first();
     });

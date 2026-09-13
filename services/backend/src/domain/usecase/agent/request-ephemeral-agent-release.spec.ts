@@ -26,7 +26,7 @@ describe('requestEphemeralAgentRelease', () => {
     });
     const ids = await t.run(async (ctx) => {
       const _room = await ctx.db.get(chatroomId);
-      const configId = await ctx.db.insert('chatroom_teamAgentConfigs', {
+      const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
         chatroomId,
         role: 'enhancer',
@@ -36,9 +36,17 @@ describe('requestEphemeralAgentRelease', () => {
         model: 'test',
         workingDir: '/tmp',
         enabled: true,
-        desiredState: 'running',
-        spawnedAgentPid: 4242,
         createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert('chatroom_agentRuntimeStates', {
+        desiredConfigId: configId,
+        chatroomId,
+        role: 'enhancer',
+        machineId,
+        status: 'waiting',
+        desiredState: 'running',
+        pid: 4242,
         updatedAt: Date.now(),
       });
       const taskId = await ctx.db.insert('chatroom_tasks', {
@@ -54,15 +62,13 @@ describe('requestEphemeralAgentRelease', () => {
       await requestEphemeralAgentRelease(ctx, (await ctx.db.get(taskId)) as any);
       return { configId };
     });
-    const config = await t.run((ctx) =>
+    const runtime = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'enhancer'))
-        )
+        .query('chatroom_agentRuntimeStates')
+        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', ids.configId))
         .first()
     );
-    expect(config?.desiredState).toBe('stopped');
+    expect(runtime?.desiredState).toBe('stopped');
     expect(ids.configId).toBeDefined();
   });
 });

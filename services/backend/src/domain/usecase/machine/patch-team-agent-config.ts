@@ -13,11 +13,11 @@ type AllowUndefinedForOptionalProperties<T> = {
 };
 
 type TeamAgentConfigPatch = AllowUndefinedForOptionalProperties<
-  Partial<Omit<Doc<'chatroom_teamAgentConfigs'>, '_id' | '_creationTime'>>
+  Partial<Omit<Doc<'chatroom_agentDesiredConfigs'>, '_id' | '_creationTime'>>
 >;
 
 type TeamAgentConfigUpsertFields = AllowUndefinedForOptionalProperties<
-  Omit<Doc<'chatroom_teamAgentConfigs'>, '_id' | '_creationTime' | 'teamRoleKey' | 'createdAt'>
+  Omit<Doc<'chatroom_agentDesiredConfigs'>, '_id' | '_creationTime' | 'teamRoleKey' | 'createdAt'>
 >;
 
 export type PatchTeamAgentConfigOptions = {
@@ -28,7 +28,7 @@ export type PatchTeamAgentConfigOptions = {
 };
 
 export type UpsertTeamAgentConfigResult = {
-  configId: Id<'chatroom_teamAgentConfigs'>;
+  configId: Id<'chatroom_agentDesiredConfigs'>;
   previousMachineId?: string | undefined;
   wasInsert: boolean;
 };
@@ -39,20 +39,20 @@ export type UpsertTeamAgentConfigResult = {
 // fallow-ignore-next-line complexity
 export async function patchTeamAgentConfig(
   ctx: MutationCtx,
-  configId: Id<'chatroom_teamAgentConfigs'>,
+  configId: Id<'chatroom_agentDesiredConfigs'>,
   patch: TeamAgentConfigPatch,
   options?: PatchTeamAgentConfigOptions
-): Promise<Doc<'chatroom_teamAgentConfigs'> | null> {
-  const existing = await ctx.db.get('chatroom_teamAgentConfigs', configId);
+): Promise<Doc<'chatroom_agentDesiredConfigs'> | null> {
+  const existing = await ctx.db.get('chatroom_agentDesiredConfigs', configId);
   if (!existing) {
     return null;
   }
 
   const now = Date.now();
-  await ctx.db.patch('chatroom_teamAgentConfigs', configId, {
+  await ctx.db.patch('chatroom_agentDesiredConfigs', configId, {
     ...patch,
     updatedAt: patch.updatedAt ?? now,
-  } as unknown as Partial<Doc<'chatroom_teamAgentConfigs'>>);
+  } as unknown as Partial<Doc<'chatroom_agentDesiredConfigs'>>);
 
   if (options?.skipProject) {
     return existing;
@@ -87,7 +87,7 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
   }
 ): Promise<UpsertTeamAgentConfigResult> {
   const existing = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', args.teamRoleKey))
     .first();
 
@@ -100,9 +100,9 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
 
   if (existing) {
     await ctx.db.patch(
-      'chatroom_teamAgentConfigs',
+      'chatroom_agentDesiredConfigs',
       existing._id,
-      fields as unknown as Partial<Doc<'chatroom_teamAgentConfigs'>>
+      fields as unknown as Partial<Doc<'chatroom_agentDesiredConfigs'>>
     );
     return {
       configId: existing._id,
@@ -112,17 +112,17 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
   }
 
   await deleteStaleTeamAgentConfigs(ctx, args.teamRoleKey);
-  const configId = await ctx.db.insert('chatroom_teamAgentConfigs', {
+  const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
     ...fields,
     enabled: fields.enabled ?? true,
     createdAt: args.createdAt ?? now,
-  } as unknown as Omit<Doc<'chatroom_teamAgentConfigs'>, '_id' | '_creationTime'>);
+  } as unknown as Omit<Doc<'chatroom_agentDesiredConfigs'>, '_id' | '_creationTime'>);
   return { configId, wasInsert: true };
 }
 
 async function projectTeamAgentConfigPatch(
   ctx: MutationCtx,
-  existing: Doc<'chatroom_teamAgentConfigs'>,
+  existing: Doc<'chatroom_agentDesiredConfigs'>,
   scope: PatchTeamAgentConfigOptions['projectScope'] = 'machine'
 ): Promise<void> {
   if (scope === 'chatroom') {

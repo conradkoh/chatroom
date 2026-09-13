@@ -30,7 +30,7 @@ export async function getAssignedTaskForAction(
   if (task.assignedTo?.toLowerCase() !== input.role.toLowerCase()) return null;
 
   const configs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_machineId', (q) => q.eq('machineId', input.machineId))
     .filter((q) => q.eq(q.field('chatroomId'), task.chatroomId))
     .collect();

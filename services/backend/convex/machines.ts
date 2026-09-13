@@ -28,6 +28,10 @@ import {
 } from '../src/domain/entities/agent';
 import { WorkspaceTaskInboxEventType } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
+import {
+  getAgentRuntimeState,
+  patchAgentRuntimeState,
+} from '../src/domain/usecase/agent/agent-runtime-state';
 import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
@@ -46,10 +50,7 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
-import {
-  patchTeamAgentConfig,
-  upsertTeamAgentConfigByTeamRoleKey,
-} from '../src/domain/usecase/machine/patch-team-agent-config';
+import { upsertTeamAgentConfigByTeamRoleKey } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { writeWorkspaceTaskInboxEventsForRole } from '../src/domain/usecase/machine/write-workspace-task-inbox-event';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
@@ -58,12 +59,12 @@ import { onAgentExited } from '../src/events/agent/on-agent-exited';
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
 /**
- * Default start-agent policy: first bind (no machine on team config) allows omitted flag;
+ * Default start-agent policy: first bind (no machine on desired config) allows omitted flag;
  * once bound, switching machines requires explicit `allowNewMachine: true`.
  */
 function resolveAllowNewMachineForStart(
   payload: { allowNewMachine?: boolean | undefined } | undefined,
-  existingConfig: Doc<'chatroom_teamAgentConfigs'> | null
+  existingConfig: Doc<'chatroom_agentDesiredConfigs'> | null
 ): boolean {
   if (payload?.allowNewMachine !== undefined) return payload.allowNewMachine;
   return !existingConfig?.machineId;
@@ -744,13 +745,12 @@ export const getMachineAgentConfigs = query({
     const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
     const allConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
     // Filter to only configs for the CURRENT team and machines the user owns.
-    // Stale configs from old teams (after a team switch) must be excluded to
-    // prevent the UI from seeing spawnedAgentPid on old-team configs.
+    // Stale configs from old teams (after a team switch) must be excluded.
     const currentTeamId = chatroom.teamId;
     const userConfigs = allConfigs.filter((c) => {
       if (!c.machineId || !userMachineMap.has(c.machineId)) return false;
@@ -761,26 +761,36 @@ export const getMachineAgentConfigs = query({
       return true;
     });
 
-    const configsWithMachine = userConfigs.flatMap((config) => {
-      const machineId = config.machineId;
-      if (!machineId) return [];
-      const machine = userMachineMap.get(machineId);
-      return [
-        {
-          machineId,
-          hostname: machine?.hostname ?? 'Unknown',
-          alias: machine?.alias,
-          role: config.role,
-          agentType: config.agentHarness,
-          workingDir: config.workingDir,
-          model: config.model,
-          availableHarnesses: machine?.availableHarnesses ?? [],
-          updatedAt: config.updatedAt,
-          spawnedAgentPid: config.spawnedAgentPid,
-          spawnedAt: config.spawnedAt,
-        },
-      ];
-    });
+    const configsWithMachine = (
+      await Promise.all(
+        userConfigs.map(async (config) => {
+          const machineId = config.machineId;
+          if (!machineId) return [];
+          const machine = userMachineMap.get(machineId);
+          const runtime = await getAgentRuntimeState(ctx, config._id);
+          const runtimeIsActive = runtime?.pid != null;
+          return [
+            {
+              machineId,
+              hostname: machine?.hostname ?? 'Unknown',
+              alias: machine?.alias,
+              role: config.role,
+              // While running, the daemon-reported tuple is authoritative. Once
+              // offline, fall back to the user's desired tuple for the form.
+              agentType: runtimeIsActive
+                ? (runtime.actualHarness ?? config.agentHarness)
+                : config.agentHarness,
+              workingDir: config.workingDir,
+              model: runtimeIsActive ? (runtime.actualModel ?? config.model) : config.model,
+              availableHarnesses: machine?.availableHarnesses ?? [],
+              updatedAt: config.updatedAt,
+              spawnedAgentPid: runtime?.pid,
+              spawnedAt: runtime?.startedAt,
+            },
+          ];
+        })
+      )
+    ).flat();
 
     return { configs: configsWithMachine };
   },
@@ -1111,7 +1121,7 @@ export const sendCommand = mutation({
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
       // Read existing config for fallback values when payload is incomplete
       const cmdChatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
-      let existingConfig: Doc<'chatroom_teamAgentConfigs'> | null = null;
+      let existingConfig: Doc<'chatroom_agentDesiredConfigs'> | null = null;
       if (cmdChatroom?.teamId) {
         const teamRoleKey = buildTeamRoleKey(
           cmdChatroom._id,
@@ -1119,7 +1129,7 @@ export const sendCommand = mutation({
           args.payload.role
         );
         existingConfig = await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
           .first();
       }
@@ -1176,7 +1186,7 @@ export const sendCommand = mutation({
       }
 
       const cmdChatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
-      let existingConfig: Doc<'chatroom_teamAgentConfigs'> | null = null;
+      let existingConfig: Doc<'chatroom_agentDesiredConfigs'> | null = null;
       if (cmdChatroom?.teamId) {
         const teamRoleKey = buildTeamRoleKey(
           cmdChatroom._id,
@@ -1184,7 +1194,7 @@ export const sendCommand = mutation({
           args.payload.role
         );
         existingConfig = await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
           .first();
       }
@@ -1265,7 +1275,7 @@ export const updateSpawnedAgent = mutation({
 
     const spawnTeamRoleKey = buildTeamRoleKey(spawnChatroom._id, spawnChatroom.teamId, args.role);
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', spawnTeamRoleKey))
       .first();
 
@@ -1274,9 +1284,10 @@ export const updateSpawnedAgent = mutation({
     }
 
     if (args.pid === undefined) {
-      await patchTeamAgentConfig(ctx, config._id, {
-        spawnedAgentPid: undefined,
-        spawnedAt: undefined,
+      await patchAgentRuntimeState(ctx, config, {
+        pid: undefined,
+        startedAt: undefined,
+        status: 'offline',
       });
       return { success: true, accepted: true };
     }
@@ -1396,7 +1407,7 @@ async function runRecordRemoteAgentRegistered(
   if (chatroom.teamId) {
     const regTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
     const teamCfgForReg = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', regTeamRoleKey))
       .first();
     if (teamCfgForReg?.machineId) {
@@ -1442,7 +1453,7 @@ async function runRecordCustomAgentRegistered(
   const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
 
   const existing = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
 
@@ -1467,14 +1478,20 @@ async function runRecordCustomAgentRegistered(
     model: undefined,
     workingDir: undefined,
     updatedAt: now,
-    desiredState: 'running' as const,
   };
 
-  await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+  const customConfigResult = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
     teamRoleKey,
     fields: nextConfig,
     createdAt: now,
   });
+  const customConfig = await ctx.db.get(
+    'chatroom_agentDesiredConfigs',
+    customConfigResult.configId
+  );
+  if (customConfig) {
+    await patchAgentRuntimeState(ctx, customConfig, { desiredState: 'running', status: 'waiting' });
+  }
 
   await ensureOnlyAgentForRole(ctx, {
     chatroomId: args.chatroomId,
@@ -1506,7 +1523,7 @@ export const recordRemoteAgentRegistered = mutation({
   },
 });
 
-/** Records custom (non-daemon) agent registration: team config + agent.registered event. */
+/** Records custom (non-daemon) agent registration: desired config + agent.registered event. */
 export const recordCustomAgentRegistered = mutation({
   args: {
     ...SessionIdArg,
@@ -1605,12 +1622,13 @@ export const requestGitRefresh = mutation({
 // Team-level agent configuration for auto-restart decisions
 // ============================================================================
 
-/** Upserts team agent configuration for a chatroom+role and emits an agent.registered event. */
+/** Upserts desired agent configuration for a chatroom+role and emits an agent.registered event. */
 export const saveTeamAgentConfig = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
     type: agentTypeValidator,
     // Remote-specific fields (expected when type === 'remote')
     machineId: v.optional(v.string()),
@@ -1640,6 +1658,16 @@ export const saveTeamAgentConfig = mutation({
         throw new Error('Machine not found or not owned by user');
       }
     }
+    if (args.workspaceId) {
+      const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
+      if (
+        !workspace ||
+        workspace.chatroomId !== args.chatroomId ||
+        workspace.removedAt !== undefined
+      ) {
+        throw new Error('Workspace not found or does not belong to this chatroom');
+      }
+    }
 
     if (!chatroom.teamId) {
       throw new ConvexError({
@@ -1651,7 +1679,7 @@ export const saveTeamAgentConfig = mutation({
 
     // Upsert by teamRoleKey
     const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
       .first();
 
@@ -1666,19 +1694,29 @@ export const saveTeamAgentConfig = mutation({
       chatroomId: args.chatroomId,
       role: args.role,
       type: args.type,
+      workspaceId: args.workspaceId,
       machineId: args.type === 'remote' ? args.machineId : undefined,
       agentHarness: resolvedAgentHarness,
       model: resolvedModel,
       workingDir: args.type === 'remote' ? args.workingDir : undefined,
       updatedAt: now,
-      desiredState: 'running' as const,
     };
 
-    await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+    const savedConfigResult = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey,
       fields: config,
       createdAt: now,
     });
+    const savedConfig = await ctx.db.get(
+      'chatroom_agentDesiredConfigs',
+      savedConfigResult.configId
+    );
+    if (savedConfig) {
+      await patchAgentRuntimeState(ctx, savedConfig, {
+        desiredState: 'running',
+        status: 'waiting',
+      });
+    }
 
     await ensureOnlyAgentForRole(ctx, {
       chatroomId: args.chatroomId,
@@ -1698,6 +1736,171 @@ export const saveTeamAgentConfig = mutation({
   },
 });
 
+/** Persists only user-selected desired configuration; it never changes runtime state. */
+export const saveAgentDesiredConfig = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
+    type: agentTypeValidator,
+    machineId: v.optional(v.union(v.string(), v.null())),
+    agentHarness: v.optional(v.union(agentHarnessValidator, v.null())),
+    model: v.optional(v.union(v.string(), v.null())),
+    workingDir: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== auth.userId) {
+      throw new Error('Chatroom not found or access denied');
+    }
+    if (!chatroom.teamId) throw new Error('Chatroom has no teamId');
+    if (args.workspaceId) {
+      const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
+      if (
+        !workspace ||
+        workspace.chatroomId !== args.chatroomId ||
+        workspace.removedAt !== undefined
+      ) {
+        throw new Error('Workspace not found or does not belong to this chatroom');
+      }
+    }
+    if (args.type === 'remote' && args.machineId) {
+      const machineId = args.machineId;
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (!machine || machine.userId !== auth.userId)
+        throw new Error('Machine not found or not owned by user');
+    }
+
+    const teamRoleKey = buildTeamRoleKey(args.chatroomId, chatroom.teamId, args.role);
+    const existing = await ctx.db
+      .query('chatroom_agentDesiredConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
+    const now = Date.now();
+    const result = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+      teamRoleKey,
+      createdAt: existing?.createdAt ?? now,
+      fields: {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        type: args.type,
+        workspaceId: args.workspaceId ?? existing?.workspaceId,
+        machineId:
+          args.type === 'remote'
+            ? args.machineId === null
+              ? undefined
+              : (args.machineId ?? existing?.machineId)
+            : undefined,
+        agentHarness:
+          args.type === 'remote'
+            ? args.agentHarness === null
+              ? undefined
+              : (args.agentHarness ?? existing?.agentHarness)
+            : undefined,
+        model:
+          args.type === 'remote'
+            ? args.model === null
+              ? undefined
+              : (args.model ?? existing?.model)
+            : undefined,
+        workingDir:
+          args.type === 'remote'
+            ? args.workingDir === null
+              ? undefined
+              : (args.workingDir ?? existing?.workingDir)
+            : undefined,
+        enabled: existing?.enabled ?? true,
+        updatedAt: now,
+      },
+    });
+    return { configId: result.configId };
+  },
+});
+
+/** Starts the requested roles from their persisted desired configurations. */
+export const startConfiguredAgents = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    roles: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== auth.userId)
+      throw new Error('Chatroom not found or access denied');
+    if (!chatroom.teamId) throw new Error('Chatroom has no teamId');
+
+    const teamId = chatroom.teamId;
+    const configs = await ctx.db
+      .query('chatroom_agentDesiredConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+    const startedRoles: string[] = [];
+    const failedRoles: { role: string; reason: string }[] = [];
+
+    for (const role of args.roles) {
+      const config = configs.find(
+        (candidate) =>
+          candidate.role.toLowerCase() === role.toLowerCase() &&
+          candidate.teamRoleKey === buildTeamRoleKey(args.chatroomId, teamId, role)
+      );
+      if (
+        !config ||
+        config.type !== 'remote' ||
+        !config.machineId ||
+        !config.agentHarness ||
+        !config.model ||
+        !config.workingDir
+      ) {
+        failedRoles.push({ role, reason: 'incomplete desired configuration' });
+        continue;
+      }
+      const machineId = config.machineId;
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (!machine || machine.userId !== auth.userId) {
+        failedRoles.push({ role, reason: 'machine not found or not owned by user' });
+        continue;
+      }
+      try {
+        await startAgentUseCase(
+          ctx,
+          {
+            machineId: config.machineId,
+            chatroomId: args.chatroomId,
+            role: config.role,
+            userId: auth.userId,
+            model: config.model,
+            agentHarness: config.agentHarness,
+            workingDir: config.workingDir,
+            reason: AgentStartReasonEnum['user.start'],
+          },
+          machine
+        );
+        startedRoles.push(role);
+      } catch (error) {
+        failedRoles.push({
+          role,
+          reason: error instanceof Error ? error.message : 'failed to start agent',
+        });
+      }
+    }
+
+    return { startedRoles, failedRoles };
+  },
+});
+
 /** Returns all team-level agent configurations for a chatroom. */
 export const getTeamAgentConfigs = query({
   args: {
@@ -1711,7 +1914,7 @@ export const getTeamAgentConfigs = query({
     if (!chatroom || chatroom.ownerId !== auth.userId) return [];
 
     return await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
   },
@@ -1810,18 +2013,26 @@ export const listRemoteAgentRunningStatus = query({
     const results = await Promise.all(
       userChatrooms.map(async (room) => {
         const configs = await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
           .collect();
 
         const userConfigs = configs.filter((c) => c.machineId && userMachineIds.has(c.machineId));
 
-        const runningConfigs = userConfigs
+        const runtimeConfigs = await Promise.all(
+          userConfigs.map(async (config) => ({
+            config,
+            runtime: await getAgentRuntimeState(ctx, config._id),
+          }))
+        );
+        const runningConfigs = runtimeConfigs
           .filter(
-            (c): c is typeof c & { machineId: Id<'chatroom_machines'> } =>
-              c.spawnedAgentPid != null && c.machineId != null
+            (
+              entry
+            ): entry is typeof entry & { config: typeof entry.config & { machineId: string } } =>
+              entry.runtime?.pid != null && entry.config.machineId != null
           )
-          .map((c) => ({ machineId: c.machineId, role: c.role }));
+          .map(({ config }) => ({ machineId: config.machineId, role: config.role }));
 
         const remoteAgentStatus: 'running' | 'stopped' | 'none' =
           userConfigs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
@@ -2229,7 +2440,7 @@ export const emitAgentStartFailed = mutation({
 
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.startFailed', 'stopped');
 
-    // Reset desiredState to 'stopped' so AgentRoleView.state doesn't stay stuck at 'starting'
+    // Reset runtime desiredState to 'stopped' so AgentRoleView.state doesn't stay stuck at 'starting'
     const failedChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (failedChatroom?.teamId) {
       const failedTeamRoleKey = buildTeamRoleKey(
@@ -2238,11 +2449,14 @@ export const emitAgentStartFailed = mutation({
         args.role
       );
       const failedConfig = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', failedTeamRoleKey))
         .first();
       if (failedConfig) {
-        await patchTeamAgentConfig(ctx, failedConfig._id, { desiredState: 'stopped' });
+        await patchAgentRuntimeState(ctx, failedConfig, {
+          desiredState: 'stopped',
+          status: 'error',
+        });
       }
     }
 
@@ -2288,11 +2502,11 @@ export const emitAgentProviderUnavailable = mutation({
         // fallow-ignore-next-line code-duplication
         const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
         const config = await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
           .first();
         if (config) {
-          await patchTeamAgentConfig(ctx, config._id, { desiredState: 'stopped' });
+          await patchAgentRuntimeState(ctx, config, { desiredState: 'stopped', status: 'error' });
         }
       }
     }
@@ -2655,7 +2869,7 @@ export const emitRestartLimitReached = mutation({
 });
 
 /**
- * Clears spawnedAgentPid on ALL teamAgentConfigs for a machine.
+ * Clears runtime process state for all desired configurations on a machine.
  * Called by the daemon on startup — since the daemon just started fresh,
  * no agents are running on this machine. Stale PIDs from before the restart
  * must be cleared to prevent the UI from showing dead agents as "running".
@@ -2673,22 +2887,22 @@ export const clearAllSpawnedPids = mutation({
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
 
-    // Find all configs for this machine that have a spawnedAgentPid
+    // Find all desired configs for this machine and clear their runtime state.
     const allConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .collect();
 
     let clearedCount = 0;
 
     for (const config of allConfigs) {
-      if (config.spawnedAgentPid != null) {
-        await patchTeamAgentConfig(
-          ctx,
-          config._id,
-          { spawnedAgentPid: undefined, spawnedAt: undefined },
-          { skipProject: true }
-        );
+      const runtime = await getAgentRuntimeState(ctx, config._id);
+      if (runtime?.pid != null) {
+        await patchAgentRuntimeState(ctx, config, {
+          pid: undefined,
+          startedAt: undefined,
+          status: 'offline',
+        });
 
         // Update participant status so the UI doesn't show "STARTING" or "WORKING"
         await transitionAgentStatus(ctx, config.chatroomId, config.role, 'agent.exited', undefined);

@@ -13,8 +13,41 @@ import { getInboxCommandsForMachine } from './machine-command-inbox';
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
+
+export async function setAgentRuntimeState(
+  configId: Id<'chatroom_agentDesiredConfigs'>,
+  patch: Record<string, unknown>
+): Promise<void> {
+  await t.run(async (ctx) => setAgentRuntimeStateInContext(ctx, configId, patch));
+}
+
+export async function setAgentRuntimeStateInContext(
+  ctx: MutationCtx,
+  configId: Id<'chatroom_agentDesiredConfigs'>,
+  patch: Record<string, unknown>
+): Promise<void> {
+  const config = await ctx.db.get('chatroom_agentDesiredConfigs', configId);
+  if (!config) return;
+  const existing = await ctx.db
+    .query('chatroom_agentRuntimeStates')
+    .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', configId))
+    .first();
+  if (existing) await ctx.db.patch('chatroom_agentRuntimeStates', existing._id, patch);
+  else {
+    await ctx.db.insert('chatroom_agentRuntimeStates', {
+      desiredConfigId: configId,
+      chatroomId: config.chatroomId,
+      role: config.role,
+      machineId: config.machineId,
+      status: 'offline',
+      updatedAt: Date.now(),
+      ...patch,
+    } as any);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Session & Chatroom
@@ -240,14 +273,21 @@ export async function enableEnhancerTeamAgent(
     if (!room?.teamId) return;
     const teamRoleKey = buildTeamRoleKey(chatroomId, room.teamId, 'enhancer');
     const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
       .first();
     if (existing) {
-      await ctx.db.patch(existing._id, { enabled: true, machineId, desiredState: 'stopped' });
+      await ctx.db.patch(existing._id, { enabled: true, machineId });
+      const runtime = await ctx.db
+        .query('chatroom_agentRuntimeStates')
+        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', existing._id))
+        .first();
+      if (runtime) {
+        await ctx.db.patch(runtime._id, { desiredState: 'stopped', status: 'offline' });
+      }
       return;
     }
-    await ctx.db.insert('chatroom_teamAgentConfigs', {
+    const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
       teamRoleKey,
       chatroomId,
       role: 'enhancer',
@@ -257,8 +297,16 @@ export async function enableEnhancerTeamAgent(
       model: 'anthropic/claude-opus-4',
       workingDir: '/workspace',
       enabled: true,
-      desiredState: 'stopped',
       createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    await ctx.db.insert('chatroom_agentRuntimeStates', {
+      desiredConfigId: configId,
+      chatroomId,
+      role: 'enhancer',
+      machineId,
+      status: 'offline',
+      desiredState: 'stopped',
       updatedAt: Date.now(),
     });
   });

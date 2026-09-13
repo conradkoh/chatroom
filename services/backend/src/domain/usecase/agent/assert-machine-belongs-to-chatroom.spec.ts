@@ -35,7 +35,7 @@ describe('assertMachineBelongsToChatroom', () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
@@ -46,7 +46,6 @@ describe('assertMachineBelongsToChatroom', () => {
         workingDir: '/tmp',
         createdAt: now,
         updatedAt: now,
-        desiredState: 'running',
       });
     });
 
@@ -68,7 +67,7 @@ describe('assertMachineBelongsToChatroom', () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
@@ -79,7 +78,6 @@ describe('assertMachineBelongsToChatroom', () => {
         workingDir: '/tmp',
         createdAt: now,
         updatedAt: now,
-        desiredState: 'running',
       });
     });
 
@@ -101,7 +99,7 @@ describe('assertMachineBelongsToChatroom', () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
@@ -112,7 +110,6 @@ describe('assertMachineBelongsToChatroom', () => {
         workingDir: '/tmp',
         createdAt: now,
         updatedAt: now,
-        desiredState: 'running',
       });
     });
 

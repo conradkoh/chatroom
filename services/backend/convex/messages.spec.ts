@@ -1669,7 +1669,7 @@ describe('enhancer handoff authorization — explicit envelope precedence', () =
       const room = await ctx.db.get('chatroom_rooms', chatroomId);
       if (!room?.teamId) return;
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, room.teamId, 'enhancer'),
         chatroomId,
         role: 'enhancer',

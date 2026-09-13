@@ -1,4 +1,5 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
+import { getAgentRuntimeState, patchAgentRuntimeState } from './agent-runtime-state';
 import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
 import { completeChatroomWorkspaceAgentCommand } from './complete-chatroom-workspace-agent-command';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
@@ -7,7 +8,6 @@ import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =
   | {
@@ -83,21 +83,22 @@ export async function projectAgentLifecycleFact(
   }
   if (fact.kind === 'cleared_all_pids') {
     const configs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
       .collect();
     let clearedCount = 0;
-    for (const config of configs)
-      if (config.spawnedAgentPid != null) {
-        await patchTeamAgentConfig(
-          ctx,
-          config._id,
-          { spawnedAgentPid: undefined, spawnedAt: undefined },
-          { skipProject: true }
-        );
+    for (const config of configs) {
+      const runtime = await getAgentRuntimeState(ctx, config._id);
+      if (runtime?.pid != null) {
+        await patchAgentRuntimeState(ctx, config, {
+          pid: undefined,
+          startedAt: undefined,
+          status: 'offline',
+        });
         await transitionAgentStatus(ctx, config.chatroomId, config.role, 'agent.exited', undefined);
         clearedCount++;
       }
+    }
     for (const config of configs) {
       await projectAgentOperationalStatusForRole(
         ctx,

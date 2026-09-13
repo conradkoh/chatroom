@@ -91,7 +91,7 @@ export async function setAgentConfig(
   const machineId = await requireMachineId(d);
   const machineConfig = await d.machine.loadMachineConfig();
   const workingDir = options.workingDir ?? configuredWorkingDir(machineConfig) ?? process.cwd();
-  await d.backend.mutation(api.machines.saveTeamAgentConfig, {
+  await d.backend.mutation(api.machines.saveAgentDesiredConfig, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     role: options.role,

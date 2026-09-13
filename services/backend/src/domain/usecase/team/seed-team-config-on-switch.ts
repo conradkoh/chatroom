@@ -19,12 +19,12 @@ export interface SeedTeamAgentConfigInput {
   targetTeamId: string;
   targetRole: string;
   previousChatroom: Doc<'chatroom_rooms'> | null;
-  existingTeamConfigs: Doc<'chatroom_teamAgentConfigs'>[];
+  existingTeamConfigs: Doc<'chatroom_agentDesiredConfigs'>[];
 }
 
 export type SeedTeamAgentConfigFields = {
   machineId: string;
-  agentHarness: NonNullable<Doc<'chatroom_teamAgentConfigs'>['agentHarness']>;
+  agentHarness: NonNullable<Doc<'chatroom_agentDesiredConfigs'>['agentHarness']>;
   model: string;
   workingDir: string;
 };

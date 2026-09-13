@@ -33,7 +33,7 @@ describe('projectAgentRoleStatusReadModel', () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
         chatroomId,
         role: 'enhancer',
@@ -43,7 +43,6 @@ describe('projectAgentRoleStatusReadModel', () => {
         model: 'test',
         workingDir: '/tmp',
         enabled: true,
-        desiredState: 'running',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });

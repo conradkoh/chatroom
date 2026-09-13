@@ -5,13 +5,14 @@
  *   1. chatroom_participants.lastStatus (denormalized, used by UI — being deprecated)
  *   2. chatroom_participants.lastDesiredState (denormalized mirror)
  *
- * This ensures the dual-state sources (participant.lastStatus + teamAgentConfigs.desiredState)
+ * This ensures the dual-state sources (participant.lastStatus + runtime.desiredState)
  * never diverge.
  *
- * Future: When a new `status` field is added to chatroom_teamAgentConfigs (schema change),
- * this function will also write to that field, making teamAgentConfigs the single source of truth.
+ * Runtime lifecycle state is maintained by the agent start/stop and daemon event use cases;
+ * this function keeps the participant and read-model projections synchronized with it.
  */
 
+import { getAgentRuntimeState } from './agent-runtime-state';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import {
   projectAgentRoleStatusReadModel,
@@ -45,12 +46,12 @@ async function resolveLastDesiredState(
   if (!chatroom?.teamId) return undefined;
   const teamId = chatroom.teamId;
   const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) =>
       q.eq('teamRoleKey', buildTeamRoleKey(chatroom._id, teamId, role))
     )
     .first();
-  return config?.desiredState;
+  return config ? (await getAgentRuntimeState(ctx, config._id))?.desiredState : undefined;
 }
 
 /**
@@ -90,8 +91,8 @@ export async function transitionAgentStatus(
     await ctx.db.patch('chatroom_participants', participant._id, patch);
   }
 
-  // Future: 2. Update chatroom_teamAgentConfigs.status field when schema is updated
-  // This would make teamAgentConfigs the single source of truth for agent status.
+  // Runtime state is owned by chatroom_agentRuntimeStates. This projection update
+  // intentionally does not write desired configuration or runtime fields.
   await projectAgentOperationalStatusForRole(ctx, chatroomId, role, undefined, { lastStatus });
   await projectAgentRoleStatusReadModel(ctx, {
     chatroomId,

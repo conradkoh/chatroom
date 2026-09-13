@@ -95,7 +95,7 @@ describe('request-first enhancer handoff', () => {
     expect(
       await t.run((ctx) =>
         ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) =>
             q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'enhancer'))
           )

@@ -40,7 +40,7 @@ async function seedRemoteConfig(
     const room = await ctx.db.get('chatroom_rooms', chatroomId);
     if (!room?.teamId) throw new Error('chatroom missing teamId');
     const now = Date.now();
-    await ctx.db.insert('chatroom_teamAgentConfigs', {
+    await ctx.db.insert('chatroom_agentDesiredConfigs', {
       teamRoleKey: buildTeamRoleKey(chatroomId, room.teamId, role),
       chatroomId,
       role,

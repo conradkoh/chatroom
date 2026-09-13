@@ -2,7 +2,7 @@
  * Get Agent Config — Integration Tests
  *
  * Tests the `getAgentConfig` use case which is the single source of truth
- * for resolving agent configuration from chatroom_teamAgentConfigs.
+ * for resolving agent configuration from chatroom_agentDesiredConfigs.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -122,11 +122,11 @@ describe('getAgentConfig', () => {
     await t.run(async (ctx) => {
       const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
       const teamConfig = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
         .first();
       if (teamConfig) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
+        await ctx.db.patch('chatroom_agentDesiredConfigs', teamConfig._id, {
           model: undefined,
         });
       }

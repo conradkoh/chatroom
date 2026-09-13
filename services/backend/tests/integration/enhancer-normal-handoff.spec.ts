@@ -29,7 +29,7 @@ describe('enhancer normal handoff completion', () => {
         teamRoles: ['planner', 'enhancer', 'builder'],
         teamEntryPoint: 'planner',
       });
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
         chatroomId,
         role: 'enhancer',
@@ -39,7 +39,6 @@ describe('enhancer normal handoff completion', () => {
         model: 'test-model',
         workingDir: '/workspace',
         enabled: true,
-        desiredState: 'running',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -121,7 +120,7 @@ describe('enhancer normal handoff completion', () => {
         teamRoles: ['planner', 'enhancer', 'builder'],
         teamEntryPoint: 'planner',
       });
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
         chatroomId,
         role: 'enhancer',
@@ -131,7 +130,6 @@ describe('enhancer normal handoff completion', () => {
         model: 'test-model',
         workingDir: '/workspace',
         enabled: true,
-        desiredState: 'running',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });

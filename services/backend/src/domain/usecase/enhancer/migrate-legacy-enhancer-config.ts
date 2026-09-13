@@ -39,7 +39,7 @@ export async function resolveEnhancerWorkingDir(
     .sort((a, b) => b.createdAt - a.createdAt)[0]?.workingDir;
   if (jobDir) return jobDir;
   const entryConfig = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) =>
       q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, args.teamId, args.entryPoint))
     )
@@ -66,7 +66,7 @@ export async function migrateEnhancerConfigRow(
   if (!preset) return;
   const teamRoleKey = buildTeamRoleKey(legacy.chatroomId, room.teamId, 'enhancer');
   const existing = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
   if (existing) return;
@@ -89,7 +89,6 @@ export async function migrateEnhancerConfigRow(
       model: legacy.model,
       workingDir,
       enabled: workingDir?.trim() ? legacy.enabled : false,
-      desiredState: 'stopped',
       updatedAt: now,
     },
   });

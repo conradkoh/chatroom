@@ -59,7 +59,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   // 3. Unread status — re-fires when messages or read cursors change
   const unreadStatus = useSessionQuery(api.chatrooms.listUnreadStatus);
 
-  // 4. Remote agent running status — re-fires when any machine spawnedAgentPid changes
+  // 4. Remote agent running status — re-fires when any machine runtime state changes
   const remoteAgentStatusData = useSessionQuery(api.machines.listAgentOverview);
 
   // 5. Projected role activity — the source for chatroom activity status

@@ -133,7 +133,7 @@ export const cleanupReadCursors = internalMutation({
  * - chatroom_machineLiveness
  * - chatroom_machineStatus
  * - chatroom_machineModelFilters
- * - chatroom_teamAgentConfigs
+ * - chatroom_agentDesiredConfigs
  * - chatroom_workspaceGitState
  * - chatroom_workspaceFileTree
  * - chatroom_workspaceFileContent
@@ -206,11 +206,18 @@ export const cleanupMachines = internalMutation({
         await ctx.db.delete('chatroom_searchConfigFavorites', row._id);
 
       const teamConfigs = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))
         .collect();
       const affectedChatroomIds = [...new Set(teamConfigs.map((row) => row.chatroomId))];
-      for (const row of teamConfigs) await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
+      for (const row of teamConfigs) {
+        const runtime = await ctx.db
+          .query('chatroom_agentRuntimeStates')
+          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', row._id))
+          .first();
+        if (runtime) await ctx.db.delete('chatroom_agentRuntimeStates', runtime._id);
+        await ctx.db.delete('chatroom_agentDesiredConfigs', row._id);
+      }
       for (const chatroomId of affectedChatroomIds) {
         await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, {
           pruneStale: true,

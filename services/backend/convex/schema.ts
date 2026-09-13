@@ -393,12 +393,12 @@ export default defineSchema({
     // @deprecated Denormalized mirror of the latest event stream event type for this participant.
     // Written alongside every event stream insert so the frontend can derive agent status
     // from the participant record alone (without querying the event stream).
-    // Prefer reading agent status from chatroom_teamAgentConfigs (via AgentRoleView.state)
+    // Prefer reading agent status from chatroom_agentRuntimeStates (via AgentRoleView.state)
     // which is the authoritative source for agent lifecycle state.
     lastStatus: v.optional(v.string()),
-    // @deprecated Denormalized mirror of desiredState from chatroom_teamAgentConfigs.
+    // @deprecated Denormalized mirror of desiredState from chatroom_agentRuntimeStates.
     // Written when start-agent or stop-agent use cases change desiredState.
-    // Prefer reading desiredState directly from chatroom_teamAgentConfigs.
+    // Prefer reading desiredState directly from chatroom_agentRuntimeStates.
     lastDesiredState: v.optional(v.string()),
     // @deprecated Retained for compatibility with existing participant documents.
     // New code no longer writes this native-harness task correlation field.
@@ -1143,15 +1143,12 @@ export default defineSchema({
   }).index('by_user_machine_teamRole', ['userId', 'machineId', 'teamRoleKey']),
 
   /**
-   * Team-level agent configuration.
-   * Tracks how agents for each team/role are configured to start.
-   * Used by auto-restart logic to determine if an agent should be auto-restarted.
+   * User-owned desired configuration for an agent role.
    *
-   * When type is 'remote', the config contains machine/harness/model info
-   * needed to restart the agent via the daemon.
-   * When type is 'custom' (or no config exists), auto-restart is skipped.
+   * Configuration fields are changed by explicit user actions only. Runtime
+   * lifecycle state belongs in chatroom_agentRuntimeStates.
    */
-  chatroom_teamAgentConfigs: defineTable({
+  chatroom_agentDesiredConfigs: defineTable({
     // Unique key: chatroom_<chatroomId>#team_<teamId>#role_<role>
     teamRoleKey: v.string(),
 
@@ -1160,6 +1157,9 @@ export default defineSchema({
 
     // The role this config is for
     role: v.string(),
+
+    // Explicit workspace binding for the desired configuration.
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
 
     // Config type discriminator
     type: agentTypeValidator,
@@ -1174,46 +1174,53 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
 
-    // Desired state for this agent (used by ensureAgentHandler to skip auto-restart)
-    desiredState: v.optional(v.union(v.literal('running'), v.literal('stopped'))),
+    /** User-controlled eligibility for future work. */
+    enabled: v.optional(v.boolean()),
+  })
+    .index('by_teamRoleKey', ['teamRoleKey'])
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_machineId', ['machineId'])
+    .index('by_chatroom_workspace_role', ['chatroomId', 'workspaceId', 'role']),
 
-    // Circuit breaker state
+  /** System-owned runtime state for a desired agent configuration. */
+  chatroom_agentRuntimeStates: defineTable({
+    desiredConfigId: v.id('chatroom_agentDesiredConfigs'),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
+    machineId: v.optional(v.string()),
+    status: v.union(
+      v.literal('offline'),
+      v.literal('starting'),
+      v.literal('waiting'),
+      v.literal('working'),
+      v.literal('stopping'),
+      v.literal('error')
+    ),
+    desiredState: v.optional(v.union(v.literal('running'), v.literal('stopped'))),
     circuitState: v.optional(
       v.union(v.literal('closed'), v.literal('open'), v.literal('half-open'))
     ),
     circuitOpenedAt: v.optional(v.number()),
-
-    spawnedAgentPid: v.optional(v.number()),
-    spawnedAt: v.optional(v.number()),
-
-    /** @deprecated Legacy setting — no longer written. Kept optional for existing rows. */
-    autoRestartOnNewContext: v.optional(v.boolean()),
-
-    /**
-     * The resume-session preference used for the current/last start of this
-     * agent. Persisted so the UI can show the actual value the running agent
-     * was started with (rather than local form state). Resolved value:
-     * defaults to true when the caller omits it.
-     */
+    pid: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    actualWorkingDir: v.optional(v.string()),
+    actualHarness: v.optional(agentHarnessValidator),
+    actualModel: v.optional(v.string()),
     wantResume: v.optional(v.boolean()),
-
-    /** Experimental: cold-restart planner after handoff to user (default true when unset). */
-    /** @deprecated Legacy setting — no longer written. Kept optional for existing rows. */
-    plannerRestartOnHandoffToUser: v.optional(v.boolean()),
-
-    /** @deprecated Legacy field — no longer written. Kept for existing documents. */
-    wantResumeOnFail: v.optional(v.boolean()),
-    /** Future-task eligibility; permanent configs default true. */
-    enabled: v.optional(v.boolean()),
-
-    /**
-     * @deprecated Retained only for compatibility with documents written by
-     * older deployments. Task/agent state no longer uses revision snapshots.
-     */
-    lifecycleRevision: v.optional(v.number()),
+    lastSeenAt: v.optional(v.number()),
+    updatedAt: v.number(),
+    error: v.optional(
+      v.object({
+        code: v.string(),
+        message: v.string(),
+        occurredAt: v.number(),
+      })
+    ),
   })
-    .index('by_teamRoleKey', ['teamRoleKey'])
-    .index('by_chatroom', ['chatroomId'])
+    .index('by_desiredConfig', ['desiredConfigId'])
+    .index('by_chatroom_role', ['chatroomId', 'role'])
+    .index('by_chatroom_workspace_role', ['chatroomId', 'workspaceId', 'role'])
     .index('by_machineId', ['machineId']),
 
   /**
@@ -1844,7 +1851,7 @@ export default defineSchema({
 
   // ─── Workspace Registry ──────────────────────────────────────────────────────
   // Persistent record of workspaces (machine + working directory pairs) where
-  // agents operate. Unlike chatroom_teamAgentConfigs (transient), these persist
+  // agents operate. Unlike chatroom_agentRuntimeStates (transient), these persist
   // independently of agent lifecycle.
   chatroom_workspaces: defineTable({
     chatroomId: v.id('chatroom_rooms'),

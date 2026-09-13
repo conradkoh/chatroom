@@ -1,3 +1,4 @@
+import { patchAgentRuntimeState } from './agent-runtime-state';
 import { getAgentConfig } from './get-agent-config';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -86,7 +87,7 @@ async function persistRestartAndEmit(
 ): Promise<void> {
   if (chatroom?.teamId) {
     const { wantResume, ...configFields } = resolved;
-    await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+    const saved = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey: buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role),
       createdAt: now,
       fields: {
@@ -95,11 +96,19 @@ async function persistRestartAndEmit(
         type: 'remote' as AgentType,
         ...configFields,
         updatedAt: now,
-        desiredState: 'running' as const,
-        circuitState: 'closed' as const,
-        circuitOpenedAt: undefined,
       },
     });
+    const desiredConfig = await ctx.db.get('chatroom_agentDesiredConfigs', saved.configId);
+    if (desiredConfig) {
+      await patchAgentRuntimeState(ctx, desiredConfig, {
+        desiredState: 'running',
+        status: 'starting',
+        machineId: resolved.machineId,
+        circuitState: 'closed',
+        circuitOpenedAt: undefined,
+        wantResume: resolved.wantResume,
+      });
+    }
   }
   const teamId = chatroom?.teamId;
   await enqueueMachineCommand(ctx, {
@@ -119,7 +128,7 @@ async function persistRestartAndEmit(
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');
   const restartedConfig = teamId
     ? await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, teamId, input.role))
         )

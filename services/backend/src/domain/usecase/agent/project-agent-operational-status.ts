@@ -1,6 +1,7 @@
 // fallow-ignore-file code-duplication unused-export complexity
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
+import { getAgentRuntimeState } from './agent-runtime-state';
 import {
   applyRoleToSummary,
   deriveAgentOperationalState,
@@ -21,14 +22,18 @@ import {
 
 type RebuildOptions = { pruneStale?: boolean | undefined };
 
-function snapshot(config: Doc<'chatroom_teamAgentConfigs'>, teamId: string): RoleConfigSnapshot {
+function snapshot(
+  config: Doc<'chatroom_agentDesiredConfigs'>,
+  teamId: string,
+  runtime?: Doc<'chatroom_agentRuntimeStates'> | null
+): RoleConfigSnapshot {
   return {
     role: config.role,
     teamId,
     machineId: config.machineId,
-    desiredState: config.desiredState,
-    circuitState: config.circuitState,
-    spawnedAgentPid: config.spawnedAgentPid,
+    desiredState: runtime?.desiredState,
+    circuitState: runtime?.circuitState,
+    spawnedAgentPid: runtime?.pid,
   };
 }
 
@@ -106,7 +111,7 @@ export async function projectAgentOperationalStatusForRole(
   role: string,
   revisionKey?: string,
   opts?: {
-    config?: Doc<'chatroom_teamAgentConfigs'> | undefined;
+    config?: Doc<'chatroom_agentDesiredConfigs'> | undefined;
     isNewConfig?: boolean | undefined;
     lastStatus?: string | null | undefined;
   }
@@ -116,7 +121,7 @@ export async function projectAgentOperationalStatusForRole(
   const teamId = room.teamId;
   const config =
     (await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, teamId, role))
       )
@@ -127,12 +132,15 @@ export async function projectAgentOperationalStatusForRole(
     !filterTeamAgentConfigsForTeam([config], chatroomId, room.teamId).length
   )
     return;
-  const projection = deriveRoleOperationalState(snapshot(config, room.teamId));
+  const runtime = await getAgentRuntimeState(ctx, config._id);
+  const projection = deriveRoleOperationalState(snapshot(config, room.teamId, runtime));
   const projectedAt = Date.now();
   const key = revisionKey ?? `operational:${chatroomId}:${projectedAt}`;
   const roleKey = role.toLowerCase();
   const acceptsTasks =
-    config.enabled !== false && config.desiredState === 'running' && config.circuitState !== 'open';
+    config.enabled !== false &&
+    runtime?.desiredState === 'running' &&
+    runtime?.circuitState !== 'open';
   const fields = omitUndefined({
     chatroomId,
     role: roleKey,
@@ -147,7 +155,7 @@ export async function projectAgentOperationalStatusForRole(
       isEphemeralAgentRole(roleKey) && acceptsTasks && !projection.isAlive
         ? ('idle' as const)
         : opts?.lastStatus != null
-          ? deriveAgentRoleViewState(snapshot(config, room.teamId), opts.lastStatus)
+          ? deriveAgentRoleViewState(snapshot(config, room.teamId, runtime), opts.lastStatus)
           : projection.operationalState,
     acceptsTasks,
     projectedAt,
@@ -204,15 +212,22 @@ export async function rebuildAgentOperationalStatusForChatroom(
   if (!room?.teamId) return;
   const teamId = room.teamId;
   const all = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .collect();
   const configs = filterTeamAgentConfigsForTeam(all, chatroomId, teamId).filter(
     (c) => c.machineId != null
   );
+  const runtimes = new Map(
+    await Promise.all(
+      configs.map(
+        async (config) => [config._id, await getAgentRuntimeState(ctx, config._id)] as const
+      )
+    )
+  );
   const derived = deriveAgentOperationalState({
     teamId,
-    configs: configs.map((c) => snapshot(c, teamId)),
+    configs: configs.map((c) => snapshot(c, teamId, runtimes.get(c._id))),
   });
   const projectedAt = Date.now();
   const key = revisionKey ?? `operational:${chatroomId}:${projectedAt}`;
@@ -238,7 +253,7 @@ export async function rebuildAgentOperationalStatusForMachine(
   revisionKey?: string
 ): Promise<void> {
   const configs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
     .collect();
   for (const id of [...new Set(configs.map((c) => c.chatroomId))])

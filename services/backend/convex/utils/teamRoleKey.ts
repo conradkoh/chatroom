@@ -3,7 +3,7 @@ import type { Id } from '../_generated/dataModel';
 export { filterTeamAgentConfigsForTeam, teamRoleKeyMatchesTeam } from './teamRoleKeyFilter';
 
 /**
- * Builds a unique key scoped to a chatroom+team+role for use in chatroom_teamAgentConfigs.
+ * Builds a unique key scoped to a chatroom+team+role for use in chatroom_agentDesiredConfigs.
  * Format: `chatroom_<chatroomId>#team_<teamId>#role_<role.toLowerCase()>`
  *
  * Including teamId ensures that configs are invalidated when a chatroom switches team

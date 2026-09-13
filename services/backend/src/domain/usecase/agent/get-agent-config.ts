@@ -2,13 +2,15 @@
  * Use Case: Get Agent Config
  *
  * Single source of truth for resolving agent configuration from
- * chatroom_teamAgentConfigs. All settings (type, machineId, harness, model,
- * workingDir, spawnedAgentPid, spawnedAt) are read from this table only.
+ * chatroom_agentDesiredConfigs. All settings (type, machineId, harness, model,
+ * workingDir) are read from the desired table; lifecycle and
+ * process fields are read from chatroom_agentRuntimeStates.
  *
  * Accepts a Convex MutationCtx or QueryCtx as first parameter so it can
  * be called from any handler without coupling to a specific Convex wrapper.
  */
 
+import { getAgentRuntimeState } from './agent-runtime-state';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
@@ -25,7 +27,7 @@ export interface GetAgentConfigInput {
 }
 
 /**
- * The resolved agent configuration from chatroom_teamAgentConfigs.
+ * The resolved agent configuration from chatroom_agentDesiredConfigs.
  *
  * This is the single source of truth — all callers should use this type
  * rather than reading the raw tables directly.
@@ -38,7 +40,7 @@ export interface ResolvedAgentConfig {
   /** The agent's role in the chatroom. */
   role: string;
 
-  // ── Team-level config ────────────────────────────────────────────────
+  // ── Desired configuration ────────────────────────────────────────────
 
   /** Agent type: 'remote' (machine-managed) or 'custom' (user-managed). */
   type: AgentType;
@@ -52,7 +54,7 @@ export interface ResolvedAgentConfig {
   // ── Resolved model ───────────────────────────────────────────────────
 
   /**
-   * The resolved model from team config. If undefined, the daemon will use
+   * The resolved model from desired config. If undefined, the daemon will use
    * its default.
    */
   model: string | undefined;
@@ -93,7 +95,7 @@ export type GetAgentConfigResult = { found: true; config: ResolvedAgentConfig } 
 /**
  * Resolve the agent configuration for a chatroom + role.
  *
- * Reads from chatroom_teamAgentConfigs only and returns the resolved config.
+ * Reads from chatroom_agentDesiredConfigs only and returns the resolved config.
  *
  * @param ctx - Convex query or mutation context (provides db access)
  * @param input - The lookup parameters
@@ -119,10 +121,10 @@ export async function getAgentConfig(
 
   const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
 
-  // ── Step 2: Look up team config ─────────────────────────────────────
+  // ── Step 2: Look up desired config ──────────────────────────────────
 
   const teamConfig = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
 
@@ -134,6 +136,7 @@ export async function getAgentConfig(
 
   const model = teamConfig.model;
   const modelSource: ResolvedAgentConfig['modelSource'] = teamConfig.model ? 'team_config' : 'none';
+  const runtime = await getAgentRuntimeState(ctx, teamConfig._id);
 
   // ── Step 4: Build the resolved config ────────────────────────────────
 
@@ -146,11 +149,11 @@ export async function getAgentConfig(
     workingDir: teamConfig.workingDir,
     model,
     modelSource,
-    spawnedAgentPid: teamConfig.spawnedAgentPid,
-    spawnedAt: teamConfig.spawnedAt,
-    desiredState: teamConfig.desiredState,
-    circuitState: teamConfig.circuitState,
-    wantResume: teamConfig.wantResume,
+    spawnedAgentPid: runtime?.pid,
+    spawnedAt: runtime?.startedAt,
+    desiredState: runtime?.desiredState,
+    circuitState: runtime?.circuitState,
+    wantResume: runtime?.wantResume,
     hasSystemPromptControl: teamConfig.type === 'remote',
   };
 

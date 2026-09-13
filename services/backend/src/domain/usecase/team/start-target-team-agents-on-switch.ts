@@ -44,7 +44,7 @@ export async function startTargetTeamAgentsOnSwitch(
     const teamRoleKey = buildTeamRoleKey(chatroomId, teamId, role);
     // fallow-ignore-next-line code-duplication
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
       .first();
 

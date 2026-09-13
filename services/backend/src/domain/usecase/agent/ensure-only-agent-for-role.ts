@@ -29,7 +29,7 @@ export async function ensureOnlyAgentForRole(
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const allConfigs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .collect();
   const currentTeamConfigs = filterTeamAgentConfigsForTeam(

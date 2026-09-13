@@ -1,3 +1,4 @@
+import { getAgentRuntimeState } from './agent-runtime-state';
 import { touchAgentRoleStatusLastSeen } from './project-agent-role-status-read-model';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -18,12 +19,12 @@ async function isAgentStopped(
   const teamId = room?.teamId;
   if (!teamId) return false;
   const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) =>
       q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
     )
     .first();
-  return config?.desiredState === 'stopped';
+  return config ? (await getAgentRuntimeState(ctx, config._id))?.desiredState === 'stopped' : false;
 }
 
 export async function applyAgentActivityHeartbeat(

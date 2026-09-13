@@ -2,6 +2,7 @@ import { Migrations, type MigrationFunctionReference } from '@convex-dev/migrati
 
 import { components, internal } from './_generated/api';
 import type { DataModel, Doc } from './_generated/dataModel';
+import { query } from './_generated/server';
 import {
   compactFileTreeDeltaOperation,
   expandFileTreeDeltaOperations,
@@ -15,6 +16,7 @@ import { buildTeamRoleKey } from './utils/teamRoleKey';
 import type { AgentHarness } from '../src/domain/entities/agent';
 import { migrateFavoriteModelForHarness } from '../src/domain/entities/harness/model-provider';
 import { isActiveWorkspace } from '../src/domain/entities/workspace';
+import { getAgentRuntimeState } from '../src/domain/usecase/agent/agent-runtime-state';
 import {
   rebuildAgentOperationalStatusForChatroom,
   insertEmptyOperationalSummaryForRoom,
@@ -323,19 +325,19 @@ export const migrateQueuedTasks = migrations.define({
 });
 
 /**
- * Migration: Add teamId to teamRoleKey in chatroom_teamAgentConfigs.
+ * Migration: Add teamId to teamRoleKey in chatroom_agentDesiredConfigs.
  * Old format: chatroom_<chatroomId>#role_<role>
  * New format: chatroom_<chatroomId>#team_<teamId>#role_<role>
  * Idempotent: records already containing '#team_' are skipped.
  */
 export const migrateTeamRoleKeyAddTeamId = migrations.define({
-  table: 'chatroom_teamAgentConfigs',
+  table: 'chatroom_agentDesiredConfigs',
   migrateOne: async (ctx, config) => {
     if (config.teamRoleKey.includes('#team_')) return; // Already migrated
 
     const chatroom = await ctx.db.get('chatroom_rooms', config.chatroomId);
     if (!chatroom || !chatroom.teamId) {
-      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+      await ctx.db.delete('chatroom_agentDesiredConfigs', config._id);
       return;
     }
 
@@ -343,13 +345,13 @@ export const migrateTeamRoleKeyAddTeamId = migrations.define({
 
     // Check for existing record with the new key to avoid duplicates
     const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', newKey))
       .first();
 
     if (existing) {
       // Duplicate — delete this record
-      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+      await ctx.db.delete('chatroom_agentDesiredConfigs', config._id);
       return;
     }
 
@@ -358,17 +360,17 @@ export const migrateTeamRoleKeyAddTeamId = migrations.define({
 });
 
 /**
- * Migration: Deduplicate chatroom_teamAgentConfigs by teamRoleKey.
+ * Migration: Deduplicate chatroom_agentDesiredConfigs by teamRoleKey.
  * Keeps the most recently created row per teamRoleKey and deletes duplicates.
  * Note: This uses a full-table scan approach since dedup requires grouping.
  * Idempotent: if no duplicates exist, no changes are made.
  */
 export const deduplicateTeamAgentConfigs = migrations.define({
-  table: 'chatroom_teamAgentConfigs',
+  table: 'chatroom_agentDesiredConfigs',
   migrateOne: async (ctx, config) => {
     // Check if a newer document with the same teamRoleKey exists
     const allWithKey = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', config.teamRoleKey))
       .collect();
 
@@ -379,8 +381,34 @@ export const deduplicateTeamAgentConfigs = migrations.define({
     const newest = allWithKey[0];
 
     if (config._id !== newest._id) {
-      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+      await ctx.db.delete('chatroom_agentDesiredConfigs', config._id);
     }
+  },
+});
+
+/** Remove runtime fields left on desired-config rows by the previous schema. */
+export const stripLegacyAgentRuntimeFields = migrations.define({
+  table: 'chatroom_agentDesiredConfigs',
+  migrateOne: async (_ctx, config) => {
+    const raw = config as Record<string, unknown>;
+    const patch: Record<string, undefined> = {};
+    for (const field of [
+      'desiredState',
+      'circuitState',
+      'circuitOpenedAt',
+      'spawnedAgentPid',
+      'spawnedAt',
+      'autoRestartOnNewContext',
+      'wantResume',
+      'plannerRestartOnHandoffToUser',
+      'wantResumeOnFail',
+      'lifecycleRevision',
+    ]) {
+      if (raw[field] !== undefined) patch[field] = undefined;
+    }
+    return Object.keys(patch).length > 0
+      ? migrationPatch<Doc<'chatroom_agentDesiredConfigs'>>(patch)
+      : undefined;
   },
 });
 
@@ -506,31 +534,14 @@ export const dropEmbeddedAvailableModels = migrations.define({
   },
 });
 
-/**
- * Migration: Set wantResume=false for duo-team builder configs.
- * Duo builder should always cold-start; UI hides the toggle.
- *
- * Usage: npx convex run migrations:run '{"fn":"migrations:setDuoBuilderWantResumeFalse"}'
- * Idempotent: rows already false are skipped.
- */
-export const setDuoBuilderWantResumeFalse = migrations.define({
-  table: 'chatroom_teamAgentConfigs',
-  migrateOne: async (_ctx, config) => {
-    if (!config.teamRoleKey.includes('#team_duo#')) return;
-    if (config.role.toLowerCase() !== 'builder') return;
-    if (config.wantResume === false) return;
-    return { wantResume: false };
-  },
-});
-
 /** Backfill additive defaults on existing team agent configs. */
 export const backfillTeamAgentConfigLifecycleDefaults = migrations.define({
-  table: 'chatroom_teamAgentConfigs',
+  table: 'chatroom_agentDesiredConfigs',
   migrateOne: async (_ctx, config) => {
     const patch: Record<string, unknown> = {};
     if (config.enabled === undefined) patch.enabled = true;
     return Object.keys(patch).length > 0
-      ? migrationPatch<Doc<'chatroom_teamAgentConfigs'>>(patch)
+      ? migrationPatch<Doc<'chatroom_agentDesiredConfigs'>>(patch)
       : undefined;
   },
 });
@@ -851,7 +862,7 @@ export const backfillAgentOverviewSummaries = migrations.define({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
       .first();
     const configs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
       .collect();
     if (configs.some((c) => c.machineId != null)) {
@@ -970,7 +981,7 @@ export const backfillAgentRoleStatusReadModel = migrations.define({
   table: 'chatroom_rooms',
   migrateOne: async (ctx, room) => {
     const configs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
       .collect();
     const participants = await ctx.db
@@ -996,9 +1007,10 @@ export const backfillAgentRoleStatusReadModel = migrations.define({
 
       const participant = participants.find((entry) => entry.role.toLowerCase() === normalizedRole);
       const config = configs.find((entry) => entry.role.toLowerCase() === normalizedRole);
+      const runtime = config ? await getAgentRuntimeState(ctx, config._id) : null;
       const event = participant?.lastStatus
         ? statusEventForAgentEvent(participant.lastStatus)
-        : config?.spawnedAgentPid != null
+        : runtime?.pid != null
           ? statusEventForAgentEvent('agent.started')
           : statusEventForAgentEvent('agent.exited');
       await projectAgentRoleStatusReadModel(ctx, {
@@ -1022,7 +1034,7 @@ export const backfillAgentRoleStatusWorkingDir = migrations.define({
     if (!teamId) return;
 
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(row.chatroomId, teamId, row.role))
       )
@@ -1171,6 +1183,7 @@ const allMigrationReferences = [
   internal.migrations.migrateTeamRoleKeyAddTeamId,
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
+  internal.migrations.stripLegacyAgentRuntimeFields,
   internal.migrations.purgeWorkspaceCommitDetails,
   internal.migrations.stripTimelineMachineSignalFields,
   // Workspace File Tree
@@ -1183,7 +1196,6 @@ const allMigrationReferences = [
   // Saved Commands
   internal.migrations.backfillSavedCommandScope,
   // Agent Config
-  internal.migrations.setDuoBuilderWantResumeFalse,
   internal.migrations.backfillTeamAgentConfigLifecycleDefaults,
   // Enhancer unified runtime
   internal.migrations.migrateEnhancerConfigToTeamAgentConfig,
@@ -1223,3 +1235,24 @@ const allMigrationReferences = [
 ] as unknown as MigrationFunctionReference[];
 
 export const runAll = migrations.runner(allMigrationReferences);
+
+/**
+ * Returns status for the migrations in the current, ordered migration plan.
+ *
+ * This is intentionally scoped to `allMigrationReferences` rather than
+ * returning every migration known to the component, since old migrations may
+ * have been removed from the plan but remain in the component's history.
+ * The one-off migration script uses this to report and poll only the work in
+ * the current plan.
+ */
+export const getRunAllStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    // @convex-dev/migrations returns explicitly named statuses newest-first;
+    // expose the same oldest-first order used by runAll's serial plan.
+    const statuses = await migrations.getStatus(ctx, {
+      migrations: allMigrationReferences,
+    });
+    return statuses.reverse();
+  },
+});

@@ -109,12 +109,18 @@ describe('getAgentViewStatus — running and stopped', () => {
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(room, 'duo', 'builder'))
         )
         .first();
-      if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
+      if (config) {
+        const runtime = await ctx.db
+          .query('chatroom_agentRuntimeStates')
+          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+          .first();
+        if (runtime) await ctx.db.patch(runtime._id, { desiredState: 'stopped' });
+      }
     });
     expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
   });
@@ -170,13 +176,19 @@ describe('getAgentViewStatus — circuit breaker', () => {
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(room, 'duo', 'builder'))
         )
         .first();
-      if (config)
-        await ctx.db.patch(config._id, { circuitState: 'open', circuitOpenedAt: Date.now() });
+      if (config) {
+        const runtime = await ctx.db
+          .query('chatroom_agentRuntimeStates')
+          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+          .first();
+        if (runtime)
+          await ctx.db.patch(runtime._id, { circuitState: 'open', circuitOpenedAt: Date.now() });
+      }
     });
     await t.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
       sessionId: sessionId as any,

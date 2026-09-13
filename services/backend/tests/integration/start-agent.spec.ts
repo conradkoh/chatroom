@@ -47,7 +47,7 @@ describe('startAgent — config persistence', () => {
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
-          reason: 'test',
+          reason: 'user.manual_spawn',
         },
         machine!
       );
@@ -60,7 +60,7 @@ describe('startAgent — config persistence', () => {
 
     // Verify team agent config was created
     const teamConfig = await t.run(async (ctx) => {
-      return ctx.db.query('chatroom_teamAgentConfigs').collect();
+      return ctx.db.query('chatroom_agentDesiredConfigs').collect();
     });
     const relevantTeamConfig = teamConfig.find(
       (c) => c.chatroomId === chatroomId && c.role === 'builder'
@@ -69,6 +69,41 @@ describe('startAgent — config persistence', () => {
     expect(relevantTeamConfig!.type).toBe('remote');
     expect(relevantTeamConfig!.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(relevantTeamConfig!.machineId).toBe(machineId);
+  });
+
+  test('startConfiguredAgents resolves the start tuple from desired config', async () => {
+    const { sessionId } = await createTestSession('test-sa-desired-source-1');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const machineId = 'machine-sa-desired-source-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.mutation(api.machines.saveAgentDesiredConfig, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      type: 'remote',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'desired-model',
+      workingDir: '/desired/workspace',
+    });
+
+    const result = await t.mutation(api.machines.startConfiguredAgents, {
+      sessionId,
+      chatroomId,
+      roles: ['builder'],
+    });
+
+    expect(result).toEqual({ startedRoles: ['builder'], failedRoles: [] });
+    const events = await getCommandEvents(sessionId, machineId);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'agent.requestStart',
+      role: 'builder',
+      model: 'desired-model',
+      agentHarness: 'opencode',
+      workingDir: '/desired/workspace',
+    });
   });
 
   test('updates existing team config on subsequent start', async () => {
@@ -96,7 +131,7 @@ describe('startAgent — config persistence', () => {
           model: 'old-model',
           agentHarness: 'opencode',
           workingDir: '/old/path',
-          reason: 'test',
+          reason: 'user.manual_spawn',
         },
         machine!
       );
@@ -121,7 +156,7 @@ describe('startAgent — config persistence', () => {
           model: 'new-model',
           agentHarness: 'opencode',
           workingDir: '/new/path',
-          reason: 'test',
+          reason: 'user.manual_spawn',
         },
         machine!
       );
@@ -133,7 +168,7 @@ describe('startAgent — config persistence', () => {
 
     // Verify team config was updated (not duplicated)
     const teamConfigs = await t.run(async (ctx) => {
-      return ctx.db.query('chatroom_teamAgentConfigs').collect();
+      return ctx.db.query('chatroom_agentDesiredConfigs').collect();
     });
     const builderConfigs = teamConfigs.filter(
       (c) => c.chatroomId === chatroomId && c.role === 'builder'
@@ -185,7 +220,7 @@ describe('startAgent — harness validation', () => {
             model: TEST_MODEL_OPENCODE_LEGACY,
             agentHarness: 'opencode',
             workingDir: '/test/workspace',
-            reason: 'test',
+            reason: 'user.manual_spawn',
           },
           machine!
         );
@@ -228,7 +263,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: 'model-for-chatroom-1',
           agentHarness: 'opencode',
           workingDir: '/workspace/chatroom1',
-          reason: 'test',
+          reason: 'user.manual_spawn',
         },
         machine!
       );
@@ -243,7 +278,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: 'model-for-chatroom-2',
           agentHarness: 'opencode',
           workingDir: '/workspace/chatroom2',
-          reason: 'test',
+          reason: 'user.manual_spawn',
         },
         machine!
       );
@@ -254,7 +289,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
     // Before the fix, the second startAgent would have overwritten the first
     // (same teamRoleKey), so only one row would exist.
     const allTeamConfigs = await t.run(async (ctx) => {
-      return ctx.db.query('chatroom_teamAgentConfigs').collect();
+      return ctx.db.query('chatroom_agentDesiredConfigs').collect();
     });
 
     const config1 = allTeamConfigs.find(
@@ -301,7 +336,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
-          reason: 'test',
+          reason: 'user.manual_spawn',
         },
         machine!
       );
@@ -310,7 +345,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
     // ===== VERIFY =====
     const teamConfig = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
         .first();
     });
@@ -348,7 +383,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
     await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
 
     // ===== ACTION =====
-    // Start a remote agent — this writes chatroom_teamAgentConfigs with type='remote'
+    // Start a remote agent — this writes chatroom_agentDesiredConfigs with type='remote'
     await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
       const machine = await ctx.db
@@ -366,7 +401,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
-          reason: 'test',
+          reason: 'user.manual_spawn',
         },
         machine!
       );
@@ -438,7 +473,7 @@ describe('startAgent — command payload', () => {
           model: 'my-specific-model',
           agentHarness: 'opencode',
           workingDir: '/specific/path',
-          reason: 'test',
+          reason: 'user.manual_spawn',
         },
         machine!
       );
@@ -488,7 +523,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
     // Verify it was written
     const before = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .filter((q) =>
           q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
         )
@@ -511,7 +546,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
     // agentHarness='pi' must still be there (not clobbered with undefined)
     const after = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .filter((q) =>
           q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
         )
@@ -539,7 +574,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
 
     const config = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .filter((q) =>
           q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
         )
@@ -567,7 +602,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
 
     const config = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .filter((q) =>
           q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
         )

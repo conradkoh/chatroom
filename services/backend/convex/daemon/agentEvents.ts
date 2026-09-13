@@ -5,10 +5,10 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { agentExited as agentExitedUseCase } from '../../src/domain/usecase/agent/agent-exited';
+import { patchAgentRuntimeState } from '../../src/domain/usecase/agent/agent-runtime-state';
 import { assertMachineBelongsToChatroom } from '../../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { recordAgentSpawnedState } from '../../src/domain/usecase/agent/record-agent-spawned-state';
 import { transitionAgentStatus } from '../../src/domain/usecase/agent/transition-agent-status';
-import { patchTeamAgentConfig } from '../../src/domain/usecase/machine/patch-team-agent-config';
 import { consumeTaskStartInNewSession } from '../../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../../src/events/agent/on-agent-exited';
 import { mutation } from '../_generated/server';
@@ -93,12 +93,14 @@ export const agentStartFailed = mutation({
         args.role
       );
       const failedConfig = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', failedTeamRoleKey))
         .first();
-      if (failedConfig) {
-        await patchTeamAgentConfig(ctx, failedConfig._id, { desiredState: 'stopped' });
-      }
+      if (failedConfig)
+        await patchAgentRuntimeState(ctx, failedConfig, {
+          desiredState: 'stopped',
+          status: 'error',
+        });
     }
 
     return { success: true };
@@ -139,12 +141,11 @@ export const agentProviderUnavailable = mutation({
       if (chatroom?.teamId) {
         const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
         const config = await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
           .first();
-        if (config) {
-          await patchTeamAgentConfig(ctx, config._id, { desiredState: 'stopped' });
-        }
+        if (config)
+          await patchAgentRuntimeState(ctx, config, { desiredState: 'stopped', status: 'error' });
       }
     }
 

@@ -13,6 +13,11 @@ import { startTargetTeamAgentsOnSwitch } from './start-target-team-agents-on-swi
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
+import {
+  getAgentRuntimeState,
+  patchAgentRuntimeState,
+  getOrCreateAgentRuntimeState,
+} from '../agent/agent-runtime-state';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 import { requestChatroomWorkspaceAgentStop } from '../agent/request-chatroom-workspace-agent-stop';
 import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
@@ -52,7 +57,7 @@ export async function updateTeam(
   const oldTeamId = previousChatroom?.teamId;
 
   const existingTeamConfigs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .collect();
 
@@ -65,8 +70,16 @@ export async function updateTeam(
   const outgoingConfigs = existingTeamConfigs.filter(
     (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
   );
-  const outgoingStoppable = outgoingConfigs.filter(
-    (c) => c.type === 'remote' && c.machineId != null && c.spawnedAgentPid != null
+  const outgoingStoppable = (
+    await Promise.all(
+      outgoingConfigs.map(async (config) => ({
+        config,
+        runtime: await getAgentRuntimeState(ctx, config._id),
+      }))
+    )
+  ).filter(
+    ({ config, runtime }) =>
+      config.type === 'remote' && config.machineId != null && runtime?.pid != null
   );
   if (outgoingStoppable.length > 0) {
     await requestChatroomWorkspaceAgentStop(ctx, { chatroomId, finalizeChatroom: false });
@@ -103,16 +116,17 @@ export async function updateTeam(
   for (const role of teamRoles) {
     const key = buildTeamRoleKey(chatroomId, teamId, role);
     const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', key))
       .first();
     if (existing) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
+      await patchAgentRuntimeState(ctx, existing, {
         desiredState: 'stopped',
-        spawnedAgentPid: undefined,
-        spawnedAt: undefined,
-        updatedAt: now,
+        status: 'offline',
+        pid: undefined,
+        startedAt: undefined,
       });
+      await ctx.db.patch('chatroom_agentDesiredConfigs', existing._id, { updatedAt: now });
       if (existing.machineId) affectedMachineIds.add(existing.machineId);
       restoredCount++;
     } else {
@@ -126,17 +140,19 @@ export async function updateTeam(
         existingTeamConfigs,
       });
       if (seedFields?.machineId) {
-        await ctx.db.insert('chatroom_teamAgentConfigs', {
+        const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
           teamRoleKey: key,
           chatroomId,
           role,
           type: 'remote',
           createdAt: now,
           updatedAt: now,
-          desiredState: 'stopped',
           enabled: true,
           ...seedFields,
         });
+        const seededConfig = await ctx.db.get('chatroom_agentDesiredConfigs', configId);
+        if (seededConfig)
+          await getOrCreateAgentRuntimeState(ctx, seededConfig, { desiredState: 'stopped' });
         affectedMachineIds.add(seedFields.machineId);
         seededCount++;
       }

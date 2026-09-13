@@ -1,10 +1,10 @@
+import { getAgentRuntimeState, patchAgentRuntimeState } from './agent-runtime-state';
 import { authorizeAgentStart } from './authorize-agent-start';
 import type { AuthorizeAgentStartReason } from './authorize-agent-start';
 import { recordAgentSpawnedState } from './record-agent-spawned-state';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type RegisterSpawnedAgentArgs = {
   chatroomId: Id<'chatroom_rooms'>;
@@ -28,17 +28,22 @@ export async function registerSpawnedAgentIfAuthorized(
   if (!room?.teamId) return { accepted: false, reason: 'not_configured' };
   const teamId = room.teamId;
   const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) =>
       q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
     )
     .first();
   if (!config) return { accepted: false, reason: 'not_configured' };
-  if (config.spawnedAgentPid === args.pid) return { accepted: true };
-  await patchTeamAgentConfig(ctx, config._id, {
-    spawnedAgentPid: args.pid,
-    spawnedAt: Date.now(),
-    ...(args.model !== undefined ? { model: args.model } : {}),
+  const runtime = await getAgentRuntimeState(ctx, config._id);
+  if (runtime?.pid === args.pid) return { accepted: true };
+  await patchAgentRuntimeState(ctx, config, {
+    pid: args.pid,
+    startedAt: Date.now(),
+    status: 'waiting',
+    machineId: args.machineId,
+    actualWorkingDir: config.workingDir,
+    actualHarness: config.agentHarness,
+    actualModel: args.model ?? config.model,
   });
   await recordAgentSpawnedState(ctx, {
     chatroomId: args.chatroomId,

@@ -33,12 +33,18 @@ describe('restart-agent use case', () => {
     // Preserve a legacy reconnect preference to verify user restart ignores it.
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
-      if (config) await ctx.db.patch(config._id, { wantResume: true });
+      if (config) {
+        const runtime = await ctx.db
+          .query('chatroom_agentRuntimeStates')
+          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+          .first();
+        if (runtime) await ctx.db.patch(runtime._id, { wantResume: true });
+      }
     });
 
     const { taskId } = await t.mutation(api.tasks.createTask, {
@@ -86,7 +92,7 @@ describe('restart-agent use case', () => {
 
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
@@ -96,6 +102,18 @@ describe('restart-agent use case', () => {
         agentHarness: 'cursor-sdk',
         model: TEST_MODEL_CURSOR_SDK,
         workingDir: '/tmp/project',
+      });
+      const runtime = config
+        ? await ctx.db
+            .query('chatroom_agentRuntimeStates')
+            .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+            .first()
+        : null;
+      expect(runtime).toMatchObject({
+        desiredState: 'running',
+        status: 'starting',
+        machineId,
+        wantResume: false,
       });
     });
   });

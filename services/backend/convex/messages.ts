@@ -1892,7 +1892,7 @@ export const getInitPrompt = query({
       : null;
     const existingAgentConfig = teamRoleKey
       ? await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
           .first()
       : null;
@@ -2045,7 +2045,7 @@ export const getTaskDeliveryPrompt = query({
       : null;
     const existingAgentConfig = teamRoleKey
       ? await ctx.db
-          .query('chatroom_teamAgentConfigs')
+          .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
           .first()
       : null;

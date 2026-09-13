@@ -32,7 +32,7 @@ if (isLocal) {
   console.log('☁️  Running migrations against PRODUCTION deployment.\n');
 }
 
-console.log('🚀 Running all migrations via @convex-dev/migrations...\n');
+console.log('🔎 Checking migration plan...\n');
 
 try {
   await runMigrations();

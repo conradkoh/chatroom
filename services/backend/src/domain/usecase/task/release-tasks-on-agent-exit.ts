@@ -14,6 +14,7 @@ import type { TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { getTeamEntryPoint } from '../../entities/team';
+import { getAgentRuntimeState } from '../agent/agent-runtime-state';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
@@ -193,7 +194,7 @@ export async function reassignTasksOnTeamSwitch(
  * | Layer | Owner | Responsibility |
  * |-------|--------|----------------|
  * | Process | CLI `AgentProcessManager` | Kill live PIDs on every `agent.requestStart` (`killExistingBeforeSpawn`), recover persisted PIDs on daemon restart (`recover()`). Source of truth for OS processes. |
- * | Task | This function | Reset acknowledged/in_progress tasks when `chatroom_teamAgentConfigs` has no `spawnedAgentPid` and `desiredState !== 'running'` — i.e. DB thinks the agent is gone. Does not inspect the OS. |
+ * | Task | This function | Reset acknowledged/in_progress tasks when the runtime state has no `pid` and `desiredState !== 'running'` — i.e. DB thinks the agent is gone. Does not inspect the OS. |
  *
  * Daemon kill-then-spawn normally clears PID via `recordAgentExited` (`daemon.respawn`) before respawn,
  * so tasks stay assigned during replacement. This sweeper is a **fallback** when exit was never recorded
@@ -211,12 +212,12 @@ export async function releaseOrphanedTasksForRole(
 
   const teamRoleKey = buildTeamRoleKey(args.chatroomId, chatroom.teamId, args.role);
   const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
+    .query('chatroom_agentDesiredConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
 
-  const agentAlive =
-    config != null && (config.spawnedAgentPid != null || config.desiredState === 'running');
+  const runtime = config ? await getAgentRuntimeState(ctx, config._id) : null;
+  const agentAlive = runtime != null && (runtime.pid != null || runtime.desiredState === 'running');
 
   if (agentAlive) {
     return 0;

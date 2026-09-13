@@ -7,7 +7,7 @@ import {
 import type { Doc } from '../../../../convex/_generated/dataModel';
 
 export type EnhancerHandoffValidation =
-  | { allowed: true; config: Doc<'chatroom_teamAgentConfigs'> }
+  | { allowed: true; config: Doc<'chatroom_agentDesiredConfigs'> }
   | { allowed: false; code: 'ENHANCER_NOT_ENABLED' | 'ENHANCER_CONFIG_INCOMPLETE' };
 
 export function validateEnhancerHandoff(args: {
@@ -15,7 +15,7 @@ export function validateEnhancerHandoff(args: {
   taskPlannerEnhancerEnabled?: boolean | undefined;
   /** Explicit canonical snapshot; the authoritative policy source when present. */
   taskEnvelope?: TaskEnvelopeV1 | undefined;
-  config: Doc<'chatroom_teamAgentConfigs'> | null | undefined;
+  config: Doc<'chatroom_agentDesiredConfigs'> | null | undefined;
 }): EnhancerHandoffValidation {
   // An explicit envelope is the source of enhancer authorization: only an
   // explicit code:enhanced mode enables enrichment, regardless of stale legacy

@@ -15,6 +15,7 @@ import {
   createTestSession,
   joinParticipant,
   registerMachineWithDaemon,
+  setAgentRuntimeStateInContext,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 
@@ -51,13 +52,13 @@ test('recordAgentExited (crash) releases acknowledged task to pending — no gra
 
   await t.run(async (ctx) => {
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
     if (config) {
-      await ctx.db.patch(config._id, { spawnedAgentPid: 4242, desiredState: 'running' });
+      await setAgentRuntimeStateInContext(ctx, config._id, { pid: 4242, desiredState: 'running' });
     }
   });
 
@@ -119,13 +120,13 @@ test('recordAgentExited (user.stop) releases acknowledged task to pending', asyn
 
   await t.run(async (ctx) => {
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
     if (config) {
-      await ctx.db.patch(config._id, { spawnedAgentPid: 5252, desiredState: 'running' });
+      await setAgentRuntimeStateInContext(ctx, config._id, { pid: 5252, desiredState: 'running' });
     }
   });
 
@@ -182,13 +183,13 @@ test('recordAgentExited (daemon.shutdown) releases acknowledged task to pending'
 
   await t.run(async (ctx) => {
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
     if (config) {
-      await ctx.db.patch(config._id, { spawnedAgentPid: 6262, desiredState: 'running' });
+      await setAgentRuntimeStateInContext(ctx, config._id, { pid: 6262, desiredState: 'running' });
     }
   });
 
@@ -244,13 +245,13 @@ test('recordAgentExited (crash) releases in_progress task to pending', async () 
 
   await t.run(async (ctx) => {
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
     if (config) {
-      await ctx.db.patch(config._id, { spawnedAgentPid: 7272, desiredState: 'running' });
+      await setAgentRuntimeStateInContext(ctx, config._id, { pid: 7272, desiredState: 'running' });
     }
   });
 
@@ -358,14 +359,14 @@ test('releaseOrphanedTasksForRole releases acknowledged task when PID cleared wi
   // Simulate daemon clearing PID without recordAgentExited (orphan path)
   await t.run(async (ctx) => {
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
       )
       .first();
     if (config) {
-      await ctx.db.patch(config._id, {
-        spawnedAgentPid: undefined,
+      await setAgentRuntimeStateInContext(ctx, config._id, {
+        pid: undefined,
         desiredState: 'stopped',
       });
     }

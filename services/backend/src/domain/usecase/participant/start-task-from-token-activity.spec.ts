@@ -102,7 +102,7 @@ async function seedPendingTask(
 async function seedNativeHarnessConfig(chatroomId: Id<'chatroom_rooms'>, role: string) {
   await t.run(async (ctx) => {
     const now = Date.now();
-    await ctx.db.insert('chatroom_teamAgentConfigs', {
+    await ctx.db.insert('chatroom_agentDesiredConfigs', {
       teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', role),
       chatroomId,
       role,
@@ -237,7 +237,6 @@ describe('startTaskFromTokenActivity — acknowledged path', () => {
 
     expect(await getTaskStatus(taskId)).toBe('acknowledged');
   });
-
 });
 
 describe('startTaskFromTokenActivity — pending path', () => {

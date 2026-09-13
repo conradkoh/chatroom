@@ -27,7 +27,7 @@ async function configIdFor(chatroomId: any) {
   return t.run(async (ctx) => {
     const room = await ctx.db.get(chatroomId);
     const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentDesiredConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, room!.teamId!, 'builder'))
       )
@@ -45,7 +45,7 @@ describe('agent operational status projection', () => {
     await t.run(async (ctx) => {
       const room = await ctx.db.get(chatroomId);
       await ctx.db.patch(chatroomId, { teamRoles: ['planner', 'enhancer', 'builder'] });
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, room!.teamId!, 'enhancer'),
         chatroomId,
         role: 'enhancer',
@@ -55,8 +55,16 @@ describe('agent operational status projection', () => {
         model: 'test',
         workingDir: '/workspace',
         enabled: true,
-        desiredState: 'running',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert('chatroom_agentRuntimeStates', {
+        desiredConfigId: configId,
+        chatroomId,
+        role: 'enhancer',
+        machineId,
+        status: 'offline',
+        desiredState: 'running',
         updatedAt: Date.now(),
       });
     });
@@ -120,13 +128,18 @@ describe('agent operational status projection', () => {
     await t.run(async (ctx) => {
       const room = await ctx.db.get(chatroomId);
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, room!.teamId!, 'builder'))
         )
         .first();
-      if (config)
-        await ctx.db.patch('chatroom_teamAgentConfigs', config._id, { desiredState: 'stopped' });
+      if (config) {
+        const runtime = await ctx.db
+          .query('chatroom_agentRuntimeStates')
+          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
+          .first();
+        if (runtime) await ctx.db.patch(runtime._id, { desiredState: 'stopped' });
+      }
     });
     await t.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
       sessionId: sessionId as any,
@@ -145,7 +158,11 @@ describe('agent operational status projection', () => {
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     const configId = await configIdFor(chatroomId);
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_teamAgentConfigs', configId, { circuitState: 'open' });
+      const runtime = await ctx.db
+        .query('chatroom_agentRuntimeStates')
+        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', configId))
+        .first();
+      if (runtime) await ctx.db.patch(runtime._id, { circuitState: 'open' });
     });
     await t.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
       sessionId: sessionId as any,

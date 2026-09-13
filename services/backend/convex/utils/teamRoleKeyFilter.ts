@@ -10,10 +10,10 @@ export function teamRoleKeyMatchesTeam(
 
 /** Keep only configs for the chatroom's current team (preserved historical rows are excluded). */
 export function filterTeamAgentConfigsForTeam(
-  configs: Doc<'chatroom_teamAgentConfigs'>[],
+  configs: Doc<'chatroom_agentDesiredConfigs'>[],
   chatroomId: Id<'chatroom_rooms'> | string,
   teamId: string | undefined | null
-): Doc<'chatroom_teamAgentConfigs'>[] {
+): Doc<'chatroom_agentDesiredConfigs'>[] {
   if (!teamId) return configs;
   return configs.filter((c) => teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, teamId));
 }

@@ -108,7 +108,7 @@ export const disableConfig = mutation({
     if (chatroom.teamId) {
       const teamConfig = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, chatroom.teamId);
       if (teamConfig)
-        await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, { enabled: false });
+        await ctx.db.patch('chatroom_agentDesiredConfigs', teamConfig._id, { enabled: false });
     }
     return { disabled: true as const };
   },
