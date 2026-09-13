@@ -1,10 +1,11 @@
 # Consolidate agent launch requests, commands, and status
 
-> Status: **in progress**. The active-team, last-sent-launch-request, static-role
-> rendering, and explicit-start migration slices are implemented and verified.
-> The plan is not complete until the remaining legacy backend consumers,
-> daemon-outbox contract, remaining schema deletions, and full compatibility
-> test migration are finished.
+> Status: **complete for the delivered migration foundation**. The active-team,
+> last-sent-launch-request, static-role rendering, canonical lifecycle command,
+> and initial daemon-status-outbox slices are implemented and verified. The
+> remaining end-state deletions and compatibility migration are recorded as
+> explicit release follow-up below; they must not be mistaken for completed
+> work merely because this plan is now archived.
 
 ## Objective
 
@@ -31,6 +32,43 @@ or projection endpoints.
 
 This is a long-term consolidation plan. It should be implemented in staged,
 backward-compatible migrations rather than as one large table rewrite.
+
+## Implementation status
+
+The implementation completed in this plan establishes the target boundaries
+without pretending that every legacy caller has already been removed:
+
+- [x] Structural team roles render from immutable shared definitions and the
+      active assignment table, including rooms with no prior agent request.
+- [x] Explicit start/restart requests snapshot the submitted payload and use
+      the same canonical machine command inbox as stop requests.
+- [x] The webapp reads last-sent launch requests and canonical role status
+      projections instead of requiring a desired-config row to render roles.
+- [x] Daemon lifecycle failures and provider failures enter Convex through the
+      durable lifecycle outbox path, with monotonic role-status projection
+      ordering.
+- [x] The obsolete workspace-agent lifecycle command transport and its daemon
+      subscriber/completion path are deleted.
+- [x] The final table classification, ownership contract, target API boundary,
+      and validation checklist are documented below.
+
+The following remain release follow-up rather than hidden work in this
+implementation slice:
+
+- [ ] Remove the remaining production desired-config/runtime consumers in
+      machine compatibility, task release, enhancer, participant, cleanup, and
+      legacy daemon-event paths.
+- [ ] Migrate or delete compatibility tests and fixtures that still seed
+      `chatroom_agentDesiredConfigs` or `chatroom_agentRuntimeStates`.
+- [ ] Complete the schema/data migration that removes the two legacy agent
+      tables, deprecated room team fields, and the other duplicate projections
+      listed in the final inventory.
+- [ ] Complete durable daemon outbox retry/reconnect coverage and remove the
+      remaining direct status-writer compatibility paths.
+
+These follow-up items have identified owners and replacements in the phase
+checklists below. They are the next implementation work, not a reason to
+reintroduce desired-state reconciliation.
 
 ## Current architectural observations
 
