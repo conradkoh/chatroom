@@ -6,6 +6,7 @@ import {
   getTeamStructure,
   getPermanentRolesForPreset,
   getTeamPreset,
+  getTeamStructureId,
   listTeamPresetIds,
 } from './team-presets';
 
@@ -27,6 +28,8 @@ describe('team presets', () => {
   test('lists and resolves known preset IDs', () => {
     expect(listTeamPresetIds()).toEqual(['duo', 'solo']);
     expect(getTeamPreset('duo')).toBe(TEAM_PRESETS.duo);
+    expect(getTeamPreset('duo@1')).toBe(TEAM_PRESETS.duo);
+    expect(getTeamStructureId('duo')).toBe('duo@1');
     expect(getTeamPreset('unknown')).toBeUndefined();
   });
 
@@ -44,6 +47,7 @@ describe('team presets', () => {
       })
     ).toEqual({
       teamId: 'duo',
+      teamStructureId: 'duo@1',
       teamName: 'Duo',
       entryPoint: 'planner',
       roles: [

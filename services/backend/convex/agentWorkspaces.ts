@@ -12,8 +12,12 @@ import type { Doc, Id } from './_generated/dataModel';
 import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
-import { filterTeamAgentConfigsForTeam } from './utils/teamRoleKeyFilter';
-import { getAgentRuntimeState } from '../src/domain/usecase/agent/agent-runtime-state';
+import { getTeamStructure } from '../src/domain/entities/team-presets';
+import {
+  getLastSentLaunchRequestForRole,
+  listLastSentLaunchRequestsForChatroom,
+} from '../src/domain/usecase/agent/get-last-sent-launch-request';
+import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 
 function normalizeWorkingDir(value: string): string {
   return value.trim().replace(/[/\\]+$/, '');
@@ -31,18 +35,18 @@ async function requireChatroomAccessForWorkspace(
   return { workspace, chatroom };
 }
 
-function configBelongsToWorkspace(
-  config: Doc<'chatroom_agentDesiredConfigs'>,
+function requestBelongsToWorkspace(
+  request: Doc<'chatroom_agentLastSentLaunchRequests'>,
   workspace: Doc<'chatroom_workspaces'>
 ): boolean {
   return (
-    config.machineId === workspace.machineId &&
-    config.workingDir !== undefined &&
-    normalizeWorkingDir(config.workingDir) === normalizeWorkingDir(workspace.workingDir)
+    request.workspaceId === workspace._id ||
+    (request.machineId === workspace.machineId &&
+      normalizeWorkingDir(request.workingDir) === normalizeWorkingDir(workspace.workingDir))
   );
 }
 
-/** Lists only roles with persisted desired configuration for a workspace. */
+/** Lists roles with a previously submitted launch request for a workspace. */
 export const listConfiguredAgentsForWorkspace = query({
   args: {
     ...SessionIdArg,
@@ -52,26 +56,29 @@ export const listConfiguredAgentsForWorkspace = query({
     const access = await requireChatroomAccessForWorkspace(ctx, args.sessionId, args.workspaceId);
     if (!access) return [];
 
-    const configs = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', access.chatroom._id))
-      .collect();
-    const currentTeamConfigs = filterTeamAgentConfigsForTeam(
-      configs,
-      access.chatroom._id,
-      access.chatroom.teamId
-    );
+    const activeStructure = await getActiveTeamStructure(ctx, access.chatroom._id);
+    const structure = activeStructure
+      ? getTeamStructure({ teamId: activeStructure.teamStructureId })
+      : access.chatroom.teamId
+        ? getTeamStructure({
+            teamId: access.chatroom.teamId,
+            ...(access.chatroom.teamRoles !== undefined
+              ? { persistedRoles: access.chatroom.teamRoles }
+              : {}),
+          })
+        : null;
+    const structureId = structure?.teamStructureId;
+    const requests = await listLastSentLaunchRequestsForChatroom(ctx, {
+      chatroomId: access.chatroom._id,
+      ...(structureId ? { teamStructureId: structureId } : {}),
+    });
 
-    return currentTeamConfigs
-      .filter(
-        (config) =>
-          config.workspaceId === access.workspace._id ||
-          (config.workspaceId === undefined && configBelongsToWorkspace(config, access.workspace))
-      )
-      .map((config) => ({
-        role: config.role,
-        type: config.type,
-        teamId: access.chatroom.teamId ?? null,
+    return requests
+      .filter((request) => requestBelongsToWorkspace(request, access.workspace))
+      .map((request) => ({
+        role: request.role,
+        type: request.agentType,
+        teamId: structure?.teamId ?? null,
       }))
       .sort((a, b) => a.role.localeCompare(b.role));
   },
@@ -88,33 +95,27 @@ export const getAgentConfigForWorkspaceRole = query({
     const access = await requireChatroomAccessForWorkspace(ctx, args.sessionId, args.workspaceId);
     if (!access) return null;
 
-    const configs = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', access.chatroom._id))
-      .collect();
-    const config = filterTeamAgentConfigsForTeam(
-      configs,
-      access.chatroom._id,
-      access.chatroom.teamId
-    ).find(
-      (candidate) =>
-        candidate.role.toLowerCase() === args.role.toLowerCase() &&
-        (candidate.workspaceId === access.workspace._id ||
-          (candidate.workspaceId === undefined &&
-            configBelongsToWorkspace(candidate, access.workspace)))
-    );
+    const activeStructure = await getActiveTeamStructure(ctx, access.chatroom._id);
+    const structureId =
+      activeStructure?.teamStructureId ??
+      (access.chatroom.teamId
+        ? getTeamStructure({ teamId: access.chatroom.teamId }).teamStructureId
+        : undefined);
+    const config = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: access.chatroom._id,
+      role: args.role.toLowerCase(),
+      ...(structureId ? { teamStructureId: structureId } : {}),
+    });
 
-    if (!config) return null;
-    const runtime = await getAgentRuntimeState(ctx, config._id);
+    if (!config || !requestBelongsToWorkspace(config, access.workspace)) return null;
     return {
       role: config.role,
-      type: config.type,
+      type: config.agentType,
       machineId: config.machineId ?? null,
       agentHarness: config.agentHarness ?? null,
       model: config.model ?? null,
       workingDir: config.workingDir ?? null,
-      desiredState: runtime?.desiredState ?? null,
-      updatedAt: config.updatedAt,
+      updatedAt: config.requestedAt,
     };
   },
 });

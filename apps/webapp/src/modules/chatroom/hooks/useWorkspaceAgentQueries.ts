@@ -33,17 +33,6 @@ export interface WorkspaceAgentStatus {
   workingDir: string;
 }
 
-export interface WorkspaceAgentConfig {
-  role: string;
-  type: 'remote' | 'custom';
-  machineId: string | null;
-  agentHarness: string | null;
-  model: string | null;
-  workingDir: string | null;
-  desiredState: 'running' | 'stopped' | null;
-  updatedAt: number;
-}
-
 /**
  * Builds the workspace agent list from structural team roles plus optional
  * workspace configuration. Team roles provide candidate cards; configured
@@ -75,23 +64,31 @@ function mergeWorkspaceAgentRoles(
 
 /** Low-frequency agent directory query for one workspace. */
 function useWorkspaceAgents(workspaceId: string | null) {
+  const { chatroomId } = useChatroomWorkspace();
   const result = useSessionQuery(
-    api.agentWorkspaces.listConfiguredAgentsForWorkspace,
-    workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : 'skip'
+    api.agents.listLastSentLaunchRequests,
+    workspaceId
+      ? {
+          chatroomId,
+          workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+        }
+      : 'skip'
   );
 
   return {
-    agents: (result ?? []) as WorkspaceAgentRole[],
+    requests: result ?? [],
     isLoading: workspaceId !== null && result === undefined,
   };
 }
 
 /** High-frequency status projection for one workspace/role pair. */
 export function useWorkspaceAgentStatus(workspaceId: string | null, role: string) {
+  const { chatroomId } = useChatroomWorkspace();
   const result = useSessionQuery(
-    api.agentWorkspaces.getAgentStatusForWorkspaceRole,
+    api.agents.getStatus,
     workspaceId
       ? {
+          chatroomId,
           workspaceId: workspaceId as Id<'chatroom_workspaces'>,
           role,
         }
@@ -106,10 +103,12 @@ export function useWorkspaceAgentStatus(workspaceId: string | null, role: string
 
 /** Low-frequency configuration query for one workspace/role pair. */
 export function useWorkspaceAgentConfig(workspaceId: string | null, role: string) {
+  const { chatroomId } = useChatroomWorkspace();
   const result = useSessionQuery(
-    api.agentWorkspaces.getAgentConfigForWorkspaceRole,
+    api.agents.getLastSentLaunchRequest,
     workspaceId
       ? {
+          chatroomId,
           workspaceId: workspaceId as Id<'chatroom_workspaces'>,
           role,
         }
@@ -117,7 +116,17 @@ export function useWorkspaceAgentConfig(workspaceId: string | null, role: string
   );
 
   return {
-    config: (result ?? null) as WorkspaceAgentConfig | null,
+    config: result
+      ? {
+          role: result.role,
+          type: result.agentType,
+          machineId: result.machineId,
+          agentHarness: result.agentHarness,
+          model: result.model,
+          workingDir: result.workingDir,
+          updatedAt: result.requestedAt,
+        }
+      : null,
     isLoading: workspaceId !== null && result === undefined,
   };
 }
@@ -128,18 +137,22 @@ export function useWorkspaceAgentDirectory() {
   const teamStructure = useSessionQuery(api.chatrooms.getTeamStructureForChatroom, {
     chatroomId,
   });
-  const { agents: configuredAgents, isLoading: isLoadingAgents } = useWorkspaceAgents(
+  const { requests: configuredRequests, isLoading: isLoadingAgents } = useWorkspaceAgents(
     activeWorkspace?._registryId ?? null
   );
 
   const agents = useMemo(
     () =>
       mergeWorkspaceAgentRoles(
-        configuredAgents,
+        configuredRequests.map((request) => ({
+          role: request.role,
+          type: request.agentType,
+          teamId: teamStructure?.teamId ?? null,
+        })),
         (teamStructure?.roles ?? []).map(({ role }) => role),
         teamStructure?.teamId
       ),
-    [configuredAgents, teamStructure]
+    [configuredRequests, teamStructure]
   );
 
   return {

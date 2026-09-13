@@ -71,8 +71,8 @@ async function startAgent(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('startAgent use case — desiredState', () => {
-  test('sets desiredState: running on team config after starting an agent', async () => {
+describe('startAgent use case — request snapshots', () => {
+  test('records a last-sent request without creating backend runtime state', async () => {
     const { sessionId } = await createTestSession('start-agent-1');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-1';
@@ -80,25 +80,42 @@ describe('startAgent use case — desiredState', () => {
     await registerMachine(sessionId, machineId);
     await startAgent(sessionId, machineId, chatroomId, 'builder');
 
-    const teamConfig = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_agentDesiredConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
-        .first();
-    });
-
-    const runtime = await t.run(async (ctx) =>
+    const request = await t.run(async (ctx) =>
       ctx.db
-        .query('chatroom_agentRuntimeStates')
-        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', teamConfig!._id))
+        .query('chatroom_agentLastSentLaunchRequests')
+        .withIndex('by_requestKey', (q) => q.eq('requestKey', `${chatroomId}:duo@1:builder`))
         .first()
     );
-    expect(runtime?.desiredState).toBe('running');
+    const commands = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+    expect(request).toMatchObject({
+      chatroomId,
+      teamStructureId: 'duo@1',
+      role: 'builder',
+      machineId,
+      agentHarness: 'opencode',
+      model: TEST_MODEL_OPENCODE,
+      workingDir: '/tmp/test',
+      reason: 'user.start',
+      requestedBy: expect.any(String),
+    });
+    expect(commands).toHaveLength(1);
+    expect(commands[0]?.command.type).toBe('agent.requestStart');
+    if (commands[0]?.command.type === 'agent.requestStart') {
+      expect(commands[0].command).toMatchObject({
+        requestId: request?.requestId,
+        chatroomId,
+        role: 'builder',
+        agentHarness: 'opencode',
+        model: TEST_MODEL_OPENCODE,
+        workingDir: '/tmp/test',
+        reason: 'user.start',
+      });
+    }
+    const runtimeRows = await t.run((ctx) => ctx.db.query('chatroom_agentRuntimeStates').collect());
+    expect(runtimeRows).toEqual([]);
   });
 
-  test('resets desiredState from stopped to running when agent is started', async () => {
+  test('does not mutate an existing backend runtime state when agent is started', async () => {
     const { sessionId } = await createTestSession('start-agent-2');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-2';
@@ -152,7 +169,7 @@ describe('startAgent use case — desiredState', () => {
     // Now start it again
     await startAgent(sessionId, machineId, chatroomId, 'builder');
 
-    // Verify desiredState is now 'running'
+    // The daemon owns this state; the webapp start command does not mutate it.
     const running = await t.run(async (ctx) => {
       const config = await ctx.db
         .query('chatroom_agentDesiredConfigs')
@@ -167,10 +184,10 @@ describe('startAgent use case — desiredState', () => {
             .first()
         : null;
     });
-    expect(running?.desiredState).toBe('running');
+    expect(running?.desiredState).toBe('stopped');
   });
 
-  test('resets circuit breaker state when manually starting an agent', async () => {
+  test('does not reset a daemon-owned circuit breaker when manually starting an agent', async () => {
     const { sessionId } = await createTestSession('start-agent-3');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-3';
@@ -209,7 +226,8 @@ describe('startAgent use case — desiredState', () => {
     // Manually start the agent (should reset circuit)
     await startAgent(sessionId, machineId, chatroomId, 'builder');
 
-    // Verify circuit breaker was reset
+    // The daemon owns the circuit breaker; the webapp start command only sends
+    // a self-contained request.
     const config = await t.run(async (ctx) => {
       const desired = await ctx.db
         .query('chatroom_agentDesiredConfigs')
@@ -225,9 +243,8 @@ describe('startAgent use case — desiredState', () => {
         : null;
     });
 
-    expect(config?.circuitState).toBe('closed');
-    expect(config?.circuitOpenedAt).toBeUndefined();
-    expect(config?.desiredState).toBe('running');
+    expect(config?.circuitState).toBe('open');
+    expect(config?.desiredState).toBe('stopped');
   });
 
   test('emits machine.switched when starting on a different machine with allowNewMachine: true', async () => {
@@ -244,10 +261,8 @@ describe('startAgent use case — desiredState', () => {
 
     const config = await t.run(async (ctx) =>
       ctx.db
-        .query('chatroom_agentDesiredConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
+        .query('chatroom_agentLastSentLaunchRequests')
+        .withIndex('by_requestKey', (q) => q.eq('requestKey', `${chatroomId}:duo@1:builder`))
         .first()
     );
     expect(config?.machineId).toBe(machineB);

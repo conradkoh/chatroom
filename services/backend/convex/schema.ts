@@ -339,6 +339,19 @@ export default defineSchema({
     .index('by_ownerId_lastActivity', ['ownerId', 'lastActivityAt']),
 
   /**
+   * The active immutable team structure assigned to a chatroom.
+   * Structural details are resolved from the shared TeamDefinition registry;
+   * this table stores only the room-specific selection.
+   */
+  chatroom_activeTeamStructures: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    teamStructureId: v.string(),
+    updatedBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_chatroom', ['chatroomId']),
+
+  /**
    * Explicit contexts for chatroom conversations.
    * Replaces the fragile pinned message system with explicit context management.
    * Allows users/agents to create, list, and inspect conversation contexts.
@@ -1182,6 +1195,36 @@ export default defineSchema({
     .index('by_machineId', ['machineId'])
     .index('by_chatroom_workspace_role', ['chatroomId', 'workspaceId', 'role']),
 
+  /**
+   * Latest exact launch request submitted by the webapp for a chatroom role.
+   *
+   * This is a durable request snapshot, not desired runtime state. The daemon
+   * receives the same values through chatroom_machineCommandInbox and remains
+   * authoritative for what actually runs.
+   */
+  chatroom_agentLastSentLaunchRequests: defineTable({
+    requestKey: v.string(),
+    requestId: v.string(),
+    commandId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    teamStructureId: v.string(),
+    role: v.string(),
+    agentType: agentTypeValidator,
+    machineId: v.string(),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    workingDir: v.string(),
+    reason: v.string(),
+    wantResume: v.boolean(),
+    requestedBy: v.id('users'),
+    requestedAt: v.number(),
+  })
+    .index('by_requestKey', ['requestKey'])
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_role', ['chatroomId', 'role'])
+    .index('by_machineId', ['machineId']),
+
   /** System-owned runtime state for a desired agent configuration. */
   chatroom_agentRuntimeStates: defineTable({
     desiredConfigId: v.id('chatroom_agentDesiredConfigs'),
@@ -1245,6 +1288,9 @@ export default defineSchema({
     machineId: v.optional(v.string()),
     /** Workspace directory associated with the role at projection time. */
     workingDir: v.optional(v.string()),
+    /** Process identity observed by the daemon; not a backend-owned process record. */
+    observedPid: v.optional(v.number()),
+    observedAt: v.optional(v.number()),
     lastSeenAt: v.optional(v.number()),
     lastSeenAction: v.optional(v.string()),
     teamId: v.optional(v.string()),

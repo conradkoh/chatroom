@@ -10,9 +10,9 @@
  * not leaked into general status views.
  */
 
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness } from '../../entities/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -69,27 +69,20 @@ export async function getAgentConfigForStart(
     availableModels: (m.availableModels ?? {}) as Record<string, string[]>,
   }));
 
-  // Resolve defaults from the authoritative team-level config.
+  const lastSentRequest = await getLastSentLaunchRequestForRole(ctx, {
+    chatroomId: input.chatroomId,
+    role: input.role,
+  });
 
-  // Check team config
-  let teamConfig = null;
-  if (chatroom.teamId) {
-    const startTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role);
-    teamConfig = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', startTeamRoleKey))
-      .first();
-  }
-
-  if (teamConfig?.machineId) {
+  if (lastSentRequest) {
     return {
       role: input.role,
       connectedMachines,
       defaults: {
-        machineId: teamConfig.machineId,
-        agentHarness: teamConfig.agentHarness as AgentHarness | undefined,
-        model: teamConfig.model,
-        workingDir: teamConfig.workingDir,
+        machineId: lastSentRequest.machineId,
+        agentHarness: lastSentRequest.agentHarness as AgentHarness,
+        model: lastSentRequest.model,
+        workingDir: lastSentRequest.workingDir,
       },
     };
   }

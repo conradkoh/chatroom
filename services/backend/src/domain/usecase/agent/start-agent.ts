@@ -17,17 +17,15 @@
 
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
-import { patchAgentRuntimeState } from './agent-runtime-state';
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
-import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
+import type { AgentHarness, AgentStartReason } from '../../entities/agent';
 import type { MachineCommandPayload } from '../../entities/machine-command';
+import { getTeamStructure } from '../../entities/team-presets';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
+import { getActiveTeamStructure } from '../team/active-team-structure';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -79,11 +77,11 @@ export interface StartAgentResult {
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
 /**
- * Start an agent by persisting its config and dispatching a start-agent
- * command to the machine daemon.
+ * Start an agent by snapshotting the submitted request and dispatching a
+ * self-contained start-agent command to the machine daemon.
  *
- * Explicit user starts persist the desired tuple. Platform and daemon starts
- * only read the existing desired tuple and update runtime state.
+ * The daemon owns the resulting lifecycle. Convex does not mark the agent as
+ * running until a daemon observation is received.
  *
  * @param ctx - Convex mutation context (provides db access)
  * @param input - The start parameters (all config values pre-resolved)
@@ -112,63 +110,19 @@ export async function startAgent(
     throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
   }
 
-  // ── Step 2: Persist desired config only for explicit user starts ──────
+  // ── Step 2: Resolve request-only defaults ────────────────────────────
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const resolvedWantResume =
     wantResume ?? (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : false);
 
-  if (chatroom) {
-    if (!chatroom.teamId) {
-      throw new Error(`Chatroom ${chatroomId} has no teamId — cannot build agent config key`);
-    }
-    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
-    const teamConfigNow = Date.now();
-    const existingDesiredConfig = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-    const isUserConfigurationWrite =
-      reason === 'user.start' || reason === 'user.restart' || reason === 'user.manual_spawn';
-    const desiredConfigId = isUserConfigurationWrite
-      ? (
-          await upsertTeamAgentConfigByTeamRoleKey(ctx, {
-            teamRoleKey,
-            createdAt: existingDesiredConfig?.createdAt ?? teamConfigNow,
-            fields: {
-              chatroomId,
-              role,
-              type: 'remote' as AgentType,
-              machineId,
-              agentHarness,
-              model,
-              workingDir,
-              updatedAt: teamConfigNow,
-            },
-          })
-        ).configId
-      : existingDesiredConfig?._id;
-    const desiredConfig = desiredConfigId
-      ? await ctx.db.get('chatroom_agentDesiredConfigs', desiredConfigId)
-      : null;
-    if (desiredConfig) {
-      await patchAgentRuntimeState(ctx, desiredConfig, {
-        desiredState: 'running',
-        circuitState: 'closed',
-        circuitOpenedAt: undefined,
-        status: 'starting',
-        machineId,
-        wantResume: resolvedWantResume,
-      });
-    }
-  }
-
-  // ── Step 3: Write agent.requestStart event to stream ──────────────────
+  // ── Step 3: Write the self-contained agent.requestStart command ───────
 
   const now = Date.now();
 
   const startCommand: Extract<MachineCommandPayload, { type: 'agent.requestStart' }> = {
     type: 'agent.requestStart',
+    requestId: crypto.randomUUID(),
     chatroomId,
     role,
     agentHarness,
@@ -178,29 +132,47 @@ export async function startAgent(
     wantResume: resolvedWantResume,
   };
 
-  await enqueueMachineCommand(ctx, {
+  const commandId = await enqueueMachineCommand(ctx, {
     machineId,
     now,
     command: startCommand,
   });
-  await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
-  // Refresh the operational projection so the daemon sees the new config
-  // without waiting for a task transition.
-  const startedConfig = await ctx.db
-    .query('chatroom_agentDesiredConfigs')
-    .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, chatroom?.teamId ?? '', role))
-    )
-    .first();
-  await projectAgentOperationalStatusForRole(
-    ctx,
-    chatroomId,
-    role,
-    undefined,
-    startedConfig ? { config: startedConfig } : {}
-  );
+  const isWebappLaunchRequest =
+    reason === 'user.start' || reason === 'user.restart' || reason === 'user.manual_spawn';
+  if (isWebappLaunchRequest) {
+    const activeStructure = await getActiveTeamStructure(ctx, chatroomId);
+    const structure = activeStructure
+      ? getTeamStructure({ teamId: activeStructure.teamStructureId })
+      : chatroom?.teamId
+        ? getTeamStructure({
+            teamId: chatroom.teamId,
+            ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
+            ...(chatroom.teamRoles !== undefined ? { persistedRoles: chatroom.teamRoles } : {}),
+            ...(chatroom.teamEntryPoint !== undefined
+              ? { persistedEntryPoint: chatroom.teamEntryPoint }
+              : {}),
+          })
+        : null;
+    if (!structure) throw new Error(`Chatroom ${chatroomId} has no team structure`);
 
+    await recordLastSentLaunchRequest(ctx, {
+      requestId: startCommand.requestId,
+      commandId: commandId.toString(),
+      chatroomId,
+      teamStructureId: structure.teamStructureId,
+      role,
+      agentType: 'remote',
+      machineId,
+      agentHarness,
+      model,
+      workingDir,
+      reason,
+      wantResume: resolvedWantResume,
+      requestedBy: input.userId,
+      requestedAt: now,
+    });
+  }
   return {
     agentHarness,
     model,

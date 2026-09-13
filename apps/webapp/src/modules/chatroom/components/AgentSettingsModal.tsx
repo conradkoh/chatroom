@@ -195,10 +195,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
     try {
       await updateTeam({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        teamId: selectedTeam,
-        teamName: selectedTeamData.name,
-        teamRoles: selectedTeamData.roles,
-        teamEntryPoint: selectedTeamData.entryPoint || selectedTeamData.roles[0],
+        teamStructureId: selectedTeam,
       });
       setSaveResult('success');
       setTimeout(() => setSaveResult(null), 3000);

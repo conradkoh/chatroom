@@ -1,31 +1,13 @@
-import { getAgentRuntimeState } from './agent-runtime-state';
 import { touchAgentRoleStatusLastSeen } from './project-agent-role-status-read-model';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { NATIVE_TASK_INJECTED_ACTION, NATIVE_WAITING_ACTION } from '../../entities/participant';
 import { hasActiveEntryPointEnhancerJob } from '../enhancer/enhancer-entry-point-status';
 import {
   findActiveAssignedTaskForRole,
   findAcknowledgedTaskForRole,
 } from '../task/find-acknowledged-task-for-role';
-
-async function isAgentStopped(
-  ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string }
-): Promise<boolean> {
-  const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  const teamId = room?.teamId;
-  if (!teamId) return false;
-  const config = await ctx.db
-    .query('chatroom_agentDesiredConfigs')
-    .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
-    )
-    .first();
-  return config ? (await getAgentRuntimeState(ctx, config._id))?.desiredState === 'stopped' : false;
-}
 
 export async function applyAgentActivityHeartbeat(
   ctx: MutationCtx,
@@ -47,8 +29,6 @@ export async function applyAgentActivityHeartbeat(
   });
 
   if (args.action === 'get-next-task:started') {
-    if (await isAgentStopped(ctx, args)) return;
-
     const enhancing = await hasActiveEntryPointEnhancerJob(ctx, args.chatroomId, args.role);
     await transitionAgentStatus(
       ctx,
@@ -63,8 +43,7 @@ export async function applyAgentActivityHeartbeat(
       chatroomId: args.chatroomId,
       role: args.role,
     });
-    if (!active && !(await isAgentStopped(ctx, args)))
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+    if (!active) await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
   } else if (args.action === NATIVE_TASK_INJECTED_ACTION) {
     const acknowledged = await findAcknowledgedTaskForRole(ctx, {
       chatroomId: args.chatroomId,

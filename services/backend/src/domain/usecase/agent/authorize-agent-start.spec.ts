@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 
 import { authorizeAgentStart } from './authorize-agent-start';
 import { api } from '../../../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 
 async function setup(id: string) {
@@ -22,58 +21,27 @@ async function setup(id: string) {
     os: 'linux',
     availableHarnesses: ['opencode'],
   });
-  await t.mutation(api.machines.saveTeamAgentConfig, {
+  await t.mutation(api.machines.sendCommand, {
     sessionId: id as any,
-    chatroomId,
-    role: 'builder',
-    type: 'remote',
     machineId,
-    agentHarness: 'opencode',
+    type: 'start-agent',
+    payload: {
+      chatroomId,
+      role: 'builder',
+      model: 'test-model',
+      agentHarness: 'opencode',
+      workingDir: '/workspace',
+    },
   });
   return { chatroomId, machineId };
 }
 
-async function configId(chatroomId: any) {
-  return t.run((ctx) =>
-    ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-      )
-      .first()
-  );
-}
-
 describe('authorizeAgentStart', () => {
-  test('allows starts and rejects stopped, disabled, and wrong machine', async () => {
+  test('allows a submitted launch and rejects a different machine', async () => {
     const { chatroomId, machineId } = await setup('authorize-cases');
     expect(
       await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId }))
     ).toEqual({ allowed: true });
-    const config = await configId(chatroomId);
-    await t.run(async (ctx) => {
-      const runtime = await ctx.db
-        .query('chatroom_agentRuntimeStates')
-        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config!._id))
-        .first();
-      if (runtime) await ctx.db.patch(runtime._id, { desiredState: 'stopped' });
-    });
-    expect(
-      (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })))
-        .reason
-    ).toBe('stopped');
-    await t.run(async (ctx) => {
-      await ctx.db.patch(config!._id, { enabled: false });
-      const runtime = await ctx.db
-        .query('chatroom_agentRuntimeStates')
-        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config!._id))
-        .first();
-      if (runtime) await ctx.db.patch(runtime._id, { desiredState: 'running' });
-    });
-    expect(
-      (await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId })))
-        .reason
-    ).toBe('disabled');
     expect(
       (
         await t.run((ctx) =>
@@ -85,19 +53,24 @@ describe('authorizeAgentStart', () => {
 
   test('requires an active task for ephemeral enhancer starts', async () => {
     const { chatroomId, machineId } = await setup('authorize-ephemeral');
+    const room = await t.run((ctx) => ctx.db.get('chatroom_rooms', chatroomId));
     const enhancerId = await t.run(async (ctx) =>
-      ctx.db.insert('chatroom_agentDesiredConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
+      ctx.db.insert('chatroom_agentLastSentLaunchRequests', {
+        requestKey: `${chatroomId}:duo@1:enhancer`,
+        requestId: 'enhancer-request',
+        commandId: 'enhancer-command',
+        teamStructureId: 'duo@1',
         chatroomId,
         role: 'enhancer',
-        type: 'remote',
+        agentType: 'remote',
         machineId,
         agentHarness: 'opencode',
         model: 'test',
         workingDir: '/workspace',
-        enabled: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        reason: 'user.start',
+        wantResume: false,
+        requestedBy: room!.ownerId,
+        requestedAt: Date.now(),
       })
     );
     expect(enhancerId).toBeDefined();

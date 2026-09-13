@@ -1,12 +1,18 @@
 # Consolidate agent launch requests, commands, and status
 
+> Status: **in progress**. The active-team, last-sent-launch-request, static-role
+> rendering, and explicit-start migration slices are implemented and verified.
+> The plan is not complete until the remaining legacy backend consumers,
+> daemon-outbox contract, command-inbox consolidation, schema deletions, and
+> full compatibility test migration are finished.
+
 ## Objective
 
 Consolidate the agent backend around four clear ownership boundaries:
 
 1. **Launch requests:** the webapp holds unsent form choices locally. Convex
-   persists an agent configuration only when the user explicitly submits a
-   start/restart request, as an immutable last-sent snapshot.
+   persists the latest exact request only when the user explicitly submits a
+   start/restart request. Each command carries its own immutable payload.
 2. **Runtime status:** the daemon is the source of truth for actual process and
    lifecycle status. Convex stores only a thin, consumer-facing read model,
    updated by reliable daemon outbox delivery.
@@ -63,6 +69,14 @@ all the required concepts. In particular:
 - agent lifecycle commands are split between `chatroom_machineCommandInbox`
   and `chatroomWorkspaceAgentCommandsInbox`, increasing ambiguity about the
   canonical command transport and audit history.
+- The team-switch path previously treated the desired-config table as a
+  reconciliation queue: it preserved/restored/seeded rows and automatically
+  stopped or started agents. That behavior is now removed from the migration
+  slice; a structural switch records the active assignment and re-routes
+  affected tasks, while agent lifecycle changes remain explicit commands.
+- The user start/restart migration slice no longer projects `running` status in
+  Convex. The webapp records the submitted request and command; daemon status
+  must arrive through the status ingestion path.
 
 Relevant current schema and projection definitions:
 
@@ -97,18 +111,18 @@ definition ID for each chatroom.
 These tables store durable application facts owned by the webapp/application.
 They never claim to describe the daemon’s current runtime.
 
-| Final table                            | Authoritative for                                                                     | Data stored                                                                                                                                                                           | Explicitly not stored                                                                       |
-| -------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `chatroom_rooms`                       | Room identity and lifecycle.                                                          | Owner, user-visible name, room status, activity timestamps, context linkage, and room-only settings.                                                                                  | Team ID/name/roles/entry point, agent launch configuration, or runtime status.              |
-| `chatroom_activeTeamStructures`        | Which immutable static team definition is active for a room.                          | `chatroomId`, `teamStructureId`, audit timestamps, and actor.                                                                                                                         | Copied structural definition fields or agent state.                                         |
-| `chatroom_machines`                    | Stable registered-machine identity.                                                   | Machine ID, owner, hostname/alias, operating system, and registration metadata.                                                                                                       | Heartbeats, online status, model catalogs, agent processes, or other volatile capabilities. |
-| `chatroom_workspaces`                  | Registered workspace identity.                                                        | Chatroom, machine, working directory, display/registration/removal metadata, and workspace-only settings.                                                                             | Agent process status or unsent launch configuration.                                        |
-| `chatroom_primaryWorkspaces`           | Which registered workspace is primary for a room.                                     | `chatroomId`, `workspaceId`, and update timestamp.                                                                                                                                    | Workspace details, team structure, or agent state.                                          |
-| `chatroom_agentLastSentLaunchRequests` | The exact latest agent launch request submitted by the webapp.                        | One row per chatroom/team structure/role with request and command IDs, machine/workspace, harness, model, working directory, resume choice, reason, requester, and request timestamp. | Daemon acknowledgement, desired runtime state, PID, or inferred current status.             |
-| `chatroom_machineModelFilters`         | User-controlled model visibility preferences.                                         | Hidden models/providers per machine and harness.                                                                                                                                      | Discovered model availability.                                                              |
-| `chatroom_machineConfigFavorites`      | Optional user-controlled ranked launch presets, only if this product feature remains. | Machine/team/role-scoped harness and model favorites.                                                                                                                                 | Current or desired agent state.                                                             |
-| `chatroom_participants`                | Task-session connection and presence coordination.                                    | Role identity, connection/session linkage, task-routing fields, and presence fields that genuinely belong here.                                                                       | Agent lifecycle/status mirrors such as `lastStatus` and `lastDesiredState`.                 |
-| `chatroom_enhancerJobs`                | Enhancer job request and execution history.                                           | Job input, immutable execution configuration snapshot, ownership, and job lifecycle.                                                                                                  | Global enhancer agent configuration or general agent runtime state.                         |
+| Final table                            | Authoritative for                                                                     | Data stored                                                                                                                                                                                  | Explicitly not stored                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `chatroom_rooms`                       | Room identity and lifecycle.                                                          | Owner, user-visible name, room status, activity timestamps, context linkage, and room-only settings.                                                                                         | Team ID/name/roles/entry point, agent launch configuration, or runtime status.              |
+| `chatroom_activeTeamStructures`        | Which immutable static team definition is active for a room.                          | `chatroomId`, `teamStructureId`, audit timestamps, and actor.                                                                                                                                | Copied structural definition fields or agent state.                                         |
+| `chatroom_machines`                    | Stable registered-machine identity.                                                   | Machine ID, owner, hostname/alias, operating system, and registration metadata.                                                                                                              | Heartbeats, online status, model catalogs, agent processes, or other volatile capabilities. |
+| `chatroom_workspaces`                  | Registered workspace identity.                                                        | Chatroom, machine, working directory, display/registration/removal metadata, and workspace-only settings.                                                                                    | Agent process status or unsent launch configuration.                                        |
+| `chatroom_primaryWorkspaces`           | Which registered workspace is primary for a room.                                     | `chatroomId`, `workspaceId`, and update timestamp.                                                                                                                                           | Workspace details, team structure, or agent state.                                          |
+| `chatroom_agentLastSentLaunchRequests` | The exact latest agent launch request submitted by the webapp.                        | One latest row per chatroom/team structure/role with request and command IDs, machine/workspace, harness, model, working directory, resume choice, reason, requester, and request timestamp. | Daemon acknowledgement, desired runtime state, PID, or inferred current status.             |
+| `chatroom_machineModelFilters`         | User-controlled model visibility preferences.                                         | Hidden models/providers per machine and harness.                                                                                                                                             | Discovered model availability.                                                              |
+| `chatroom_machineConfigFavorites`      | Optional user-controlled ranked launch presets, only if this product feature remains. | Machine/team/role-scoped harness and model favorites.                                                                                                                                        | Current or desired agent state.                                                             |
+| `chatroom_participants`                | Task-session connection and presence coordination.                                    | Role identity, connection/session linkage, task-routing fields, and presence fields that genuinely belong here.                                                                              | Agent lifecycle/status mirrors such as `lastStatus` and `lastDesiredState`.                 |
+| `chatroom_enhancerJobs`                | Enhancer job request and execution history.                                           | Job input, immutable execution configuration snapshot, ownership, and job lifecycle.                                                                                                         | Global enhancer agent configuration or general agent runtime state.                         |
 
 Static team definitions are also source of truth, but they are shared code
 entities rather than Convex tables.
@@ -687,14 +701,14 @@ an explicitly documented exception has been approved.
 **Key outcomes**
 
 - [ ] Every in-scope table and function has one documented owner and purpose.
-- [ ] The versioned static `TeamDefinition` contract and `teamStructureId` format
+- [x] The versioned static `TeamDefinition` contract and `teamStructureId` format
       are stable enough for data migration.
 - [ ] Public web APIs, daemon APIs, internal projection functions, and temporary
       compatibility wrappers are explicitly distinguished.
 
 **Validation criteria**
 
-- [ ] Every table in the proposed final inventory is classified exactly once as a
+- [x] Every table in the proposed final inventory is classified exactly once as a
       source of truth, daemon-fed read model, or inbox.
 - [ ] Every legacy table/function named for deletion has an identified caller set
       and target replacement or explicit no-replacement decision.
@@ -712,6 +726,13 @@ an explicitly documented exception has been approved.
 - [ ] All existing chatrooms have a valid versioned team structure assignment;
       custom/unknown legacy structures are mapped or explicitly retired.
 
+- [x] Migration slice: create and team-switch paths write the active assignment
+      table, and team-structure reads prefer that assignment while legacy
+      room-field fallback remains explicitly temporary.
+- [x] Migration slice: team switching no longer seeds, restores, starts, or
+      stops agent configuration/runtime rows; the structural switch test
+      verifies zero lifecycle commands and zero legacy agent-state rows.
+
 **Validation criteria**
 
 - [ ] A data audit reports exactly one valid active-team row for every chatroom and
@@ -721,8 +742,12 @@ an explicitly documented exception has been approved.
 - [ ] Repository search finds no authoritative production reads or writes of
       `chatroom_rooms.teamId`, `teamName`, `teamRoles`, or `teamEntryPoint` outside
       bounded migration compatibility code.
-- [ ] Permanent roles render from the static definition when no agent request has
+- [x] Permanent roles render from the static definition when no agent request has
       ever been submitted.
+
+The focused create/read/team-switch regression tests for this slice pass. The
+phase remains open until legacy room fields are removed and the fallback is
+deleted.
 
 ### Phase 2 — Establish explicit command snapshots
 
@@ -736,11 +761,18 @@ an explicitly documented exception has been approved.
       transport, including stop-role and stop-chatroom commands.
 - [ ] Convex contains no desired-runtime field or behavior.
 
+- [x] Migration slice: start commands carry a request ID, and the user start
+      path writes `chatroom_agentLastSentLaunchRequests` with the same request
+      ID and command payload values.
+- [x] Migration slice: canonical `agents` reads and the webapp workspace hooks
+      read last-sent requests and daemon status; webapp form edits no longer
+      call a desired-config mutation.
+
 **Validation criteria**
 
 - [ ] Editing or closing a launch form without submission creates no Convex agent
       configuration, request, command, or status row.
-- [ ] For every submitted launch, the durable snapshot and queued command have the
+- [x] For every submitted launch, the durable snapshot and queued command have the
       same request ID and effective machine/workspace/harness/model payload.
 - [ ] Mutating the form after submission cannot change an existing snapshot or
       queued/claimed command.
@@ -748,6 +780,27 @@ an explicitly documented exception has been approved.
       through the single command inbox.
 - [ ] Repository search finds no new `desiredState`, `saveDesiredConfig`, or saved
       launch-preference code path.
+
+The canonical-agent regression test verifies that structural roles are listed
+with offline status even when no launch request exists. Webapp typecheck passes;
+legacy Convex compatibility mutations and internal desired/runtime consumers are
+still intentionally present, so the full phase remains open.
+
+The start-path snapshot regression test, backend/CLI/webapp typechecks, and
+shared-package tests pass. Restart coverage remains open because the existing
+restart integration fixture currently fails during unrelated task setup.
+
+The structural team-switch regression and lifecycle authorization/register
+tests also pass. These validate the new boundary, but do not close the phase:
+legacy desired/runtime consumers and the second command inbox still require
+migration.
+
+The full backend suite is intentionally not marked complete: the current
+legacy integration fixtures still seed/read `chatroom_agentDesiredConfigs` and
+`chatroom_agentRuntimeStates`, so they fail while exercising the removed
+desired/runtime behavior. Those fixtures and their compatibility paths are
+tracked for the later deletion phases rather than being treated as proof that
+the new canonical path is invalid.
 
 ### Phase 3 — Establish the daemon status outbox contract
 

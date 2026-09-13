@@ -4,8 +4,8 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { ChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
 import { deriveChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import React, { memo, useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import React, { memo, useState, useMemo, useEffect, useRef } from 'react';
 
 import type { AgentConfig, AgentHarness, MachineInfo } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
@@ -142,28 +142,10 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   teamId,
 }: InlineAgentCardProps) {
   const { machines, agentConfigs: fallbackAgentConfigs, sendCommand } = useAgentControlData();
-  const saveAgentDesiredConfig = useSessionMutation(api.machines.saveAgentDesiredConfig);
   const { config: workspaceConfig } = useWorkspaceAgentConfig(workspaceId ?? null, role);
   const { status: workspaceStatus } = useWorkspaceAgentStatus(workspaceId ?? null, role);
   const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
     useChatroomWorkspaces(chatroomId);
-  const persistDesiredConfig = useCallback(
-    (patch: {
-      machineId?: string | null;
-      agentHarness?: AgentHarness | null;
-      model?: string | null;
-      workingDir?: string | null;
-    }) =>
-      saveAgentDesiredConfig({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        ...(workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : {}),
-        type: 'remote',
-        ...patch,
-      }),
-    [chatroomId, role, saveAgentDesiredConfig, workspaceId]
-  );
-
   const workspaceMachine = workspaceConfig?.machineId
     ? machines.find((machine) => machine.machineId === workspaceConfig.machineId)
     : undefined;
@@ -217,7 +199,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     lockedMachineId,
     lockedWorkingDir,
     teamId,
-    persistDesiredConfig,
   });
 
   const onSetupConfigChangeRef = useRef(onSetupConfigChange);

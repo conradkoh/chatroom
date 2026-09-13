@@ -24,7 +24,7 @@ export async function getAgentRuntimeState(
   );
 }
 
-export async function getOrCreateAgentRuntimeState(
+async function getOrCreateAgentRuntimeState(
   ctx: MutationCtx,
   config: DesiredConfig,
   patch: RuntimePatch = {}

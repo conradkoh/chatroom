@@ -1,19 +1,11 @@
 /**
  * Centralized Agent Status Transition
  *
- * Single function that atomically updates all status sources for an agent:
- *   1. chatroom_participants.lastStatus (denormalized, used by UI — being deprecated)
- *   2. chatroom_participants.lastDesiredState (denormalized mirror)
- *
- * This ensures the dual-state sources (participant.lastStatus + runtime.desiredState)
- * never diverge.
- *
- * Runtime lifecycle state is maintained by the agent start/stop and daemon event use cases;
- * this function keeps the participant and read-model projections synchronized with it.
+ * Projects a daemon/task status observation to the thin role-status read model
+ * and keeps the participant status mirror compatible with task routing. It does
+ * not write desired state or process state in Convex.
  */
 
-import { getAgentRuntimeState } from './agent-runtime-state';
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import {
   projectAgentRoleStatusReadModel,
   statusEventForAgentEvent,
@@ -21,44 +13,14 @@ import {
 } from './project-agent-role-status-read-model';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
-
-const OPERATIONAL_STATUSES = new Set([
-  'agent.waiting',
-  'agent.enhancing',
-  'agent.started',
-  'agent.awaitingHandoff',
-  'task.acknowledged',
-  'task.inProgress',
-  'task.completed',
-]);
-
-async function resolveLastDesiredState(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string,
-  lastStatus: string,
-  explicit?: string
-): Promise<string | undefined> {
-  if (explicit !== undefined || !OPERATIONAL_STATUSES.has(lastStatus)) return explicit;
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom?.teamId) return undefined;
-  const teamId = chatroom.teamId;
-  const config = await ctx.db
-    .query('chatroom_agentDesiredConfigs')
-    .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(chatroom._id, teamId, role))
-    )
-    .first();
-  return config ? (await getAgentRuntimeState(ctx, config._id))?.desiredState : undefined;
-}
 
 /**
  * Transition the agent's status across all state sources.
  *
- * Call this instead of directly patching participant records to ensure all
- * status-related fields stay in sync.
+ * Call this instead of directly patching participant records. The participant
+ * lastStatus field is retained only as a task/session compatibility mirror;
+ * web presentation comes from the daemon-fed role-status projection.
  *
  * @param ctx - Convex mutation context
  * @param chatroomId - The chatroom
@@ -71,29 +33,16 @@ export async function transitionAgentStatus(
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
   lastStatus: string,
-  lastDesiredState?: string,
+  _lastDesiredState?: string,
   statusEvent?: StatusEvent
 ): Promise<void> {
   // 1. Update participant record (denormalized — deprecated as primary source)
   const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
   if (participant) {
-    const resolvedDesiredState = await resolveLastDesiredState(
-      ctx,
-      chatroomId,
-      role,
-      lastStatus,
-      lastDesiredState
-    );
     const patch: Record<string, string> = { lastStatus };
-    if (resolvedDesiredState !== undefined) {
-      patch.lastDesiredState = resolvedDesiredState;
-    }
     await ctx.db.patch('chatroom_participants', participant._id, patch);
   }
 
-  // Runtime state is owned by chatroom_agentRuntimeStates. This projection update
-  // intentionally does not write desired configuration or runtime fields.
-  await projectAgentOperationalStatusForRole(ctx, chatroomId, role, undefined, { lastStatus });
   await projectAgentRoleStatusReadModel(ctx, {
     chatroomId,
     role,

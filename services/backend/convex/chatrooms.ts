@@ -18,6 +18,10 @@ import {
   markChatroomUnread,
 } from '../src/domain/usecase/chatroom/unread-status';
 import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
+import {
+  getActiveTeamStructure,
+  upsertActiveTeamStructure,
+} from '../src/domain/usecase/team/active-team-structure';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 import { enqueueWorkspaceListChangedForChatroom } from '../src/domain/usecase/workspace/enqueue-workspace-list-changed';
 import { scheduleObservationExpiryNudge } from '../src/domain/usecase/workspace/schedule-observation-expiry-nudge';
@@ -26,34 +30,57 @@ import { scheduleObservationExpiryNudge } from '../src/domain/usecase/workspace/
 export const create = mutation({
   args: {
     ...SessionIdArg,
-    teamId: v.string(),
-    teamName: v.string(),
-    teamRoles: v.array(v.string()),
+    /** @deprecated Use teamStructureId. Retained for staged client migration. */
+    teamId: v.optional(v.string()),
+    /** @deprecated Structural fields are resolved from the static definition. */
+    teamName: v.optional(v.string()),
+    /** @deprecated Structural fields are resolved from the static definition. */
+    teamRoles: v.optional(v.array(v.string())),
+    teamStructureId: v.optional(v.string()),
+    /** @deprecated Structural fields are resolved from the static definition. */
     teamEntryPoint: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session
     const auth = await requireSession(ctx, args.sessionId);
 
+    const requestedTeamId = args.teamStructureId ?? args.teamId;
+    if (!requestedTeamId) {
+      throw new ConvexError({ code: 'TEAM_REQUIRED', message: 'A team structure is required' });
+    }
+    const structure = getTeamStructure({
+      teamId: requestedTeamId,
+      ...(args.teamName !== undefined ? { teamName: args.teamName } : {}),
+      ...(args.teamRoles !== undefined ? { persistedRoles: args.teamRoles } : {}),
+      ...(args.teamEntryPoint !== undefined ? { persistedEntryPoint: args.teamEntryPoint } : {}),
+    });
+
     const chatroomId = await ctx.db.insert('chatroom_rooms', {
       status: 'active',
       ownerId: auth.userId,
-      teamId: args.teamId,
-      teamName: args.teamName,
-      teamRoles: args.teamRoles,
-      ...(args.teamEntryPoint !== undefined ? { teamEntryPoint: args.teamEntryPoint } : {}),
+      // Legacy fields remain temporarily for old readers; the active assignment
+      // below is the canonical source for new code.
+      teamId: structure.teamId,
+      teamName: structure.teamName,
+      teamRoles: structure.roles.map((role) => role.role),
+      teamEntryPoint: structure.entryPoint,
+    });
+    await upsertActiveTeamStructure(ctx, {
+      chatroomId,
+      teamStructureId: structure.teamStructureId,
+      updatedBy: auth.userId,
     });
     await insertEmptyOperationalSummaryForRoom(ctx, {
       chatroomId,
       ownerId: auth.userId,
-      teamId: args.teamId,
+      teamId: structure.teamId,
     });
     await upsertAgentViewMetadata(ctx, {
       chatroomId,
       ownerId: auth.userId,
-      teamId: args.teamId,
-      teamName: args.teamName,
-      teamRoles: args.teamRoles,
+      teamId: structure.teamId,
+      teamName: structure.teamName,
+      teamRoles: structure.roles.map((role) => role.role),
       hasHistory: false,
     });
     await ensureMessageReadModelState(ctx, chatroomId);
@@ -82,12 +109,20 @@ export const getTeamStructureForChatroom = query({
   },
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    if (!chatroom.teamId) return null;
+    const activeStructure = await getActiveTeamStructure(ctx, args.chatroomId);
+    const teamId = activeStructure?.teamStructureId ?? chatroom.teamId;
+    if (!teamId) return null;
     return getTeamStructure({
-      teamId: chatroom.teamId,
-      ...(chatroom.teamName !== undefined ? { teamName: chatroom.teamName } : {}),
-      ...(chatroom.teamRoles !== undefined ? { persistedRoles: chatroom.teamRoles } : {}),
-      ...(chatroom.teamEntryPoint !== undefined
+      teamId,
+      // Legacy room fields are a migration fallback only. New assignments
+      // resolve entirely from the immutable shared definition.
+      ...(!activeStructure && chatroom.teamName !== undefined
+        ? { teamName: chatroom.teamName }
+        : {}),
+      ...(!activeStructure && chatroom.teamRoles !== undefined
+        ? { persistedRoles: chatroom.teamRoles }
+        : {}),
+      ...(!activeStructure && chatroom.teamEntryPoint !== undefined
         ? { persistedEntryPoint: chatroom.teamEntryPoint }
         : {}),
     });
@@ -298,31 +333,54 @@ export const updateTeam = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    teamId: v.string(),
-    teamName: v.string(),
-    teamRoles: v.array(v.string()),
+    /** @deprecated Use teamStructureId. */
+    teamId: v.optional(v.string()),
+    /** @deprecated Structural fields are resolved from the static definition. */
+    teamName: v.optional(v.string()),
+    /** @deprecated Structural fields are resolved from the static definition. */
+    teamRoles: v.optional(v.array(v.string())),
+    teamStructureId: v.optional(v.string()),
+    /** @deprecated Structural fields are resolved from the static definition. */
     teamEntryPoint: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    if (args.teamRoles.length === 0) {
+    const requestedTeamId = args.teamStructureId ?? args.teamId;
+    if (!requestedTeamId) {
+      throw new ConvexError({ code: 'TEAM_REQUIRED', message: 'A team structure is required' });
+    }
+    const structure = getTeamStructure({
+      teamId: requestedTeamId,
+      ...(args.teamName !== undefined ? { teamName: args.teamName } : {}),
+      ...(args.teamRoles !== undefined ? { persistedRoles: args.teamRoles } : {}),
+      ...(args.teamEntryPoint !== undefined ? { persistedEntryPoint: args.teamEntryPoint } : {}),
+    });
+    const teamRoles = structure.roles.map((role) => role.role);
+    const teamEntryPoint = structure.entryPoint;
+
+    if (teamRoles.length === 0) {
       throw new ConvexError({ code: 'TEAM_REQUIRED', message: 'Team must have at least one role' });
     }
 
-    if (args.teamEntryPoint && !args.teamRoles.includes(args.teamEntryPoint)) {
+    if (teamEntryPoint && !teamRoles.includes(teamEntryPoint)) {
       throw new ConvexError(
-        `Entry point '${args.teamEntryPoint}' must be one of the team roles: ${args.teamRoles.join(', ')}`
+        `Entry point '${teamEntryPoint}' must be one of the team roles: ${teamRoles.join(', ')}`
       );
     }
 
     await updateTeamUseCase(ctx, {
       chatroomId: args.chatroomId,
-      teamId: args.teamId,
-      teamName: args.teamName,
-      teamRoles: args.teamRoles,
-      teamEntryPoint: args.teamEntryPoint,
+      teamId: structure.teamId,
+      teamName: structure.teamName,
+      teamRoles,
+      teamEntryPoint,
       userId: session.userId,
+    });
+    await upsertActiveTeamStructure(ctx, {
+      chatroomId: args.chatroomId,
+      teamStructureId: structure.teamStructureId,
+      updatedBy: session.userId,
     });
   },
 });

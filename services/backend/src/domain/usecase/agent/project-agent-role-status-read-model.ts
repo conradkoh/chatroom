@@ -1,6 +1,7 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { ChatroomAgentActivityStatusValue } from '@workspace/shared/domain/chatroom-agent-activity-status';
 
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import type { Id, Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
@@ -59,23 +60,33 @@ export async function projectAgentRoleStatusReadModel(
     role: string;
     event?: StatusEvent | undefined;
     config?: Doc<'chatroom_agentDesiredConfigs'> | undefined;
+    launchRequest?: Doc<'chatroom_agentLastSentLaunchRequests'> | undefined;
     agentType?: Doc<'chatroom_participants'>['agentType'] | undefined;
     lastSeenAt?: number | undefined;
     lastSeenAction?: string | undefined;
+    observedPid?: number | undefined;
+    observedAt?: number | undefined;
+    clearObservedPid?: boolean | undefined;
   }
 ): Promise<void> {
   const role = args.role.trim().toLowerCase();
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
   if (!room) return;
 
-  const teamId = room.teamId;
+  const launchRequest =
+    args.launchRequest ??
+    (await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role,
+    }));
+  const legacyTeamId = room.teamId;
   const config =
     args.config ??
-    (teamId
+    (!launchRequest && legacyTeamId
       ? await ctx.db
           .query('chatroom_agentDesiredConfigs')
           .withIndex('by_teamRoleKey', (q) =>
-            q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, role))
+            q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, legacyTeamId, role))
           )
           .first()
       : null);
@@ -102,10 +113,12 @@ export async function projectAgentRoleStatusReadModel(
     chatroomId: args.chatroomId,
     role,
     roleKind: isEphemeralAgentRole(role) ? ('ephemeral' as const) : ('persistent' as const),
-    agentType: args.agentType ?? config?.type,
+    agentType: args.agentType ?? launchRequest?.agentType ?? config?.type,
     status: event.status,
-    machineId: config?.machineId,
-    workingDir: config?.workingDir,
+    machineId: launchRequest?.machineId ?? config?.machineId,
+    workingDir: launchRequest?.workingDir ?? config?.workingDir,
+    ...(args.observedPid !== undefined ? { observedPid: args.observedPid } : {}),
+    ...(args.observedAt !== undefined ? { observedAt: args.observedAt } : {}),
     ...(args.lastSeenAt !== undefined
       ? { lastSeenAt: args.lastSeenAt }
       : existing?.lastSeenAt !== undefined
@@ -116,8 +129,15 @@ export async function projectAgentRoleStatusReadModel(
     error,
     projectedAt: now,
   });
-  if (existing) await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, fields);
-  else await ctx.db.insert('chatroom_agentRoleStatusReadModel', fields);
+  if (existing) {
+    await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, fields);
+    if (args.clearObservedPid) {
+      await ctx.db.patch('chatroom_agentRoleStatusReadModel', existing._id, {
+        observedPid: undefined,
+        observedAt: args.observedAt ?? now,
+      });
+    }
+  } else await ctx.db.insert('chatroom_agentRoleStatusReadModel', fields);
 }
 
 export async function touchAgentRoleStatusLastSeen(

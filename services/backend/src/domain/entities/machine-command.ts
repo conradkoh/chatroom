@@ -26,6 +26,7 @@ const localActionValidator = v.union(
 export const machineCommandPayloadValidator = v.union(
   v.object({
     type: v.literal('agent.requestStart'),
+    requestId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     agentHarness: agentHarnessValidator,
@@ -36,6 +37,7 @@ export const machineCommandPayloadValidator = v.union(
   }),
   v.object({
     type: v.literal('agent.restart'),
+    requestId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     agentHarness: agentHarnessValidator,

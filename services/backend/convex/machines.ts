@@ -27,6 +27,7 @@ import {
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
 import { WorkspaceTaskInboxEventType } from '../src/domain/entities/chatroom-workspace-task-inbox';
+import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import {
   getAgentRuntimeState,
@@ -37,12 +38,14 @@ import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/asse
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
+import { getLastSentLaunchRequestForRole } from '../src/domain/usecase/agent/get-last-sent-launch-request';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
 import {
   projectAgentOperationalStatusForRole,
   rebuildAgentOperationalStatusForMachine,
 } from '../src/domain/usecase/agent/project-agent-operational-status';
+import { projectAgentRoleStatusReadModel } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
 import { registerSpawnedAgentIfAuthorized } from '../src/domain/usecase/agent/register-spawned-agent';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
@@ -54,20 +57,36 @@ import { upsertTeamAgentConfigByTeamRoleKey } from '../src/domain/usecase/machin
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { writeWorkspaceTaskInboxEventsForRole } from '../src/domain/usecase/machine/write-workspace-task-inbox-event';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
+import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
 /**
- * Default start-agent policy: first bind (no machine on desired config) allows omitted flag;
+ * Default start-agent policy: first bind (no machine on last-sent request) allows omitted flag;
  * once bound, switching machines requires explicit `allowNewMachine: true`.
  */
 function resolveAllowNewMachineForStart(
   payload: { allowNewMachine?: boolean | undefined } | undefined,
-  existingConfig: Doc<'chatroom_agentDesiredConfigs'> | null
+  existingConfig: { machineId?: string | undefined } | null
 ): boolean {
   if (payload?.allowNewMachine !== undefined) return payload.allowNewMachine;
   return !existingConfig?.machineId;
+}
+
+async function getCurrentLastSentLaunchRequest(
+  ctx: QueryCtx | MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+) {
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (!chatroom) return null;
+  const activeStructure = await getActiveTeamStructure(ctx, chatroomId);
+  const structureId =
+    activeStructure?.teamStructureId ??
+    (chatroom.teamId ? getTeamStructure({ teamId: chatroom.teamId }).teamStructureId : undefined);
+  if (!structureId) return null;
+  return getLastSentLaunchRequestForRole(ctx, { chatroomId, role, teamStructureId: structureId });
 }
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
@@ -1119,30 +1138,22 @@ export const sendCommand = mutation({
 
     // ── start-agent: resolve defaults then delegate to use case ────────
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
-      // Read existing config for fallback values when payload is incomplete
-      const cmdChatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
-      let existingConfig: Doc<'chatroom_agentDesiredConfigs'> | null = null;
-      if (cmdChatroom?.teamId) {
-        const teamRoleKey = buildTeamRoleKey(
-          cmdChatroom._id,
-          cmdChatroom.teamId,
-          args.payload.role
-        );
-        existingConfig = await ctx.db
-          .query('chatroom_agentDesiredConfigs')
-          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-          .first();
-      }
+      // Read the latest submitted request for fallback values when payload is incomplete.
+      const existingConfig = await getCurrentLastSentLaunchRequest(
+        ctx,
+        args.payload.chatroomId,
+        args.payload.role
+      );
 
       const resolvedModel =
         args.payload.model ??
-        (existingConfig?.type === 'remote' ? existingConfig.model : undefined);
+        (existingConfig?.agentType === 'remote' ? existingConfig.model : undefined);
       const resolvedHarness =
         args.payload.agentHarness ??
-        (existingConfig?.type === 'remote' ? existingConfig.agentHarness : undefined);
+        (existingConfig?.agentType === 'remote' ? existingConfig.agentHarness : undefined);
       const resolvedWorkingDir =
         args.payload.workingDir ??
-        (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
+        (existingConfig?.agentType === 'remote' ? existingConfig.workingDir : undefined);
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
           'Cannot start agent: model, agentHarness, and workingDir are required. ' +
@@ -1185,19 +1196,11 @@ export const sendCommand = mutation({
         );
       }
 
-      const cmdChatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
-      let existingConfig: Doc<'chatroom_agentDesiredConfigs'> | null = null;
-      if (cmdChatroom?.teamId) {
-        const teamRoleKey = buildTeamRoleKey(
-          cmdChatroom._id,
-          cmdChatroom.teamId,
-          args.payload.role
-        );
-        existingConfig = await ctx.db
-          .query('chatroom_agentDesiredConfigs')
-          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-          .first();
-      }
+      const existingConfig = await getCurrentLastSentLaunchRequest(
+        ctx,
+        args.payload.chatroomId,
+        args.payload.role
+      );
 
       const allowNewMachine = resolveAllowNewMachineForStart(args.payload, existingConfig);
       await assertMachineBelongsToChatroom(ctx, {
@@ -1212,6 +1215,7 @@ export const sendCommand = mutation({
         {
           chatroomId: args.payload.chatroomId,
           role: args.payload.role,
+          requestedBy: userId,
           request: {
             reason: AgentStartReasonEnum['user.restart'],
             overrides: {
@@ -1273,21 +1277,23 @@ export const updateSpawnedAgent = mutation({
       allowNewMachine: false,
     });
 
-    const spawnTeamRoleKey = buildTeamRoleKey(spawnChatroom._id, spawnChatroom.teamId, args.role);
-    const config = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', spawnTeamRoleKey))
-      .first();
-
-    if (!config || config.machineId !== args.machineId) {
-      throw new Error('Agent config not found');
+    const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+    if (!launchRequest || launchRequest.machineId !== args.machineId) {
+      throw new Error('Last-sent agent launch request not found');
     }
 
     if (args.pid === undefined) {
-      await patchAgentRuntimeState(ctx, config, {
-        pid: undefined,
-        startedAt: undefined,
-        status: 'offline',
+      await projectAgentRoleStatusReadModel(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        launchRequest,
+        event: { status: 'offline' },
+        agentType: launchRequest.agentType,
+        clearObservedPid: true,
+        observedAt: Date.now(),
       });
       return { success: true, accepted: true };
     }

@@ -111,16 +111,10 @@ export function teamConfigToUpdateArgs(
   team: TeamConfigEntry
 ): {
   chatroomId: Id<'chatroom_rooms'>;
-  teamId: string;
-  teamName: string;
-  teamRoles: string[];
-  teamEntryPoint: string;
+  teamStructureId: string;
 } {
   return {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    teamId: team.id,
-    teamName: team.name,
-    teamRoles: team.roles,
-    teamEntryPoint: team.entryPoint || team.roles[0],
+    teamStructureId: team.id,
   };
 }

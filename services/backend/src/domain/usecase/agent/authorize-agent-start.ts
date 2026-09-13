@@ -1,9 +1,8 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
-import { getAgentRuntimeState } from './agent-runtime-state';
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 export type AuthorizeAgentStartArgs = {
   chatroomId: Id<'chatroom_rooms'>;
@@ -21,19 +20,13 @@ export async function authorizeAgentStart(
   args: AuthorizeAgentStartArgs
 ): Promise<AuthorizeAgentStartResult> {
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!room?.teamId) return { allowed: false, reason: 'not_configured' };
-  const teamId = room.teamId;
-  const config = await ctx.db
-    .query('chatroom_agentDesiredConfigs')
-    .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
-    )
-    .first();
-  if (!config || config.machineId !== args.machineId)
+  if (!room) return { allowed: false, reason: 'not_configured' };
+  const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+  });
+  if (!launchRequest || launchRequest.machineId !== args.machineId)
     return { allowed: false, reason: 'not_configured' };
-  if (config.enabled === false) return { allowed: false, reason: 'disabled' };
-  const runtime = await getAgentRuntimeState(ctx, config._id);
-  if (runtime?.desiredState === 'stopped') return { allowed: false, reason: 'stopped' };
   if (isEphemeralAgentRole(args.role)) {
     const task = args.taskId ? await ctx.db.get('chatroom_tasks', args.taskId) : null;
     if (

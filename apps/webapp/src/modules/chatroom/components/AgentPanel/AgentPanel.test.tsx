@@ -30,6 +30,7 @@ const lifecycle = {
 
 const duoStructure = {
   teamId: 'duo',
+  teamStructureId: 'duo@1',
   teamName: 'Duo',
   entryPoint: 'planner',
   roles: [

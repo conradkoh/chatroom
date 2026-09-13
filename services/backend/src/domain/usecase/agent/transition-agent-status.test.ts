@@ -22,20 +22,18 @@ describe('transitionAgentStatus', () => {
       lastDesiredState: 'stopped',
     } as never)
   );
-  it('syncs operational status from team config', async () => {
+  it('updates only the participant status mirror', async () => {
     const c = ctx({ desiredState: 'running' });
     await transitionAgentStatus(c, 'room' as never, 'builder', 'agent.waiting');
     expect(c.db.patch).toHaveBeenCalledWith('chatroom_participants', 'participant', {
       lastStatus: 'agent.waiting',
-      lastDesiredState: 'running',
     });
   });
-  it('respects explicit desired state', async () => {
+  it('ignores the deprecated explicit desired state argument', async () => {
     const c = ctx({ desiredState: 'running' });
     await transitionAgentStatus(c, 'room' as never, 'builder', 'agent.waiting', 'stopped');
     expect(c.db.patch).toHaveBeenCalledWith('chatroom_participants', 'participant', {
       lastStatus: 'agent.waiting',
-      lastDesiredState: 'stopped',
     });
   });
   it('does not sync non-operational statuses', async () => {
