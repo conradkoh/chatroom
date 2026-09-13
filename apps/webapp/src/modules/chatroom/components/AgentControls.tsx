@@ -202,6 +202,7 @@ export function useAgentControls({
   teamConfigMachineId,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
+  runtimeIsRunning = false,
   lockedMachineId,
   lockedWorkingDir,
   teamId,
@@ -224,6 +225,8 @@ export function useAgentControls({
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
+  /** Running state from the daemon-fed status projection. */
+  runtimeIsRunning?: boolean;
   /** Setup wizard: lock machine and working directory. */
   lockedMachineId?: string;
   lockedWorkingDir?: string;
@@ -277,10 +280,13 @@ export function useAgentControls({
 
   // Check if there's a running agent on a connected machine
   const runningAgentConfig = useMemo(() => {
-    return roleConfigs.find(
+    const pidBackedConfig = roleConfigs.find(
       (c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId)
     );
-  }, [roleConfigs, connectedMachines]);
+    if (pidBackedConfig) return pidBackedConfig;
+    if (!runtimeIsRunning) return undefined;
+    return roleConfigs.find((c) => connectedMachines.some((m) => m.machineId === c.machineId));
+  }, [roleConfigs, connectedMachines, runtimeIsRunning]);
 
   const displayAgentConfig = runningAgentConfig;
 

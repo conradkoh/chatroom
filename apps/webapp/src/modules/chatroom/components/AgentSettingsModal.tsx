@@ -177,13 +177,18 @@ const TeamConfigContent = memo(function TeamConfigContent({
   currentTeamRoles?: string[];
 }) {
   const { teams, defaultTeamId, getById } = useTeamConfigs();
-  const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamId || defaultTeamId);
+  const currentTeamSelection = currentTeamId || defaultTeamId;
+  const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamSelection);
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null);
 
+  useEffect(() => {
+    setSelectedTeam(currentTeamSelection);
+  }, [currentTeamSelection]);
+
   const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
 
-  const hasChanges = selectedTeam !== (currentTeamId || defaultTeamId);
+  const hasChanges = selectedTeam !== currentTeamSelection;
   const selectedTeamData = getById(selectedTeam);
 
   const handleSave = useCallback(async () => {

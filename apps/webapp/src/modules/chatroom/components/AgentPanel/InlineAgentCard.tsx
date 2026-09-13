@@ -194,6 +194,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigModel: roleConfig?.model,
     teamConfigHarness: roleConfig?.agentType,
     teamConfigMachineId: roleConfig?.machineId,
+    runtimeIsRunning: workspaceStatus?.isRunning ?? false,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
     lockedMachineId,

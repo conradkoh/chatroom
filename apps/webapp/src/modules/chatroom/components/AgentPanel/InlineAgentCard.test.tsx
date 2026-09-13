@@ -8,6 +8,17 @@ vi.mock('../../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({ workspaces: [], isLoading: false, removeWorkspace: vi.fn() }),
 }));
 
+vi.mock('../../context/ChatroomWorkspaceContext', () => ({
+  useChatroomWorkspace: () => ({
+    chatroomId: 'jd7testchatroom0000000000000001',
+    workspaces: [],
+    activeWorkspace: null,
+    isLoading: false,
+    setPrimaryWorkspace: vi.fn(),
+    removeWorkspace: vi.fn(),
+  }),
+}));
+
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn(),
   useSessionQuery: () => null,
@@ -15,9 +26,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    agentWorkspaces: {
-      getAgentConfigForWorkspaceRole: 'skip',
-      getAgentStatusForWorkspaceRole: 'skip',
+    agents: {
+      getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
+      getStatus: 'agents:getStatus',
     },
     machines: { getAgentRestartSummaryByRole: 'skip' },
   },

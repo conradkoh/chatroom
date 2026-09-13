@@ -3,7 +3,6 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
 import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
@@ -633,10 +632,6 @@ interface Chatroom {
   _id: string;
   status: string;
   name?: string;
-  teamId?: string;
-  teamName?: string;
-  teamRoles?: string[];
-  teamEntryPoint?: string;
 }
 
 // Hook to check if screen is small (< 768px)
@@ -1132,9 +1127,9 @@ function ChatroomDashboardContent({
     return map;
   }, [agentPanelData.connectedMachines]);
 
-  // Memoize derived values
-  const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
-  const teamName = useMemo(() => chatroom?.teamName || 'Team', [chatroom?.teamName]);
+  // Current team comes exclusively from the active team assignment.
+  const teamRoles = agentPanelData.team.teamRoles;
+  const teamName = agentPanelData.team.teamName;
 
   const participants = useMemo(() => lifecycle?.participants ?? [], [lifecycle?.participants]);
 
@@ -1675,8 +1670,8 @@ function ChatroomDashboardContent({
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
-    () => getTeamEntryPoint({ teamEntryPoint: chatroom?.teamEntryPoint, teamRoles }) ?? 'builder',
-    [chatroom?.teamEntryPoint, teamRoles]
+    () => agentPanelData.team.entryPoint ?? teamRoles[0] ?? 'builder',
+    [agentPanelData.team.entryPoint, teamRoles]
   );
 
   const handleCloseModal = useCallback(() => {
@@ -1733,7 +1728,7 @@ function ChatroomDashboardContent({
   const isSetupMode = !allMembersJoined && !lifecycle?.hasHistory;
 
   // Derive display name
-  const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
+  const displayName = chatroom?.name || teamName || 'Chatroom';
 
   // Update browser tab title with chatroom name
   useEffect(() => {
@@ -1848,8 +1843,8 @@ function ChatroomDashboardContent({
       <StartInNewSessionPreferenceProvider>
         <PromptsProvider
           chatroomId={chatroomId}
-          teamId={chatroom?.teamId}
-          teamName={teamName}
+          teamId={agentPanelData.team.teamId}
+          teamName={teamName ?? 'Team'}
           teamRoles={teamRoles}
           teamEntryPoint={teamEntryPoint}
         >
@@ -2065,8 +2060,8 @@ function ChatroomDashboardContent({
                         teamStructure={agentPanelData.teamStructure}
                         lifecycle={lifecycle}
                         statusReadModel={agentPanelData.statusReadModel}
-                        teamName={chatroom.teamName}
-                        teamId={chatroom.teamId}
+                        teamName={teamName}
+                        teamId={agentPanelData.team.teamId}
                         defaultTeamId={defaultTeamId}
                         teams={teams}
                         onTeamChange={handleTeamChange}
@@ -2102,7 +2097,7 @@ function ChatroomDashboardContent({
                   isOpen={settingsModalOpen}
                   onClose={handleCloseSettings}
                   chatroomId={chatroomId}
-                  currentTeamId={chatroom?.teamId}
+                  currentTeamId={agentPanelData.team.teamId}
                   currentTeamRoles={teamRoles}
                   initialTab={settingsInitialTab}
                 />
@@ -2135,7 +2130,7 @@ function ChatroomDashboardContent({
                   isOpen={isSetupMode && setupModalOpen}
                   onClose={handleCloseSetup}
                   chatroomId={chatroomId}
-                  teamId={chatroom?.teamId}
+                  teamId={agentPanelData.team.teamId}
                   teamRoles={teamRoles}
                   teamEntryPoint={teamEntryPoint}
                   participants={participants || []}

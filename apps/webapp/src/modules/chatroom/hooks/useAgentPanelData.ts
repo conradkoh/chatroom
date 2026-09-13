@@ -5,6 +5,7 @@ import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessio
 import { useCallback, useMemo } from 'react';
 
 import { useAgentConfigs } from './useAgentConfigs';
+import { useChatroomTeam } from './useChatroomTeam';
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
 import type { MachineInfo, AgentConfig, SendCommandArgs, SendCommandFn } from '../types/machine';
 
@@ -24,6 +25,7 @@ export interface AgentPanelData {
   machineConfigs: AgentConfig[];
   isLoading: boolean;
   teamStructure: TeamStructure | null | undefined;
+  team: ReturnType<typeof useChatroomTeam>;
   sendCommand: SendCommandFn;
   teamId?: string;
   lifecycle: {
@@ -63,9 +65,7 @@ export function useAgentPanelDataSubscriptions(
   const statusReadModelResult = useSessionQuery(api.agents.listStatus, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
-  const teamStructure = useSessionQuery(api.chatrooms.getTeamStructureForChatroom, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
+  const team = useChatroomTeam(chatroomId);
 
   const machineResult = useSessionQuery(api.machines.listMachines);
 
@@ -113,10 +113,7 @@ export function useAgentPanelDataSubscriptions(
 
   const agents = useMemo<AgentRoleView[]>(() => statusResult?.agents ?? [], [statusResult?.agents]);
 
-  const teamRoles = useMemo<string[]>(
-    () => statusResult?.teamRoles ?? [],
-    [statusResult?.teamRoles]
-  );
+  const teamRoles = team.teamRoles;
 
   const allMachines = useMemo<MachineInfo[]>(
     () => (machineResult?.machines ?? []) as MachineInfo[],
@@ -135,14 +132,15 @@ export function useAgentPanelDataSubscriptions(
     [allMachines, daemonConnectivity]
   );
 
-  const isLoading = statusResult === undefined || machineResult === undefined || configsLoading;
+  const isLoading =
+    statusResult === undefined || machineResult === undefined || configsLoading || team.isLoading;
 
-  const lifecycle = statusResult
+  const lifecycle = team.structure
     ? {
-        teamId: statusResult.teamId,
-        teamName: statusResult.teamName,
-        expectedRoles: statusResult.teamRoles,
-        participants: statusResult.teamRoles
+        teamId: team.teamId ?? team.structure.teamId,
+        teamName: team.teamName ?? team.structure.teamName,
+        expectedRoles: team.teamRoles,
+        participants: team.teamRoles
           .filter((role) => role.toLowerCase() !== 'user')
           .map((role) => {
             const row = statusReadModelResult?.find(
@@ -150,7 +148,7 @@ export function useAgentPanelDataSubscriptions(
             );
             return { role, lastSeenAt: row?.lastSeenAt ?? null, lastSeenAction: null };
           }),
-        hasHistory: statusResult.hasHistory,
+        hasHistory: statusResult?.hasHistory ?? false,
       }
     : null;
 
@@ -160,9 +158,10 @@ export function useAgentPanelDataSubscriptions(
     connectedMachines,
     machineConfigs,
     isLoading,
-    teamStructure,
+    teamStructure: team.structure,
+    team,
     sendCommand,
-    teamId: statusResult?.teamId,
+    teamId: team.teamId,
     lifecycle,
     statusReadModel: statusReadModelResult?.map((row) => ({
       ...row,

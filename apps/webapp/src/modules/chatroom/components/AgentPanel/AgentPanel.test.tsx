@@ -75,6 +75,22 @@ beforeEach(() => {
 });
 
 describe('AgentPanel', () => {
+  it('keeps the team selector available when no team is currently assigned', () => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        lifecycle={null}
+        teamStructure={null}
+        defaultTeamId="duo"
+        teams={[{ id: 'duo', name: 'Duo', description: '', roles: ['planner', 'builder'] }]}
+        onTeamChange={async () => {}}
+      />
+    );
+
+    expect(screen.getByTestId('team-selector')).toBeInTheDocument();
+    expect(screen.getByText('No team configured')).toBeInTheDocument();
+  });
+
   it('renders permanent agents before the ephemeral section', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} />);
 

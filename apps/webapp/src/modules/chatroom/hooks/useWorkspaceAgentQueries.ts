@@ -6,6 +6,7 @@ import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo } from 'react';
 
+import { useChatroomTeam } from './useChatroomTeam';
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
 import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
 import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
@@ -104,7 +105,7 @@ export function useWorkspaceAgentStatus(workspaceId: string | null, role: string
 /** Low-frequency configuration query for one workspace/role pair. */
 export function useWorkspaceAgentConfig(workspaceId: string | null, role: string) {
   const { chatroomId } = useChatroomWorkspace();
-  const result = useSessionQuery(
+  const workspaceResult = useSessionQuery(
     api.agents.getLastSentLaunchRequest,
     workspaceId
       ? {
@@ -114,6 +115,18 @@ export function useWorkspaceAgentConfig(workspaceId: string | null, role: string
         }
       : 'skip'
   );
+  // The workspace-scoped lookup is preferred. Older launch snapshots may not
+  // carry workspace metadata, though, so retain the chatroom-level snapshot
+  // as the fallback used by the sidebar's last-configuration display.
+  const chatroomResult = useSessionQuery(
+    api.agents.getLastSentLaunchRequest,
+    workspaceId ? { chatroomId, role } : 'skip'
+  );
+  const result = workspaceId
+    ? workspaceResult === undefined
+      ? undefined
+      : (workspaceResult ?? chatroomResult)
+    : null;
 
   return {
     config: result
@@ -134,9 +147,7 @@ export function useWorkspaceAgentConfig(workspaceId: string | null, role: string
 /** Composes team-role candidates with low-frequency workspace configuration data. */
 export function useWorkspaceAgentDirectory() {
   const { chatroomId, activeWorkspace, isLoading: isLoadingWorkspace } = useChatroomWorkspace();
-  const teamStructure = useSessionQuery(api.chatrooms.getTeamStructureForChatroom, {
-    chatroomId,
-  });
+  const { structure: teamStructure, isLoading: isLoadingTeam } = useChatroomTeam(chatroomId);
   const { requests: configuredRequests, isLoading: isLoadingAgents } = useWorkspaceAgents(
     activeWorkspace?._registryId ?? null
   );
@@ -158,7 +169,7 @@ export function useWorkspaceAgentDirectory() {
   return {
     workspace: activeWorkspace,
     agents,
-    isLoading: isLoadingWorkspace || isLoadingAgents || teamStructure === undefined,
+    isLoading: isLoadingWorkspace || isLoadingAgents || isLoadingTeam,
   };
 }
 
