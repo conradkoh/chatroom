@@ -8,7 +8,6 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { getSession, requireSession } from './auth/session';
-import { upsertMachineLastSeenAt } from './lib/lastAtProjections';
 import { str } from './utils/types';
 import {
   agentActivityFactValidator,
@@ -19,7 +18,11 @@ import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
-import { AgentStartReasonEnum, machineCommandTypeValidator } from '../src/domain/entities/agent';
+import {
+  AgentStartReasonEnum,
+  machineCommandTypeValidator,
+  type AgentHarness,
+} from '../src/domain/entities/agent';
 import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
@@ -30,7 +33,6 @@ import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-r
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
-import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -90,11 +92,11 @@ async function getOwnedMachine(
 }
 
 // ============================================================================
-// MACHINE MODELS — EXTRACTED TABLE
+// MACHINE CAPABILITIES — DAEMON-FED READ MODEL
 // ============================================================================
 
 /**
- * Upsert per-machine row in chatroom_machineModels.
+ * Upsert the per-machine daemon capability snapshot.
  *
  * One row per machine; the whole Record<harness, models[]> lives in a single row.
  * Skips the write when availableModels is undefined (don't clobber existing data
@@ -103,18 +105,27 @@ async function getOwnedMachine(
  * (JSON.stringify deep-equality) — no-op writes still invalidate Convex
  * subscriptions, so we must suppress them to achieve the bandwidth goal.
  */
-async function upsertMachineModels(
+async function upsertMachineCapabilities(
   ctx: MutationCtx,
   machineId: string,
-  availableModels: Record<string, string[]> | undefined
+  input: {
+    lastSeenAt?: number | undefined;
+    availableHarnesses?: readonly AgentHarness[] | undefined;
+    harnessVersions?: Record<string, { version: string; major: number }> | undefined;
+    availableModels?: Record<string, string[]> | undefined;
+  }
 ): Promise<void> {
-  if (availableModels === undefined) {
+  if (
+    input.availableModels === undefined &&
+    input.availableHarnesses === undefined &&
+    input.harnessVersions === undefined
+  ) {
     // Don't clobber existing models when caller didn't supply them.
     return;
   }
 
   const existing = await ctx.db
-    .query('chatroom_machineModels')
+    .query('chatroom_machineCapabilities')
     .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
     .first();
 
@@ -123,17 +134,35 @@ async function upsertMachineModels(
     // JSON.stringify is safe here: JS object key order is insertion-order-stable and
     // daemons write the same harness key order on every call. A true reordering would
     // indicate a genuine harness-list change and trigger a real write (correct behaviour).
-    if (JSON.stringify(existing.availableModels) === JSON.stringify(availableModels)) {
+    if (
+      (input.lastSeenAt === undefined || existing.lastSeenAt === input.lastSeenAt) &&
+      (input.availableModels === undefined ||
+        JSON.stringify(existing.availableModels) === JSON.stringify(input.availableModels)) &&
+      (input.availableHarnesses === undefined ||
+        JSON.stringify(existing.availableHarnesses) === JSON.stringify(input.availableHarnesses)) &&
+      (input.harnessVersions === undefined ||
+        JSON.stringify(existing.harnessVersions) === JSON.stringify(input.harnessVersions))
+    ) {
       return;
     }
-    await ctx.db.patch('chatroom_machineModels', existing._id, {
-      availableModels,
+    await ctx.db.patch('chatroom_machineCapabilities', existing._id, {
+      ...(input.lastSeenAt !== undefined ? { lastSeenAt: input.lastSeenAt } : {}),
+      ...(input.availableModels !== undefined ? { availableModels: input.availableModels } : {}),
+      ...(input.availableHarnesses !== undefined
+        ? { availableHarnesses: [...input.availableHarnesses] }
+        : {}),
+      ...(input.harnessVersions !== undefined ? { harnessVersions: input.harnessVersions } : {}),
       updatedAt: Date.now(),
     });
   } else {
-    await ctx.db.insert('chatroom_machineModels', {
+    await ctx.db.insert('chatroom_machineCapabilities', {
       machineId,
-      availableModels,
+      ...(input.lastSeenAt !== undefined ? { lastSeenAt: input.lastSeenAt } : {}),
+      ...(input.availableModels !== undefined ? { availableModels: input.availableModels } : {}),
+      ...(input.availableHarnesses !== undefined
+        ? { availableHarnesses: [...input.availableHarnesses] }
+        : {}),
+      ...(input.harnessVersions !== undefined ? { harnessVersions: input.harnessVersions } : {}),
       updatedAt: Date.now(),
     });
   }
@@ -187,48 +216,36 @@ export const register = mutation({
         );
       }
 
-      // Update existing machine. Last-seen recency lives in the dedicated
-      // projection table (see upsert below).
+      // Update stable machine identity. Volatile capabilities live in the
+      // daemon-fed capability read model.
       await ctx.db.patch('chatroom_machines', existing._id, {
         hostname: args.hostname,
         os: args.os,
+      });
+      await upsertMachineCapabilities(ctx, args.machineId, {
+        lastSeenAt: now,
         availableHarnesses: args.availableHarnesses,
         harnessVersions: args.harnessVersions,
-        ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
-      });
-      await upsertMachineLastSeenAt(ctx, args.machineId, now);
-
-      // Dual-write into dedicated models table (re-register / update path)
-      await upsertMachineModels(ctx, args.machineId, args.availableModels);
-      await upsertMachineIdentity(ctx, {
-        machineId: args.machineId,
-        userId,
-        hostname: args.hostname,
+        availableModels: args.availableModels,
       });
 
       return { machineId: args.machineId, isNew: false };
     }
 
-    // Create new machine registration. Last-seen recency lives in the
-    // dedicated projection table (see upsert below).
+    // Create new machine registration. Capabilities are stored separately so
+    // listMachines remains a lightweight stable-identity query.
     await ctx.db.insert('chatroom_machines', {
       machineId: args.machineId,
       userId: userId,
       hostname: args.hostname,
       os: args.os,
-      availableHarnesses: args.availableHarnesses,
-      ...(args.harnessVersions !== undefined ? { harnessVersions: args.harnessVersions } : {}),
-      ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
       registeredAt: now,
     });
-    await upsertMachineLastSeenAt(ctx, args.machineId, now);
-
-    // Dual-write into dedicated models table (new-insert path)
-    await upsertMachineModels(ctx, args.machineId, args.availableModels);
-    await upsertMachineIdentity(ctx, {
-      machineId: args.machineId,
-      userId,
-      hostname: args.hostname,
+    await upsertMachineCapabilities(ctx, args.machineId, {
+      lastSeenAt: now,
+      availableHarnesses: args.availableHarnesses,
+      harnessVersions: args.harnessVersions,
+      availableModels: args.availableModels,
     });
 
     return { machineId: args.machineId, isNew: true };
@@ -298,17 +315,12 @@ export const refreshCapabilities = mutation({
       throw new Error('Machine is registered to a different user');
     }
 
-    const now = Date.now();
-    await ctx.db.patch('chatroom_machines', existing._id, {
+    await upsertMachineCapabilities(ctx, args.machineId, {
+      lastSeenAt: Date.now(),
       availableHarnesses: args.availableHarnesses,
       harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
     });
-    // Last-seen recency is recorded in the dedicated projection below.
-    await upsertMachineLastSeenAt(ctx, args.machineId, now);
-
-    // Dual-write into dedicated models table (suppresses no-op writes for bandwidth)
-    await upsertMachineModels(ctx, args.machineId, args.availableModels);
   },
 });
 
@@ -584,23 +596,29 @@ export const listMachines = query({
       .collect();
 
     return {
-      machines: machines.map((m) => ({
-        machineId: m.machineId,
-        hostname: m.hostname,
-        alias: m.alias,
-        os: m.os,
-        availableHarnesses: m.availableHarnesses,
-        harnessVersions: m.harnessVersions ?? {},
-        registeredAt: m.registeredAt,
-      })),
+      machines: await Promise.all(
+        machines.map(async (m) => {
+          const capabilities = await ctx.db
+            .query('chatroom_machineCapabilities')
+            .withIndex('by_machineId', (q) => q.eq('machineId', m.machineId))
+            .first();
+          return {
+            machineId: m.machineId,
+            hostname: m.hostname,
+            alias: m.alias,
+            os: m.os,
+            availableHarnesses: capabilities?.availableHarnesses ?? [],
+            harnessVersions: capabilities?.harnessVersions ?? {},
+            registeredAt: m.registeredAt,
+          };
+        })
+      ),
     };
   },
 });
 
 /**
- * Per-machine available model list, read from the new chatroom_machineModels table.
- * Falls back to the legacy chatroom_machines.availableModels field for machines that
- * have not yet been back-filled by the dropEmbeddedAvailableModels migration.
+ * Per-machine available model list from the daemon capability read model.
  */
 export const getMachineModels = query({
   args: { ...SessionIdArg, machineId: v.string() },
@@ -614,19 +632,13 @@ export const getMachineModels = query({
       .first();
     if (!machine) return { availableModels: {} as Record<string, string[]> };
 
-    // Prefer new table; fall back to legacy field if migration hasn't backfilled yet.
     const newRow = await ctx.db
-      .query('chatroom_machineModels')
+      .query('chatroom_machineCapabilities')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-    if (newRow) {
+    if (newRow?.availableModels) {
       return { availableModels: newRow.availableModels };
     }
-
-    // Legacy fallback: machine.availableModels may be Record OR legacy string[].
-    const legacy = machine.availableModels;
-    if (legacy && !Array.isArray(legacy)) return { availableModels: legacy };
-    if (Array.isArray(legacy)) return { availableModels: { opencode: legacy } };
     return { availableModels: {} as Record<string, string[]> };
   },
 });

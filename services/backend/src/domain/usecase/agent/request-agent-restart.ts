@@ -35,7 +35,7 @@ export async function requestAgentRestart(
 
   const resolved = resolveRestartOverrides(input.request);
 
-  validateMachineHarness(machine, resolved.agentHarness);
+  await validateMachineHarness(ctx, machine, resolved.agentHarness);
 
   const releasedTaskCount = await releaseRestartTasks(ctx, {
     chatroomId: input.chatroomId,
@@ -54,11 +54,17 @@ function resolveRestartOverrides(request: AgentRestartRequest): RunnableRemoteAg
   };
 }
 
-function validateMachineHarness(
+async function validateMachineHarness(
+  ctx: MutationCtx,
   machine: Doc<'chatroom_machines'> | undefined,
   harness: RunnableRemoteAgentConfig['agentHarness']
-): void {
-  if (machine && !machine.availableHarnesses.includes(harness)) {
+): Promise<void> {
+  if (!machine) return;
+  const capabilities = await ctx.db
+    .query('chatroom_machineCapabilities')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+    .first();
+  if (!capabilities?.availableHarnesses?.includes(harness)) {
     throw new Error(`Agent harness '${harness}' is not available on this machine`);
   }
 }

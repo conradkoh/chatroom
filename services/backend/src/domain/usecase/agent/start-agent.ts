@@ -106,7 +106,11 @@ export async function startAgent(
 
   // ── Step 1: Verify harness is available on the machine ────────────────
 
-  if (!machine.availableHarnesses.includes(agentHarness)) {
+  const capabilities = await ctx.db
+    .query('chatroom_machineCapabilities')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+    .first();
+  if (!capabilities?.availableHarnesses?.includes(agentHarness)) {
     throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
   }
 

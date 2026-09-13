@@ -6,7 +6,7 @@
  * logic that was previously duplicated across messages.ts.
  */
 
-import type { Doc } from '../../../../convex/_generated/dataModel';
+import type { ResolvedChatroom } from '../../../../convex/lib/chatroomTeam';
 
 export interface GetTeamRolesResult {
   /** Raw team roles as stored (original casing). */
@@ -22,7 +22,7 @@ export interface GetTeamRolesResult {
  * Returns both the raw roles and normalized (lowercased) roles.
  */
 export function getTeamRolesFromChatroom(
-  chatroom: Doc<'chatroom_rooms'> | null | undefined
+  chatroom: ResolvedChatroom | null | undefined
 ): GetTeamRolesResult {
   const teamRoles = chatroom?.teamRoles ?? [];
   return {

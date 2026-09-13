@@ -50,7 +50,7 @@ export const publishMachineCapabilities = mutation({
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const existing = await ctx.db
-      .query('chatroom_machineRegistry')
+      .query('chatroom_machineCapabilities')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
 
@@ -58,12 +58,13 @@ export const publishMachineCapabilities = mutation({
       machineId: args.machineId,
       lastSeenAt: Date.now(),
       workspaces: args.workspaces,
+      updatedAt: Date.now(),
     };
 
     if (existing) {
-      await ctx.db.patch('chatroom_machineRegistry', existing._id, entry);
+      await ctx.db.patch('chatroom_machineCapabilities', existing._id, entry);
     } else {
-      await ctx.db.insert('chatroom_machineRegistry', entry);
+      await ctx.db.insert('chatroom_machineCapabilities', entry);
     }
   },
 });
@@ -80,7 +81,7 @@ export const getForMachine = query({
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const existing = await ctx.db
-      .query('chatroom_machineRegistry')
+      .query('chatroom_machineCapabilities')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
 

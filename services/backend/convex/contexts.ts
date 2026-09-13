@@ -6,11 +6,12 @@ import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
+import type { ResolvedChatroom } from './lib/chatroomTeam';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import { insertChatroomMessage } from '../src/domain/usecase/message/message-read-model';
 
-function assertCanCreateContext(chatroom: Doc<'chatroom_rooms'>, role: string): void {
+function assertCanCreateContext(chatroom: ResolvedChatroom, role: string): void {
   const entryPoint = getTeamEntryPoint(chatroom);
   if (entryPoint && role.toLowerCase() !== entryPoint.toLowerCase()) {
     throw new ConvexError({

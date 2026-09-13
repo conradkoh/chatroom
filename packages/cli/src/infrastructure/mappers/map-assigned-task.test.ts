@@ -34,7 +34,6 @@ const backendTask = {
   participant: {
     lastSeenAction: 'waiting',
     lastSeenAt: 950,
-    lastStatus: 'active',
   },
 } as BackendAssignedTask;
 

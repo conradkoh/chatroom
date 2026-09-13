@@ -32,7 +32,6 @@ function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTas
     participant: {
       lastSeenAction: 'native:waiting',
       lastSeenAt: 500,
-      lastStatus: 'agent.waiting',
     },
     ...overrides,
   };

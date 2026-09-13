@@ -312,12 +312,6 @@ export default defineSchema({
     ownerId: v.id('users'),
     // Custom chatroom name (user-defined for easier identification)
     name: v.optional(v.string()),
-    // @deprecated Structural team data is resolved from chatroom_activeTeamStructures.
-    // Retained only while existing documents and older clients are migrated.
-    teamId: v.optional(v.string()),
-    teamName: v.optional(v.string()),
-    teamRoles: v.optional(v.array(v.string())),
-    teamEntryPoint: v.optional(v.string()),
     // Last activity timestamp - updated when messages are sent
     // Used for sorting chatrooms by recent activity
     lastActivityAt: v.optional(v.number()),
@@ -402,10 +396,6 @@ export default defineSchema({
      * New code no longer writes or reads token-activity timestamps.
      */
     lastSeenTokenAt: v.optional(v.number()),
-    // @deprecated Lifecycle status is daemon-owned and read from the role-status model.
-    lastStatus: v.optional(v.string()),
-    // @deprecated Desired state is no longer persisted by Convex.
-    lastDesiredState: v.optional(v.string()),
     // @deprecated Retained for compatibility with existing participant documents.
     // New code no longer writes this native-harness task correlation field.
     lastInFlightTaskId: v.optional(v.id('chatroom_tasks')),
@@ -982,42 +972,8 @@ export default defineSchema({
     alias: v.optional(v.string()),
     // Operating system (darwin, linux, win32)
     os: v.string(),
-    // Available agent harnesses on this machine
-    availableHarnesses: v.array(agentHarnessValidator),
-    // Detected harness versions (keyed by harness name, e.g. { opencode: { version: "1.2.3", major: 1 } })
-    harnessVersions: v.optional(
-      v.record(
-        v.string(),
-        v.object({
-          version: v.string(),
-          major: v.number(),
-        })
-      )
-    ),
-    // Available AI models discovered per harness (dynamic, per-machine)
-    // Shape: { opencode: [...], pi: [...] }
-    // DEPRECATED SHAPE: v.array(v.string()) - kept to pass validation until
-    // migration.migrateAvailableModelsToPerHarness has run. Remove after migration.
-    /**
-     * @deprecated v1.38.4 — superseded by chatroom_machineModels (own table to keep heavy model
-     * payload out of the parent row). Kept as optional for backwards compatibility with old daemons
-     * + read-tolerance until dropEmbeddedAvailableModels migration has been run on all environments.
-     * Remove after migration.
-     */
-    availableModels: v.optional(
-      v.union(v.record(v.string(), v.array(v.string())), v.array(v.string()))
-    ),
     // When machine was first registered
     registeredAt: v.number(),
-    /**
-     * @deprecated Read/write chatroom_machineLastSeenAt instead. Retained as an
-     * optional migration input until the projection backfill has completed in
-     * every environment; remove in a later release only after that rollout gate.
-     * This is not chatroom_machineLiveness.lastSeenAt.
-     */
-    lastSeenAt: v.optional(v.number()),
-    /** @deprecated Connectivity is maintained in chatroom_machineStatus and chatroom_machineLiveness. */
-    daemonConnected: v.optional(v.boolean()),
     // Last time the user requested a capabilities refresh for this machine (cooldown)
     lastCapabilitiesRefreshRequestedAt: v.optional(v.number()),
   })
@@ -1026,19 +982,6 @@ export default defineSchema({
     // Convex mutations are serializable, so the check-then-insert is race-safe.
     .index('by_machineId', ['machineId'])
     .index('by_userId', ['userId']),
-
-  /**
-   * Source of truth for machine last-seen recency and ordered cleanup scans.
-   * One row per stable string machineId. Distinct from
-   * chatroom_machineLiveness.lastSeenAt, which remains the authoritative
-   * daemon-heartbeat projection and is never written by machine lifecycle paths.
-   */
-  chatroom_machineLastSeenAt: defineTable({
-    machineId: v.string(),
-    lastSeenAt: v.number(),
-  })
-    .index('by_machineId', ['machineId'])
-    .index('by_lastSeenAt', ['lastSeenAt']),
 
   /**
    * Machine liveness data - volatile fields separated from the main machine record
@@ -1067,25 +1010,6 @@ export default defineSchema({
   })
     .index('by_machineId', ['machineId'])
     .index('by_status', ['status']),
-
-  /**
-   * Per-machine available model lists, extracted from chatroom_machines.availableModels in v1.38.4.
-   *
-   * Rationale: the availableModels payload is ~50KB per machine. When it lived on the parent
-   * chatroom_machines row it was re-pushed to every listMachines subscriber on every machine-row
-   * write (heartbeat, status change, etc.). Separating it into its own table — mirroring the
-   * same design intent as chatroom_machineLiveness — means model-list updates no longer
-   * invalidate the lightweight listMachines subscription.
-   *
-   * One row per machine. The whole Record<harness, models[]> lives in a single row.
-   */
-  chatroom_machineModels: defineTable({
-    machineId: v.string(),
-    // Per-harness model lists. Shape: { opencode: ['provider/model', ...], pi: [...] }
-    // Single row per machine (one record holding all harnesses).
-    availableModels: v.record(v.string(), v.array(v.string())),
-    updatedAt: v.number(),
-  }).index('by_machineId', ['machineId']),
 
   /**
    * Model visibility filters for a machine's harness.
@@ -1238,15 +1162,6 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_role', ['chatroomId', 'role'])
     .index('by_machineId', ['machineId']),
-
-  /** Static machine identity only; volatile capability fields stay elsewhere. */
-  chatroom_machineIdentity: defineTable({
-    machineId: v.string(),
-    userId: v.id('users'),
-    hostname: v.string(),
-  })
-    .index('by_machineId', ['machineId'])
-    .index('by_userId', ['userId']),
 
   /**
    * One row per user-initiated "refresh capabilities" wave from the webapp.
@@ -2743,14 +2658,20 @@ export default defineSchema({
     .index('by_taskId', ['taskId']),
 
   /**
-   * Per-machine capability snapshot: registered workspaces + per-workspace
-   * agent list from the running harness. Published by the daemon on startup
-   * and on harness boot. Upsert semantics (one row per machineId).
+   * Single daemon-fed capability snapshot for a machine. Stable identity stays
+   * on chatroom_machines; heartbeat and connectivity stay on the liveness and
+   * status projections. This row contains only volatile discovery data used by
+   * the web launch/configuration UI.
    */
-  chatroom_machineRegistry: defineTable({
+  chatroom_machineCapabilities: defineTable({
     machineId: v.string(),
-    lastSeenAt: v.number(),
-    workspaces: v.array(
+    lastSeenAt: v.optional(v.number()),
+    availableHarnesses: v.optional(v.array(agentHarnessValidator)),
+    harnessVersions: v.optional(
+      v.record(v.string(), v.object({ version: v.string(), major: v.number() }))
+    ),
+    availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
+    workspaces: v.optional(v.array(
       v.object({
         workspaceId: v.string(),
         cwd: v.string(),
@@ -2786,6 +2707,9 @@ export default defineSchema({
           )
         ),
       })
-    ),
-  }).index('by_machineId', ['machineId']),
+    )),
+    updatedAt: v.number(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_lastSeenAt', ['lastSeenAt']),
 });

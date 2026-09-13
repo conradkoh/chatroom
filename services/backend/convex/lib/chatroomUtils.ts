@@ -6,7 +6,6 @@
  */
 
 import { isActiveParticipant } from '../../src/domain/entities/participant';
-import { getTeamEntryPoint } from '../../src/domain/entities/team';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
@@ -24,11 +23,6 @@ export async function areAllAgentsWaiting(
   if (activeParticipants.length === 0) return false;
 
   return activeParticipants.every((p) => p.lastSeenAction === 'get-next-task:started');
-}
-
-/** Returns the entry point role for a chatroom. */
-export function getEntryPointRole(chatroom: Doc<'chatroom_rooms'>): string | null {
-  return getTeamEntryPoint(chatroom);
 }
 
 /** Atomically retrieves and increments the next queue position for a chatroom. */

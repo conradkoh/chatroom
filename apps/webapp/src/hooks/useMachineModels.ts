@@ -1,8 +1,9 @@
 /**
- * Hook to fetch per-machine available model lists from the chatroom_machineModels table.
+ * Hook to fetch per-machine available model lists from the daemon-fed
+ * chatroom_machineCapabilities read model.
  *
  * Extracted from chatroom_machines.availableModels in v1.38.4 to prevent the heavy
- * ~50KB payload from riding on listMachines re-pushes (see chatroom_machineModels
+ * ~50KB payload from riding on listMachines re-pushes (see chatroom_machineCapabilities
  * schema entry for full rationale).
  *
  * The daemon is the source of truth for model lists: it discovers models via each

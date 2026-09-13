@@ -48,7 +48,6 @@ function makeBaseTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskVi
     participant: {
       lastSeenAction: 'native:waiting',
       lastSeenAt: 500,
-      lastStatus: 'agent.waiting',
     },
     ...overrides,
   };

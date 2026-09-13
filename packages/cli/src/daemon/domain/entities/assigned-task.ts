@@ -30,7 +30,6 @@ export interface AssignedTaskAgentConfig {
 export interface AssignedTaskParticipant {
   lastSeenAction: string | null;
   lastSeenAt: number | null;
-  lastStatus: string | null;
 }
 
 /** Task inbox view used by the daemon task service. */

@@ -15,7 +15,8 @@ import {
 import type { AgentHarness } from '../src/domain/entities/agent';
 import { migrateFavoriteModelForHarness } from '../src/domain/entities/harness/model-provider';
 import { isActiveWorkspace } from '../src/domain/entities/workspace';
-import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { getTeamStructure } from '../src/domain/entities/team-presets';
+import { upsertActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 import {
   upsertMessageReadModel,
   ensureMessageReadModelState,
@@ -146,7 +147,6 @@ type LegacyCliSessionTimestamp = { lastUsedAt?: number };
 /** Historical stored shape of sessions before lastActivityAt removal. */
 type LegacySessionTimestamp = { lastActivityAt?: number };
 /** Historical stored shape of chatroom_machines before lastSeenAt removal. */
-type LegacyMachineTimestamp = { lastSeenAt?: number };
 
 /**
  * Backfill chatroom_cliSessionLastUsedAt from the historical
@@ -205,56 +205,10 @@ export const backfillSessionLastActivityAt = migrations.define({
 });
 
 /**
- * Backfill chatroom_machineLastSeenAt from the historical
- * chatroom_machines.lastSeenAt stored value. Rows without the historical
- * field are skipped. This concerns the legacy machine-cleanup field, not
- * chatroom_machineLiveness.lastSeenAt (authoritative daemon-heartbeat
- * projection, untouched here).
- * Idempotent: only advances the projection when the source value is newer.
- */
-export const backfillMachineLastSeenAt = migrations.define({
-  table: 'chatroom_machines',
-  migrateOne: async (ctx, machine) => {
-    const timestamp = (machine as typeof machine & LegacyMachineTimestamp).lastSeenAt;
-    if (timestamp === undefined) return;
-    const existing = await ctx.db
-      .query('chatroom_machineLastSeenAt')
-      .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
-      .first();
-    if (!existing) {
-      await ctx.db.insert('chatroom_machineLastSeenAt', {
-        machineId: machine.machineId,
-        lastSeenAt: timestamp,
-      });
-    } else if (timestamp > existing.lastSeenAt) {
-      await ctx.db.patch('chatroom_machineLastSeenAt', existing._id, {
-        lastSeenAt: timestamp,
-      });
-    }
-  },
-});
-
-// --- Machine & Agent Config Migrations ---
-
-/**
- * Migration: Convert availableModels from string[] to Record<string, string[]>.
- * Existing machine documents written by old CLI still store a plain array.
- * Idempotent: documents already in record shape are skipped.
- */
-export const migrateAvailableModelsToPerHarness = migrations.define({
-  table: 'chatroom_machines',
-  migrateOne: async (_ctx, machine) => {
-    const raw = (machine as Record<string, unknown>).availableModels;
-    if (raw === undefined || raw === null) return;
-    if (!Array.isArray(raw)) return; // Already a record
-    return { availableModels: { opencode: raw as string[] } };
-  },
-});
-
-/**
  * Migration: Strip stale fields from chatroom_participants.
- * Removes status, readyUntil, activeUntil, cleanupDeadline, statusReason,
- * lastSeenTokenAt, etc.
+ * Removes status, desired-state, lifecycle, and token-activity mirrors from
+ * participants. Agent lifecycle status is daemon-owned and projected through
+ * chatroom_agentRoleStatusReadModel.
  * Idempotent: documents without stale fields are skipped.
  */
 export const stripParticipantStaleFields = migrations.define({
@@ -270,6 +224,8 @@ export const stripParticipantStaleFields = migrations.define({
       'pendingCommand',
       'lastInFlightTaskId',
       'lastSeenTokenAt',
+      'lastStatus',
+      'lastDesiredState',
     ] as const;
 
     const doc = participant as Record<string, unknown>;
@@ -407,27 +363,6 @@ export const backfillSavedCommandScope = migrations.define({
   migrateOne: async (_ctx, row) => {
     if (row.scope !== undefined) return;
     return { scope: inferLegacySavedCommandScope(row) };
-  },
-});
-
-/**
- * Migration: Drop embedded availableModels from chatroom_machines.
- * The field was extracted to chatroom_machineModels in v1.38.4. This migration
- * cleans up legacy rows so the heavy payload no longer rides along on
- * listMachines re-pushes.
- *
- * Run via:
- *   cd services/backend && npx convex run migrations:run '{"fn":"migrations:dropEmbeddedAvailableModels"}'
- *
- * Idempotent: rows already cleaned are skipped (returns undefined = no patch).
- */
-export const dropEmbeddedAvailableModels = migrations.define({
-  table: 'chatroom_machines',
-  migrateOne: async (_ctx, row) => {
-    const r = row as Record<string, unknown>;
-    if (r.availableModels !== undefined) {
-      return migrationPatch<Doc<'chatroom_machines'>>({ availableModels: undefined });
-    }
   },
 });
 
@@ -713,14 +648,24 @@ export const stripManagerRoleNames = migrations.define({
   },
 });
 
-export const backfillMachineIdentities = migrations.define({
-  table: 'chatroom_machines',
-  migrateOne: async (ctx, machine) =>
-    upsertMachineIdentity(ctx, {
-      machineId: machine.machineId,
-      userId: machine.userId,
-      hostname: machine.hostname,
-    }),
+/** Backfill the active static team assignment before legacy room fields are removed. */
+export const backfillActiveTeamStructures = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (ctx, room) => {
+    const existing = await ctx.db
+      .query('chatroom_activeTeamStructures')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+      .first();
+    if (existing) return;
+
+    const legacyTeamId = (room as typeof room & { teamId?: string }).teamId;
+    const structure = getTeamStructure({ teamId: legacyTeamId ?? 'duo' });
+    await upsertActiveTeamStructure(ctx, {
+      chatroomId: room._id,
+      teamStructureId: structure.teamStructureId,
+      updatedBy: room.ownerId,
+    });
+  },
 });
 
 export const backfillMachineObservedWorkspaceViews = migrations.define({
@@ -891,9 +836,7 @@ const allMigrationReferences = [
   // Last-at projections
   internal.migrations.backfillCliSessionLastUsedAt,
   internal.migrations.backfillSessionLastActivityAt,
-  internal.migrations.backfillMachineLastSeenAt,
   // Machine & Agent Config
-  internal.migrations.migrateAvailableModelsToPerHarness,
   internal.migrations.stripParticipantStaleFields,
   internal.migrations.deleteLegacyMessageQueueDocuments,
   internal.migrations.migrateQueuedTasks,
@@ -905,8 +848,6 @@ const allMigrationReferences = [
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State
   internal.migrations.dropEmbeddedRecentCommits,
-  // Machine Models
-  internal.migrations.dropEmbeddedAvailableModels,
   // Saved Commands
   internal.migrations.backfillSavedCommandScope,
   internal.migrations.migrateEnhancerJobOriginToTask,
@@ -922,7 +863,7 @@ const allMigrationReferences = [
   // RBAC
   internal.migrations.backfillUserRoleNames,
   internal.migrations.stripManagerRoleNames,
-  internal.migrations.backfillMachineIdentities,
+  internal.migrations.backfillActiveTeamStructures,
   internal.migrations.backfillMachineObservedWorkspaceViews,
   internal.migrations.backfillPrimaryWorkspaceForChatroom,
   internal.migrations.backfillMessageReadModels,

@@ -9,6 +9,11 @@ import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
+import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
+import { AgentStartReasonEnum } from '../src/domain/entities/agent';
+import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
+import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
+import { validateWorkingDir } from './workspacePathSecurity';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import {
@@ -21,10 +26,120 @@ import {
 } from '../src/domain/usecase/agent/request-chatroom-workspace-agent-stop';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
+import { agentHarnessValidator } from './schema';
 
 function normalizeWorkingDir(value: string): string {
   return value.trim().replace(/[/\\]+$/, '');
 }
+
+/** Canonical one-time start command from the webapp. */
+export const requestStart = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    agentHarness: agentHarnessValidator,
+    model: v.optional(v.string()),
+    workingDir: v.optional(v.string()),
+    allowNewMachine: v.optional(v.boolean()),
+    wantResume: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const session = await getSession(ctx, args.sessionId);
+    if (!session) throw new Error('Authentication required');
+    if (args.workingDir !== undefined) validateWorkingDir(args.workingDir);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine) throw new Error('Machine not found');
+    const existing = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+    const model = args.model ?? (existing?.agentType === 'remote' ? existing.model : undefined);
+    const workingDir =
+      args.workingDir ?? (existing?.agentType === 'remote' ? existing.workingDir : undefined);
+    if (!model || !workingDir) {
+      throw new Error('Cannot start agent: model and workingDir are required');
+    }
+    validateWorkingDir(workingDir);
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: args.allowNewMachine ?? true,
+    });
+    return startAgentUseCase(
+      ctx,
+      {
+        machineId: args.machineId,
+        chatroomId: args.chatroomId,
+        role: args.role,
+        userId: session.userId,
+        model,
+        agentHarness: args.agentHarness,
+        workingDir,
+        reason: AgentStartReasonEnum['user.start'],
+        wantResume: args.wantResume ?? false,
+      },
+      machine
+    );
+  },
+});
+
+/** Canonical one-time restart command from the webapp. */
+export const requestRestart = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    workingDir: v.string(),
+    allowNewMachine: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const session = await getSession(ctx, args.sessionId);
+    if (!session) throw new Error('Authentication required');
+    validateWorkingDir(args.workingDir);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine) throw new Error('Machine not found');
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: args.allowNewMachine ?? true,
+    });
+    const result = await requestAgentRestart(
+      ctx,
+      {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        requestedBy: session.userId,
+        request: {
+          reason: AgentStartReasonEnum['user.restart'],
+          overrides: {
+            machineId: args.machineId,
+            model: args.model,
+            agentHarness: args.agentHarness,
+            workingDir: args.workingDir,
+          },
+        },
+      },
+      machine
+    );
+    if (result.status === 'skipped') throw new Error(`Cannot restart agent: ${result.reason}`);
+    return result;
+  },
+});
 
 function requestBelongsToWorkspace(
   request: Doc<'chatroom_agentLastSentLaunchRequests'>,

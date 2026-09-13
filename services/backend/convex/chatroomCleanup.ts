@@ -8,8 +8,7 @@
 
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
-import { deleteCliSessionLastUsedAt, deleteMachineLastSeenAt } from './lib/lastAtProjections';
-import { deleteMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { deleteCliSessionLastUsedAt } from './lib/lastAtProjections';
 import { deleteObservedWorkspaceViewsForMachine } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -160,7 +159,7 @@ export const cleanupMachines = internalMutation({
     // Stale recency comes from the dedicated projection index. Process only
     // a few machines per run (each has many related rows).
     const oldMachineProjections = await ctx.db
-      .query('chatroom_machineLastSeenAt')
+      .query('chatroom_machineCapabilities')
       .withIndex('by_lastSeenAt', (q) => q.lt('lastSeenAt', cutoff))
       .take(50);
 
@@ -172,7 +171,7 @@ export const cleanupMachines = internalMutation({
         .first();
       if (!machine) {
         // Orphan projection: parent already gone, just clean the row.
-        await deleteMachineLastSeenAt(ctx, projection.machineId);
+        await ctx.db.delete('chatroom_machineCapabilities', projection._id);
         continue;
       }
       const mid = machine.machineId;
@@ -217,7 +216,6 @@ export const cleanupMachines = internalMutation({
         .collect();
       for (const row of roleStatusRows)
         await ctx.db.delete('chatroom_agentRoleStatusReadModel', row._id);
-      await deleteMachineIdentity(ctx, mid);
       await deleteObservedWorkspaceViewsForMachine(ctx, mid);
 
       const workspaces = await ctx.db
@@ -363,7 +361,11 @@ export const cleanupMachines = internalMutation({
 
       // Finally delete the machine itself
       await ctx.db.delete('chatroom_machines', machine._id);
-      await deleteMachineLastSeenAt(ctx, mid);
+      const capability = await ctx.db
+        .query('chatroom_machineCapabilities')
+        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
+        .first();
+      if (capability) await ctx.db.delete('chatroom_machineCapabilities', capability._id);
       deletedMachines++;
     }
 

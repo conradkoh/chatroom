@@ -56,23 +56,6 @@ export async function upsertSessionLastActivityAt(
   }
 }
 
-export async function upsertMachineLastSeenAt(
-  ctx: MutationCtx,
-  machineId: string,
-  lastSeenAt: number
-): Promise<void> {
-  assertValidTimestamp(lastSeenAt, 'lastSeenAt');
-  const existing = await ctx.db
-    .query('chatroom_machineLastSeenAt')
-    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-    .first();
-  if (!existing) {
-    await ctx.db.insert('chatroom_machineLastSeenAt', { machineId, lastSeenAt });
-  } else if (lastSeenAt > existing.lastSeenAt) {
-    await ctx.db.patch('chatroom_machineLastSeenAt', existing._id, { lastSeenAt });
-  }
-}
-
 export async function deleteCliSessionLastUsedAt(
   ctx: MutationCtx,
   cliSessionId: Id<'cliSessions'>
@@ -96,15 +79,5 @@ export async function deleteSessionLastActivityAt(
     .first();
   if (existing) {
     await ctx.db.delete('chatroom_sessionLastActivityAt', existing._id);
-  }
-}
-
-export async function deleteMachineLastSeenAt(ctx: MutationCtx, machineId: string): Promise<void> {
-  const existing = await ctx.db
-    .query('chatroom_machineLastSeenAt')
-    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-    .first();
-  if (existing) {
-    await ctx.db.delete('chatroom_machineLastSeenAt', existing._id);
   }
 }

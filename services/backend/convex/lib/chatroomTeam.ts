@@ -5,6 +5,13 @@ import type { MutationCtx, QueryCtx } from '../_generated/server';
 
 type DbCtx = QueryCtx | MutationCtx;
 
+export type ResolvedChatroom = Doc<'chatroom_rooms'> & {
+  teamId?: string;
+  teamName?: string;
+  teamRoles?: string[];
+  teamEntryPoint?: string;
+};
+
 /**
  * Resolves the active immutable team definition into the legacy-shaped view
  * expected by older domain helpers. The assignment table remains the only
@@ -14,12 +21,7 @@ export async function withActiveTeamStructure(
   ctx: DbCtx,
   chatroom: Doc<'chatroom_rooms'>
 ): Promise<
-  Doc<'chatroom_rooms'> & {
-    teamId?: string;
-    teamName?: string;
-    teamRoles?: string[];
-    teamEntryPoint?: string;
-  }
+  ResolvedChatroom
 > {
   const active = await getActiveTeamStructure(ctx, chatroom._id);
   if (!active) return chatroom;

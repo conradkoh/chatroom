@@ -62,12 +62,20 @@ export async function getAgentConfigForStart(
     .withIndex('by_userId', (q) => q.eq('userId', input.userId))
     .collect();
 
-  const connectedMachines: ConnectedMachineView[] = userMachines.map((m) => ({
-    machineId: m.machineId,
-    hostname: m.hostname,
-    availableHarnesses: m.availableHarnesses as AgentHarness[],
-    availableModels: (m.availableModels ?? {}) as Record<string, string[]>,
-  }));
+  const connectedMachines: ConnectedMachineView[] = await Promise.all(
+    userMachines.map(async (m) => {
+      const capabilities = await ctx.db
+        .query('chatroom_machineCapabilities')
+        .withIndex('by_machineId', (q) => q.eq('machineId', m.machineId))
+        .first();
+      return {
+        machineId: m.machineId,
+        hostname: m.hostname,
+        availableHarnesses: (capabilities?.availableHarnesses ?? []) as AgentHarness[],
+        availableModels: capabilities?.availableModels ?? {},
+      };
+    })
+  );
 
   const lastSentRequest = await getLastSentLaunchRequestForRole(ctx, {
     chatroomId: input.chatroomId,

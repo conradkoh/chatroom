@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
 import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
@@ -165,7 +165,43 @@ export function useWorkspaceAgentDirectory() {
 /** Control-only machine data. It is not used to decide which agents exist or their status. */
 export function useWorkspaceAgentControlData() {
   const result = useSessionQuery(api.machines.listMachines);
-  const sendCommand = useSessionMutation(api.machines.sendCommand);
+  const sendCommandMutation = useSessionMutation(api.machines.sendCommand);
+  const requestStart = useSessionMutation(api.agents.requestStart);
+  const requestRestart = useSessionMutation(api.agents.requestRestart);
+  const sendCommand = useCallback<SendCommandFn>(
+    (command) => {
+      if ('type' in command && command.type === 'start-agent') {
+        return requestStart({
+          machineId: command.machineId,
+          chatroomId: command.payload.chatroomId,
+          role: command.payload.role,
+          agentHarness: command.payload.agentHarness,
+          ...(command.payload.model !== undefined ? { model: command.payload.model } : {}),
+          ...(command.payload.workingDir !== undefined
+            ? { workingDir: command.payload.workingDir }
+            : {}),
+          ...(command.payload.allowNewMachine !== undefined
+            ? { allowNewMachine: command.payload.allowNewMachine }
+            : {}),
+          ...(command.payload.wantResume !== undefined
+            ? { wantResume: command.payload.wantResume }
+            : {}),
+        });
+      }
+      if ('type' in command && command.type === 'restart-agent') {
+        return requestRestart({
+          machineId: command.machineId,
+          chatroomId: command.payload.chatroomId,
+          role: command.payload.role,
+          agentHarness: command.payload.agentHarness,
+          model: command.payload.model ?? '',
+          workingDir: command.payload.workingDir ?? '',
+        });
+      }
+      return (sendCommandMutation as unknown as SendCommandFn)(command);
+    },
+    [requestRestart, requestStart, sendCommandMutation]
+  );
   const machines = useMemo<MachineInfo[]>(
     () => (result?.machines ?? []) as MachineInfo[],
     [result?.machines]

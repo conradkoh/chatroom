@@ -2,11 +2,11 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useAgentConfigs } from './useAgentConfigs';
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
-import type { MachineInfo, AgentConfig } from '../types/machine';
+import type { MachineInfo, AgentConfig, SendCommandArgs, SendCommandFn } from '../types/machine';
 
 export interface AgentRoleView {
   role: string;
@@ -24,7 +24,7 @@ export interface AgentPanelData {
   machineConfigs: AgentConfig[];
   isLoading: boolean;
   teamStructure: TeamStructure | null | undefined;
-  sendCommand: ReturnType<typeof useSessionMutation>;
+  sendCommand: SendCommandFn;
   teamId?: string;
   lifecycle: {
     teamId: string;
@@ -73,7 +73,43 @@ export function useAgentPanelDataSubscriptions(
     enabled: options?.loadConfigs ?? false,
   });
 
-  const sendCommand = useSessionMutation(api.machines.sendCommand);
+  const sendCommandMutation = useSessionMutation(api.machines.sendCommand);
+  const requestStart = useSessionMutation(api.agents.requestStart);
+  const requestRestart = useSessionMutation(api.agents.requestRestart);
+  const sendCommand = useCallback<SendCommandFn>(
+    (command: SendCommandArgs) => {
+      if ('type' in command && command.type === 'start-agent') {
+        return requestStart({
+          machineId: command.machineId,
+          chatroomId: command.payload.chatroomId,
+          role: command.payload.role,
+          agentHarness: command.payload.agentHarness,
+          ...(command.payload.model !== undefined ? { model: command.payload.model } : {}),
+          ...(command.payload.workingDir !== undefined
+            ? { workingDir: command.payload.workingDir }
+            : {}),
+          ...(command.payload.allowNewMachine !== undefined
+            ? { allowNewMachine: command.payload.allowNewMachine }
+            : {}),
+          ...(command.payload.wantResume !== undefined
+            ? { wantResume: command.payload.wantResume }
+            : {}),
+        });
+      }
+      if ('type' in command && command.type === 'restart-agent') {
+        return requestRestart({
+          machineId: command.machineId,
+          chatroomId: command.payload.chatroomId,
+          role: command.payload.role,
+          agentHarness: command.payload.agentHarness,
+          model: command.payload.model ?? '',
+          workingDir: command.payload.workingDir ?? '',
+        });
+      }
+      return (sendCommandMutation as unknown as SendCommandFn)(command);
+    },
+    [requestRestart, requestStart, sendCommandMutation]
+  );
 
   const agents = useMemo<AgentRoleView[]>(() => statusResult?.agents ?? [], [statusResult?.agents]);
 

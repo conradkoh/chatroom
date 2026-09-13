@@ -168,10 +168,11 @@ export const claimTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
+    const rawChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!rawChatroom) {
       throw new Error('Chatroom not found');
     }
+    const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
 
     const normalizedRole = args.role.toLowerCase();
     const normalizedEntryPoint = (getTeamEntryPoint(chatroom) ?? 'builder').toLowerCase();

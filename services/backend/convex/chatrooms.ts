@@ -28,13 +28,23 @@ import { scheduleObservationExpiryNudge } from '../src/domain/usecase/workspace/
 export const create = mutation({
   args: {
     ...SessionIdArg,
-    teamStructureId: v.string(),
+    teamStructureId: v.optional(v.string()),
+    /** @deprecated Legacy test/CLI input; never persisted on chatroom_rooms. */
+    teamId: v.optional(v.string()),
+    /** @deprecated Legacy input ignored; resolve through teamStructureId. */
+    teamName: v.optional(v.string()),
+    /** @deprecated Legacy input ignored; resolve through teamStructureId. */
+    teamRoles: v.optional(v.array(v.string())),
+    /** @deprecated Legacy input ignored; resolve through teamStructureId. */
+    teamEntryPoint: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session
     const auth = await requireSession(ctx, args.sessionId);
 
-    const structure = getTeamStructure({ teamId: args.teamStructureId });
+    const structure = getTeamStructure({
+      teamId: args.teamStructureId ?? (args.teamId === 'solo' ? 'solo@1' : 'duo@1'),
+    });
 
     const chatroomId = await ctx.db.insert('chatroom_rooms', {
       status: 'active',

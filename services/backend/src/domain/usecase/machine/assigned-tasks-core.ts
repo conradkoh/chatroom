@@ -21,9 +21,6 @@ export async function getParticipantForChatroomRole(
   );
 }
 
-// fallow-ignore-next-line complexity
-/** @deprecated Legacy snapshot mapping only; new projections omit participant presence. */
-// fallow-ignore-next-line complexity
 export function toParticipantView(
   participant: Doc<'chatroom_participants'> | null
 ): AssignedTask['participant'] {
@@ -31,12 +28,10 @@ export function toParticipantView(
     return {
       lastSeenAction: null,
       lastSeenAt: null,
-      lastStatus: null,
     };
   }
   return {
     lastSeenAction: participant.lastSeenAction ?? null,
     lastSeenAt: participant.lastSeenAt ?? null,
-    lastStatus: participant.lastStatus ?? null,
   };
 }
