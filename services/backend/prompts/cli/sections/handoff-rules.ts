@@ -5,16 +5,8 @@
 import type { TeamCompositionConfig } from './team-composition';
 import { getHandoffContinuityRule } from '../../native/session-continuity';
 
-function buildHandoffRuleLines(
-  config: TeamCompositionConfig,
-  plannerEnhancerActive?: boolean
-): string {
+function buildHandoffRuleLines(config: TeamCompositionConfig): string {
   const lines: string[] = [];
-  if (plannerEnhancerActive) {
-    lines.push(
-      '- **When enhancement is enabled** → On the initial user task, follow `<handoff-enhancer>` and forward the request before planning'
-    );
-  }
   if (config.hasBuilder) {
     lines.push('- **To delegate implementation** → Hand off to `builder` with clear requirements');
     lines.push(
@@ -37,12 +29,11 @@ function buildHandoffRuleLines(
  */
 export function getHandoffRulesSection(
   config: TeamCompositionConfig,
-  nativeIntegration?: boolean,
-  plannerEnhancerActive?: boolean
+  nativeIntegration?: boolean
 ): string {
   const continuityRule = getHandoffContinuityRule(nativeIntegration);
   const continuityBlock = continuityRule ? `${continuityRule}\n\n` : '';
   return `**Handoff Rules:**
 
-${continuityBlock}${buildHandoffRuleLines(config, plannerEnhancerActive)}`;
+${continuityBlock}${buildHandoffRuleLines(config)}`;
 }

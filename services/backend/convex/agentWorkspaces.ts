@@ -18,11 +18,11 @@ import {
   getLastSentLaunchRequestForRole,
   listLastSentLaunchRequestsForChatroom,
 } from '../src/domain/usecase/agent/get-last-sent-launch-request';
+import {
+  normalizeWorkingDir,
+  requestBelongsToWorkspace,
+} from '../src/domain/usecase/agent/workspace-match';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
-
-function normalizeWorkingDir(value: string): string {
-  return value.trim().replace(/[/\\]+$/, '');
-}
 
 async function requireChatroomAccessForWorkspace(
   ctx: QueryCtx,
@@ -36,15 +36,23 @@ async function requireChatroomAccessForWorkspace(
   return { workspace, chatroom: await withActiveTeamStructure(ctx, chatroom) };
 }
 
-function requestBelongsToWorkspace(
-  request: Doc<'chatroom_agentLastSentLaunchRequests'>,
-  workspace: Doc<'chatroom_workspaces'>
-): boolean {
-  return (
-    request.workspaceId === workspace._id ||
-    (request.machineId === workspace.machineId &&
-      normalizeWorkingDir(request.workingDir) === normalizeWorkingDir(workspace.workingDir))
-  );
+function offlineAgentStatus(
+  role: string,
+  workspaceId: Id<'chatroom_workspaces'>,
+  workingDir: string
+) {
+  return {
+    role: role.trim().toLowerCase(),
+    workspaceId,
+    status: 'offline' as const,
+    isRunning: false,
+    workingDir,
+    lastSeenAt: null,
+    lastSeenAction: null,
+    activeWork: null,
+    error: null,
+    projectedAt: 0,
+  };
 }
 
 /** Lists roles with a previously submitted launch request for a workspace. */
@@ -95,6 +103,7 @@ export const getAgentConfigForWorkspaceRole = query({
       chatroomId: access.chatroom._id,
       role: args.role.toLowerCase(),
       ...(structureId ? { teamStructureId: structureId } : {}),
+      workspaceId: args.workspaceId,
     });
 
     if (!config || !requestBelongsToWorkspace(config, access.workspace)) return null;
@@ -126,23 +135,37 @@ export const getAgentStatusForWorkspaceRole = query({
   handler: async (ctx, args) => {
     const access = await requireChatroomAccessForWorkspace(ctx, args.sessionId, args.workspaceId);
     if (!access) return null;
+    const role = args.role.trim().toLowerCase();
 
-    const row = await ctx.db
+    let row = await ctx.db
       .query('chatroom_agentRoleStatusReadModel')
-      .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', access.chatroom._id).eq('role', args.role.toLowerCase())
+      .withIndex('by_chatroom_workspace_role', (q) =>
+        q.eq('chatroomId', access.chatroom._id).eq('workspaceId', args.workspaceId).eq('role', role)
       )
       .first();
 
+    // Read legacy chatroom-scoped projections until they are replaced by a
+    // workspace-scoped observation. The machine/path guard below prevents
+    // status from another workspace from leaking into this one.
+    if (!row) {
+      row = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', access.chatroom._id).eq('role', role)
+        )
+        .first();
+    }
+
+    if (!row) return offlineAgentStatus(role, args.workspaceId, access.workspace.workingDir);
     if (
-      !row ||
       row.machineId !== access.workspace.machineId ||
       row.workingDir === undefined ||
       normalizeWorkingDir(row.workingDir) !== normalizeWorkingDir(access.workspace.workingDir)
     )
-      return null;
+      return offlineAgentStatus(role, args.workspaceId, access.workspace.workingDir);
     return {
       role: row.role,
+      workspaceId: row.workspaceId ?? null,
       status: row.status,
       isRunning: row.status !== 'offline',
       workingDir: row.workingDir,

@@ -141,7 +141,7 @@ describe('workspace-scoped agent queries', () => {
         role: 'builder',
       }
     );
-    expect(statusForOtherWorkspace).toBeNull();
+    expect(statusForOtherWorkspace?.status).toBe('offline');
 
     const statusForConfiguredWorkspace = await t.query(
       api.agentWorkspaces.getAgentStatusForWorkspaceRole,
@@ -152,5 +152,51 @@ describe('workspace-scoped agent queries', () => {
       }
     );
     expect(statusForConfiguredWorkspace?.role).toBe('builder');
+  });
+
+  test('keeps the last configuration separate for the same role in different workspaces', async () => {
+    const { sessionId } = await createTestSession('test-wsq-config-isolation');
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const machineId = 'machine-wsq-config-isolation';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const workspaceA = await registerWorkspace(sessionId, chatroomId, machineId, '/workspace/a');
+    const workspaceB = await registerWorkspace(sessionId, chatroomId, machineId, '/workspace/b');
+
+    await t.mutation(api.agents.saveConfig, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workspaceId: workspaceA,
+      role: 'builder',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'model-a',
+      workingDir: '/workspace/a',
+    });
+    await t.mutation(api.agents.saveConfig, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workspaceId: workspaceB,
+      role: 'builder',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'model-b',
+      workingDir: '/workspace/b',
+    });
+
+    const [configA, configB] = await Promise.all([
+      t.query(api.agentWorkspaces.getAgentConfigForWorkspaceRole, {
+        sessionId: sessionId as any,
+        workspaceId: workspaceA,
+        role: 'builder',
+      }),
+      t.query(api.agentWorkspaces.getAgentConfigForWorkspaceRole, {
+        sessionId: sessionId as any,
+        workspaceId: workspaceB,
+        role: 'builder',
+      }),
+    ]);
+
+    expect(configA).toMatchObject({ model: 'model-a', workingDir: '/workspace/a' });
+    expect(configB).toMatchObject({ model: 'model-b', workingDir: '/workspace/b' });
   });
 });

@@ -44,9 +44,12 @@ The target architecture and the deployed Convex schema have different
 lifecycles. Existing deployments may still contain documents written by older
 versions, so deprecated fields on populated tables remain registered as
 optional validators until their data has been migrated or retired. Legacy
-tables that may still contain documents also remain registered as
-compatibility-only schema definitions. They have no active production callers,
-are not sources of truth, and must not receive new writes.
+tables that may still contain documents remain registered as compatibility-only
+schema definitions where deployment compatibility requires it. They have no
+active production callers, are not sources of truth, and must not receive new
+writes. The enhancer-specific configuration and favorites tables are fully
+retired rather than retained as compatibility tables; their data now uses the
+canonical launch-request and machine-favorites stores.
 
 This compatibility layer includes the old room/team fields, participant
 lifecycle mirrors, embedded machine capability fields, role-status aliases
@@ -65,31 +68,31 @@ This is the target inventory after the unwanted duplicate models are removed.
 These tables store application facts owned by the webapp or application domain.
 They do not claim to know daemon process state.
 
-| Table | Data stored | Authority boundary |
-| --- | --- | --- |
-| `chatroom_rooms` | Room identity, owner, name, lifecycle, room-only settings | Room facts only; no team, launch, PID, or status fields |
-| `chatroom_activeTeamStructures` | One active immutable `teamStructureId` per room and assignment audit fields | Current structural team selection |
-| `chatroom_machines` | Stable registered-machine identity and registration metadata | Machine identity only |
-| `chatroom_workspaces` | Workspace identity, machine binding, and working directory | Workspace registration only |
-| `chatroom_primaryWorkspaces` | Primary workspace selection for a room | Selection only |
-| `chatroom_agentLastSentLaunchRequests` | Exact latest start/restart request sent by the webapp for a role | Last webapp request snapshot, not daemon acknowledgement or status |
-| `chatroom_machineModelFilters` | User-controlled model visibility preferences | UI preference only, not discovered availability |
-| `chatroom_machineConfigFavorites` / `chatroom_enhancerConfigFavorites` | Optional user-ranked launch presets | UI preference only; retained because the feature is user-visible |
-| `chatroom_participants` | Presence, session linkage, and task-routing coordination | No lifecycle status or desired-state authority |
-| `chatroom_enhancerJobs` | Enhancer input, immutable execution snapshot, and job history | Enhancer job domain only |
+| Table                                  | Data stored                                                                 | Authority boundary                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `chatroom_rooms`                       | Room identity, owner, name, lifecycle, room-only settings                   | Room facts only; no team, launch, PID, or status fields            |
+| `chatroom_activeTeamStructures`        | One active immutable `teamStructureId` per room and assignment audit fields | Current structural team selection                                  |
+| `chatroom_machines`                    | Stable registered-machine identity and registration metadata                | Machine identity only                                              |
+| `chatroom_workspaces`                  | Workspace identity, machine binding, and working directory                  | Workspace registration only                                        |
+| `chatroom_primaryWorkspaces`           | Primary workspace selection for a room                                      | Selection only                                                     |
+| `chatroom_agentLastSentLaunchRequests` | Exact latest start/restart request sent by the webapp for a role            | Last webapp request snapshot, not daemon acknowledgement or status |
+| `chatroom_machineModelFilters`         | User-controlled model visibility preferences                                | UI preference only, not discovered availability                    |
+| `chatroom_machineConfigFavorites`      | Optional user-ranked launch presets                                         | UI preference only; shared by permanent and ephemeral roles        |
+| `chatroom_participants`                | Presence, session linkage, and task-routing coordination                    | No lifecycle status or desired-state authority                     |
+| `chatroom_enhancerJobs`                | Enhancer input, immutable execution snapshot, and job history               | Enhancer job domain only                                           |
 
 ### 2. Daemon-fed read models
 
 The daemon remains the source of truth. Webapp code does not write these as
 application state.
 
-| Table | Data stored | Update source |
-| --- | --- | --- |
-| `chatroom_agentRoleStatusReadModel` | Latest role status, observed machine/workspace, ordering fields, active work, and user-visible errors | Idempotent daemon lifecycle outbox ingestion |
-| `chatroom_machineCapabilities` | One machine capability snapshot: harnesses, versions, models, and discovered workspace/harness data | Daemon capability publication |
-| `chatroom_machineLiveness` | Daemon heartbeat recency | Daemon heartbeat ingestion |
-| `chatroom_machineStatus` | Online/offline transition projection | Daemon heartbeat and expiry processing |
-| `chatroom_agentRestartMetrics` | Optional historical restart analytics | Daemon lifecycle facts; never used as current status |
+| Table                               | Data stored                                                                                           | Update source                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `chatroom_agentRoleStatusReadModel` | Latest role status, observed machine/workspace, ordering fields, active work, and user-visible errors | Idempotent daemon lifecycle outbox ingestion         |
+| `chatroom_machineCapabilities`      | One machine capability snapshot: harnesses, versions, models, and discovered workspace/harness data   | Daemon capability publication                        |
+| `chatroom_machineLiveness`          | Daemon heartbeat recency                                                                              | Daemon heartbeat ingestion                           |
+| `chatroom_machineStatus`            | Online/offline transition projection                                                                  | Daemon heartbeat and expiry processing               |
+| `chatroom_agentRestartMetrics`      | Optional historical restart analytics                                                                 | Daemon lifecycle facts; never used as current status |
 
 The former machine model, registry, identity, and registration-recency
 projections are not parallel sources. Stable identity remains on
@@ -98,10 +101,10 @@ projections are not parallel sources. Stable identity remains on
 
 ### 3. Inboxes
 
-| Table | Data stored | Processing owner |
-| --- | --- | --- |
-| `chatroom_machineCommandInbox` | Self-contained one-time start, restart, stop-role, stop-chatroom, ping, and local-action commands | Daemon consumes and acknowledges commands |
-| Task-delivery inbox/receipt tables | Task delivery protocol events and acknowledgements | Daemon task service consumes the task protocol |
+| Table                              | Data stored                                                                                       | Processing owner                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `chatroom_machineCommandInbox`     | Self-contained one-time start, restart, stop-role, stop-chatroom, ping, and local-action commands | Daemon consumes and acknowledges commands      |
+| Task-delivery inbox/receipt tables | Task delivery protocol events and acknowledgements                                                | Daemon task service consumes the task protocol |
 
 Inbox rows are transport state, not desired state. A command being pending does
 not mean that an agent is running.
@@ -123,12 +126,14 @@ temporarily so existing documents validate:
 - `chatroom_machineRegistry`
 - `chatroom_machineIdentity`
 - `chatroom_machineLastSeenAt`
+- `chatroom_enhancerConfigFavorites`
 
 The following duplicate paths were removed or retired:
 
 - desired-config persistence and continuous desired-state reconciliation;
 - runtime-state, operational-summary, and view-metadata projections;
 - legacy enhancer-config persistence and migration paths;
+- enhancer-specific favorites persistence and migration paths;
 - workspace-agent command transport and completion paths;
 - participant lifecycle/desired-state mirrors;
 - machine capability writes to the machine identity row, embedded machine
@@ -149,6 +154,8 @@ The following duplicate paths were removed or retired:
   capabilities and defaults.
 - `agents.getLastSentLaunchRequest` and
   `agents.listLastSentLaunchRequests` — read the exact latest webapp request.
+- `agents.saveConfig` — persists a submitted role configuration in the same
+  last-sent launch-request store without starting a process.
 
 ### Agent status reads
 
@@ -188,8 +195,9 @@ Mark each item done only after the corresponding validation is true.
 - [x] Desired/runtime/summary/view/enhancer/workspace-agent command tables and
       duplicate machine capability tables have no active production callers.
 - [x] `chatroom_agentLaunchPreferences` is explicitly rejected and absent.
-- [x] Favorites and restart metrics are explicitly classified as UI preference
-      and analytics data, not configuration or status authorities.
+- [x] Shared machine favorites and restart metrics are explicitly classified
+      as UI preference and analytics data, not configuration or status
+      authorities.
 
 ### Webapp and backend boundaries
 
@@ -197,6 +205,8 @@ Mark each item done only after the corresponding validation is true.
       any launch request or daemon status exists.
 - [x] Webapp status panels and listings use `agents.*` reads.
 - [x] Unsubmitted launch-form edits remain local to the webapp.
+- [x] Enhancer configuration uses the shared launch-request and machine-favorites
+      stores; enhancer-specific tables and migrations are removed.
 - [x] Start/restart requests snapshot the submitted payload and enqueue the
       same one-time command payload.
 - [x] Webapp start/restart calls use `agents.requestStart` and
@@ -234,8 +244,8 @@ Mark each item done only after the corresponding validation is true.
 
 - [x] Backend, webapp, CLI, and shared-package typechecks pass:
       `pnpm turbo run typecheck --filter=@workspace/backend
-      --filter=@workspace/webapp --filter=chatroom-cli
-      --filter=@workspace/shared`.
+--filter=@workspace/webapp --filter=chatroom-cli
+--filter=@workspace/shared`.
 - [x] Canonical agent read/registration tests pass.
 - [x] Web agent-start/listing tests pass.
 - [x] Daemon lifecycle outbox retry, reconnect, replay, and acknowledgement

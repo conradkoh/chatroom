@@ -17,6 +17,7 @@ export async function requestAgentRestart(
   ctx: MutationCtx,
   input: {
     chatroomId: Id<'chatroom_rooms'>;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
     role: string;
     requestedBy: Id<'users'>;
     request: AgentRestartRequest;
@@ -81,6 +82,7 @@ async function persistRestartAndEmit(
   ctx: MutationCtx,
   input: {
     chatroomId: Id<'chatroom_rooms'>;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
     role: string;
     requestedBy: Id<'users'>;
     request: AgentRestartRequest;
@@ -118,6 +120,7 @@ async function persistRestartAndEmit(
     role: input.role,
     agentType: 'remote',
     machineId: resolved.machineId,
+    workspaceId: input.workspaceId,
     agentHarness: resolved.agentHarness,
     model: resolved.model,
     workingDir: resolved.workingDir,

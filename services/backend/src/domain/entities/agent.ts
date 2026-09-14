@@ -234,11 +234,6 @@ export const AgentStopReasonEnum = Object.fromEntries(AGENT_STOP_REASONS.map((r)
   readonly [K in AgentStopReason]: K;
 };
 
-export const agentStopReasonValidator = v.union(...toLiteralValidators(AGENT_STOP_REASONS));
-
-export const isAgentStopReason = (value: unknown): value is AgentStopReason =>
-  (AGENT_STOP_REASONS as readonly string[]).includes(value as string);
-
 // ─── Model Source ────────────────────────────────────────────────────────────
 
 /**

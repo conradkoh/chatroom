@@ -7,7 +7,8 @@ import { useCallback, useMemo } from 'react';
 import { useAgentConfigs } from './useAgentConfigs';
 import { useChatroomTeam } from './useChatroomTeam';
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
-import type { MachineInfo, AgentConfig, SendCommandArgs, SendCommandFn } from '../types/machine';
+import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
+import { dispatchAgentCommand } from '../utils/agentCommand';
 
 export interface AgentRoleView {
   role: string;
@@ -77,37 +78,12 @@ export function useAgentPanelDataSubscriptions(
   const requestStart = useSessionMutation(api.agents.requestStart);
   const requestRestart = useSessionMutation(api.agents.requestRestart);
   const sendCommand = useCallback<SendCommandFn>(
-    (command: SendCommandArgs) => {
-      if ('type' in command && command.type === 'start-agent') {
-        return requestStart({
-          machineId: command.machineId,
-          chatroomId: command.payload.chatroomId,
-          role: command.payload.role,
-          agentHarness: command.payload.agentHarness,
-          ...(command.payload.model !== undefined ? { model: command.payload.model } : {}),
-          ...(command.payload.workingDir !== undefined
-            ? { workingDir: command.payload.workingDir }
-            : {}),
-          ...(command.payload.allowNewMachine !== undefined
-            ? { allowNewMachine: command.payload.allowNewMachine }
-            : {}),
-          ...(command.payload.wantResume !== undefined
-            ? { wantResume: command.payload.wantResume }
-            : {}),
-        });
-      }
-      if ('type' in command && command.type === 'restart-agent') {
-        return requestRestart({
-          machineId: command.machineId,
-          chatroomId: command.payload.chatroomId,
-          role: command.payload.role,
-          agentHarness: command.payload.agentHarness,
-          model: command.payload.model ?? '',
-          workingDir: command.payload.workingDir ?? '',
-        });
-      }
-      return (sendCommandMutation as unknown as SendCommandFn)(command);
-    },
+    (command) =>
+      dispatchAgentCommand(command, {
+        requestStart,
+        requestRestart,
+        sendCommand: sendCommandMutation as unknown as SendCommandFn,
+      }),
     [requestRestart, requestStart, sendCommandMutation]
   );
 

@@ -6,6 +6,7 @@
  * process state in Convex.
  */
 
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import {
   projectAgentRoleStatusReadModel,
   statusEventForAgentEvent,
@@ -33,13 +34,21 @@ export async function transitionAgentStatus(
   statusEvent?: StatusEvent,
   projection?: {
     machineId?: string | undefined;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
     emittedAt?: number | undefined;
     revisionKey?: string | undefined;
   }
 ): Promise<void> {
-  await projectAgentRoleStatusReadModel(ctx, {
+  const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
     chatroomId,
     role,
+    ...(projection?.workspaceId ? { workspaceId: projection.workspaceId } : {}),
+  });
+  await projectAgentRoleStatusReadModel(ctx, {
+    chatroomId,
+    ...(projection?.workspaceId ? { workspaceId: projection.workspaceId } : {}),
+    role,
+    launchRequest: launchRequest ?? undefined,
     event: statusEvent ?? statusEventForAgentEvent(lastStatus),
     sourceMachineId: projection?.machineId,
     sourceEventAt: projection?.emittedAt,

@@ -82,7 +82,15 @@ describe('AgentPanel', () => {
         lifecycle={null}
         teamStructure={null}
         defaultTeamId="duo"
-        teams={[{ id: 'duo', name: 'Duo', description: '', roles: ['planner', 'builder'] }]}
+        teams={[
+          {
+            id: 'duo',
+            name: 'Duo',
+            description: '',
+            roles: ['planner', 'builder'],
+            entryPoint: 'planner',
+          },
+        ]}
         onTeamChange={async () => {}}
       />
     );

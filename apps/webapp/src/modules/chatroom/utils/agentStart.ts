@@ -6,6 +6,7 @@ import type { AgentHarness, SendCommandArgs, SendCommandFn } from '../types/mach
 export interface StartAgentInput {
   machineId: string;
   chatroomId: Id<'chatroom_rooms'>;
+  workspaceId?: Id<'chatroom_workspaces'>;
   role: string;
   agentHarness: AgentHarness;
   model?: string;
@@ -23,6 +24,7 @@ function buildStartAgentCommand(
     type: 'start-agent',
     payload: {
       chatroomId: input.chatroomId,
+      ...(input.workspaceId !== undefined ? { workspaceId: input.workspaceId } : {}),
       role: input.role,
       agentHarness: input.agentHarness,
       ...(input.model ? { model: input.model } : {}),

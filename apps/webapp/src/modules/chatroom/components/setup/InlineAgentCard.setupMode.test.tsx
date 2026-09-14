@@ -1,4 +1,5 @@
 import { render, waitFor } from '@testing-library/react';
+import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import React, { useRef, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -36,6 +37,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
+    agentWorkspaces: {
+      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
+      getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
+    },
     agents: {
       requestStop: 'agents:requestStop',
       requestStopAll: 'agents:requestStopAll',
@@ -115,6 +120,7 @@ function UnstableCallbackHarness({ onConfigChange }: { onConfigChange: (calls: n
     >
       <InlineAgentCard
         role="builder"
+        lifecycle={AgentRoleLifecycleTag.Permanent}
         allRoles={['builder']}
         statusLabel="OFFLINE"
         statusVariant="offline"

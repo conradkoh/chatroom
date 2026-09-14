@@ -29,6 +29,10 @@ interface ActivityBarProps {
   chatroomId?: string;
   /** Machine ID for enhancer config dialog */
   machineId?: string | null;
+  /** Active workspace identity for the shared enhancer agent snapshot. */
+  workspaceId?: string | null;
+  workingDir?: string | null;
+  teamId?: string | null;
 }
 
 interface ActivityBarItemProps {
@@ -89,6 +93,9 @@ export const ActivityBar = memo(function ActivityBar({
   onViewChange,
   chatroomId,
   machineId,
+  workspaceId,
+  workingDir,
+  teamId,
 }: ActivityBarProps) {
   const { toggleCommandPalette } = useCommandDialogActions();
   const paletteOpen = useSyncExternalStore(
@@ -113,7 +120,13 @@ export const ActivityBar = memo(function ActivityBar({
       />
       {chatroomId && <ScheduledPromptsActivityBarItem chatroomId={chatroomId} />}
       {chatroomId && (
-        <EnhancerActivityBarItem chatroomId={chatroomId} machineId={machineId ?? null} />
+        <EnhancerActivityBarItem
+          chatroomId={chatroomId}
+          machineId={machineId ?? null}
+          workspaceId={workspaceId}
+          workingDir={workingDir}
+          teamId={teamId}
+        />
       )}
       <ActivityBarItem
         icon={<VscSourceControl size={20} />}

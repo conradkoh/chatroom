@@ -101,6 +101,7 @@ export async function projectAgentLifecycleFact(
       if (row.observedPid !== undefined) clearedCount++;
       await projectAgentRoleStatusReadModel(ctx, {
         chatroomId: row.chatroomId,
+        workspaceId: row.workspaceId,
         role: row.role,
         event: { status: 'offline' },
         sourceMachineId: machineId,

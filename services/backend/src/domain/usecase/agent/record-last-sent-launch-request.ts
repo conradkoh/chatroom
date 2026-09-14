@@ -29,7 +29,11 @@ export async function recordLastSentLaunchRequest(
   ctx: MutationCtx,
   input: LastSentLaunchRequestInput
 ): Promise<Doc<'chatroom_agentLastSentLaunchRequests'>> {
-  const requestKey = `${input.chatroomId}:${input.teamStructureId}:${input.role.trim().toLowerCase()}`;
+  // Workspace-scoped snapshots are independently reusable for the same role.
+  // Keep the legacy key for non-workspace callers until those callers migrate.
+  const requestKey = input.workspaceId
+    ? `${input.chatroomId}:${input.teamStructureId}:${input.workspaceId}:${input.role.trim().toLowerCase()}`
+    : `${input.chatroomId}:${input.teamStructureId}:${input.role.trim().toLowerCase()}`;
   const existing = await ctx.db
     .query('chatroom_agentLastSentLaunchRequests')
     .withIndex('by_requestKey', (q) => q.eq('requestKey', requestKey))

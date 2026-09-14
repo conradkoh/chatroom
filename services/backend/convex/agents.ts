@@ -9,28 +9,29 @@ import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
-import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
-import { AgentStartReasonEnum } from '../src/domain/entities/agent';
-import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
-import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
+import { agentHarnessValidator } from './schema';
 import { validateWorkingDir } from './workspacePathSecurity';
+import { AgentStartReasonEnum } from '../src/domain/entities/agent';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
+import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import {
   getLastSentLaunchRequestForRole,
   listLastSentLaunchRequestsForChatroom,
 } from '../src/domain/usecase/agent/get-last-sent-launch-request';
+import { recordLastSentLaunchRequest } from '../src/domain/usecase/agent/record-last-sent-launch-request';
+import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import {
   requestChatroomWorkspaceAgentStop,
   requestWorkspaceAgentStop,
 } from '../src/domain/usecase/agent/request-chatroom-workspace-agent-stop';
+import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
+import {
+  normalizeWorkingDir,
+  requestBelongsToWorkspace,
+} from '../src/domain/usecase/agent/workspace-match';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
-import { agentHarnessValidator } from './schema';
-
-function normalizeWorkingDir(value: string): string {
-  return value.trim().replace(/[/\\]+$/, '');
-}
 
 /** Canonical one-time start command from the webapp. */
 export const requestStart = mutation({
@@ -38,6 +39,7 @@ export const requestStart = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
     role: v.string(),
     agentHarness: agentHarnessValidator,
     model: v.optional(v.string()),
@@ -55,13 +57,28 @@ export const requestStart = mutation({
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
     if (!machine) throw new Error('Machine not found');
+    const workspace = args.workspaceId
+      ? await ctx.db.get('chatroom_workspaces', args.workspaceId)
+      : null;
+    if (
+      args.workspaceId &&
+      (!workspace ||
+        workspace.chatroomId !== args.chatroomId ||
+        workspace.removedAt !== undefined ||
+        workspace.machineId !== args.machineId)
+    ) {
+      throw new Error('Workspace does not belong to this agent start request');
+    }
     const existing = await getLastSentLaunchRequestForRole(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
+      ...(args.workspaceId ? { workspaceId: args.workspaceId } : {}),
     });
     const model = args.model ?? (existing?.agentType === 'remote' ? existing.model : undefined);
     const workingDir =
-      args.workingDir ?? (existing?.agentType === 'remote' ? existing.workingDir : undefined);
+      args.workingDir ??
+      (existing?.agentType === 'remote' ? existing.workingDir : undefined) ??
+      workspace?.workingDir;
     if (!model || !workingDir) {
       throw new Error('Cannot start agent: model and workingDir are required');
     }
@@ -77,6 +94,7 @@ export const requestStart = mutation({
       {
         machineId: args.machineId,
         chatroomId: args.chatroomId,
+        workspaceId: args.workspaceId,
         role: args.role,
         userId: session.userId,
         model,
@@ -96,6 +114,7 @@ export const requestRestart = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
     role: v.string(),
     agentHarness: agentHarnessValidator,
     model: v.string(),
@@ -112,6 +131,18 @@ export const requestRestart = mutation({
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
     if (!machine) throw new Error('Machine not found');
+    if (args.workspaceId) {
+      const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
+      if (
+        !workspace ||
+        workspace.chatroomId !== args.chatroomId ||
+        workspace.removedAt !== undefined ||
+        workspace.machineId !== args.machineId ||
+        normalizeWorkingDir(workspace.workingDir) !== normalizeWorkingDir(args.workingDir)
+      ) {
+        throw new Error('Workspace does not belong to this agent restart request');
+      }
+    }
     await assertMachineBelongsToChatroom(ctx, {
       chatroomId: args.chatroomId,
       machineId: args.machineId,
@@ -122,6 +153,7 @@ export const requestRestart = mutation({
       ctx,
       {
         chatroomId: args.chatroomId,
+        workspaceId: args.workspaceId,
         role: args.role,
         requestedBy: session.userId,
         request: {
@@ -141,16 +173,79 @@ export const requestRestart = mutation({
   },
 });
 
-function requestBelongsToWorkspace(
-  request: Doc<'chatroom_agentLastSentLaunchRequests'>,
-  workspace: Doc<'chatroom_workspaces'>
-): boolean {
-  return (
-    request.workspaceId === workspace._id ||
-    (request.machineId === workspace.machineId &&
-      normalizeWorkingDir(request.workingDir) === normalizeWorkingDir(workspace.workingDir))
-  );
-}
+/** Persist an agent configuration without starting an agent process. */
+export const saveConfig = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workspaceId: v.id('chatroom_workspaces'),
+    role: v.string(),
+    machineId: v.string(),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const access = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    validateWorkingDir(args.workingDir);
+    if (!args.model.trim()) throw new Error('Agent model is required');
+
+    const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
+    if (
+      !workspace ||
+      workspace.chatroomId !== args.chatroomId ||
+      workspace.removedAt !== undefined ||
+      workspace.machineId !== args.machineId ||
+      normalizeWorkingDir(workspace.workingDir) !== normalizeWorkingDir(args.workingDir)
+    ) {
+      throw new Error('Workspace does not belong to this agent configuration');
+    }
+
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine) throw new Error('Machine not found');
+    const capabilities = await ctx.db
+      .query('chatroom_machineCapabilities')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!capabilities?.availableHarnesses?.includes(args.agentHarness)) {
+      throw new Error(`Agent harness '${args.agentHarness}' is not available on this machine`);
+    }
+
+    const activeStructure = await getActiveTeamStructure(ctx, args.chatroomId);
+    if (!activeStructure) throw new Error(`Chatroom ${args.chatroomId} has no team structure`);
+
+    const requestId = crypto.randomUUID();
+    const saved = await recordLastSentLaunchRequest(ctx, {
+      requestId,
+      commandId: `configuration:${requestId}`,
+      chatroomId: args.chatroomId,
+      teamStructureId: activeStructure.teamStructureId,
+      role: args.role,
+      agentType: 'remote',
+      machineId: args.machineId,
+      workspaceId: args.workspaceId,
+      agentHarness: args.agentHarness,
+      model: args.model,
+      workingDir: args.workingDir,
+      reason: 'user.config',
+      wantResume: false,
+      requestedBy: access.session.userId,
+      requestedAt: Date.now(),
+    });
+    return {
+      role: saved.role,
+      machineId: saved.machineId,
+      agentHarness: saved.agentHarness,
+      model: saved.model,
+      workingDir: saved.workingDir,
+      updatedAt: saved.requestedAt,
+    };
+  },
+});
 
 async function resolveTeamStructure(ctx: QueryCtx, chatroom: Doc<'chatroom_rooms'>) {
   const active = await getActiveTeamStructure(ctx, chatroom._id);
@@ -226,12 +321,22 @@ export const getStatus = query({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const row = await ctx.db
-      .query('chatroom_agentRoleStatusReadModel')
-      .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role.trim().toLowerCase())
-      )
-      .first();
+    const row = args.workspaceId
+      ? await ctx.db
+          .query('chatroom_agentRoleStatusReadModel')
+          .withIndex('by_chatroom_workspace_role', (q) =>
+            q
+              .eq('chatroomId', args.chatroomId)
+              .eq('workspaceId', args.workspaceId)
+              .eq('role', args.role.trim().toLowerCase())
+          )
+          .first()
+      : await ctx.db
+          .query('chatroom_agentRoleStatusReadModel')
+          .withIndex('by_chatroom_role', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('role', args.role.trim().toLowerCase())
+          )
+          .first();
     if (!row) return null;
     if (args.workspaceId) {
       const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);

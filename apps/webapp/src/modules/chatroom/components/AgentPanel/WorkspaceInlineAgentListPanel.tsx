@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { memo, useCallback, useContext, useMemo } from 'react';
 
@@ -82,7 +83,7 @@ export const WorkspaceInlineAgentListPanel = memo(function WorkspaceInlineAgentL
           'flex items-center justify-center p-8 text-xs text-chatroom-text-muted uppercase tracking-wide'
         }
       >
-        No agents configured
+        No agents in team structure
       </div>
     );
   }
@@ -121,21 +122,37 @@ const WorkspaceInlineAgentCards = memo(function WorkspaceInlineAgentCards({
   restartSummaryMap: Map<string, { count3h: number; count3d: number }>;
 }) {
   const controlData = useWorkspaceAgentControlData();
+  const permanentAgents = agents.filter(
+    (agent) => agent.lifecycle !== AgentRoleLifecycleTag.Ephemeral
+  );
+  const ephemeralAgents = agents.filter(
+    (agent) => agent.lifecycle === AgentRoleLifecycleTag.Ephemeral
+  );
+
+  const renderCards = (group: WorkspaceAgentRole[]) =>
+    group.map((agent) => (
+      <InlineAgentCard
+        key={`${workspaceId}-${agent.role}`}
+        role={agent.role}
+        lifecycle={agent.lifecycle}
+        allRoles={roles}
+        prompt={generatePrompt(agent.role)}
+        chatroomId={chatroomId}
+        workspaceId={workspaceId}
+        restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
+        teamId={agent.teamId ?? undefined}
+      />
+    ));
 
   return (
     <AgentControlDataProvider value={controlData}>
-      {agents.map((agent) => (
-        <InlineAgentCard
-          key={`${workspaceId}-${agent.role}`}
-          role={agent.role}
-          allRoles={roles}
-          prompt={generatePrompt(agent.role)}
-          chatroomId={chatroomId}
-          workspaceId={workspaceId}
-          restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
-          teamId={agent.teamId ?? undefined}
-        />
-      ))}
+      {renderCards(permanentAgents)}
+      {ephemeralAgents.length > 0 && (
+        <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted border-t border-chatroom-border">
+          Ephemeral ({ephemeralAgents.length})
+        </div>
+      )}
+      {renderCards(ephemeralAgents)}
     </AgentControlDataProvider>
   );
 });

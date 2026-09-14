@@ -106,8 +106,6 @@ export interface RolePromptContext {
   teamEntryPoint?: string | undefined;
   availableHandoffRoles: string[];
   convexUrl: string; // Required Convex URL for env var prefix generation
-  /** When true, static planner guidance includes enhancer workflow references. */
-  plannerEnhancerActive?: boolean | undefined;
   activatedSkills?: ActivatedSkillSnapshot[] | undefined;
 }
 
@@ -127,7 +125,6 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
     teamEntryPoint: ctx.teamEntryPoint,
     convexUrl: ctx.convexUrl,
     chatroomId: ctx.chatroomId,
-    plannerEnhancerActive: ctx.plannerEnhancerActive,
   });
 
   const sections: PromptSection[] = [];

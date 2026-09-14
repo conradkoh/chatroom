@@ -14,13 +14,13 @@ import {
 } from './utils/machineFavoriteScopeKey';
 import type { AgentHarness } from '../src/domain/entities/agent';
 import { migrateFavoriteModelForHarness } from '../src/domain/entities/harness/model-provider';
-import { isActiveWorkspace } from '../src/domain/entities/workspace';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
-import { upsertActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
+import { isActiveWorkspace } from '../src/domain/entities/workspace';
 import {
   upsertMessageReadModel,
   ensureMessageReadModelState,
 } from '../src/domain/usecase/message/message-read-model';
+import { upsertActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
@@ -504,21 +504,6 @@ export const migrateMachineConfigFavoriteModelPrefixes = migrations.define({
 });
 
 /**
- * Migration: Rewrite stale enhancer config favorite model ids to provider-prefixed ids.
- * Idempotent: rows whose favorites already use provider prefixes are skipped.
- */
-export const migrateEnhancerConfigFavoriteModelPrefixes = migrations.define({
-  table: 'chatroom_enhancerConfigFavorites',
-  migrateOne: async (_ctx, row) => {
-    if (!favoritesNeedModelPrefixMigration(row.favorites)) return;
-    return {
-      favorites: rewriteAndDedupeFavorites(row.favorites),
-      updatedAt: Date.now(),
-    };
-  },
-});
-
-/**
  * Migration: Seed per-user standing-instruction history from existing room instructions.
  * For each room with non-empty standingInstructions, upsert into
  * chatroom_standingInstructionHistory for room.ownerId.
@@ -855,7 +840,6 @@ const allMigrationReferences = [
   // Machine Config Favorites
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
   internal.migrations.migrateMachineConfigFavoriteModelPrefixes,
-  internal.migrations.migrateEnhancerConfigFavoriteModelPrefixes,
   // Standing Instructions History
   internal.migrations.seedStandingInstructionHistory,
   // Standing Instructions Title

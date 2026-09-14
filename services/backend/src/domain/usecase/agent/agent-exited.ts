@@ -70,12 +70,23 @@ export async function agentExited(
 
   // The daemon owns the process. Convex only checks the last observed PID in
   // its thin read model so a stale exit cannot overwrite a newer observation.
-  const statusRow = await ctx.db
-    .query('chatroom_agentRoleStatusReadModel')
-    .withIndex('by_chatroom_role', (q) =>
-      q.eq('chatroomId', chatroomId).eq('role', role.trim().toLowerCase())
-    )
-    .first();
+  const normalizedRole = role.trim().toLowerCase();
+  const statusRow = launchRequest.workspaceId
+    ? await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_workspace_role', (q) =>
+          q
+            .eq('chatroomId', chatroomId)
+            .eq('workspaceId', launchRequest.workspaceId)
+            .eq('role', normalizedRole)
+        )
+        .first()
+    : await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', normalizedRole)
+        )
+        .first();
   if (statusRow?.observedPid !== undefined && statusRow.observedPid !== pid) {
     return { applied: false };
   }

@@ -59,6 +59,8 @@ export type SendCommandArgs =
       type: 'start-agent';
       payload: {
         chatroomId: Id<'chatroom_rooms'>;
+        /** Workspace whose configuration/runtime state this request belongs to. */
+        workspaceId?: Id<'chatroom_workspaces'>;
         role: string;
         model?: string;
         agentHarness: AgentHarness;
@@ -82,6 +84,8 @@ export type SendCommandArgs =
       type: 'restart-agent';
       payload: {
         chatroomId: Id<'chatroom_rooms'>;
+        /** Workspace whose configuration/runtime state this request belongs to. */
+        workspaceId?: Id<'chatroom_workspaces'>;
         role: string;
         model: string;
         agentHarness: AgentHarness;

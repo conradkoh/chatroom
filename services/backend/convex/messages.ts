@@ -55,12 +55,11 @@ import {
 } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
 import { findEnhancerTaskForOrigin } from '../src/domain/usecase/enhancer/find-enhancer-task-for-origin';
-import { getEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
-import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
-  resolvePlannerEnhancerEnabledFromConfig,
-  resolveTaskPlannerEnhancerEnabled,
-} from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
+  getEnhancerTeamAgentConfig,
+  hasRemoteEnhancerConfigFields,
+} from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
+import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import { validateEnhancerHandoff } from '../src/domain/usecase/enhancer/validate-enhancer-handoff';
 import {
   insertChatroomMessage,
@@ -843,17 +842,26 @@ export async function runHandoffHandler(
     const handoffValidation = validateEnhancerHandoff({
       taskPlannerEnhancerEnabled: userOriginTask?.plannerEnhancerEnabled,
       taskEnvelope: userOriginTask?.taskEnvelope,
-      config: enhancerConfig,
     });
 
     if (!handoffValidation.allowed) {
-      const message =
-        handoffValidation.code === 'ENHANCER_CONFIG_INCOMPLETE'
-          ? 'Enhancer configuration is incomplete. Configure harness, model, and machine before handing off.'
-          : 'Enhancer not enabled';
       return {
         success: false,
-        error: { code: handoffValidation.code, message },
+        error: { code: handoffValidation.code, message: 'Enhancer not enabled' },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+    if (!hasRemoteEnhancerConfigFields(enhancerConfig)) {
+      return {
+        success: false,
+        error: {
+          code: 'ENHANCER_CONFIG_INCOMPLETE',
+          message:
+            'Enhancer configuration is incomplete. Configure harness, model, and machine before handing off.',
+        },
         messageId: null,
         completedTaskIds: [],
         newTaskId: null,
@@ -1010,11 +1018,7 @@ export async function runHandoffHandler(
   // is always inherited; the scalar projections (conversationMode / plannerEnhancerEnabled /
   // startInNewSession) are only written when the source task itself carries explicit
   // policy data (explicit envelope or legacy scalars). Fully legacy-allocated chains
-  // keep the projections undefined so existing readers (e.g. getTaskDeliveryPrompt's
-  // live enhancer-config fallback) keep their current behaviour until they migrate
-  // to taskEnvelope. The internal enhancer-delivery hop never projects scalars: the
-  // enhancer task's envelope is derived from the entry-point hop and its mode is not
-  // an explicit user selection, so legacy readers must retain live-config fallback.
+  // keep the projections undefined until those readers migrate to taskEnvelope.
   const legacyScalarProjections =
     sourceTask &&
     !isEnhancerDelivery &&
@@ -1836,16 +1840,6 @@ export const getRolePrompt = query({
       fallbackParticipantRoles: availableRoles,
     });
 
-    let plannerEnhancerActive: boolean | undefined;
-    if (isEnhancerEntryPointRole(chatroom, args.role)) {
-      const enhancerConfig = await getEnhancerTeamAgentConfig(
-        ctx,
-        args.chatroomId,
-        chatroom.teamId ?? ''
-      );
-      plannerEnhancerActive = resolvePlannerEnhancerEnabledFromConfig(enhancerConfig);
-    }
-
     // Generate the role-specific prompt
     const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
     const prompt = generateRolePrompt({
@@ -1857,7 +1851,6 @@ export const getRolePrompt = query({
       teamEntryPoint: chatroom.teamEntryPoint,
       availableHandoffRoles,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-      plannerEnhancerActive,
       activatedSkills,
     });
 
@@ -1989,35 +1982,22 @@ export const getTaskDeliveryPrompt = query({
 
     const availableRoles = waitingParticipants.map((p) => p.role);
 
-    const enhancerConfig = await getEnhancerTeamAgentConfig(
-      ctx,
-      args.chatroomId,
-      chatroom.teamId ?? ''
-    );
-
-    const legacyPlannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
-      taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
-      liveConfig: enhancerConfig,
-      role: args.role,
-      team: chatroom,
-    });
-
     // Derive effective conversation mode: the explicit task envelope is the
-    // authoritative per-message policy. Legacy rows without an envelope retain
-    // the existing scalar/live-config behaviour.
+    // authoritative per-message policy. Legacy rows without an envelope use
+    // their persisted scalar snapshot and default to code mode.
     const hasExplicitTaskEnvelope = task.taskEnvelope !== undefined;
     const normalizedTaskEnvelope = normalizeTaskEnvelope(task);
 
     const conversationMode = hasExplicitTaskEnvelope
       ? normalizedTaskEnvelope.conversationMode
-      : legacyConversationMode(legacyPlannerEnhancerEnabled);
+      : legacyConversationMode(task.plannerEnhancerEnabled);
 
     // When an explicit envelope is present, its mode is the source of truth for
-    // the enhancer boolean; legacy callers without an envelope retain the
-    // resolved live-config behaviour.
+    // Explicit envelopes are authoritative; legacy rows use only their
+    // persisted scalar snapshot.
     const plannerEnhancerEnabled = hasExplicitTaskEnvelope
       ? plannerEnhancerEnabledForMode(normalizedTaskEnvelope.conversationMode)
-      : legacyPlannerEnhancerEnabled;
+      : task.plannerEnhancerEnabled === true;
 
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;

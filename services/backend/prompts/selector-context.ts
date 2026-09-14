@@ -49,7 +49,6 @@ export function buildSelectorContext(params: {
   chatroomId?: string | undefined;
   agentType?: 'remote' | 'custom' | 'unset' | undefined;
   nativeIntegration?: boolean | undefined;
-  plannerEnhancerActive?: boolean | undefined;
 }): SelectorContext {
   const entryPoint =
     getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ??
@@ -71,7 +70,6 @@ export function buildSelectorContext(params: {
     chatroomId: params.chatroomId,
     agentType: params.agentType ?? 'unset',
     nativeIntegration: params.nativeIntegration,
-    plannerEnhancerActive: params.plannerEnhancerActive,
   };
 }
 

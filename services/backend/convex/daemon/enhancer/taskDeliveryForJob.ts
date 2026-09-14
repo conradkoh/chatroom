@@ -17,8 +17,6 @@ import { getActiveStandingInstructions } from '../../../src/domain/entities/stan
 import { getTeamEntryPoint } from '../../../src/domain/entities/team';
 import { getLastSentLaunchRequestForRole } from '../../../src/domain/usecase/agent/get-last-sent-launch-request';
 import { getTeamRolesFromChatroom } from '../../../src/domain/usecase/chatroom/get-team-roles';
-import { getEnhancerTeamAgentConfig } from '../../../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
-import { resolveTaskPlannerEnhancerEnabled } from '../../../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import type { Doc } from '../../_generated/dataModel';
 import { query } from '../../_generated/server';
 import { withActiveTeamStructure } from '../../lib/chatroomTeam';
@@ -88,27 +86,16 @@ export const getTaskDeliveryForJob = query({
     );
     const availableRoles = waitingParticipants.map((p) => p.role);
 
-    const enhancerConfig = chatroom.teamId
-      ? await getEnhancerTeamAgentConfig(ctx, job.chatroomId, chatroom.teamId)
-      : null;
-    const legacyPlannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
-      taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
-      liveConfig: enhancerConfig,
-      role,
-      team: chatroom,
-    });
-
     // The explicit task envelope is authoritative for mode/enhancer policy at
-    // this delivery boundary. Legacy rows without an envelope retain the
-    // existing live-config behaviour.
+    // this delivery boundary. Legacy rows use only their persisted snapshot.
     const hasExplicitTaskEnvelope = task.taskEnvelope !== undefined;
     const normalizedTaskEnvelope = normalizeTaskEnvelope(task);
     const conversationMode = hasExplicitTaskEnvelope
       ? normalizedTaskEnvelope.conversationMode
-      : legacyConversationMode(legacyPlannerEnhancerEnabled);
+      : legacyConversationMode(task.plannerEnhancerEnabled);
     const plannerEnhancerEnabled = hasExplicitTaskEnvelope
       ? plannerEnhancerEnabledForMode(normalizedTaskEnvelope.conversationMode)
-      : legacyPlannerEnhancerEnabled;
+      : task.plannerEnhancerEnabled === true;
 
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;

@@ -79,8 +79,6 @@ export interface PlannerGuidanceParams extends BasePromptParams {
   chatroomId?: string | undefined;
   /** True when harness uses native task injection instead of get-next-task */
   nativeIntegration?: boolean | undefined;
-  /** When true, static planner guidance includes enhancer workflow references. */
-  plannerEnhancerActive?: boolean | undefined;
 }
 
 /**

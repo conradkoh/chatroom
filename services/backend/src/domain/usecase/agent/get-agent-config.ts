@@ -14,6 +14,7 @@ import type { AgentHarness, AgentType, ModelSource } from '../../entities/agent'
 export interface GetAgentConfigInput {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
+  workspaceId?: Id<'chatroom_workspaces'> | undefined;
 }
 
 export interface ResolvedAgentConfig {
@@ -46,6 +47,7 @@ export async function getAgentConfig(
   const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
     chatroomId: input.chatroomId,
     role: input.role,
+    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
   });
   if (!launchRequest) return { found: false };
 

@@ -10,7 +10,6 @@ import { describe, expect, test } from 'vitest';
 
 import {
   AGENT_STOP_REASONS,
-  isAgentStopReason,
   AGENT_HARNESSES,
   AgentHarnessEnum,
   agentHarnessValidator,
@@ -33,8 +32,6 @@ import {
   isAgentStartReason,
   isUserExplicitStart,
   isExplicitDaemonStart,
-  AgentStopReasonEnum,
-  agentStopReasonValidator,
   MODEL_SOURCES,
   ModelSourceEnum,
   modelSourceValidator,
@@ -58,7 +55,6 @@ describe('agent reason predicates', () => {
 describe('agent stop reasons', () => {
   test('includes platform.ephemeral_task_complete', () => {
     expect(AGENT_STOP_REASONS).toContain('platform.ephemeral_task_complete');
-    expect(isAgentStopReason('platform.ephemeral_task_complete')).toBe(true);
   });
 });
 
@@ -108,13 +104,6 @@ const domains: DomainSpec[] = [
     enumObj: AgentStartReasonEnum,
     validator: agentStartReasonValidator,
     guard: isAgentStartReason,
-  },
-  {
-    label: 'AgentStopReason',
-    values: AGENT_STOP_REASONS,
-    enumObj: AgentStopReasonEnum,
-    validator: agentStopReasonValidator,
-    guard: isAgentStopReason,
   },
   {
     label: 'ModelSource',

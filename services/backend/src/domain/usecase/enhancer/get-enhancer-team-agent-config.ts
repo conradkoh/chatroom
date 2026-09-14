@@ -2,7 +2,7 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { getLastSentLaunchRequestForRole } from '../agent/get-last-sent-launch-request';
 
-/** Enhancer launch data resolved from an explicit request or legacy migration input. */
+/** Enhancer launch data resolved from the canonical last-sent request snapshot. */
 export type EnhancerAgentLaunchConfig = {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
@@ -16,8 +16,8 @@ export type EnhancerAgentLaunchConfig = {
 
 /**
  * Reads the latest submitted enhancer launch request. The team ID is retained
- * in the signature for compatibility with callers during the migration; static
- * team structure is resolved by the request key, not a desired-config row.
+ * in the signature for compatibility with callers; static team structure is
+ * resolved by the request key, not a desired-config row.
  */
 export async function getEnhancerTeamAgentConfig(
   ctx: QueryCtx | MutationCtx,
@@ -39,12 +39,6 @@ export async function getEnhancerTeamAgentConfig(
     workingDir: request.workingDir,
     enabled: true,
   };
-}
-
-export function isCompleteRemoteEnhancerConfig(
-  config: EnhancerAgentLaunchConfig | null | undefined
-): boolean {
-  return config?.enabled === true && hasRemoteEnhancerConfigFields(config);
 }
 
 export function hasRemoteEnhancerConfigFields(

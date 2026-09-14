@@ -58,9 +58,9 @@ export async function sendAutomatedUserMessage(
   });
 
   // TEMPORARY backwards-compatible scalar projections for legacy readers.
-  // These fields are derived from the envelope only (or the legacy fallback
-  // input that produced it) and are NOT sources of truth. Remove together with
-  // the plannerEnhancerEnabled/conversationMode/startInNewSession columns after
+  // These fields are derived from the envelope only and are NOT sources of
+  // truth. Remove together with the
+  // plannerEnhancerEnabled/conversationMode/startInNewSession columns after
   // all readers migrate to taskEnvelope.
   const modeExplicitlySelected =
     args.taskEnvelope !== undefined || args.conversationMode !== undefined;

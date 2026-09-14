@@ -35,6 +35,8 @@ export interface StartAgentInput {
   machineId: string;
   /** The chatroom containing the agent. */
   chatroomId: Id<'chatroom_rooms'>;
+  /** Workspace owning this launch configuration, when workspace-scoped. */
+  workspaceId?: Id<'chatroom_workspaces'> | undefined;
   /** The role of the agent (e.g. "builder", "reviewer"). */
   role: string;
   /** The user dispatching the start (must own the machine). */
@@ -95,13 +97,36 @@ export async function startAgent(
   input: StartAgentInput,
   machine: Doc<'chatroom_machines'>
 ): Promise<StartAgentResult> {
-  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason, wantResume } =
-    input;
+  const {
+    machineId,
+    chatroomId,
+    workspaceId,
+    role,
+    model,
+    agentHarness,
+    workingDir,
+    reason,
+    wantResume,
+  } = input;
 
   if (isEphemeralAgentRole(role)) {
     throw new Error(
       `Cannot start ephemeral role "${role}" directly. It runs on demand when work is assigned.`
     );
+  }
+
+  if (workspaceId) {
+    const workspace = await ctx.db.get('chatroom_workspaces', workspaceId);
+    const normalize = (value: string) => value.trim().replace(/[/\\]+$/, '');
+    if (
+      !workspace ||
+      workspace.chatroomId !== chatroomId ||
+      workspace.removedAt !== undefined ||
+      workspace.machineId !== machineId ||
+      normalize(workspace.workingDir) !== normalize(workingDir)
+    ) {
+      throw new Error('Workspace does not belong to this agent start request');
+    }
   }
 
   // ── Step 1: Verify harness is available on the machine ────────────────
@@ -154,6 +179,7 @@ export async function startAgent(
       requestId: startCommand.requestId,
       commandId: commandId.toString(),
       chatroomId,
+      workspaceId,
       teamStructureId: structure.teamStructureId,
       role,
       agentType: 'remote',

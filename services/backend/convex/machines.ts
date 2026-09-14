@@ -52,12 +52,18 @@ function resolveAllowNewMachineForStart(
 async function getCurrentLastSentLaunchRequest(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
-  role: string
+  role: string,
+  workspaceId?: Id<'chatroom_workspaces'>
 ) {
   const activeStructure = await getActiveTeamStructure(ctx, chatroomId);
   const structureId = activeStructure?.teamStructureId;
   if (!structureId) return null;
-  return getLastSentLaunchRequestForRole(ctx, { chatroomId, role, teamStructureId: structureId });
+  return getLastSentLaunchRequestForRole(ctx, {
+    chatroomId,
+    role,
+    teamStructureId: structureId,
+    ...(workspaceId ? { workspaceId } : {}),
+  });
 }
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
@@ -1014,6 +1020,7 @@ export const sendCommand = mutation({
     payload: v.optional(
       v.object({
         chatroomId: v.optional(v.id('chatroom_rooms')),
+        workspaceId: v.optional(v.id('chatroom_workspaces')),
         role: v.optional(v.string()),
         model: v.optional(v.string()),
         // For first-time starts when no agent config exists:
@@ -1045,7 +1052,8 @@ export const sendCommand = mutation({
       const existingConfig = await getCurrentLastSentLaunchRequest(
         ctx,
         args.payload.chatroomId,
-        args.payload.role
+        args.payload.role,
+        args.payload.workspaceId
       );
 
       const resolvedModel =
@@ -1077,6 +1085,7 @@ export const sendCommand = mutation({
         {
           machineId: args.machineId,
           chatroomId: args.payload.chatroomId,
+          workspaceId: args.payload.workspaceId,
           role: args.payload.role,
           userId: userId,
           model: resolvedModel,
@@ -1102,7 +1111,8 @@ export const sendCommand = mutation({
       const existingConfig = await getCurrentLastSentLaunchRequest(
         ctx,
         args.payload.chatroomId,
-        args.payload.role
+        args.payload.role,
+        args.payload.workspaceId
       );
 
       const allowNewMachine = resolveAllowNewMachineForStart(args.payload, existingConfig);
@@ -1117,6 +1127,7 @@ export const sendCommand = mutation({
         ctx,
         {
           chatroomId: args.payload.chatroomId,
+          workspaceId: args.payload.workspaceId,
           role: args.payload.role,
           requestedBy: userId,
           request: {

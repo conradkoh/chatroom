@@ -2,6 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import {
+  AgentRoleLifecycleTag,
+  type AgentRoleLifecycleTag as AgentRoleLifecycleTagType,
+} from '@workspace/shared/domain/agent-role';
 import type { ChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
 import { deriveChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
@@ -42,6 +46,7 @@ export function resolveMachineHostname(
 
 export interface InlineAgentCardProps {
   role: string;
+  lifecycle: AgentRoleLifecycleTagType;
   /** All agent roles in the workspace (for shared restart stats modal). */
   allRoles: string[];
   lastSeenAt?: number | null;
@@ -140,9 +145,13 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   lockedWorkingDir,
   onSetupConfigChange,
   teamId,
+  lifecycle,
 }: InlineAgentCardProps) {
   const { machines, agentConfigs: fallbackAgentConfigs, sendCommand } = useAgentControlData();
-  const { config: workspaceConfig } = useWorkspaceAgentConfig(workspaceId ?? null, role);
+  const { config: workspaceConfig, isLoading: isWorkspaceConfigLoading } = useWorkspaceAgentConfig(
+    workspaceId ?? null,
+    role
+  );
   const { status: workspaceStatus } = useWorkspaceAgentStatus(workspaceId ?? null, role);
   const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
     useChatroomWorkspaces(chatroomId);
@@ -188,6 +197,9 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const controls = useAgentControls({
     role,
     chatroomId,
+    workspaceId,
+    isEphemeral: lifecycle === AgentRoleLifecycleTag.Ephemeral,
+    configurationLoading: isWorkspaceConfigLoading,
     connectedMachines: machines,
     agentConfigs,
     sendCommand,

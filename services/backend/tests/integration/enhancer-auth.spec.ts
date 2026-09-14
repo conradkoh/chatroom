@@ -11,7 +11,12 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { insertEnhancerJob } from '../helpers/enhancer-job';
-import { createTestSession, joinParticipant, addEnhancerToTeamRoles } from '../helpers/integration';
+import {
+  createTestSession,
+  joinParticipant,
+  addEnhancerToTeamRoles,
+  enableEnhancerTeamAgent,
+} from '../helpers/integration';
 
 describe('daemon.enhancer.index unauthorized access', () => {
   test('pendingForMachine returns empty for caller without machine owner access', async () => {
@@ -45,15 +50,7 @@ describe('daemon.enhancer.index unauthorized access', () => {
       await setupPlannerWorkspaceForSession('enh-auth-claim');
     const { sessionId: otherSession } = await createTestSession('enh-auth-claim-other');
 
-    await t.mutation(api.web.enhancer.index.upsertConfig, {
-      sessionId,
-      chatroomId,
-      enabled: true,
-      targetId: 'handoff:planner-to-builder',
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      machineId,
-    });
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
 
     await addEnhancerToTeamRoles(chatroomId);
 
@@ -102,15 +99,7 @@ describe('daemon.enhancer.index unauthorized access', () => {
       await setupPlannerWorkspaceForSession('enh-auth-payload');
     const { sessionId: otherSession } = await createTestSession('enh-auth-payload-other');
 
-    await t.mutation(api.web.enhancer.index.upsertConfig, {
-      sessionId,
-      chatroomId,
-      enabled: true,
-      targetId: 'handoff:planner-to-builder',
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      machineId,
-    });
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
 
     await addEnhancerToTeamRoles(chatroomId);
 

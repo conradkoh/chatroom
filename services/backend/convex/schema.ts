@@ -614,9 +614,9 @@ export default defineSchema({
     queuePosition: v.number(),
     // Scheduled prompt ID that triggered this queued message
     scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
-    // Snapshot of enhancer enabled at enqueue time (undefined = legacy/live fallback)
+    // Snapshot of enhancer enabled at enqueue time (undefined = legacy code fallback)
     plannerEnhancerEnabled: v.optional(v.boolean()),
-    // Per-message conversation mode snapshot (undefined = legacy/live fallback)
+    // Per-message conversation mode snapshot (undefined = legacy code fallback)
     conversationMode: v.optional(
       v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
     ),
@@ -691,9 +691,9 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
-    // Snapshot of enhancer enabled at task creation (user-tasks only; undefined = legacy/live fallback)
+    // Snapshot of enhancer enabled at task creation (user-tasks only; undefined = legacy code fallback)
     plannerEnhancerEnabled: v.optional(v.boolean()),
-    // Per-message conversation mode snapshot (undefined = legacy/live fallback)
+    // Per-message conversation mode snapshot (undefined = legacy code fallback)
     conversationMode: v.optional(
       v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
     ),
@@ -1087,20 +1087,6 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_user_machine', ['userId', 'machineId']),
 
-  /** User favorites for enhancer target+harness+model configs. Scoped per machine. */
-  chatroom_enhancerConfigFavorites: defineTable({
-    userId: v.id('users'),
-    machineId: v.string(),
-    favorites: v.array(
-      v.object({
-        targetId: v.literal('handoff:planner-to-builder'),
-        agentHarness: agentHarnessValidator,
-        model: v.string(),
-      })
-    ),
-    updatedAt: v.number(),
-  }).index('by_user_machine', ['userId', 'machineId']),
-
   /** Per-user ranked harness+model favorites for a machine+role scope. */
   chatroom_machineConfigFavorites: defineTable({
     userId: v.id('users'),
@@ -1224,6 +1210,8 @@ export default defineSchema({
    */
   chatroom_agentRoleStatusReadModel: defineTable({
     chatroomId: v.id('chatroom_rooms'),
+    /** Workspace owning this role instance when it was launched from a workspace. */
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
     role: v.string(),
     roleKind: v.union(v.literal('persistent'), v.literal('ephemeral')),
     agentType: v.optional(agentTypeValidator),
@@ -1298,6 +1286,7 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_role', ['chatroomId', 'role'])
+    .index('by_chatroom_workspace_role', ['chatroomId', 'workspaceId', 'role'])
     .index('by_machineId', ['machineId']),
 
   /** @deprecated Compatibility-only sidebar projection. */
@@ -2748,23 +2737,6 @@ export default defineSchema({
     .index('by_messageId', ['messageId']),
 
   /**
-   * @deprecated Compatibility-only enhancer configuration projection. New
-   * enhancer requests are represented by chatroom_enhancerJobs.
-   */
-  chatroom_enhancerConfigs: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    userId: v.id('users'),
-    enabled: v.boolean(),
-    targetId: v.literal('handoff:planner-to-builder'),
-    agentHarness: agentHarnessValidator,
-    model: v.string(),
-    machineId: v.string(),
-    updatedAt: v.number(),
-  })
-    .index('by_chatroom_user', ['chatroomId', 'userId'])
-    .index('by_chatroom', ['chatroomId']),
-
-  /**
    * Per-user conversation-mode preference for a chatroom.
    * Kept separate from enhancer configuration because chat/code selections are
    * valid even when no enhancer has been configured.
@@ -2906,43 +2878,45 @@ export default defineSchema({
       v.record(v.string(), v.object({ version: v.string(), major: v.number() }))
     ),
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
-    workspaces: v.optional(v.array(
-      v.object({
-        workspaceId: v.string(),
-        cwd: v.string(),
-        name: v.string(),
-        agents: v.optional(v.array(v.any())),
-        harnesses: v.optional(
-          v.array(
-            v.object({
-              name: v.string(),
-              displayName: v.string(),
-              agents: v.array(
-                v.object({
-                  name: v.string(),
-                  mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
-                  model: v.optional(
-                    v.object({
-                      providerID: v.string(),
-                      modelID: v.string(),
-                    })
-                  ),
-                  description: v.optional(v.string()),
-                })
-              ),
-              providers: v.array(
-                v.object({
-                  providerID: v.string(),
-                  name: v.string(),
-                  models: v.array(v.object({ modelID: v.string(), name: v.string() })),
-                })
-              ),
-              configSchema: v.optional(v.any()),
-            })
-          )
-        ),
-      })
-    )),
+    workspaces: v.optional(
+      v.array(
+        v.object({
+          workspaceId: v.string(),
+          cwd: v.string(),
+          name: v.string(),
+          agents: v.optional(v.array(v.any())),
+          harnesses: v.optional(
+            v.array(
+              v.object({
+                name: v.string(),
+                displayName: v.string(),
+                agents: v.array(
+                  v.object({
+                    name: v.string(),
+                    mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
+                    model: v.optional(
+                      v.object({
+                        providerID: v.string(),
+                        modelID: v.string(),
+                      })
+                    ),
+                    description: v.optional(v.string()),
+                  })
+                ),
+                providers: v.array(
+                  v.object({
+                    providerID: v.string(),
+                    name: v.string(),
+                    models: v.array(v.object({ modelID: v.string(), name: v.string() })),
+                  })
+                ),
+                configSchema: v.optional(v.any()),
+              })
+            )
+          ),
+        })
+      )
+    ),
     updatedAt: v.number(),
   })
     .index('by_machineId', ['machineId'])

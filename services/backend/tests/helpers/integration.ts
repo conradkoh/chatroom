@@ -14,7 +14,6 @@ import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 
 export async function setAgentRuntimeState(
@@ -259,56 +258,21 @@ export async function enableEnhancerTeamAgent(
   machineId: string
 ): Promise<void> {
   await addEnhancerToTeamRoles(chatroomId);
-  await t.mutation(api.web.enhancer.index.upsertConfig, {
+  const workspaces = await t.query(api.workspaces.listWorkspacesForMachine, {
     sessionId,
-    chatroomId,
-    enabled: true,
-    targetId: 'handoff:planner-to-builder',
-    agentHarness: 'opencode',
-    model: 'anthropic/claude-opus-4',
     machineId,
   });
-  await t.run(async (ctx) => {
-    const room = await ctx.db.get('chatroom_rooms', chatroomId);
-    if (!room?.teamId) return;
-    const teamRoleKey = buildTeamRoleKey(chatroomId, room.teamId, 'enhancer');
-    const existing = await ctx.db
-      .query('chatroom_agentDesiredConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-    if (existing) {
-      await ctx.db.patch(existing._id, { enabled: true, machineId });
-      const runtime = await ctx.db
-        .query('chatroom_agentRuntimeStates')
-        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', existing._id))
-        .first();
-      if (runtime) {
-        await ctx.db.patch(runtime._id, { desiredState: 'stopped', status: 'offline' });
-      }
-      return;
-    }
-    const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
-      teamRoleKey,
-      chatroomId,
-      role: 'enhancer',
-      type: 'remote',
-      machineId,
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      workingDir: '/workspace',
-      enabled: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-    await ctx.db.insert('chatroom_agentRuntimeStates', {
-      desiredConfigId: configId,
-      chatroomId,
-      role: 'enhancer',
-      machineId,
-      status: 'offline',
-      desiredState: 'stopped',
-      updatedAt: Date.now(),
-    });
+  const workspace = workspaces.find((candidate) => candidate.chatroomId === chatroomId);
+  if (!workspace) throw new Error('Workspace not found for enhancer configuration');
+  await t.mutation(api.agents.saveConfig, {
+    sessionId,
+    chatroomId,
+    workspaceId: workspace._id,
+    role: 'enhancer',
+    machineId,
+    agentHarness: 'opencode',
+    model: 'anthropic/claude-opus-4',
+    workingDir: workspace.workingDir,
   });
 }
 

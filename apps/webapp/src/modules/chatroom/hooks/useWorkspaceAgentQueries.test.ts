@@ -1,7 +1,9 @@
 import { renderHook } from '@testing-library/react';
+import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useWorkspaceAgentConfig } from './useWorkspaceAgentQueries';
+import { getWorkspaceAgentRoles } from '../utils/workspaceAgentRoles';
 
 const mockUseSessionQuery = vi.fn();
 
@@ -23,8 +25,8 @@ vi.mock('../context/ChatroomWorkspaceContext', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    agents: {
-      getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
+    agentWorkspaces: {
+      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
     },
   },
 }));
@@ -34,15 +36,15 @@ describe('useWorkspaceAgentConfig', () => {
     mockUseSessionQuery.mockReset();
   });
 
-  it('falls back to the chatroom snapshot when the workspace lookup has no row', () => {
-    mockUseSessionQuery.mockReturnValueOnce(null).mockReturnValueOnce({
+  it('loads only the last configuration for the selected workspace', () => {
+    mockUseSessionQuery.mockReturnValueOnce({
       role: 'planner',
-      agentType: 'remote',
+      type: 'remote',
       machineId: 'machine-1',
       agentHarness: 'cursor-sdk',
       model: 'big-pickle',
       workingDir: '/workspace/chatroom',
-      requestedAt: 123,
+      updatedAt: 123,
     });
 
     const { result } = renderHook(() => useWorkspaceAgentConfig('workspace-1', 'planner'));
@@ -56,5 +58,28 @@ describe('useWorkspaceAgentConfig', () => {
       updatedAt: 123,
     });
     expect(result.current.isLoading).toBe(false);
+  });
+});
+
+describe('getWorkspaceAgentRoles', () => {
+  it('derives every rendered role from the static structure, including unconfigured ephemeral roles', () => {
+    const agents = getWorkspaceAgentRoles({
+      teamId: 'duo',
+      teamStructureId: 'duo@1',
+      teamName: 'Duo',
+      entryPoint: 'planner',
+      roles: [
+        { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+        { role: 'enhancer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+        { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+      ],
+    });
+
+    expect(agents.map((agent) => agent.role)).toEqual(['planner', 'enhancer', 'builder']);
+    expect(agents[1]).toMatchObject({
+      lifecycle: AgentRoleLifecycleTag.Ephemeral,
+      optional: true,
+      teamId: 'duo',
+    });
   });
 });

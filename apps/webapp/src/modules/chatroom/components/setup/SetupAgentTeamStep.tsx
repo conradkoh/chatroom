@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
+import { AgentRoleLifecycleTag, getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -177,6 +177,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
                 <InlineAgentCard
                   key={role}
                   role={role}
+                  lifecycle={AgentRoleLifecycleTag.Permanent}
                   allRoles={persistentTeamRoles}
                   lastSeenAt={participant?.lastSeenAt ?? null}
                   statusLabel="OFFLINE"

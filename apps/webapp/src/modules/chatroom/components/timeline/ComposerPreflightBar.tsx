@@ -40,6 +40,9 @@ export function ComposerPreflightBar({
         <PlannerConversationModeToggle
           chatroomId={chatroomId}
           machineId={activeWorkspace?.machineId ?? null}
+          workspaceId={activeWorkspace?.workspaceId ?? null}
+          workingDir={activeWorkspace?.workingDir ?? null}
+          teamId={teamId}
           teamSupportState={teamSupportState}
           onRequestComposerFocus={onRequestComposerFocus}
         />

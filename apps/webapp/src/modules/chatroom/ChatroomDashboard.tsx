@@ -1862,6 +1862,9 @@ function ChatroomDashboardContent({
                       onViewChange={handleActivityViewChange}
                       chatroomId={chatroomId}
                       machineId={activeWorkspace?.machineId ?? null}
+                      workspaceId={activeWorkspace?.workspaceId ?? null}
+                      workingDir={activeWorkspace?.workingDir ?? null}
+                      teamId={agentPanelData.team.teamId ?? null}
                     />
 
                     {/* File Explorer Left Sidebar — shown in explorer view */}

@@ -31,12 +31,23 @@ export async function registerSpawnedAgentIfAuthorized(
   });
   if (!launchRequest || launchRequest.machineId !== args.machineId)
     return { accepted: false, reason: 'not_configured' };
-  const existingStatus = await ctx.db
-    .query('chatroom_agentRoleStatusReadModel')
-    .withIndex('by_chatroom_role', (q) =>
-      q.eq('chatroomId', args.chatroomId).eq('role', args.role.trim().toLowerCase())
-    )
-    .first();
+  const normalizedRole = args.role.trim().toLowerCase();
+  const existingStatus = launchRequest.workspaceId
+    ? await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_workspace_role', (q) =>
+          q
+            .eq('chatroomId', args.chatroomId)
+            .eq('workspaceId', launchRequest.workspaceId)
+            .eq('role', normalizedRole)
+        )
+        .first()
+    : await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('role', normalizedRole)
+        )
+        .first();
   if (existingStatus?.observedPid === args.pid) return { accepted: true };
   await recordAgentSpawnedState(ctx, {
     chatroomId: args.chatroomId,

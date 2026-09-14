@@ -920,7 +920,7 @@ const WorkspacesContent = memo(function WorkspacesContent() {
   );
 });
 
-/** Agents tab — shows the current team's permanent roles scoped to the active workspace. */
+/** Agents tab — shows every role in the current team scoped to the active workspace. */
 const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
   const { agents, isLoading } = useWorkspaceAgentDirectory();
   return (
