@@ -12,6 +12,7 @@ export type { AgentHarness, HarnessVersionInfo } from './types.js';
 export {
   ensureMachineRegistered,
   getMachineId,
+  getMachineConfigPath,
   loadMachineConfig,
   type EnsureMachineRegisteredOptions,
 } from './storage.js';
@@ -19,6 +20,7 @@ export {
 // Daemon state (runtime PID tracking — separate from machine.json)
 export {
   clearAgentPid,
+  loadDaemonState,
   listAgentEntries,
   persistAgentPid,
   persistEventCursor,

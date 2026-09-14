@@ -9,8 +9,10 @@ import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
 import { startAllSubscribers } from './subscriber-registry.js';
+import { api } from '../../api.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { createLogServer, resolveLogsDbPath } from '../../infrastructure/log-server/index.js';
+import { loadDaemonState } from '../../infrastructure/machine/daemon-state.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
@@ -55,6 +57,61 @@ export async function startDaemon(): Promise<void> {
   });
 
   const localWebPort = resolveLocalWebPort();
+  // fallow-ignore-next-line complexity
+  const debugState = async (chatroomId: string) => {
+    const persisted = await loadDaemonState(init.machineId);
+    const persistedAgents = Object.fromEntries(
+      Object.entries(persisted?.agents ?? {}).filter(([key]) => key.startsWith(`${chatroomId}/`))
+    );
+    let inbox: unknown[] = [];
+    let inboxError: string | undefined;
+    try {
+      const rows = (await init.backend.query(api.daemon.machineCommandInbox.list, {
+        sessionId: asConvexSessionId(init.sessionId),
+        machineId: init.machineId,
+      })) as { command?: { chatroomId?: string }; [key: string]: unknown }[];
+      inbox = rows.filter((row) => row.command?.chatroomId === chatroomId);
+    } catch (error) {
+      inboxError = error instanceof Error ? error.message : String(error);
+    }
+    return {
+      capturedAt: new Date().toISOString(),
+      process: {
+        pid: process.pid,
+        uptimeSeconds: process.uptime(),
+        nodeVersion: process.version,
+        platform: process.platform,
+      },
+      daemon: {
+        machineId: init.machineId,
+        convexUrl: init.convexUrl,
+        localWebPort,
+        config: init.config
+          ? {
+              hostname: init.config.hostname,
+              os: init.config.os,
+              registeredAt: init.config.registeredAt,
+              lastSyncedAt: init.config.lastSyncedAt,
+              availableHarnesses: init.config.availableHarnesses,
+              harnessVersions: init.config.harnessVersions,
+            }
+          : null,
+      },
+      chatroomId,
+      manager: init.agentProcessManager.getDebugState(chatroomId),
+      service: init.agentProcessManagerService.debugState?.() ?? null,
+      persistedState: {
+        version: persisted?.version ?? null,
+        updatedAt: persisted?.updatedAt ?? null,
+        lastSeenEventId: persisted?.lastSeenEventId ?? null,
+        agents: persistedAgents,
+      },
+      convex: {
+        machineCommandInbox: inbox,
+        ...(inboxError ? { machineCommandInboxError: inboxError } : {}),
+      },
+    };
+  };
   const localWeb = await startLocalWebServer(
     { host: '127.0.0.1', port: localWebPort },
     {
@@ -65,6 +122,7 @@ export async function startDaemon(): Promise<void> {
       eventStreamHub,
       backend: init.backend,
       sessionId: init.sessionId,
+      debugState,
     }
   );
   resolveBoundPort(localWeb.port);

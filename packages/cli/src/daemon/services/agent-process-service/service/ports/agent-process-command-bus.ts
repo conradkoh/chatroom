@@ -8,14 +8,14 @@ export interface AgentProcessCommandMessage {
 }
 
 export interface AgentProcessCommandBus {
-  send(input: {
-    body: AgentProcessManagerCommand;
-    messageGroupId: string;
-  }): Promise<void>;
-  purge(input:
-    | { readonly scope: 'all' }
-    | { readonly scope: 'message-group-prefix'; readonly messageGroupPrefix: string }
+  send(input: { body: AgentProcessManagerCommand; messageGroupId: string }): Promise<void>;
+  purge(
+    input:
+      | { readonly scope: 'all' }
+      | { readonly scope: 'message-group-prefix'; readonly messageGroupPrefix: string }
   ): Promise<AgentProcessCommandMessage[]>;
   start(): void;
   stop(): Promise<void>;
+  /** Read-only diagnostic view of the in-memory lifecycle queue. */
+  debugSnapshot?(): unknown[];
 }

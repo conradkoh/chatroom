@@ -253,6 +253,7 @@ interface RetryQueueItem {
 const AGENT_EXIT_RETRY_INTERVAL_MS = 10_000;
 
 /** Max time to wait for agent stop before force-clearing a stuck stopping slot. */
+// fallow-ignore-next-line unused-export
 export const STOPPING_TIMEOUT_MS = 30_000;
 
 // ─── Manager ──────────────────────────────────────────────────────────────────
@@ -996,6 +997,72 @@ export class AgentProcessManager {
       result.push({ chatroomId: identity.chatroomId, role: identity.role, slot });
     }
     return result;
+  }
+
+  /**
+   * Return a JSON-safe diagnostic snapshot of the manager's local state.
+   * This is intentionally read-only and is exposed only through the local
+   * daemon diagnostics endpoint.
+   */
+  getDebugState(chatroomId?: string): {
+    slots: {
+      chatroomId: string;
+      role: string;
+      state: AgentSlotState;
+      pid?: number;
+      harness?: AgentHarness;
+      model?: string;
+      workingDir?: string;
+      harnessSessionId?: string;
+      startedAt?: number;
+      pendingOperation: boolean;
+      recentLogLines?: string[];
+      wantResume?: boolean;
+      lastOutputAt?: number;
+      nativeTurnPhase?: NativeTurnPhase;
+      stoppingSince?: number;
+      stopRequested?: boolean;
+      expectedStopReason?: string;
+      expectedStopPid?: number;
+      stopCommandId?: string;
+      stopTargetKey?: string;
+    }[];
+    serializedOperationKeys: string[];
+    exitRetryQueue: { chatroomId: string; role: string }[];
+  } {
+    const slots = this.listAllSlots()
+      .filter(({ chatroomId: id }) => chatroomId === undefined || id === chatroomId)
+      .map(({ chatroomId: id, role, slot }) => ({
+        chatroomId: id,
+        role,
+        state: slot.state,
+        ...(slot.pid === undefined ? {} : { pid: slot.pid }),
+        ...(slot.harness === undefined ? {} : { harness: slot.harness }),
+        ...(slot.model === undefined ? {} : { model: slot.model }),
+        ...(slot.workingDir === undefined ? {} : { workingDir: slot.workingDir }),
+        ...(slot.harnessSessionId === undefined ? {} : { harnessSessionId: slot.harnessSessionId }),
+        ...(slot.startedAt === undefined ? {} : { startedAt: slot.startedAt }),
+        pendingOperation: slot.pendingOperation !== undefined,
+        ...(slot.recentLogLines === undefined ? {} : { recentLogLines: slot.recentLogLines }),
+        ...(slot.wantResume === undefined ? {} : { wantResume: slot.wantResume }),
+        ...(slot.lastOutputAt === undefined ? {} : { lastOutputAt: slot.lastOutputAt }),
+        ...(slot.nativeTurnPhase === undefined ? {} : { nativeTurnPhase: slot.nativeTurnPhase }),
+        ...(slot.stoppingSince === undefined ? {} : { stoppingSince: slot.stoppingSince }),
+        ...(slot.stopRequested === undefined ? {} : { stopRequested: slot.stopRequested }),
+        ...(slot.expectedStopReason === undefined
+          ? {}
+          : { expectedStopReason: slot.expectedStopReason }),
+        ...(slot.expectedStopPid === undefined ? {} : { expectedStopPid: slot.expectedStopPid }),
+        ...(slot.stopCommandId === undefined ? {} : { stopCommandId: slot.stopCommandId }),
+        ...(slot.stopTargetKey === undefined ? {} : { stopTargetKey: slot.stopTargetKey }),
+      }));
+    const serializedOperationKeys = [...this.serializedOperationTails.keys()].filter((key) =>
+      chatroomId === undefined ? true : key.startsWith(`${chatroomId}${AGENT_KEY_SEPARATOR}`)
+    );
+    const exitRetryQueue = this.exitRetryQueue
+      .filter(({ args }) => chatroomId === undefined || args.chatroomId === chatroomId)
+      .map(({ args, role }) => ({ chatroomId: args.chatroomId, role }));
+    return { slots, serializedOperationKeys, exitRetryQueue };
   }
 
   /** Force-clear slots stuck in stopping beyond STOPPING_TIMEOUT_MS. Returns true if cleared. */

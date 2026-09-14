@@ -31,6 +31,7 @@ export type LocalWebServerDeps = {
   backend?: BackendOps | undefined;
   sessionId?: string | undefined;
   clientDistDir?: string | undefined;
+  debugState?: ((chatroomId: string) => unknown | Promise<unknown>) | undefined;
 };
 
 export type LocalWebServerHandle = {
@@ -87,6 +88,7 @@ export async function startLocalWebServer(
     eventStreamHub: deps.eventStreamHub,
     backend: deps.backend,
     sessionId: deps.sessionId,
+    debugState: deps.debugState,
   });
 
   return {

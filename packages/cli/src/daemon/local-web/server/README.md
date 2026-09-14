@@ -16,6 +16,7 @@ HTTP server for the embedded daemon UI — **127.0.0.1 only**, `node:http` (no `
 | Event                      | Direction     | Ack | Description                     |
 | -------------------------- | ------------- | --- | ------------------------------- |
 | `health.get`               | client→server | yes | Daemon UI health + port         |
+| `daemon.debug.state`       | client→server | yes | Chatroom-filtered daemon state  |
 | `harness.history`          | client→server | yes | Historical harness stream lines |
 | `harness.stream.subscribe` | client→server | yes | Subscribe to live stream        |
 | `harness.stream`           | server→client | no  | Live harness stream push        |
