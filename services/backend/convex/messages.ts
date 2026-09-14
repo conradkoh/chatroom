@@ -18,6 +18,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { generateRolePrompt, composeInitPrompt } from '../prompts';
+import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
@@ -501,6 +502,11 @@ async function _sendMessageHandler(
         message: 'Chatroom is not active',
       });
     }
+    // Wake only roles whose backend projection is offline. The daemon remains
+    // authoritative and treats duplicate start requests as idempotent.
+    await ctx.scheduler.runAfter(0, internal.agents.startOfflinePermanentAgentsForChatroom, {
+      chatroomId: args.chatroomId,
+    });
     return result.messageId;
   }
   // ─── Non-user messages: always write to chatroom_messages ────────────────

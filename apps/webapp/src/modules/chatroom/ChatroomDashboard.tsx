@@ -88,12 +88,7 @@ import { StartInNewSessionPreferenceProvider } from './hooks/useStartInNewSessio
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
-import {
-  ensureAgentRolesConfigured,
-  getFailedAgentRoles,
-  runAgentRestartBatch,
-  startAgentsForRoles,
-} from './utils/agentBulkStart';
+import { ensureRestartAgentRolesConfigured, runAgentRestartBatch } from './utils/agentBulkStart';
 import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
@@ -980,6 +975,7 @@ function ChatroomDashboardContent({
   // Send message mutation (used to execute saved commands)
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
+  const startAllPermanentAgents = useSessionMutation(api.agents.startAllPermanent);
   const lastRefreshRef = useRef(0);
 
   useHandoffGitRefresh(
@@ -1386,10 +1382,12 @@ function ChatroomDashboardContent({
 
   // Start all remote agents handler
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
-  const getConfiguredAgentRoles = useCallback((): string[] | null => {
+  const getConfiguredRestartAgentRoles = useCallback((): string[] | null => {
     const agentRoles = getPermanentRoleNames(teamRoles.filter((r) => r !== 'user'));
     if (
-      !ensureAgentRolesConfigured(agentRoles, roleConfigMap, () => handleCmdOpenSettings('agents'))
+      !ensureRestartAgentRolesConfigured(agentRoles, roleConfigMap, () =>
+        handleCmdOpenSettings('agents')
+      )
     ) {
       return null;
     }
@@ -1397,22 +1395,22 @@ function ChatroomDashboardContent({
   }, [teamRoles, roleConfigMap, handleCmdOpenSettings]);
 
   const handleStartAllRemoteAgents = useCallback(async () => {
-    const agentRoles = getConfiguredAgentRoles();
-    if (!agentRoles) return;
     setIsStartingAllAgents(true);
     try {
-      const results = await startAgentsForRoles(
-        agentRoles,
-        roleConfigMap,
-        chatroomId as Id<'chatroom_rooms'>,
-        agentPanelData.sendCommand
-      );
-      const failed = getFailedAgentRoles(results, agentRoles);
-      if (failed.length > 0) toast.error(`Failed to start: ${failed.join(', ')}`);
+      const result = await startAllPermanentAgents({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      });
+      if (result.failed.length > 0) {
+        toast.error(`Failed to start: ${result.failed.map(({ role }) => role).join(', ')}`);
+      } else if (result.started.length > 0) {
+        toast.success(`Start requested for ${result.started.length} agent(s)`);
+      } else if (result.skipped.length > 0) {
+        toast.error('No saved configuration is available for the permanent agents');
+      }
     } finally {
       setIsStartingAllAgents(false);
     }
-  }, [agentPanelData.sendCommand, chatroomId, getConfiguredAgentRoles, roleConfigMap]);
+  }, [chatroomId, startAllPermanentAgents]);
 
   // Stop all remote agents immediately from the quick-action button.
   const handleStopAllRemoteAgents = useCallback(async () => {
@@ -1429,7 +1427,7 @@ function ChatroomDashboardContent({
   // Restart all remote agents through the atomic backend restart path.
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
   const handleRestartAllRemoteAgents = useCallback(async () => {
-    const agentRoles = getConfiguredAgentRoles();
+    const agentRoles = getConfiguredRestartAgentRoles();
     if (!agentRoles) return;
 
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
@@ -1446,14 +1444,12 @@ function ChatroomDashboardContent({
       .map((a) => a.role);
     try {
       if (runningRoles.length === 0) {
-        const results = await startAgentsForRoles(
-          agentRoles,
-          roleConfigMap,
-          chatroomIdTyped,
-          agentPanelData.sendCommand
-        );
-        const failed = getFailedAgentRoles(results, agentRoles);
-        if (failed.length > 0) toast.error(`Failed to start: ${failed.join(', ')}`);
+        const result = await startAllPermanentAgents({ chatroomId: chatroomIdTyped });
+        if (result.failed.length > 0) {
+          toast.error(`Failed to start: ${result.failed.map(({ role }) => role).join(', ')}`);
+        } else {
+          toast.success(`Start requested for ${result.started.length} agent(s)`);
+        }
         return;
       }
       await runAgentRestartBatch(
@@ -1468,7 +1464,14 @@ function ChatroomDashboardContent({
     } finally {
       // Stay latched until status returns to running; the daemon mutation is async.
     }
-  }, [agentPanelData, agentViewsByRole, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
+  }, [
+    agentPanelData,
+    agentViewsByRole,
+    roleConfigMap,
+    chatroomId,
+    getConfiguredRestartAgentRoles,
+    startAllPermanentAgents,
+  ]);
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
@@ -1498,7 +1501,9 @@ function ChatroomDashboardContent({
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {
       if (
-        !ensureAgentRolesConfigured([role], roleConfigMap, () => handleCmdOpenSettings('agents'))
+        !ensureRestartAgentRolesConfigured([role], roleConfigMap, () =>
+          handleCmdOpenSettings('agents')
+        )
       ) {
         return;
       }

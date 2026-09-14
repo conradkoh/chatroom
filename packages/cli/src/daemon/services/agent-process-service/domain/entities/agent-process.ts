@@ -1,7 +1,12 @@
+import type {
+  AgentSlotState,
+  AgentStartDisposition,
+} from '../../../../domain/entities/agent-slot.js';
 import type { NativeTurnPhase } from '../../../../domain/entities/native-turn-phase.js';
 import type { TurnCompletionResult } from '../../../../infrastructure/local/harness/services/turn-completion.js';
 
-export type AgentProcessSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
+export type AgentProcessSlotState = AgentSlotState;
+export type { AgentStartDisposition } from '../../../../domain/entities/agent-slot.js';
 
 /** Stable read model exposed to application and task services. */
 export interface AgentProcessSlotView {
@@ -36,6 +41,13 @@ export type AgentTurnEndedHandler = (
 export interface AgentStartedEvent {
   readonly chatroomId: string;
   readonly role: string;
+}
+
+export interface AgentStartResult {
+  readonly success: boolean;
+  readonly pid?: number | undefined;
+  readonly disposition?: AgentStartDisposition | undefined;
+  readonly error?: string | undefined;
 }
 
 export type AgentStartedHandler = (event: AgentStartedEvent) => Promise<void>;

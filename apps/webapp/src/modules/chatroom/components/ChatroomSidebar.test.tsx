@@ -18,6 +18,9 @@ import type { ChatroomRemoteAgentStatus, ChatroomStatus } from '@/domain/entitie
 const mockArchiveChatroom = vi.fn().mockResolvedValue({ success: true, disabledPromptCount: 0 });
 const mockRequestChatroomStop = vi.fn().mockResolvedValue({ stopCommandId: 'stop' });
 const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
+const mockStartAllPermanent = vi
+  .fn()
+  .mockResolvedValue({ started: ['planner'], skipped: [], failed: [] });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
 const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
@@ -36,11 +39,6 @@ vi.mock('sonner', () => ({
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
   },
-}));
-
-vi.mock('./AgentPanel/UnifiedAgentListModal', () => ({
-  UnifiedAgentListModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="start-agent-modal">Start Agent Modal</div> : null,
 }));
 
 vi.mock('./LifecycleConfirmDialog', () => ({
@@ -82,6 +80,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'stopAllCommandRunsForChatroom') {
         return mockStopAllCommandRuns;
       }
+      if (name === 'startAllPermanent') {
+        return mockStartAllPermanent;
+      }
     }
     return () => {};
   },
@@ -100,6 +101,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
     commands: {
       stopAllCommandRunsForChatroom: { name: 'stopAllCommandRunsForChatroom' },
+    },
+    agents: {
+      startAllPermanent: { name: 'startAllPermanent' },
     },
   },
 }));
@@ -440,7 +444,7 @@ describe('ChatroomSidebar', () => {
     });
   });
 
-  it('play button opens the manual start modal', async () => {
+  it('play button starts permanent agents from their saved configuration', async () => {
     const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
     renderSidebar([chatroom]);
 
@@ -448,10 +452,9 @@ describe('ChatroomSidebar', () => {
     fireEvent.click(playButton);
 
     await waitFor(() => {
-      expect(screen.getByTestId('start-agent-modal')).toBeInTheDocument();
+      expect(mockStartAllPermanent).toHaveBeenCalledWith({ chatroomId: 'chr-1' });
     });
-
-    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
   });
 
   it('shows stop for a projected active chatroom even when the daemon summary is stopped', () => {

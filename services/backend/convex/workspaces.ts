@@ -21,6 +21,7 @@ import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { normalizeWorkingDir } from './workspacePathSecurity';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { getPrimaryWorkspaceForChatroom as getPrimaryWorkspaceForChatroomUseCase } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
@@ -28,20 +29,10 @@ import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/use
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
 
 async function getPrimaryWorkspaceView(ctx: QueryCtx, chatroomId: Id<'chatroom_rooms'>) {
+  const workspace = await getPrimaryWorkspaceForChatroomUseCase(ctx, chatroomId);
+  if (!workspace) return null;
   const workspaces = await listWorkspacesForChatroomUseCase(ctx, { chatroomId });
-  if (workspaces.length === 0) return null;
-
-  const selection = await ctx.db
-    .query('chatroom_primaryWorkspaces')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .first();
-  const selected = selection
-    ? workspaces.find((workspace) => workspace._id === selection.workspaceId)
-    : undefined;
-
-  // Existing chatrooms have no selection row yet. Keep the old deterministic
-  // fallback until the user chooses a workspace in the bottom bar.
-  return selected ?? workspaces.slice().sort((a, b) => b.registeredAt - a.registeredAt)[0] ?? null;
+  return workspaces.find((candidate) => candidate._id === workspace._id) ?? null;
 }
 
 /**

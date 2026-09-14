@@ -76,6 +76,46 @@ export interface StartAgentResult {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function isEquivalentStartCommand(
+  command: MachineCommandPayload,
+  input: Pick<StartAgentInput, 'chatroomId' | 'role' | 'agentHarness' | 'model' | 'workingDir'> & {
+    wantResume: boolean;
+  }
+): boolean {
+  return (
+    command.type === 'agent.requestStart' &&
+    command.chatroomId === input.chatroomId &&
+    command.role.trim().toLowerCase() === input.role.trim().toLowerCase() &&
+    command.agentHarness === input.agentHarness &&
+    command.model === input.model &&
+    command.workingDir === input.workingDir &&
+    command.wantResume === input.wantResume
+  );
+}
+
+/**
+ * Convex-side request deduplication. This is only an enqueue optimization;
+ * daemon slot state remains authoritative for whether a process is started.
+ */
+async function hasEquivalentPendingStart(
+  ctx: MutationCtx,
+  input: Pick<
+    StartAgentInput,
+    'machineId' | 'chatroomId' | 'role' | 'agentHarness' | 'model' | 'workingDir'
+  > & { wantResume: boolean }
+): Promise<boolean> {
+  for (const status of ['pending', 'processing'] as const) {
+    const rows = await ctx.db
+      .query('chatroom_machineCommandInbox')
+      .withIndex('by_machine_status_deadline', (q) =>
+        q.eq('machineId', input.machineId).eq('status', status)
+      )
+      .collect();
+    if (rows.some((row) => isEquivalentStartCommand(row.command, input))) return true;
+  }
+  return false;
+}
+
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
 /**
@@ -108,6 +148,10 @@ export async function startAgent(
     reason,
     wantResume,
   } = input;
+
+  if (!model.trim() || !workingDir.trim()) {
+    throw new Error('Agent model and working directory are required');
+  }
 
   if (isEphemeralAgentRole(role)) {
     throw new Error(
@@ -163,6 +207,10 @@ export async function startAgent(
     reason,
     wantResume: resolvedWantResume,
   };
+
+  if (await hasEquivalentPendingStart(ctx, { ...input, wantResume: resolvedWantResume })) {
+    return { agentHarness, model, workingDir };
+  }
 
   const commandId = await enqueueMachineCommand(ctx, {
     machineId,

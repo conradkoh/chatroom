@@ -1,6 +1,5 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { startAgentsBatch } from './agentStart';
 import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import type { AgentConfig, SendCommandFn } from '../types/machine';
 
@@ -57,30 +56,6 @@ function resolveRestartConfigForRole(
   return required ? withRestartDefaults(role, required, base, agentView) : null;
 }
 
-export async function startAgentsForRoles(
-  agentRoles: string[],
-  roleConfigMap: Map<string, AgentConfig>,
-  chatroomId: Id<'chatroom_rooms'>,
-  sendCommand: SendCommandFn
-): Promise<PromiseSettledResult<unknown>[]> {
-  return startAgentsBatch(
-    agentRoles,
-    (role) => {
-      const config = roleConfigMap.get(role.toLowerCase());
-      if (!config) return null;
-      return {
-        machineId: config.machineId,
-        chatroomId,
-        role,
-        model: config.model ?? '',
-        agentHarness: config.agentType,
-        workingDir: config.workingDir,
-      };
-    },
-    sendCommand
-  );
-}
-
 async function restartAgentsForRoles(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>,
@@ -123,19 +98,19 @@ export function getFailedAgentRoles(
     .filter(Boolean) as string[];
 }
 
-function getMissingAgentRoles(
+function getMissingRestartRoles(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>
 ): string[] {
   return agentRoles.filter((role) => !roleConfigMap.has(role.toLowerCase()));
 }
 
-export function ensureAgentRolesConfigured(
+export function ensureRestartAgentRolesConfigured(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>,
   onMissing: () => void
 ): boolean {
-  if (getMissingAgentRoles(agentRoles, roleConfigMap).length > 0) {
+  if (getMissingRestartRoles(agentRoles, roleConfigMap).length > 0) {
     onMissing();
     return false;
   }

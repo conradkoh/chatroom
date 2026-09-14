@@ -72,6 +72,56 @@ async function startAgent(
 // ---------------------------------------------------------------------------
 
 describe('startAgent use case — request snapshots', () => {
+  test('starts all permanent roles from their saved configurations', async () => {
+    const { sessionId } = await createTestSession('start-agent-all-current-config');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'start-machine-all-current-config';
+
+    await registerMachine(sessionId, machineId);
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/tmp/test',
+      hostname: 'test-host',
+      registeredBy: 'planner',
+    });
+    await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+      sessionId,
+      chatroomId,
+      workspaceId,
+    });
+    for (const role of ['planner', 'builder']) {
+      await t.mutation(api.agents.saveConfig, {
+        sessionId,
+        chatroomId,
+        workspaceId,
+        role,
+        machineId,
+        agentHarness: 'opencode',
+        model: TEST_MODEL_OPENCODE,
+        workingDir: '/tmp/test',
+      });
+    }
+
+    const first = await t.mutation(api.agents.startAllPermanent, {
+      sessionId,
+      chatroomId,
+    });
+    const second = await t.mutation(api.agents.startAllPermanent, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(first).toMatchObject({
+      started: expect.arrayContaining(['planner', 'builder']),
+      skipped: [],
+      failed: [],
+    });
+    expect(second).toMatchObject(first);
+    expect((await getInboxCommandsForMachine(machineId, 'agent.requestStart')).length).toBe(2);
+  });
+
   test('records a last-sent request without creating backend runtime state', async () => {
     const { sessionId } = await createTestSession('start-agent-1');
     const chatroomId = await createChatroom(sessionId);

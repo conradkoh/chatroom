@@ -3,7 +3,9 @@
  * Infrastructure maps AgentSlot ↔ TurnEndSlot.
  */
 
-export type TurnEndSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
+import type { AgentSlotState } from './agent-slot.js';
+
+export type TurnEndSlotState = AgentSlotState;
 
 export interface TurnEndSlot {
   recentLogLines?: string[] | undefined;

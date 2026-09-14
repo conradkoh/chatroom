@@ -9,6 +9,7 @@ import {
   buildAgentStatusFact,
   type AgentLifecycleFact,
 } from '../../../domain/entities/agent-lifecycle-fact.js';
+import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
@@ -303,7 +304,8 @@ export class AgentWorkManager {
 
     this.deps.agentTaskState.clear({ chatroomId, role });
     const slot = this.deps.agentMgr.getSlot(chatroomId, role);
-    if (!slot || slot.state === 'idle' || slot.state === 'stopping') return;
+    if (!slot || slot.state === AGENT_SLOT_STATE.IDLE || slot.state === AGENT_SLOT_STATE.STOPPING)
+      return;
 
     try {
       await this.deps.runSerializedForAgent(

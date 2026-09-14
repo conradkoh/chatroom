@@ -6,6 +6,7 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   Archive,
   ChevronDown,
+  Loader2,
   Mail,
   MailOpen,
   MessageSquare,
@@ -17,7 +18,6 @@ import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
@@ -60,12 +60,12 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   onSelect,
 }: ChatroomSidebarItemProps) {
   const displayName = getChatroomDisplayName(chatroom);
-  const [startModalOpen, setStartModalOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [isSubmittingStop, setIsSubmittingStop] = useState(false);
   const { requestChatroomStop } = useAgentStop();
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
+  const startAllPermanent = useSessionMutation(api.agents.startAllPermanent);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
   const { status: chatroomStatus } = useChatroomStatus(chatroom._id);
@@ -92,13 +92,31 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     setStopConfirmOpen(false);
   }, [chatroom._id, requestChatroomStop, stopAllCommandRuns]);
 
-  const handleStart = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    // Explicit manual start goes through the agent picker modal. Presence-driven
-    // restarts on user messages were removed; task pickup is assignment-driven.
-    setStartModalOpen(true);
-  }, []);
+  const [isStarting, setIsStarting] = useState(false);
+  const handleStart = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setIsStarting(true);
+      try {
+        const result = await startAllPermanent({
+          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
+        });
+        if (result.failed.length > 0) {
+          toast.error(`Failed to start: ${result.failed.map(({ role }) => role).join(', ')}`);
+        } else if (result.started.length > 0) {
+          toast.success(`Start requested for ${result.started.length} agent(s)`);
+        } else if (result.skipped.length > 0) {
+          toast.error('No saved configuration is available for the permanent agents');
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to start agents');
+      } finally {
+        setIsStarting(false);
+      }
+    },
+    [chatroom._id, startAllPermanent]
+  );
 
   const handleArchive = useCallback(() => {
     setArchiveDialogOpen(true);
@@ -190,9 +208,16 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
             <button
               onClick={handleStart}
               title="Start with last configuration"
+              aria-label="Start agents"
+              aria-busy={isStarting}
+              disabled={isStarting}
               className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
-              <Play size={10} fill="currentColor" />
+              {isStarting ? (
+                <Loader2 size={10} className="animate-spin" />
+              ) : (
+                <Play size={10} fill="currentColor" />
+              )}
             </button>
           )}
         </ContextMenuTrigger>
@@ -218,14 +243,6 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           </ContextMenuContent>
         )}
       </ContextMenu>
-
-      {startModalOpen && (
-        <UnifiedAgentListModal
-          isOpen={startModalOpen}
-          onClose={() => setStartModalOpen(false)}
-          chatroomId={chatroom._id}
-        />
-      )}
 
       <LifecycleConfirmDialog
         open={archiveDialogOpen}

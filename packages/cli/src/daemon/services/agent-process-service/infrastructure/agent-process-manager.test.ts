@@ -219,7 +219,7 @@ describe('AgentProcessManager', () => {
     test('idle → spawning → running: spawns process and transitions correctly', async () => {
       const result = await manager.ensureRunning(createOpts());
 
-      expect(result).toEqual({ success: true, pid: PID });
+      expect(result).toEqual({ success: true, pid: PID, disposition: 'started' });
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot).toBeDefined();
@@ -523,34 +523,25 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('second start while running replaces PID', async () => {
+    test('second start while running is idempotent and keeps the existing PID', async () => {
       await manager.ensureRunning(createOpts());
 
       const service = deps.agentServices.get('opencode')!;
-      const NEW_PID = 99;
-      (service.spawn as ReturnType<typeof vi.fn>).mockResolvedValue({
-        pid: NEW_PID,
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
       (service.stop as ReturnType<typeof vi.fn>).mockClear();
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
       (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
 
       const result = await manager.ensureRunning(createOpts());
 
-      expect(result).toEqual({ success: true, pid: NEW_PID });
-      expect(service.stop).toHaveBeenCalledWith(PID);
-      expect(service.spawn).toHaveBeenCalledOnce();
-      expect(manager.getSlot(CHATROOM_ID, ROLE)!.pid).toBe(NEW_PID);
-
-      expect(deps.logEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pid: PID,
-          stopReason: 'daemon.respawn',
-        })
-      );
+      expect(result).toEqual({
+        success: true,
+        pid: PID,
+        disposition: 'already_started',
+      });
+      expect(service.stop).not.toHaveBeenCalled();
+      expect(service.spawn).not.toHaveBeenCalled();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.pid).toBe(PID);
+      expect(deps.logEvent).not.toHaveBeenCalled();
     });
 
     test('persisted live PID without slot is killed before spawn', async () => {
@@ -564,7 +555,7 @@ describe('AgentProcessManager', () => {
 
       const result = await manager.ensureRunning(createOpts());
 
-      expect(result).toEqual({ success: true, pid: PID });
+      expect(result).toEqual({ success: true, pid: PID, disposition: 'started' });
       const service = deps.agentServices.get('opencode')!;
       expect(service.stop).toHaveBeenCalledWith(ORPHAN_PID);
       expect(untrackChildPid).toHaveBeenCalledWith(ORPHAN_PID);
@@ -598,7 +589,7 @@ describe('AgentProcessManager', () => {
 
       const result = await manager.ensureRunning(createOpts());
 
-      expect(result).toEqual({ success: true, pid: PID });
+      expect(result).toEqual({ success: true, pid: PID, disposition: 'started' });
       expect(service.spawn).toHaveBeenCalledOnce();
     });
 
@@ -628,8 +619,8 @@ describe('AgentProcessManager', () => {
 
       const [r1, r2] = await Promise.all([p1, p2]);
 
-      expect(r1).toEqual({ success: true, pid: PID });
-      expect(r2).toEqual({ success: true, pid: PID });
+      expect(r1).toEqual({ success: true, pid: PID, disposition: 'started' });
+      expect(r2).toEqual({ success: true, pid: PID, disposition: 'started' });
       expect(service.spawn).toHaveBeenCalledTimes(1);
     });
 
@@ -715,7 +706,7 @@ describe('AgentProcessManager', () => {
 
       const result = await manager.ensureRunning(createOpts());
 
-      expect(result).toEqual({ success: true, pid: PID });
+      expect(result).toEqual({ success: true, pid: PID, disposition: 'started' });
       expect(slot.state).toBe('running');
       expect(slot.pid).toBe(PID);
       expect(slot.stoppingSince).toBeUndefined();

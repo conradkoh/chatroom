@@ -1,5 +1,6 @@
 /** Canonical web-facing agent configuration and status reads. */
 
+import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import {
   deriveChatroomActivityStatus,
   deriveChatroomState,
@@ -9,7 +10,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc } from './_generated/dataModel';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireMachineOwner } from './auth/cli/machineAccess';
@@ -31,6 +32,10 @@ import {
   requestWorkspaceAgentStop,
 } from '../src/domain/usecase/agent/request-chatroom-workspace-agent-stop';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
+import {
+  startAgentFromCurrentWorkspaceConfig,
+  startPermanentAgentsFromCurrentConfig,
+} from '../src/domain/usecase/agent/start-agent-from-current-config';
 import {
   normalizeWorkingDir,
   requestBelongsToWorkspace,
@@ -110,6 +115,88 @@ export const requestStart = mutation({
       },
       machine
     );
+  },
+});
+
+/** Start one permanent role using its last saved configuration. */
+export const startFromCurrentConfig = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return startAgentFromCurrentWorkspaceConfig(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      requestedBy: session.userId,
+    });
+  },
+});
+
+/** Start every permanent role in a chatroom from backend-owned configuration. */
+export const startAllPermanent = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { session, chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const structure = await getActiveTeamStructure(ctx, args.chatroomId);
+    if (!structure) return { started: [], skipped: [], failed: [] };
+    const team = getTeamStructure({
+      teamId: structure.teamStructureId,
+      persistedRoles: chatroom.teamRoles ?? null,
+      persistedEntryPoint: chatroom.teamEntryPoint ?? null,
+    });
+    const roles = getPermanentRoleNames(
+      team.roles.map(({ role }) => role).filter((role) => role !== 'user')
+    );
+    return startPermanentAgentsFromCurrentConfig(ctx, {
+      chatroomId: args.chatroomId,
+      roles,
+      requestedBy: session.userId,
+    });
+  },
+});
+
+/**
+ * Message-triggered wake-up. The status read model is only a filter; the
+ * daemon decides whether each queued request is already satisfied.
+ */
+export const startOfflinePermanentAgentsForChatroom = internalMutation({
+  args: { chatroomId: v.id('chatroom_rooms') },
+  handler: async (ctx, args) => {
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom?.ownerId) return { started: [], skipped: [], failed: [] };
+    const structure = await getActiveTeamStructure(ctx, args.chatroomId);
+    if (!structure) return { started: [], skipped: [], failed: [] };
+    const team = getTeamStructure({
+      teamId: structure.teamStructureId,
+      persistedRoles: chatroom.teamRoles ?? null,
+      persistedEntryPoint: chatroom.teamEntryPoint ?? null,
+    });
+    const permanentRoles = getPermanentRoleNames(
+      team.roles.map(({ role }) => role).filter((role) => role !== 'user')
+    );
+    const offlineRows = await ctx.db
+      .query('chatroom_agentRoleStatusReadModel')
+      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+    const offlineRoles = permanentRoles.filter((role) =>
+      offlineRows.some(
+        (row) =>
+          row.role.toLowerCase() === role.toLowerCase() &&
+          row.roleKind === 'persistent' &&
+          row.status === 'offline'
+      )
+    );
+    return startPermanentAgentsFromCurrentConfig(ctx, {
+      chatroomId: args.chatroomId,
+      roles: offlineRoles,
+      requestedBy: chatroom.ownerId,
+    });
   },
 });
 

@@ -9,11 +9,13 @@ import {
   type TaskEnvelopeV1,
 } from '@workspace/shared/domain/task-envelope';
 import type { SessionId } from 'convex-helpers/server/sessions';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { getInboxCommandsForMachine } from '../tests/helpers/machine-command-inbox';
+import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,6 +83,79 @@ async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
 // ---------------------------------------------------------------------------
 
 describe('_sendMessageHandler — queued user message routing', () => {
+  test('schedules offline permanent-agent startup after a successful user message', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId } = await createTestSession('msg-offline-agent-start');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'msg-offline-agent-machine';
+
+      await t.mutation(api.machines.register, {
+        sessionId,
+        machineId,
+        hostname: 'test-host',
+        os: 'linux',
+        availableHarnesses: ['opencode'],
+      });
+      const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+        sessionId,
+        chatroomId,
+        machineId,
+        workingDir: '/tmp/test',
+        hostname: 'test-host',
+        registeredBy: 'planner',
+      });
+      await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+        sessionId,
+        chatroomId,
+        workspaceId,
+      });
+      await t.mutation(api.agents.saveConfig, {
+        sessionId,
+        chatroomId,
+        workspaceId,
+        role: 'planner',
+        machineId,
+        agentHarness: 'opencode',
+        model: TEST_MODEL_OPENCODE,
+        workingDir: '/tmp/test',
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+          chatroomId,
+          role: 'planner',
+          roleKind: 'persistent',
+          status: 'offline',
+          machineId,
+          workspaceId,
+          projectedAt: Date.now(),
+        });
+      });
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'wake the offline planner',
+        type: 'message',
+      });
+      expect((await getInboxCommandsForMachine(machineId, 'agent.requestStart')).length).toBe(0);
+
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts).toHaveLength(1);
+      expect(starts[0]?.command).toMatchObject({
+        type: 'agent.requestStart',
+        chatroomId,
+        role: 'planner',
+        model: TEST_MODEL_OPENCODE,
+        workingDir: '/tmp/test',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('first user message (no active tasks) → stored in chatroom_messages, task.sourceMessageId set', async () => {
     const { sessionId } = await createTestSession('msg-route-1');
     const chatroomId = await createChatroom(sessionId);
