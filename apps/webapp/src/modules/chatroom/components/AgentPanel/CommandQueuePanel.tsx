@@ -43,8 +43,6 @@ function getCommandTitle(command: QueueCommandPayload): string {
       return command.role ? `Stop ${command.role}` : 'Stop agents';
     case 'daemon.gitRefresh':
       return 'Refresh Git state';
-    case 'daemon.workspaceListChanged':
-      return 'Refresh workspaces';
     case 'daemon.refreshCapabilities':
       return 'Refresh capabilities';
     case 'daemon.localAction':
@@ -53,6 +51,8 @@ function getCommandTitle(command: QueueCommandPayload): string {
       return 'Pick workspace folder';
     case 'daemon.ping':
       return 'Daemon ping';
+    default:
+      throw new Error('Unknown queued command');
   }
 }
 

@@ -4,7 +4,6 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'agent.restart',
   'daemon.ping',
   'daemon.gitRefresh',
-  'daemon.workspaceListChanged',
   'daemon.localAction',
   'daemon.pickFolder',
   'daemon.refreshCapabilities',

@@ -1,6 +1,6 @@
 /**
- * Workspace list store — populated by inbound `daemon.workspaceListChanged` nudges
- * and one-shot startup reconcile. No polling.
+ * Workspace list store — populated by one-shot startup reconcile.
+ * Workspace membership changes require a daemon restart to be picked up.
  */
 
 import type { FunctionReturnType } from 'convex/server';
@@ -18,7 +18,7 @@ function toSyncWorkspaces(workingDirs: RecentlyObservedWorkspaces): WorkspaceFor
   return workingDirs.map((workingDir) => ({ workingDir }));
 }
 
-export async function reconcileWorkspaceList(session: DaemonSessionServiceShape): Promise<void> {
+async function reconcileWorkspaceList(session: DaemonSessionServiceShape): Promise<void> {
   const workspaces = await session.backend.query(
     api.workspaces.listRecentlyObservedWorkspacesForMachine,
     {
@@ -33,7 +33,7 @@ export async function reconcileWorkspaceList(session: DaemonSessionServiceShape)
   session.workspaceListStore.updatedAt = Date.now();
 }
 
-/** Initialize workspace list store (no WS). Call `reconcileWorkspaceList` on inbound nudges. */
+/** Initialize workspace list store with a one-shot startup reconcile (no WS). */
 export const startWorkspaceListSubscriptionEffect = (): Effect.Effect<
   { stop: () => void },
   never,

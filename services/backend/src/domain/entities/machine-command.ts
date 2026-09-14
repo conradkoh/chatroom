@@ -54,7 +54,6 @@ export const machineCommandPayloadValidator = v.union(
   }),
   v.object({ type: v.literal('daemon.ping') }),
   v.object({ type: v.literal('daemon.gitRefresh'), workingDir: v.string() }),
-  v.object({ type: v.literal('daemon.workspaceListChanged') }),
   v.object({
     type: v.literal('daemon.refreshCapabilities'),
     batchId: v.optional(v.id('chatroom_capabilities_refresh_batches')),
@@ -78,7 +77,6 @@ export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
   'agent.stop': AGENT_REQUEST_DEADLINE_MS,
   'daemon.ping': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.gitRefresh': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
-  'daemon.workspaceListChanged': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.refreshCapabilities': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.localAction': MACHINE_COMMAND_LOCAL_ACTION_TTL_MS,
   'daemon.pickFolder': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
