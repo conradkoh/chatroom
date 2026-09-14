@@ -1,4 +1,5 @@
 /** Machine command inbox: watch is a bandwidth-light nudge; claim delivers once, then renew/ack manage the lease. */
+// fallow-ignore-file code-duplication
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -15,6 +16,34 @@ async function findNextPendingInboxRow(ctx: QueryCtx | MutationCtx, machineId: s
     )
     .first();
 }
+
+async function listMachineInboxRows(ctx: QueryCtx | MutationCtx, machineId: string) {
+  const [pending, processing] = await Promise.all([
+    ctx.db
+      .query('chatroom_machineCommandInbox')
+      .withIndex('by_machine_status_deadline', (q) =>
+        q.eq('machineId', machineId).eq('status', 'pending')
+      )
+      .collect(),
+    ctx.db
+      .query('chatroom_machineCommandInbox')
+      .withIndex('by_machine_status_deadline', (q) =>
+        q.eq('machineId', machineId).eq('status', 'processing')
+      )
+      .collect(),
+  ]);
+
+  return [...pending, ...processing].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/** Lists all unacknowledged commands currently queued for a machine. */
+export const list = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return await listMachineInboxRows(ctx, args.machineId);
+  },
+});
 
 export const watchNext = query({
   args: { ...SessionIdArg, machineId: v.string() },
@@ -73,5 +102,28 @@ export const acknowledge = mutation({
       throw new ConvexError({ code: 'NOT_AUTHORIZED', message: 'Not owner of command claim' });
     await ctx.db.delete('chatroom_machineCommandInbox', args.commandId);
     return { deleted: true };
+  },
+});
+
+/** Deletes one queued command. Used by the machine queue maintenance UI. */
+export const deleteCommand = mutation({
+  args: { ...SessionIdArg, commandId: v.id('chatroom_machineCommandInbox') },
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get('chatroom_machineCommandInbox', args.commandId);
+    if (!row) return { deleted: false };
+    await requireMachineOwner(ctx, args.sessionId, row.machineId);
+    await ctx.db.delete('chatroom_machineCommandInbox', args.commandId);
+    return { deleted: true };
+  },
+});
+
+/** Deletes every pending or processing command currently queued for a machine. */
+export const deleteAll = mutation({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const rows = await listMachineInboxRows(ctx, args.machineId);
+    for (const row of rows) await ctx.db.delete('chatroom_machineCommandInbox', row._id);
+    return { deletedCount: rows.length };
   },
 });

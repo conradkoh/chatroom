@@ -48,6 +48,21 @@ describe.sequential('daemon.machineCommandInbox', () => {
       (await t.query(api.daemon.machineCommandInbox.watchNext, { sessionId, machineId })).commandId
     ).toBeNull();
   });
+  test('lists pending and processing commands', async () => {
+    const sessionId = await owner();
+    await put();
+    await put();
+    const claimed = await t.mutation(api.daemon.machineCommandInbox.claimNext, {
+      sessionId,
+      machineId,
+    });
+
+    const rows = await t.query(api.daemon.machineCommandInbox.list, { sessionId, machineId });
+    expect(rows).toHaveLength(2);
+    expect(claimed).not.toBeNull();
+    expect(rows.find((row) => row._id === claimed!.commandId)?.status).toBe('processing');
+    expect(rows.map((row) => row.status).sort()).toEqual(['pending', 'processing']);
+  });
   test('claim flattens payload', async () => {
     const sessionId = await owner();
     await put();
@@ -120,5 +135,29 @@ describe.sequential('daemon.machineCommandInbox', () => {
     const id = await put(Date.now() - 600_000);
     await t.mutation(internal.machineCommandCleanup.cleanupExpiredMachineCommands, {});
     expect(await t.run((ctx) => ctx.db.get(id))).toBeNull();
+  });
+  test('deletes one command', async () => {
+    const sessionId = await owner();
+    const id = await put();
+    expect(
+      await t.mutation(api.daemon.machineCommandInbox.deleteCommand, {
+        sessionId,
+        commandId: id,
+      })
+    ).toEqual({ deleted: true });
+    expect(await t.run((ctx) => ctx.db.get(id))).toBeNull();
+  });
+  test('deletes all pending and processing commands', async () => {
+    const sessionId = await owner();
+    await put();
+    await put();
+    await t.mutation(api.daemon.machineCommandInbox.claimNext, { sessionId, machineId });
+
+    expect(
+      await t.mutation(api.daemon.machineCommandInbox.deleteAll, { sessionId, machineId })
+    ).toEqual({ deletedCount: 2 });
+    expect(await t.query(api.daemon.machineCommandInbox.list, { sessionId, machineId })).toEqual(
+      []
+    );
   });
 });
