@@ -164,7 +164,10 @@ export const DaemonAgentProcessManagerServiceLive = (
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),
-    getSlot: (chatroomId, role, workingDir) => mgr.getSlot(chatroomId, role, workingDir),
+    getSlot: (chatroomId, role, workingDir) =>
+      workingDir === undefined
+        ? mgr.getSlot(chatroomId, role)
+        : mgr.getSlot(chatroomId, role, workingDir),
     listActive: () => mgr.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>
       Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role, options)),

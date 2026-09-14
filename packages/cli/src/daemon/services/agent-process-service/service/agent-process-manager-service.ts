@@ -147,7 +147,8 @@ export interface AgentProcessManagerServiceDependencies {
 }
 
 function messageGroupId(input: { chatroomId: string; role: string; workingDir?: string }): string {
-  return `${input.chatroomId}:${input.role.toLowerCase()}:${input.workingDir ?? ''}`;
+  const base = `${input.chatroomId}:${input.role.toLowerCase()}`;
+  return input.workingDir ? `${base}:${input.workingDir}` : base;
 }
 
 function commandMessage(command: AgentProcessManagerCommand): {
