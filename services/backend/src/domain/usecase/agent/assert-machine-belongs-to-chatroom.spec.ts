@@ -6,6 +6,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { assertMachineBelongsToChatroom } from './assert-machine-belongs-to-chatroom';
+import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
@@ -35,18 +36,33 @@ describe('assertMachineBelongsToChatroom', () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
+      const user = await ctx.db.query('users').first();
+      await recordLastSentLaunchRequest(ctx, {
+        requestId: 'assert-m-1-request',
+        commandId: 'assert-m-1-command',
         chatroomId,
+        teamStructureId: 'duo@1',
         role: 'builder',
-        type: 'remote',
+        agentType: 'remote',
         machineId,
         agentHarness: 'opencode',
         model: 'm',
         workingDir: '/tmp',
-        createdAt: now,
-        updatedAt: now,
-        desiredState: 'running',
+        reason: 'user.start',
+        wantResume: false,
+        requestedBy: user!._id,
+        requestedAt: now,
+      });
+      /*
+       * The role binding is the last launch request, not a desired-config row.
+       */
+      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+        chatroomId,
+        role: 'builder',
+        roleKind: 'persistent',
+        status: 'starting',
+        machineId,
+        projectedAt: now,
       });
     });
 
@@ -68,7 +84,7 @@ describe('assertMachineBelongsToChatroom', () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
@@ -79,7 +95,6 @@ describe('assertMachineBelongsToChatroom', () => {
         workingDir: '/tmp',
         createdAt: now,
         updatedAt: now,
-        desiredState: 'running',
       });
     });
 
@@ -101,7 +116,7 @@ describe('assertMachineBelongsToChatroom', () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
         chatroomId,
         role: 'builder',
@@ -112,7 +127,6 @@ describe('assertMachineBelongsToChatroom', () => {
         workingDir: '/tmp',
         createdAt: now,
         updatedAt: now,
-        desiredState: 'running',
       });
     });
 

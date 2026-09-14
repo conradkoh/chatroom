@@ -33,7 +33,7 @@ describe('projectAgentRoleStatusReadModel', () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
+      await ctx.db.insert('chatroom_agentDesiredConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
         chatroomId,
         role: 'enhancer',
@@ -43,7 +43,6 @@ describe('projectAgentRoleStatusReadModel', () => {
         model: 'test',
         workingDir: '/tmp',
         enabled: true,
-        desiredState: 'running',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -120,5 +119,63 @@ describe('projectAgentRoleStatusReadModel', () => {
     );
     expect(row?.status).toBe('working');
     expect(row?.activeWork).toEqual({ kind: 'task', id: taskId });
+  });
+
+  test('accepts newer daemon observations and ignores duplicates, stale events, and other machines', async () => {
+    const sessionId = 'role-status-ordering' as any;
+    await t.mutation(api.auth.loginAnon, { sessionId });
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'duo',
+      teamName: 'Duo',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+
+    await t.run(async (ctx) => {
+      await projectAgentRoleStatusReadModel(ctx, {
+        chatroomId,
+        role: 'builder',
+        event: { status: 'waiting' },
+        sourceMachineId: 'machine-a',
+        sourceEventAt: 200,
+        sourceRevisionKey: 'event:200',
+      });
+      await projectAgentRoleStatusReadModel(ctx, {
+        chatroomId,
+        role: 'builder',
+        event: { status: 'error', errorSource: 'runtime', errorCode: 'stale' },
+        sourceMachineId: 'machine-a',
+        sourceEventAt: 100,
+        sourceRevisionKey: 'event:100',
+      });
+      await projectAgentRoleStatusReadModel(ctx, {
+        chatroomId,
+        role: 'builder',
+        event: { status: 'error', errorSource: 'runtime', errorCode: 'duplicate' },
+        sourceMachineId: 'machine-a',
+        sourceEventAt: 200,
+        sourceRevisionKey: 'event:200',
+      });
+      await projectAgentRoleStatusReadModel(ctx, {
+        chatroomId,
+        role: 'builder',
+        event: { status: 'error', errorSource: 'runtime', errorCode: 'wrong-machine' },
+        sourceMachineId: 'machine-b',
+        sourceEventAt: 300,
+        sourceRevisionKey: 'event:300',
+      });
+    });
+
+    const row = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .first()
+    );
+    expect(row?.status).toBe('waiting');
+    expect(row?.lastEventAt).toBe(200);
+    expect(row?.revisionKey).toBe('event:200');
+    expect(row?.machineId).toBe('machine-a');
   });
 });

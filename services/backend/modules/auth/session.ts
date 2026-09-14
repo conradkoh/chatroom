@@ -64,7 +64,6 @@ export const defaultSessionResolver: SessionResolver = async (ctx, sessionId) =>
  *     .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
  *     .first();
  *   if (!session?.isActive) return null;
- *   if (session.expiresAt && Date.now() > session.expiresAt) return null;
  *   return session.userId;
  * };
  *

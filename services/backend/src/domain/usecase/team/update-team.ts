@@ -1,162 +1,45 @@
 /**
- * Use Case: Update Team
+ * Use case: record a team-structure switch.
  *
- * Handles the team switch lifecycle:
- *   1. Updates the chatroom's team configuration
- *   2. Dispatches stop events for running agents on outgoing team roles
- *   3. Preserves outgoing teamAgentConfigs, restores target-team rows, seeds missing ones
- *   4. Starts target-team agents that have complete configs
+ * Team switching changes the active structural assignment. It does not seed
+ * agent configuration, reconcile daemon processes, or start/stop agents. Any
+ * lifecycle change must be an explicit command whose payload is sent to the
+ * daemon.
  */
 
-import { buildSeedTeamAgentConfigFields } from './seed-team-config-on-switch';
-import { startTargetTeamAgentsOnSwitch } from './start-target-team-agents-on-switch';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
-import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
-import { requestChatroomWorkspaceAgentStop } from '../agent/request-chatroom-workspace-agent-stop';
-import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface UpdateTeamInput {
   chatroomId: Id<'chatroom_rooms'>;
-  teamId: string;
-  teamName: string;
-  teamRoles: string[];
-  teamEntryPoint?: string | undefined;
   userId: Id<'users'>;
 }
 
 export interface UpdateTeamResult {
-  /** Number of stop events dispatched for running agents. */
-  stoppedAgentCount: number;
-  /** Number of outgoing team agent configs preserved (not deleted). */
-  preservedCount: number;
-  restoredCount: number;
-  seededCount: number;
-  /** Number of start events dispatched for target-team agents. */
-  startedAgentCount: number;
+  /** No lifecycle commands are issued by a structural switch. */
+  stoppedAgentCount: 0;
+  /** Legacy counters retained while callers migrate away from this result. */
+  preservedCount: 0;
+  restoredCount: 0;
+  seededCount: 0;
+  /** No lifecycle commands are issued by a structural switch. */
+  startedAgentCount: 0;
 }
 
-// ─── Use Case ────────────────────────────────────────────────────────────────
-
-// fallow-ignore-next-line complexity
 export async function updateTeam(
   ctx: MutationCtx,
   input: UpdateTeamInput
 ): Promise<UpdateTeamResult> {
-  const { chatroomId, teamId, teamName, teamRoles, teamEntryPoint, userId } = input;
-  const previousChatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  const oldTeamId = previousChatroom?.teamId;
-
-  const existingTeamConfigs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
-
-  const now = Date.now();
-  let stoppedAgentCount = 0;
-  let preservedCount = 0;
-  let restoredCount = 0;
-  let seededCount = 0;
-
-  const outgoingConfigs = existingTeamConfigs.filter(
-    (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
-  );
-  const outgoingStoppable = outgoingConfigs.filter(
-    (c) => c.type === 'remote' && c.machineId != null && c.spawnedAgentPid != null
-  );
-  if (outgoingStoppable.length > 0) {
-    await requestChatroomWorkspaceAgentStop(ctx, { chatroomId, finalizeChatroom: false });
-    stoppedAgentCount = outgoingStoppable.length;
-  }
-
-  await ctx.db.patch('chatroom_rooms', chatroomId, {
-    teamId,
-    teamName,
-    teamRoles,
-    teamEntryPoint,
-  });
-  const updatedRoom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (updatedRoom)
-    await upsertAgentViewMetadata(ctx, {
-      chatroomId,
-      ownerId: updatedRoom.ownerId,
-      teamId,
-      teamName,
-      teamRoles,
-    });
-
-  await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
-
-  const affectedMachineIds = new Set<string>();
-
-  for (const config of outgoingConfigs) {
-    if (config.machineId) {
-      affectedMachineIds.add(config.machineId);
-    }
-    preservedCount++;
-  }
-
-  for (const role of teamRoles) {
-    const key = buildTeamRoleKey(chatroomId, teamId, role);
-    const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', key))
-      .first();
-    if (existing) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
-        desiredState: 'stopped',
-        spawnedAgentPid: undefined,
-        spawnedAt: undefined,
-        updatedAt: now,
-      });
-      if (existing.machineId) affectedMachineIds.add(existing.machineId);
-      restoredCount++;
-    } else {
-      const seedFields = await buildSeedTeamAgentConfigFields({
-        ctx,
-        chatroomId,
-        userId,
-        targetTeamId: teamId,
-        targetRole: role,
-        previousChatroom,
-        existingTeamConfigs,
-      });
-      if (seedFields?.machineId) {
-        await ctx.db.insert('chatroom_teamAgentConfigs', {
-          teamRoleKey: key,
-          chatroomId,
-          role,
-          type: 'remote',
-          createdAt: now,
-          updatedAt: now,
-          desiredState: 'stopped',
-          enabled: true,
-          ...seedFields,
-        });
-        affectedMachineIds.add(seedFields.machineId);
-        seededCount++;
-      }
-    }
-  }
-
-  await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, { pruneStale: true });
-
-  const startedAgentCount = await startTargetTeamAgentsOnSwitch(ctx, {
-    chatroomId,
-    teamId,
-    teamRoles,
-    userId,
-  });
+  // Task routing is a domain consequence of changing the active entry point;
+  // it is not agent lifecycle reconciliation.
+  await reassignInFlightTasksOnTeamSwitch(ctx, input.chatroomId);
 
   return {
-    stoppedAgentCount,
-    preservedCount,
-    restoredCount,
-    seededCount,
-    startedAgentCount,
+    stoppedAgentCount: 0,
+    preservedCount: 0,
+    restoredCount: 0,
+    seededCount: 0,
+    startedAgentCount: 0,
   };
 }

@@ -1,11 +1,12 @@
 /**
- * Ensures a machineId is allowed for a chatroom role before mutating team agent config
+ * Ensures a machineId is allowed for a chatroom role before mutating desired agent config
  * or dispatching start-related commands.
  */
 
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { getActiveTeamStructure } from '../team/active-team-structure';
 
 export type AssertMachineBelongsToChatroomArgs = {
   chatroomId: Id<'chatroom_rooms'>;
@@ -16,7 +17,7 @@ export type AssertMachineBelongsToChatroomArgs = {
 };
 
 /**
- * Reads `chatroom_teamAgentConfigs` for the current team + role and validates `machineId`.
+ * Reads the latest submitted launch request for the current team + role and validates `machineId`.
  *
  * - Bound machine matches `machineId` → OK.
  * - Bound machine differs → OK only if `allowNewMachine` is true; otherwise throws (message mentions allowNewMachine).
@@ -28,16 +29,15 @@ export async function assertMachineBelongsToChatroom(
 ): Promise<void> {
   const { chatroomId, machineId, role, allowNewMachine } = args;
 
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom?.teamId) {
-    throw new Error('Chatroom has no teamId — cannot verify machine binding for this role');
-  }
-
-  const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
-  const existing = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-    .first();
+  const activeStructure = await getActiveTeamStructure(ctx, chatroomId);
+  const structureId = activeStructure?.teamStructureId;
+  const existing = structureId
+    ? await getLastSentLaunchRequestForRole(ctx, {
+        chatroomId,
+        role,
+        teamStructureId: structureId,
+      })
+    : null;
 
   const boundMachineId = existing?.machineId;
   if (boundMachineId === machineId) {

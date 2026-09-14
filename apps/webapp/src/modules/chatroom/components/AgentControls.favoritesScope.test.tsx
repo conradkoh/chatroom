@@ -40,9 +40,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    chatroomWorkspaceAgentCommandsInbox: {
-      requestStopAgent: 'chatroomWorkspaceAgentCommandsInbox:requestStopAgent',
-      requestStopAll: 'chatroomWorkspaceAgentCommandsInbox:requestStopAll',
+    agents: {
+      requestStop: 'agents:requestStop',
+      requestStopAll: 'agents:requestStopAll',
     },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
@@ -192,14 +192,14 @@ describe('AgentControls favorites scope', () => {
     });
   });
 
-  it('restores the most recent workspace machine after async workspace loading', async () => {
+  it('uses the active workspace machine after async workspace loading', async () => {
     const view = render(<AsyncFavoritesScopeHarness loaded={false} />);
     view.rerender(<AsyncFavoritesScopeHarness loaded />);
 
     await waitFor(() => {
       expect(mockUseSessionQuery).toHaveBeenCalledWith(
         'machineConfigFavorites:getMachineConfigFavorites',
-        { machineId: 'machine-b', teamRoleKey: 'team_squad#role_planner' }
+        { machineId: 'machine-a', teamRoleKey: 'team_squad#role_planner' }
       );
     });
   });

@@ -14,7 +14,16 @@ import { createTestSession, createBuilderEntryDuoChatroom } from '../helpers/int
 async function seedAcknowledgedTask(chatroomId: any, role: string) {
   return t.run(async (ctx) => {
     const now = Date.now();
-    return ctx.db.insert('chatroom_tasks', { chatroomId, createdBy: 'user', content: 'heartbeat task', status: 'acknowledged', assignedTo: role, createdAt: now, updatedAt: now, queuePosition: 0 });
+    return ctx.db.insert('chatroom_tasks', {
+      chatroomId,
+      createdBy: 'user',
+      content: 'heartbeat task',
+      status: 'acknowledged',
+      assignedTo: role,
+      createdAt: now,
+      updatedAt: now,
+      queuePosition: 0,
+    });
   });
 }
 
@@ -171,32 +180,57 @@ describe('Participant Join', () => {
     expect(afterSecond).toEqual(afterFirst);
   });
 
-  test('join with native:waiting updates status', async () => {
+  test('join with native:waiting records the observed action', async () => {
     const { sessionId } = await createTestSession('test-join-native-waiting');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
-    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder', action: 'native:waiting' });
-    const participant = await t.query(api.participants.getByRole, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+    const participant = await t.query(api.participants.getByRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
     expect(participant!.lastSeenAction).toBe('native:waiting');
-    expect(participant!.lastStatus).toBe('agent.waiting');
   });
 
   test('join native:waiting preserves status with acknowledged task', async () => {
     const { sessionId } = await createTestSession('test-join-native-waiting-guard');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await seedAcknowledgedTask(chatroomId, 'builder');
-    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder', action: 'native:waiting' });
-    const participant = await t.query(api.participants.getByRole, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+    const participant = await t.query(api.participants.getByRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
     expect(participant!.lastSeenAction).toBe('native:waiting');
-    expect(participant!.lastStatus).not.toBe('agent.waiting');
   });
 
-  test('join native:task-injected updates acknowledged status', async () => {
+  test('join native:task-injected records the observed action', async () => {
     const { sessionId } = await createTestSession('test-join-native-injected');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const taskId = await seedAcknowledgedTask(chatroomId, 'builder');
-    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder', action: 'native:task-injected', taskId });
-    const participant = await t.query(api.participants.getByRole, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+    const participant = await t.query(api.participants.getByRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
     expect(participant!.lastSeenAction).toBe('native:task-injected');
-    expect(participant!.lastStatus).toBe('task.acknowledged');
   });
 });

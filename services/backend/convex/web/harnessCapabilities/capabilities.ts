@@ -20,14 +20,14 @@ export const listForWorkspace = query({
     const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
     if (!workspace) return { machineId: null, harnesses: [] };
 
-    // Check machine registry for rich capability data
+    // Check the daemon capability read model for rich capability data
     const registryEntry = await ctx.db
-      .query('chatroom_machineRegistry')
+      .query('chatroom_machineCapabilities')
       .withIndex('by_machineId', (q) => q.eq('machineId', workspace.machineId))
       .first();
 
     if (registryEntry) {
-      const wsEntry = registryEntry.workspaces.find((w) => w.workspaceId === args.workspaceId);
+      const wsEntry = registryEntry.workspaces?.find((w) => w.workspaceId === args.workspaceId);
       if (wsEntry && wsEntry.harnesses && wsEntry.harnesses.length > 0) {
         return { machineId: workspace.machineId, harnesses: wsEntry.harnesses };
       }

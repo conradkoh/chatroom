@@ -8,7 +8,10 @@
 import type { Effect } from 'effect';
 import { Context } from 'effect';
 
-import type { AgentSlotSnapshot } from '../../../daemon/domain/entities/agent-slot.js';
+import type {
+  AgentSlotSnapshot,
+  AgentStartDisposition,
+} from '../../../daemon/domain/entities/agent-slot.js';
 import type { StopReason } from '../../../daemon/domain/entities/stop-reason.js';
 import type { SpawnPrompt } from '../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 import type { AgentHarness } from '../../machine/types.js';
@@ -41,6 +44,7 @@ export interface AgentLifecycleSlot extends AgentSlotSnapshot {
 export interface OperationResult {
   readonly success: boolean;
   readonly pid?: number | undefined;
+  readonly disposition?: AgentStartDisposition | undefined;
   readonly error?: 'rate_limited' | 'backoff' | 'crash_loop' | 'spawn_failed' | string | undefined;
   /** When error is `backoff`, milliseconds until the next restart attempt is allowed. */
   readonly retryAfterMs?: number | undefined;

@@ -8,9 +8,7 @@
 
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
-import { deleteCliSessionLastUsedAt, deleteMachineLastSeenAt } from './lib/lastAtProjections';
-import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
-import { deleteMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { deleteCliSessionLastUsedAt } from './lib/lastAtProjections';
 import { deleteObservedWorkspaceViewsForMachine } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -133,7 +131,7 @@ export const cleanupReadCursors = internalMutation({
  * - chatroom_machineLiveness
  * - chatroom_machineStatus
  * - chatroom_machineModelFilters
- * - chatroom_teamAgentConfigs
+ * - chatroom_agentLastSentLaunchRequests
  * - chatroom_workspaceGitState
  * - chatroom_workspaceFileTree
  * - chatroom_workspaceFileContent
@@ -161,7 +159,7 @@ export const cleanupMachines = internalMutation({
     // Stale recency comes from the dedicated projection index. Process only
     // a few machines per run (each has many related rows).
     const oldMachineProjections = await ctx.db
-      .query('chatroom_machineLastSeenAt')
+      .query('chatroom_machineCapabilities')
       .withIndex('by_lastSeenAt', (q) => q.lt('lastSeenAt', cutoff))
       .take(50);
 
@@ -173,7 +171,7 @@ export const cleanupMachines = internalMutation({
         .first();
       if (!machine) {
         // Orphan projection: parent already gone, just clean the row.
-        await deleteMachineLastSeenAt(ctx, projection.machineId);
+        await ctx.db.delete('chatroom_machineCapabilities', projection._id);
         continue;
       }
       const mid = machine.machineId;
@@ -205,18 +203,19 @@ export const cleanupMachines = internalMutation({
       for (const row of searchConfigFavorites)
         await ctx.db.delete('chatroom_searchConfigFavorites', row._id);
 
-      const teamConfigs = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+      const launchRequests = await ctx.db
+        .query('chatroom_agentLastSentLaunchRequests')
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))
         .collect();
-      const affectedChatroomIds = [...new Set(teamConfigs.map((row) => row.chatroomId))];
-      for (const row of teamConfigs) await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
-      for (const chatroomId of affectedChatroomIds) {
-        await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, {
-          pruneStale: true,
-        });
-      }
-      await deleteMachineIdentity(ctx, mid);
+      for (const row of launchRequests)
+        await ctx.db.delete('chatroom_agentLastSentLaunchRequests', row._id);
+
+      const roleStatusRows = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
+        .collect();
+      for (const row of roleStatusRows)
+        await ctx.db.delete('chatroom_agentRoleStatusReadModel', row._id);
       await deleteObservedWorkspaceViewsForMachine(ctx, mid);
 
       const workspaces = await ctx.db
@@ -362,7 +361,11 @@ export const cleanupMachines = internalMutation({
 
       // Finally delete the machine itself
       await ctx.db.delete('chatroom_machines', machine._id);
-      await deleteMachineLastSeenAt(ctx, mid);
+      const capability = await ctx.db
+        .query('chatroom_machineCapabilities')
+        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
+        .first();
+      if (capability) await ctx.db.delete('chatroom_machineCapabilities', capability._id);
       deletedMachines++;
     }
 
@@ -412,8 +415,6 @@ export const cleanupParticipants = internalMutation({
     }
   },
 });
-
-// ─── CLI Sessions Cleanup (inactive) ────────────────────────────────────────
 
 /**
  * Delete CLI sessions that are:

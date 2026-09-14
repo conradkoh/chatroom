@@ -15,14 +15,13 @@ import { isNativeHarness } from '../../../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../../../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../../../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../../../src/domain/entities/team';
+import { getLastSentLaunchRequestForRole } from '../../../src/domain/usecase/agent/get-last-sent-launch-request';
 import { getTeamRolesFromChatroom } from '../../../src/domain/usecase/chatroom/get-team-roles';
-import { getEnhancerConfigForUser } from '../../../src/domain/usecase/enhancer/get-enhancer-config-for-user';
-import { resolveTaskPlannerEnhancerEnabled } from '../../../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import type { Doc } from '../../_generated/dataModel';
 import { query } from '../../_generated/server';
+import { withActiveTeamStructure } from '../../lib/chatroomTeam';
 import { buildAvailableHandoffRoles } from '../../lib/handoffRoles';
 import { resolveSourceAttachmentsForDelivery } from '../../messages';
-import { buildTeamRoleKey } from '../../utils/teamRoleKey';
 
 const config = getConfig();
 
@@ -60,10 +59,11 @@ export const getTaskDeliveryForJob = query({
       throw new ConvexError({ code: 'TASK_NOT_FOUND', message: 'Linked enhancer task not found' });
     }
 
-    const chatroom = await ctx.db.get('chatroom_rooms', job.chatroomId);
-    if (!chatroom) {
+    const rawChatroom = await ctx.db.get('chatroom_rooms', job.chatroomId);
+    if (!rawChatroom) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Chatroom not found' });
     }
+    const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
 
     let message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null = null;
     if (task.sourceMessageId) {
@@ -86,25 +86,16 @@ export const getTaskDeliveryForJob = query({
     );
     const availableRoles = waitingParticipants.map((p) => p.role);
 
-    const enhancerConfig = await getEnhancerConfigForUser(ctx, job.chatroomId, auth.userId);
-    const legacyPlannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
-      taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
-      liveConfig: enhancerConfig,
-      role,
-      team: chatroom,
-    });
-
     // The explicit task envelope is authoritative for mode/enhancer policy at
-    // this delivery boundary. Legacy rows without an envelope retain the
-    // existing live-config behaviour.
+    // this delivery boundary. Legacy rows use only their persisted snapshot.
     const hasExplicitTaskEnvelope = task.taskEnvelope !== undefined;
     const normalizedTaskEnvelope = normalizeTaskEnvelope(task);
     const conversationMode = hasExplicitTaskEnvelope
       ? normalizedTaskEnvelope.conversationMode
-      : legacyConversationMode(legacyPlannerEnhancerEnabled);
+      : legacyConversationMode(task.plannerEnhancerEnabled);
     const plannerEnhancerEnabled = hasExplicitTaskEnvelope
       ? plannerEnhancerEnabledForMode(normalizedTaskEnvelope.conversationMode)
-      : legacyPlannerEnhancerEnabled;
+      : task.plannerEnhancerEnabled === true;
 
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
@@ -124,16 +115,11 @@ export const getTaskDeliveryForJob = query({
     const entryPoint = getTeamEntryPoint(chatroom);
     const isEntryPoint = entryPoint ? role.toLowerCase() === entryPoint.toLowerCase() : false;
 
-    const teamRoleKey = chatroom.teamId
-      ? buildTeamRoleKey(chatroom._id, chatroom.teamId, role)
-      : null;
-    const existingAgentConfig = teamRoleKey
-      ? await ctx.db
-          .query('chatroom_teamAgentConfigs')
-          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-          .first()
-      : null;
-    const nativeIntegration = isNativeHarness(existingAgentConfig?.agentHarness);
+    const existingAgentRequest = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: job.chatroomId,
+      role,
+    });
+    const nativeIntegration = isNativeHarness(existingAgentRequest?.agentHarness);
 
     const taskDeliveryOutput = generateFullCliOutput({
       chatroomId: job.chatroomId,

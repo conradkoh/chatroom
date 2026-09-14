@@ -17,7 +17,7 @@ export interface TeamConfigEntry {
   name: string;
   description: string;
   roles: string[];
-  entryPoint?: string;
+  entryPoint: string;
 }
 
 /**

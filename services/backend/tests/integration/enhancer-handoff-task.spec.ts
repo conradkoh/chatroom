@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -23,22 +22,26 @@ async function setup(id: string) {
     registeredBy: 'planner',
   });
   await t.run(async (ctx) => {
-    const room = await ctx.db.get(chatroomId);
     await ctx.db.patch(chatroomId, {
       teamRoles: ['planner', 'enhancer', 'builder'],
       teamEntryPoint: 'planner',
     });
-    await ctx.db.insert('chatroom_enhancerConfigs', {
-      chatroomId,
-      userId: room!.ownerId,
-      enabled: true,
-      targetId: 'handoff:planner-to-builder',
-      machineId,
-      agentHarness: 'opencode',
-      model: 'test-model',
-      updatedAt: Date.now(),
-    });
-    return room;
+  });
+  const workspace = await t.run((ctx) =>
+    ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .first()
+  );
+  await t.mutation(api.agents.saveConfig, {
+    sessionId,
+    chatroomId,
+    workspaceId: workspace!._id,
+    role: 'enhancer',
+    machineId,
+    agentHarness: 'opencode',
+    model: 'test-model',
+    workingDir: '/workspace',
   });
   return { sessionId, chatroomId, machineId };
 }
@@ -95,9 +98,9 @@ describe('request-first enhancer handoff', () => {
     expect(
       await t.run((ctx) =>
         ctx.db
-          .query('chatroom_teamAgentConfigs')
-          .withIndex('by_teamRoleKey', (q) =>
-            q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'enhancer'))
+          .query('chatroom_agentLastSentLaunchRequests')
+          .withIndex('by_chatroom_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'enhancer')
           )
           .first()
       )

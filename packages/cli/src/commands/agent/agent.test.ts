@@ -42,18 +42,20 @@ describe('agent commands', () => {
       { role: 'solo', harness: 'codex-sdk', model: 'gpt-5.6-luna[reasoning=low]' },
       d
     );
-    expect(d.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
+    expect(d.backend.mutation).toHaveBeenCalledTimes(1);
+    const mutationArgs = d.backend.mutation.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(mutationArgs).toMatchObject({
+      sessionId: 'session_1',
+      machineId: 'machine_1',
+      type: 'start-agent',
+      payload: expect.objectContaining({
         chatroomId: 'room_1',
         role: 'solo',
-        type: 'remote',
-        machineId: 'machine_1',
         agentHarness: 'codex-sdk',
         model: 'gpt-5.6-luna[reasoning=low]',
         workingDir: '/workspace',
-      })
-    );
+      }),
+    });
   });
 
   test('starts an agent using saved config defaults', async () => {

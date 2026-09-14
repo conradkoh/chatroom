@@ -38,10 +38,7 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
 
     try {
       const chatroomId = await createChatroom({
-        teamId: selectedTeam,
-        teamName: team.name,
-        teamRoles: team.roles,
-        teamEntryPoint: team.entryPoint || team.roles[0],
+        teamStructureId: selectedTeam,
       });
 
       onCreated(chatroomId);

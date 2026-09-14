@@ -38,6 +38,7 @@ interface AgentPanelProps {
   /** Called when user clicks an agent row — opens settings to agents tab */
   onOpenAgents: (() => void) | undefined;
   hasRunningRemoteAgents: boolean;
+  canStopRemoteAgents: boolean;
   onStartAllRemoteAgents: (() => void) | undefined;
   onStopAllRemoteAgents: (() => void) | undefined;
   onRestartAllRemoteAgents: (() => void) | undefined;
@@ -165,6 +166,7 @@ export const AgentPanel = memo(function AgentPanel({
   agentConfigs,
   onOpenAgents,
   hasRunningRemoteAgents,
+  canStopRemoteAgents,
   onStartAllRemoteAgents,
   onStopAllRemoteAgents,
   onRestartAllRemoteAgents,
@@ -237,21 +239,6 @@ export const AgentPanel = memo(function AgentPanel({
     );
   }
 
-  // Legacy chatroom without team
-  if (lifecycle === null) {
-    return (
-      <SidebarSection.Root className="border-b-2 border-chatroom-border-strong overflow-hidden">
-        <SidebarSection.Header
-          title="Agents"
-          count={0}
-          icon={Users}
-          iconClassName="text-chatroom-accent"
-        />
-        <SidebarSection.Empty>No team configured</SidebarSection.Empty>
-      </SidebarSection.Root>
-    );
-  }
-
   return (
     <SidebarSection.Root className="border-b-2 border-chatroom-border-strong overflow-hidden flex flex-col">
       <SidebarSection.Header
@@ -262,36 +249,47 @@ export const AgentPanel = memo(function AgentPanel({
       />
 
       {/* Team selector — own row below the Agents header */}
-      {teamName && teams && defaultTeamId && onTeamChange && (
+      {teams && defaultTeamId && onTeamChange && (
         <SidebarSection.Toolbar>
           <div className="flex-1 min-w-0">
             <TeamSelectorDropdown
-              teamName={teamName}
+              teamName={teamName ?? 'Select team'}
               teamId={teamId}
               defaultTeamId={defaultTeamId}
               teams={teams}
               onTeamChange={onTeamChange}
             />
           </div>
-          <RemoteAgentQuickActions
-            hasRunningAgents={hasRunningRemoteAgents}
-            isStopping={isStoppingAgents}
-            onStart={onStartAllRemoteAgents}
-            onStop={onStopAllRemoteAgents}
-            onRestart={onRestartAllRemoteAgents}
-            disabled={isStartingAllAgents}
-            isStarting={isStartingAllAgents}
-          />
+          {teamStructure && (
+            <RemoteAgentQuickActions
+              hasRunningAgents={hasRunningRemoteAgents}
+              canStop={canStopRemoteAgents}
+              isStopping={isStoppingAgents}
+              onStart={onStartAllRemoteAgents}
+              onStop={onStopAllRemoteAgents}
+              onRestart={onRestartAllRemoteAgents}
+              disabled={isStartingAllAgents}
+              isStarting={isStartingAllAgents}
+            />
+          )}
         </SidebarSection.Toolbar>
       )}
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
-        {renderAgentRows(permanentRoles.slice(0, SIDEBAR_PREVIEW_LIMIT))}
-        {ephemeralRoles.length > 0 && permanentRoles.length < SIDEBAR_PREVIEW_LIMIT && (
+        {teamStructure === null ? (
+          <SidebarSection.Empty>No team configured</SidebarSection.Empty>
+        ) : (
           <>
-            <SidebarSection.Subheader>Ephemeral ({ephemeralRoles.length})</SidebarSection.Subheader>
-            {renderAgentRows(
-              ephemeralRoles.slice(0, SIDEBAR_PREVIEW_LIMIT - permanentRoles.length)
+            {renderAgentRows(permanentRoles.slice(0, SIDEBAR_PREVIEW_LIMIT))}
+            {ephemeralRoles.length > 0 && permanentRoles.length < SIDEBAR_PREVIEW_LIMIT && (
+              <>
+                <SidebarSection.Subheader>
+                  Ephemeral ({ephemeralRoles.length})
+                </SidebarSection.Subheader>
+                {renderAgentRows(
+                  ephemeralRoles.slice(0, SIDEBAR_PREVIEW_LIMIT - permanentRoles.length)
+                )}
+              </>
             )}
           </>
         )}

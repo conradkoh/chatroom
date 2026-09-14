@@ -1,25 +1,25 @@
 import { getAgentConfig } from './get-agent-config';
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
-import { transitionAgentStatus } from './transition-agent-status';
+import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import type { AgentType } from '../../entities/agent';
 import {
   isRunnableRemoteTeamConfig,
   type AgentRestartRequest,
   type AgentRestartResult,
   type RunnableRemoteAgentConfig,
 } from '../../entities/agent-restart';
+import { getTeamStructure } from '../../entities/team-presets';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 import { releaseTasksOnAgentExit } from '../task/release-tasks-on-agent-exit';
+import { getActiveTeamStructure } from '../team/active-team-structure';
 
 export async function requestAgentRestart(
   ctx: MutationCtx,
   input: {
     chatroomId: Id<'chatroom_rooms'>;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
     role: string;
+    requestedBy: Id<'users'>;
     request: AgentRestartRequest;
   },
   machine?: Doc<'chatroom_machines'>
@@ -34,17 +34,16 @@ export async function requestAgentRestart(
     return { status: 'skipped', reason: 'incomplete_remote_config' };
   }
 
-  const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
   const resolved = resolveRestartOverrides(input.request);
 
-  validateMachineHarness(machine, resolved.agentHarness);
+  await validateMachineHarness(ctx, machine, resolved.agentHarness);
 
   const releasedTaskCount = await releaseRestartTasks(ctx, {
     chatroomId: input.chatroomId,
     role: input.role,
   });
   const correlationId = crypto.randomUUID();
-  await persistRestartAndEmit(ctx, input, resolved, chatroom, correlationId, Date.now());
+  await persistRestartAndEmit(ctx, input, resolved, correlationId, Date.now());
 
   return { status: 'requested', correlationId, releasedTaskCount };
 }
@@ -56,11 +55,17 @@ function resolveRestartOverrides(request: AgentRestartRequest): RunnableRemoteAg
   };
 }
 
-function validateMachineHarness(
+async function validateMachineHarness(
+  ctx: MutationCtx,
   machine: Doc<'chatroom_machines'> | undefined,
   harness: RunnableRemoteAgentConfig['agentHarness']
-): void {
-  if (machine && !machine.availableHarnesses.includes(harness)) {
+): Promise<void> {
+  if (!machine) return;
+  const capabilities = await ctx.db
+    .query('chatroom_machineCapabilities')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+    .first();
+  if (!capabilities?.availableHarnesses?.includes(harness)) {
     throw new Error(`Agent harness '${harness}' is not available on this machine`);
   }
 }
@@ -77,36 +82,22 @@ async function persistRestartAndEmit(
   ctx: MutationCtx,
   input: {
     chatroomId: Id<'chatroom_rooms'>;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
     role: string;
+    requestedBy: Id<'users'>;
+    request: AgentRestartRequest;
   },
   resolved: RunnableRemoteAgentConfig,
-  chatroom: Doc<'chatroom_rooms'> | null,
   correlationId: string,
   now: number
 ): Promise<void> {
-  if (chatroom?.teamId) {
-    const { wantResume, ...configFields } = resolved;
-    await upsertTeamAgentConfigByTeamRoleKey(ctx, {
-      teamRoleKey: buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role),
-      createdAt: now,
-      fields: {
-        chatroomId: input.chatroomId,
-        role: input.role,
-        type: 'remote' as AgentType,
-        ...configFields,
-        updatedAt: now,
-        desiredState: 'running' as const,
-        circuitState: 'closed' as const,
-        circuitOpenedAt: undefined,
-      },
-    });
-  }
-  const teamId = chatroom?.teamId;
-  await enqueueMachineCommand(ctx, {
+  const requestId = correlationId;
+  const commandId = await enqueueMachineCommand(ctx, {
     machineId: resolved.machineId,
     now,
     command: {
       type: 'agent.restart',
+      requestId,
       chatroomId: input.chatroomId,
       role: input.role,
       agentHarness: resolved.agentHarness,
@@ -116,20 +107,26 @@ async function persistRestartAndEmit(
       wantResume: resolved.wantResume,
     },
   });
-  await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');
-  const restartedConfig = teamId
-    ? await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, teamId, input.role))
-        )
-        .first()
+  const activeStructure = await getActiveTeamStructure(ctx, input.chatroomId);
+  const structure = activeStructure
+    ? getTeamStructure({ teamId: activeStructure.teamStructureId })
     : null;
-  await projectAgentOperationalStatusForRole(
-    ctx,
-    input.chatroomId,
-    input.role,
-    undefined,
-    restartedConfig ? { config: restartedConfig } : {}
-  );
+  if (!structure) throw new Error(`Chatroom ${input.chatroomId} has no team structure`);
+  await recordLastSentLaunchRequest(ctx, {
+    requestId,
+    commandId: commandId.toString(),
+    chatroomId: input.chatroomId,
+    teamStructureId: structure.teamStructureId,
+    role: input.role,
+    agentType: 'remote',
+    machineId: resolved.machineId,
+    workspaceId: input.workspaceId,
+    agentHarness: resolved.agentHarness,
+    model: resolved.model,
+    workingDir: resolved.workingDir,
+    reason: input.request.reason,
+    wantResume: resolved.wantResume,
+    requestedBy: input.requestedBy,
+    requestedAt: now,
+  });
 }

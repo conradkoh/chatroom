@@ -18,10 +18,12 @@ import type { UseFileTabsReturn } from '../workspace/hooks/useFileTabs';
 export interface UseChatroomLifecycleReturn {
   /** File tab state (left pane tabs + right pane tabs). */
   fileTabs: UseFileTabsReturn;
-  /** Currently-active workspace (null if none connected). */
+  /** Currently-active configured workspace (null if none registered). */
   activeWorkspace: ChatroomActiveWorkspace | null;
   /** All workspaces for the chatroom (including unconnected). */
   workspaces: Workspace[];
+  /** Whether the authoritative workspace selection is still loading. */
+  workspaceLoading: boolean;
   /** Current activity view, persisted per chatroom. */
   activityView: ActivityView;
   /** Setter for the activity view. */
@@ -47,7 +49,7 @@ export interface UseChatroomLifecycleReturn {
  */
 export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatroomLifecycleReturn {
   const fileTabs = useFileTabs({ chatroomId: chatroomId as string });
-  const { activeWorkspace, workspaces } = useChatroomActiveWorkspace(chatroomId);
+  const { activeWorkspace, workspaces, isLoading: workspaceLoading } = useChatroomActiveWorkspace();
   const [activityView, setActivityView] = useActivityView(chatroomId);
   const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] =
     useExplorerSplitViewEnabled(chatroomId);
@@ -57,6 +59,7 @@ export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatr
     fileTabs,
     activeWorkspace,
     workspaces,
+    workspaceLoading,
     activityView,
     setActivityView,
     explorerSplitViewEnabled,

@@ -3,7 +3,6 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
 import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
@@ -62,6 +61,7 @@ import { Z_LAYOUT_CHROME, Z_PANEL } from './components/shared/overlayLayers';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { WorkQueue } from './components/WorkQueue';
+import { ChatroomWorkspaceProvider } from './context/ChatroomWorkspaceContext';
 import { useCommandDialogActions } from './context/CommandDialogContext';
 import {
   getCommandPaletteRunsActive,
@@ -79,8 +79,8 @@ import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { useAgentStop } from './hooks/useAgentStop';
-import { useChatroomActivityStatus } from './hooks/useChatroomActivityStatus';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
+import { useChatroomStatus } from './hooks/useChatroomStatus';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
@@ -88,12 +88,7 @@ import { StartInNewSessionPreferenceProvider } from './hooks/useStartInNewSessio
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
-import {
-  ensureAgentRolesConfigured,
-  getFailedAgentRoles,
-  runAgentRestartBatch,
-  startAgentsForRoles,
-} from './utils/agentBulkStart';
+import { ensureRestartAgentRolesConfigured, runAgentRestartBatch } from './utils/agentBulkStart';
 import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
@@ -632,10 +627,6 @@ interface Chatroom {
   _id: string;
   status: string;
   name?: string;
-  teamId?: string;
-  teamName?: string;
-  teamRoles?: string[];
-  teamEntryPoint?: string;
 }
 
 // Hook to check if screen is small (< 768px)
@@ -659,7 +650,15 @@ function useIsSmallScreen(): boolean | undefined {
   return mounted ? isSmall : undefined;
 }
 
-export function ChatroomDashboard({
+export function ChatroomDashboard(props: ChatroomDashboardProps) {
+  return (
+    <ChatroomWorkspaceProvider chatroomId={props.chatroomId as Id<'chatroom_rooms'>}>
+      <ChatroomDashboardContent {...props} />
+    </ChatroomWorkspaceProvider>
+  );
+}
+
+function ChatroomDashboardContent({
   chatroomId,
   onBack,
   focusModeEnabled = false,
@@ -676,6 +675,7 @@ export function ChatroomDashboard({
     setActivityView,
     activeWorkspace,
     workspaces: chatroomWorkspaces,
+    workspaceLoading,
     explorerSplitViewEnabled,
     setExplorerSplitViewEnabled,
     explorerSyncEnabled,
@@ -975,6 +975,7 @@ export function ChatroomDashboard({
   // Send message mutation (used to execute saved commands)
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
+  const startAllPermanentAgents = useSessionMutation(api.agents.startAllPermanent);
   const lastRefreshRef = useRef(0);
 
   useHandoffGitRefresh(
@@ -1122,9 +1123,9 @@ export function ChatroomDashboard({
     return map;
   }, [agentPanelData.connectedMachines]);
 
-  // Memoize derived values
-  const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
-  const teamName = useMemo(() => chatroom?.teamName || 'Team', [chatroom?.teamName]);
+  // Current team comes exclusively from the active team assignment.
+  const teamRoles = agentPanelData.team.teamRoles;
+  const teamName = agentPanelData.team.teamName;
 
   const participants = useMemo(() => lifecycle?.participants ?? [], [lifecycle?.participants]);
 
@@ -1136,7 +1137,7 @@ export function ChatroomDashboard({
     );
   }, [teamRoles, agentPanelData.statusReadModel]);
 
-  const chatStatus = useChatroomActivityStatus(chatroomId);
+  const { status: chatroomStatus } = useChatroomStatus(chatroomId);
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
@@ -1381,10 +1382,12 @@ export function ChatroomDashboard({
 
   // Start all remote agents handler
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
-  const getConfiguredAgentRoles = useCallback((): string[] | null => {
+  const getConfiguredRestartAgentRoles = useCallback((): string[] | null => {
     const agentRoles = getPermanentRoleNames(teamRoles.filter((r) => r !== 'user'));
     if (
-      !ensureAgentRolesConfigured(agentRoles, roleConfigMap, () => handleCmdOpenSettings('agents'))
+      !ensureRestartAgentRolesConfigured(agentRoles, roleConfigMap, () =>
+        handleCmdOpenSettings('agents')
+      )
     ) {
       return null;
     }
@@ -1392,24 +1395,22 @@ export function ChatroomDashboard({
   }, [teamRoles, roleConfigMap, handleCmdOpenSettings]);
 
   const handleStartAllRemoteAgents = useCallback(async () => {
-    const agentRoles = getConfiguredAgentRoles();
-    if (!agentRoles) return;
-    // Start all agents in parallel using their persisted configs
     setIsStartingAllAgents(true);
-    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    const results = await startAgentsForRoles(
-      agentRoles,
-      roleConfigMap,
-      chatroomIdTyped,
-      agentPanelData.sendCommand
-    );
-    setIsStartingAllAgents(false);
-
-    const failed = getFailedAgentRoles(results, agentRoles);
-    if (failed.length > 0) {
-      toast.error(`Failed to start: ${failed.join(', ')}`);
+    try {
+      const result = await startAllPermanentAgents({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      });
+      if (result.failed.length > 0) {
+        toast.error(`Failed to start: ${result.failed.map(({ role }) => role).join(', ')}`);
+      } else if (result.started.length > 0) {
+        toast.success(`Start requested for ${result.started.length} agent(s)`);
+      } else if (result.skipped.length > 0) {
+        toast.error('No saved configuration is available for the permanent agents');
+      }
+    } finally {
+      setIsStartingAllAgents(false);
     }
-  }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
+  }, [chatroomId, startAllPermanentAgents]);
 
   // Stop all remote agents immediately from the quick-action button.
   const handleStopAllRemoteAgents = useCallback(async () => {
@@ -1426,7 +1427,7 @@ export function ChatroomDashboard({
   // Restart all remote agents through the atomic backend restart path.
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
   const handleRestartAllRemoteAgents = useCallback(async () => {
-    const agentRoles = getConfiguredAgentRoles();
+    const agentRoles = getConfiguredRestartAgentRoles();
     if (!agentRoles) return;
 
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
@@ -1443,14 +1444,12 @@ export function ChatroomDashboard({
       .map((a) => a.role);
     try {
       if (runningRoles.length === 0) {
-        const results = await startAgentsForRoles(
-          agentRoles,
-          roleConfigMap,
-          chatroomIdTyped,
-          agentPanelData.sendCommand
-        );
-        const failed = getFailedAgentRoles(results, agentRoles);
-        if (failed.length > 0) toast.error(`Failed to start: ${failed.join(', ')}`);
+        const result = await startAllPermanentAgents({ chatroomId: chatroomIdTyped });
+        if (result.failed.length > 0) {
+          toast.error(`Failed to start: ${result.failed.map(({ role }) => role).join(', ')}`);
+        } else {
+          toast.success(`Start requested for ${result.started.length} agent(s)`);
+        }
         return;
       }
       await runAgentRestartBatch(
@@ -1465,7 +1464,14 @@ export function ChatroomDashboard({
     } finally {
       // Stay latched until status returns to running; the daemon mutation is async.
     }
-  }, [agentPanelData, agentViewsByRole, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
+  }, [
+    agentPanelData,
+    agentViewsByRole,
+    roleConfigMap,
+    chatroomId,
+    getConfiguredRestartAgentRoles,
+    startAllPermanentAgents,
+  ]);
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
@@ -1478,8 +1484,8 @@ export function ChatroomDashboard({
   const isAnyAgentRestartInProgress = isRestartingAllAgents || restartingAgentRole !== null;
 
   const hasRunningRemoteAgents = useMemo(
-    () => agentPanelData.remoteAgentStatus === 'running',
-    [agentPanelData.remoteAgentStatus]
+    () => chatroomStatus?.remoteAgentStatus === 'running',
+    [chatroomStatus?.remoteAgentStatus]
   );
 
   useEffect(() => {
@@ -1495,7 +1501,9 @@ export function ChatroomDashboard({
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {
       if (
-        !ensureAgentRolesConfigured([role], roleConfigMap, () => handleCmdOpenSettings('agents'))
+        !ensureRestartAgentRolesConfigured([role], roleConfigMap, () =>
+          handleCmdOpenSettings('agents')
+        )
       ) {
         return;
       }
@@ -1667,8 +1675,8 @@ export function ChatroomDashboard({
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
-    () => getTeamEntryPoint({ teamEntryPoint: chatroom?.teamEntryPoint, teamRoles }) ?? 'builder',
-    [chatroom?.teamEntryPoint, teamRoles]
+    () => agentPanelData.team.entryPoint ?? teamRoles[0] ?? 'builder',
+    [agentPanelData.team.entryPoint, teamRoles]
   );
 
   const handleCloseModal = useCallback(() => {
@@ -1725,7 +1733,7 @@ export function ChatroomDashboard({
   const isSetupMode = !allMembersJoined && !lifecycle?.hasHistory;
 
   // Derive display name
-  const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
+  const displayName = chatroom?.name || teamName || 'Chatroom';
 
   // Update browser tab title with chatroom name
   useEffect(() => {
@@ -1751,7 +1759,7 @@ export function ChatroomDashboard({
           <ChatroomHeaderCenter
             displayName={displayName}
             chatroomId={chatroomId}
-            chatStatus={chatStatus}
+            activityStatus={chatroomStatus?.activityStatus}
             isDesktop={isSmallScreen === false}
             onOpenSettings={handleOpenSettings}
             onSwitchChatrooms={handleOpenChatroomSwitcher}
@@ -1792,7 +1800,7 @@ export function ChatroomDashboard({
     onBack,
     focusModeEnabled,
     sidebarVisible,
-    chatStatus,
+    chatroomStatus,
     focusModeActive,
     setHeaderContent,
     clearHeaderContent,
@@ -1810,7 +1818,12 @@ export function ChatroomDashboard({
   ]);
 
   // Wait for all required data and hydration before rendering to prevent flickering
-  if (chatroom === undefined || lifecycle === undefined || isSmallScreen === undefined) {
+  if (
+    chatroom === undefined ||
+    lifecycle === undefined ||
+    isSmallScreen === undefined ||
+    workspaceLoading
+  ) {
     return (
       <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
         <ChatroomLoader size="md" />
@@ -1835,8 +1848,8 @@ export function ChatroomDashboard({
       <StartInNewSessionPreferenceProvider>
         <PromptsProvider
           chatroomId={chatroomId}
-          teamId={chatroom?.teamId}
-          teamName={teamName}
+          teamId={agentPanelData.team.teamId}
+          teamName={teamName ?? 'Team'}
           teamRoles={teamRoles}
           teamEntryPoint={teamEntryPoint}
         >
@@ -1854,6 +1867,9 @@ export function ChatroomDashboard({
                       onViewChange={handleActivityViewChange}
                       chatroomId={chatroomId}
                       machineId={activeWorkspace?.machineId ?? null}
+                      workspaceId={activeWorkspace?.workspaceId ?? null}
+                      workingDir={activeWorkspace?.workingDir ?? null}
+                      teamId={agentPanelData.team.teamId ?? null}
                     />
 
                     {/* File Explorer Left Sidebar — shown in explorer view */}
@@ -2052,20 +2068,21 @@ export function ChatroomDashboard({
                         teamStructure={agentPanelData.teamStructure}
                         lifecycle={lifecycle}
                         statusReadModel={agentPanelData.statusReadModel}
-                        teamName={chatroom.teamName}
-                        teamId={chatroom.teamId}
+                        teamName={teamName}
+                        teamId={agentPanelData.team.teamId}
                         defaultTeamId={defaultTeamId}
                         teams={teams}
                         onTeamChange={handleTeamChange}
                         agentConfigs={agentPanelData.machineConfigs}
                         onOpenAgents={handleOpenAgents}
                         hasRunningRemoteAgents={hasRunningRemoteAgents}
+                        canStopRemoteAgents={chatroomStatus?.canStop ?? false}
                         onStartAllRemoteAgents={handleStartAllRemoteAgents}
                         onStopAllRemoteAgents={handleStopAllRemoteAgents}
                         onRestartAllRemoteAgents={handleRestartAllRemoteAgents}
                         isStoppingAgents={isStoppingAgents}
                         isStartingAllAgents={
-                          isStartingAllAgents || agentPanelData.remoteAgentStatus === undefined
+                          isStartingAllAgents || chatroomStatus?.remoteAgentStatus === undefined
                         }
                       />
                       <WorkQueue
@@ -2075,11 +2092,7 @@ export function ChatroomDashboard({
                       />
                     </div>
                   </div>
-                  <WorkspaceBottomBar
-                    workspaces={chatroomWorkspaces}
-                    chatroomId={chatroomId}
-                    onSwitchToSourceControl={handleSwitchToSourceControl}
-                  />
+                  <WorkspaceBottomBar onSwitchToSourceControl={handleSwitchToSourceControl} />
                 </div>
 
                 <PromptModal
@@ -2092,7 +2105,7 @@ export function ChatroomDashboard({
                   isOpen={settingsModalOpen}
                   onClose={handleCloseSettings}
                   chatroomId={chatroomId}
-                  currentTeamId={chatroom?.teamId}
+                  currentTeamId={agentPanelData.team.teamId ?? null}
                   currentTeamRoles={teamRoles}
                   initialTab={settingsInitialTab}
                 />
@@ -2125,7 +2138,7 @@ export function ChatroomDashboard({
                   isOpen={isSetupMode && setupModalOpen}
                   onClose={handleCloseSetup}
                   chatroomId={chatroomId}
-                  teamId={chatroom?.teamId}
+                  teamId={agentPanelData.team.teamId}
                   teamRoles={teamRoles}
                   teamEntryPoint={teamEntryPoint}
                   participants={participants || []}

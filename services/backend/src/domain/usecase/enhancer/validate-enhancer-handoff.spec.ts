@@ -3,99 +3,37 @@ import { describe, expect, test } from 'vitest';
 
 import { validateEnhancerHandoff } from './validate-enhancer-handoff';
 
-const config = {
-  type: 'remote',
-  enabled: true,
-  machineId: 'm',
-  model: 'model',
-  agentHarness: 'opencode',
-  workingDir: '/tmp',
-} as any;
-
-describe('validateEnhancerHandoff', () => {
-  test('honors false, true, and live snapshots', () => {
-    expect(validateEnhancerHandoff({ taskPlannerEnhancerEnabled: false, config }).code).toBe(
-      'ENHANCER_NOT_ENABLED'
-    );
-    expect(validateEnhancerHandoff({ taskPlannerEnhancerEnabled: true, config }).allowed).toBe(
-      true
-    );
-    expect(validateEnhancerHandoff({ config }).allowed).toBe(true);
-  });
-  test('rejects incomplete enabled configuration', () => {
-    expect(
-      validateEnhancerHandoff({
-        taskPlannerEnhancerEnabled: true,
-        config: { ...config, workingDir: undefined } as any,
-      }).code
-    ).toBe('ENHANCER_CONFIG_INCOMPLETE');
-  });
-});
-
 function envelope(mode: TaskEnvelopeV1['conversationMode']): TaskEnvelopeV1 {
   return createTaskEnvelope({ conversationMode: mode, sessionPolicy: 'continue' });
 }
 
-describe('validateEnhancerHandoff — explicit envelope precedence', () => {
-  test('explicit chat cannot be authorized by a stale plannerEnhancerEnabled=true scalar', () => {
+describe('validateEnhancerHandoff', () => {
+  test('uses the persisted task snapshot and ignores configuration availability', () => {
+    expect(validateEnhancerHandoff({ taskPlannerEnhancerEnabled: false }).allowed).toBe(false);
+    expect(validateEnhancerHandoff({ taskPlannerEnhancerEnabled: true })).toEqual({
+      allowed: true,
+    });
+  });
+
+  test('explicit conversation mode takes precedence over stale legacy scalars', () => {
     expect(
       validateEnhancerHandoff({
         taskPlannerEnhancerEnabled: true,
         taskEnvelope: envelope('chat'),
-        config,
-      }).code
-    ).toBe('ENHANCER_NOT_ENABLED');
-  });
-
-  test('explicit code cannot be authorized by a stale true scalar', () => {
-    expect(
-      validateEnhancerHandoff({
-        taskEnhancerEnabledAtEnqueue: true,
-        taskEnvelope: envelope('code'),
-        config,
       }).allowed
     ).toBe(false);
-  });
-
-  test('explicit code:enhanced is not disabled by a stale false scalar', () => {
     expect(
       validateEnhancerHandoff({
         taskPlannerEnhancerEnabled: false,
         taskEnvelope: envelope('code:enhanced'),
-        config,
       }).allowed
     ).toBe(true);
   });
 
-  test('explicit code:enhanced with missing config reports incomplete config', () => {
-    expect(
-      validateEnhancerHandoff({
-        taskPlannerEnhancerEnabled: false,
-        taskEnvelope: envelope('code:enhanced'),
-        config: null,
-      }).code
-    ).toBe('ENHANCER_CONFIG_INCOMPLETE');
-  });
-
-  test('explicit code:enhanced with incomplete config reports incomplete config', () => {
-    expect(
-      validateEnhancerHandoff({
-        taskEnvelope: envelope('code:enhanced'),
-        config: { ...config, workingDir: undefined } as any,
-      }).code
-    ).toBe('ENHANCER_CONFIG_INCOMPLETE');
-  });
-
-  test('legacy scalar-only behavior is preserved when no envelope is present', () => {
-    expect(validateEnhancerHandoff({ taskEnhancerEnabledAtEnqueue: true, config }).allowed).toBe(
-      true
+  test('legacy enhancer enqueue snapshot remains supported', () => {
+    expect(validateEnhancerHandoff({ taskEnhancerEnabledAtEnqueue: true }).allowed).toBe(true);
+    expect(validateEnhancerHandoff({ taskEnhancerEnabledAtEnqueue: false }).code).toBe(
+      'ENHANCER_NOT_ENABLED'
     );
-    expect(
-      validateEnhancerHandoff({
-        taskPlannerEnhancerEnabled: false,
-        taskEnvelope: undefined,
-        config,
-      }).code
-    ).toBe('ENHANCER_NOT_ENABLED');
   });
 });

@@ -148,7 +148,7 @@ describe('releaseTasksOnAgentExit', () => {
     ).rejects.toThrow(/not claimable by role planner/i);
   });
 
-  test('clears stale task.inProgress participant status after release', async () => {
+  test('does not infer agent lifecycle status from task release', async () => {
     const { sessionId } = await createTestSession('release-exit-stale-inprogress');
     const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId);
     await joinBuilderParticipant(sessionId, chatroomId);
@@ -159,21 +159,7 @@ describe('releaseTasksOnAgentExit', () => {
       await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
     });
 
-    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('agent.exited');
-  });
-
-  test('clears stale task.acknowledged participant status after release', async () => {
-    const { sessionId } = await createTestSession('release-exit-stale-acknowledged');
-    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId);
-    await joinBuilderParticipant(sessionId, chatroomId);
-    await seedAcknowledgedBuilderTask(chatroomId);
-    await seedParticipantWithStatus(chatroomId, 'builder', 'task.acknowledged');
-
-    await t.run(async (ctx) => {
-      await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
-    });
-
-    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('agent.exited');
+    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('task.inProgress');
   });
 
   test('does not overwrite agent.exited participant status', async () => {
@@ -241,7 +227,7 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
         createdBy: 'user',
         content: 'entry pending task',
         status: 'pending',
-        assignedTo: 'builder',
+        assignedTo: 'planner',
         queuePosition: 0,
         createdAt: now,
         updatedAt: now,
@@ -255,7 +241,7 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
     expect(reassigned).toBe(0);
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task?.assignedTo).toBe('builder');
+    expect(task?.assignedTo).toBe('planner');
   });
 
   test('moves an acknowledged task on a removed role to pending under the new entry point', async () => {

@@ -47,10 +47,16 @@ import {
 import type { Signals } from '../../../../infrastructure/types/signals.js';
 import {
   buildAgentLifecycleRevisionKey,
+  buildAgentStatusFact,
   buildExitedLifecycleFact,
   type AgentExitAuditArgs,
   type AgentLifecycleFact,
 } from '../../../domain/entities/agent-lifecycle-fact.js';
+import {
+  AGENT_SLOT_STATE,
+  AGENT_START_DISPOSITION,
+  isAgentSlotStarted,
+} from '../../../domain/entities/agent-slot.js';
 import { AgentStopError } from '../../../domain/entities/agent-stop.js';
 import type {
   AgentStopTargetDescriptor,
@@ -338,7 +344,7 @@ export class AgentProcessManager {
   // ── Public API ──────────────────────────────────────────────────────────
 
   private clearSlotRuntimeState(slot: AgentSlot): void {
-    slot.state = 'idle';
+    slot.state = AGENT_SLOT_STATE.IDLE;
     slot.pid = undefined;
     slot.harness = undefined;
     slot.harnessSessionId = undefined;
@@ -404,7 +410,7 @@ export class AgentProcessManager {
     }
     // Stale slot — process died without onExit; reset before kill/spawn
     if (
-      slot.state === 'running' &&
+      slot.state === AGENT_SLOT_STATE.RUNNING &&
       slot.pid &&
       !isProcessAlive(this.deps.processes.kill, slot.pid)
     ) {
@@ -412,7 +418,7 @@ export class AgentProcessManager {
     }
 
     if (
-      slot.state === 'stopping' &&
+      slot.state === AGENT_SLOT_STATE.STOPPING &&
       (slot.stoppingSince === undefined ||
         this.deps.clock.now() - slot.stoppingSince >= STOPPING_TIMEOUT_MS)
     ) {
@@ -426,11 +432,27 @@ export class AgentProcessManager {
     }
 
     if (slot.pendingOperation) {
-      if (slot.state === 'stopping') {
+      if (slot.state === AGENT_SLOT_STATE.STOPPING) {
         await slot.pendingOperation;
       } else {
         return slot.pendingOperation;
       }
+    }
+
+    // Start is an ensure operation. Once the daemon owns a live process for
+    // this (chatroom, role), a repeated request must never tear it down or
+    // replace its PID. Convex state is intentionally not consulted here.
+    const pid = slot.pid;
+    if (
+      isAgentSlotStarted(slot) &&
+      pid !== undefined &&
+      isProcessAlive(this.deps.processes.kill, pid)
+    ) {
+      return {
+        success: true,
+        pid,
+        disposition: AGENT_START_DISPOSITION.ALREADY_STARTED,
+      };
     }
 
     const operation = this.executeEnsureRunning(key, slot, opts);
@@ -539,7 +561,7 @@ export class AgentProcessManager {
     targetKey: string;
   }): void {
     const slot = this.slots.get(agentKey(args.chatroomId, args.role));
-    if (!slot || slot.pid !== args.pid || slot.state !== 'stopping') return;
+    if (!slot || slot.pid !== args.pid || slot.state !== AGENT_SLOT_STATE.STOPPING) return;
     slot.stopCommandId = args.stopCommandId;
     slot.stopTargetKey = args.targetKey;
   }
@@ -550,11 +572,12 @@ export class AgentProcessManager {
   ): Promise<{ ok: true; value: T } | { ok: false; reason: 'concurrent' | 'no_slot' }> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
-    if (!slot || !slot.pid || slot.state === 'idle') return { ok: false, reason: 'no_slot' };
-    if (slot.state === 'stopping' || slot.pendingOperation)
+    if (!slot || !slot.pid || slot.state === AGENT_SLOT_STATE.IDLE)
+      return { ok: false, reason: 'no_slot' };
+    if (slot.state === AGENT_SLOT_STATE.STOPPING || slot.pendingOperation)
       return { ok: false, reason: 'concurrent' };
     this.markStopIntent(opts.chatroomId, opts.role, opts.reason, slot.pid);
-    slot.state = 'stopping';
+    slot.state = AGENT_SLOT_STATE.STOPPING;
     slot.stoppingSince = this.deps.clock.now();
     try {
       const value = await fn();
@@ -562,7 +585,7 @@ export class AgentProcessManager {
       await this.clearAgentPidQuietly(opts.chatroomId, opts.role);
       return { ok: true, value };
     } catch (error) {
-      slot.state = 'running';
+      slot.state = AGENT_SLOT_STATE.RUNNING;
       throw error;
     }
   }
@@ -572,25 +595,25 @@ export class AgentProcessManager {
     opts: StopOpts,
     key: string
   ): Promise<{ success: boolean } | null> {
-    if (!slot || slot.state === 'idle') {
+    if (!slot || slot.state === AGENT_SLOT_STATE.IDLE) {
       await this.killAndRecordForIdleSlot(slot, opts);
       return { success: true };
     }
-    if (slot.state === 'stopping' && slot.pendingOperation) {
+    if (slot.state === AGENT_SLOT_STATE.STOPPING && slot.pendingOperation) {
       await slot.pendingOperation;
       return { success: true };
     }
 
     const pid = slot.pid;
     if (!pid) {
-      slot.state = 'idle';
+      slot.state = AGENT_SLOT_STATE.IDLE;
       slot.pendingOperation = undefined;
       return { success: true };
     }
 
     // CRITICAL: claim stopping synchronously, then start doStop and store the promise
     // so concurrent callers can await the same operation instead of spawning their own.
-    slot.state = 'stopping';
+    slot.state = AGENT_SLOT_STATE.STOPPING;
     const stopGeneration = slot.stopGeneration ?? 0;
     slot.stoppingSince = this.deps.clock.now();
     const operation = this.doStop(key, slot, pid, opts, stopGeneration);
@@ -638,7 +661,7 @@ export class AgentProcessManager {
       !slot ||
       slot.pid !== opts.pid ||
       slot.harness !== opts.harness ||
-      slot.state !== 'running'
+      slot.state !== AGENT_SLOT_STATE.RUNNING
     ) {
       console.log(
         `[AgentProcessManager] Ignoring stale agent_end: role=${opts.role} callbackPid=${opts.pid} currentPid=${slot?.pid ?? 'none'} currentState=${slot?.state ?? 'none'}`
@@ -649,7 +672,7 @@ export class AgentProcessManager {
     const capabilities = getHarnessCapabilities(opts.harness);
 
     this.updateSlotsMirror(opts.chatroomId, opts.role, {
-      state: slot?.state ?? 'idle',
+      state: slot?.state ?? AGENT_SLOT_STATE.IDLE,
       pid: slot?.pid,
       harness: slot?.harness,
       harnessSessionId: slot?.harnessSessionId,
@@ -747,7 +770,7 @@ export class AgentProcessManager {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
 
-    if (!slot || slot.pid !== opts.pid || slot.state === 'stopping') {
+    if (!slot || slot.pid !== opts.pid || slot.state === AGENT_SLOT_STATE.STOPPING) {
       return;
     }
 
@@ -810,7 +833,7 @@ export class AgentProcessManager {
   }
 
   private resetSlotAfterExit(slot: AgentSlot): void {
-    slot.state = 'idle';
+    slot.state = AGENT_SLOT_STATE.IDLE;
     slot.pid = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
@@ -860,16 +883,18 @@ export class AgentProcessManager {
       model: slot.model ?? '',
       message: classification.message,
     });
-    void this.deps.backend
-      .mutation(api.daemon.agentEvents.agentProviderUnavailable, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId,
-        role,
-        reason: classification.reason,
-        model: slot.model ?? '',
-        message: classification.message,
-      })
+    void this.deps.lifecycleOutbox
+      .enqueue(
+        buildAgentStatusFact({
+          chatroomId,
+          role,
+          status: 'error',
+          errorSource: 'runtime',
+          errorCode: classification.reason,
+          errorMessage: `${classification.message}${slot.model ? ` (model: ${slot.model})` : ''}`,
+          emittedAt: this.deps.clock.now(),
+        })
+      )
       .catch(() => {});
   }
 
@@ -880,7 +905,7 @@ export class AgentProcessManager {
   listActive(): { chatroomId: string; role: string; slot: AgentSlot }[] {
     const result: { chatroomId: string; role: string; slot: AgentSlot }[] = [];
     for (const [key, slot] of this.slots) {
-      if (slot.state === 'running' || slot.state === 'spawning') {
+      if (slot.state === AGENT_SLOT_STATE.RUNNING || slot.state === AGENT_SLOT_STATE.SPAWNING) {
         const [chatroomId, role] = key.split(':');
         result.push({ chatroomId, role, slot });
       }
@@ -905,7 +930,7 @@ export class AgentProcessManager {
   ): Promise<boolean> {
     const key = agentKey(chatroomId, role);
     const slot = this.slots.get(key);
-    if (!slot || slot.state !== 'stopping') {
+    if (!slot || slot.state !== AGENT_SLOT_STATE.STOPPING) {
       return false;
     }
     const elapsed = slot.stoppingSince
@@ -1011,7 +1036,7 @@ export class AgentProcessManager {
   private getOrCreateSlot(key: string): AgentSlot {
     let slot = this.slots.get(key);
     if (!slot) {
-      slot = { state: 'idle' };
+      slot = { state: AGENT_SLOT_STATE.IDLE };
       this.slots.set(key, slot);
     }
     return slot;
@@ -1060,10 +1085,10 @@ export class AgentProcessManager {
     if (
       slot?.pid &&
       isProcessAlive(this.deps.processes.kill, slot.pid) &&
-      (slot.state === 'running' || slot.state === 'spawning')
+      (slot.state === AGENT_SLOT_STATE.RUNNING || slot.state === AGENT_SLOT_STATE.SPAWNING)
     ) {
       const pid = slot.pid;
-      slot.state = 'stopping';
+      slot.state = AGENT_SLOT_STATE.STOPPING;
       const stopGeneration = this.bumpStopGeneration(slot);
       slot.stoppingSince = this.deps.clock.now();
       await this.doStop(
@@ -1105,7 +1130,7 @@ export class AgentProcessManager {
 
     const key = agentKey(chatroomId, role);
     const currentSlot = this.slots.get(key);
-    if (currentSlot?.pid === pid && currentSlot.state !== 'idle') {
+    if (currentSlot?.pid === pid && currentSlot.state !== AGENT_SLOT_STATE.IDLE) {
       return;
     }
 
@@ -1263,7 +1288,7 @@ export class AgentProcessManager {
   }
 
   private resetSlotIdle(slot: AgentSlot): void {
-    slot.state = 'idle';
+    slot.state = AGENT_SLOT_STATE.IDLE;
     slot.pendingOperation = undefined;
   }
 
@@ -1388,7 +1413,7 @@ export class AgentProcessManager {
     wantResume: boolean,
     pid: number
   ): void {
-    slot.state = 'running';
+    slot.state = AGENT_SLOT_STATE.RUNNING;
     slot.pid = pid;
     slot.harness = opts.agentHarness;
     slot.harnessSessionId = spawnResult.harnessSessionId;
@@ -1632,7 +1657,7 @@ export class AgentProcessManager {
     slot: AgentSlot,
     opts: EnsureRunningOpts
   ): Promise<OperationResult> {
-    slot.state = 'spawning';
+    slot.state = AGENT_SLOT_STATE.SPAWNING;
     const authorization = await this.deps.backend.mutation(api.machines.authorizeAgentStart, {
       sessionId: this.deps.sessionId,
       machineId: this.deps.machineId,
@@ -1664,7 +1689,11 @@ export class AgentProcessManager {
       if (!spawn.ok) return spawn.result;
 
       await this.finalizeRunningSlot(key, slot, opts, spawn.spawnResult, wantResume);
-      return { success: true, pid: spawn.spawnResult.pid };
+      return {
+        success: true,
+        pid: spawn.spawnResult.pid,
+        disposition: AGENT_START_DISPOSITION.STARTED,
+      };
     } catch (e) {
       this.resetSlotIdle(slot);
       return { success: false, error: `Unexpected error: ${(e as Error).message}` };
@@ -1708,7 +1737,7 @@ export class AgentProcessManager {
   }
 
   private resetSlotAfterStop(slot: AgentSlot): void {
-    slot.state = 'idle';
+    slot.state = AGENT_SLOT_STATE.IDLE;
     slot.pid = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;

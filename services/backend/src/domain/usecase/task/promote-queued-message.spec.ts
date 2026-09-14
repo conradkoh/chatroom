@@ -77,13 +77,12 @@ describe('promoteQueuedMessage', () => {
 
     await t.run(async (ctx) => {
       const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
+        .query('chatroom_agentDesiredConfigs')
         .withIndex('by_teamRoleKey', (q) =>
           q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
         .first();
       expect(config).toBeDefined();
-      if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
 
       const participant = await ctx.db
         .query('chatroom_participants')

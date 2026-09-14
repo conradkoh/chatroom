@@ -1,14 +1,31 @@
 import { render, waitFor } from '@testing-library/react';
+import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import React, { useRef, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig, MachineInfo, SendCommandFn } from '../../types/machine';
+import { AgentControlDataProvider } from '../AgentPanel/AgentControlDataContext';
 import { InlineAgentCard } from '../AgentPanel/InlineAgentCard';
 
 vi.mock('../../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({
     workspaces: [],
     isLoading: false,
+    removeWorkspace: vi.fn(),
+  }),
+}));
+
+vi.mock('../../context/ChatroomWorkspaceContext', () => ({
+  useChatroomWorkspace: () => ({
+    chatroomId: 'jd7testchatroom0000000000000001',
+    workspaces: [],
+    activeWorkspace: {
+      _registryId: 'workspace-setup-test',
+      machineId: 'machine-setup-test',
+      workingDir: '/tmp/workspace',
+    },
+    isLoading: false,
+    setPrimaryWorkspace: vi.fn(),
     removeWorkspace: vi.fn(),
   }),
 }));
@@ -20,9 +37,15 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    chatroomWorkspaceAgentCommandsInbox: {
-      requestStopAgent: 'chatroomWorkspaceAgentCommandsInbox:requestStopAgent',
-      requestStopAll: 'chatroomWorkspaceAgentCommandsInbox:requestStopAll',
+    agentWorkspaces: {
+      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
+      getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
+    },
+    agents: {
+      requestStop: 'agents:requestStop',
+      requestStopAll: 'agents:requestStopAll',
+      getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
+      getStatus: 'agents:getStatus',
     },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
@@ -86,30 +109,37 @@ function UnstableCallbackHarness({ onConfigChange }: { onConfigChange: (calls: n
   }
 
   return (
-    <InlineAgentCard
-      role="builder"
-      allRoles={['builder']}
-      statusLabel="OFFLINE"
-      statusVariant="offline"
-      prompt=""
-      chatroomId={CHATROOM_ID}
-      connectedMachines={[mkMachine()]}
-      isLoadingMachines={false}
-      agentConfigs={[] as AgentConfig[]}
-      sendCommand={vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn}
-      setupMode
-      lockedMachineId={MACHINE_ID}
-      lockedWorkingDir={WORKING_DIR}
-      onSetupConfigChange={(harness, model) => {
-        onConfigChange(1);
-        if (!harness || !model) return;
-        setConfigs((prev) => {
-          const next = new Map(prev);
-          next.set('builder', { harness, model });
-          return next;
-        });
+    <AgentControlDataProvider
+      value={{
+        machines: [mkMachine()],
+        daemonConnectivity: new Map(),
+        isLoadingMachines: false,
+        agentConfigs: [] as AgentConfig[],
+        sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
       }}
-    />
+    >
+      <InlineAgentCard
+        role="builder"
+        lifecycle={AgentRoleLifecycleTag.Permanent}
+        allRoles={['builder']}
+        statusLabel="OFFLINE"
+        statusVariant="offline"
+        prompt=""
+        chatroomId={CHATROOM_ID}
+        setupMode
+        lockedMachineId={MACHINE_ID}
+        lockedWorkingDir={WORKING_DIR}
+        onSetupConfigChange={(harness, model) => {
+          onConfigChange(1);
+          if (!harness || !model) return;
+          setConfigs((prev) => {
+            const next = new Map(prev);
+            next.set('builder', { harness, model });
+            return next;
+          });
+        }}
+      />
+    </AgentControlDataProvider>
   );
 }
 

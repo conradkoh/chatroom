@@ -1,48 +1,71 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
+import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
 import { transitionAgentStatus } from './transition-agent-status';
-import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
-vi.mock('../machine/assigned-tasks-core', () => ({ getParticipantForChatroomRole: vi.fn() }));
-const lookup = vi.mocked(getParticipantForChatroomRole);
-function ctx(config?: { desiredState?: string | undefined }): any {
-  return {
-    db: {
-      patch: vi.fn(),
-      get: vi.fn(async () => ({ _id: 'room', teamId: 'duo' })),
-      query: vi.fn(() => ({ withIndex: vi.fn(() => ({ first: vi.fn(async () => config) })) })),
-    },
-  };
-}
+vi.mock('./get-last-sent-launch-request', () => ({
+  getLastSentLaunchRequestForRole: vi.fn(),
+}));
+vi.mock('./project-agent-role-status-read-model', () => ({
+  projectAgentRoleStatusReadModel: vi.fn(),
+  statusEventForAgentEvent: vi.fn((status: string) => ({
+    status: status === 'agent.waiting' ? 'waiting' : 'offline',
+  })),
+}));
+
+const lookup = vi.mocked(getLastSentLaunchRequestForRole);
+const project = vi.mocked(projectAgentRoleStatusReadModel);
+
 describe('transitionAgentStatus', () => {
-  beforeEach(() =>
-    lookup.mockResolvedValue({
-      _id: 'participant',
-      lastStatus: 'agent.waiting',
-      lastDesiredState: 'stopped',
-    } as never)
-  );
-  it('syncs operational status from team config', async () => {
-    const c = ctx({ desiredState: 'running' });
-    await transitionAgentStatus(c, 'room' as never, 'builder', 'agent.waiting');
-    expect(c.db.patch).toHaveBeenCalledWith('chatroom_participants', 'participant', {
-      lastStatus: 'agent.waiting',
-      lastDesiredState: 'running',
-    });
+  beforeEach(() => {
+    lookup.mockResolvedValue(null);
+    project.mockResolvedValue(undefined);
   });
-  it('respects explicit desired state', async () => {
-    const c = ctx({ desiredState: 'running' });
-    await transitionAgentStatus(c, 'room' as never, 'builder', 'agent.waiting', 'stopped');
-    expect(c.db.patch).toHaveBeenCalledWith('chatroom_participants', 'participant', {
-      lastStatus: 'agent.waiting',
-      lastDesiredState: 'stopped',
-    });
+
+  it('projects an operational event to the role-status read model', async () => {
+    await transitionAgentStatus({} as never, 'room' as never, 'builder', 'agent.waiting');
+
+    expect(project).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        chatroomId: 'room',
+        role: 'builder',
+        event: { status: 'waiting' },
+      })
+    );
   });
-  it('does not sync non-operational statuses', async () => {
-    const c = ctx({ desiredState: 'running' });
-    await transitionAgentStatus(c, 'room' as never, 'builder', 'agent.exited');
-    expect(c.db.patch).toHaveBeenCalledWith('chatroom_participants', 'participant', {
-      lastStatus: 'agent.exited',
-    });
+
+  it('ignores the deprecated explicit desired state argument', async () => {
+    await transitionAgentStatus(
+      {} as never,
+      'room' as never,
+      'builder',
+      'agent.waiting',
+      'stopped'
+    );
+
+    expect(project).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ event: { status: 'waiting' } })
+    );
+  });
+
+  it('uses an explicit status event when provided', async () => {
+    await transitionAgentStatus(
+      {} as never,
+      'room' as never,
+      'builder',
+      'agent.exited',
+      undefined,
+      { status: 'error', errorSource: 'runtime', errorCode: 'agent.exited' }
+    );
+
+    expect(project).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        event: { status: 'error', errorSource: 'runtime', errorCode: 'agent.exited' },
+      })
+    );
   });
 });

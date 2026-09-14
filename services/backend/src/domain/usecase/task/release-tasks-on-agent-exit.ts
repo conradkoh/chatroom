@@ -10,28 +10,13 @@ import { transitionTask } from './transition-task';
 import { writeTaskStatusSignals } from './write-task-status-signals';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { withActiveTeamStructure } from '../../../../convex/lib/chatroomTeam';
 import type { TaskStatus } from '../../../../convex/lib/taskStateMachine';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { getTeamEntryPoint } from '../../entities/team';
-import { transitionAgentStatus } from '../agent/transition-agent-status';
-import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 
 const RELEASE_FROM_STATUSES: TaskStatus[] = ['acknowledged', 'in_progress'];
-
-const STALE_IN_FLIGHT_PARTICIPANT_STATUSES = new Set(['task.inProgress', 'task.acknowledged']);
-
-async function syncParticipantAfterTaskRelease(
-  ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string }
-): Promise<void> {
-  const participant = await getParticipantForChatroomRole(ctx, args.chatroomId, args.role);
-  if (!participant?.lastStatus) return;
-  if (!STALE_IN_FLIGHT_PARTICIPANT_STATUSES.has(participant.lastStatus)) return;
-
-  await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.exited');
-}
 
 /**
  * Whether agent exit should release tasks back to pending for the exiting role.
@@ -66,10 +51,6 @@ export async function releaseTasksOnAgentExit(
     }
   }
 
-  if (released > 0) {
-    await syncParticipantAfterTaskRelease(ctx, args);
-  }
-
   return released;
 }
 
@@ -81,8 +62,9 @@ export async function reassignInFlightTasksOnTeamSwitch(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<number> {
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom) return 0;
+  const rawChatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (!rawChatroom) return 0;
+  const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
 
   const entryPoint = getTeamEntryPoint(chatroom);
   if (!entryPoint) return 0;
@@ -150,8 +132,9 @@ export async function reassignTasksOnTeamSwitch(
   ctx: MutationCtx,
   args: { chatroomId: Id<'chatroom_rooms'>; role: string }
 ): Promise<number> {
-  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!chatroom) return 0;
+  const rawChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+  if (!rawChatroom) return 0;
+  const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
 
   const entryPoint = getTeamEntryPoint(chatroom);
   if (!entryPoint) return 0;
@@ -183,44 +166,4 @@ export async function reassignTasksOnTeamSwitch(
   }
 
   return reassigned;
-}
-
-/**
- * Release orphaned **tasks** when backend agent state says the role is not running.
- *
- * ## Layering (process vs task orphans)
- *
- * | Layer | Owner | Responsibility |
- * |-------|--------|----------------|
- * | Process | CLI `AgentProcessManager` | Kill live PIDs on every `agent.requestStart` (`killExistingBeforeSpawn`), recover persisted PIDs on daemon restart (`recover()`). Source of truth for OS processes. |
- * | Task | This function | Reset acknowledged/in_progress tasks when `chatroom_teamAgentConfigs` has no `spawnedAgentPid` and `desiredState !== 'running'` — i.e. DB thinks the agent is gone. Does not inspect the OS. |
- *
- * Daemon kill-then-spawn normally clears PID via `recordAgentExited` (`daemon.respawn`) before respawn,
- * so tasks stay assigned during replacement. This sweeper is a **fallback** when exit was never recorded
- * (crash, partial cleanup, manual PID clear).
- *
- * **Triggers:** `claimTask` (before claiming, so get-next-task can reclaim) and `sweepOrphanedTasks`
- * (explicit cleanup). Not redundant with daemon process management — complementary scopes.
- */
-export async function releaseOrphanedTasksForRole(
-  ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string }
-): Promise<number> {
-  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!chatroom?.teamId) return 0;
-
-  const teamRoleKey = buildTeamRoleKey(args.chatroomId, chatroom.teamId, args.role);
-  const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-    .first();
-
-  const agentAlive =
-    config != null && (config.spawnedAgentPid != null || config.desiredState === 'running');
-
-  if (agentAlive) {
-    return 0;
-  }
-
-  return releaseTasksOnAgentExit(ctx, args);
 }

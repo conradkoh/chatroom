@@ -1,3 +1,8 @@
+import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
+import {
+  deriveChatroomState,
+  isChatroomStopAvailable,
+} from '@workspace/shared/domain/chatroom-activity-status';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,45 +12,87 @@ import {
 } from './partitionChatroomListing';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 
+import type { ChatroomRemoteAgentStatus, ChatroomStatus } from '@/domain/entities/chatroom-status';
+
 const NOW = Date.now();
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 
 function makeChatroom(
-  overrides: Partial<ChatroomWithStatus> & Pick<ChatroomWithStatus, '_id'>
+  overrides: Partial<ChatroomWithStatus> &
+    Pick<ChatroomWithStatus, '_id'> & {
+      activityStatus?: ChatroomActivityStatus;
+      remoteAgentStatus?: ChatroomRemoteAgentStatus;
+    }
 ): ChatroomWithStatus {
+  const {
+    activityStatus: _activityStatus,
+    remoteAgentStatus: _remoteAgentStatus,
+    ...rest
+  } = overrides;
   return {
     _creationTime: NOW - 1_000,
-    status: 'active',
-    chatStatus: 'idle',
+    status: 'active' as const,
     teamId: 'team-1',
     teamName: 'Team',
     teamRoles: [],
     isFavorite: false,
     hasUnread: false,
     hasUnreadHandoff: false,
-    remoteAgentStatus: 'none',
-    runningRoles: [],
-    runningAgentConfigs: [],
-    ...overrides,
+    ...rest,
+  };
+}
+
+const statuses = new Map<string, ChatroomStatus>();
+
+function makeStatusAwareChatroom(
+  overrides: Parameters<typeof makeChatroom>[0]
+): ChatroomWithStatus {
+  const chatroom = makeChatroom(overrides);
+  statuses.set(
+    chatroom._id,
+    makeStatus(
+      chatroom._id,
+      overrides.activityStatus ?? 'idle',
+      overrides.remoteAgentStatus ?? 'none'
+    )
+  );
+  return chatroom;
+}
+
+function makeStatus(
+  chatroomId: string,
+  activityStatus: ChatroomActivityStatus,
+  remoteAgentStatus: ChatroomRemoteAgentStatus
+): ChatroomStatus {
+  return {
+    chatroomId,
+    activityStatus,
+    state: deriveChatroomState(activityStatus),
+    remoteAgentStatus,
+    canStop: remoteAgentStatus === 'running' || isChatroomStopAvailable(activityStatus),
   };
 }
 
 describe('partitionChatroomListing', () => {
   it('separates active, recency-bucketed idle, and completed chatrooms', () => {
     const chatrooms = [
-      makeChatroom({ _id: 'active-1', chatStatus: 'working', _creationTime: 100 }),
-      makeChatroom({ _id: 'active-2', chatStatus: 'active', _creationTime: 200 }),
-      makeChatroom({ _id: 'idle-day', chatStatus: 'idle', lastActivityAt: NOW - 1_000 }),
-      makeChatroom({
+      makeStatusAwareChatroom({ _id: 'active-1', activityStatus: 'working', _creationTime: 100 }),
+      makeStatusAwareChatroom({ _id: 'active-2', activityStatus: 'active', _creationTime: 200 }),
+      makeStatusAwareChatroom({
+        _id: 'idle-day',
+        activityStatus: 'idle',
+        lastActivityAt: NOW - 1_000,
+      }),
+      makeStatusAwareChatroom({
         _id: 'idle-week',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: NOW - WEEK_MS + 1_000,
       }),
-      makeChatroom({ _id: 'done', chatStatus: 'completed' }),
+      makeStatusAwareChatroom({ _id: 'done', activityStatus: 'completed' }),
     ];
 
-    const partitioned = partitionChatroomListing(chatrooms);
+    const partitioned = partitionChatroomListing(chatrooms, statuses);
 
     expect(partitioned.active.map((c) => c._id)).toEqual(['active-1', 'active-2']);
     expect(partitioned.completed.map((c) => c._id)).toEqual(['done']);
@@ -57,11 +104,19 @@ describe('partitionChatroomListing', () => {
 
   it('includes transitioning chatrooms in active section', () => {
     const chatrooms = [
-      makeChatroom({ _id: 'transitioning', chatStatus: 'transitioning', _creationTime: 100 }),
-      makeChatroom({ _id: 'idle-day', chatStatus: 'idle', lastActivityAt: NOW - 1_000 }),
+      makeStatusAwareChatroom({
+        _id: 'transitioning',
+        activityStatus: 'transitioning',
+        _creationTime: 100,
+      }),
+      makeStatusAwareChatroom({
+        _id: 'idle-day',
+        activityStatus: 'idle',
+        lastActivityAt: NOW - 1_000,
+      }),
     ];
 
-    const partitioned = partitionChatroomListing(chatrooms);
+    const partitioned = partitionChatroomListing(chatrooms, statuses);
 
     expect(partitioned.active.map((c) => c._id)).toEqual(['transitioning']);
     expect(partitioned.recentByRecency.lastDay.map((c) => c._id)).toEqual(['idle-day']);
@@ -69,12 +124,20 @@ describe('partitionChatroomListing', () => {
 
   it('excludes active and completed chatrooms from recency buckets', () => {
     const chatrooms = [
-      makeChatroom({ _id: 'active', chatStatus: 'active', lastActivityAt: NOW - 1_000 }),
-      makeChatroom({ _id: 'done', chatStatus: 'completed', lastActivityAt: NOW - 1_000 }),
-      makeChatroom({ _id: 'idle', chatStatus: 'idle', lastActivityAt: NOW - 1_000 }),
+      makeStatusAwareChatroom({
+        _id: 'active',
+        activityStatus: 'active',
+        lastActivityAt: NOW - 1_000,
+      }),
+      makeStatusAwareChatroom({
+        _id: 'done',
+        activityStatus: 'completed',
+        lastActivityAt: NOW - 1_000,
+      }),
+      makeStatusAwareChatroom({ _id: 'idle', activityStatus: 'idle', lastActivityAt: NOW - 1_000 }),
     ];
 
-    const partitioned = partitionChatroomListing(chatrooms);
+    const partitioned = partitionChatroomListing(chatrooms, statuses);
 
     expect(partitioned.active.map((c) => c._id)).toEqual(['active']);
     expect(partitioned.completed.map((c) => c._id)).toEqual(['done']);
@@ -84,12 +147,27 @@ describe('partitionChatroomListing', () => {
 
 describe('flattenPartitionedCurrent', () => {
   it('preserves active-first then recency section order', () => {
-    const partitioned = partitionChatroomListing([
-      makeChatroom({ _id: 'older', chatStatus: 'idle', lastActivityAt: NOW - 40 * DAY_MS }),
-      makeChatroom({ _id: 'active', chatStatus: 'active', _creationTime: 50 }),
-      makeChatroom({ _id: 'day', chatStatus: 'idle', lastActivityAt: NOW - 1_000 }),
-      makeChatroom({ _id: 'week', chatStatus: 'idle', lastActivityAt: NOW - WEEK_MS }),
-    ]);
+    const partitioned = partitionChatroomListing(
+      [
+        makeStatusAwareChatroom({
+          _id: 'older',
+          activityStatus: 'idle',
+          lastActivityAt: NOW - 40 * DAY_MS,
+        }),
+        makeStatusAwareChatroom({ _id: 'active', activityStatus: 'active', _creationTime: 50 }),
+        makeStatusAwareChatroom({
+          _id: 'day',
+          activityStatus: 'idle',
+          lastActivityAt: NOW - 1_000,
+        }),
+        makeStatusAwareChatroom({
+          _id: 'week',
+          activityStatus: 'idle',
+          lastActivityAt: NOW - WEEK_MS,
+        }),
+      ],
+      statuses
+    );
 
     expect(flattenPartitionedCurrent(partitioned).map((c) => c._id)).toEqual([
       'active',

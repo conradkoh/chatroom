@@ -1,15 +1,26 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
+import {
+  deriveChatroomState,
+  isChatroomStopAvailable,
+} from '@workspace/shared/domain/chatroom-activity-status';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatroomSidebar } from './ChatroomSidebar';
+import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { useChatroomListing } from '../context/ChatroomListingContext';
+
+import type { ChatroomRemoteAgentStatus, ChatroomStatus } from '@/domain/entities/chatroom-status';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockArchiveChatroom = vi.fn().mockResolvedValue({ success: true, disabledPromptCount: 0 });
 const mockRequestChatroomStop = vi.fn().mockResolvedValue({ stopCommandId: 'stop' });
 const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
+const mockStartAllPermanent = vi
+  .fn()
+  .mockResolvedValue({ started: ['planner'], skipped: [], failed: [] });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
 const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
@@ -28,11 +39,6 @@ vi.mock('sonner', () => ({
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
   },
-}));
-
-vi.mock('./AgentPanel/UnifiedAgentListModal', () => ({
-  UnifiedAgentListModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="start-agent-modal">Start Agent Modal</div> : null,
 }));
 
 vi.mock('./LifecycleConfirmDialog', () => ({
@@ -74,6 +80,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'stopAllCommandRunsForChatroom') {
         return mockStopAllCommandRuns;
       }
+      if (name === 'startAllPermanent') {
+        return mockStartAllPermanent;
+      }
     }
     return () => {};
   },
@@ -93,6 +102,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     commands: {
       stopAllCommandRunsForChatroom: { name: 'stopAllCommandRunsForChatroom' },
     },
+    agents: {
+      startAllPermanent: { name: 'startAllPermanent' },
+    },
   },
 }));
 
@@ -100,57 +112,74 @@ vi.mock('../context/ChatroomListingContext', () => ({
   useChatroomListing: vi.fn().mockReturnValue({ chatrooms: [], isLoading: false }),
 }));
 
+const mockStatuses = new Map<string, ChatroomStatus>();
+
+vi.mock('../hooks/useChatroomStatus', () => ({
+  useChatroomStatus: (chatroomId: string) => ({
+    status: mockStatuses.get(chatroomId),
+    isLoading: !mockStatuses.has(chatroomId),
+  }),
+  useChatroomStatusMap: () => ({ statuses: mockStatuses, isLoading: false }),
+}));
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-interface TestChatroom {
-  _id: string;
-  _creationTime: number;
-  status: 'active' | 'completed';
-  chatStatus: 'working' | 'active' | 'transitioning' | 'idle' | 'completed';
-  name?: string;
-  teamId?: string;
-  teamName?: string;
-  teamRoles?: string[];
-  agents: { isAlive: boolean; machineId: string; role: string }[];
-  isFavorite: boolean;
-  hasUnread: boolean;
-  hasUnreadHandoff: boolean;
-  remoteAgentStatus: 'running' | 'stopped' | 'none';
-  runningRoles: string[];
-  runningAgentConfigs: { machineId: string; role: string }[];
-  lastActivityAt?: number;
-}
+type TestChatroomOverrides = Partial<ChatroomWithStatus> & {
+  activityStatus?: ChatroomActivityStatus;
+  remoteAgentStatus?: ChatroomRemoteAgentStatus;
+};
 
-const makeChatroom = (overrides: Partial<TestChatroom> = {}): TestChatroom =>
-  ({
-    _id: 'chr-1',
+const makeChatroom = (overrides: TestChatroomOverrides = {}): ChatroomWithStatus => {
+  const chatroomId = overrides._id ?? 'chr-1';
+  const activityStatus = overrides.activityStatus ?? 'active';
+  const remoteAgentStatus = overrides.remoteAgentStatus ?? 'none';
+  const {
+    activityStatus: _activityStatus,
+    remoteAgentStatus: _remoteAgentStatus,
+    ...chatroomOverrides
+  } = overrides;
+
+  const chatroom: ChatroomWithStatus = {
+    _id: chatroomId,
     _creationTime: 1_000_000,
-    status: 'active',
-    chatStatus: 'active',
+    status: 'active' as const,
     name: 'Test Chat',
     teamId: 'team-1',
     teamName: 'Team',
     teamRoles: ['builder'],
-    agents: [],
     isFavorite: false,
     hasUnread: false,
     hasUnreadHandoff: false,
-    remoteAgentStatus: 'none',
-    runningRoles: [],
-    runningAgentConfigs: [],
     lastActivityAt: 1_000_000,
-    ...overrides,
-  }) as TestChatroom;
+    ...chatroomOverrides,
+  };
+  mockStatuses.set(chatroomId, makeStatus(chatroomId, activityStatus, remoteAgentStatus));
+  return chatroom;
+};
 
-const makeCompletedChatroom = (): TestChatroom =>
+function makeStatus(
+  chatroomId: string,
+  activityStatus: ChatroomActivityStatus,
+  remoteAgentStatus: ChatroomRemoteAgentStatus
+): ChatroomStatus {
+  return {
+    chatroomId,
+    activityStatus,
+    state: deriveChatroomState(activityStatus),
+    remoteAgentStatus,
+    canStop: remoteAgentStatus === 'running' || isChatroomStopAvailable(activityStatus),
+  };
+}
+
+const makeCompletedChatroom = (): ChatroomWithStatus =>
   makeChatroom({
     _id: 'chr-2',
-    chatStatus: 'completed',
+    activityStatus: 'completed',
     status: 'completed',
     name: 'Completed Chat',
   });
 
-const renderSidebar = (chatrooms: TestChatroom[]) => {
+const renderSidebar = (chatrooms: ChatroomWithStatus[]) => {
   (useChatroomListing as ReturnType<typeof vi.fn>).mockReturnValue({
     chatrooms,
     isLoading: false,
@@ -173,6 +202,7 @@ describe('ChatroomSidebar', () => {
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
     mockPush.mockReset();
+    mockStatuses.clear();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
   });
 
@@ -180,6 +210,24 @@ describe('ChatroomSidebar', () => {
     const chatroom = makeChatroom();
     renderSidebar([chatroom]);
     expect(screen.getByText('Test Chat')).toBeInTheDocument();
+  });
+
+  it('renders working status with the shared blue indicator', () => {
+    const chatroom = makeChatroom({ activityStatus: 'working' });
+    renderSidebar([chatroom]);
+
+    const item = screen.getByText('Test Chat').closest('[role="button"]');
+    expect(item?.querySelector('.bg-chatroom-status-info')).toBeInTheDocument();
+    expect(item?.querySelector('.bg-chatroom-status-success')).not.toBeInTheDocument();
+  });
+
+  it('renders a muted loading indicator before chatroom status resolves', () => {
+    const chatroom = makeChatroom();
+    mockStatuses.delete(chatroom._id);
+    renderSidebar([chatroom]);
+
+    const item = screen.getByText('Test Chat').closest('[role="button"]');
+    expect(item?.querySelector('.bg-chatroom-text-muted')).toBeInTheDocument();
   });
 
   it('renders skeleton loader while chatrooms are loading', () => {
@@ -339,25 +387,25 @@ describe('ChatroomSidebar', () => {
       makeChatroom({
         _id: 'day',
         name: 'Day Chat',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: startOfYesterday.getTime() + 60_000,
       }),
       makeChatroom({
         _id: 'week',
         name: 'Week Chat',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: now - 2 * dayMs,
       }),
       makeChatroom({
         _id: 'month',
         name: 'Month Chat',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: now - 10 * dayMs,
       }),
       makeChatroom({
         _id: 'older',
         name: 'Older Chat',
-        chatStatus: 'idle',
+        activityStatus: 'idle',
         lastActivityAt: now - 40 * dayMs,
       }),
     ]);
@@ -396,7 +444,7 @@ describe('ChatroomSidebar', () => {
     });
   });
 
-  it('play button opens the manual start modal', async () => {
+  it('play button starts permanent agents from their saved configuration', async () => {
     const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
     renderSidebar([chatroom]);
 
@@ -404,16 +452,25 @@ describe('ChatroomSidebar', () => {
     fireEvent.click(playButton);
 
     await waitFor(() => {
-      expect(screen.getByTestId('start-agent-modal')).toBeInTheDocument();
+      expect(mockStartAllPermanent).toHaveBeenCalledWith({ chatroomId: 'chr-1' });
     });
+    expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+  });
 
-    expect(mockToastSuccess).not.toHaveBeenCalled();
+  it('shows stop for a projected active chatroom even when the daemon summary is stopped', () => {
+    renderSidebar([
+      makeChatroom({
+        activityStatus: 'active',
+        remoteAgentStatus: 'stopped',
+      }),
+    ]);
+
+    expect(screen.getByTitle('Stop agents and command runs')).toBeInTheDocument();
   });
 
   it('confirms then stops agents and command processes separately', async () => {
     const chatroom = makeChatroom({
       remoteAgentStatus: 'running',
-      runningAgentConfigs: [{ machineId: 'machine-1', role: 'builder' }],
     });
     renderSidebar([chatroom]);
 

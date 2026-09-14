@@ -78,7 +78,7 @@ function makeTestSessionService(opts: {
 }
 
 /** Create a test GetNextTaskSessionService with a controllable start() mock. */
-function makeTestSessionFactory(opts: { startFn?:( () => Promise<void>) | undefined } = {}) {
+function makeTestSessionFactory(opts: { startFn?: (() => Promise<void>) | undefined } = {}) {
   const mockStart = vi.fn().mockImplementation(opts.startFn ?? (() => Promise.resolve(undefined)));
   const mockCreateSession = vi.fn().mockReturnValue({ start: mockStart });
   const layer = Layer.succeed(GetNextTaskSessionService, {
@@ -324,7 +324,7 @@ describe('getNextTaskEffect', () => {
     expect(mockStart).toHaveBeenCalledOnce();
   });
 
-  test('passes agentType from team config to participants.join', async () => {
+  test('passes the saved agent type to participants.join', async () => {
     const sessionLayer = makeTestSessionService({ sessionId: VALID_SESSION_ID });
 
     const joinArgsSpy = vi.fn();
@@ -335,7 +335,7 @@ describe('getNextTaskEffect', () => {
         queryCallCount++;
         if (queryCallCount === 1) return Effect.succeed(VALID_CHATROOM) as any;
         if (queryCallCount === 2)
-          return Effect.succeed([{ role: 'builder', type: 'remote' }]) as any;
+          return Effect.succeed({ role: 'builder', agentType: 'remote' }) as any;
         return Effect.succeed(null) as any; // getInitPrompt
       },
       mutation: (_endpoint: unknown, args: unknown) => {

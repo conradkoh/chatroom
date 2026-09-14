@@ -9,6 +9,8 @@ import {
 } from '../../daemon-services.js';
 import type { AgentProcessManagerService } from '../../../services/agent-process-service/index.js';
 import { DaemonEventBus } from '../event-bus.js';
+import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
+import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
@@ -32,7 +34,10 @@ function createEvent(
 // ─── Effect twin tests ───────────────────────────────────────────────────────
 
 describe('onRequestStartAgentEffect', () => {
-  function makeSessionLayer(backendMutation = vi.fn().mockResolvedValue(undefined)) {
+  function makeSessionLayer(
+    backendMutation = vi.fn().mockResolvedValue(undefined),
+    lifecycleEnqueue?: ReturnType<typeof vi.fn>
+  ) {
     return Layer.succeed(DaemonSessionService, {
       sessionId: 'test-session',
       machineId: 'test-machine',
@@ -48,6 +53,15 @@ describe('onRequestStartAgentEffect', () => {
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,
       taskService: {} as never,
+      ...(lifecycleEnqueue
+        ? {
+            lifecycleOutbox: {
+              enqueue: lifecycleEnqueue.mockResolvedValue({ success: true }) as unknown as (
+                fact: AgentLifecycleFact
+              ) => Promise<AgentLifecycleOutboxResult>,
+            },
+          }
+        : {}),
     });
   }
 
@@ -95,24 +109,27 @@ describe('onRequestStartAgentEffect', () => {
     );
   });
 
-  test('calls emitAgentStartFailed mutation when startAgent fails', async () => {
+  test('enqueues an agent status fact when startAgent fails', async () => {
     const startSpy = vi.fn().mockRejectedValue(new Error('rate_limited'));
     const apmLayer = makeCommandLayer(startSpy);
     const backendMutation = vi.fn().mockResolvedValue(undefined);
-    const sessionLayer = makeSessionLayer(backendMutation);
+    const lifecycleEnqueue = vi.fn();
+    const sessionLayer = makeSessionLayer(backendMutation, lifecycleEnqueue);
     const event = createEvent();
 
     await runEffect(event, apmLayer, sessionLayer);
 
-    expect(backendMutation).toHaveBeenCalledWith(
-      expect.anything(),
+    expect(lifecycleEnqueue).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: 'test-session',
-        machineId: 'test-machine',
+        kind: 'status',
         chatroomId: event.chatroomId,
         role: event.role,
-        error: 'rate_limited',
+        status: 'error',
+        errorSource: 'configuration',
+        errorCode: 'agent.startFailed',
+        errorMessage: 'rate_limited',
       })
     );
+    expect(backendMutation).not.toHaveBeenCalled();
   });
 });

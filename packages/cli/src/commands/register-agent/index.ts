@@ -102,7 +102,7 @@ export const registerAgentEffect = (
   Effect.gen(function* () {
     const backend = yield* BackendService;
     const machine = yield* RegisterAgentMachineService;
-    const { role, type, allowTypeChange } = options;
+    const { role, type } = options;
 
     const sessionId = yield* requireSessionIdEffect((a) => ({
       _tag: 'NotAuthenticated' as const,
@@ -148,16 +148,6 @@ export const registerAgentEffect = (
 
       const config = yield* machine.loadMachineConfig();
 
-      // Try to record registration (non-critical)
-      yield* backend
-        .mutation<void>(api.machines.recordRemoteAgentRegistered, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-          machineId,
-        })
-        .pipe(Effect.catchAll(() => Effect.succeed(undefined))); // Non-critical
-
       // Print success
       yield* Effect.sync(() => {
         console.log(`✅ Registered as remote agent for role "${role}"`);
@@ -165,21 +155,6 @@ export const registerAgentEffect = (
         console.log(`   Working directory: ${process.cwd()}`);
       });
     } else {
-      // Custom type: team config + agent.registered (via dedicated mutation)
-      yield* backend
-        .mutation<void>(api.machines.recordCustomAgentRegistered, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-          allowTypeChange,
-        })
-        .pipe(
-          Effect.mapError((cause): RegisterAgentError => ({
-            _tag: 'RegisterFailed',
-            cause: cause as Error,
-          }))
-        );
-
       // Print success
       yield* Effect.sync(() => {
         console.log(`✅ Registered as custom agent for role "${role}"`);

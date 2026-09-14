@@ -1,10 +1,9 @@
 import { authorizeAgentStart } from './authorize-agent-start';
 import type { AuthorizeAgentStartReason } from './authorize-agent-start';
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import { recordAgentSpawnedState } from './record-agent-spawned-state';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type RegisterSpawnedAgentArgs = {
   chatroomId: Id<'chatroom_rooms'>;
@@ -14,6 +13,8 @@ export type RegisterSpawnedAgentArgs = {
   model?: string | undefined;
   harnessSessionId?: string | undefined;
   reason?: string | undefined;
+  emittedAt?: number | undefined;
+  revisionKey?: string | undefined;
 };
 export type RegisterSpawnedAgentResult =
   { accepted: true } | { accepted: false; reason: AuthorizeAgentStartReason };
@@ -24,22 +25,30 @@ export async function registerSpawnedAgentIfAuthorized(
 ): Promise<RegisterSpawnedAgentResult> {
   const auth = await authorizeAgentStart(ctx, args);
   if (!auth.allowed) return { accepted: false, reason: auth.reason };
-  const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!room?.teamId) return { accepted: false, reason: 'not_configured' };
-  const teamId = room.teamId;
-  const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
-    )
-    .first();
-  if (!config) return { accepted: false, reason: 'not_configured' };
-  if (config.spawnedAgentPid === args.pid) return { accepted: true };
-  await patchTeamAgentConfig(ctx, config._id, {
-    spawnedAgentPid: args.pid,
-    spawnedAt: Date.now(),
-    ...(args.model !== undefined ? { model: args.model } : {}),
+  const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
   });
+  if (!launchRequest || launchRequest.machineId !== args.machineId)
+    return { accepted: false, reason: 'not_configured' };
+  const normalizedRole = args.role.trim().toLowerCase();
+  const existingStatus = launchRequest.workspaceId
+    ? await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_workspace_role', (q) =>
+          q
+            .eq('chatroomId', args.chatroomId)
+            .eq('workspaceId', launchRequest.workspaceId)
+            .eq('role', normalizedRole)
+        )
+        .first()
+    : await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('role', normalizedRole)
+        )
+        .first();
+  if (existingStatus?.observedPid === args.pid) return { accepted: true };
   await recordAgentSpawnedState(ctx, {
     chatroomId: args.chatroomId,
     role: args.role,
@@ -48,6 +57,8 @@ export async function registerSpawnedAgentIfAuthorized(
     model: args.model,
     harnessSessionId: args.harnessSessionId,
     reason: args.reason,
+    emittedAt: args.emittedAt,
+    revisionKey: args.revisionKey,
   });
   return { accepted: true };
 }

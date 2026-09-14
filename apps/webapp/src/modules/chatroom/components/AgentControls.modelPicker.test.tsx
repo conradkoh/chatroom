@@ -1,4 +1,4 @@
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,9 +20,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    chatroomWorkspaceAgentCommandsInbox: {
-      requestStopAgent: 'chatroomWorkspaceAgentCommandsInbox:requestStopAgent',
-      requestStopAll: 'chatroomWorkspaceAgentCommandsInbox:requestStopAll',
+    agents: {
+      requestStop: 'agents:requestStop',
+      requestStopAll: 'agents:requestStopAll',
+      saveConfig: 'agents:saveConfig',
     },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
@@ -74,7 +75,7 @@ function mkMachine(): MachineInfo {
   };
 }
 
-function ModelPickerHarness() {
+function ModelPickerHarness({ ephemeral = false }: { ephemeral?: boolean }) {
   const machines = [mkMachine()];
   // Seeding config matching the machine so initialization picks machine-a + cursor
   const seedingConfig: AgentConfig = {
@@ -89,6 +90,8 @@ function ModelPickerHarness() {
   const controls = useAgentControls({
     role: 'builder',
     chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
+    workspaceId: 'workspace-1',
+    isEphemeral: ephemeral,
     connectedMachines: machines,
     agentConfigs: [seedingConfig],
     sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
@@ -125,6 +128,53 @@ describe('AgentControls model picker', () => {
       expect(document.querySelector('[data-slot="chatroom-popover-content"]')).not.toBeNull();
     });
     expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
+  });
+
+  it.each([false, true])(
+    'hydrates the offline %s role form from its last configuration',
+    async (ephemeral) => {
+      const { result, rerender } = renderHook(
+        ({ configurationLoading }) =>
+          useAgentControls({
+            role: ephemeral ? 'enhancer' : 'builder',
+            chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
+            workspaceId: 'workspace-1',
+            isEphemeral: ephemeral,
+            connectedMachines: [mkMachine()],
+            agentConfigs: [
+              {
+                machineId: 'machine-a',
+                hostname: 'host-a',
+                role: ephemeral ? 'enhancer' : 'builder',
+                agentType: 'cursor',
+                workingDir: '/workspace',
+                model: 'openai/gpt-4o',
+                availableHarnesses: ['cursor'],
+                updatedAt: 123,
+              },
+            ],
+            sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
+            configurationLoading,
+          }),
+        { initialProps: { configurationLoading: true } }
+      );
+
+      expect(result.current.selectedMachineId).toBeNull();
+      rerender({ configurationLoading: false });
+
+      await waitFor(() => {
+        expect(result.current.selectedMachineId).toBe('machine-a');
+        expect(result.current.selectedHarness).toBe('cursor');
+        expect(result.current.workingDir).toBe('/workspace');
+      });
+    }
+  );
+
+  it('shows a save action for an offline ephemeral role', async () => {
+    render(<ModelPickerHarness ephemeral />);
+
+    expect(await screen.findByRole('button', { name: 'Save Configuration' })).toBeInTheDocument();
+    expect(screen.queryByTitle('Start Agent')).not.toBeInTheDocument();
   });
 
   it('renders drawer on mobile when model trigger clicked', async () => {

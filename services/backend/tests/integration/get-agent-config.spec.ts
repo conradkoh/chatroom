@@ -1,14 +1,13 @@
 /**
  * Get Agent Config — Integration Tests
  *
- * Tests the `getAgentConfig` use case which is the single source of truth
- * for resolving agent configuration from chatroom_teamAgentConfigs.
+ * Tests the `getAgentConfig` compatibility reader backed by the last launch
+ * request snapshot.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { getAgentConfig } from '../../src/domain/usecase/agent/get-agent-config';
 import { t } from '../../test.setup';
 import {
@@ -97,117 +96,7 @@ describe('getAgentConfig', () => {
     }
   });
 
-  test("returns modelSource 'none' when team config model is cleared", async () => {
-    // ===== SETUP =====
-    const { sessionId } = await createTestSession('test-gac-4');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    const machineId = 'machine-gac-4';
-    await registerMachineWithDaemon(sessionId, machineId);
-
-    // Start agent with model — saves to team config
-    await t.mutation(api.machines.sendCommand, {
-      sessionId,
-      machineId,
-      type: 'start-agent',
-      payload: {
-        chatroomId,
-        role: 'builder',
-        model: TEST_MODEL_OPENCODE,
-        agentHarness: 'opencode',
-        workingDir: '/test/workspace',
-      },
-    });
-
-    // Directly clear the model on the team config
-    await t.run(async (ctx) => {
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
-      const teamConfig = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-        .first();
-      if (teamConfig) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
-          model: undefined,
-        });
-      }
-    });
-
-    // ===== ACTION =====
-    const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
-    });
-
-    // ===== VERIFY =====
-    expect(result.found).toBe(true);
-    if (result.found) {
-      expect(result.config.model).toBeUndefined();
-      expect(result.config.modelSource).toBe('none');
-    }
-  });
-
-  test('returns modelSource "none" when neither config has a model', async () => {
-    // ===== SETUP =====
-    const { sessionId } = await createTestSession('test-gac-5');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    const machineId = 'machine-gac-5';
-    await registerMachineWithDaemon(sessionId, machineId);
-
-    // Create team config via saveTeamAgentConfig (no model)
-    await t.mutation(api.machines.saveTeamAgentConfig, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      type: 'remote',
-      machineId,
-      agentHarness: 'opencode',
-      workingDir: '/test/workspace',
-      // No model
-    });
-
-    // Don't create machine config at all (or create one without model)
-    // saveTeamAgentConfig creates team config only, not machine config
-
-    // ===== ACTION =====
-    const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
-    });
-
-    // ===== VERIFY =====
-    expect(result.found).toBe(true);
-    if (result.found) {
-      expect(result.config.model).toBeUndefined();
-      expect(result.config.modelSource).toBe('none');
-    }
-  });
-
-  test('returns custom type for custom agents', async () => {
-    // ===== SETUP =====
-    const { sessionId } = await createTestSession('test-gac-6');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-
-    // Save a custom agent config (no machine)
-    await t.mutation(api.machines.saveTeamAgentConfig, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      type: 'custom',
-    });
-
-    // ===== ACTION =====
-    const result = await t.run(async (ctx) => {
-      return getAgentConfig(ctx, { chatroomId, role: 'builder' });
-    });
-
-    // ===== VERIFY =====
-    expect(result.found).toBe(true);
-    if (result.found) {
-      expect(result.config.type).toBe('custom');
-      expect(result.config.machineId).toBeUndefined();
-      expect(result.config.agentHarness).toBeUndefined();
-    }
-  });
-
-  test('includes spawnedAgentPid from team config', async () => {
+  test('does not expose spawnedAgentPid from the compatibility reader', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-7');
     const chatroomId = await createDuoTeamChatroom(sessionId);
@@ -215,7 +104,7 @@ describe('getAgentConfig', () => {
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-    // Simulate daemon spawning agent (sets PID in machine config)
+    // Simulate a daemon observation in the role-status read model.
     await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 12345);
 
     // ===== ACTION =====
@@ -226,8 +115,8 @@ describe('getAgentConfig', () => {
     // ===== VERIFY =====
     expect(result.found).toBe(true);
     if (result.found) {
-      expect(result.config.spawnedAgentPid).toBe(12345);
-      expect(result.config.spawnedAt).toBeDefined();
+      expect(result.config.spawnedAgentPid).toBeUndefined();
+      expect(result.config.spawnedAt).toBeUndefined();
     }
   });
 });

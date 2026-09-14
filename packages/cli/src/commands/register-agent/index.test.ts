@@ -2,8 +2,8 @@
  * register-agent Unit Tests
  *
  * Tests the register-agent command using injected dependencies.
- * Covers: auth validation, successful registration (custom and remote),
- * registration failure (mutation throws error).
+ * Covers: auth validation, successful validation (custom and remote),
+ * registration failure (chatroom lookup throws an error).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -124,31 +124,26 @@ describe('registerAgent', () => {
   });
 
   describe('successful registration', () => {
-    it('calls recordCustomAgentRegistered mutation and logs success (custom)', async () => {
+    it('validates and logs success for a custom agent', async () => {
       const deps = createMockDeps();
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'custom' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+      expect(deps.backend.mutation).not.toHaveBeenCalled();
 
       const output = getAllLogOutput();
       expect(output).toContain('Registered as custom agent');
       expect(output).toContain('planner');
     });
 
-    it('calls recordRemoteAgentRegistered and logs success (remote)', async () => {
-      // register-agent for remote type calls only machines.recordRemoteAgentRegistered.
-      // Machine registration is owned by the daemon (`machine start`).
-      // saveTeamAgentConfig is intentionally NOT called — start-agent (the UI
-      // "Start Agent" button) exclusively owns the team agent config for remote agents.
+    it('validates and logs success for a remote agent', async () => {
       const deps = createMockDeps();
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // One mutation: machines.recordRemoteAgentRegistered (no machines.register)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+      expect(deps.backend.mutation).not.toHaveBeenCalled();
 
       const output = getAllLogOutput();
       expect(output).toContain('Registered as remote agent');
@@ -157,26 +152,15 @@ describe('registerAgent', () => {
     });
   });
 
-  describe('saveTeamAgentConfig not called for remote type', () => {
-    it('does NOT call saveTeamAgentConfig for remote type', async () => {
-      // register-agent must NOT call saveTeamAgentConfig for remote agents.
-      // start-agent (the UI "Start Agent" button) exclusively owns the team
-      // agent config. Only recordRemoteAgentRegistered is called.
+  describe('state ownership', () => {
+    it('does not write agent configuration for remote type', async () => {
       const deps = createMockDeps();
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // One mutation call: machines.recordRemoteAgentRegistered
-      const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
-      expect(mutationCalls).toHaveLength(1);
-
-      // The call should not be saveTeamAgentConfig
-      for (const [endpoint] of mutationCalls as [{ _name?: string | undefined } | string, unknown][]) {
-        const endpointStr = typeof endpoint === 'string' ? endpoint : JSON.stringify(endpoint);
-        expect(endpointStr).not.toContain('saveTeamAgentConfig');
-      }
+      expect(deps.backend.mutation).not.toHaveBeenCalled();
     });
   });
 
@@ -196,9 +180,9 @@ describe('registerAgent', () => {
   });
 
   describe('registration failure', () => {
-    it('exits with code 1 when recordCustomAgentRegistered mutation throws (custom)', async () => {
+    it('exits with code 1 when the chatroom lookup throws (custom)', async () => {
       const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('Permission denied')
       );
 
@@ -226,31 +210,19 @@ describe('registerAgent', () => {
     });
   });
 
-  describe('agent.registered event emission (remote)', () => {
-    it('calls recordRemoteAgentRegistered with correct args', async () => {
+  describe('remote validation', () => {
+    it('does not emit a registration event', async () => {
       const deps = createMockDeps();
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // Only one mutation call: recordRemoteAgentRegistered
-      const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
-      expect(mutationCalls).toHaveLength(1);
-
-      const [, callArgs] = mutationCalls[0] as [unknown, Record<string, unknown>];
-      expect(callArgs).toMatchObject({
-        sessionId: TEST_SESSION_ID,
-        chatroomId: TEST_CHATROOM_ID,
-        role: 'planner',
-        machineId: 'machine_123',
-      });
+      expect(deps.backend.mutation).not.toHaveBeenCalled();
     });
 
-    it('succeeds even when recordRemoteAgentRegistered mutation fails (non-critical)', async () => {
+    it('succeeds without a registration mutation', async () => {
       const deps = createMockDeps();
-      const mutationMock = deps.backend.mutation as ReturnType<typeof vi.fn>;
-      mutationMock.mockRejectedValueOnce(new Error('Event stream write failed'));
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 

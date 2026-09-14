@@ -27,23 +27,7 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
         sessionId,
         machineId,
       });
-      return (rows as Record<string, unknown>[]).map((row) => ({
-        eventId: row._id as string,
-        machineId: row.machineId as string,
-        chatroomId: row.chatroomId as string,
-        taskId: row.taskId as string,
-        role: row.role as string,
-        ...(row.assignee === undefined
-          ? {}
-          : {
-              assignee: row.assignee as WorkspaceTaskInboxEvent['assignee'],
-            }),
-        eventType: row.eventType as WorkspaceTaskInboxEventType,
-        status: row.status as WorkspaceTaskInboxEventStatus,
-        createdAt: row.createdAt as number,
-        ...(row.processedAt === undefined ? {} : { processedAt: row.processedAt as number }),
-        task: row.task as WorkspaceTaskInboxEvent['task'],
-      })) as WorkspaceTaskInboxEvent[];
+      return mapPendingTaskInboxRows(rows);
     },
     markTaskInboxEventProcessed: async ({ sessionId, machineId, eventId }) => {
       const result = await backend.mutation(api.chatroomWorkspaceTaskInbox.markProcessed, {
@@ -90,4 +74,24 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
       return mapAssignedTaskView(row) satisfies AssignedTaskWithContent;
     },
   };
+}
+
+export function mapPendingTaskInboxRows(rows: unknown): WorkspaceTaskInboxEvent[] {
+  return (rows as Record<string, unknown>[]).map((row) => ({
+    eventId: row._id as string,
+    machineId: row.machineId as string,
+    chatroomId: row.chatroomId as string,
+    taskId: row.taskId as string,
+    role: row.role as string,
+    ...(row.assignee === undefined
+      ? {}
+      : {
+          assignee: row.assignee as WorkspaceTaskInboxEvent['assignee'],
+        }),
+    eventType: row.eventType as WorkspaceTaskInboxEventType,
+    status: row.status as WorkspaceTaskInboxEventStatus,
+    createdAt: row.createdAt as number,
+    ...(row.processedAt === undefined ? {} : { processedAt: row.processedAt as number }),
+    task: row.task as WorkspaceTaskInboxEvent['task'],
+  })) as WorkspaceTaskInboxEvent[];
 }

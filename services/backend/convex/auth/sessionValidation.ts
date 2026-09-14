@@ -40,7 +40,6 @@ function buildCheckSessionDeps(ctx: QueryCtx | MutationCtx): CheckSessionDeps {
       return {
         userId: str(session.userId),
         isActive: session.isActive,
-        expiresAt: session.expiresAt,
       };
     },
     queryWebSession: async (sessionId: string) => {

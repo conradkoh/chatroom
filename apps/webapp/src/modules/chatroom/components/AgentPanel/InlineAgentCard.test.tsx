@@ -1,10 +1,23 @@
 import { render, screen } from '@testing-library/react';
+import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AgentControlDataProvider } from './AgentControlDataContext';
 import { InlineAgentCard } from './InlineAgentCard';
 
 vi.mock('../../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({ workspaces: [], isLoading: false, removeWorkspace: vi.fn() }),
+}));
+
+vi.mock('../../context/ChatroomWorkspaceContext', () => ({
+  useChatroomWorkspace: () => ({
+    chatroomId: 'jd7testchatroom0000000000000001',
+    workspaces: [],
+    activeWorkspace: null,
+    isLoading: false,
+    setPrimaryWorkspace: vi.fn(),
+    removeWorkspace: vi.fn(),
+  }),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -13,7 +26,17 @@ vi.mock('convex-helpers/react/sessions', () => ({
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
-  api: { machines: { getAgentRestartSummaryByRole: 'skip' } },
+  api: {
+    agentWorkspaces: {
+      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
+      getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
+    },
+    agents: {
+      getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
+      getStatus: 'agents:getStatus',
+    },
+    machines: { getAgentRestartSummaryByRole: 'skip' },
+  },
 }));
 
 vi.mock('../AgentControls', () => ({
@@ -41,6 +64,7 @@ vi.mock('./AgentControlsSection', () => ({
 
 const baseProps = {
   role: 'builder',
+  lifecycle: AgentRoleLifecycleTag.Permanent,
   allRoles: ['builder'],
   online: true,
   lastSeenAt: Date.now() - 120_000,
@@ -48,29 +72,34 @@ const baseProps = {
   statusVariant: 'working' as const,
   prompt: '',
   chatroomId: 'jd7testchatroom0000000000000001',
-  connectedMachines: [],
-  isLoadingMachines: false,
-  agentConfigs: [],
-  sendCommand: vi.fn(),
-  agentRoleView: {
-    type: 'remote' as const,
-    role: 'builder',
-    state: 'running' as const,
-    model: 'big-pickle',
-    agentHarness: 'cursor-sdk' as const,
-  },
   restartSummary: null,
 };
 
+function renderCard() {
+  return render(
+    <AgentControlDataProvider
+      value={{
+        machines: [],
+        daemonConnectivity: new Map(),
+        isLoadingMachines: false,
+        agentConfigs: [],
+        sendCommand: vi.fn(),
+      }}
+    >
+      <InlineAgentCard {...baseProps} />
+    </AgentControlDataProvider>
+  );
+}
+
 describe('InlineAgentCard header layout', () => {
   it('renders status and last seen in header', () => {
-    render(<InlineAgentCard {...baseProps} />);
+    renderCard();
     expect(screen.getByText('builder')).toBeTruthy();
     expect(screen.getByText(/ago/)).toBeTruthy();
   });
 
   it('does not render duplicate model line below controls', () => {
-    render(<InlineAgentCard {...baseProps} />);
+    renderCard();
     expect(screen.queryByText('big-pickle')).toBeNull();
   });
 });

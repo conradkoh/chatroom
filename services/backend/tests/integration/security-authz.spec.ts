@@ -2,7 +2,12 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createDuoTeamChatroom, createTestSession, joinParticipant } from '../helpers/integration';
+import {
+  createDuoTeamChatroom,
+  createTestSession,
+  joinParticipant,
+  registerMachineWithDaemon,
+} from '../helpers/integration';
 
 describe('security authz protections', () => {
   test('getTasksByIds does not return tasks from unauthorized chatrooms', async () => {
@@ -38,40 +43,68 @@ describe('security authz protections', () => {
     expect(leakedTasks[0]?._id).toBe(attackerTask.taskId);
   });
 
-  test('saveTeamAgentConfig rejects non-owner access', async () => {
+  test('saveConfig rejects non-owner access', async () => {
     const { sessionId: ownerSession } = await createTestSession('test-sec-owner-save');
     const { sessionId: attackerSession } = await createTestSession('test-sec-attacker-save');
 
     const ownerChatroomId = await createDuoTeamChatroom(ownerSession);
+    const machineId = 'machine-sec-owner-save';
+    await registerMachineWithDaemon(ownerSession, machineId);
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId: ownerSession,
+      chatroomId: ownerChatroomId,
+      machineId,
+      workingDir: '/test/workspace',
+      hostname: 'test-host',
+      registeredBy: 'planner',
+    });
 
     await expect(
-      t.mutation(api.machines.saveTeamAgentConfig, {
+      t.mutation(api.agents.saveConfig, {
         sessionId: attackerSession,
         chatroomId: ownerChatroomId,
         role: 'builder',
-        type: 'custom',
+        workspaceId,
+        machineId,
+        agentHarness: 'opencode',
+        model: 'auto',
+        workingDir: '/test/workspace',
       })
-    ).rejects.toThrow('Not authorized');
+    ).rejects.toThrow('Access denied');
   });
 
-  test('getTeamAgentConfigs returns empty for non-owner access', async () => {
+  test('listLastSentLaunchRequests rejects non-owner access', async () => {
     const { sessionId: ownerSession } = await createTestSession('test-sec-owner-read');
     const { sessionId: attackerSession } = await createTestSession('test-sec-attacker-read');
 
     const ownerChatroomId = await createDuoTeamChatroom(ownerSession);
-
-    await t.mutation(api.machines.saveTeamAgentConfig, {
+    const machineId = 'machine-sec-owner-read';
+    await registerMachineWithDaemon(ownerSession, machineId);
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
       sessionId: ownerSession,
       chatroomId: ownerChatroomId,
-      role: 'builder',
-      type: 'custom',
+      machineId,
+      workingDir: '/test/workspace',
+      hostname: 'test-host',
+      registeredBy: 'planner',
     });
 
-    const configs = await t.query(api.machines.getTeamAgentConfigs, {
-      sessionId: attackerSession,
+    await t.mutation(api.agents.saveConfig, {
+      sessionId: ownerSession,
       chatroomId: ownerChatroomId,
+      workspaceId,
+      role: 'builder',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'auto',
+      workingDir: '/test/workspace',
     });
 
-    expect(configs).toEqual([]);
+    await expect(
+      t.query(api.agents.listLastSentLaunchRequests, {
+        sessionId: attackerSession,
+        chatroomId: ownerChatroomId,
+      })
+    ).rejects.toThrow('Access denied');
   });
 });

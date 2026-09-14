@@ -9,22 +9,31 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { omitUndefined } from './lib/omitUndefined';
 import { str } from './utils/types';
+import { upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
-import { upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
 import { normalizeWorkingDir } from './workspacePathSecurity';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { getPrimaryWorkspaceForChatroom as getPrimaryWorkspaceForChatroomUseCase } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
+
+async function getPrimaryWorkspaceView(ctx: QueryCtx, chatroomId: Id<'chatroom_rooms'>) {
+  const workspace = await getPrimaryWorkspaceForChatroomUseCase(ctx, chatroomId);
+  if (!workspace) return null;
+  const workspaces = await listWorkspacesForChatroomUseCase(ctx, { chatroomId });
+  return workspaces.find((candidate) => candidate._id === workspace._id) ?? null;
+}
 
 /**
  * Remove keys whose value is `undefined` so `db.patch` does not treat them as
@@ -103,7 +112,15 @@ export const removeWorkspace = mutation({
   },
   handler: async (ctx, args) => {
     // Verify the user has write-access to the machine this workspace belongs to
-    await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
+    const { workspace } = await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
+
+    const primarySelection = await ctx.db
+      .query('chatroom_primaryWorkspaces')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', workspace.chatroomId))
+      .first();
+    if (primarySelection?.workspaceId === args.workspaceId) {
+      await ctx.db.delete('chatroom_primaryWorkspaces', primarySelection._id);
+    }
 
     return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
   },
@@ -245,6 +262,50 @@ export const listWorkspacesForChatroom = query({
     if (!chatroomAccessResult.ok) return [];
 
     return listWorkspacesForChatroomUseCase(ctx, { chatroomId: args.chatroomId });
+  },
+});
+
+/** Returns the authoritative primary workspace selection for a chatroom. */
+export const getPrimaryWorkspaceForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return getPrimaryWorkspaceView(ctx, chatroom._id);
+  },
+});
+
+/** Persists the workspace selected in the chatroom workspace picker. */
+export const setPrimaryWorkspaceForChatroom = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    workspaceId: v.id('chatroom_workspaces'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
+    if (!workspace || workspace.chatroomId !== chatroom._id || workspace.removedAt !== undefined) {
+      throw new Error('Workspace is not active in this chatroom');
+    }
+
+    const existing = await ctx.db
+      .query('chatroom_primaryWorkspaces')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+      .first();
+    const selection = {
+      chatroomId: chatroom._id,
+      workspaceId: workspace._id,
+      updatedAt: Date.now(),
+    };
+
+    if (existing) {
+      await ctx.db.patch('chatroom_primaryWorkspaces', existing._id, selection);
+      return existing._id;
+    }
+    return ctx.db.insert('chatroom_primaryWorkspaces', selection);
   },
 });
 

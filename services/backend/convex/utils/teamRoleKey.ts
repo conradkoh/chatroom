@@ -1,19 +1,6 @@
 import type { Id } from '../_generated/dataModel';
 
-export { filterTeamAgentConfigsForTeam, teamRoleKeyMatchesTeam } from './teamRoleKeyFilter';
-
-/**
- * Builds a unique key scoped to a chatroom+team+role for use in chatroom_teamAgentConfigs.
- * Format: `chatroom_<chatroomId>#team_<teamId>#role_<role.toLowerCase()>`
- *
- * Including teamId ensures that configs are invalidated when a chatroom switches team
- * structure (e.g., from 'duo' to 'solo'), since the role semantics differ between teams.
- *
- * @param chatroomId - The chatroom ID
- * @param teamId - The team type (e.g., 'duo', 'solo'). Must not be empty — callers
- *   should throw if chatroom.teamId is undefined rather than passing a fallback value.
- * @param role - The agent role (e.g., 'planner', 'builder')
- */
+/** Stable key for legacy task/config fixtures and team-scoped indexes. */
 export function buildTeamRoleKey(
   chatroomId: Id<'chatroom_rooms'> | string,
   teamId: string,

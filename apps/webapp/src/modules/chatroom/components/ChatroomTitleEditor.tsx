@@ -34,9 +34,10 @@ import { getLocalManagerUrl } from '@/lib/environment';
 import { openExternalUrl } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
 import {
-  getChatStatusDescription,
-  getChatStatusIndicatorClasses,
-} from '@/modules/chatroom/utils/chatStatusDisplay';
+  getChatroomActivityDescription,
+  getChatroomActivityIndicatorClasses,
+  getChatroomActivityIndicatorLoadingClasses,
+} from '@/modules/chatroom/utils/activityStatusDisplay';
 
 const chatroomTitleDisplayClassName = cn(inlineEditableTitleDisplayClassName, 'text-sm');
 const chatroomTitleInputClassName = cn(inlineEditableTitleInputClassName, 'text-sm');
@@ -44,7 +45,7 @@ const chatroomTitleInputClassName = cn(inlineEditableTitleInputClassName, 'text-
 export interface ChatroomTitleEditorProps {
   displayName: string;
   chatroomId: string;
-  chatStatus: ChatroomActivityStatus;
+  activityStatus?: ChatroomActivityStatus;
   isDesktop?: boolean;
   onOpenSettings?: () => void;
   onSwitchChatrooms?: () => void;
@@ -59,7 +60,7 @@ export interface ChatroomTitleEditorProps {
 export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
   displayName,
   chatroomId,
-  chatStatus,
+  activityStatus,
   isDesktop = false,
   onOpenSettings,
   onSwitchChatrooms,
@@ -132,9 +133,21 @@ export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
           aria-label={`Chatroom: ${displayName}. Open menu`}
         >
           <span
-            className={getChatStatusIndicatorClasses(chatStatus)}
-            title={getChatStatusDescription(chatStatus)}
-            aria-label={getChatStatusDescription(chatStatus)}
+            className={
+              activityStatus
+                ? getChatroomActivityIndicatorClasses(activityStatus)
+                : getChatroomActivityIndicatorLoadingClasses()
+            }
+            title={
+              activityStatus
+                ? getChatroomActivityDescription(activityStatus)
+                : 'Loading agent status'
+            }
+            aria-label={
+              activityStatus
+                ? getChatroomActivityDescription(activityStatus)
+                : 'Loading agent status'
+            }
           />
           <span className={chatroomTitleDisplayClassName}>{displayName}</span>
           <ChevronDown size={14} className="shrink-0 text-chatroom-text-muted" aria-hidden />

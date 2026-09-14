@@ -18,7 +18,6 @@ const sampleChatrooms = [
     _id: 'room-1',
     name: 'Alpha',
     teamName: 'Team A',
-    chatStatus: 'active',
     isFavorite: false,
     hasUnread: false,
   },

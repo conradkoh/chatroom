@@ -95,4 +95,22 @@ describe('agent lifecycle outbox', () => {
     expect(send).toHaveBeenCalledTimes(1);
     await registry.stopAll();
   });
+
+  it('replays a persisted fact after reconnect and acknowledges it only after delivery', async () => {
+    const machineId = `test-reconnect-${Date.now()}-${Math.random()}`;
+    const key = 'machine:room:builder';
+    const store = openDurableFifoQueueStore(resolveOutboxDbPath(machineId, 'agent-lifecycle'));
+    store.enqueue(key, JSON.stringify(fact('builder')));
+    store.close();
+
+    const send = vi.fn(async () => ({ success: true as const }));
+    const registry = createAgentLifecycleOutboxRegistry(machineId, () => send);
+    await registry.flushNow(key);
+    expect(send).toHaveBeenCalledTimes(1);
+    await registry.stopAll();
+
+    const reopened = openDurableFifoQueueStore(resolveOutboxDbPath(machineId, 'agent-lifecycle'));
+    expect(reopened.listPendingForRecovery(key)).toEqual([]);
+    reopened.close();
+  });
 });

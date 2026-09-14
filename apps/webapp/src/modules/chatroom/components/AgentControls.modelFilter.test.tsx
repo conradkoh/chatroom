@@ -32,9 +32,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    chatroomWorkspaceAgentCommandsInbox: {
-      requestStopAgent: 'chatroomWorkspaceAgentCommandsInbox:requestStopAgent',
-      requestStopAll: 'chatroomWorkspaceAgentCommandsInbox:requestStopAll',
+    agents: {
+      requestStop: 'agents:requestStop',
+      requestStopAll: 'agents:requestStopAll',
     },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
@@ -74,7 +74,13 @@ function mkMachine(id: string, hostname: string): MachineInfo {
   };
 }
 
-function RunningModelFilterHarness({ runningAgentConfig }: { runningAgentConfig?: AgentConfig }) {
+function RunningModelFilterHarness({
+  runningAgentConfig,
+  runtimeIsRunning = false,
+}: {
+  runningAgentConfig?: AgentConfig;
+  runtimeIsRunning?: boolean;
+}) {
   const machines = [mkMachine('a', 'host-a')];
   const controls = useAgentControls({
     role: 'builder',
@@ -84,6 +90,7 @@ function RunningModelFilterHarness({ runningAgentConfig }: { runningAgentConfig?
     sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
     teamConfigHarness: 'cursor',
     teamConfigMachineId: 'a',
+    runtimeIsRunning,
   });
   return (
     <RemoteTabContent
@@ -140,5 +147,25 @@ describe('ModelFilter visibility while agent is running', () => {
     const filterBtn = await waitFor(() => screen.getByTitle('Configure visible models'));
     // Clicking should not throw — triggers the filter panel
     await expect(user.click(filterBtn)).resolves.not.toThrow();
+  });
+
+  it('uses daemon status to show stop controls without a legacy PID field', async () => {
+    render(
+      <RunningModelFilterHarness
+        runtimeIsRunning
+        runningAgentConfig={{
+          machineId: 'a',
+          hostname: 'host-a',
+          role: 'builder',
+          agentType: 'cursor',
+          workingDir: '/workspace',
+          model: 'openai/gpt-4o',
+          availableHarnesses: ['cursor'],
+          updatedAt: Date.now(),
+        }}
+      />
+    );
+
+    expect(await waitFor(() => screen.getByTitle('Stop Agent'))).toBeInTheDocument();
   });
 });

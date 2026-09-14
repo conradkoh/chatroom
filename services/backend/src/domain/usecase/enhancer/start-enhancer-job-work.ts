@@ -2,7 +2,6 @@ import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { projectAgentRoleStatusReadModel } from '../agent/project-agent-role-status-read-model';
 import { registerEphemeralParticipant } from '../participant/register-ephemeral-participant';
 import { acknowledgePendingTask } from '../task/acknowledge-pending-task';
 import { readTask } from '../task/read-task';
@@ -25,11 +24,6 @@ export async function startEnhancerJobWork(
       machineId: job.machineId,
       connectionId: job._id.toString(),
       action: `${job.toRole}:started`,
-    });
-    await projectAgentRoleStatusReadModel(ctx, {
-      chatroomId: job.chatroomId,
-      role: job.toRole,
-      event: { status: 'working' },
     });
   }
 

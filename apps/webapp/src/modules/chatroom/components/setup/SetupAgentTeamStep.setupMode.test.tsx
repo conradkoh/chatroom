@@ -14,6 +14,21 @@ vi.mock('../../workspace/hooks/useChatroomWorkspaces', () => ({
   }),
 }));
 
+vi.mock('../../context/ChatroomWorkspaceContext', () => ({
+  useChatroomWorkspace: () => ({
+    chatroomId: 'jd7testchatroom0000000000000001',
+    workspaces: [],
+    activeWorkspace: {
+      _registryId: 'workspace-setup-test',
+      machineId: 'machine-setup-test',
+      workingDir: '/tmp/workspace',
+    },
+    isLoading: false,
+    setPrimaryWorkspace: vi.fn(),
+    removeWorkspace: vi.fn(),
+  }),
+}));
+
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
   useSessionQuery: (query: unknown, args: unknown) => {
@@ -28,9 +43,15 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    chatroomWorkspaceAgentCommandsInbox: {
-      requestStopAgent: 'chatroomWorkspaceAgentCommandsInbox:requestStopAgent',
-      requestStopAll: 'chatroomWorkspaceAgentCommandsInbox:requestStopAll',
+    agentWorkspaces: {
+      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
+      getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
+    },
+    agents: {
+      requestStop: 'agents:requestStop',
+      requestStopAll: 'agents:requestStopAll',
+      getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
+      getStatus: 'agents:getStatus',
     },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',

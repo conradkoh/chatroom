@@ -5,11 +5,11 @@
  * across all three scope modes: machine-wide, per-chatroom, and per-workspace.
  */
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { recordAgentSpawnedState } from '../../src/domain/usecase/agent/record-agent-spawned-state';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { t } from '../../test.setup';
 import {
@@ -21,7 +21,6 @@ import {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function setupAgentAndSeedMetrics(opts: {
-  sessionId: SessionId;
   chatroomId: Id<'chatroom_rooms'>;
   machineId: string;
   role: string;
@@ -29,7 +28,7 @@ async function setupAgentAndSeedMetrics(opts: {
   workingDir: string;
   startCount: number;
 }) {
-  const { sessionId, chatroomId, machineId, role, model, workingDir, startCount } = opts;
+  const { chatroomId, machineId, role, model, workingDir, startCount } = opts;
 
   // Ensure agent config exists
   await t.run(async (ctx) => {
@@ -48,23 +47,42 @@ async function setupAgentAndSeedMetrics(opts: {
         model,
         agentHarness: 'opencode',
         workingDir,
-        reason: 'test',
+        reason: 'user.manual_spawn',
       },
       machine!
     );
   });
 
-  // Record N agent starts to seed the metric (state via agentEvents, not updateSpawnedAgent)
+  // Record N agent starts through the current daemon-spawn projection path.
   for (let i = 0; i < startCount; i++) {
-    await t.mutation(api.daemon.agentEvents.agentStarted, {
-      sessionId,
-      machineId,
-      chatroomId,
-      role,
-      pid: 10000 + i,
-      model,
-    });
+    await t.run((ctx) =>
+      recordAgentSpawnedState(ctx, {
+        machineId,
+        chatroomId,
+        role,
+        pid: 10000 + i,
+        model,
+      })
+    );
   }
+}
+
+async function recordStart(opts: {
+  chatroomId: Id<'chatroom_rooms'>;
+  machineId: string;
+  role: string;
+  pid: number;
+  model?: string;
+}) {
+  await t.run((ctx) =>
+    recordAgentSpawnedState(ctx, {
+      chatroomId: opts.chatroomId,
+      machineId: opts.machineId,
+      role: opts.role,
+      pid: opts.pid,
+      ...(opts.model ? { model: opts.model } : {}),
+    })
+  );
 }
 
 // ─── Test 1: machine-wide scope returns aggregated counts ─────────────────────
@@ -76,7 +94,6 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
   await registerMachineWithDaemon(sessionId, machineId);
 
   await setupAgentAndSeedMetrics({
-    sessionId,
     chatroomId,
     machineId,
     role: 'builder',
@@ -110,7 +127,6 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
 
   // Seed 2 starts in chatroom 1
   await setupAgentAndSeedMetrics({
-    sessionId,
     chatroomId,
     machineId,
     role: 'builder',
@@ -136,7 +152,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
         model: 'model-x',
         agentHarness: 'opencode',
         workingDir: '/test/ws',
-        reason: 'test',
+        reason: 'user.manual_spawn',
       },
       machine!
     );
@@ -144,8 +160,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
 
   // Seed 5 starts in chatroom 2
   for (let i = 0; i < 5; i++) {
-    await t.mutation(api.daemon.agentEvents.agentStarted, {
-      sessionId,
+    await recordStart({
       machineId,
       chatroomId: chatroomId2,
       role: 'builder',
@@ -191,7 +206,6 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
   await registerMachineWithDaemon(sessionId, machineId);
 
   await setupAgentAndSeedMetrics({
-    sessionId,
     chatroomId,
     machineId,
     role: 'builder',
@@ -252,7 +266,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
         model: 'model-alpha',
         agentHarness: 'opencode',
         workingDir: '/test/ws',
-        reason: 'test',
+        reason: 'user.manual_spawn',
       },
       machine!
     );
@@ -260,8 +274,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
 
   // 2 starts with model-alpha
   for (let i = 0; i < 2; i++) {
-    await t.mutation(api.daemon.agentEvents.agentStarted, {
-      sessionId,
+    await recordStart({
       machineId,
       chatroomId,
       role: 'builder',
@@ -272,8 +285,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
 
   // 3 starts with model-beta
   for (let i = 0; i < 3; i++) {
-    await t.mutation(api.daemon.agentEvents.agentStarted, {
-      sessionId,
+    await recordStart({
       machineId,
       chatroomId,
       role: 'builder',

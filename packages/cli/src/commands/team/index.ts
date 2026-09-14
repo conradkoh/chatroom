@@ -74,10 +74,7 @@ export async function setTeam(chatroomId: string, teamId: string, deps?: TeamDep
   await d.backend.mutation(api.chatrooms.updateTeam, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    teamId,
-    teamName: preset.name,
-    teamRoles: preset.roles,
-    teamEntryPoint: preset.entryPoint,
+    teamStructureId: teamId,
   });
   console.log(`✅ Team set to ${teamId} (${preset.name})`);
   console.log(`  Roles: ${preset.roles.join(', ')}`);

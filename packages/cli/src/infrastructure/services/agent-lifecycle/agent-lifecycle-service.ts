@@ -18,7 +18,13 @@ import type {
   OperationResult,
 } from './agent-lifecycle-types.js';
 import { AgentLifecycleService, AgentLifecyclePorts } from './agent-lifecycle-types.js';
-import { agentKey, idleSlot } from '../../../daemon/domain/entities/agent-slot.js';
+import {
+  AGENT_START_DISPOSITION,
+  agentKey,
+  idleSlot,
+  isAgentSlotActive,
+  isAgentSlotStarted,
+} from '../../../daemon/domain/entities/agent-slot.js';
 import {
   transitionSlot,
   shouldIgnoreProcessExit,
@@ -116,7 +122,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           yield* setSlotInRef(key, updatedSlot);
         }
 
-        return { success: true, pid: slot.pid };
+        return { success: true, pid: slot.pid, disposition: AGENT_START_DISPOSITION.STARTED };
       });
 
     const ensureRunning = (opts: EnsureRunningOpts): Effect.Effect<OperationResult> =>
@@ -125,10 +131,13 @@ export const AgentLifecycleServiceLive: Layer.Layer<
 
         const currentSlot = yield* getSlotFromRef(key);
 
-        if (currentSlot && currentSlot.state !== 'idle') {
+        if (currentSlot && isAgentSlotActive(currentSlot)) {
           return {
             success: true,
             pid: currentSlot.pid,
+            disposition: isAgentSlotStarted(currentSlot)
+              ? AGENT_START_DISPOSITION.ALREADY_STARTED
+              : AGENT_START_DISPOSITION.START_IN_PROGRESS,
           };
         }
 
@@ -241,7 +250,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         Effect.map((map: Map<string, AgentLifecycleSlot>) => {
           const results: { chatroomId: string; role: string; slot: AgentLifecycleSlot }[] = [];
           for (const [key, slot] of map) {
-            if (slot.state !== 'idle') {
+            if (isAgentSlotActive(slot)) {
               const [chatroomId, role] = key.split(':');
               results.push({ chatroomId, role, slot });
             }

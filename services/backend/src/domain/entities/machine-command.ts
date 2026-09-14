@@ -26,6 +26,7 @@ const localActionValidator = v.union(
 export const machineCommandPayloadValidator = v.union(
   v.object({
     type: v.literal('agent.requestStart'),
+    requestId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     agentHarness: agentHarnessValidator,
@@ -36,6 +37,7 @@ export const machineCommandPayloadValidator = v.union(
   }),
   v.object({
     type: v.literal('agent.restart'),
+    requestId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     agentHarness: agentHarnessValidator,
@@ -43,6 +45,12 @@ export const machineCommandPayloadValidator = v.union(
     workingDir: v.string(),
     correlationId: v.string(),
     wantResume: v.boolean(),
+  }),
+  v.object({
+    type: v.literal('agent.stop'),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.optional(v.string()),
+    finalizeChatroom: v.optional(v.boolean()),
   }),
   v.object({ type: v.literal('daemon.ping') }),
   v.object({ type: v.literal('daemon.gitRefresh'), workingDir: v.string() }),
@@ -67,6 +75,7 @@ export type MachineCommandType = MachineCommandPayload['type'];
 export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
   'agent.requestStart': AGENT_REQUEST_DEADLINE_MS,
   'agent.restart': AGENT_REQUEST_DEADLINE_MS,
+  'agent.stop': AGENT_REQUEST_DEADLINE_MS,
   'daemon.ping': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.gitRefresh': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.workspaceListChanged': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,

@@ -2,7 +2,7 @@
  * Tests for sendAutomatedUserMessage use case.
  * Verifies that explicit conversationMode snapshots are persisted correctly
  * on both direct (non-queued) and queued message/task paths, and that
- * legacy/no-mode callers retain live-config fallback behaviour.
+ * legacy/no-mode callers retain the persisted code-mode default.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -173,7 +173,7 @@ describe('sendAutomatedUserMessage — explicit conversationMode', () => {
     expect(queuedMsg?.plannerEnhancerEnabled).toBe(false);
   });
 
-  test('legacy send without mode retains live-config fallback (no conversationMode persisted)', async () => {
+  test('legacy send without mode uses the persisted code-mode default', async () => {
     const { sessionId } = await createTestSession('auto-legacy-direct');
     const chatroomId = await createChatroom(sessionId);
 
@@ -183,7 +183,7 @@ describe('sendAutomatedUserMessage — explicit conversationMode', () => {
       senderRole: 'user',
       content: 'legacy mode message',
       type: 'message',
-      // No conversationMode — should use live-config fallback
+      // No conversationMode — use the historical code-mode default.
     });
 
     const task = await t.run(async (ctx) => {
@@ -341,7 +341,7 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
     expect(omittedSessionTask?.startInNewSession).toBe(false);
   });
 
-  test('legacy no-mode send still yields a complete envelope from the enhancer-config fallback', async () => {
+  test('legacy no-mode send still yields a complete code-mode envelope', async () => {
     const { sessionId } = await createTestSession('auto-env-legacy');
     const chatroomId = await createChatroom(sessionId);
 
@@ -351,8 +351,7 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
       senderRole: 'user',
       content: 'legacy envelope',
       type: 'message',
-      // No envelope and no mode → legacy live-config lookup resolves, and a
-      // complete envelope must still be persisted.
+      // No envelope and no mode → a complete default envelope is persisted.
     });
 
     const task = await t.run(async (ctx) => {
@@ -361,7 +360,7 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .first();
     });
-    // No enhancer config → resolved boolean is false → envelope mode is code.
+    // No explicit user mode → the default envelope mode is code.
     expect(task?.taskEnvelope).toEqual({
       version: 1,
       conversationMode: 'code',

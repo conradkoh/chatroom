@@ -4,6 +4,7 @@ import { ENHANCER_RETRY_BASE_MS } from '../../../config/reliability';
 import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import type { ResolvedChatroom } from '../../lib/chatroomTeam';
 
 export async function resolveWorkspaceForEnhancer(
   ctx: MutationCtx,
@@ -36,7 +37,7 @@ export async function emitEnhancerEvent(
 ): Promise<void> {}
 
 export function resolveHandoffTemplateSnapshot(
-  chatroom: Doc<'chatroom_rooms'>,
+  chatroom: ResolvedChatroom,
   chatroomId: Id<'chatroom_rooms'>,
   entryPointRole: string
 ): string {

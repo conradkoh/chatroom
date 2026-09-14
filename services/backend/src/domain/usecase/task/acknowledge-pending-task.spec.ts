@@ -65,16 +65,6 @@ async function seedMessage(
   });
 }
 
-async function getParticipantStatus(chatroomId: Id<'chatroom_rooms'>, role: string) {
-  return t.run(async (ctx) => {
-    const p = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
-      .unique();
-    return p?.lastStatus ?? null;
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -114,30 +104,6 @@ describe('acknowledgePendingTask', () => {
     const task = await t.run(async (ctx) => ctx.db.get(pendingTask._id));
     expect(task?.status).toBe('acknowledged');
     expect(task?.acknowledgedAt).toBeTypeOf('number');
-  });
-
-  test('sets participant lastStatus to task.acknowledged via transitionAgentStatus', async () => {
-    const { sessionId } = await createTestSession('apt-participant');
-    const chatroomId = await createChatroom(sessionId);
-    const pendingTask = await seedPendingTask(chatroomId);
-
-    await t.mutation(api.participants.join, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      action: 'get-next-task:started',
-    });
-
-    await t.run(async (ctx) => {
-      await acknowledgePendingTask(ctx, {
-        chatroomId,
-        role: 'builder',
-        pendingTask,
-      });
-    });
-
-    const lastStatus = await getParticipantStatus(chatroomId, 'builder');
-    expect(lastStatus).toBe('task.acknowledged');
   });
 
   test('patches source message acknowledgedAt when sourceMessageId set and message unacknowledged', async () => {

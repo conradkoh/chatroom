@@ -54,6 +54,7 @@
     "**/test-utils.{ts,tsx}",
     "**/vitest.config.{ts,mts}",
     "packages/cli/src/testing/**",
+    "packages/cli/src/convex-api/**",
     "packages/cli/src/daemon/local-web/client/**",
     "**/next.config.{ts,js,mjs}",
     "**/playwright.config.{ts,js}",

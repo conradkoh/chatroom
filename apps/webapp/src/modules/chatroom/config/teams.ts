@@ -2,7 +2,7 @@ export interface TeamDefinition {
   name: string;
   description: string;
   roles: string[];
-  entryPoint?: string;
+  entryPoint: string;
 }
 
 export interface TeamsConfig {

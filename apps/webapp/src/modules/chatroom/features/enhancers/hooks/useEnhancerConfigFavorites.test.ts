@@ -3,53 +3,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useEnhancerConfigFavorites } from './useEnhancerConfigFavorites';
 
-const mockUseSessionQuery = vi.fn((_query: unknown, _args: unknown) => ({ favorites: [] }));
-const mockUseSessionMutation = vi.fn(() => vi.fn());
+const mockMachineFavorites = vi.fn();
 
-vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: (query: unknown, args: unknown) => mockUseSessionQuery(query, args),
-  useSessionMutation: () => mockUseSessionMutation(),
-}));
-
-vi.mock('@workspace/backend/convex/_generated/api', () => ({
-  api: {
-    enhancerConfigFavorites: {
-      getEnhancerConfigFavorites: 'enhancerConfigFavorites:getEnhancerConfigFavorites',
-      setEnhancerConfigFavorites: 'enhancerConfigFavorites:setEnhancerConfigFavorites',
-    },
-  },
+vi.mock('../../machine-config/hooks/useMachineConfigFavorites', () => ({
+  useMachineConfigFavorites: (scope: unknown) => mockMachineFavorites(scope),
 }));
 
 describe('useEnhancerConfigFavorites', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSessionQuery.mockReturnValue({ favorites: [] });
+    mockMachineFavorites.mockReturnValue({
+      favorites: [],
+      addFavorite: vi.fn(),
+      removeFavorite: vi.fn(),
+      moveFavorite: vi.fn(),
+      isFavorite: vi.fn(),
+      isLoading: false,
+    });
   });
 
-  it('skips query when machineId is undefined', () => {
+  it('skips the shared favorites query when scope is undefined', () => {
     renderHook(() => useEnhancerConfigFavorites(undefined));
-
-    expect(mockUseSessionQuery).toHaveBeenCalledWith(
-      'enhancerConfigFavorites:getEnhancerConfigFavorites',
-      'skip'
-    );
+    expect(mockMachineFavorites).toHaveBeenCalledWith(undefined);
   });
 
-  it('skips query when machineId is null', () => {
-    renderHook(() => useEnhancerConfigFavorites(null));
-
-    expect(mockUseSessionQuery).toHaveBeenCalledWith(
-      'enhancerConfigFavorites:getEnhancerConfigFavorites',
-      'skip'
-    );
-  });
-
-  it('queries favorites when machineId is provided', () => {
-    renderHook(() => useEnhancerConfigFavorites('machine-a'));
-
-    expect(mockUseSessionQuery).toHaveBeenCalledWith(
-      'enhancerConfigFavorites:getEnhancerConfigFavorites',
-      { machineId: 'machine-a' }
-    );
+  it('uses the shared machine/team/role scope for enhancer favorites', () => {
+    const scope = { machineId: 'machine-a', chatroomId: 'room-1', teamId: 'duo', role: 'enhancer' };
+    renderHook(() => useEnhancerConfigFavorites(scope));
+    expect(mockMachineFavorites).toHaveBeenCalledWith(scope);
   });
 });

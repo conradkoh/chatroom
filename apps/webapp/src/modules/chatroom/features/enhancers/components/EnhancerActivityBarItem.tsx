@@ -7,12 +7,24 @@ import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHos
 interface EnhancerActivityBarItemProps {
   chatroomId: string;
   machineId: string | null;
+  workspaceId?: string | null;
+  workingDir?: string | null;
+  teamId?: string | null;
 }
 
-export function EnhancerActivityBarItem({ chatroomId, machineId }: EnhancerActivityBarItemProps) {
+export function EnhancerActivityBarItem({
+  chatroomId,
+  machineId,
+  workspaceId,
+  workingDir,
+  teamId,
+}: EnhancerActivityBarItemProps) {
   const { openDialog, dialog } = useEnhancerConfigDialogHost({
     chatroomId,
     workspaceMachineId: machineId,
+    workspaceId,
+    workingDir,
+    teamId,
   });
 
   return (

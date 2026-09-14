@@ -59,7 +59,6 @@ export const assignedTaskAgentConfigSchema = z.object({
 export const assignedTaskParticipantSchema = z.object({
   lastSeenAction: z.string().nullable(),
   lastSeenAt: z.number().nullable(),
-  lastStatus: z.string().nullable(),
 });
 
 /** Fields required to bootstrap a daemon working row from a signal alone. */

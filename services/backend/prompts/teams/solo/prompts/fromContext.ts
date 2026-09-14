@@ -21,7 +21,6 @@ export function toSoloParams(ctx: SelectorContext): PlannerGuidanceParams {
     convexUrl: ctx.convexUrl,
     chatroomId: ctx.chatroomId,
     nativeIntegration: ctx.nativeIntegration,
-    plannerEnhancerActive: ctx.plannerEnhancerActive,
   };
 }
 

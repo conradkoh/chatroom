@@ -65,7 +65,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
     const prompt = initPrompt?.prompt;
     expect(prompt).toBeDefined();
-    expect(prompt).toContain('# Duo Team');
+    expect(prompt).toContain('# Duo');
     expect(prompt).toContain('## Your Role: PLANNER');
     expect(prompt).toContain('## Getting Started');
     // Planner is entry point — should have classification section
@@ -73,14 +73,14 @@ describe('Duo Team > Planner > System Prompt', () => {
     expect(prompt).toContain('## Planner Operating Model');
     // Planner CAN hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
-    expect(prompt).toContain('Available targets: builder, user');
+    expect(prompt).toContain('Available targets: enhancer, builder, user');
     expect(prompt).toContain('### Commands');
 
     // Should contain context view-template hint near context new commands
     expect(prompt).toContain('chatroom context view-template');
 
     expect(prompt).toMatchInlineSnapshot(`
-      "# Duo Team
+      "# Duo
 
       ## Your Role: PLANNER
 
@@ -284,7 +284,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - After reviewing builder output, deliver results to the user
       - **Only you can hand off to \`user\`**
 
-      **Team composition:** Duo team — you coordinate with \`builder\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`enhancer\`, \`builder\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -371,7 +371,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - Send back with specific feedback if requirements aren't met.
       - Feed slices to the builder incrementally — one at a time, not all at once.
 
-
+      }
 
       **Handoff Rules:**
 
@@ -397,7 +397,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
 
       ### Handoff Options
-      Available targets: builder, user
+      Available targets: enhancer, builder, user
 
       ### Commands
 

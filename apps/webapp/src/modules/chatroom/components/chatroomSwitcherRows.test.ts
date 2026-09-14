@@ -13,17 +13,13 @@ function makeChatroom(
 ): ChatroomWithStatus {
   return {
     _creationTime: Date.now(),
-    status: 'active',
-    chatStatus: 'idle',
+    status: 'active' as const,
     teamId: 'team-1',
     teamName: 'Team',
     teamRoles: [],
     isFavorite: false,
     hasUnread: false,
     hasUnreadHandoff: false,
-    remoteAgentStatus: 'none',
-    runningRoles: [],
-    runningAgentConfigs: [],
     ...overrides,
   };
 }

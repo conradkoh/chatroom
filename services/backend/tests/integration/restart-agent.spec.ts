@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
@@ -30,23 +29,13 @@ describe('restart-agent use case', () => {
       agentHarness: 'cursor-sdk',
     });
 
-    // Preserve a legacy reconnect preference to verify user restart ignores it.
-    await t.run(async (ctx) => {
-      const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
-        .first();
-      if (config) await ctx.db.patch(config._id, { wantResume: true });
-    });
-
     const { taskId } = await t.mutation(api.tasks.createTask, {
       sessionId,
       chatroomId,
       content: 'In-flight before restart',
       createdBy: 'user',
     });
+    await t.run((ctx) => ctx.db.patch('chatroom_tasks', taskId, { assignedTo: 'builder' }));
 
     await t.mutation(api.tasks.claimTask, {
       sessionId,
@@ -85,18 +74,24 @@ describe('restart-agent use case', () => {
     }
 
     await t.run(async (ctx) => {
-      const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
+      const request = await ctx.db
+        .query('chatroom_agentLastSentLaunchRequests')
+        .withIndex('by_requestKey', (q) => q.eq('requestKey', `${chatroomId}:duo@1:builder`))
         .first();
-      expect(config).toMatchObject({
+      expect(request).toMatchObject({
         machineId,
         agentHarness: 'cursor-sdk',
         model: TEST_MODEL_CURSOR_SDK,
         workingDir: '/tmp/project',
+        wantResume: false,
       });
+      const status = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .first();
+      // A restart request is not itself a runtime observation. The daemon will
+      // create/update this row when it reports the new lifecycle state.
+      expect(status).toBeNull();
     });
   });
 });

@@ -6,8 +6,10 @@ import { Effect } from 'effect';
 
 import {
   buildAgentLifecycleRevisionKey,
+  buildAgentStatusFact,
   type AgentLifecycleFact,
 } from '../../../domain/entities/agent-lifecycle-fact.js';
+import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
@@ -166,7 +168,7 @@ export class AgentWorkManager {
 
   async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<AgentTurnDisposition> {
     const completion = event.completion;
-    if (completion && completion.status !== 'completed') {
+    if (completion.status !== 'completed') {
       const activeTask = this.deps.agentTaskState.get({
         chatroomId: event.chatroomId,
         role: event.role,
@@ -228,6 +230,20 @@ export class AgentWorkManager {
     // duplicate forever. In-progress/completed task tasks are filtered by
     // the normal task-status gate on the next pass.
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+    try {
+      await this.deps.lifecycleOutbox.enqueue(
+        buildAgentStatusFact({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          status: 'waiting',
+        })
+      );
+    } catch (error) {
+      console.error(
+        `[NativeDelivery:turn-ended-outbox-error] chatroom=${event.chatroomId} role=${event.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+      );
+      return { kind: 'hold-slot', reason: 'turn-ended-outbox-enqueue-failed' };
+    }
     // The manager invokes this handler while the agent's lifecycle operation
     // is still serialized. Schedule delivery for the next turn of the event
     // loop so it cannot attempt to inject while that operation still owns the
@@ -288,7 +304,8 @@ export class AgentWorkManager {
 
     this.deps.agentTaskState.clear({ chatroomId, role });
     const slot = this.deps.agentMgr.getSlot(chatroomId, role);
-    if (!slot || slot.state === 'idle' || slot.state === 'stopping') return;
+    if (!slot || slot.state === AGENT_SLOT_STATE.IDLE || slot.state === AGENT_SLOT_STATE.STOPPING)
+      return;
 
     try {
       await this.deps.runSerializedForAgent(

@@ -12,10 +12,8 @@ export interface AgentStopTarget {
 }
 
 export function useAgentStop() {
-  const requestAgent = useSessionMutation(api.chatroomWorkspaceAgentCommandsInbox.requestStopAgent);
-  const requestChatroom = useSessionMutation(
-    api.chatroomWorkspaceAgentCommandsInbox.requestStopAll
-  );
+  const requestAgent = useSessionMutation(api.agents.requestStop);
+  const requestChatroom = useSessionMutation(api.agents.requestStopAll);
 
   const requestAgentStop = useCallback(
     (target: AgentStopTarget) => requestAgent(target),

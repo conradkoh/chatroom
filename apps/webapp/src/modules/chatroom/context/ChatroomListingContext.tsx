@@ -1,15 +1,14 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
-import { deriveChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import type { ChatroomStatus } from '@workspace/shared/domain/chatroom-status';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface ChatroomWithStatus {
+/** Base chatroom data shared by listing surfaces. Status is subscribed per chatroom. */
+export interface ChatroomListingItem {
   _id: string;
   _creationTime: number;
   status: ChatroomStatus;
@@ -19,14 +18,13 @@ export interface ChatroomWithStatus {
   teamRoles?: string[];
   teamEntryPoint?: string;
   lastActivityAt?: number;
-  chatStatus: ChatroomActivityStatus;
   isFavorite: boolean;
   hasUnread: boolean;
   hasUnreadHandoff: boolean;
-  remoteAgentStatus: 'running' | 'stopped' | 'none';
-  runningRoles: string[];
-  runningAgentConfigs: { machineId: string; role: string }[];
 }
+
+/** @deprecated Use ChatroomListingItem. */
+export type ChatroomWithStatus = ChatroomListingItem;
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -40,15 +38,12 @@ const ChatroomListingContext = createContext<ChatroomListingContextValue | null>
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 /**
- * Provider that fetches chatroom listing data using five focused subscriptions:
+ * Provider that fetches chatroom listing data using three focused subscriptions:
  *
  * 1. `listByUser`                    — base chatroom rows (sorted, lightweight)
  * 2. `listFavoriteIds`               — favorited chatroom IDs
  * 3. `listUnreadStatus`              — per-chatroom unread indicator
- * 4. `listAgentOverview`             — remote agent running state per chatroom
- * 5. `listAgentRoleStatusReadModel`  — projected role activity per chatroom
- *
- * Activity updates are delivered through the role-status projection.
+ * Status updates are delivered by the chatroom-scoped useChatroomStatus hook.
  */
 export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   // 1. Base chatroom data — lightweight, invalidated only by chatroom changes
@@ -60,22 +55,10 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   // 3. Unread status — re-fires when messages or read cursors change
   const unreadStatus = useSessionQuery(api.chatrooms.listUnreadStatus);
 
-  // 4. Remote agent running status — re-fires when any machine spawnedAgentPid changes
-  const remoteAgentStatusData = useSessionQuery(api.machines.listAgentOverview);
-
-  // 5. Projected role activity — the source for chatroom activity status
-  const agentActivityStatusData = useSessionQuery(api.machines.listAgentRoleStatusReadModel);
-
-  // Merge the five subscriptions into a single ChatroomWithStatus[] for consumers
+  // Merge listing subscriptions. Chatroom status is intentionally separate so one status change
+  // does not rebuild every listing item.
   const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {
-    // Wait for all subscriptions to resolve before returning data
-    if (
-      baseChatrooms === undefined ||
-      favoriteIds === undefined ||
-      unreadStatus === undefined ||
-      remoteAgentStatusData === undefined ||
-      agentActivityStatusData === undefined
-    ) {
+    if (baseChatrooms === undefined || favoriteIds === undefined || unreadStatus === undefined) {
       return undefined;
     }
 
@@ -84,41 +67,15 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     const unreadHandoffMap = new Map(
       unreadStatus.map((u) => [u.chatroomId, u.hasUnreadHandoff ?? false])
     );
-    const remoteAgentStatusMap = new Map(
-      remoteAgentStatusData.map((entry) => [entry.chatroomId as string, entry])
-    );
-    const agentActivityStatusMap = new Map<string, typeof agentActivityStatusData>();
-    for (const status of agentActivityStatusData) {
-      const chatroomStatuses = agentActivityStatusMap.get(status.chatroomId) ?? [];
-      chatroomStatuses.push(status);
-      agentActivityStatusMap.set(status.chatroomId, chatroomStatuses);
-    }
-
     return baseChatrooms.map((chatroom) => {
-      const chatStatus = deriveChatroomActivityStatus(
-        chatroom.status,
-        agentActivityStatusMap.get(chatroom._id) ?? []
-      );
-
       return {
         ...chatroom,
-        chatStatus,
         isFavorite: favoriteSet.has(chatroom._id),
         hasUnread: unreadMap.get(chatroom._id) ?? false,
         hasUnreadHandoff: unreadHandoffMap.get(chatroom._id) ?? false,
-        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as
-          'running' | 'stopped' | 'none',
-        runningRoles: remoteAgentStatusMap.get(chatroom._id)?.runningRoles ?? [],
-        runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningAgents ?? [],
-      } as ChatroomWithStatus;
+      };
     });
-  }, [
-    baseChatrooms,
-    favoriteIds,
-    unreadStatus,
-    remoteAgentStatusData,
-    agentActivityStatusData,
-  ]);
+  }, [baseChatrooms, favoriteIds, unreadStatus]);
 
   const value = useMemo(
     () => ({
@@ -140,7 +97,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
  * Must be used within a ChatroomListingProvider.
  *
  * Returns:
- * - chatrooms: Array of chatrooms with computed agent and chat statuses
+ * - chatrooms: Array of chatrooms with base, favorite, unread, and handoff data
  * - isLoading: True while any subscription is still loading
  */
 export function useChatroomListing() {

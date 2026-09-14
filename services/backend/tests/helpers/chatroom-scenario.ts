@@ -7,12 +7,7 @@
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import {
-  createPlannerBuilderDuoChatroom,
-  createTestSession,
-  joinParticipant,
-  registerMachineWithDaemon,
-} from './integration';
+import { createPlannerBuilderDuoChatroom, createTestSession, joinParticipant } from './integration';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { generateHandoffOutput } from '../../prompts/generator';
@@ -122,16 +117,31 @@ export class ChatroomScenario {
       workingDir = '/test/workspace',
     } = options;
 
-    await registerMachineWithDaemon(this.sessionId, machineId);
+    await t.mutation(api.machines.register, {
+      sessionId: this.sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: [harness as any],
+    });
+    await t.mutation(api.machines.markDaemonOnline, { sessionId: this.sessionId, machineId });
     await joinParticipant(this.sessionId, this.chatroomId, role);
 
-    await t.mutation(api.machines.saveTeamAgentConfig, {
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
       sessionId: this.sessionId,
       chatroomId: this.chatroomId,
-      role,
-      type: 'remote',
       machineId,
-      agentHarness: harness,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: role,
+    });
+    await t.mutation(api.agents.saveConfig, {
+      sessionId: this.sessionId,
+      chatroomId: this.chatroomId,
+      workspaceId,
+      role,
+      machineId,
+      agentHarness: harness as any,
       model: 'auto',
       workingDir,
     });

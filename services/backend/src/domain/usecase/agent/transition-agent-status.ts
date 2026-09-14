@@ -1,18 +1,12 @@
 /**
  * Centralized Agent Status Transition
  *
- * Single function that atomically updates all status sources for an agent:
- *   1. chatroom_participants.lastStatus (denormalized, used by UI — being deprecated)
- *   2. chatroom_participants.lastDesiredState (denormalized mirror)
- *
- * This ensures the dual-state sources (participant.lastStatus + teamAgentConfigs.desiredState)
- * never diverge.
- *
- * Future: When a new `status` field is added to chatroom_teamAgentConfigs (schema change),
- * this function will also write to that field, making teamAgentConfigs the single source of truth.
+ * Projects an explicit daemon status observation to the thin role-status read
+ * model. It does not write participant lifecycle mirrors, desired state, or
+ * process state in Convex.
  */
 
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import {
   projectAgentRoleStatusReadModel,
   statusEventForAgentEvent,
@@ -20,44 +14,10 @@ import {
 } from './project-agent-role-status-read-model';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
-
-const OPERATIONAL_STATUSES = new Set([
-  'agent.waiting',
-  'agent.enhancing',
-  'agent.started',
-  'agent.awaitingHandoff',
-  'task.acknowledged',
-  'task.inProgress',
-  'task.completed',
-]);
-
-async function resolveLastDesiredState(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string,
-  lastStatus: string,
-  explicit?: string
-): Promise<string | undefined> {
-  if (explicit !== undefined || !OPERATIONAL_STATUSES.has(lastStatus)) return explicit;
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom?.teamId) return undefined;
-  const teamId = chatroom.teamId;
-  const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(chatroom._id, teamId, role))
-    )
-    .first();
-  return config?.desiredState;
-}
 
 /**
- * Transition the agent's status across all state sources.
- *
- * Call this instead of directly patching participant records to ensure all
- * status-related fields stay in sync.
+ * Compatibility wrapper for explicit daemon lifecycle facts. New backend task
+ * and message mutations must not call this function to infer agent status.
  *
  * @param ctx - Convex mutation context
  * @param chatroomId - The chatroom
@@ -70,32 +30,28 @@ export async function transitionAgentStatus(
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
   lastStatus: string,
-  lastDesiredState?: string,
-  statusEvent?: StatusEvent
-): Promise<void> {
-  // 1. Update participant record (denormalized — deprecated as primary source)
-  const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
-  if (participant) {
-    const resolvedDesiredState = await resolveLastDesiredState(
-      ctx,
-      chatroomId,
-      role,
-      lastStatus,
-      lastDesiredState
-    );
-    const patch: Record<string, string> = { lastStatus };
-    if (resolvedDesiredState !== undefined) {
-      patch.lastDesiredState = resolvedDesiredState;
-    }
-    await ctx.db.patch('chatroom_participants', participant._id, patch);
+  _lastDesiredState?: string,
+  statusEvent?: StatusEvent,
+  projection?: {
+    machineId?: string | undefined;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
+    emittedAt?: number | undefined;
+    revisionKey?: string | undefined;
   }
-
-  // Future: 2. Update chatroom_teamAgentConfigs.status field when schema is updated
-  // This would make teamAgentConfigs the single source of truth for agent status.
-  await projectAgentOperationalStatusForRole(ctx, chatroomId, role, undefined, { lastStatus });
-  await projectAgentRoleStatusReadModel(ctx, {
+): Promise<void> {
+  const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
     chatroomId,
     role,
+    ...(projection?.workspaceId ? { workspaceId: projection.workspaceId } : {}),
+  });
+  await projectAgentRoleStatusReadModel(ctx, {
+    chatroomId,
+    ...(projection?.workspaceId ? { workspaceId: projection.workspaceId } : {}),
+    role,
+    launchRequest: launchRequest ?? undefined,
     event: statusEvent ?? statusEventForAgentEvent(lastStatus),
+    sourceMachineId: projection?.machineId,
+    sourceEventAt: projection?.emittedAt,
+    sourceRevisionKey: projection?.revisionKey,
   });
 }

@@ -9,6 +9,9 @@ import {
 import type { DaemonSessionServiceShape } from '../../entry/daemon-services.js';
 
 type ProjectAgentLifecycleFactArgs = FunctionArgs<typeof api.machines.projectAgentLifecycleFact>;
+type RecordAgentActivityHeartbeatArgs = FunctionArgs<
+  typeof api.machines.recordAgentActivityHeartbeat
+>;
 type ConvexLifecycleFact = ProjectAgentLifecycleFactArgs['fact'];
 
 /** Map CLI lifecycle facts to Convex mutation args (Id-branded fields at the boundary). */
@@ -19,7 +22,7 @@ function toConvexLifecycleFact(fact: AgentLifecycleFact): ConvexLifecycleFact {
     ...normalized,
     chatroomId: normalized.chatroomId as Id<'chatroom_rooms'>,
     ...(normalized.kind === 'chatroom_shutdown_complete'
-      ? { commandId: normalized.commandId as Id<'chatroomWorkspaceAgentCommandsInbox'> }
+      ? { commandId: normalized.commandId as Id<'chatroom_machineCommandInbox'> }
       : {}),
     ...((normalized.kind === 'activity' || normalized.kind === 'turn_failed') && normalized.taskId
       ? { taskId: normalized.taskId as Id<'chatroom_tasks'> }
@@ -37,8 +40,10 @@ export function createAgentLifecycleSend(
       fact: toConvexLifecycleFact(fact),
     } satisfies ProjectAgentLifecycleFactArgs;
     const result = (await session.backend.mutation(
-      api.machines.projectAgentLifecycleFact,
-      args
+      fact.kind === 'activity'
+        ? api.machines.recordAgentActivityHeartbeat
+        : api.machines.projectAgentLifecycleFact,
+      args as ProjectAgentLifecycleFactArgs & RecordAgentActivityHeartbeatArgs
     )) as AgentLifecycleOutboxResult;
     return result;
   };

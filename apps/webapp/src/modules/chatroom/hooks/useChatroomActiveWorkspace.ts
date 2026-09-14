@@ -5,25 +5,22 @@
  * used by the file explorer, Cmd+P, git panel, and any other surface that needs
  * to operate on one workspace at a time within a chatroom.
  *
- * Decision logic: pick the workspace at `activeWorkspaceIndex` (defaults to 0)
- * from the filtered list of workspaces that have a connected machineId.
- *
- * Returning `workspaces` alongside `activeWorkspace` lets callers that need the
- * full list (e.g. multi-workspace file subscriptions) avoid a second hook call.
+ * The selected workspace comes from ChatroomWorkspaceProvider, which reads the
+ * authoritative chatroom primary-workspace selection. This adapter keeps the
+ * existing machine/path shape used by file and command surfaces.
  */
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useMemo } from 'react';
 
+import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
 import type { Workspace } from '../types/workspace';
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ChatroomActiveWorkspace {
   /** Convex registry document ID (`chatroom_workspaces._id`). */
   workspaceId: string | null;
-  /** machineId of the connected daemon. */
+  /** machineId associated with the workspace. */
   machineId: string | null;
   /** Absolute working-directory path. */
   workingDir: string | null;
@@ -38,22 +35,15 @@ export interface ChatroomActiveWorkspace {
 /**
  * Returns the currently-active workspace for a chatroom and the full workspace list.
  *
- * @param chatroomId  The chatroom to look up workspaces for.
- * @param activeWorkspaceIndex  Index into the list of connected workspaces (default: 0).
- *                              The caller owns the index state for future multi-workspace switching.
+ * The provider supplies the chatroom identity and selection; callers do not
+ * maintain a local index or selection state.
  */
-export function useChatroomActiveWorkspace(
-  chatroomId: Id<'chatroom_rooms'>,
-  activeWorkspaceIndex = 0
-): {
+export function useChatroomActiveWorkspace(): {
   activeWorkspace: ChatroomActiveWorkspace | null;
   workspaces: Workspace[];
+  isLoading: boolean;
 } {
-  const { workspaces } = useChatroomWorkspaces(chatroomId);
-
-  // Only workspaces with a connected machine are eligible as the active workspace.
-  const connectedWorkspaces = workspaces.filter((ws) => ws.machineId);
-  const selected = connectedWorkspaces[activeWorkspaceIndex] ?? null;
+  const { workspaces, activeWorkspace: selected, isLoading } = useChatroomWorkspace();
 
   // Memoize activeWorkspace to stabilise its reference between renders.
   // Without this, every render creates a new object, which causes infinite
@@ -84,8 +74,8 @@ export function useChatroomActiveWorkspace(
   // Stabilise the return object so callers that destructure don't get a fresh
   // reference each render.
   return useMemo(
-    () => ({ activeWorkspace, workspaces }),
+    () => ({ activeWorkspace, workspaces, isLoading }),
 
-    [activeWorkspace, workspaces]
+    [activeWorkspace, workspaces, isLoading]
   );
 }

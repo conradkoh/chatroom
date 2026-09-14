@@ -98,5 +98,12 @@ export function useMachineConfigFavorites(scope: MachineConfigFavoriteScope | un
     [favorites]
   );
 
-  return { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite };
+  return {
+    favorites,
+    addFavorite,
+    removeFavorite,
+    moveFavorite,
+    isFavorite,
+    isLoading: isScopeComplete(scope) && queryResult === undefined,
+  };
 }

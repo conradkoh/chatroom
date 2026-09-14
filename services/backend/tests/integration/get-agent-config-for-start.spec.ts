@@ -51,7 +51,7 @@ describe('getAgentConfigForStart — no defaults', () => {
     expect(result!.connectedMachines[0].hostname).toBe('test-host');
   });
 
-  test('only shows connected machines', async () => {
+  test('includes registered machines without requiring daemon connectivity', async () => {
     const { sessionId } = await createTestSession('test-gacfs-conn-1');
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
@@ -74,7 +74,8 @@ describe('getAgentConfigForStart — no defaults', () => {
       });
     });
 
-    expect(result!.connectedMachines).toHaveLength(0);
+    expect(result!.connectedMachines).toHaveLength(1);
+    expect(result!.connectedMachines[0].hostname).toBe('disconnected-host');
   });
 });
 

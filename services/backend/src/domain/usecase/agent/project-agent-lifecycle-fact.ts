@@ -1,14 +1,12 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
 import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
-import { completeChatroomWorkspaceAgentCommand } from './complete-chatroom-workspace-agent-command';
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
+import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
 import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
-import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =
   | {
@@ -58,9 +56,20 @@ export type AgentLifecycleFactInput =
       emittedAt: number;
     }
   | {
+      kind: 'status';
+      chatroomId: Id<'chatroom_rooms'>;
+      role: string;
+      status: 'offline' | 'starting' | 'waiting' | 'working' | 'stopping' | 'error';
+      errorSource?: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop' | undefined;
+      errorCode?: string | undefined;
+      errorMessage?: string | undefined;
+      revisionKey: string;
+      emittedAt: number;
+    }
+  | {
       kind: 'chatroom_shutdown_complete';
       chatroomId: Id<'chatroom_rooms'>;
-      commandId: Id<'chatroomWorkspaceAgentCommandsInbox'>;
+      commandId: Id<'chatroom_machineCommandInbox'>;
       finalizeChatroom?: boolean | undefined;
       revisionKey: string;
       emittedAt: number;
@@ -79,35 +88,28 @@ export async function projectAgentLifecycleFact(
 }> {
   const { machineId, fact } = args;
   if (fact.kind === 'activity') {
-    const participant = await getParticipantForChatroomRole(ctx, fact.chatroomId, fact.role);
-    await applyAgentActivityHeartbeat(ctx, { ...fact, participantId: participant?._id });
+    await applyAgentActivityHeartbeat(ctx, { ...fact, machineId });
     return { success: true };
   }
   if (fact.kind === 'cleared_all_pids') {
-    const configs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
+    const rows = await ctx.db
+      .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
       .collect();
     let clearedCount = 0;
-    for (const config of configs)
-      if (config.spawnedAgentPid != null) {
-        await patchTeamAgentConfig(
-          ctx,
-          config._id,
-          { spawnedAgentPid: undefined, spawnedAt: undefined },
-          { skipProject: true }
-        );
-        await transitionAgentStatus(ctx, config.chatroomId, config.role, 'agent.exited', undefined);
-        clearedCount++;
-      }
-    for (const config of configs) {
-      await projectAgentOperationalStatusForRole(
-        ctx,
-        config.chatroomId,
-        config.role,
-        fact.revisionKey,
-        { config }
-      );
+    for (const row of rows) {
+      if (row.observedPid !== undefined) clearedCount++;
+      await projectAgentRoleStatusReadModel(ctx, {
+        chatroomId: row.chatroomId,
+        workspaceId: row.workspaceId,
+        role: row.role,
+        event: { status: 'offline' },
+        sourceMachineId: machineId,
+        sourceEventAt: fact.emittedAt,
+        sourceRevisionKey: fact.revisionKey,
+        clearObservedPid: true,
+        observedAt: fact.emittedAt,
+      });
     }
     return { success: true, clearedCount };
   }
@@ -116,27 +118,73 @@ export async function projectAgentLifecycleFact(
       ...fact,
       machineId,
       revisionKey: fact.revisionKey,
+      emittedAt: fact.emittedAt,
     });
     if (result.applied) await onAgentExited(ctx, fact);
     return { success: true, skipped: !result.applied };
   }
   if (fact.kind === 'turn_failed') {
-    await transitionAgentStatus(ctx, fact.chatroomId, fact.role, 'agent.turnFailed', undefined, {
-      status: 'error',
-      errorSource: 'runtime',
-      errorCode: fact.status,
-      errorMessage: `${fact.source}${fact.error ? `: ${fact.error}` : ''}`,
+    const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: fact.chatroomId,
+      role: fact.role,
+    });
+    if (!launchRequest || launchRequest.machineId !== machineId)
+      return { success: true, skipped: true, rejectionReason: 'not_configured' };
+    await transitionAgentStatus(
+      ctx,
+      fact.chatroomId,
+      fact.role,
+      'agent.turnFailed',
+      undefined,
+      {
+        status: 'error',
+        errorSource: 'runtime',
+        errorCode: fact.status,
+        errorMessage: `${fact.source}${fact.error ? `: ${fact.error}` : ''}`,
+      },
+      { machineId, emittedAt: fact.emittedAt, revisionKey: fact.revisionKey }
+    );
+    return { success: true };
+  }
+  if (fact.kind === 'status') {
+    const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
+      chatroomId: fact.chatroomId,
+      role: fact.role,
+    });
+    if (!launchRequest || launchRequest.machineId !== machineId)
+      return { success: true, skipped: true, rejectionReason: 'not_configured' };
+    await projectAgentRoleStatusReadModel(ctx, {
+      chatroomId: fact.chatroomId,
+      role: fact.role,
+      event: {
+        status: fact.status,
+        ...(fact.errorSource
+          ? {
+              errorSource: fact.errorSource,
+              errorCode: fact.errorCode ?? 'daemon.status',
+              errorMessage: fact.errorMessage,
+            }
+          : {}),
+      },
+      launchRequest,
+      agentType: launchRequest.agentType,
+      sourceMachineId: machineId,
+      sourceEventAt: fact.emittedAt,
+      sourceRevisionKey: fact.revisionKey,
     });
     return { success: true };
   }
   if (fact.kind === 'chatroom_shutdown_complete') {
+    const command = await ctx.db.get('chatroom_machineCommandInbox', fact.commandId);
+    if (!command || command.machineId !== machineId) {
+      return { success: true, skipped: true, rejectionReason: 'command_not_found' };
+    }
+    if (command.status !== 'processing') {
+      return { success: true, skipped: true, rejectionReason: 'command_not_processing' };
+    }
+    await ctx.db.delete('chatroom_machineCommandInbox', command._id);
     return {
       success: true,
-      ...(await completeChatroomWorkspaceAgentCommand(ctx, {
-        commandId: fact.commandId,
-        machineId,
-        finalizeChatroom: fact.finalizeChatroom,
-      })),
     };
   }
   const registration = await registerSpawnedAgentIfAuthorized(ctx, {

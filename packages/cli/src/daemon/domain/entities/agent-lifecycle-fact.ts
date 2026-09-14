@@ -47,6 +47,17 @@ export type AgentLifecycleFact =
       emittedAt: number;
     }
   | {
+      kind: 'status';
+      chatroomId: string;
+      role: string;
+      status: 'offline' | 'starting' | 'waiting' | 'working' | 'stopping' | 'error';
+      errorSource?: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop' | undefined;
+      errorCode?: string | undefined;
+      errorMessage?: string | undefined;
+      revisionKey: string;
+      emittedAt: number;
+    }
+  | {
       kind: 'chatroom_shutdown_complete';
       chatroomId: string;
       commandId: string;
@@ -111,6 +122,7 @@ export function normalizeAgentLifecycleFact(raw: unknown): AgentLifecycleFact {
     kind === 'exited' ||
     kind === 'activity' ||
     kind === 'turn_failed' ||
+    kind === 'status' ||
     kind === 'chatroom_shutdown_complete'
   ) {
     return rest as AgentLifecycleFact;
@@ -133,6 +145,35 @@ export function buildActivityLifecycleFact(params: {
     action: params.action,
     ...(params.taskId ? { taskId: params.taskId } : {}),
     revisionKey: buildAgentLifecycleRevisionKey('activity', { ...params, emittedAt }),
+    emittedAt,
+  };
+}
+
+export function buildAgentStatusFact(params: {
+  chatroomId: string;
+  role: string;
+  status: Extract<AgentLifecycleFact, { kind: 'status' }>['status'];
+  errorSource?: Extract<AgentLifecycleFact, { kind: 'status' }>['errorSource'];
+  errorCode?: string;
+  errorMessage?: string;
+  emittedAt?: number;
+}): Extract<AgentLifecycleFact, { kind: 'status' }> {
+  const emittedAt = params.emittedAt ?? Date.now();
+  return {
+    kind: 'status',
+    chatroomId: params.chatroomId,
+    role: params.role,
+    status: params.status,
+    ...(params.errorSource ? { errorSource: params.errorSource } : {}),
+    ...(params.errorCode ? { errorCode: params.errorCode } : {}),
+    ...(params.errorMessage ? { errorMessage: params.errorMessage } : {}),
+    revisionKey: buildAgentLifecycleRevisionKey('status', {
+      chatroomId: params.chatroomId,
+      role: params.role,
+      status: params.status,
+      errorCode: params.errorCode,
+      emittedAt,
+    }),
     emittedAt,
   };
 }

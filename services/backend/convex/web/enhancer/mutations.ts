@@ -1,4 +1,3 @@
-import { getTeamPreset } from '@workspace/shared/domain/team-presets';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -9,110 +8,10 @@ import { computeEnhancerBackoffMs, emitEnhancerEvent } from './internal';
 import { assertEnhancerJobOwner } from './jobHelpers';
 import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/enhancer/build-planning-review-outcome';
 import { transitionEnhancerEntryPointToWaiting } from '../../../src/domain/usecase/enhancer/enhancer-entry-point-status';
-import {
-  getEnhancerTeamAgentConfig,
-  syncEnhancerTeamAgentConfig,
-} from '../../../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
-import { agentHarnessValidator } from '../../schema';
 
 export { enqueueHandoff };
-
-export const upsertConfig = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    enabled: v.boolean(),
-    targetId: v.literal('handoff:planner-to-builder'),
-    agentHarness: agentHarnessValidator,
-    model: v.string(),
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const { session, chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    if (!chatroom.teamId || !getTeamPreset(chatroom.teamId)) {
-      throw new ConvexError({
-        code: 'INVALID_TEAM',
-        message: 'Enhancer configuration requires a Solo or Duo team',
-      });
-    }
-    if (!args.model.trim()) {
-      throw new ConvexError({ code: 'INVALID_MODEL', message: 'model must not be empty' });
-    }
-    if (!args.machineId.trim()) {
-      throw new ConvexError({ code: 'INVALID_MACHINE', message: 'machineId must not be empty' });
-    }
-
-    const existing = await ctx.db
-      .query('chatroom_enhancerConfigs')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
-      )
-      .unique();
-
-    const now = Date.now();
-    const doc = {
-      chatroomId: args.chatroomId,
-      userId: session.userId,
-      enabled: args.enabled,
-      targetId: args.targetId,
-      agentHarness: args.agentHarness,
-      model: args.model.trim(),
-      machineId: args.machineId.trim(),
-      updatedAt: now,
-    };
-
-    let configId;
-    if (existing) {
-      await ctx.db.patch('chatroom_enhancerConfigs', existing._id, doc);
-      configId = existing._id;
-    } else {
-      configId = await ctx.db.insert('chatroom_enhancerConfigs', doc);
-    }
-    const legacyConfig = await ctx.db.get('chatroom_enhancerConfigs', configId);
-    if (!legacyConfig) {
-      throw new ConvexError({
-        code: 'CONFIG_SYNC_FAILED',
-        message: 'Failed to synchronize enhancer configuration',
-      });
-    }
-    await syncEnhancerTeamAgentConfig(ctx, {
-      chatroomId: args.chatroomId,
-      teamId: chatroom.teamId,
-      legacyConfig,
-    });
-    return { configId };
-  },
-});
-
-// fallow-ignore-next-line code-duplication
-export const disableConfig = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const { session, chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const existing = await ctx.db
-      .query('chatroom_enhancerConfigs')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
-      )
-      .unique();
-    if (!existing) return { disabled: false as const };
-    await ctx.db.patch('chatroom_enhancerConfigs', existing._id, {
-      enabled: false,
-      updatedAt: Date.now(),
-    });
-    if (chatroom.teamId) {
-      const teamConfig = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, chatroom.teamId);
-      if (teamConfig)
-        await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, { enabled: false });
-    }
-    return { disabled: true as const };
-  },
-});
 
 export const recordAttemptFailure = mutation({
   args: {

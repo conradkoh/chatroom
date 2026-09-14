@@ -9,12 +9,13 @@ import {
   type TaskEnvelopeV1,
 } from '@workspace/shared/domain/task-envelope';
 import type { SessionId } from 'convex-helpers/server/sessions';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { getInboxCommandsForMachine } from '../tests/helpers/machine-command-inbox';
+import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,6 +83,79 @@ async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
 // ---------------------------------------------------------------------------
 
 describe('_sendMessageHandler — queued user message routing', () => {
+  test('schedules offline permanent-agent startup after a successful user message', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId } = await createTestSession('msg-offline-agent-start');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'msg-offline-agent-machine';
+
+      await t.mutation(api.machines.register, {
+        sessionId,
+        machineId,
+        hostname: 'test-host',
+        os: 'linux',
+        availableHarnesses: ['opencode'],
+      });
+      const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+        sessionId,
+        chatroomId,
+        machineId,
+        workingDir: '/tmp/test',
+        hostname: 'test-host',
+        registeredBy: 'planner',
+      });
+      await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+        sessionId,
+        chatroomId,
+        workspaceId,
+      });
+      await t.mutation(api.agents.saveConfig, {
+        sessionId,
+        chatroomId,
+        workspaceId,
+        role: 'planner',
+        machineId,
+        agentHarness: 'opencode',
+        model: TEST_MODEL_OPENCODE,
+        workingDir: '/tmp/test',
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+          chatroomId,
+          role: 'planner',
+          roleKind: 'persistent',
+          status: 'offline',
+          machineId,
+          workspaceId,
+          projectedAt: Date.now(),
+        });
+      });
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'wake the offline planner',
+        type: 'message',
+      });
+      expect((await getInboxCommandsForMachine(machineId, 'agent.requestStart')).length).toBe(0);
+
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts).toHaveLength(1);
+      expect(starts[0]?.command).toMatchObject({
+        type: 'agent.requestStart',
+        chatroomId,
+        role: 'planner',
+        model: TEST_MODEL_OPENCODE,
+        workingDir: '/tmp/test',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('first user message (no active tasks) → stored in chatroom_messages, task.sourceMessageId set', async () => {
     const { sessionId } = await createTestSession('msg-route-1');
     const chatroomId = await createChatroom(sessionId);
@@ -428,7 +502,7 @@ describe('listQueued query', () => {
 });
 
 describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
-  test('builder→planner handoff sets sender waiting and creates pending target task', async () => {
+  test('builder→planner handoff completes sender work and creates pending target task', async () => {
     const { sessionId } = await createTestSession('handoff-sender-waiting');
     const chatroomId = await createChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
@@ -478,24 +552,6 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     const plannerTask = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result.newTaskId!));
     expect(plannerTask?.status).toBe('pending');
     expect(plannerTask?.assignedTo).toBe('planner');
-
-    const readModel = await t.run(async (ctx) =>
-      ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
-        .first()
-    );
-    expect(readModel?.status).toBe('waiting');
-
-    const participant = await t.run(async (ctx) =>
-      ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
-        )
-        .unique()
-    );
-    expect(participant?.lastStatus).toBe('agent.waiting');
   });
 
   test('when handing off to user and queued tasks exist, promotes first queued task to pending', async () => {
@@ -1666,30 +1722,33 @@ describe('enhancer handoff authorization — explicit envelope precedence', () =
 
   async function seedEnhancerTeamConfig(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
     await t.run(async (ctx) => {
-      const room = await ctx.db.get('chatroom_rooms', chatroomId);
-      if (!room?.teamId) return;
       const now = Date.now();
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, room.teamId, 'enhancer'),
-        chatroomId,
-        role: 'enhancer',
-        type: 'remote',
-        machineId: 'enh-machine',
-        agentHarness: 'opencode',
-        model: 'model',
-        workingDir: '/tmp',
-        enabled: true,
-        createdAt: now,
-        updatedAt: now,
-      });
-      // The enhancer job-spawn path resolves a workspace for the machine.
-      await ctx.db.insert('chatroom_workspaces', {
+      const room = await ctx.db.get(chatroomId);
+      const workspaceId = await ctx.db.insert('chatroom_workspaces', {
         chatroomId,
         machineId: 'enh-machine',
         workingDir: '/tmp',
         hostname: 'test-host',
         registeredAt: now,
         registeredBy: 'enhancer',
+      });
+      await ctx.db.insert('chatroom_agentLastSentLaunchRequests', {
+        requestKey: `${chatroomId}:duo@1:enhancer`,
+        requestId: `test-enhancer-${chatroomId}`,
+        commandId: `test-enhancer-${chatroomId}`,
+        chatroomId,
+        teamStructureId: 'duo@1',
+        role: 'enhancer',
+        agentType: 'remote',
+        machineId: 'enh-machine',
+        workspaceId,
+        agentHarness: 'opencode',
+        model: 'model',
+        workingDir: '/tmp',
+        reason: 'test',
+        wantResume: false,
+        requestedBy: room!.ownerId,
+        requestedAt: now,
       });
     });
   }

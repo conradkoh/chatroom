@@ -1,7 +1,9 @@
 'use client';
 /* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-adjust-state-on-prop-change, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-derived-state */
 
+import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   Play,
   Square,
@@ -12,6 +14,7 @@ import {
   FileText,
   Plus,
   Star,
+  Save,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
@@ -44,6 +47,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import type { MachineConnectivity } from '../../../hooks/useDaemonConnectivity';
 import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useMachineConfigFavorites } from '../features/machine-config/hooks/useMachineConfigFavorites';
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
@@ -183,30 +187,36 @@ export function deriveInitialWorkingDir(
 /** Wait for workspaces when they may supply the machine or its working directory. */
 export function shouldDeferInitUntilWorkspacesLoad(
   machineId: string | null,
-  roleConfigs: AgentConfig[]
+  roleConfigs: AgentConfig[],
+  preferredWorkspace?: Workspace
 ): boolean {
   if (!machineId) return true;
   const config = roleConfigs.find((c) => c.machineId === machineId);
-  return !config?.workingDir;
+  return !config?.workingDir && !preferredWorkspace?.workingDir;
 }
 
 export function useAgentControls({
   role,
   chatroomId,
+  workspaceId,
   connectedMachines,
   agentConfigs,
   sendCommand,
   teamConfigModel,
   teamConfigHarness,
   teamConfigMachineId,
+  isEphemeral = false,
+  configurationLoading = false,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
+  runtimeIsRunning = false,
   lockedMachineId,
   lockedWorkingDir,
   teamId,
 }: {
   role: string;
   chatroomId: string;
+  workspaceId?: string;
   connectedMachines: MachineInfo[];
   agentConfigs: AgentConfig[];
   sendCommand: AgentControlsProps['sendCommand'];
@@ -217,17 +227,24 @@ export function useAgentControls({
   teamConfigHarness?: AgentHarness;
   /** Team-config machine binding for this role (from team agent config / agent status view). */
   teamConfigMachineId?: string | null;
+  /** Ephemeral roles run on demand and cannot be started directly. */
+  isEphemeral?: boolean;
+  /** The selected workspace's last configuration is still loading. */
+  configurationLoading?: boolean;
   /** Team ID for role/team-specific defaults. */
   teamId?: string;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
+  /** Running state from the daemon-fed status projection. */
+  runtimeIsRunning?: boolean;
   /** Setup wizard: lock machine and working directory. */
   lockedMachineId?: string;
   lockedWorkingDir?: string;
 }) {
   const { requestAgentStop } = useAgentStop();
+  const saveAgentConfig = useSessionMutation(api.agents.saveConfig);
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
   const previousTeamIdRef = useRef(teamId);
@@ -240,6 +257,7 @@ export function useAgentControls({
   >({});
   const [workingDir, setWorkingDir] = useState<string>('');
   const [isStarting, setIsStarting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isStopSubmitting, setIsStopSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -273,13 +291,24 @@ export function useAgentControls({
   const roleConfigs = useMemo(() => {
     return agentConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
   }, [agentConfigs, role]);
+  const preferredWorkspace = useMemo(
+    () => chatroomWorkspaces?.find((workspace) => workspace._registryId === workspaceId),
+    [chatroomWorkspaces, workspaceId]
+  );
+  const initializationWorkspaces = useMemo(
+    () => (preferredWorkspace ? [preferredWorkspace] : chatroomWorkspaces),
+    [chatroomWorkspaces, preferredWorkspace]
+  );
 
   // Check if there's a running agent on a connected machine
   const runningAgentConfig = useMemo(() => {
-    return roleConfigs.find(
+    const pidBackedConfig = roleConfigs.find(
       (c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId)
     );
-  }, [roleConfigs, connectedMachines]);
+    if (pidBackedConfig) return pidBackedConfig;
+    if (!runtimeIsRunning) return undefined;
+    return roleConfigs.find((c) => connectedMachines.some((m) => m.machineId === c.machineId));
+  }, [roleConfigs, connectedMachines, runtimeIsRunning]);
 
   const displayAgentConfig = runningAgentConfig;
 
@@ -299,12 +328,17 @@ export function useAgentControls({
 
   // ── Single initialize-once effect ────────────────────────────────
   // Fires exactly once — when machines first become available.
-  // The "last used" config is derived solely from the persisted teamAgentConfigs
+  // The "last used" config is derived solely from the persisted launch snapshot.
   // (roleConfigs).
   useEffect(() => {
-    if (isInitialized || connectedMachines.length === 0) return;
+    if (
+      isInitialized ||
+      connectedMachines.length === 0 ||
+      (workspaceId !== undefined && configurationLoading)
+    )
+      return;
 
-    // Single source of truth for "last used": persisted teamAgentConfigs.
+    // Single source of truth for "last used": the persisted launch snapshot.
     const machine =
       lockedMachineId ??
       deriveInitialMachineId(
@@ -312,9 +346,12 @@ export function useAgentControls({
         roleConfigs,
         runningAgentConfig,
         teamConfigMachineId,
-        chatroomWorkspaces
+        initializationWorkspaces
       );
-    if (chatroomWorkspacesLoading && shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs)) {
+    if (
+      chatroomWorkspacesLoading &&
+      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, preferredWorkspace)
+    ) {
       return;
     }
     const harness = deriveInitialHarness(
@@ -324,7 +361,7 @@ export function useAgentControls({
       initialTeamConfigHarnessRef.current
     );
     const wd =
-      lockedWorkingDir ?? deriveInitialWorkingDir(machine, roleConfigs, chatroomWorkspaces);
+      lockedWorkingDir ?? deriveInitialWorkingDir(machine, roleConfigs, initializationWorkspaces);
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
@@ -336,10 +373,14 @@ export function useAgentControls({
     roleConfigs,
     runningAgentConfig,
     chatroomWorkspaces,
+    initializationWorkspaces,
     chatroomWorkspacesLoading,
+    configurationLoading,
+    workspaceId,
     lockedMachineId,
     lockedWorkingDir,
     teamConfigMachineId,
+    preferredWorkspace,
   ]);
 
   // Available models from the selected machine filtered by selected harness
@@ -395,15 +436,17 @@ export function useAgentControls({
     userModelByHarness,
     roleConfigs,
     selectedMachineId,
+    workspaceId,
     teamConfigModel,
   ]);
 
   const isAgentRunning = !!displayAgentConfig;
   const isStopping = isStopSubmitting;
   const stopFailed = false;
-  const isBusy = isStarting || isStopping;
+  const isBusy = isStarting || isSaving || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
+    !isEphemeral &&
     !!selectedMachineId &&
     !!selectedHarness &&
     (!hasModels || selectedModel) &&
@@ -411,6 +454,16 @@ export function useAgentControls({
     !isStarting &&
     !isAgentRunning &&
     !success;
+  const canSave =
+    !!workspaceId &&
+    !!selectedMachineId &&
+    !!selectedHarness &&
+    !!selectedModel &&
+    !!workingDir.trim() &&
+    !isSaving &&
+    !isStarting &&
+    !isStopping &&
+    !isAgentRunning;
 
   const rehomeDialogLabels = useMemo(() => {
     if (!teamConfigMachineId || !selectedMachineId) return null;
@@ -422,7 +475,7 @@ export function useAgentControls({
     };
   }, [teamConfigMachineId, selectedMachineId, connectedMachines]);
   const canStop = isAgentRunning && !isStopping && !success;
-  const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
+  const canRestart = !isEphemeral && isAgentRunning && !isStopping && !isStarting && !success;
 
   const machineConfigScopeKeyForControls = useMemo(
     () =>
@@ -444,6 +497,7 @@ export function useAgentControls({
         await dispatchStartAgent(sendCommand, {
           machineId: selectedMachineId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          ...(workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : {}),
           role,
           model: selectedModel || undefined,
           agentHarness: selectedHarness,
@@ -471,6 +525,7 @@ export function useAgentControls({
       workingDir,
       sendCommand,
       chatroomId,
+      workspaceId,
       role,
       recordMachineConfigUsage,
     ]
@@ -490,6 +545,41 @@ export function useAgentControls({
     setRehomeConfirmOpen(false);
     void executeStartAgent(true);
   }, [executeStartAgent]);
+
+  const handleSaveConfig = useCallback(async () => {
+    if (!canSave || !workspaceId || !selectedMachineId || !selectedHarness || !selectedModel) {
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await saveAgentConfig({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+        role,
+        machineId: selectedMachineId,
+        agentHarness: selectedHarness,
+        model: selectedModel,
+        workingDir: workingDir.trim(),
+      });
+      setSuccess('Configuration saved!');
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save configuration');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    canSave,
+    workspaceId,
+    selectedMachineId,
+    selectedHarness,
+    selectedModel,
+    saveAgentConfig,
+    chatroomId,
+    role,
+    workingDir,
+  ]);
 
   const handleCancelRehomeStart = useCallback(() => {
     setRehomeConfirmOpen(false);
@@ -527,6 +617,7 @@ export function useAgentControls({
         type: 'restart-agent',
         payload: {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          ...(workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : {}),
           role,
           model,
           agentHarness: displayAgentConfig.agentType,
@@ -540,7 +631,7 @@ export function useAgentControls({
     } finally {
       setIsStarting(false);
     }
-  }, [displayAgentConfig, selectedModel, sendCommand, chatroomId, role]);
+  }, [displayAgentConfig, selectedModel, sendCommand, chatroomId, workspaceId, role]);
 
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
@@ -588,11 +679,13 @@ export function useAgentControls({
   );
 
   return {
+    workspaceId,
     selectedMachineId,
     selectedHarness,
     selectedModel,
     workingDir,
     isStarting,
+    isSaving,
     isStopping,
     stopFailed,
     error,
@@ -609,9 +702,12 @@ export function useAgentControls({
     isBusy,
     hasModels,
     canStart,
+    canSave,
     canStop,
     canRestart,
+    isEphemeral,
     handleStartAgent,
+    handleSaveConfig,
     handleStopAgent,
     handleRestartAgent,
     handleMachineChange,
@@ -633,6 +729,7 @@ export function useAgentControls({
 interface RemoteTabContentProps {
   controls: ReturnType<typeof useAgentControls>;
   connectedMachines: MachineInfo[];
+  daemonConnectivity?: Map<string, MachineConnectivity>;
   isLoadingMachines: boolean;
   daemonStartCommand: string;
   chatroomId: string;
@@ -645,6 +742,7 @@ interface RemoteTabContentProps {
 export const RemoteTabContent = memo(function RemoteTabContent({
   controls,
   connectedMachines,
+  daemonConnectivity,
   isLoadingMachines,
   daemonStartCommand,
   chatroomId,
@@ -653,11 +751,13 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   setupMode = false,
 }: RemoteTabContentProps) {
   const {
+    workspaceId,
     selectedMachineId,
     selectedHarness,
     selectedModel,
     workingDir,
     isStarting,
+    isSaving,
     isStopping,
     stopFailed,
     availableHarnessesForMachine,
@@ -669,9 +769,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     teamId,
     hasModels,
     canStart,
+    canSave,
     canStop,
     canRestart,
+    isEphemeral,
     handleStartAgent,
+    handleSaveConfig,
     handleStopAgent,
     handleRestartAgent,
     handleMachineChange,
@@ -845,7 +948,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <div className="flex items-center gap-2">
             <AlertCircle size={12} className="text-chatroom-status-warning flex-shrink-0" />
             <span className="text-[10px] text-chatroom-text-secondary">
-              No machines online. Run:
+              No machines registered. Run:
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -1017,7 +1120,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 <MachineCapabilitiesRefreshButton
                   chatroomId={chatroomId}
                   machineId={displayMachineId}
-                  daemonConnected={connectedMachines.some((m) => m.machineId === displayMachineId)}
+                  daemonConnected={daemonConnectivity?.get(displayMachineId)?.connected === true}
                   linkedToChatroom={linkedMachineIds.has(displayMachineId)}
                 />
               ) : null}
@@ -1113,6 +1216,26 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             {/* Action Buttons */}
             {!setupMode && (
               <div className="flex items-center gap-1 flex-shrink-0">
+                {!isAgentRunning && workspaceId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleSaveConfig();
+                    }}
+                    disabled={!canSave}
+                    aria-label="Save Configuration"
+                    className={`h-7 px-2 flex items-center gap-1 text-[10px] uppercase tracking-wide transition-all ${
+                      canSave
+                        ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
+                        : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
+                    }`}
+                    title="Save configuration"
+                  >
+                    {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                    <span>Save</span>
+                  </button>
+                )}
                 {isAgentRunning ? (
                   <>
                     <button
@@ -1156,6 +1279,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       )}
                     </button>
                   </>
+                ) : isEphemeral ? (
+                  <span className="text-[10px] uppercase tracking-wide text-chatroom-text-muted">
+                    Runs on demand
+                  </span>
                 ) : (
                   <button
                     onClick={(e) => {

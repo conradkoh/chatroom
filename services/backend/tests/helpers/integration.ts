@@ -13,8 +13,42 @@ import { getInboxCommandsForMachine } from './machine-command-inbox';
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
+import type { MutationCtx } from '../../convex/_generated/server';
+import { projectAgentRoleStatusReadModel } from '../../src/domain/usecase/agent/project-agent-role-status-read-model';
+import { getActiveTeamStructure } from '../../src/domain/usecase/team/active-team-structure';
 import { t } from '../../test.setup';
+
+export async function setAgentRuntimeState(
+  configId: Id<'chatroom_agentDesiredConfigs'>,
+  patch: Record<string, unknown>
+): Promise<void> {
+  await t.run(async (ctx) => setAgentRuntimeStateInContext(ctx, configId, patch));
+}
+
+export async function setAgentRuntimeStateInContext(
+  ctx: MutationCtx,
+  configId: Id<'chatroom_agentDesiredConfigs'>,
+  patch: Record<string, unknown>
+): Promise<void> {
+  const config = await ctx.db.get('chatroom_agentDesiredConfigs', configId);
+  if (!config) return;
+  const existing = await ctx.db
+    .query('chatroom_agentRuntimeStates')
+    .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', configId))
+    .first();
+  if (existing) await ctx.db.patch('chatroom_agentRuntimeStates', existing._id, patch);
+  else {
+    await ctx.db.insert('chatroom_agentRuntimeStates', {
+      desiredConfigId: configId,
+      chatroomId: config.chatroomId,
+      role: config.role,
+      machineId: config.machineId,
+      status: 'offline',
+      updatedAt: Date.now(),
+      ...patch,
+    } as any);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Session & Chatroom
@@ -125,10 +159,9 @@ export async function registerMachineWithDaemon(
     availableHarnesses: ['opencode'],
     availableModels: { opencode: [TEST_MODEL_OPENCODE] },
   });
-  await t.mutation(api.machines.updateDaemonStatus, {
+  await t.mutation(api.machines.markDaemonOnline, {
     sessionId,
     machineId,
-    connected: true,
   });
   return { machineId };
 }
@@ -168,26 +201,20 @@ export async function setupRemoteAgentConfig(
   role: string,
   options?: { agentHarness?: string | undefined; workingDir?: string | undefined }
 ): Promise<void> {
-  // Start agent via sendCommand to create both team and machine agent configs
-  await t.mutation(api.machines.sendCommand, {
+  // Submit the canonical launch request so tests exercise the same persisted
+  // last-run configuration used by the workspace agent UI.
+  await t.mutation(api.agents.requestStart, {
     sessionId,
     machineId,
-    type: 'start-agent',
-    payload: {
-      chatroomId,
-      role,
-      model: TEST_MODEL_OPENCODE_LEGACY,
-      agentHarness: options?.agentHarness ?? 'opencode',
-      workingDir: options?.workingDir ?? '/test/workspace',
-    },
+    chatroomId,
+    role,
+    model: TEST_MODEL_OPENCODE_LEGACY,
+    agentHarness: (options?.agentHarness ?? 'opencode') as 'opencode',
+    workingDir: options?.workingDir ?? '/test/workspace',
   });
-  // Note: sendCommand for start-agent now emits an agent.requestStart event to the
-  // event stream. No chatroom_machineCommands acking is needed (table removed in Phase D).
 }
 
-/**
- * Register a spawned PID on a team config using the current lifecycle revision.
- */
+/** Seed a daemon observation on the canonical role-status projection. */
 export async function updateSpawnedAgentInTest(
   sessionId: SessionId,
   machineId: string,
@@ -195,14 +222,18 @@ export async function updateSpawnedAgentInTest(
   role: string,
   pid: number
 ): Promise<void> {
-  const result = await t.mutation(api.machines.updateSpawnedAgent, {
-    sessionId,
-    machineId,
-    chatroomId,
-    role,
-    pid,
+  await t.run(async (ctx) => {
+    await projectAgentRoleStatusReadModel(ctx, {
+      chatroomId,
+      role,
+      event: { status: 'waiting' },
+      observedPid: pid,
+      observedAt: Date.now(),
+      sourceMachineId: machineId,
+      lastSeenAt: Date.now(),
+      lastSeenAction: 'agent.waiting',
+    });
   });
-  expect(result.accepted).toBe(true);
 }
 
 /**
@@ -227,41 +258,21 @@ export async function enableEnhancerTeamAgent(
   machineId: string
 ): Promise<void> {
   await addEnhancerToTeamRoles(chatroomId);
-  await t.mutation(api.web.enhancer.index.upsertConfig, {
+  const workspaces = await t.query(api.workspaces.listWorkspacesForMachine, {
     sessionId,
-    chatroomId,
-    enabled: true,
-    targetId: 'handoff:planner-to-builder',
-    agentHarness: 'opencode',
-    model: 'anthropic/claude-opus-4',
     machineId,
   });
-  await t.run(async (ctx) => {
-    const room = await ctx.db.get('chatroom_rooms', chatroomId);
-    if (!room?.teamId) return;
-    const teamRoleKey = buildTeamRoleKey(chatroomId, room.teamId, 'enhancer');
-    const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-    if (existing) {
-      await ctx.db.patch(existing._id, { enabled: true, machineId, desiredState: 'stopped' });
-      return;
-    }
-    await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey,
-      chatroomId,
-      role: 'enhancer',
-      type: 'remote',
-      machineId,
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      workingDir: '/workspace',
-      enabled: true,
-      desiredState: 'stopped',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+  const workspace = workspaces.find((candidate) => candidate.chatroomId === chatroomId);
+  if (!workspace) throw new Error('Workspace not found for enhancer configuration');
+  await t.mutation(api.agents.saveConfig, {
+    sessionId,
+    chatroomId,
+    workspaceId: workspace._id,
+    role: 'enhancer',
+    machineId,
+    agentHarness: 'opencode',
+    model: 'anthropic/claude-opus-4',
+    workingDir: workspace.workingDir,
   });
 }
 
@@ -285,14 +296,13 @@ export async function addEnhancerToTeamRoles(chatroomId: Id<'chatroom_rooms'>): 
  * Get command events (agent.requestStart / daemon.ping) from the event stream for a machine.
  */
 /**
- * Assert chatroom has only duo team roles (planner, builder).
+ * Assert chatroom uses the current static duo team roles.
  * Used in task-transition-matrix tests to verify persistent vs ephemeral role invariants.
  */
 export async function assertDuoTeamOnly(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
   await t.run(async (ctx) => {
-    const room = await ctx.db.get('chatroom_rooms', chatroomId);
-    const roles = [...(room?.teamRoles ?? [])].sort();
-    expect(roles).toEqual(['builder', 'planner']);
+    const structure = await getActiveTeamStructure(ctx, chatroomId);
+    expect(structure?.teamStructureId).toBe('duo@1');
   });
 }
 

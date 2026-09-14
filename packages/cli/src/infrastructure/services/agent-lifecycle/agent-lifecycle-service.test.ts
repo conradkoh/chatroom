@@ -94,6 +94,7 @@ describe('AgentLifecycleService — ensureRunning', () => {
     expect((exit as { _tag: 'Success'; value: OperationResult }).value).toEqual({
       success: true,
       pid: 100,
+      disposition: 'started',
     });
   });
 
@@ -127,6 +128,37 @@ describe('AgentLifecycleService — ensureRunning', () => {
       error: 'rate_limited',
     });
   });
+
+  it('running slot → repeated ensure is idempotent', async () => {
+    const spawnState: MockSpawnPortState = { allowSpawn: true };
+    const program = Effect.gen(function* () {
+      const service = yield* AgentLifecycleService;
+      const input = {
+        chatroomId: 'chat-1',
+        role: 'builder',
+        agentHarness: 'opencode' as const,
+        workingDir: '/tmp/work',
+        reason: 'user.manual_spawn',
+        wantResume: false,
+      };
+      yield* service.ensureRunning(input);
+      return yield* service.ensureRunning(input);
+    });
+
+    const exit: Exit.Exit<OperationResult, unknown> = await Effect.runPromiseExit(
+      program.pipe(Effect.provide(createTestLayer(spawnState)), Effect.scoped) as Effect.Effect<
+        OperationResult,
+        unknown,
+        never
+      >
+    );
+    expect(exit._tag).toBe('Success');
+    expect((exit as { _tag: 'Success'; value: OperationResult }).value).toEqual({
+      success: true,
+      pid: 100,
+      disposition: 'already_started',
+    });
+  });
 });
 
 describe('AgentLifecycleService — handleExit', () => {
@@ -143,7 +175,7 @@ describe('AgentLifecycleService — handleExit', () => {
         reason: 'user.manual_spawn',
         wantResume: false,
       });
-      expect(spawnResult).toEqual({ success: true, pid: 100 });
+      expect(spawnResult).toEqual({ success: true, pid: 100, disposition: 'started' });
 
       yield* service.handleExit({
         chatroomId: 'chat-1',

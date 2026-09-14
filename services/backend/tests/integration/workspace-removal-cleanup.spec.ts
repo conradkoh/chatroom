@@ -2,7 +2,8 @@
  * Workspace Removal Cleanup — Integration Tests
  *
  * Verifies that when a workspace is removed from a chatroom, related
- * `chatroom_teamAgentConfigs` entries are purged to prevent "ghost machines".
+ * `chatroom_agentLastSentLaunchRequests` entries are purged to prevent
+ * "ghost machines".
  *
  * Three cases:
  * 1. Removing the only workspace purges configs for that machine+chatroom
@@ -45,12 +46,12 @@ async function registerWorkspace(
 }
 
 /**
- * Query all teamAgentConfigs for a chatroom.
+ * Query all persisted launch snapshots for a chatroom.
  */
-async function getTeamAgentConfigs(chatroomId: Id<'chatroom_rooms'>) {
+async function getLaunchRequests(chatroomId: Id<'chatroom_rooms'>) {
   return t.run(async (ctx) => {
     return ctx.db
-      .query('chatroom_teamAgentConfigs')
+      .query('chatroom_agentLastSentLaunchRequests')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect();
   });
@@ -59,7 +60,7 @@ async function getTeamAgentConfigs(chatroomId: Id<'chatroom_rooms'>) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('workspace removal cleanup', () => {
-  test('removing the only workspace purges teamAgentConfigs for that machine+chatroom', async () => {
+  test('removing the only workspace purges launch snapshots for that machine+chatroom', async () => {
     const sessionId = 'test-wrc-1';
     const { sessionId: sid } = await createTestSession(sessionId);
     const chatroomId = await createDuoTeamChatroom(sid);
@@ -73,9 +74,8 @@ describe('workspace removal cleanup', () => {
     await setupRemoteAgentConfig(sid, chatroomId, machineId, 'builder');
 
     // Verify config exists before removal
-    const configsBefore = await getTeamAgentConfigs(chatroomId);
-    const machineConfigsBefore = configsBefore.filter((c) => c.machineId === machineId);
-    expect(machineConfigsBefore.length).toBeGreaterThan(0);
+    const requestsBefore = await getLaunchRequests(chatroomId);
+    expect(requestsBefore.filter((c) => c.machineId === machineId).length).toBeGreaterThan(0);
 
     // Remove the workspace
     await t.mutation(api.workspaces.removeWorkspace, {
@@ -84,9 +84,8 @@ describe('workspace removal cleanup', () => {
     });
 
     // Config should be purged
-    const configsAfter = await getTeamAgentConfigs(chatroomId);
-    const machineConfigsAfter = configsAfter.filter((c) => c.machineId === machineId);
-    expect(machineConfigsAfter.length).toBe(0);
+    const requestsAfter = await getLaunchRequests(chatroomId);
+    expect(requestsAfter.filter((c) => c.machineId === machineId).length).toBe(0);
   });
 
   test('removing one workspace does NOT purge configs when the machine has another active workspace', async () => {
@@ -104,9 +103,8 @@ describe('workspace removal cleanup', () => {
     await setupRemoteAgentConfig(sid, chatroomId, machineId, 'builder');
 
     // Verify config exists before removal
-    const configsBefore = await getTeamAgentConfigs(chatroomId);
-    const machineConfigsBefore = configsBefore.filter((c) => c.machineId === machineId);
-    expect(machineConfigsBefore.length).toBeGreaterThan(0);
+    const requestsBefore = await getLaunchRequests(chatroomId);
+    expect(requestsBefore.filter((c) => c.machineId === machineId).length).toBeGreaterThan(0);
 
     // Remove only ONE workspace — the other remains active
     await t.mutation(api.workspaces.removeWorkspace, {
@@ -115,9 +113,8 @@ describe('workspace removal cleanup', () => {
     });
 
     // Config should still exist (other workspace is active)
-    const configsAfter = await getTeamAgentConfigs(chatroomId);
-    const machineConfigsAfter = configsAfter.filter((c) => c.machineId === machineId);
-    expect(machineConfigsAfter.length).toBeGreaterThan(0);
+    const requestsAfter = await getLaunchRequests(chatroomId);
+    expect(requestsAfter.filter((c) => c.machineId === machineId).length).toBeGreaterThan(0);
   });
 
   test('removing a workspace does NOT affect configs for other machines in the same chatroom', async () => {
@@ -135,13 +132,17 @@ describe('workspace removal cleanup', () => {
     await registerWorkspace(sid, chatroomId, machineIdB, '/workspace-b');
 
     // Create configs for both machines
-    await setupRemoteAgentConfig(sid, chatroomId, machineIdA, 'builder');
-    await setupRemoteAgentConfig(sid, chatroomId, machineIdB, 'architect');
+    await setupRemoteAgentConfig(sid, chatroomId, machineIdA, 'builder', {
+      workingDir: '/workspace-a',
+    });
+    await setupRemoteAgentConfig(sid, chatroomId, machineIdB, 'architect', {
+      workingDir: '/workspace-b',
+    });
 
     // Verify configs for both machines exist
-    const configsBefore = await getTeamAgentConfigs(chatroomId);
-    expect(configsBefore.filter((c) => c.machineId === machineIdA).length).toBeGreaterThan(0);
-    expect(configsBefore.filter((c) => c.machineId === machineIdB).length).toBeGreaterThan(0);
+    const requestsBefore = await getLaunchRequests(chatroomId);
+    expect(requestsBefore.filter((c) => c.machineId === machineIdA).length).toBeGreaterThan(0);
+    expect(requestsBefore.filter((c) => c.machineId === machineIdB).length).toBeGreaterThan(0);
 
     // Remove machine A's workspace
     await t.mutation(api.workspaces.removeWorkspace, {
@@ -150,8 +151,8 @@ describe('workspace removal cleanup', () => {
     });
 
     // Machine A's config should be purged, machine B's config should be untouched
-    const configsAfter = await getTeamAgentConfigs(chatroomId);
-    expect(configsAfter.filter((c) => c.machineId === machineIdA).length).toBe(0);
-    expect(configsAfter.filter((c) => c.machineId === machineIdB).length).toBeGreaterThan(0);
+    const requestsAfter = await getLaunchRequests(chatroomId);
+    expect(requestsAfter.filter((c) => c.machineId === machineIdA).length).toBe(0);
+    expect(requestsAfter.filter((c) => c.machineId === machineIdB).length).toBeGreaterThan(0);
   });
 });

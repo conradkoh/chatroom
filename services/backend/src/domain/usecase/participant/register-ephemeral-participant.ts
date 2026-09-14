@@ -2,7 +2,6 @@ import { isEphemeralAgentRole, normalizeAgentRole } from '@workspace/shared/doma
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { projectAgentRoleStatusReadModel } from '../agent/project-agent-role-status-read-model';
 
 export type RegisterEphemeralParticipantInput = {
   chatroomId: Id<'chatroom_rooms'>;
@@ -22,9 +21,7 @@ export async function registerEphemeralParticipant(
 
   const existing = await ctx.db
     .query('chatroom_participants')
-    .withIndex('by_chatroom_and_role', (q) =>
-      q.eq('chatroomId', input.chatroomId).eq('role', role)
-    )
+    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', input.chatroomId).eq('role', role))
     .first();
   const fields = {
     machineId: input.machineId,
@@ -43,10 +40,4 @@ export async function registerEphemeralParticipant(
       ...fields,
     });
   }
-
-  await projectAgentRoleStatusReadModel(ctx, {
-    chatroomId: input.chatroomId,
-    role,
-    event: { status: 'starting' },
-  });
 }

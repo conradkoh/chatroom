@@ -45,10 +45,9 @@ describe('team commands', () => {
     expect(d.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
+        sessionId: 'session_1',
         chatroomId: 'room_1',
-        teamId: 'solo',
-        teamRoles: ['solo', 'enhancer'],
-        teamEntryPoint: 'solo',
+        teamStructureId: 'solo',
       })
     );
     log.mockRestore();

@@ -1,4 +1,8 @@
-import type { AgentSlotSnapshot, AgentSlotState } from '../entities/agent-slot.js';
+import {
+  AGENT_SLOT_STATE,
+  type AgentSlotSnapshot,
+  type AgentSlotState,
+} from '../entities/agent-slot.js';
 
 export type SlotTransitionError =
   | { readonly _tag: 'InvalidTransition'; readonly from: AgentSlotState; readonly event: string }
@@ -42,7 +46,11 @@ function transitionFromIdle(
     return makeResult(slot);
   }
   if (event.type === 'spawn_started') {
-    return makeResult({ ...slot, state: 'spawning', pendingOperationKey: event.operationKey });
+    return makeResult({
+      ...slot,
+      state: AGENT_SLOT_STATE.SPAWNING,
+      pendingOperationKey: event.operationKey,
+    });
   }
   if (event.type === 'process_exited') {
     return makeResult(slot);
@@ -58,10 +66,10 @@ function transitionFromSpawning(
     return makeResult({ ...slot, pendingOperationKey: event.operationKey });
   }
   if (event.type === 'spawn_succeeded') {
-    return makeResult({ ...slot, state: 'running', pid: event.pid });
+    return makeResult({ ...slot, state: AGENT_SLOT_STATE.RUNNING, pid: event.pid });
   }
   if (event.type === 'spawn_failed' || event.type === 'process_exited') {
-    return makeResult({ state: 'idle' });
+    return makeResult({ state: AGENT_SLOT_STATE.IDLE });
   }
   return makeError(slot.state, event.type);
 }
@@ -71,16 +79,20 @@ function transitionFromRunning(
   event: SlotTransitionEvent
 ): SlotTransitionResult {
   if (event.type === 'stop_requested') {
-    return makeResult({ ...slot, state: 'stopping', pendingOperationKey: event.operationKey });
+    return makeResult({
+      ...slot,
+      state: AGENT_SLOT_STATE.STOPPING,
+      pendingOperationKey: event.operationKey,
+    });
   }
   if (event.type === 'process_exited') {
     if (slot.pid !== undefined && slot.pid !== event.pid) {
       return { ok: false, error: { _tag: 'StalePid', expected: slot.pid, got: event.pid } };
     }
-    return makeResult({ state: 'idle' });
+    return makeResult({ state: AGENT_SLOT_STATE.IDLE });
   }
   if (event.type === 'stale_process_detected') {
-    return makeResult({ state: 'idle' });
+    return makeResult({ state: AGENT_SLOT_STATE.IDLE });
   }
   return makeError(slot.state, event.type);
 }
@@ -90,7 +102,7 @@ function transitionFromStopping(
   event: SlotTransitionEvent
 ): SlotTransitionResult {
   if (event.type === 'stop_completed') {
-    return makeResult({ state: 'idle' });
+    return makeResult({ state: AGENT_SLOT_STATE.IDLE });
   }
   if (event.type === 'process_exited') {
     return { ok: false, error: { _tag: 'IgnoredDuplicateExit' } };
@@ -103,13 +115,13 @@ export function transitionSlot(
   event: SlotTransitionEvent
 ): SlotTransitionResult {
   switch (slot.state) {
-    case 'idle':
+    case AGENT_SLOT_STATE.IDLE:
       return transitionFromIdle(slot, event);
-    case 'spawning':
+    case AGENT_SLOT_STATE.SPAWNING:
       return transitionFromSpawning(slot, event);
-    case 'running':
+    case AGENT_SLOT_STATE.RUNNING:
       return transitionFromRunning(slot, event);
-    case 'stopping':
+    case AGENT_SLOT_STATE.STOPPING:
       return transitionFromStopping(slot, event);
   }
 }
@@ -118,7 +130,7 @@ export function transitionSlot(
  * When handleExit sees state==='stopping', doStop owns lifecycle — exit is ignored.
  */
 export function shouldIgnoreProcessExit(slot: AgentSlotSnapshot, exitPid: number): boolean {
-  if (slot.state === 'stopping') return true;
+  if (slot.state === AGENT_SLOT_STATE.STOPPING) return true;
   // Not stopping — ignore exits with mismatched pids (stale process)
   if (slot.pid !== undefined && slot.pid !== exitPid) return true;
   return false;

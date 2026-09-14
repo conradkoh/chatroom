@@ -18,6 +18,9 @@ type ConversationMode = 'chat' | 'code' | 'code:enhanced';
 interface PlannerConversationModeToggleProps {
   chatroomId: string;
   machineId: string | null | undefined;
+  workspaceId?: string | null;
+  workingDir?: string | null;
+  teamId?: string | null;
   teamSupportState?: TeamSupportState;
   onRequestComposerFocus?: () => void;
 }
@@ -81,6 +84,9 @@ function SupportedToggle({
 export function PlannerConversationModeToggle({
   chatroomId,
   machineId,
+  workspaceId,
+  workingDir,
+  teamId,
   teamSupportState = 'supported',
   onRequestComposerFocus,
 }: PlannerConversationModeToggleProps) {
@@ -88,6 +94,9 @@ export function PlannerConversationModeToggle({
   const { config, saveConfig, disable, openDialog, dialog } = useEnhancerConfigDialogHost({
     chatroomId,
     workspaceMachineId: machineId,
+    workspaceId,
+    workingDir,
+    teamId,
   });
   const [isBusy, setIsBusy] = useState(false);
 

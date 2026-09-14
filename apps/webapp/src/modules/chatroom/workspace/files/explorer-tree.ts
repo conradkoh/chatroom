@@ -1,5 +1,3 @@
-import type { DirListingEntry } from '@workspace/backend/src/domain/entities/workspace-files';
-
 import { isPathPendingDelete } from '@/modules/chatroom/workspace/hooks/pendingOptimisticDeletePaths';
 
 /** Minimum query length to switch explorer from client-side filter to server file search. */
@@ -22,17 +20,6 @@ export interface ExplorerTreeNode {
   path: string;
   type: 'file' | 'directory';
   children: ExplorerTreeNode[];
-}
-
-export function dirEntriesToNodes(entries: DirListingEntry[]): ExplorerTreeNode[] {
-  return entries
-    .filter((e) => !isPathPendingDelete(e.path))
-    .map((e) => ({
-      name: e.name,
-      path: e.path,
-      type: e.type,
-      children: [],
-    }));
 }
 
 // fallow-ignore-next-line complexity code-duplication

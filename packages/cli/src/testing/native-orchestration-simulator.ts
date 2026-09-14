@@ -48,7 +48,6 @@ function makeBaseTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskVi
     participant: {
       lastSeenAction: 'native:waiting',
       lastSeenAt: 500,
-      lastStatus: 'agent.waiting',
     },
     ...overrides,
   };
@@ -63,7 +62,6 @@ function createBackendMock(deliveryOutput: string) {
     if (
       isClaimMutation(args) ||
       'deliveryKind' in args ||
-      fn === api.machines.emitSessionAugmented ||
       fn === api.daemon.agentEvents.sessionAugmented
     ) {
       return undefined;

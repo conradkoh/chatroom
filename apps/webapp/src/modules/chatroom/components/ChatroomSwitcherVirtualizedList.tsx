@@ -12,7 +12,12 @@ import { getChatroomSwitcherKeywords } from './chatroomSwitcherRows';
 import { VirtualizedScrollList } from './virtual-list';
 
 import { CommandItem } from '@/components/ui/command';
-import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStatusDisplay';
+import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
+import { useChatroomStatus } from '@/modules/chatroom/hooks/useChatroomStatus';
+import {
+  getChatroomActivityIndicatorClasses,
+  getChatroomActivityIndicatorLoadingClasses,
+} from '@/modules/chatroom/utils/activityStatusDisplay';
 import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
 
 const LIST_HEIGHT = 244;
@@ -48,25 +53,7 @@ export function ChatroomSwitcherVirtualizedList({
         );
       }
       const chatroom = row.chatroom;
-      return (
-        <CommandItem
-          key={chatroom._id}
-          value={chatroom._id}
-          keywords={getChatroomSwitcherKeywords(chatroom)}
-          onSelect={() => onSelect(chatroom._id)}
-          className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary box-border overflow-hidden"
-          style={{ height: CHATROOM_SWITCHER_ITEM_ROW_HEIGHT }}
-        >
-          <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
-          <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
-            {getChatroomDisplayName(chatroom)}
-          </span>
-          {chatroom.isFavorite && (
-            <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
-          )}
-          {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
-        </CommandItem>
-      );
+      return <ChatroomSwitcherItem chatroom={chatroom} onSelect={onSelect} />;
     },
     [onSelect]
   );
@@ -80,5 +67,40 @@ export function ChatroomSwitcherVirtualizedList({
       renderItem={renderItem}
       scrollResetKey={scrollResetKey}
     />
+  );
+}
+
+function ChatroomSwitcherItem({
+  chatroom,
+  onSelect,
+}: {
+  chatroom: ChatroomWithStatus;
+  onSelect: (chatroomId: string) => void;
+}) {
+  const { status } = useChatroomStatus(chatroom._id);
+  return (
+    <CommandItem
+      key={chatroom._id}
+      value={chatroom._id}
+      keywords={getChatroomSwitcherKeywords(chatroom)}
+      onSelect={() => onSelect(chatroom._id)}
+      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary box-border overflow-hidden"
+      style={{ height: CHATROOM_SWITCHER_ITEM_ROW_HEIGHT }}
+    >
+      <span
+        className={
+          status
+            ? getChatroomActivityIndicatorClasses(status.activityStatus)
+            : getChatroomActivityIndicatorLoadingClasses()
+        }
+      />
+      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
+        {getChatroomDisplayName(chatroom)}
+      </span>
+      {chatroom.isFavorite && (
+        <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
+      )}
+      {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
+    </CommandItem>
   );
 }

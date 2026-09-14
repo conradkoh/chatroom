@@ -67,7 +67,7 @@ describe('Solo Team > Solo > System Prompt', () => {
     expect(prompt).toBeDefined();
 
     // Team header
-    expect(prompt).toContain('# Solo Team');
+    expect(prompt).toContain('# Solo');
 
     // Role identity
     expect(prompt).toContain('## Your Role: SOLO');
@@ -86,7 +86,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
     // Solo can hand off to user
     expect(prompt).toContain('### Handoff Options');
-    expect(prompt).toContain('Available targets: user');
+    expect(prompt).toContain('Available targets: enhancer, user');
 
     // Commands reference
     expect(prompt).toContain('### Commands');
@@ -106,7 +106,7 @@ describe('Solo Team > Solo > System Prompt', () => {
     expect(prompt).toContain('chatroom context view-template');
 
     expect(prompt).toMatchInlineSnapshot(`
-      "# Solo Team
+      "# Solo
 
       ## Your Role: SOLO
 
@@ -309,7 +309,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       - There is no separate builder or planner — you fill all roles
       - You hand off directly to the user when work is complete
 
-      **Team composition:** Solo team — you handle planning and implementation yourself.
+      **Team composition:** Duo team — you coordinate with \`solo\`, \`enhancer\` for implementation.
+
+      **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
       **Operating model: Planner Solo**
 
@@ -360,7 +362,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
 
       ### Handoff Options
-      Available targets: user
+      Available targets: enhancer, user
 
       ### Commands
 

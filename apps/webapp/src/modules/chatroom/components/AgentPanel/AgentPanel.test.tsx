@@ -30,6 +30,7 @@ const lifecycle = {
 
 const duoStructure = {
   teamId: 'duo',
+  teamStructureId: 'duo@1',
   teamName: 'Duo',
   entryPoint: 'planner',
   roles: [
@@ -51,6 +52,7 @@ const panelProps = {
   agentConfigs: [],
   onOpenAgents: undefined,
   hasRunningRemoteAgents: false,
+  canStopRemoteAgents: false,
   onStartAllRemoteAgents: undefined,
   onStopAllRemoteAgents: undefined,
   onRestartAllRemoteAgents: undefined,
@@ -73,6 +75,30 @@ beforeEach(() => {
 });
 
 describe('AgentPanel', () => {
+  it('keeps the team selector available when no team is currently assigned', () => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        lifecycle={null}
+        teamStructure={null}
+        defaultTeamId="duo"
+        teams={[
+          {
+            id: 'duo',
+            name: 'Duo',
+            description: '',
+            roles: ['planner', 'builder'],
+            entryPoint: 'planner',
+          },
+        ]}
+        onTeamChange={async () => {}}
+      />
+    );
+
+    expect(screen.getByTestId('team-selector')).toBeInTheDocument();
+    expect(screen.getByText('No team configured')).toBeInTheDocument();
+  });
+
   it('renders permanent agents before the ephemeral section', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} />);
 

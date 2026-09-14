@@ -45,6 +45,7 @@ import {
   DropdownMenuSeparator,
 } from '../../components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { useChatroomWorkspace } from '../../context/ChatroomWorkspaceContext';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
@@ -72,8 +73,6 @@ import { cn } from '@/lib/utils';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface WorkspaceBottomBarProps {
-  workspaces: Workspace[];
-  chatroomId: string;
   /** Switches the activity bar to the Source Control view. */
   onSwitchToSourceControl?: () => void;
   /** @deprecated No longer used; removal planned. */
@@ -84,8 +83,6 @@ interface WorkspaceBottomBarProps {
 type WorkspaceWithMachine = Workspace & { machineId: string };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const ACTIVE_WS_KEY_PREFIX = 'chatroom-active-workspace-';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -132,24 +129,6 @@ const PLATFORM_ICONS: Record<GitPlatform, ComponentType<{ size?: number; classNa
 
 function getPlatformIcon(remoteUrl: string): ComponentType<{ size?: number; className?: string }> {
   return PLATFORM_ICONS[detectPlatform(remoteUrl)];
-}
-
-// ─── Active Workspace Persistence ─────────────────────────────────────────────
-
-function getPersistedActiveWorkspaceId(chatroomId: string): string | null {
-  try {
-    return localStorage.getItem(`${ACTIVE_WS_KEY_PREFIX}${chatroomId}`);
-  } catch {
-    return null;
-  }
-}
-
-function setPersistedActiveWorkspaceId(chatroomId: string, workspaceId: string): void {
-  try {
-    localStorage.setItem(`${ACTIVE_WS_KEY_PREFIX}${chatroomId}`, workspaceId);
-  } catch {
-    // Silent fail
-  }
 }
 
 // ─── Derived Git State ────────────────────────────────────────────────────────
@@ -1046,14 +1025,14 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
 }
 
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
-  workspaces,
-  chatroomId,
   onSwitchToSourceControl,
   onRegisterOpenGitPanel: _onRegisterOpenGitPanel, // deprecated, no-op
 }: WorkspaceBottomBarProps) {
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(() =>
-    getPersistedActiveWorkspaceId(chatroomId)
-  );
+  const {
+    workspaces,
+    activeWorkspace: selectedWorkspace,
+    setPrimaryWorkspace,
+  } = useChatroomWorkspace();
   const [mobileModalOpen, setMobileModalOpen] = useState(false);
   const isDesktop = useIsDesktop(640);
 
@@ -1062,24 +1041,13 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     [workspaces]
   );
 
-  const activeWorkspace = useMemo(() => {
-    if (validWorkspaces.length === 0) return null;
-    const persisted = validWorkspaces.find((ws) => ws.id === activeWorkspaceId);
-    return persisted ?? validWorkspaces[0]!;
-  }, [validWorkspaces, activeWorkspaceId]);
-
-  useEffect(() => {
-    if (activeWorkspace) {
-      setPersistedActiveWorkspaceId(chatroomId, activeWorkspace.id);
-    }
-  }, [activeWorkspace, chatroomId]);
+  const activeWorkspace = selectedWorkspace as WorkspaceWithMachine | null;
 
   const handleSwitchWorkspace = useCallback(
     (workspaceId: string) => {
-      setActiveWorkspaceId(workspaceId);
-      setPersistedActiveWorkspaceId(chatroomId, workspaceId);
+      void setPrimaryWorkspace(workspaceId);
     },
-    [chatroomId]
+    [setPrimaryWorkspace]
   );
 
   // Switch to Source Control activity view (replaces old git modal open)

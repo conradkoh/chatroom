@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   MessageSquare,
@@ -20,10 +21,12 @@ import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { CreateChatroomForm } from './CreateChatroomForm';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { useChatroomStatus, useChatroomStatusMap } from '../hooks/useChatroomStatus';
 import {
-  getChatStatusDescription,
-  getChatStatusIndicatorClasses,
-} from '../utils/chatStatusDisplay';
+  getChatroomActivityDescription,
+  getChatroomActivityIndicatorClasses,
+  getChatroomActivityIndicatorLoadingClasses,
+} from '../utils/activityStatusDisplay';
 import {
   partitionChatroomListing,
   flattenPartitionedCurrent,
@@ -37,6 +40,7 @@ import {
 } from './ui/dropdown-menu';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+import type { ChatroomStatus } from '@/domain/entities/chatroom-status';
 
 type TabType = 'current' | 'complete';
 type ViewMode = 'grid' | 'table';
@@ -45,12 +49,17 @@ interface ChatroomSelectorProps {
   onSelect: (chatroomId: string) => void;
 }
 
-function ChatroomStatusIndicator({ chatStatus }: { chatStatus: ChatroomWithStatus['chatStatus'] }) {
+function ChatroomStatusIndicator({ activityStatus }: { activityStatus?: ChatroomActivityStatus }) {
+  const status = activityStatus;
   return (
     <span
-      className={getChatStatusIndicatorClasses(chatStatus)}
-      title={getChatStatusDescription(chatStatus)}
-      aria-label={getChatStatusDescription(chatStatus)}
+      className={
+        status
+          ? getChatroomActivityIndicatorClasses(status)
+          : getChatroomActivityIndicatorLoadingClasses()
+      }
+      title={status ? getChatroomActivityDescription(status) : 'Loading agent status'}
+      aria-label={status ? getChatroomActivityDescription(status) : 'Loading agent status'}
     />
   );
 }
@@ -106,6 +115,8 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
 
   // Use context for chatroom data - single source of truth
   const { chatrooms, isLoading } = useChatroomListing();
+  const chatroomIds = useMemo(() => chatrooms?.map((chatroom) => chatroom._id) ?? [], [chatrooms]);
+  const { statuses } = useChatroomStatusMap(chatroomIds);
 
   const handleOpenCreateForm = useCallback(() => {
     router.push('/app?create=true');
@@ -130,10 +141,10 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
 
   const partitioned = useMemo(() => {
     if (!filtered) {
-      return partitionChatroomListing([]);
+      return partitionChatroomListing([], statuses);
     }
-    return partitionChatroomListing(filtered);
-  }, [filtered]);
+    return partitionChatroomListing(filtered, statuses);
+  }, [filtered, statuses]);
 
   const orderedCurrent = useMemo(() => flattenPartitionedCurrent(partitioned), [partitioned]);
 
@@ -363,7 +374,12 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
             </div>
           )
         ) : (
-          <ChatroomTable chatrooms={orderedCurrent} onSelect={onSelect} activeTab={activeTab} />
+          <ChatroomTable
+            chatrooms={orderedCurrent}
+            statuses={statuses}
+            onSelect={onSelect}
+            activeTab={activeTab}
+          />
         )
       ) : viewMode === 'grid' ? (
         partitioned.completed.length > 0 ? (
@@ -385,6 +401,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
       ) : (
         <ChatroomTable
           chatrooms={partitioned.completed}
+          statuses={statuses}
           onSelect={onSelect}
           activeTab={activeTab}
         />
@@ -407,6 +424,7 @@ const ChatroomCard = memo(function ChatroomCard({
 }: ChatroomCardProps) {
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
+  const { status } = useChatroomStatus(chatroom._id);
 
   const handleToggleFavorite = useCallback(
     async (e: React.MouseEvent) => {
@@ -427,12 +445,12 @@ const ChatroomCard = memo(function ChatroomCard({
     setArchiveDialogOpen(true);
   }, []);
 
-  // Use projection-backed chatStatus from context.
-  const { chatStatus } = chatroom;
+  const activityStatus = status?.activityStatus;
+  const state = status?.state;
 
-  // Filter based on active tab using chatStatus
-  const shouldShow =
-    activeTab === 'current' ? chatStatus !== 'completed' : chatStatus === 'completed';
+  // Filter based on the strict high-level state.
+  const isCompleted = state === 'completed' || chatroom.status === 'completed';
+  const shouldShow = activeTab === 'current' ? !isCompleted : isCompleted;
 
   if (!shouldShow) {
     return null;
@@ -451,12 +469,12 @@ const ChatroomCard = memo(function ChatroomCard({
           className="bg-chatroom-bg-surface border-2 border-chatroom-border p-2 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
           onClick={() => onSelect(chatroom._id)}
           onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
-          data-chat-status={chatStatus}
+          data-chat-status={activityStatus ?? 'loading'}
         >
           {/* Card Main */}
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
-              <ChatroomStatusIndicator chatStatus={chatStatus} />
+              <ChatroomStatusIndicator activityStatus={activityStatus} />
               <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
                 {displayName}
               </span>
@@ -475,7 +493,7 @@ const ChatroomCard = memo(function ChatroomCard({
                 <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
               </button>
               {/* Action Menu - only show for non-completed chatrooms */}
-              {chatStatus !== 'completed' && (
+              {state !== 'completed' && (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     type="button"
@@ -513,12 +531,14 @@ const ChatroomCard = memo(function ChatroomCard({
  */
 interface ChatroomTableProps {
   chatrooms: ChatroomWithStatus[];
+  statuses: ReadonlyMap<string, ChatroomStatus>;
   onSelect: (chatroomId: string) => void;
   activeTab: TabType;
 }
 
 const ChatroomTable = memo(function ChatroomTable({
   chatrooms,
+  statuses,
   onSelect,
   activeTab,
 }: ChatroomTableProps) {
@@ -551,11 +571,11 @@ const ChatroomTable = memo(function ChatroomTable({
     return chatrooms.filter((chatroom) => {
       const shouldShow =
         activeTab === 'current'
-          ? chatroom.chatStatus !== 'completed'
-          : chatroom.chatStatus === 'completed';
+          ? chatroom.status !== 'completed' && statuses.get(chatroom._id)?.state !== 'completed'
+          : chatroom.status === 'completed' || statuses.get(chatroom._id)?.state === 'completed';
       return shouldShow;
     });
-  }, [chatrooms, activeTab]);
+  }, [chatrooms, activeTab, statuses]);
 
   if (filteredChatrooms.length === 0) {
     return (
@@ -620,27 +640,30 @@ const ChatroomTable = memo(function ChatroomTable({
               </div>
               {/* Status */}
               <div className="flex items-center min-w-[120px]">
-                <ChatroomStatusIndicator chatStatus={chatroom.chatStatus} />
+                <ChatroomStatusIndicator
+                  activityStatus={statuses.get(chatroom._id)?.activityStatus}
+                />
               </div>
               {/* Actions */}
               <StopClickPropagation className="flex items-center justify-center">
-                {chatroom.chatStatus !== 'completed' && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      type="button"
-                      className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary transition-all duration-100"
-                      aria-label="Chatroom actions"
-                    >
-                      <MoreVertical size={14} />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[140px]">
-                      <DropdownMenuItem onClick={(e) => handleArchive(e, chatroom._id)}>
-                        <CheckCircle size={14} className="mr-2" />
-                        Archive Chat
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                {chatroom.status !== 'completed' &&
+                  statuses.get(chatroom._id)?.state !== 'completed' && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        type="button"
+                        className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary transition-all duration-100"
+                        aria-label="Chatroom actions"
+                      >
+                        <MoreVertical size={14} />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[140px]">
+                        <DropdownMenuItem onClick={(e) => handleArchive(e, chatroom._id)}>
+                          <CheckCircle size={14} className="mr-2" />
+                          Archive Chat
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
               </StopClickPropagation>
             </div>
           );

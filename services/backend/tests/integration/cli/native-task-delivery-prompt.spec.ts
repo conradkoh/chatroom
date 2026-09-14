@@ -67,11 +67,20 @@ async function saveNativeAgentConfig(
     os: 'darwin',
     availableHarnesses: [agentHarness],
   });
-  await t.mutation(api.machines.saveTeamAgentConfig, {
+  await t.mutation(api.machines.markDaemonOnline, { sessionId, machineId });
+  const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
     sessionId,
     chatroomId,
+    machineId,
+    workingDir: '/test/workspace',
+    hostname: 'test-host',
+    registeredBy: role,
+  });
+  await t.mutation(api.agents.saveConfig, {
+    sessionId,
+    chatroomId,
+    workspaceId,
     role,
-    type: 'remote',
     machineId,
     agentHarness,
     model: 'auto',
@@ -211,11 +220,23 @@ describe('Native task delivery prompt (integration)', () => {
       availableHarnesses: ['opencode'],
     });
 
-    await t.mutation(api.machines.saveTeamAgentConfig, {
+    await t.mutation(api.machines.markDaemonOnline, {
+      sessionId,
+      machineId: 'machine-cli-delivery',
+    });
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
       sessionId,
       chatroomId,
+      machineId: 'machine-cli-delivery',
+      workingDir: '/test/workspace',
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    });
+    await t.mutation(api.agents.saveConfig, {
+      sessionId,
+      chatroomId,
+      workspaceId,
       role: 'builder',
-      type: 'remote',
       machineId: 'machine-cli-delivery',
       agentHarness: 'opencode',
       model: 'auto',

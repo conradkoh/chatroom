@@ -188,4 +188,53 @@ describe('TaskService inbox consumption', () => {
 
     service.stopTaskInbox();
   });
+
+  test('retries acknowledgement without redelivering the event', async () => {
+    vi.useFakeTimers();
+    try {
+      const event = {
+        _id: 'event-ack-retry',
+        machineId: 'machine-1',
+        chatroomId: 'room-1',
+        taskId: 'task-1',
+        role: 'builder',
+        eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+        status: WorkspaceTaskInboxEventStatus.Pending,
+        createdAt: 1_000,
+        task: {
+          taskId: 'task-1',
+          chatroomId: 'room-1',
+          status: 'pending',
+          assignedTo: 'builder',
+          updatedAt: 1_000,
+          createdAt: 900,
+          startInNewSession: false,
+        },
+      } as never;
+      const query = vi.fn(async () => [event]);
+      const mutation = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('transient acknowledgement failure'))
+        .mockResolvedValue({ processed: true });
+      const service = createTaskService({
+        sessionId: 'session-1',
+        machineId: 'machine-1',
+        convexUrl: 'http://test:3210',
+        backend: { mutation, query },
+      });
+      const notifications: unknown[] = [];
+      service.subscribe((notification) => {
+        notifications.push(notification);
+      });
+
+      await service.startTaskInbox();
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(notifications).toHaveLength(1);
+      expect(mutation).toHaveBeenCalledTimes(2);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

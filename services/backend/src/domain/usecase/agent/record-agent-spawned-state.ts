@@ -2,10 +2,11 @@
  * Convex state updates when a daemon-spawned agent starts (no event-stream insert).
  */
 
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
+import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 async function upsertRestartMetricForHour(
   ctx: MutationCtx,
@@ -63,29 +64,37 @@ export async function recordAgentSpawnedState(
     model?: string | undefined;
     harnessSessionId?: string | undefined;
     reason?: string | undefined;
+    emittedAt?: number | undefined;
+    revisionKey?: string | undefined;
   }
 ): Promise<void> {
-  const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!spawnChatroom?.teamId) {
-    throw new Error('Chatroom has no teamId — cannot look up agent config');
-  }
+  const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+  });
 
-  const spawnTeamRoleKey = buildTeamRoleKey(spawnChatroom._id, spawnChatroom.teamId, args.role);
-  const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', spawnTeamRoleKey))
-    .first();
-
-  if (!config || config.machineId !== args.machineId) {
-    throw new Error('Agent config not found');
+  if (!launchRequest || launchRequest.machineId !== args.machineId) {
+    throw new Error('Last-sent agent launch request not found');
   }
 
   const now = Date.now();
-  const harness = config.agentHarness ?? 'opencode';
-  const configWorkingDir = config.workingDir ?? '/unknown';
-  const model = args.model ?? config.model ?? 'unknown';
+  const harness = launchRequest.agentHarness;
+  const configWorkingDir = launchRequest.workingDir;
+  const model = args.model ?? launchRequest.model;
 
   await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.started');
+  await projectAgentRoleStatusReadModel(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+    launchRequest,
+    event: { status: 'starting' },
+    agentType: launchRequest.agentType,
+    observedPid: args.pid,
+    observedAt: args.emittedAt ?? now,
+    sourceMachineId: args.machineId,
+    sourceEventAt: args.emittedAt,
+    sourceRevisionKey: args.revisionKey,
+  });
 
   await upsertRestartMetricForHour(ctx, {
     machineId: args.machineId,

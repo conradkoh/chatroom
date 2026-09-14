@@ -11,17 +11,30 @@ interface UseEnhancerConfigDialogHostOptions {
   chatroomId: string;
   /** Workspace machine fallback when config has no machineId yet. */
   workspaceMachineId: string | null | undefined;
+  workspaceId?: string | null;
+  workingDir?: string | null;
+  teamId?: string | null;
 }
 
 export function useEnhancerConfigDialogHost({
   chatroomId,
   workspaceMachineId,
+  workspaceId = null,
+  workingDir = null,
+  teamId = null,
 }: UseEnhancerConfigDialogHostOptions) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { config, isActive, serverIsActive, saveConfig, disable } = useEnhancerConfig(chatroomId);
+  const { config, isActive, serverIsActive, saveConfig, disable } = useEnhancerConfig(chatroomId, {
+    workspaceId,
+    workingDir,
+  });
   const favoritesMachineId = config?.machineId ?? workspaceMachineId ?? null;
   const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
-    useEnhancerConfigFavorites(favoritesMachineId);
+    useEnhancerConfigFavorites(
+      favoritesMachineId && teamId
+        ? { machineId: favoritesMachineId, chatroomId, teamId, role: 'enhancer' }
+        : undefined
+    );
 
   const dialogMachineId = config?.machineId ?? workspaceMachineId;
 

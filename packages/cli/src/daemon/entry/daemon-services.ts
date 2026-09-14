@@ -42,6 +42,9 @@ export interface AgentLifecycleOutboxServiceShape {
   enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
   stopAll: () => Effect.Effect<void>;
 }
+type DaemonLifecycleOutboxPort = {
+  enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult>;
+};
 export class AgentLifecycleOutboxService extends Context.Tag('AgentLifecycleOutboxService')<
   AgentLifecycleOutboxService,
   AgentLifecycleOutboxServiceShape
@@ -195,6 +198,8 @@ export interface DaemonSessionServiceShape {
   config: MachineConfig | null;
   /** Constructed once by the daemon composition root. */
   taskService: TaskService;
+  /** Durable daemon-to-Convex lifecycle/status outbox. */
+  lifecycleOutbox?: DaemonLifecycleOutboxPort | undefined;
 
   // ─── Flat deps (no ctx.deps.xxx indirection) ──────────────────────
   /** Direct access to backend ops — same as ctx.deps.backend but without the .deps. layer. */

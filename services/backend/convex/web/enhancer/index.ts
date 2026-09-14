@@ -1,9 +1,2 @@
-export {
-  upsertConfig,
-  disableConfig,
-  enqueueHandoff,
-  recordAttemptFailure,
-  complete,
-  cancelActiveJob,
-} from './mutations';
-export { getConfig, getJob, getJobOutcome, getActiveJob } from './queries';
+export { enqueueHandoff, recordAttemptFailure, complete, cancelActiveJob } from './mutations';
+export { getJob, getJobOutcome, getActiveJob } from './queries';

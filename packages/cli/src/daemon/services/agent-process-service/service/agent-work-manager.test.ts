@@ -177,6 +177,11 @@ describe('AgentWorkManager', () => {
       harness: 'cursor-sdk',
       slot: { state: 'running' },
       eventId: 'turn-1',
+      completion: {
+        turnId: 'turn-1',
+        status: 'completed',
+        source: 'provider.result',
+      },
     } as never);
     await vi.waitFor(() => {
       expect(requestReconcile).toHaveBeenCalledWith({
@@ -189,8 +194,17 @@ describe('AgentWorkManager', () => {
   });
 
   test('clears stale active-task state after a successful native turn', async () => {
-    const service = createService();
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    const facts: Record<string, unknown>[] = [];
+    const service = createService({
+      enqueueFact: async (fact) => {
+        facts.push(fact);
+      },
+    });
+    service.recordTaskDelivered({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-1',
+    });
 
     const disposition = await service.handleAgentTurnEnded({
       chatroomId: 'room-1',
@@ -207,6 +221,14 @@ describe('AgentWorkManager', () => {
     } as never);
 
     expect(disposition).toEqual({ kind: 'release-slot' });
+    expect(facts).toEqual([
+      expect.objectContaining({
+        kind: 'status',
+        chatroomId: 'room-1',
+        role: 'builder',
+        status: 'waiting',
+      }),
+    ]);
     expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
     service.dispose();
   });

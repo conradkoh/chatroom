@@ -2,10 +2,9 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
+import { projectAgentRoleStatusReadModel } from '../../src/domain/usecase/agent/project-agent-role-status-read-model';
 import { transitionAgentStatus } from '../../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus } from '../../src/domain/usecase/chatroom/get-agent-view-status';
-import { markAgentViewHasHistory } from '../../src/domain/usecase/chatroom/project-agent-view-metadata';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -14,16 +13,6 @@ import {
   setupRemoteAgentConfig,
   updateSpawnedAgentInTest,
 } from '../helpers/integration';
-
-function createThreeRoleChatroom(sessionId: string) {
-  return t.mutation(api.chatrooms.create, {
-    sessionId: sessionId as any,
-    teamId: 'custom',
-    teamName: 'Custom Three-Role Team',
-    teamRoles: ['planner', 'builder', 'architect'],
-    teamEntryPoint: 'planner',
-  });
-}
 
 async function query(chatroomId: Id<'chatroom_rooms'>) {
   const ownerId = await t.run(
@@ -37,7 +26,7 @@ describe('getAgentViewStatus', () => {
     const { sessionId } = await createTestSession('view-fresh');
     const room = await createDuoTeamChatroom(sessionId as any);
     const result = await query(room);
-    expect(result?.agents.map((a) => a.state)).toEqual(['stopped', 'stopped']);
+    expect(result?.agents.map((a) => a.state)).toEqual(['stopped', 'stopped', 'stopped']);
   });
 
   test('returns running from the projection', async () => {
@@ -82,8 +71,8 @@ describe('getAgentViewStatus', () => {
 describe('getAgentViewStatus — fresh team', () => {
   test('returns all team roles stopped', async () => {
     const { sessionId } = await createTestSession('view-fresh-3role');
-    const result = await query(await createThreeRoleChatroom(sessionId));
-    expect(result!.teamRoles).toEqual(['planner', 'builder', 'architect']);
+    const result = await query(await createDuoTeamChatroom(sessionId as any));
+    expect(result!.teamRoles).toEqual(['planner', 'enhancer', 'builder']);
     expect(result!.agents).toHaveLength(3);
     expect(result!.agents.every((a) => a.state === 'stopped')).toBe(true);
   });
@@ -107,46 +96,35 @@ describe('getAgentViewStatus — running and stopped', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
-    await t.run(async (ctx) => {
-      const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(room, 'duo', 'builder'))
-        )
-        .first();
-      if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
-    });
-    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
+    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('stopped');
   });
 });
 
-describe('getAgentViewStatus — daemon disconnected', () => {
-  test('returns stopped with PID when disconnected', async () => {
+describe('getAgentViewStatus — daemon status is machine-scoped', () => {
+  test('does not rewrite role state when daemon disconnects with PID', async () => {
     const { sessionId } = await createTestSession('view-disconn-pid');
     const machineId = 'view-disconn-pid-machine';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId as any, machineId, room, 'builder', 88888);
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOffline, {
       sessionId: sessionId as any,
       machineId,
-      connected: false,
     });
     expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('running');
   });
-  test('returns stopped without PID when disconnected', async () => {
+  test('does not rewrite role state when daemon disconnects without PID', async () => {
     const { sessionId } = await createTestSession('view-disconn-none');
     const machineId = 'view-disconn-none-machine';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
-    await t.mutation(api.machines.updateDaemonStatus, {
+    await t.mutation(api.machines.markDaemonOffline, {
       sessionId: sessionId as any,
       machineId,
-      connected: false,
     });
-    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
+    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('stopped');
   });
 });
 
@@ -158,8 +136,16 @@ describe('getAgentViewStatus — daemon restart cleanup', () => {
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId as any, machineId, room, 'builder', 12345);
-    await t.mutation(api.machines.clearAllSpawnedPids, { sessionId: sessionId as any, machineId });
-    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('starting');
+    await t.run((ctx) =>
+      projectAgentRoleStatusReadModel(ctx, {
+        chatroomId: room,
+        role: 'builder',
+        event: { status: 'offline' },
+        sourceMachineId: machineId,
+        clearObservedPid: true,
+      })
+    );
+    expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('stopped');
   });
 });
 
@@ -170,20 +156,19 @@ describe('getAgentViewStatus — circuit breaker', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
-    await t.run(async (ctx) => {
-      const config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(room, 'duo', 'builder'))
-        )
-        .first();
-      if (config)
-        await ctx.db.patch(config._id, { circuitState: 'open', circuitOpenedAt: Date.now() });
-    });
-    await t.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
-      sessionId: sessionId as any,
-      machineId,
-    });
+    await t.run((ctx) =>
+      projectAgentRoleStatusReadModel(ctx, {
+        chatroomId: room,
+        role: 'builder',
+        event: {
+          status: 'error',
+          errorSource: 'runtime',
+          errorCode: 'circuit_open',
+          errorMessage: 'Circuit breaker open',
+        },
+        sourceMachineId: machineId,
+      })
+    );
     expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe(
       'circuit_open'
     );
@@ -195,25 +180,21 @@ describe('getAgentViewStatus — stale roles', () => {
     const { sessionId } = await createTestSession('view-stale');
     const machineId = 'view-stale-machine';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const room = await createThreeRoleChatroom(sessionId);
-    for (const role of ['planner', 'builder', 'architect'])
-      await setupRemoteAgentConfig(sessionId as any, room, machineId, role);
+    const room = await createDuoTeamChatroom(sessionId as any);
+    await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
       chatroomId: room,
-      teamId: 'duo',
-      teamName: 'Duo Team',
-      teamRoles: ['planner', 'builder'],
-      teamEntryPoint: 'planner',
+      teamStructureId: 'solo@1',
     });
     const result = await query(room);
     expect(result!.agents).toHaveLength(2);
-    expect(result!.agents.map((a) => a.role)).toEqual(['planner', 'builder']);
+    expect(result!.agents.map((a) => a.role)).toEqual(['solo', 'enhancer']);
   });
 });
 
-describe('getAgentViewStatus — projection fast path', () => {
-  test('hasHistory stays false until the projection marker is written', async () => {
+describe('getAgentViewStatus — history', () => {
+  test('reports history from chatroom messages', async () => {
     const { sessionId } = await createTestSession('view-history-projection');
     const room = await createDuoTeamChatroom(sessionId as any);
     expect((await query(room))?.hasHistory).toBe(false);
@@ -225,8 +206,6 @@ describe('getAgentViewStatus — projection fast path', () => {
         type: 'progress',
       });
     });
-    expect((await query(room))?.hasHistory).toBe(false);
-    await t.run((ctx) => markAgentViewHasHistory(ctx, room));
     expect((await query(room))?.hasHistory).toBe(true);
   });
 });
@@ -238,6 +217,7 @@ describe('getAgentViewStatus — decoy isolation', () => {
     await registerMachineWithDaemon(sessionId as any, target);
     const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, target, 'builder');
+    await updateSpawnedAgentInTest(sessionId as any, target, room, 'builder', 12345);
     for (let i = 0; i < 5; i++)
       await registerMachineWithDaemon(sessionId as any, `view-decoy-${i}`);
     expect((await query(room))?.agents.find((a) => a.role === 'builder')?.machineName).toBe(

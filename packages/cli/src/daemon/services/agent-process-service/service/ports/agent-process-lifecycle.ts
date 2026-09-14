@@ -1,10 +1,12 @@
 import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent.js';
 
+import type { AgentStartDisposition } from '../../../../domain/entities/agent-slot.js';
 import type { StopReason } from '../../../../domain/entities/stop-reason.js';
 
 export interface AgentProcessOperationResult {
   readonly success: boolean;
   readonly pid?: number | undefined;
+  readonly disposition?: AgentStartDisposition | undefined;
   readonly error?: string | undefined;
   readonly retryAfterMs?: number | undefined;
 }

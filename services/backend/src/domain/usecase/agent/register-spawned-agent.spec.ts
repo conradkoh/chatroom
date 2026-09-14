@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 
 import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { api } from '../../../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 
 async function setup(id: string) {
@@ -22,23 +21,19 @@ async function setup(id: string) {
     os: 'linux',
     availableHarnesses: ['opencode'],
   });
-  await t.mutation(api.machines.saveTeamAgentConfig, {
+  await t.mutation(api.machines.sendCommand, {
     sessionId: id as any,
-    chatroomId,
-    role: 'builder',
-    type: 'remote',
     machineId,
-    agentHarness: 'opencode',
+    type: 'start-agent',
+    payload: {
+      chatroomId,
+      role: 'builder',
+      model: 'test-model',
+      agentHarness: 'opencode',
+      workingDir: '/workspace',
+    },
   });
-  const config = await t.run((ctx) =>
-    ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-      )
-      .first()
-  );
-  return { chatroomId, machineId, config: config! };
+  return { chatroomId, machineId };
 }
 
 describe('registerSpawnedAgentIfAuthorized', () => {
@@ -53,14 +48,12 @@ describe('registerSpawnedAgentIfAuthorized', () => {
       })
     );
     expect(result).toEqual({ accepted: true });
-    const config = await t.run((ctx) =>
+    const status = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
         .first()
     );
-    expect(config?.spawnedAgentPid).toBe(12345);
+    expect(status?.observedPid).toBe(12345);
   });
 });

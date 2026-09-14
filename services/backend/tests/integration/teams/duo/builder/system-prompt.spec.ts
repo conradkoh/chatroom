@@ -65,7 +65,7 @@ describe('Duo Team > Builder > System Prompt', () => {
 
     const prompt = initPrompt?.prompt;
     expect(prompt).toBeDefined();
-    expect(prompt).toContain('# Duo Team');
+    expect(prompt).toContain('# Duo');
     expect(prompt).toContain('## Your Role: BUILDER');
     expect(prompt).toContain('## Getting Started');
     expect(prompt).toContain('## Builder Operating Model');
@@ -75,7 +75,7 @@ describe('Duo Team > Builder > System Prompt', () => {
     expect(prompt).toContain('### Commands');
 
     expect(prompt).toMatchInlineSnapshot(`
-      "# Duo Team
+      "# Duo
 
       ## Your Role: BUILDER
 
@@ -296,7 +296,7 @@ describe('Duo Team > Builder > System Prompt', () => {
        
 
       ### Handoff Options
-      Available targets: planner, user
+      Available targets: planner, enhancer, user
 
       ### Commands
 

@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -24,25 +23,21 @@ describe('enhancer normal handoff completion', () => {
       hostname: 'test-host',
       registeredBy: 'planner',
     });
-    await t.run(async (ctx) => {
-      await ctx.db.patch(chatroomId, {
-        teamRoles: ['planner', 'enhancer', 'builder'],
-        teamEntryPoint: 'planner',
-      });
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
-        chatroomId,
-        role: 'enhancer',
-        type: 'remote',
-        machineId,
-        agentHarness: 'opencode',
-        model: 'test-model',
-        workingDir: '/workspace',
-        enabled: true,
-        desiredState: 'running',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
+    const workspace = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_workspaces')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first()
+    );
+    await t.mutation(api.agents.saveConfig, {
+      sessionId,
+      chatroomId,
+      workspaceId: workspace!._id,
+      role: 'enhancer',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'test-model',
+      workingDir: '/workspace',
     });
     const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -116,25 +111,21 @@ describe('enhancer normal handoff completion', () => {
       hostname: 'test-host',
       registeredBy: 'planner',
     });
-    await t.run(async (ctx) => {
-      await ctx.db.patch(chatroomId, {
-        teamRoles: ['planner', 'enhancer', 'builder'],
-        teamEntryPoint: 'planner',
-      });
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
-        chatroomId,
-        role: 'enhancer',
-        type: 'remote',
-        machineId,
-        agentHarness: 'opencode',
-        model: 'test-model',
-        workingDir: '/workspace',
-        enabled: true,
-        desiredState: 'running',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
+    const workspace = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_workspaces')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first()
+    );
+    await t.mutation(api.agents.saveConfig, {
+      sessionId,
+      chatroomId,
+      workspaceId: workspace!._id,
+      role: 'enhancer',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'test-model',
+      workingDir: '/workspace',
     });
     const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -201,7 +192,7 @@ describe('enhancer normal handoff completion', () => {
         .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'enhancer'))
         .first()
     );
-    expect(enhancerStatus?.status).toBe('offline');
+    expect(enhancerStatus).toBeNull();
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -214,6 +205,6 @@ describe('enhancer normal handoff completion', () => {
       chatroomId,
       role: 'planner',
     });
-    expect(planner?.lastStatus).toBe('agent.waiting');
+    expect(planner?.lastSeenAction).toBe('get-next-task:started');
   });
 });

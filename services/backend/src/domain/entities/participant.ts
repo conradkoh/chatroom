@@ -51,8 +51,6 @@ export interface ParticipantPresence {
   role: string;
   lastSeenAt: number | null;
   lastSeenAction: string | null;
-  lastStatus: string | null;
-  lastDesiredState: string | null;
 }
 
 /** Source fields a participant record contributes to its presence row. */
@@ -60,8 +58,6 @@ export interface ParticipantPresenceSource {
   role: string;
   lastSeenAt?: number | null | undefined;
   lastSeenAction?: string | null | undefined;
-  lastStatus?: string | null | undefined;
-  lastDesiredState?: string | null | undefined;
 }
 
 /**
@@ -77,7 +73,5 @@ export function toParticipantPresence(
     role: participant.role,
     lastSeenAt: participant.lastSeenAt ?? null,
     lastSeenAction: participant.lastSeenAction ?? null,
-    lastStatus: participant.lastStatus ?? null,
-    lastDesiredState: participant.lastDesiredState ?? null,
   };
 }

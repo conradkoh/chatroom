@@ -41,7 +41,6 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
     participant: {
       lastSeenAction: NATIVE_WAITING_ACTION,
       lastSeenAt: 500,
-      lastStatus: 'agent.waiting',
     },
     ...overrides,
   };
@@ -85,7 +84,6 @@ describe('shouldDeliverNativeTask', () => {
           participant: {
             lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
             lastSeenAt: 1_000,
-            lastStatus: 'task.acknowledged',
           },
         }),
         { slot: runningSlot }
@@ -100,7 +98,6 @@ describe('shouldDeliverNativeTask', () => {
           participant: {
             lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
             lastSeenAt: 2_000,
-            lastStatus: 'task.completed',
           },
         }),
         { slot: runningSlot }
@@ -116,7 +113,6 @@ describe('shouldDeliverNativeTask', () => {
           participant: {
             lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
             lastSeenAt: 2_000,
-            lastStatus: 'task.inProgress',
           },
         }),
         { slot: runningSlot }
@@ -172,7 +168,6 @@ describe('shouldDeliverNativeTask', () => {
           participant: {
             lastSeenAction: NATIVE_WAITING_ACTION,
             lastSeenAt: 500,
-            lastStatus: 'agent.waiting',
           },
         }),
         {
@@ -191,7 +186,6 @@ describe('shouldDeliverNativeTask', () => {
           participant: {
             lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
             lastSeenAt: 2_000,
-            lastStatus: 'task.acknowledged',
           },
         }),
         { slot: runningSlot }

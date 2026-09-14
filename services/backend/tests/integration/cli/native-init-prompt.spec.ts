@@ -70,11 +70,20 @@ async function saveNativeAgentConfig(
     os: 'darwin',
     availableHarnesses: [agentHarness],
   });
-  await t.mutation(api.machines.saveTeamAgentConfig, {
+  await t.mutation(api.machines.markDaemonOnline, { sessionId, machineId });
+  const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
     sessionId,
     chatroomId,
+    machineId,
+    workingDir: '/test/workspace',
+    hostname: 'test-host',
+    registeredBy: role,
+  });
+  await t.mutation(api.agents.saveConfig, {
+    sessionId,
+    chatroomId,
+    workspaceId,
     role,
-    type: 'remote',
     machineId,
     agentHarness,
     model: 'auto',
@@ -136,11 +145,23 @@ describe('Native init prompt (integration)', () => {
       availableHarnesses: ['opencode'],
     });
 
-    await t.mutation(api.machines.saveTeamAgentConfig, {
+    await t.mutation(api.machines.markDaemonOnline, {
+      sessionId,
+      machineId: 'machine-native-opencode-cli',
+    });
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
       sessionId,
       chatroomId,
+      machineId: 'machine-native-opencode-cli',
+      workingDir: '/test/workspace',
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    });
+    await t.mutation(api.agents.saveConfig, {
+      sessionId,
+      chatroomId,
+      workspaceId,
       role: 'builder',
-      type: 'remote',
       machineId: 'machine-native-opencode-cli',
       agentHarness: 'opencode',
       model: TEST_MODEL_OPENCODE_LEGACY,

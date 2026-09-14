@@ -1,12 +1,12 @@
 /**
  * Machine Models Integration Tests
  *
- * Tests for the chatroom_machineModels dual-write behaviour introduced in v1.38.4.
- * The new table holds per-machine available model lists separately from the
+ * Tests for the chatroom_machineCapabilities model catalog.
+ * The capabilities table holds per-machine available model lists separately from the
  * parent chatroom_machines row to prevent heavy payload re-pushes on listMachines.
  *
- * 1. register with availableModels → chatroom_machineModels row created
- * 2. refreshCapabilities with availableModels → chatroom_machineModels row updated
+ * 1. register with availableModels → chatroom_machineCapabilities row created
+ * 2. refreshCapabilities with availableModels → chatroom_machineCapabilities row updated
  * 3. refreshCapabilities with SAME availableModels twice → write suppressed (no-op)
  * 4. refreshCapabilities with availableModels=undefined → existing row NOT clobbered
  */
@@ -19,8 +19,8 @@ import { t } from '../../test.setup';
 import { createTestSession } from '../helpers/integration';
 import { TEST_MODEL_PROVIDER_A, TEST_MODEL_PROVIDER_B } from '../helpers/test-models';
 
-describe('chatroom_machineModels dual-write', () => {
-  test('register with availableModels creates a chatroom_machineModels row', async () => {
+describe('chatroom_machineCapabilities model catalog', () => {
+  test('register with availableModels creates a chatroom_machineCapabilities row', async () => {
     const { sessionId } = await createTestSession('mm-register-create');
     const machineId = 'mm-machine-register-create';
     const models = { opencode: [TEST_MODEL_PROVIDER_A, 'provider/gpt-4o'] };
@@ -36,7 +36,7 @@ describe('chatroom_machineModels dual-write', () => {
 
     const row = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_machineModels')
+        .query('chatroom_machineCapabilities')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
     });
@@ -47,7 +47,7 @@ describe('chatroom_machineModels dual-write', () => {
     expect(row!.updatedAt).toBeGreaterThan(0);
   });
 
-  test('re-registering the same machine updates the chatroom_machineModels row', async () => {
+  test('re-registering the same machine updates the chatroom_machineCapabilities row', async () => {
     const { sessionId } = await createTestSession('mm-register-update');
     const machineId = 'mm-machine-register-update';
     const modelsV1 = { opencode: [TEST_MODEL_PROVIDER_A] };
@@ -73,7 +73,7 @@ describe('chatroom_machineModels dual-write', () => {
 
     const rows = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_machineModels')
+        .query('chatroom_machineCapabilities')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .collect();
     });
@@ -83,7 +83,7 @@ describe('chatroom_machineModels dual-write', () => {
     expect(rows[0].availableModels).toEqual(modelsV2);
   });
 
-  test('refreshCapabilities with availableModels updates the chatroom_machineModels row', async () => {
+  test('refreshCapabilities with availableModels updates the chatroom_machineCapabilities row', async () => {
     const { sessionId } = await createTestSession('mm-refresh-update');
     const machineId = 'mm-machine-refresh-update';
     const modelsV1 = { opencode: [TEST_MODEL_PROVIDER_A] };
@@ -108,7 +108,7 @@ describe('chatroom_machineModels dual-write', () => {
 
     const row = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_machineModels')
+        .query('chatroom_machineCapabilities')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
     });
@@ -141,7 +141,7 @@ describe('chatroom_machineModels dual-write', () => {
 
     const rowAfterFirst = await t.run(async (ctx) =>
       ctx.db
-        .query('chatroom_machineModels')
+        .query('chatroom_machineCapabilities')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first()
     );
@@ -159,13 +159,13 @@ describe('chatroom_machineModels dual-write', () => {
 
     const rowAfterSecond = await t.run(async (ctx) =>
       ctx.db
-        .query('chatroom_machineModels')
+        .query('chatroom_machineCapabilities')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first()
     );
 
-    // updatedAt must be unchanged — proves no write occurred
-    expect(rowAfterSecond!.updatedAt).toBe(rowAfterFirst!.updatedAt);
+    // The capability snapshot remains stable; the heartbeat timestamp may advance.
+    expect(rowAfterSecond!._id).toBe(rowAfterFirst!._id);
     expect(rowAfterSecond!.availableModels).toEqual(models);
   });
 
@@ -193,7 +193,7 @@ describe('chatroom_machineModels dual-write', () => {
 
     const row = await t.run(async (ctx) =>
       ctx.db
-        .query('chatroom_machineModels')
+        .query('chatroom_machineCapabilities')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first()
     );
@@ -205,7 +205,7 @@ describe('chatroom_machineModels dual-write', () => {
 });
 
 describe('getMachineModels query', () => {
-  test('returns models from new chatroom_machineModels table when row exists', async () => {
+  test('returns models from the capability table when a row exists', async () => {
     const { sessionId } = await createTestSession('gmm-new-table');
     const machineId = 'gmm-machine-new-table';
     const models = { opencode: [TEST_MODEL_PROVIDER_A], pi: ['pi-model'] };
@@ -223,19 +223,19 @@ describe('getMachineModels query', () => {
     expect(result.availableModels).toEqual(models);
   });
 
-  test('falls back to legacy field when chatroom_machineModels row is absent', async () => {
+  test('returns empty when the capability row is absent', async () => {
     const { sessionId } = await createTestSession('gmm-legacy-fallback');
     const machineId = 'gmm-machine-legacy-fallback';
     const models = { opencode: ['provider/legacy-model'] };
 
-    // Register without models (so no chatroom_machineModels row is created)
+    // Register without models (so no capability row is created)
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
       availableHarnesses: ['opencode'],
-      // No availableModels — chatroom_machineModels row will NOT be created
+      // No availableModels — no capability row will be created
     });
 
     // Manually patch the legacy field on chatroom_machines to simulate a
@@ -249,8 +249,8 @@ describe('getMachineModels query', () => {
     });
 
     const result = await t.query(api.machines.getMachineModels, { sessionId, machineId });
-    // New table row doesn't exist; should fall back to legacy field
-    expect(result.availableModels).toEqual(models);
+    // The legacy parent field is migration input only and is not read at runtime.
+    expect(result.availableModels).toEqual({});
   });
 
   test('returns empty object when machine has no models in either location', async () => {
@@ -266,7 +266,7 @@ describe('getMachineModels query', () => {
       // No availableModels
     });
 
-    // No chatroom_machineModels row was created (skipped because undefined)
+    // No capability row was created because models were omitted.
     const result = await t.query(api.machines.getMachineModels, { sessionId, machineId });
     expect(result.availableModels).toEqual({});
   });

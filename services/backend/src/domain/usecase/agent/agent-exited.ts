@@ -11,13 +11,13 @@
  *
  */
 
+import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
+import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { AgentStopReasonEnum } from '../../entities/agent';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,8 @@ export interface AgentExitedInput {
   stopSignal?: string | undefined;
   /** Optional agent harness identifier. */
   agentHarness?: string | undefined;
+  /** Daemon outbox ordering metadata. */
+  emittedAt?: number | undefined;
 }
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
@@ -63,33 +65,36 @@ export async function agentExited(
 ): Promise<AgentExitedResult> {
   const { chatroomId, role, machineId, pid, stopReason } = input;
 
-  // Look up the current config for this role
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom?.teamId) return { applied: false };
+  const launchRequest = await getLastSentLaunchRequestForRole(ctx, { chatroomId, role });
+  if (!launchRequest || launchRequest.machineId !== machineId) return { applied: false };
 
-  const teamRoleKey = buildTeamRoleKey(chatroomId, chatroom.teamId, role);
-  const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-    .first();
-
-  // 1. Clear PID on config — PID-gated idempotency
-  //    Only clear if BOTH the PID and machineId match. This prevents clearing
-  //    a newer agent's PID if a stale exit report arrives after a new agent
-  //    has been spawned.
-  if (config && config.spawnedAgentPid === pid && config.machineId === machineId) {
-    await patchTeamAgentConfig(ctx, config._id, {
-      spawnedAgentPid: undefined,
-      spawnedAt: undefined,
-    });
+  // The daemon owns the process. Convex only checks the last observed PID in
+  // its thin read model so a stale exit cannot overwrite a newer observation.
+  const normalizedRole = role.trim().toLowerCase();
+  const statusRow = launchRequest.workspaceId
+    ? await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_workspace_role', (q) =>
+          q
+            .eq('chatroomId', chatroomId)
+            .eq('workspaceId', launchRequest.workspaceId)
+            .eq('role', normalizedRole)
+        )
+        .first()
+    : await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', normalizedRole)
+        )
+        .first();
+  if (statusRow?.observedPid !== undefined && statusRow.observedPid !== pid) {
+    return { applied: false };
   }
 
   // 2. Mark participant as exited — guard against machine switch
   //    If the config for this role now belongs to a different machine, or the
   //    participant status is already set from a newer agent, skip the patch.
-  const shouldUpdateParticipant =
-    !config || // No config — safe to mark exited
-    config.machineId === machineId; // Config belongs to same machine
+  const shouldUpdateParticipant = launchRequest.machineId === machineId;
 
   if (shouldUpdateParticipant) {
     const isOrchestratedRestart =
@@ -113,5 +118,17 @@ export async function agentExited(
       });
     }
   }
+  await projectAgentRoleStatusReadModel(ctx, {
+    chatroomId,
+    role,
+    launchRequest,
+    event: { status: 'offline' },
+    agentType: launchRequest.agentType,
+    clearObservedPid: true,
+    observedAt: input.emittedAt ?? Date.now(),
+    sourceMachineId: machineId,
+    sourceEventAt: input.emittedAt,
+    sourceRevisionKey: input.revisionKey,
+  });
   return { applied: true };
 }

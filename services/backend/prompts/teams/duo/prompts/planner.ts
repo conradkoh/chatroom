@@ -30,7 +30,6 @@ const DUO_TEAM_CONFIG = { hasBuilder: true } as const;
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
   const { nativeIntegration, members, cliEnvPrefix, chatroomId, role } =
     getPlannerGuidanceContext(ctx);
-  const plannerEnhancerActive = ctx.plannerEnhancerActive ?? false;
 
   const operatingModelGuidance = getPlannerPlusBuilderOperatingModel(nativeIntegration);
 
@@ -59,10 +58,9 @@ ${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, {
   cliEnvPrefix,
   chatroomId,
   role,
-  plannerEnhancerActive,
 })}
 
-${getHandoffRulesSection(DUO_TEAM_CONFIG, nativeIntegration, plannerEnhancerActive)}
+${getHandoffRulesSection(DUO_TEAM_CONFIG, nativeIntegration)}
 
 ${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}
 

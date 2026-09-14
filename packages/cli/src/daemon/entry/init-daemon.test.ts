@@ -540,9 +540,9 @@ describe('initDaemon', () => {
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
-  it('exits when updateDaemonStatus mutation fails (non-network)', async () => {
+  it('exits when markDaemonOnline mutation fails (non-network)', async () => {
     const mockClient = await getMockClient();
-    // First call succeeds (register), second call fails (updateDaemonStatus)
+    // First call succeeds (register), second call fails (markDaemonOnline)
     mockClient.mutation
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('Server error'));
@@ -557,7 +557,7 @@ describe('initDaemon', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('retries with delay on network failure for updateDaemonStatus', async () => {
+  it('retries with delay on network failure for markDaemonOnline', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
@@ -589,7 +589,7 @@ describe('initDaemon', () => {
 
   it('warns but continues when machine registration fails', async () => {
     const mockClient = await getMockClient();
-    // First call (register) fails, second call (updateDaemonStatus) succeeds
+    // First call (register) fails, second call (markDaemonOnline) succeeds
     mockClient.mutation
       .mockRejectedValueOnce(new Error('Registration failed'))
       .mockResolvedValueOnce(undefined);

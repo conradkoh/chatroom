@@ -56,19 +56,6 @@ describe('checkSession', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('returns not ok when CLI session is expired', async () => {
-    const deps = createMockDeps({
-      queryCliSession: async () => ({
-        userId: 'user-1',
-        isActive: true,
-        expiresAt: Date.now() - 10000,
-      }),
-    });
-
-    const result = await checkSession(deps, 'session-1');
-    expect(result.ok).toBe(false);
-  });
-
   it('returns not ok when no sessions found', async () => {
     const deps = createMockDeps();
 

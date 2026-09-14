@@ -24,7 +24,8 @@ import {
 async function createPlannerUserMessageAndTask(
   sessionId: string,
   chatroomId: Id<'chatroom_rooms'>,
-  content: string
+  content: string,
+  conversationMode?: 'chat' | 'code' | 'code:enhanced'
 ): Promise<Id<'chatroom_messages'>> {
   await joinParticipant(sessionId, chatroomId, 'planner');
   return t.run(async (ctx) => {
@@ -45,6 +46,9 @@ async function createPlannerUserMessageAndTask(
       createdAt: Date.now(),
       updatedAt: Date.now(),
       queuePosition: 1,
+      ...(conversationMode !== undefined
+        ? { taskEnvelope: createTaskEnvelope({ conversationMode }) }
+        : {}),
     });
     return msgId;
   });
@@ -60,7 +64,8 @@ describe('daemon.enhancer.index', () => {
     const originUserMessageId = await createPlannerUserMessageAndTask(
       sessionId,
       chatroomId,
-      'Spawn test message'
+      'Spawn test message',
+      'code:enhanced'
     );
 
     const handoff = await t.mutation(api.messages.handoff, {
@@ -107,15 +112,7 @@ describe('daemon.enhancer.index', () => {
     const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession('enh-claim');
     await addEnhancerToTeamRoles(chatroomId);
 
-    await t.mutation(api.web.enhancer.index.upsertConfig, {
-      sessionId,
-      chatroomId,
-      enabled: true,
-      targetId: 'handoff:planner-to-builder',
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      machineId,
-    });
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
 
     const originUserMessageId = await createPlannerUserMessageAndTask(
       sessionId,
@@ -173,15 +170,7 @@ describe('daemon.enhancer.index', () => {
       await setupPlannerWorkspaceForSession('enh-payload');
     await addEnhancerToTeamRoles(chatroomId);
 
-    await t.mutation(api.web.enhancer.index.upsertConfig, {
-      sessionId,
-      chatroomId,
-      enabled: true,
-      targetId: 'handoff:planner-to-builder',
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      machineId,
-    });
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
 
     const originUserMessageId = await createPlannerUserMessageAndTask(
       sessionId,
@@ -237,15 +226,7 @@ describe('daemon.enhancer.index', () => {
       await setupPlannerWorkspaceForSession('enh-task-delivery-job');
     await addEnhancerToTeamRoles(chatroomId);
 
-    await t.mutation(api.web.enhancer.index.upsertConfig, {
-      sessionId,
-      chatroomId,
-      enabled: true,
-      targetId: 'handoff:planner-to-builder',
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      machineId,
-    });
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
 
     const originUserMessageId = await createPlannerUserMessageAndTask(
       sessionId,
@@ -285,15 +266,7 @@ describe('daemon.enhancer.index', () => {
       await setupPlannerWorkspaceForSession('enh-env-boundary');
     await addEnhancerToTeamRoles(chatroomId);
 
-    await t.mutation(api.web.enhancer.index.upsertConfig, {
-      sessionId,
-      chatroomId,
-      enabled: true,
-      targetId: 'handoff:planner-to-builder',
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      machineId,
-    });
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
 
     const originUserMessageId = await createPlannerUserMessageAndTask(
       sessionId,

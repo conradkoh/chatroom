@@ -13,22 +13,18 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { insertEnhancerJob } from '../helpers/enhancer-job';
-import { addEnhancerToTeamRoles, joinParticipant } from '../helpers/integration';
+import {
+  enableEnhancerTeamAgent,
+  addEnhancerToTeamRoles,
+  joinParticipant,
+} from '../helpers/integration';
 
 async function enableEnhancer(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string
 ): Promise<void> {
-  await t.mutation(api.web.enhancer.index.upsertConfig, {
-    sessionId,
-    chatroomId,
-    enabled: true,
-    targetId: 'handoff:planner-to-builder',
-    agentHarness: 'opencode',
-    model: 'anthropic/claude-opus-4',
-    machineId,
-  });
+  await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
 }
 
 async function setPlannerAsEntryPoint(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
@@ -153,8 +149,10 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       role: 'solo',
       convexUrl: 'http://127.0.0.1:3210',
     });
-    expect(prompt).toContain('When enhancement is enabled');
-    expect(prompt).toContain('forward the request before planning');
+    // Role initialization is configuration-independent. The send-time task
+    // envelope supplies enhanced guidance only for the specific user request.
+    expect(prompt).not.toContain('When enhancement is enabled');
+    expect(prompt).not.toContain('forward the request before planning');
   });
 
   test('planner user task omits enhancer when snapshot true but no config', async () => {

@@ -20,10 +20,7 @@ describe('recordTaskDelivery', () => {
     const { sessionId } = await createTestSession('tdr-unit');
     const chatroomId = await t.mutation(api.chatrooms.create, {
       sessionId,
-      teamId: 'duo',
-      teamName: 'Duo Team',
-      teamRoles: ['planner', 'builder'],
-      teamEntryPoint: 'builder',
+      teamStructureId: 'duo',
     });
 
     const taskId = await t.run(async (ctx) => {

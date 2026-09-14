@@ -14,6 +14,7 @@ import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession } from './auth/session';
+import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { WorkspaceTaskInboxEventType } from '../src/domain/entities/chatroom-workspace-task-inbox';
@@ -22,7 +23,6 @@ import {
   withMarkdownContent,
 } from '../src/domain/entities/markdown-content';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
-import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { writeWorkspaceTaskInboxEvent } from '../src/domain/usecase/machine/write-workspace-task-inbox-event';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
@@ -34,7 +34,6 @@ import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-tas
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
 import { releaseTaskAfterTurnFailure as releaseTaskAfterTurnFailureUsecase } from '../src/domain/usecase/task/release-task-after-turn-failure';
-import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
 import {
   countActiveTasksFromSource,
   resolveActiveCountsForRead,
@@ -75,7 +74,12 @@ export const createTask = mutation({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - need chatroom for queue position
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+      ctx,
+      args.sessionId,
+      args.chatroomId
+    );
+    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
     // Check active task limit
     const [pendingTasks, acknowledgedTasks, inProgressTasks] = await Promise.all([
@@ -164,16 +168,11 @@ export const claimTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Release orphaned in-flight tasks when agent PID was cleared without recordAgentExited
-    await releaseOrphanedTasksForRole(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-    });
-
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
+    const rawChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!rawChatroom) {
       throw new Error('Chatroom not found');
     }
+    const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
 
     const normalizedRole = args.role.toLowerCase();
     const normalizedEntryPoint = (getTeamEntryPoint(chatroom) ?? 'builder').toLowerCase();
@@ -236,23 +235,6 @@ export const claimTask = mutation({
   },
 });
 
-/** Releases in-flight tasks for a role when the agent process is gone but exit was not recorded. */
-export const sweepOrphanedTasks = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const released = await releaseOrphanedTasksForRole(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-    });
-    return { released };
-  },
-});
-
 /** Transitions an acknowledged task to in_progress for the assigned role. */
 export const startTask = mutation({
   args: {
@@ -300,7 +282,6 @@ export const startTask = mutation({
           }
         }
 
-        await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
         return {
           taskId: acknowledgedTask._id,
           content: normalizeMarkdownContent(acknowledgedTask.content),
@@ -336,9 +317,6 @@ export const startTask = mutation({
     // Transition: acknowledged → in_progress using FSM
     // Note: transitionTask now emits task.inProgress directly, so no duplicate needed here.
     await transitionTask(ctx, acknowledgedTask._id, 'in_progress', 'startTask');
-
-    // Patch participant status after transition
-    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
 
     return {
       taskId: acknowledgedTask._id,
@@ -940,7 +918,12 @@ export const getPendingTasksForRole = query({
   handler: async (ctx, args) => {
     try {
       // Validate session and check chatroom access
-      const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+      const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+        ctx,
+        args.sessionId,
+        args.chatroomId
+      );
+      const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
 
       // Check for superseded connection before processing tasks
       if (args.connectionId) {

@@ -27,9 +27,10 @@ import {
   getChatroomSwitcherOpen,
   subscribeActiveContextManagedDialog,
 } from '@/modules/chatroom/context/contextManagedDialogsController';
+import { useChatroomStatusMap } from '@/modules/chatroom/hooks/useChatroomStatus';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
-import { requestComposerFocusAfterNavigation } from '@/modules/chatroom/utils/pendingComposerFocus';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
+import { requestComposerFocusAfterNavigation } from '@/modules/chatroom/utils/pendingComposerFocus';
 import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
 
 /**
@@ -68,11 +69,16 @@ export function ChatroomSwitcher() {
   const searchParams = useSearchParams();
   const activeChatroomId = pathname === '/app/chatroom' ? searchParams.get('id') : null;
   const { chatrooms } = useChatroomListing();
+  const chatroomIds = useMemo(() => chatrooms?.map((chatroom) => chatroom._id) ?? [], [chatrooms]);
+  const { statuses } = useChatroomStatusMap(chatroomIds);
   const switcherChatrooms = useMemo(() => {
     if (!chatrooms) return undefined;
-    const activeChatrooms = chatrooms.filter((chatroom) => chatroom.chatStatus !== 'completed');
+    const activeChatrooms = chatrooms.filter(
+      (chatroom) =>
+        chatroom.status !== 'completed' && statuses.get(chatroom._id)?.state !== 'completed'
+    );
     return sortChatroomsWithCurrentFirst(activeChatrooms, activeChatroomId);
-  }, [chatrooms, activeChatroomId]);
+  }, [chatrooms, activeChatroomId, statuses]);
 
   const [partitionState$, setPartitionState$] =
     useState<Observable<ChatroomSwitcherPartitionState> | null>(null);

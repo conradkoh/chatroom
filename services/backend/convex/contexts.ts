@@ -5,11 +5,13 @@ import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { withActiveTeamStructure } from './lib/chatroomTeam';
+import type { ResolvedChatroom } from './lib/chatroomTeam';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import { insertChatroomMessage } from '../src/domain/usecase/message/message-read-model';
 
-function assertCanCreateContext(chatroom: Doc<'chatroom_rooms'>, role: string): void {
+function assertCanCreateContext(chatroom: ResolvedChatroom, role: string): void {
   const entryPoint = getTeamEntryPoint(chatroom);
   if (entryPoint && role.toLowerCase() !== entryPoint.toLowerCase()) {
     throw new ConvexError({
@@ -88,7 +90,12 @@ export const createContext = mutation({
     triggerMessageId: v.optional(v.id('chatroom_messages')),
   },
   handler: async (ctx, args) => {
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
+      ctx,
+      args.sessionId,
+      args.chatroomId
+    );
+    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
     assertCanCreateContext(chatroom, args.role);
 
     if (!args.triggerMessageId) {

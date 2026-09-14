@@ -2,13 +2,12 @@ import type { ConversationMode } from '@workspace/shared/domain/conversation-mod
 import { plannerEnhancerEnabledForMode } from '@workspace/shared/domain/conversation-mode';
 import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
-import { markAgentViewHasHistory } from './project-agent-view-metadata';
 import { reserveFrontQueuePosition } from './reserve-front-queue-position';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { withActiveTeamStructure } from '../../../../convex/lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
-import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
 import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
@@ -36,10 +35,11 @@ export async function sendAutomatedUserMessage(
     taskEnvelope?: TaskEnvelopeV1 | undefined;
   }
 ): Promise<SendAutomatedUserMessageResult> {
-  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!chatroom || chatroom.status !== 'active') {
+  const rawChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+  if (!rawChatroom || rawChatroom.status !== 'active') {
     return { ok: false, reason: 'chatroom_not_active' };
   }
+  const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
   const trimmed = args.content.trim();
   if (!trimmed) return { ok: false, reason: 'empty_content' };
 
@@ -50,34 +50,17 @@ export async function sendAutomatedUserMessage(
       ? await reserveFrontQueuePosition(ctx, args.chatroomId, chatroom)
       : await getAndIncrementQueuePosition(ctx, chatroom);
 
-  // Compatibility transition: an explicit envelope or mode short-circuits the
-  // legacy enhancer-config lookup. Only old-style callers (no envelope, no
-  // mode) keep the live-config fallback so the resolved boolean selects the
-  // same effective enhancer mode while a complete envelope is still persisted.
-  let legacyPlannerEnhancerEnabled: boolean | undefined;
-  const userId = args.userId;
-  if (args.taskEnvelope === undefined && args.conversationMode === undefined && userId) {
-    const config = await ctx.db
-      .query('chatroom_enhancerConfigs')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', userId)
-      )
-      .unique();
-    legacyPlannerEnhancerEnabled = resolvePlannerEnhancerEnabledFromConfig(config);
-  }
-
   // TaskEnvelopeV1 is the source of truth for the policy snapshot.
   const envelope = normalizeTaskEnvelope({
     taskEnvelope: args.taskEnvelope,
     conversationMode: args.conversationMode,
-    plannerEnhancerEnabled: legacyPlannerEnhancerEnabled,
     startInNewSession: args.startInNewSession,
   });
 
   // TEMPORARY backwards-compatible scalar projections for legacy readers.
-  // These fields are derived from the envelope only (or the legacy fallback
-  // input that produced it) and are NOT sources of truth. Remove together with
-  // the plannerEnhancerEnabled/conversationMode/startInNewSession columns after
+  // These fields are derived from the envelope only and are NOT sources of
+  // truth. Remove together with the
+  // plannerEnhancerEnabled/conversationMode/startInNewSession columns after
   // all readers migrate to taskEnvelope.
   const modeExplicitlySelected =
     args.taskEnvelope !== undefined || args.conversationMode !== undefined;
@@ -86,7 +69,7 @@ export async function sendAutomatedUserMessage(
     : undefined;
   const legacyPlannerEnhancerProjection = modeExplicitlySelected
     ? plannerEnhancerEnabledForMode(envelope.conversationMode)
-    : legacyPlannerEnhancerEnabled;
+    : undefined;
 
   if (enqueue) {
     const queuedMessageId = await ctx.db.insert('chatroom_messageQueue', {
@@ -136,7 +119,6 @@ export async function sendAutomatedUserMessage(
     ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
     ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
   });
-  await markAgentViewHasHistory(ctx, args.chatroomId);
   await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
 
   const { taskId } = await createTaskUsecase(ctx, {

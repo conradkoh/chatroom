@@ -1,63 +1,57 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo } from 'react';
 
+import { useMachineConfigFavorites } from '../../machine-config/hooks/useMachineConfigFavorites';
+import type { MachineConfigFavoriteScope } from '../../machine-config/hooks/useMachineConfigFavorites';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
-import { enhancerConfigEntriesEqual } from '../types/enhancerConfigEntry';
+import {
+  enhancerConfigEntriesEqual,
+  normalizeEnhancerTargetId,
+} from '../types/enhancerConfigEntry';
 
-export function useEnhancerConfigFavorites(machineId: string | null | undefined) {
-  const enabled = Boolean(machineId);
-
-  const queryResult = useSessionQuery(
-    api.enhancerConfigFavorites.getEnhancerConfigFavorites,
-    enabled && machineId ? { machineId } : 'skip'
-  );
-
-  const setFavoritesMutation = useSessionMutation(
-    api.enhancerConfigFavorites.setEnhancerConfigFavorites
-  );
+export function useEnhancerConfigFavorites(scope: MachineConfigFavoriteScope | undefined) {
+  const {
+    favorites: machineFavorites,
+    addFavorite: addMachineFavorite,
+    removeFavorite: removeMachineFavorite,
+    moveFavorite: moveMachineFavorite,
+    isLoading,
+  } = useMachineConfigFavorites(scope);
 
   const favorites = useMemo<EnhancerConfigEntry[]>(
-    () => (queryResult as { favorites?: EnhancerConfigEntry[] })?.favorites ?? [],
-    [queryResult]
-  );
-
-  const saveFavorites = useCallback(
-    async (next: EnhancerConfigEntry[]) => {
-      if (!machineId) return;
-      await setFavoritesMutation({ machineId, favorites: next });
-    },
-    [machineId, setFavoritesMutation]
+    () =>
+      machineFavorites.map((entry) => ({
+        targetId: normalizeEnhancerTargetId(undefined),
+        agentHarness: entry.agentHarness,
+        model: entry.model,
+      })),
+    [machineFavorites]
   );
 
   const addFavorite = useCallback(
     async (entry: EnhancerConfigEntry) => {
       if (favorites.some((f) => enhancerConfigEntriesEqual(f, entry))) return;
-      await saveFavorites([...favorites, entry]);
+      await addMachineFavorite({ agentHarness: entry.agentHarness, model: entry.model });
     },
-    [favorites, saveFavorites]
+    [addMachineFavorite, favorites]
   );
 
   const removeFavorite = useCallback(
     async (entry: EnhancerConfigEntry) => {
-      const next = favorites.filter((f) => !enhancerConfigEntriesEqual(f, entry));
-      await saveFavorites(next);
+      const index = favorites.findIndex((favorite) => enhancerConfigEntriesEqual(favorite, entry));
+      if (index >= 0) await removeMachineFavorite(machineFavorites[index]);
     },
-    [favorites, saveFavorites]
+    [favorites, machineFavorites, removeMachineFavorite]
   );
 
   const moveFavorite = useCallback(
     async (fromIndex: number, toIndex: number) => {
       const inBounds = (i: number) => i >= 0 && i < favorites.length;
       if (!inBounds(fromIndex) || !inBounds(toIndex)) return;
-      const next = [...favorites];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      await saveFavorites(next);
+      await moveMachineFavorite(fromIndex, toIndex);
     },
-    [favorites, saveFavorites]
+    [favorites.length, moveMachineFavorite]
   );
 
   const isFavorite = useCallback(
@@ -71,6 +65,6 @@ export function useEnhancerConfigFavorites(machineId: string | null | undefined)
     removeFavorite,
     moveFavorite,
     isFavorite,
-    isLoading: enabled && queryResult === undefined,
+    isLoading,
   };
 }

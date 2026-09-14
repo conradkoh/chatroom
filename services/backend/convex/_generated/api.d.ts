@@ -10,7 +10,9 @@
 
 import type * as admin_invites from "../admin/invites.js";
 import type * as admin_users from "../admin/users.js";
+import type * as agentWorkspaces from "../agentWorkspaces.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
+import type * as agents from "../agents.js";
 import type * as allTabConversation from "../allTabConversation.js";
 import type * as api_agenticQueryHelpers from "../api/agenticQueryHelpers.js";
 import type * as api_harnessChunkAggregate from "../api/harnessChunkAggregate.js";
@@ -29,7 +31,6 @@ import type * as backlog from "../backlog.js";
 import type * as capabilitiesRefreshCron from "../capabilitiesRefreshCron.js";
 import type * as chatroomCleanup from "../chatroomCleanup.js";
 import type * as chatroomSkillCustomizations from "../chatroomSkillCustomizations.js";
-import type * as chatroomWorkspaceAgentCommandsInbox from "../chatroomWorkspaceAgentCommandsInbox.js";
 import type * as chatroomWorkspaceTaskInbox from "../chatroomWorkspaceTaskInbox.js";
 import type * as chatrooms from "../chatrooms.js";
 import type * as checklists from "../checklists.js";
@@ -69,7 +70,6 @@ import type * as daemon_machineWorkspaces from "../daemon/machineWorkspaces.js";
 import type * as dev from "../dev.js";
 import type * as discussions from "../discussions.js";
 import type * as e2e from "../e2e.js";
-import type * as enhancerConfigFavorites from "../enhancerConfigFavorites.js";
 import type * as enhancerJobReaper from "../enhancerJobReaper.js";
 import type * as guidelines from "../guidelines.js";
 import type * as harnesses_claude from "../harnesses/claude.js";
@@ -87,6 +87,7 @@ import type * as integrations_telegram_internal from "../integrations/telegram/i
 import type * as integrations_telegram_types from "../integrations/telegram/types.js";
 import type * as integrations_types from "../integrations/types.js";
 import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
+import type * as lib_chatroomTeam from "../lib/chatroomTeam.js";
 import type * as lib_chatroomUtils from "../lib/chatroomUtils.js";
 import type * as lib_fileTreeDeltaOps from "../lib/fileTreeDeltaOps.js";
 import type * as lib_handoffRoles from "../lib/handoffRoles.js";
@@ -124,7 +125,6 @@ import type * as taskDeliveryReceipts from "../taskDeliveryReceipts.js";
 import type * as tasks from "../tasks.js";
 import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteScopeKey.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
-import type * as utils_teamRoleKeyFilter from "../utils/teamRoleKeyFilter.js";
 import type * as utils_types from "../utils/types.js";
 import type * as validators_agent_lifecycle_fact from "../validators/agent_lifecycle_fact.js";
 import type * as web_agenticQuery_completeLogic from "../web/agenticQuery/completeLogic.js";
@@ -170,7 +170,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   "admin/invites": typeof admin_invites;
   "admin/users": typeof admin_users;
+  agentWorkspaces: typeof agentWorkspaces;
   agenticQueryCleanup: typeof agenticQueryCleanup;
+  agents: typeof agents;
   allTabConversation: typeof allTabConversation;
   "api/agenticQueryHelpers": typeof api_agenticQueryHelpers;
   "api/harnessChunkAggregate": typeof api_harnessChunkAggregate;
@@ -189,7 +191,6 @@ declare const fullApi: ApiFromModules<{
   capabilitiesRefreshCron: typeof capabilitiesRefreshCron;
   chatroomCleanup: typeof chatroomCleanup;
   chatroomSkillCustomizations: typeof chatroomSkillCustomizations;
-  chatroomWorkspaceAgentCommandsInbox: typeof chatroomWorkspaceAgentCommandsInbox;
   chatroomWorkspaceTaskInbox: typeof chatroomWorkspaceTaskInbox;
   chatrooms: typeof chatrooms;
   checklists: typeof checklists;
@@ -229,7 +230,6 @@ declare const fullApi: ApiFromModules<{
   dev: typeof dev;
   discussions: typeof discussions;
   e2e: typeof e2e;
-  enhancerConfigFavorites: typeof enhancerConfigFavorites;
   enhancerJobReaper: typeof enhancerJobReaper;
   guidelines: typeof guidelines;
   "harnesses/claude": typeof harnesses_claude;
@@ -247,6 +247,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/telegram/types": typeof integrations_telegram_types;
   "integrations/types": typeof integrations_types;
   "lib/backlogStateMachine": typeof lib_backlogStateMachine;
+  "lib/chatroomTeam": typeof lib_chatroomTeam;
   "lib/chatroomUtils": typeof lib_chatroomUtils;
   "lib/fileTreeDeltaOps": typeof lib_fileTreeDeltaOps;
   "lib/handoffRoles": typeof lib_handoffRoles;
@@ -284,7 +285,6 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   "utils/machineFavoriteScopeKey": typeof utils_machineFavoriteScopeKey;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
-  "utils/teamRoleKeyFilter": typeof utils_teamRoleKeyFilter;
   "utils/types": typeof utils_types;
   "validators/agent_lifecycle_fact": typeof validators_agent_lifecycle_fact;
   "web/agenticQuery/completeLogic": typeof web_agenticQuery_completeLogic;

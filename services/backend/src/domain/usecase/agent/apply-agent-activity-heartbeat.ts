@@ -2,7 +2,6 @@ import { touchAgentRoleStatusLastSeen } from './project-agent-role-status-read-m
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { NATIVE_TASK_INJECTED_ACTION, NATIVE_WAITING_ACTION } from '../../entities/participant';
 import { hasActiveEntryPointEnhancerJob } from '../enhancer/enhancer-entry-point-status';
 import {
@@ -13,47 +12,70 @@ import {
 export async function applyAgentActivityHeartbeat(
   ctx: MutationCtx,
   args: {
+    machineId?: string | undefined;
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
     action: string;
     taskId?: Id<'chatroom_tasks'> | undefined;
-    participantId?: Id<'chatroom_participants'> | undefined;
     emittedAt?: number | undefined;
+    revisionKey?: string | undefined;
   }
 ): Promise<void> {
-  await touchAgentRoleStatusLastSeen(ctx, {
+  // Keep the high-frequency heartbeat path to one targeted read/patch. Status
+  // transitions below intentionally fan out into the lifecycle projections.
+  const accepted = await touchAgentRoleStatusLastSeen(ctx, {
     chatroomId: args.chatroomId,
     role: args.role,
     lastSeenAt: args.emittedAt ?? Date.now(),
+    lastSeenAction: args.action,
+    machineId: args.machineId,
+    eventAt: args.emittedAt,
+    revisionKey: args.revisionKey,
   });
-  const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  const teamId = room?.teamId;
-  const config = teamId
-    ? await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
-        )
-        .first()
-    : null;
-  const stopped = config?.desiredState === 'stopped';
-  if (args.action === 'get-next-task:started' && !stopped) {
+  if (!accepted) return;
+
+  const projection = {
+    machineId: args.machineId,
+    emittedAt: args.emittedAt,
+    revisionKey: args.revisionKey,
+  };
+
+  if (args.action === 'get-next-task:started') {
     const enhancing = await hasActiveEntryPointEnhancerJob(ctx, args.chatroomId, args.role);
     await transitionAgentStatus(
       ctx,
       args.chatroomId,
       args.role,
-      enhancing ? 'agent.enhancing' : 'agent.waiting'
+      enhancing ? 'agent.enhancing' : 'agent.waiting',
+      undefined,
+      undefined,
+      projection
     );
   } else if (args.action === 'get-next-task:stopped') {
-    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
+    await transitionAgentStatus(
+      ctx,
+      args.chatroomId,
+      args.role,
+      'task.acknowledged',
+      undefined,
+      undefined,
+      projection
+    );
   } else if (args.action === NATIVE_WAITING_ACTION) {
     const active = await findActiveAssignedTaskForRole(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
     });
-    if (!active && !stopped)
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+    if (!active)
+      await transitionAgentStatus(
+        ctx,
+        args.chatroomId,
+        args.role,
+        'agent.waiting',
+        undefined,
+        undefined,
+        projection
+      );
   } else if (args.action === NATIVE_TASK_INJECTED_ACTION) {
     const acknowledged = await findAcknowledgedTaskForRole(ctx, {
       chatroomId: args.chatroomId,
@@ -61,6 +83,14 @@ export async function applyAgentActivityHeartbeat(
       taskId: args.taskId,
     });
     if (acknowledged)
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
+      await transitionAgentStatus(
+        ctx,
+        args.chatroomId,
+        args.role,
+        'task.acknowledged',
+        undefined,
+        undefined,
+        projection
+      );
   }
 }
