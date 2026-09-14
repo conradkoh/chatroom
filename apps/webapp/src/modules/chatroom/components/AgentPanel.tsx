@@ -5,6 +5,7 @@ import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { ChevronRight, Users } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
+import { CommandQueuePanel } from './AgentPanel/CommandQueuePanel';
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import type { AgentRoleStatusReadModel } from '../hooks/useAgentPanelData';
@@ -26,6 +27,7 @@ import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 interface AgentPanelProps {
   chatroomId: string;
+  machineId: string | null | undefined;
   teamStructure: TeamStructure | null | undefined;
   lifecycle: TeamLifecycle | null | undefined;
   statusReadModel: AgentRoleStatusReadModel[] | undefined;
@@ -155,6 +157,7 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
 
 export const AgentPanel = memo(function AgentPanel({
   chatroomId,
+  machineId,
   teamStructure,
   lifecycle,
   statusReadModel,
@@ -274,6 +277,7 @@ export const AgentPanel = memo(function AgentPanel({
           )}
         </SidebarSection.Toolbar>
       )}
+      <CommandQueuePanel machineId={machineId} />
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
         {teamStructure === null ? (

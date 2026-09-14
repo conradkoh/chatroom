@@ -13,6 +13,9 @@ vi.mock('../../hooks/useAgentStatuses', () => ({
 vi.mock('./RemoteAgentQuickActions', () => ({
   RemoteAgentQuickActions: () => <div data-testid="quick-actions" />,
 }));
+vi.mock('./CommandQueuePanel', () => ({
+  CommandQueuePanel: () => <div data-testid="command-queue-panel" />,
+}));
 vi.mock('./TeamSelectorDropdown', () => ({
   TeamSelectorDropdown: () => <div data-testid="team-selector" />,
 }));
@@ -42,6 +45,7 @@ const duoStructure = {
 
 const panelProps = {
   chatroomId: 'room1',
+  machineId: null,
   lifecycle,
   statusReadModel: undefined,
   teamName: undefined,
