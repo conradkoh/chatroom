@@ -29,6 +29,7 @@ export interface StopAgentProcessInput {
   readonly role: string;
   readonly reason: StopReason;
   readonly pid?: number | undefined;
+  readonly workingDir?: string | undefined;
 }
 
 export interface HandleAgentProcessExitInput {

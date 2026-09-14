@@ -9,20 +9,16 @@ export interface AgentStopTarget {
   chatroomId: Id<'chatroom_rooms'>;
   machineId: string;
   role: string;
+  workingDir?: string | undefined;
 }
 
 export function useAgentStop() {
   const requestAgent = useSessionMutation(api.agents.requestStop);
-  const requestChatroom = useSessionMutation(api.agents.requestStopAll);
 
   const requestAgentStop = useCallback(
     (target: AgentStopTarget) => requestAgent(target),
     [requestAgent]
   );
-  const requestChatroomStop = useCallback(
-    (chatroomId: Id<'chatroom_rooms'>) => requestChatroom({ chatroomId }),
-    [requestChatroom]
-  );
 
-  return { requestAgentStop, requestChatroomStop };
+  return { requestAgentStop };
 }

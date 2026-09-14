@@ -68,11 +68,13 @@ export interface StopOpts {
   readonly role: string;
   readonly reason: StopReason;
   readonly pid?: number | undefined;
+  readonly workingDir?: string | undefined;
 }
 
 export interface HandleExitOpts {
   readonly chatroomId: string;
   readonly role: string;
+  readonly workingDir?: string | undefined;
   readonly pid: number;
   readonly code: number | null;
   readonly signal: string | null;
@@ -124,7 +126,11 @@ export interface AgentLifecycleServiceShape {
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
-  getSlot: (chatroomId: string, role: string) => Effect.Effect<AgentLifecycleSlot | undefined>;
+  getSlot: (
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ) => Effect.Effect<AgentLifecycleSlot | undefined>;
   listActive: () => Effect.Effect<
     readonly {
       chatroomId: string;

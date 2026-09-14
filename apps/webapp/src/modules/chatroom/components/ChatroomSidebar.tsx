@@ -11,6 +11,7 @@ import {
   MailOpen,
   MessageSquare,
   Play,
+  RefreshCw,
   Square,
   Star,
 } from 'lucide-react';
@@ -22,7 +23,7 @@ import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
-import { useAgentStop } from '../hooks/useAgentStop';
+import { useChatroomAgentOperations } from '../hooks/useChatroomAgentOperations';
 import { useChatroomStatus, useChatroomStatusMap } from '../hooks/useChatroomStatus';
 import {
   getChatroomActivityIndicatorClasses,
@@ -63,9 +64,8 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [isSubmittingStop, setIsSubmittingStop] = useState(false);
-  const { requestChatroomStop } = useAgentStop();
+  const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
-  const startAllPermanent = useSessionMutation(api.agents.startAllPermanent);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
   const { status: chatroomStatus } = useChatroomStatus(chatroom._id);
@@ -79,7 +79,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const confirmStop = useCallback(async () => {
     setIsSubmittingStop(true);
     const [agentStop, commandStop] = await Promise.allSettled([
-      requestChatroomStop(chatroom._id as Id<'chatroom_rooms'>),
+      stopAgents(chatroom._id as Id<'chatroom_rooms'>),
       stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
     ]);
     // Independent branches: one failure must not skip the other.
@@ -90,22 +90,21 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     if (failures.length > 0) toast.error(failures.join('; '));
     setIsSubmittingStop(false);
     setStopConfirmOpen(false);
-  }, [chatroom._id, requestChatroomStop, stopAllCommandRuns]);
+  }, [chatroom._id, stopAgents, stopAllCommandRuns]);
 
   const [isStarting, setIsStarting] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
   const handleStart = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
       setIsStarting(true);
       try {
-        const result = await startAllPermanent({
-          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-        });
+        const result = await startAgents(chatroom._id as Id<'chatroom_rooms'>);
         if (result.failed.length > 0) {
-          toast.error(`Failed to start: ${result.failed.map(({ role }) => role).join(', ')}`);
-        } else if (result.started.length > 0) {
-          toast.success(`Start requested for ${result.started.length} agent(s)`);
+          toast.error(`Failed to start ${result.failed.length} agent(s)`);
+        } else if (result.requested.length > 0) {
+          toast.success(`Start requested for ${result.requested.length} agent(s)`);
         } else if (result.skipped.length > 0) {
           toast.error('No saved configuration is available for the permanent agents');
         }
@@ -115,7 +114,28 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         setIsStarting(false);
       }
     },
-    [chatroom._id, startAllPermanent]
+    [chatroom._id, startAgents]
+  );
+
+  const handleRestart = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setIsRestarting(true);
+      try {
+        const result = await restartAgents(chatroom._id as Id<'chatroom_rooms'>);
+        if (result.failed.length > 0)
+          toast.error(`Failed to restart ${result.failed.length} agent(s)`);
+        else if (result.requested.length > 0)
+          toast.success(`Restart requested for ${result.requested.length} agent(s)`);
+        else toast.error('No saved configuration is available for the permanent agents');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to restart agents');
+      } finally {
+        setIsRestarting(false);
+      }
+    },
+    [chatroom._id, restartAgents]
   );
 
   const handleArchive = useCallback(() => {
@@ -217,6 +237,24 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
                 <Loader2 size={10} className="animate-spin" />
               ) : (
                 <Play size={10} fill="currentColor" />
+              )}
+            </button>
+          )}
+
+          {chatroomStatus?.remoteAgentStatus === 'running' && (
+            <button
+              onClick={handleRestart}
+              title="Restart agents"
+              aria-label="Restart agents"
+              aria-busy={isRestarting}
+              type="button"
+              disabled={isRestarting || isSubmittingStop}
+              className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {isRestarting ? (
+                <Loader2 size={10} className="animate-spin" />
+              ) : (
+                <RefreshCw size={10} />
               )}
             </button>
           )}

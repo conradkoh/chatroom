@@ -24,6 +24,7 @@ import {
   idleSlot,
   isAgentSlotActive,
   isAgentSlotStarted,
+  parseAgentKey,
 } from '../../../daemon/domain/entities/agent-slot.js';
 import {
   transitionSlot,
@@ -42,11 +43,30 @@ export const AgentLifecycleServiceLive: Layer.Layer<
   Effect.gen(function* () {
     const ports = yield* AgentLifecyclePorts;
 
-    // Ref-backed slot store, keyed by agentKey(chatroomId, role)
+    // Ref-backed slot store, keyed by chatroom, role, and workspace path.
     const slotsRef = yield* Ref.make(new Map<string, AgentLifecycleSlot>());
 
     const getSlotFromRef = (key: string): Effect.Effect<AgentLifecycleSlot | undefined> =>
       Ref.get(slotsRef).pipe(Effect.map((map: Map<string, AgentLifecycleSlot>) => map.get(key)));
+
+    const findSlotKey = (
+      chatroomId: string,
+      role: string,
+      workingDir?: string
+    ): Effect.Effect<string | undefined> =>
+      Ref.get(slotsRef).pipe(
+        Effect.map((map) => {
+          if (workingDir !== undefined) {
+            const key = agentKey(chatroomId, role, workingDir);
+            return map.has(key) ? key : undefined;
+          }
+          const candidates = [...map.keys()].filter((key) => {
+            const identity = parseAgentKey(key);
+            return identity.chatroomId === chatroomId && identity.role === role.toLowerCase();
+          });
+          return candidates.length === 1 ? candidates[0] : undefined;
+        })
+      );
 
     const setSlotInRef = (key: string, slot: AgentLifecycleSlot): Effect.Effect<void> =>
       Ref.update(slotsRef, (map: Map<string, AgentLifecycleSlot>) => map.set(key, slot));
@@ -127,7 +147,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
 
     const ensureRunning = (opts: EnsureRunningOpts): Effect.Effect<OperationResult> =>
       Effect.gen(function* () {
-        const key = agentKey(opts.chatroomId, opts.role);
+        const key = agentKey(opts.chatroomId, opts.role, opts.workingDir);
 
         const currentSlot = yield* getSlotFromRef(key);
 
@@ -162,7 +182,8 @@ export const AgentLifecycleServiceLive: Layer.Layer<
 
     const stop = (opts: StopOpts): Effect.Effect<{ success: boolean }> =>
       Effect.gen(function* () {
-        const key = agentKey(opts.chatroomId, opts.role);
+        const key = yield* findSlotKey(opts.chatroomId, opts.role, opts.workingDir);
+        if (!key) return { success: false };
         const slot = yield* getSlotFromRef(key);
 
         if (!slot) {
@@ -204,7 +225,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
 
     const handleExit = (opts: HandleExitOpts): Effect.Effect<void> =>
       Effect.gen(function* () {
-        const key = agentKey(opts.chatroomId, opts.role);
+        const key = agentKey(opts.chatroomId, opts.role, opts.workingDir);
         const slot = yield* getSlotFromRef(key);
 
         if (!slot) {
@@ -240,8 +261,10 @@ export const AgentLifecycleServiceLive: Layer.Layer<
 
     // ── Public API ───────────────────────────────────────────────────────────
 
-    const getSlot = (chatroomId: string, role: string) =>
-      getSlotFromRef(agentKey(chatroomId, role));
+    const getSlot = (chatroomId: string, role: string, workingDir?: string) =>
+      findSlotKey(chatroomId, role, workingDir).pipe(
+        Effect.flatMap((key) => (key ? getSlotFromRef(key) : Effect.succeed(undefined)))
+      );
 
     const listActive = (): Effect.Effect<
       readonly { chatroomId: string; role: string; slot: AgentLifecycleSlot }[]
@@ -251,8 +274,8 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           const results: { chatroomId: string; role: string; slot: AgentLifecycleSlot }[] = [];
           for (const [key, slot] of map) {
             if (isAgentSlotActive(slot)) {
-              const [chatroomId, role] = key.split(':');
-              results.push({ chatroomId, role, slot });
+              const identity = parseAgentKey(key);
+              results.push({ chatroomId: identity.chatroomId, role: identity.role, slot });
             }
           }
           return results;
@@ -266,13 +289,13 @@ export const AgentLifecycleServiceLive: Layer.Layer<
     }): Effect.Effect<void> =>
       Ref.update(slotsRef, (map) => {
         const next = new Map(map);
-        const prefix = `${input.chatroomId}:`;
-        const exactKey =
-          input.scope === 'chatroom-role' && input.role
-            ? `${input.chatroomId}:${input.role.toLowerCase()}`
-            : undefined;
         for (const key of next.keys()) {
-          if (input.scope === 'chatroom' ? key.startsWith(prefix) : key === exactKey) {
+          const identity = parseAgentKey(key);
+          if (
+            identity.chatroomId === input.chatroomId &&
+            (input.scope === 'chatroom' ||
+              (input.role !== undefined && identity.role === input.role.toLowerCase()))
+          ) {
             next.delete(key);
           }
         }

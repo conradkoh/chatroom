@@ -17,13 +17,14 @@ export type StartAgentFromCurrentConfigResult =
 
 /**
  * Start a permanent role from the last configuration recorded for the
- * chatroom's active workspace. The caller never supplies workspace or machine
- * identity; those are resolved from backend state.
+ * chatroom's active workspace. The caller may identify the workspace, while
+ * machine identity and launch settings are always resolved from backend state.
  */
 export async function startAgentFromCurrentWorkspaceConfig(
   ctx: MutationCtx,
   input: {
     chatroomId: Id<'chatroom_rooms'>;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
     role: string;
     requestedBy: Id<'users'>;
   }
@@ -48,9 +49,15 @@ export async function startAgentFromCurrentWorkspaceConfig(
     return { status: 'skipped', role, reason: 'Role is not part of the active team' };
   }
 
-  const workspace = await getPrimaryWorkspaceForChatroom(ctx, input.chatroomId, {
-    fallbackToNewest: false,
-  });
+  const workspace = input.workspaceId
+    ? await ctx.db.get('chatroom_workspaces', input.workspaceId)
+    : await getPrimaryWorkspaceForChatroom(ctx, input.chatroomId, { fallbackToNewest: false });
+  if (
+    workspace &&
+    (workspace.chatroomId !== input.chatroomId || workspace.removedAt !== undefined)
+  ) {
+    return { status: 'skipped', role, reason: 'Workspace is not active in this chatroom' };
+  }
   if (!workspace) {
     return { status: 'skipped', role, reason: 'No active primary workspace' };
   }

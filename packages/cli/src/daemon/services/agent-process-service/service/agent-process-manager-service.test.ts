@@ -12,9 +12,7 @@ import type {
   StopOpts,
 } from '../../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import { InMemoryCommandNotifier } from '../infrastructure/components/command-notifier/index.js';
-import {
-  createAgentProcessCommandBus,
-} from '../infrastructure/adapters/agent-process-command-bus.js';
+import { createAgentProcessCommandBus } from '../infrastructure/adapters/agent-process-command-bus.js';
 import type { CommandQueueConsumerOptions } from '../infrastructure/components/command-queue/index.js';
 
 type TestServiceDependencies = Omit<AgentProcessManagerServiceDependencies, 'commandBus'> & {
@@ -71,8 +69,8 @@ const startInput = (chatroomId: string, role: string) =>
     wantResume: false,
   }) as unknown as EnsureRunningOpts;
 
-const stopInput = (chatroomId: string, role: string) =>
-  ({ chatroomId, role, reason: 'user.stop' }) as StopOpts;
+const stopInput = (chatroomId: string, role: string, workingDir?: string) =>
+  ({ chatroomId, role, reason: 'user.stop', ...(workingDir ? { workingDir } : {}) }) as StopOpts;
 
 async function waitForEventCount(events: string[], count: number): Promise<void> {
   await vi.waitFor(() => expect(events).toHaveLength(count), { timeout: 1_000 });
@@ -171,15 +169,15 @@ describe('AgentProcessManagerService', () => {
 
     service.startProcessing();
     const compound = service.runSerializedForAgent(
-      { chatroomId: 'room-1', role: 'builder' },
+      { chatroomId: 'room-1', role: 'builder', workingDir: '/tmp/workspace' },
       { timeoutMs: 1_000 },
       async (ops, context) => {
-        await ops.stopAgent(stopInput('room-1', 'builder'), context.signal);
+        await ops.stopAgent(stopInput('room-1', 'builder', '/tmp/workspace'), context.signal);
         await ops.startAgent(startInput('room-1', 'builder'), context.signal);
         return 'complete';
       }
     );
-    const competing = service.stopAgent(stopInput('room-1', 'builder'));
+    const competing = service.stopAgent(stopInput('room-1', 'builder', '/tmp/workspace'));
 
     await expect(compound).resolves.toBe('complete');
     await expect(competing).resolves.toMatchObject({ status: 'succeeded' });
@@ -248,12 +246,12 @@ describe('AgentProcessManagerService', () => {
       consumer: { pollIntervalMs: 1, visibilityTimeoutMs: 100 },
     });
 
-    service.subscribe({ messageGroupId: 'room-1:builder' }, (notification) => {
+    service.subscribe({ messageGroupId: 'room-1:builder:/tmp/workspace' }, (notification) => {
       notifications.push(`${notification.status}:${notification.messageId}`);
     });
     service.startProcessing();
     const startMessage = await service.startAgent(startInput('room-1', 'builder'));
-    const stopMessage = await service.stopAgent(stopInput('room-1', 'builder'));
+    const stopMessage = await service.stopAgent(stopInput('room-1', 'builder', '/tmp/workspace'));
     await waitForEventCount(events, 2);
     await waitForEventCount(notifications, 2);
     service.stopProcessing();

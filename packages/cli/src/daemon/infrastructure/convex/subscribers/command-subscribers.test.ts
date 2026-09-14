@@ -63,9 +63,9 @@ describe('machine command inbox subscriber', () => {
       release = r;
     });
     mock.queueClaims(
-      { ...CLAIMED, commandId: 'a', type: 'agent.requestStart', workingDir: '/workspace/a' },
-      { ...CLAIMED, commandId: 'b', type: 'agent.requestStart', workingDir: '/workspace/a' },
-      { ...CLAIMED, commandId: 'c', type: 'agent.requestStart', workingDir: '/workspace/b' }
+      { ...CLAIMED, commandId: 'a', type: 'agent.stop', workingDir: '/workspace/a' },
+      { ...CLAIMED, commandId: 'b', type: 'agent.restart', workingDir: '/workspace/a' },
+      { ...CLAIMED, commandId: 'c', type: 'agent.stop', workingDir: '/workspace/b' }
     );
     const handle = startMachineCommandInboxSubscriber(
       { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },

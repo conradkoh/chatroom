@@ -3,7 +3,6 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
@@ -78,7 +77,7 @@ import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
-import { useAgentStop } from './hooks/useAgentStop';
+import { useChatroomAgentOperations } from './hooks/useChatroomAgentOperations';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useChatroomStatus } from './hooks/useChatroomStatus';
 import { useCommandRunner } from './hooks/useCommandRunner';
@@ -975,7 +974,6 @@ function ChatroomDashboardContent({
   // Send message mutation (used to execute saved commands)
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
-  const startAllPermanentAgents = useSessionMutation(api.agents.startAllPermanent);
   const lastRefreshRef = useRef(0);
 
   useHandoffGitRefresh(
@@ -1087,7 +1085,7 @@ function ChatroomDashboardContent({
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData();
-  const { requestChatroomStop } = useAgentStop();
+  const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
   const [isRequestingStop, setIsRequestingStop] = useState(false);
   const isStoppingAgents = isRequestingStop;
   const lifecycle = agentPanelData.lifecycle;
@@ -1382,96 +1380,55 @@ function ChatroomDashboardContent({
 
   // Start all remote agents handler
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
-  const getConfiguredRestartAgentRoles = useCallback((): string[] | null => {
-    const agentRoles = getPermanentRoleNames(teamRoles.filter((r) => r !== 'user'));
-    if (
-      !ensureRestartAgentRolesConfigured(agentRoles, roleConfigMap, () =>
-        handleCmdOpenSettings('agents')
-      )
-    ) {
-      return null;
-    }
-    return agentRoles;
-  }, [teamRoles, roleConfigMap, handleCmdOpenSettings]);
 
   const handleStartAllRemoteAgents = useCallback(async () => {
     setIsStartingAllAgents(true);
     try {
-      const result = await startAllPermanentAgents({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      });
+      const result = await startAgents(chatroomId as Id<'chatroom_rooms'>);
       if (result.failed.length > 0) {
-        toast.error(`Failed to start: ${result.failed.map(({ role }) => role).join(', ')}`);
-      } else if (result.started.length > 0) {
-        toast.success(`Start requested for ${result.started.length} agent(s)`);
+        toast.error(`Failed to start ${result.failed.length} agent(s)`);
+      } else if (result.requested.length > 0) {
+        toast.success(`Start requested for ${result.requested.length} agent(s)`);
       } else if (result.skipped.length > 0) {
         toast.error('No saved configuration is available for the permanent agents');
       }
     } finally {
       setIsStartingAllAgents(false);
     }
-  }, [chatroomId, startAllPermanentAgents]);
+  }, [chatroomId, startAgents]);
 
   // Stop all remote agents immediately from the quick-action button.
   const handleStopAllRemoteAgents = useCallback(async () => {
     setIsRequestingStop(true);
     try {
-      await requestChatroomStop(chatroomId as Id<'chatroom_rooms'>);
+      await stopAgents(chatroomId as Id<'chatroom_rooms'>);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to stop agents');
     } finally {
       setIsRequestingStop(false);
     }
-  }, [chatroomId, requestChatroomStop]);
+  }, [chatroomId, stopAgents]);
 
   // Restart all remote agents through the atomic backend restart path.
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
   const handleRestartAllRemoteAgents = useCallback(async () => {
-    const agentRoles = getConfiguredRestartAgentRoles();
-    if (!agentRoles) return;
-
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    const reportRestartResults = (failed: string[]) => {
-      if (failed.length > 0) {
-        toast.error(`Failed to restart: ${failed.join(', ')}`);
-      } else {
-        toast.success(`Restart requested for ${agentRoles.length} agent(s)`);
-      }
-    };
     setIsRestartingAllAgents(true);
-    const runningRoles = agentPanelData.agents
-      .filter((a) => (a.state === 'running' || a.state === 'starting') && a.machineId)
-      .map((a) => a.role);
     try {
-      if (runningRoles.length === 0) {
-        const result = await startAllPermanentAgents({ chatroomId: chatroomIdTyped });
-        if (result.failed.length > 0) {
-          toast.error(`Failed to start: ${result.failed.map(({ role }) => role).join(', ')}`);
-        } else {
-          toast.success(`Start requested for ${result.started.length} agent(s)`);
-        }
-        return;
+      const result = await restartAgents(chatroomIdTyped);
+      if (result.failed.length > 0) {
+        toast.error(`Failed to restart ${result.failed.length} agent(s)`);
+      } else if (result.requested.length > 0) {
+        toast.success(`Restart requested for ${result.requested.length} agent(s)`);
+      } else {
+        toast.error('No saved configuration is available for the permanent agents');
       }
-      await runAgentRestartBatch(
-        runningRoles,
-        roleConfigMap,
-        agentPanelData.machineConfigs,
-        agentViewsByRole,
-        chatroomIdTyped,
-        agentPanelData.sendCommand,
-        reportRestartResults
-      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to restart agents');
     } finally {
       // Stay latched until status returns to running; the daemon mutation is async.
     }
-  }, [
-    agentPanelData,
-    agentViewsByRole,
-    roleConfigMap,
-    chatroomId,
-    getConfiguredRestartAgentRoles,
-    startAllPermanentAgents,
-  ]);
+  }, [chatroomId, restartAgents]);
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
@@ -1518,11 +1475,8 @@ function ChatroomDashboardContent({
           chatroomIdTyped,
           agentPanelData.sendCommand,
           (failed) => {
-            if (failed.length > 0) {
-              toast.error(`Failed to restart ${role}`);
-            } else {
-              toast.success(`Restart requested for ${role}`);
-            }
+            if (failed.length > 0) toast.error(`Failed to restart ${role}`);
+            else toast.success(`Restart requested for ${role}`);
           }
         );
       } finally {

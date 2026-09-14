@@ -62,18 +62,26 @@ export const AgentLifecycleOutboxServiceLive = (
 
 /** Effect service wrapping MachineStateOps (PID persistence, event cursor). */
 export interface DaemonMachineServiceShape {
-  clearAgentPid: (machineId: string, chatroomId: string, role: string) => Effect.Effect<void>;
+  clearAgentPid: (
+    machineId: string,
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ) => Effect.Effect<void>;
   persistAgentPid: (
     machineId: string,
     chatroomId: string,
     role: string,
     pid: number,
-    harness: AgentHarness
+    harness: AgentHarness,
+    workingDir?: string
   ) => Effect.Effect<void>;
-  listAgentEntries: (
-    machineId: string
-  ) => Effect.Effect<
-    { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[]
+  listAgentEntries: (machineId: string) => Effect.Effect<
+    {
+      chatroomId: string;
+      role: string;
+      entry: { pid: number; harness: AgentHarness; workingDir?: string };
+    }[]
   >;
   persistEventCursor: (machineId: string, lastSeenEventId: string) => Effect.Effect<void>;
   loadEventCursor: (machineId: string) => Effect.Effect<string | null>;
@@ -87,10 +95,16 @@ export class DaemonMachineService extends Context.Tag('DaemonMachineService')<
 
 export const DaemonMachineServiceLive = (ops: MachineStateOps): Layer.Layer<DaemonMachineService> =>
   Layer.succeed(DaemonMachineService, {
-    clearAgentPid: (machineId, chatroomId, role) =>
-      Effect.promise(() => ops.clearAgentPid(machineId, chatroomId, role)),
-    persistAgentPid: (machineId, chatroomId, role, pid, harness) =>
-      Effect.promise(() => ops.persistAgentPid(machineId, chatroomId, role, pid, harness)),
+    clearAgentPid: (machineId, chatroomId, role, workingDir) =>
+      Effect.promise(() =>
+        workingDir === undefined
+          ? ops.clearAgentPid(machineId, chatroomId, role)
+          : ops.clearAgentPid(machineId, chatroomId, role, workingDir)
+      ),
+    persistAgentPid: (machineId, chatroomId, role, pid, harness, workingDir) =>
+      Effect.promise(() =>
+        ops.persistAgentPid(machineId, chatroomId, role, pid, harness, workingDir)
+      ),
     listAgentEntries: (machineId) => Effect.promise(() => ops.listAgentEntries(machineId)),
     persistEventCursor: (machineId, lastSeenEventId) =>
       Effect.promise(() => ops.persistEventCursor(machineId, lastSeenEventId)),
@@ -124,12 +138,16 @@ export interface DaemonAgentProcessManagerServiceShape {
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
-  getSlot: (chatroomId: string, role: string) => AgentProcessSlotView | undefined;
+  getSlot: (
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ) => AgentProcessSlotView | undefined;
   listActive: () => { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot: (
     chatroomId: string,
     role: string,
-    options?: { clearStopIntent?: boolean }
+    options?: { clearStopIntent?: boolean; workingDir?: string | undefined }
   ) => Effect.Effect<boolean>;
   /** Waits until any in-progress agent turn ends and the manager becomes idle. */
   whenTurnEndsIdle: () => Effect.Effect<void>;
@@ -137,6 +155,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     chatroomId: string;
     role: string;
     prompt: string;
+    workingDir?: string | undefined;
   }) => Effect.Effect<void>;
   subscribeAgentTurnEnded: (handler: AgentTurnEndedHandler) => () => void;
   subscribeAgentStarted: (handler: AgentStartedHandler) => () => void;
@@ -155,7 +174,10 @@ export const DaemonAgentProcessManagerServiceLive = (
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),
-    getSlot: (chatroomId, role) => mgr.getSlot(chatroomId, role),
+    getSlot: (chatroomId, role, workingDir) =>
+      workingDir === undefined
+        ? mgr.getSlot(chatroomId, role)
+        : mgr.getSlot(chatroomId, role, workingDir),
     listActive: () => mgr.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>
       Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role, options)),

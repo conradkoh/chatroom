@@ -85,14 +85,14 @@ async function waitForHarnessSessionId(
   deps: RestartOrchestratorDeps,
   event: RestartOrchestratorEvent
 ): Promise<string | null> {
-  const initial = deps.agentMgr.getSlot(event.chatroomId, event.role);
+  const initial = deps.agentMgr.getSlot(event.chatroomId, event.role, event.workingDir);
   if (initial?.harnessSessionId) {
     return initial.harnessSessionId;
   }
 
   const deadline = Date.now() + HARNESS_SESSION_READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
+    const slot = deps.agentMgr.getSlot(event.chatroomId, event.role, event.workingDir);
     if (slot?.harnessSessionId) {
       return slot.harnessSessionId;
     }
@@ -129,10 +129,13 @@ export async function runRestartOrchestrator(
 
     await emitPhase(deps, event, 'spawn');
     const spawnResult = await deps.runSerializedForAgent(
-      { chatroomId, role },
+      { chatroomId, role, workingDir: event.workingDir },
       { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
       async (ops, context) => {
-        await ops.stopAgent({ chatroomId, role, reason: 'user.restart' }, context.signal);
+        await ops.stopAgent(
+          { chatroomId, role, reason: 'user.restart', workingDir: event.workingDir },
+          context.signal
+        );
         return ops.startAgent(
           {
             chatroomId,
@@ -157,11 +160,17 @@ export async function runRestartOrchestrator(
     const harnessSessionId = await waitForHarnessSessionId(deps, event);
     if (!harnessSessionId) {
       await deps.runSerializedForAgent(
-        { chatroomId, role },
+        { chatroomId, role, workingDir: event.workingDir },
         { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
         (ops, context) =>
           ops.stopAgent(
-            { chatroomId, role, reason: 'user.restart', pid: spawnResult.pid },
+            {
+              chatroomId,
+              role,
+              reason: 'user.restart',
+              pid: spawnResult.pid,
+              workingDir: event.workingDir,
+            },
             context.signal
           )
       );

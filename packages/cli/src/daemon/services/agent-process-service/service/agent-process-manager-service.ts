@@ -32,10 +32,14 @@ export type AgentProcessManagerResetInput =
 export interface AgentKey {
   readonly chatroomId: string;
   readonly role: string;
+  readonly workingDir?: string | undefined;
 }
 
 export interface SerializedAgentOperations {
-  startAgent(input: EnsureAgentProcessInput, signal: AbortSignal): Promise<AgentProcessOperationResult>;
+  startAgent(
+    input: EnsureAgentProcessInput,
+    signal: AbortSignal
+  ): Promise<AgentProcessOperationResult>;
   stopAgent(input: StopAgentProcessInput, signal: AbortSignal): Promise<{ success: boolean }>;
 }
 
@@ -48,32 +52,37 @@ export interface SerializedAgentOperationContext {
 }
 
 export type AgentProcessManagerCommand =
-  | { readonly operationId: string; readonly type: 'start'; readonly input: EnsureAgentProcessInput }
+  | {
+      readonly operationId: string;
+      readonly type: 'start';
+      readonly input: EnsureAgentProcessInput;
+    }
   | { readonly operationId: string; readonly type: 'stop'; readonly input: StopAgentProcessInput }
-  | { readonly operationId: string; readonly type: 'restart'; readonly input: RestartAgentInput }
-  ;
+  | { readonly operationId: string; readonly type: 'restart'; readonly input: RestartAgentInput };
 
 export type AgentOperationResult = AgentProcessNotification<AgentProcessManagerCommand>;
 
 export interface AgentProcessManagerExecutionPort {
-  runSerializedForAgent<T>(
-    key: AgentKey,
-    operation: () => Promise<T>
-  ): Promise<T>;
+  runSerializedForAgent<T>(key: AgentKey, operation: () => Promise<T>): Promise<T>;
   ensureRunning(opts: EnsureAgentProcessInput): Promise<AgentProcessOperationResult>;
   stop(opts: StopAgentProcessInput): Promise<{ success: boolean }>;
   handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
   reset(input: AgentProcessManagerResetInput): Promise<void>;
 
-  getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
+  getSlot(chatroomId: string, role: string, workingDir?: string): AgentProcessSlotView | undefined;
   listActive(): { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot(
     chatroomId: string,
     role: string,
-    options?: { clearStopIntent?: boolean }
+    options?: { clearStopIntent?: boolean; workingDir?: string | undefined }
   ): Promise<boolean>;
   whenTurnEndsIdle(): Promise<void>;
-  resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
+  resumeTurnForSlot(args: {
+    chatroomId: string;
+    role: string;
+    prompt: string;
+    workingDir?: string | undefined;
+  }): Promise<void>;
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
   subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
@@ -116,15 +125,20 @@ export interface AgentProcessManagerService {
 
   /** Non-lifecycle manager operations exposed through the same boundary. */
   handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
-  getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
+  getSlot(chatroomId: string, role: string, workingDir?: string): AgentProcessSlotView | undefined;
   listActive(): { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot(
     chatroomId: string,
     role: string,
-    options?: { clearStopIntent?: boolean }
+    options?: { clearStopIntent?: boolean; workingDir?: string | undefined }
   ): Promise<boolean>;
   whenTurnEndsIdle(): Promise<void>;
-  resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
+  resumeTurnForSlot(args: {
+    chatroomId: string;
+    role: string;
+    prompt: string;
+    workingDir?: string | undefined;
+  }): Promise<void>;
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
   subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
@@ -142,8 +156,9 @@ export interface AgentProcessManagerServiceDependencies {
   notifier: AgentProcessNotifier<AgentProcessManagerCommand>;
 }
 
-function messageGroupId(input: { chatroomId: string; role: string }): string {
-  return `${input.chatroomId}:${input.role.toLowerCase()}`;
+function messageGroupId(input: { chatroomId: string; role: string; workingDir?: string }): string {
+  const base = `${input.chatroomId}:${input.role.toLowerCase()}`;
+  return input.workingDir ? `${base}:${input.workingDir}` : base;
 }
 
 function commandMessage(command: AgentProcessManagerCommand): {
@@ -352,7 +367,10 @@ export function createAgentProcessManagerService(
       await deps.commandBus.stop();
     },
     handleExit: (input) => deps.execution.handleExit(input),
-    getSlot: (chatroomId, role) => deps.execution.getSlot(chatroomId, role),
+    getSlot: (chatroomId, role, workingDir) =>
+      workingDir === undefined
+        ? deps.execution.getSlot(chatroomId, role)
+        : deps.execution.getSlot(chatroomId, role, workingDir),
     listActive: () => deps.execution.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>
       deps.execution.clearStuckStoppingSlot(chatroomId, role, options),

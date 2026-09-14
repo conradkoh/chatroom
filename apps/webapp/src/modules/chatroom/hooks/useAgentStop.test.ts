@@ -4,23 +4,20 @@ import { describe, expect, test, vi } from 'vitest';
 import { useAgentStop } from './useAgentStop';
 
 const requestAgent = vi.fn().mockResolvedValue({ commandIds: ['agent-stop'] });
-const requestChatroom = vi.fn().mockResolvedValue({ commandIds: ['chatroom-stop'] });
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionMutation: (mutation: unknown) =>
-    mutation === 'agent' ? requestAgent : requestChatroom,
+  useSessionMutation: () => requestAgent,
 }));
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     agents: {
       requestStop: 'agent',
-      requestStopAll: 'chatroom',
     },
   },
 }));
 
 describe('useAgentStop', () => {
-  test('requests one agent aggregate stop', async () => {
+  test('requests one agent stop', async () => {
     const { result } = renderHook(() => useAgentStop());
     await act(() =>
       result.current.requestAgentStop({
@@ -34,11 +31,5 @@ describe('useAgentStop', () => {
       machineId: 'machine',
       role: 'builder',
     });
-  });
-
-  test('requests one chatroom aggregate stop', async () => {
-    const { result } = renderHook(() => useAgentStop());
-    await act(() => result.current.requestChatroomStop('room' as never));
-    expect(requestChatroom).toHaveBeenCalledWith({ chatroomId: 'room' });
   });
 });

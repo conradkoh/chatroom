@@ -13,7 +13,7 @@
  * lifecycle outbox enqueue and local event logging (spawned/exited facts, etc.),
  * turn-end queue, and exit retry queue.
  *
- * State model per (chatroomId, role):
+ * State model per (chatroomId, role, workingDir):
  *   idle → spawning → running → idle (on exit)
  *                  ↘ idle (on failure)
  *   running → stopping → idle (on stop)
@@ -194,14 +194,20 @@ export interface AgentProcessManagerDeps {
       chatroomId: string,
       role: string,
       pid: number,
-      harness: AgentHarness
+      harness: AgentHarness,
+      workingDir?: string
     ) => Promise<void>;
-    clearAgentPid: (machineId: string, chatroomId: string, role: string) => Promise<void>;
+    clearAgentPid: (
+      machineId: string,
+      chatroomId: string,
+      role: string,
+      workingDir?: string
+    ) => Promise<void>;
     listAgentEntries: (machineId: string) => Promise<
       {
         chatroomId: string;
         role: string;
-        entry: { pid: number; harness: AgentHarness };
+        entry: { pid: number; harness: AgentHarness; workingDir?: string };
       }[]
     >;
   };
@@ -216,8 +222,23 @@ export interface AgentProcessManagerDeps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function agentKey(chatroomId: string, role: string): string {
-  return `${chatroomId}:${role.toLowerCase()}`;
+const AGENT_KEY_SEPARATOR = '\u0000';
+
+function agentKey(chatroomId: string, role: string, workingDir?: string): string {
+  return [chatroomId, role.toLowerCase(), workingDir ?? ''].join(AGENT_KEY_SEPARATOR);
+}
+
+function parseAgentKey(key: string): {
+  chatroomId: string;
+  role: string;
+  workingDir?: string;
+} {
+  const [chatroomId, role, workingDir] = key.split(AGENT_KEY_SEPARATOR);
+  return { chatroomId, role, ...(workingDir ? { workingDir } : {}) };
+}
+
+function serializedAgentKey(chatroomId: string, role: string, workingDir?: string): string {
+  return agentKey(chatroomId, role, workingDir);
 }
 
 // ─── Retry Queue Types ────────────────────────────────────────────────────────
@@ -277,10 +298,10 @@ export class AgentProcessManager {
   }
 
   runSerializedForAgent<T>(
-    key: { chatroomId: string; role: string },
+    key: { chatroomId: string; role: string; workingDir?: string },
     operation: () => Promise<T>
   ): Promise<T> {
-    const serializedKey = agentKey(key.chatroomId, key.role);
+    const serializedKey = serializedAgentKey(key.chatroomId, key.role, key.workingDir);
     const previous = this.serializedOperationTails.get(serializedKey) ?? Promise.resolve();
     const current = previous.catch(() => undefined).then(operation);
     const tail = current.then(
@@ -297,7 +318,7 @@ export class AgentProcessManager {
   }
 
   private updateSlotsMirror(chatroomId: string, role: string, slot: AgentLifecycleSlot): void {
-    const key = agentKey(chatroomId, role);
+    const key = agentKey(chatroomId, role, slot.workingDir);
     const existing = this.slots.get(key);
     if (!existing || existing.state !== slot.state || existing.pid !== slot.pid) {
       this.slots.set(key, {
@@ -314,8 +335,19 @@ export class AgentProcessManager {
     }
   }
 
-  private getSlotFromMirror(chatroomId: string, role: string): AgentSlot | undefined {
-    return this.slots.get(agentKey(chatroomId, role));
+  private getSlotFromMirror(
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ): AgentSlot | undefined {
+    if (workingDir !== undefined) return this.slots.get(agentKey(chatroomId, role, workingDir));
+    const legacy = this.slots.get(agentKey(chatroomId, role));
+    if (legacy) return legacy;
+    const matches = [...this.slots.entries()].filter(([key]) => {
+      const identity = parseAgentKey(key);
+      return identity.chatroomId === chatroomId && identity.role === role.toLowerCase();
+    });
+    return matches.length === 1 ? matches[0]?.[1] : undefined;
   }
 
   whenTurnEndsIdle(): Promise<void> {
@@ -349,7 +381,6 @@ export class AgentProcessManager {
     slot.harness = undefined;
     slot.harnessSessionId = undefined;
     slot.model = undefined;
-    slot.workingDir = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
     slot.stoppingSince = undefined;
@@ -364,8 +395,26 @@ export class AgentProcessManager {
   }
 
   /** Claim stop intent before asynchronous termination begins. */
-  public markStopIntent(chatroomId: string, role: string, reason: string, pid?: number): number {
-    const slot = this.getOrCreateSlot(agentKey(chatroomId, role));
+  public markStopIntent(
+    chatroomId: string,
+    role: string,
+    reason: string,
+    pid?: number,
+    workingDir?: string
+  ): number {
+    const resolvedWorkingDir =
+      workingDir ??
+      [...this.slots.entries()]
+        .map(([key]) => ({ identity: parseAgentKey(key) }))
+        .filter(
+          ({ identity }) =>
+            identity.chatroomId === chatroomId &&
+            identity.role === role.toLowerCase() &&
+            identity.workingDir !== undefined
+        )
+        .map(({ identity }) => identity.workingDir)
+        .filter((candidate, index, candidates) => candidates.indexOf(candidate) === index)[0];
+    const slot = this.getOrCreateSlot(agentKey(chatroomId, role, resolvedWorkingDir));
     if (slot.stopRequested) return slot.stopGeneration ?? 0;
     const generation = this.bumpStopGeneration(slot);
     slot.stopRequested = true;
@@ -378,13 +427,18 @@ export class AgentProcessManager {
   public markChatroomStopIntent(chatroomId: string, reason: string): void {
     for (const { chatroomId: cid, role, slot } of this.listAllSlots()) {
       if (cid === chatroomId) {
-        this.markStopIntent(chatroomId, role, reason, slot.pid);
+        this.markStopIntent(chatroomId, role, reason, slot.pid, slot.workingDir);
       }
     }
   }
 
-  public isStopRequested(chatroomId: string, role: string, generation?: number): boolean {
-    const slot = this.slots.get(agentKey(chatroomId, role));
+  public isStopRequested(
+    chatroomId: string,
+    role: string,
+    generation?: number,
+    workingDir?: string
+  ): boolean {
+    const slot = this.getSlotFromMirror(chatroomId, role, workingDir);
     if (!slot) return false;
     if (generation !== undefined && slot.stopGeneration !== generation) return true;
     return slot.stopRequested === true;
@@ -400,7 +454,7 @@ export class AgentProcessManager {
     if (isChatroomStopScopeActive(opts.chatroomId)) {
       return { success: false, error: 'stop_in_progress' };
     }
-    const key = agentKey(opts.chatroomId, opts.role);
+    const key = agentKey(opts.chatroomId, opts.role, opts.workingDir);
     const slot = this.getOrCreateSlot(key);
     if (isExplicitDaemonStart(opts.reason)) {
       this.bumpStopGeneration(slot);
@@ -465,9 +519,9 @@ export class AgentProcessManager {
     chatroomId: string;
     role: string;
     prompt: string;
+    workingDir?: string | undefined;
   }): Promise<void> {
-    const key = agentKey(args.chatroomId, args.role);
-    const slot = this.slots.get(key);
+    const slot = this.getSlotFromMirror(args.chatroomId, args.role, args.workingDir);
     if (!slot?.pid || !slot.harness) {
       throw new Error(`No running agent for ${args.role}@${args.chatroomId}`);
     }
@@ -487,12 +541,22 @@ export class AgentProcessManager {
   }
 
   async stop(opts: StopOpts): Promise<{ success: boolean }> {
-    const key = agentKey(opts.chatroomId, opts.role);
-    const slot = this.slots.get(key);
+    const slot = this.getSlotFromMirror(opts.chatroomId, opts.role, opts.workingDir);
+    const resolvedOpts = {
+      ...opts,
+      ...(opts.workingDir === undefined && slot?.workingDir ? { workingDir: slot.workingDir } : {}),
+    };
+    const key = agentKey(opts.chatroomId, opts.role, resolvedOpts.workingDir);
 
-    this.markStopIntent(opts.chatroomId, opts.role, opts.reason, opts.pid ?? slot?.pid);
+    this.markStopIntent(
+      resolvedOpts.chatroomId,
+      resolvedOpts.role,
+      resolvedOpts.reason,
+      opts.pid ?? slot?.pid,
+      resolvedOpts.workingDir
+    );
 
-    const earlyResult = await this.handleStopEarlyReturns(slot, opts, key);
+    const earlyResult = await this.handleStopEarlyReturns(slot, resolvedOpts, key);
     if (earlyResult) {
       return earlyResult;
     }
@@ -516,6 +580,7 @@ export class AgentProcessManager {
         role,
         pid: slot.pid,
         agentHarness: slot.harness,
+        workingDir: slot.workingDir,
       });
       targets.set(target.targetKey, target);
     }
@@ -530,6 +595,7 @@ export class AgentProcessManager {
           role,
           pid: entry.pid,
           agentHarness: entry.harness,
+          workingDir: entry.workingDir,
         });
         targets.set(target.targetKey, target);
       }
@@ -559,8 +625,9 @@ export class AgentProcessManager {
     pid: number;
     stopCommandId: string;
     targetKey: string;
+    workingDir?: string | undefined;
   }): void {
-    const slot = this.slots.get(agentKey(args.chatroomId, args.role));
+    const slot = this.slots.get(agentKey(args.chatroomId, args.role, args.workingDir));
     if (!slot || slot.pid !== args.pid || slot.state !== AGENT_SLOT_STATE.STOPPING) return;
     slot.stopCommandId = args.stopCommandId;
     slot.stopTargetKey = args.targetKey;
@@ -570,19 +637,19 @@ export class AgentProcessManager {
     opts: StopOpts,
     fn: () => Promise<T>
   ): Promise<{ ok: true; value: T } | { ok: false; reason: 'concurrent' | 'no_slot' }> {
-    const key = agentKey(opts.chatroomId, opts.role);
+    const key = agentKey(opts.chatroomId, opts.role, opts.workingDir);
     const slot = this.slots.get(key);
     if (!slot || !slot.pid || slot.state === AGENT_SLOT_STATE.IDLE)
       return { ok: false, reason: 'no_slot' };
     if (slot.state === AGENT_SLOT_STATE.STOPPING || slot.pendingOperation)
       return { ok: false, reason: 'concurrent' };
-    this.markStopIntent(opts.chatroomId, opts.role, opts.reason, slot.pid);
+    this.markStopIntent(opts.chatroomId, opts.role, opts.reason, slot.pid, opts.workingDir);
     slot.state = AGENT_SLOT_STATE.STOPPING;
     slot.stoppingSince = this.deps.clock.now();
     try {
       const value = await fn();
       this.resetSlotAfterStop(slot);
-      await this.clearAgentPidQuietly(opts.chatroomId, opts.role);
+      await this.clearAgentPidQuietly(opts.chatroomId, opts.role, opts.workingDir);
       return { ok: true, value };
     } catch (error) {
       slot.state = AGENT_SLOT_STATE.RUNNING;
@@ -652,11 +719,16 @@ export class AgentProcessManager {
   private async runHandleAgentEnd(opts: {
     chatroomId: string;
     role: string;
+    workingDir?: string | undefined;
     pid: number;
     harness: AgentHarness;
     completion?: TurnCompletionResult;
   }): Promise<void> {
-    const slot = this.slots.get(agentKey(opts.chatroomId, opts.role));
+    const slot = [...this.slots.entries()].find(
+      ([candidateKey, candidate]) =>
+        candidateKey === agentKey(opts.chatroomId, opts.role, opts.workingDir) &&
+        candidate.pid === opts.pid
+    )?.[1];
     if (
       !slot ||
       slot.pid !== opts.pid ||
@@ -767,9 +839,7 @@ export class AgentProcessManager {
   }
 
   async handleExit(opts: HandleExitOpts): Promise<void> {
-    const key = agentKey(opts.chatroomId, opts.role);
-    const slot = this.slots.get(key);
-
+    const slot = this.getSlotFromMirror(opts.chatroomId, opts.role, opts.workingDir);
     if (!slot || slot.pid !== opts.pid || slot.state === AGENT_SLOT_STATE.STOPPING) {
       return;
     }
@@ -795,6 +865,7 @@ export class AgentProcessManager {
         yield* svc.handleExit({
           chatroomId: opts.chatroomId,
           role: opts.role,
+          workingDir: slot.workingDir,
           pid: opts.pid,
           code: opts.code,
           signal: opts.signal,
@@ -805,7 +876,12 @@ export class AgentProcessManager {
     this.resetSlotAfterExit(slot);
     void this.emitExitEvent(slot, opts, ctx);
     try {
-      await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
+      await this.deps.persistence.clearAgentPid(
+        this.deps.machineId,
+        opts.chatroomId,
+        opts.role,
+        slot.workingDir
+      );
     } catch {
       // Non-critical
     }
@@ -898,16 +974,16 @@ export class AgentProcessManager {
       .catch(() => {});
   }
 
-  getSlot(chatroomId: string, role: string): AgentSlot | undefined {
-    return this.getSlotFromMirror(chatroomId, role);
+  getSlot(chatroomId: string, role: string, workingDir?: string): AgentSlot | undefined {
+    return this.getSlotFromMirror(chatroomId, role, workingDir);
   }
 
   listActive(): { chatroomId: string; role: string; slot: AgentSlot }[] {
     const result: { chatroomId: string; role: string; slot: AgentSlot }[] = [];
     for (const [key, slot] of this.slots) {
       if (slot.state === AGENT_SLOT_STATE.RUNNING || slot.state === AGENT_SLOT_STATE.SPAWNING) {
-        const [chatroomId, role] = key.split(':');
-        result.push({ chatroomId, role, slot });
+        const identity = parseAgentKey(key);
+        result.push({ chatroomId: identity.chatroomId, role: identity.role, slot });
       }
     }
     return result;
@@ -916,8 +992,8 @@ export class AgentProcessManager {
   listAllSlots(): { chatroomId: string; role: string; slot: AgentSlot }[] {
     const result: { chatroomId: string; role: string; slot: AgentSlot }[] = [];
     for (const [key, slot] of this.slots) {
-      const [chatroomId, role] = key.split(':');
-      result.push({ chatroomId, role, slot });
+      const identity = parseAgentKey(key);
+      result.push({ chatroomId: identity.chatroomId, role: identity.role, slot });
     }
     return result;
   }
@@ -926,13 +1002,13 @@ export class AgentProcessManager {
   async clearStuckStoppingSlot(
     chatroomId: string,
     role: string,
-    options?: { clearStopIntent?: boolean }
+    options?: { clearStopIntent?: boolean; workingDir?: string | undefined }
   ): Promise<boolean> {
-    const key = agentKey(chatroomId, role);
-    const slot = this.slots.get(key);
+    const slot = this.getSlotFromMirror(chatroomId, role, options?.workingDir);
     if (!slot || slot.state !== AGENT_SLOT_STATE.STOPPING) {
       return false;
     }
+    const key = agentKey(chatroomId, role, slot.workingDir);
     const elapsed = slot.stoppingSince
       ? this.deps.clock.now() - slot.stoppingSince
       : STOPPING_TIMEOUT_MS;
@@ -954,8 +1030,8 @@ export class AgentProcessManager {
   /** Force-clear every in-memory slot stuck in stopping. Returns count cleared. */
   async clearAllStuckStoppingSlots(): Promise<number> {
     let cleared = 0;
-    for (const { chatroomId, role } of this.listAllSlots()) {
-      if (await this.clearStuckStoppingSlot(chatroomId, role)) {
+    for (const { chatroomId, role, slot } of this.listAllSlots()) {
+      if (await this.clearStuckStoppingSlot(chatroomId, role, { workingDir: slot.workingDir })) {
         cleared++;
       }
     }
@@ -976,17 +1052,24 @@ export class AgentProcessManager {
       (roleKey === undefined || candidateRole.toLowerCase() === roleKey);
     const knownEntries = new Map<
       string,
-      { chatroomId: string; role: string; pid: number; harness: AgentHarness }
+      {
+        chatroomId: string;
+        role: string;
+        pid: number;
+        harness: AgentHarness;
+        workingDir?: string | undefined;
+      }
     >();
 
     for (const { chatroomId: slotChatroomId, role, slot } of this.listAllSlots()) {
       if (!matchesScope(slotChatroomId, role)) continue;
       if (slot.pid && slot.harness) {
-        knownEntries.set(agentKey(slotChatroomId, role), {
+        knownEntries.set(agentKey(slotChatroomId, role, slot.workingDir), {
           chatroomId: slotChatroomId,
           role,
           pid: slot.pid,
           harness: slot.harness,
+          workingDir: slot.workingDir,
         });
       }
     }
@@ -998,20 +1081,21 @@ export class AgentProcessManager {
         entry,
       } of await this.deps.persistence.listAgentEntries(this.deps.machineId)) {
         if (!matchesScope(entryChatroomId, role)) continue;
-        knownEntries.set(agentKey(entryChatroomId, role), {
+        knownEntries.set(agentKey(entryChatroomId, role, entry.workingDir), {
           chatroomId: entryChatroomId,
           role,
           pid: entry.pid,
           harness: entry.harness,
+          workingDir: entry.workingDir,
         });
       }
     } catch {
       // In-memory state can still be reset when persistence is unavailable.
     }
 
-    for (const { chatroomId, role, pid, harness } of knownEntries.values()) {
+    for (const { chatroomId, role, pid, harness, workingDir } of knownEntries.values()) {
       await this.stopPersistedProcess(pid, harness);
-      await this.clearAgentPidQuietly(chatroomId, role);
+      await this.clearAgentPidQuietly(chatroomId, role, workingDir);
     }
 
     for (let i = this.exitRetryQueue.length - 1; i >= 0; i--) {
@@ -1020,8 +1104,8 @@ export class AgentProcessManager {
     }
     if (this.exitRetryQueue.length === 0) this.stopExitRetryTimer();
     for (const key of [...this.slots.keys()]) {
-      const [keyChatroomId, keyRole] = key.split(':');
-      if (matchesScope(keyChatroomId, keyRole)) this.slots.delete(key);
+      const identity = parseAgentKey(key);
+      if (matchesScope(identity.chatroomId, identity.role)) this.slots.delete(key);
     }
     await this.lifecycle.runPromise(
       Effect.gen(function* () {
@@ -1070,16 +1154,21 @@ export class AgentProcessManager {
    * Kill any live agent process for this chatroom+role before spawning.
    * Covers in-memory slot PIDs and persisted PIDs (orphans after restart).
    */
-  private async killExistingBeforeSpawn(chatroomId: string, role: string): Promise<void> {
-    const key = agentKey(chatroomId, role);
-    await this.killInMemorySlotIfAlive(key, chatroomId, role);
-    await this.killPersistedProcessIfAlive(chatroomId, role);
+  private async killExistingBeforeSpawn(
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ): Promise<void> {
+    const key = agentKey(chatroomId, role, workingDir);
+    await this.killInMemorySlotIfAlive(key, chatroomId, role, workingDir);
+    await this.killPersistedProcessIfAlive(chatroomId, role, workingDir);
   }
 
   private async killInMemorySlotIfAlive(
     key: string,
     chatroomId: string,
-    role: string
+    role: string,
+    workingDir?: string
   ): Promise<void> {
     const slot = this.slots.get(key);
     if (
@@ -1095,17 +1184,21 @@ export class AgentProcessManager {
         key,
         slot,
         pid,
-        { chatroomId, role, reason: 'daemon.respawn' },
+        { chatroomId, role, reason: 'daemon.respawn', workingDir },
         stopGeneration
       );
     }
   }
 
-  private async killPersistedProcessIfAlive(chatroomId: string, role: string): Promise<void> {
+  private async killPersistedProcessIfAlive(
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ): Promise<void> {
     let entries: {
       chatroomId: string;
       role: string;
-      entry: { pid: number; harness: AgentHarness };
+      entry: { pid: number; harness: AgentHarness; workingDir?: string };
     }[] = [];
     try {
       entries = await this.deps.persistence.listAgentEntries(this.deps.machineId);
@@ -1114,7 +1207,10 @@ export class AgentProcessManager {
     }
 
     const persisted = entries.find(
-      (e) => e.chatroomId === chatroomId && e.role.toLowerCase() === role.toLowerCase()
+      (e) =>
+        e.chatroomId === chatroomId &&
+        e.role.toLowerCase() === role.toLowerCase() &&
+        (!workingDir || !e.entry.workingDir || e.entry.workingDir === workingDir)
     );
     if (!persisted) {
       return;
@@ -1123,12 +1219,12 @@ export class AgentProcessManager {
     const { pid, harness } = persisted.entry;
     if (!isProcessAlive(this.deps.processes.kill, pid)) {
       await this.deps.persistence
-        .clearAgentPid(this.deps.machineId, chatroomId, role)
+        .clearAgentPid(this.deps.machineId, chatroomId, role, workingDir)
         .catch(() => {});
       return;
     }
 
-    const key = agentKey(chatroomId, role);
+    const key = agentKey(chatroomId, role, workingDir);
     const currentSlot = this.slots.get(key);
     if (currentSlot?.pid === pid && currentSlot.state !== AGENT_SLOT_STATE.IDLE) {
       return;
@@ -1149,7 +1245,7 @@ export class AgentProcessManager {
     };
     this.recordAgentExit(role, exitArgs, 'Failed to record agent exit before respawn');
 
-    await this.clearAgentPidQuietly(chatroomId, role);
+    await this.clearAgentPidQuietly(chatroomId, role, workingDir);
   }
 
   private async executeEnsureRunning(
@@ -1158,7 +1254,7 @@ export class AgentProcessManager {
     opts: EnsureRunningOpts
   ): Promise<OperationResult> {
     try {
-      await this.killExistingBeforeSpawn(opts.chatroomId, opts.role);
+      await this.killExistingBeforeSpawn(opts.chatroomId, opts.role, opts.workingDir);
       const result = await this.doEnsureRunning(key, slot, opts);
       return result;
     } finally {
@@ -1188,19 +1284,25 @@ export class AgentProcessManager {
       });
   }
 
-  private async clearAgentPidQuietly(chatroomId: string, role: string): Promise<void> {
+  private async clearAgentPidQuietly(
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ): Promise<void> {
     try {
-      await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+      await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role, workingDir);
     } catch {
       // Non-critical
     }
   }
 
   public async syncSlotsAfterScopedStop(result: {
-    targets: { target: { chatroomId: string; role: string; pid: number } }[];
+    targets: {
+      target: { chatroomId: string; role: string; pid: number; workingDir?: string | undefined };
+    }[];
   }): Promise<void> {
     for (const { target } of result.targets) {
-      const slot = this.slots.get(agentKey(target.chatroomId, target.role));
+      const slot = this.slots.get(agentKey(target.chatroomId, target.role, target.workingDir));
       // A successful scoped stop can report `already_stopped` without a live
       // process-exit callback. Still invalidate native delivery state so a
       // stale task marker cannot suppress recovery after the stop.
@@ -1211,7 +1313,7 @@ export class AgentProcessManager {
       );
       if (!slot || slot.pid !== target.pid) continue;
       this.resetSlotAfterStop(slot);
-      await this.clearAgentPidQuietly(target.chatroomId, target.role);
+      await this.clearAgentPidQuietly(target.chatroomId, target.role, target.workingDir);
     }
   }
 
@@ -1504,28 +1606,35 @@ export class AgentProcessManager {
 
     spawnResult.onExit(({ code, signal }) => {
       const reconcileExit = async (): Promise<void> => {
-        const currentSlot = this.slots.get(agentKey(opts.chatroomId, opts.role));
+        const currentSlot = [...this.slots.entries()].find(
+          ([candidateKey, candidate]) =>
+            candidateKey === agentKey(opts.chatroomId, opts.role, opts.workingDir) &&
+            candidate.pid === pid
+        )?.[1];
         const hasUnresolvedNativeTurn =
           currentSlot?.pid === pid &&
           currentSlot.nativeTurnPhase === 'turn_in_flight' &&
           !this.typedCompletionSeenPids.has(pid);
 
         if (hasUnresolvedNativeTurn) {
-          await this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
-            this.runHandleAgentEnd({
-              chatroomId: opts.chatroomId,
-              role: opts.role,
-              pid,
-              harness: opts.agentHarness,
-              completion: {
-                turnId: `${pid}:process-exit`,
-                status: 'process_exited',
-                source: 'agent-process-manager.process-exit',
-                error: signal
-                  ? `process exited with signal ${signal}`
-                  : `process exited with code ${code ?? 'unknown'}`,
-              },
-            })
+          await this.runSerializedForAgent(
+            { chatroomId: opts.chatroomId, role: opts.role, workingDir: opts.workingDir },
+            () =>
+              this.runHandleAgentEnd({
+                chatroomId: opts.chatroomId,
+                role: opts.role,
+                workingDir: opts.workingDir,
+                pid,
+                harness: opts.agentHarness,
+                completion: {
+                  turnId: `${pid}:process-exit`,
+                  status: 'process_exited',
+                  source: 'agent-process-manager.process-exit',
+                  error: signal
+                    ? `process exited with signal ${signal}`
+                    : `process exited with code ${code ?? 'unknown'}`,
+                },
+              })
           );
         }
 
@@ -1533,6 +1642,7 @@ export class AgentProcessManager {
         await this.handleExit({
           chatroomId: opts.chatroomId,
           role: opts.role,
+          workingDir: opts.workingDir,
           pid,
           code,
           signal,
@@ -1548,14 +1658,17 @@ export class AgentProcessManager {
     if (spawnResult.onTurnResult) {
       spawnResult.onTurnResult((completion) => {
         this.typedCompletionSeenPids.add(pid);
-        void this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
-          this.runHandleAgentEnd({
-            chatroomId: opts.chatroomId,
-            role: opts.role,
-            pid,
-            harness: opts.agentHarness,
-            completion,
-          })
+        void this.runSerializedForAgent(
+          { chatroomId: opts.chatroomId, role: opts.role, workingDir: opts.workingDir },
+          () =>
+            this.runHandleAgentEnd({
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              workingDir: opts.workingDir,
+              pid,
+              harness: opts.agentHarness,
+              completion,
+            })
         ).catch((error: unknown) => {
           console.warn(
             `[AgentProcessManager] typed turn-result handling failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
@@ -1564,13 +1677,16 @@ export class AgentProcessManager {
       });
     } else if (spawnResult.onAgentEnd) {
       spawnResult.onAgentEnd(() => {
-        void this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
-          this.runHandleAgentEnd({
-            chatroomId: opts.chatroomId,
-            role: opts.role,
-            pid,
-            harness: opts.agentHarness,
-          })
+        void this.runSerializedForAgent(
+          { chatroomId: opts.chatroomId, role: opts.role, workingDir: opts.workingDir },
+          () =>
+            this.runHandleAgentEnd({
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              workingDir: opts.workingDir,
+              pid,
+              harness: opts.agentHarness,
+            })
         ).catch((error: unknown) => {
           console.warn(
             `[AgentProcessManager] turn-end handling failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
@@ -1608,7 +1724,8 @@ export class AgentProcessManager {
         opts.chatroomId,
         opts.role,
         pid,
-        opts.agentHarness
+        opts.agentHarness,
+        opts.workingDir
       );
     } catch {
       // Non-critical
@@ -1793,10 +1910,11 @@ export class AgentProcessManager {
         exitCode: undefined as number | undefined,
         signal: 'SIGKILL' as const,
         agentHarness: harness,
+        workingDir: slot.workingDir,
       };
       this.recordAgentExit(role, exitArgs, 'Failed to record stop-timeout exit');
     }
-    await this.clearAgentPidQuietly(chatroomId, role);
+    await this.clearAgentPidQuietly(chatroomId, role, slot.workingDir);
   }
 
   private async doStop(
@@ -1830,6 +1948,7 @@ export class AgentProcessManager {
             role: opts.role,
             pid,
             agentHarness: harness,
+            workingDir: opts.workingDir,
           }),
           reason: opts.reason as AgentStopReason,
         });
@@ -1848,7 +1967,12 @@ export class AgentProcessManager {
 
     this.resetSlotAfterStop(slot);
     try {
-      await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
+      await this.deps.persistence.clearAgentPid(
+        this.deps.machineId,
+        opts.chatroomId,
+        opts.role,
+        opts.workingDir
+      );
     } catch {
       // Non-critical
     }

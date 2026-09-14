@@ -27,6 +27,7 @@ import {
 } from '../src/domain/usecase/agent/get-last-sent-launch-request';
 import { recordLastSentLaunchRequest } from '../src/domain/usecase/agent/record-last-sent-launch-request';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
+import { requestChatroomAgentOperation as requestChatroomAgentOperationUseCase } from '../src/domain/usecase/agent/request-chatroom-agent-operation';
 import {
   requestChatroomWorkspaceAgentStop,
   requestWorkspaceAgentStop,
@@ -135,27 +136,42 @@ export const startFromCurrentConfig = mutation({
   },
 });
 
-/** Start every permanent role in a chatroom from backend-owned configuration. */
+/**
+ * @deprecated Use requestChatroomAgentOperation with operation "start".
+ * Kept as a compatibility wrapper for existing clients.
+ */
 export const startAllPermanent = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const { session, chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const structure = await getActiveTeamStructure(ctx, args.chatroomId);
-    if (!structure) return { started: [], skipped: [], failed: [] };
-    const team = getTeamStructure({
-      teamId: structure.teamStructureId,
-      persistedRoles: chatroom.teamRoles ?? null,
-      persistedEntryPoint: chatroom.teamEntryPoint ?? null,
-    });
-    const roles = getPermanentRoleNames(
-      team.roles.map(({ role }) => role).filter((role) => role !== 'user')
-    );
-    return startPermanentAgentsFromCurrentConfig(ctx, {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const result = await requestChatroomAgentOperationUseCase(ctx, {
       chatroomId: args.chatroomId,
-      roles,
+      operation: 'start',
+      requestedBy: session.userId,
+    });
+    return {
+      started: result.requested.flatMap(({ role }) => (role ? [role] : [])),
+      skipped: result.skipped.flatMap(({ role, reason }) => (role ? [{ role, reason }] : [])),
+      failed: result.failed.flatMap(({ role, error }) => (role ? [{ role, error }] : [])),
+    };
+  },
+});
+
+/** Single chatroom-level lifecycle endpoint used by every bulk agent control. */
+export const requestChatroomAgentOperation = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    operation: v.union(v.literal('start'), v.literal('stop'), v.literal('restart')),
+  },
+  handler: async (ctx, args) => {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return requestChatroomAgentOperationUseCase(ctx, {
+      chatroomId: args.chatroomId,
+      operation: args.operation,
       requestedBy: session.userId,
     });
   },
@@ -535,6 +551,7 @@ export const requestStop = mutation({
     chatroomId: v.id('chatroom_rooms'),
     machineId: v.string(),
     role: v.string(),
+    workingDir: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -543,7 +560,10 @@ export const requestStop = mutation({
   },
 });
 
-/** Requests one stop-all command per machine that has observed room activity. */
+/**
+ * @deprecated Use requestChatroomAgentOperation with operation "stop".
+ * Kept as a compatibility wrapper for existing clients.
+ */
 export const requestStopAll = mutation({
   args: {
     ...SessionIdArg,

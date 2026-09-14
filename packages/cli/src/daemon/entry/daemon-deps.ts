@@ -23,20 +23,28 @@ import type { AgentProcessManager } from '../services/service-interfaces.js';
  */
 export interface MachineStateOps {
   /** Clear an agent's PID from local state */
-  clearAgentPid: (machineId: string, chatroomId: string, role: string) => Promise<void>;
+  clearAgentPid: (
+    machineId: string,
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ) => Promise<void>;
   /** Persist a spawned agent's PID for restart recovery */
   persistAgentPid: (
     machineId: string,
     chatroomId: string,
     role: string,
     pid: number,
-    harness: AgentHarness
+    harness: AgentHarness,
+    workingDir?: string
   ) => Promise<void>;
   /** List all persisted agent entries for a machine */
-  listAgentEntries: (
-    machineId: string
-  ) => Promise<
-    { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[]
+  listAgentEntries: (machineId: string) => Promise<
+    {
+      chatroomId: string;
+      role: string;
+      entry: { pid: number; harness: AgentHarness; workingDir?: string };
+    }[]
   >;
   /** Persist the event stream cursor (last processed event ID) */
   persistEventCursor: (machineId: string, lastSeenEventId: string) => Promise<void>;
