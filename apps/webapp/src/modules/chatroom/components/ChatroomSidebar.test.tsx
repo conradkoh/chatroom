@@ -481,14 +481,13 @@ describe('ChatroomSidebar', () => {
     expect(screen.getByTitle('Stop agents and command runs')).toBeInTheDocument();
   });
 
-  it('confirms then stops agents and command processes separately', async () => {
+  it('stops agents and command processes from one click', async () => {
     const chatroom = makeChatroom({
       remoteAgentStatus: 'running',
     });
     renderSidebar([chatroom]);
 
     fireEvent.click(screen.getByTitle('Stop agents and command runs'));
-    fireEvent.click(screen.getByRole('button', { name: 'Stop all' }));
 
     await waitFor(() => {
       expect(mockRequestChatroomStop).toHaveBeenCalledWith(chatroom._id);

@@ -33,16 +33,6 @@ import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionCh
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -62,7 +52,6 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 }: ChatroomSidebarItemProps) {
   const displayName = getChatroomDisplayName(chatroom);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [isSubmittingStop, setIsSubmittingStop] = useState(false);
   const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
@@ -70,27 +59,30 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
   const { status: chatroomStatus } = useChatroomStatus(chatroom._id);
 
-  const handleStop = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setStopConfirmOpen(true);
-  }, []);
-
-  const confirmStop = useCallback(async () => {
-    setIsSubmittingStop(true);
-    const [agentStop, commandStop] = await Promise.allSettled([
-      stopAgents(chatroom._id as Id<'chatroom_rooms'>),
-      stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
-    ]);
-    // Independent branches: one failure must not skip the other.
-    const failures = [
-      agentStop.status === 'rejected' ? `Agents: ${String(agentStop.reason)}` : null,
-      commandStop.status === 'rejected' ? `Command runs: ${String(commandStop.reason)}` : null,
-    ].filter(Boolean);
-    if (failures.length > 0) toast.error(failures.join('; '));
-    setIsSubmittingStop(false);
-    setStopConfirmOpen(false);
-  }, [chatroom._id, stopAgents, stopAllCommandRuns]);
+  const handleStop = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setIsSubmittingStop(true);
+      try {
+        const [agentStop, commandStop] = await Promise.allSettled([
+          Promise.resolve().then(() => stopAgents(chatroom._id as Id<'chatroom_rooms'>)),
+          Promise.resolve().then(() =>
+            stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> })
+          ),
+        ]);
+        // Independent branches: one failure must not skip the other.
+        const failures = [
+          agentStop.status === 'rejected' ? `Agents: ${String(agentStop.reason)}` : null,
+          commandStop.status === 'rejected' ? `Command runs: ${String(commandStop.reason)}` : null,
+        ].filter(Boolean);
+        if (failures.length > 0) toast.error(failures.join('; '));
+      } finally {
+        setIsSubmittingStop(false);
+      }
+    },
+    [chatroom._id, stopAgents, stopAllCommandRuns]
+  );
 
   const [isStarting, setIsStarting] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
@@ -288,29 +280,6 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         chatroomId={chatroom._id as Id<'chatroom_rooms'>}
         action="archive"
       />
-
-      <AlertDialog open={stopConfirmOpen} onOpenChange={setStopConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Stop agents and command runs?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will stop all agents and active command runs in {displayName}.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSubmittingStop}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmStop();
-              }}
-              disabled={isSubmittingStop}
-            >
-              {isSubmittingStop ? 'Stopping…' : 'Stop all'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 });
