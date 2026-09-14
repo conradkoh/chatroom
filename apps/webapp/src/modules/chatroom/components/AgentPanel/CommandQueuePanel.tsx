@@ -90,6 +90,373 @@ interface CommandQueuePanelProps {
   machineId: string | null | undefined;
 }
 
+interface CommandQueueSummaryProps {
+  machineId: string | null | undefined;
+  isLoading: boolean;
+  commandCount: number;
+  onOpen: () => void;
+}
+
+function CommandQueueSummary({
+  machineId,
+  isLoading,
+  commandCount,
+  onOpen,
+}: CommandQueueSummaryProps) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={!machineId || isLoading}
+      className="w-full appearance-none border-0 border-b border-chatroom-border bg-transparent px-3 py-2 text-left transition-colors hover:bg-chatroom-bg-hover focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-chatroom-accent disabled:pointer-events-none disabled:opacity-40"
+      aria-label={`Command queue: ${machineId && isLoading ? 'loading' : `${commandCount} queued commands`}`}
+      data-testid="command-queue-panel"
+    >
+      <div className="flex items-center gap-2">
+        <ListTodo size={12} className="shrink-0 text-chatroom-accent" aria-hidden="true" />
+        <span className="min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+          Command queue
+        </span>
+        <span
+          className={cn(
+            'min-w-5 px-1.5 py-0.5 text-center text-[10px] font-bold tabular-nums',
+            commandCount > 0
+              ? 'bg-chatroom-accent/10 text-chatroom-accent'
+              : 'bg-chatroom-bg-tertiary text-chatroom-text-muted'
+          )}
+          aria-label={`${commandCount} queued commands`}
+        >
+          {machineId && isLoading ? '…' : commandCount}
+        </span>
+      </div>
+      <p className="mt-1 pl-5 text-[10px] text-chatroom-text-muted">
+        {machineId
+          ? 'Commands waiting for this machine'
+          : 'Select a workspace to inspect its machine'}
+      </p>
+    </button>
+  );
+}
+
+interface QueuedCommandRowProps {
+  command: QueueCommand;
+  isDeleting: boolean;
+  isFlushing: boolean;
+  onDelete: (commandId: Id<'chatroom_machineCommandInbox'>) => void;
+}
+
+function QueuedCommandMetadata({ command }: { command: QueueCommand }) {
+  const detail = getCommandDetail(command.command);
+
+  return (
+    <>
+      {detail && (
+        <p className="mt-1 truncate text-[10px] text-muted-foreground" title={detail}>
+          {detail}
+        </p>
+      )}
+      <p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground/70">
+        <Clock3 size={10} aria-hidden="true" />
+        {formatQueuedAt(command.createdAt)}
+      </p>
+    </>
+  );
+}
+
+function QueuedCommandRow({ command, isDeleting, isFlushing, onDelete }: QueuedCommandRowProps) {
+  const label = statusLabel(command);
+  const isExpired = label === 'Expired';
+
+  return (
+    <li className="flex items-start gap-3 border-b border-chatroom-border px-5 py-3 last:border-b-0">
+      <span
+        className={cn(
+          'mt-1.5 size-1.5 shrink-0',
+          command.status === 'processing'
+            ? 'bg-blue-500'
+            : isExpired
+              ? 'bg-amber-500'
+              : 'bg-chatroom-accent'
+        )}
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-xs font-semibold text-foreground">
+            {getCommandTitle(command.command)}
+          </p>
+          <span
+            className={cn(
+              'text-[9px] font-bold uppercase tracking-wide',
+              command.status === 'processing'
+                ? 'text-blue-500'
+                : isExpired
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-chatroom-accent'
+            )}
+          >
+            {label}
+          </span>
+        </div>
+        <QueuedCommandMetadata command={command} />
+      </div>
+      <button
+        type="button"
+        onClick={() => onDelete(command._id)}
+        disabled={isDeleting || isFlushing}
+        className="mt-0.5 flex size-7 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
+        title="Delete command"
+        aria-label={`Delete ${getCommandTitle(command.command)}`}
+      >
+        {isDeleting ? (
+          <Loader2 size={13} className="animate-spin" aria-hidden="true" />
+        ) : (
+          <Trash2 size={13} aria-hidden="true" />
+        )}
+      </button>
+    </li>
+  );
+}
+
+interface QueuedCommandListProps {
+  commands: QueueCommand[];
+  isDeleting: (commandId: string) => boolean;
+  isFlushing: boolean;
+  onDelete: (commandId: Id<'chatroom_machineCommandInbox'>) => void;
+}
+
+function QueuedCommandList({ commands, isDeleting, isFlushing, onDelete }: QueuedCommandListProps) {
+  if (commands.length === 0) {
+    return (
+      <div className="flex min-h-40 flex-col items-center justify-center px-6 text-center">
+        <ListTodo size={22} className="mb-3 text-muted-foreground/60" aria-hidden="true" />
+        <p className="text-xs font-medium text-foreground">Queue is clear</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          New agent and daemon commands will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <ul aria-label="Queued commands">
+      {commands.map((command) => (
+        <QueuedCommandRow
+          key={command._id}
+          command={command}
+          isDeleting={isDeleting(command._id)}
+          isFlushing={isFlushing}
+          onDelete={onDelete}
+        />
+      ))}
+    </ul>
+  );
+}
+
+interface CommandQueueDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isLoading: boolean;
+  commands: QueueCommand[];
+  commandCount: number;
+  isDeleting: (commandId: string) => boolean;
+  isFlushing: boolean;
+  onDelete: (commandId: Id<'chatroom_machineCommandInbox'>) => void;
+  onRequestFlush: () => void;
+}
+
+function CommandQueueFooter({
+  commandCount,
+  isFlushing,
+  onClose,
+  onRequestFlush,
+}: Pick<CommandQueueDialogProps, 'commandCount' | 'isFlushing' | 'onRequestFlush'> & {
+  onClose: () => void;
+}) {
+  return (
+    <DialogFooter className="px-5 py-3 sm:justify-between">
+      <p className="text-[10px] text-muted-foreground">
+        {commandCount === 0
+          ? 'Nothing to flush'
+          : `${commandCount} command${commandCount === 1 ? '' : 's'} queued`}
+      </p>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={onClose}>
+          Close
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={onRequestFlush}
+          disabled={commandCount === 0 || isFlushing}
+        >
+          <Trash2 size={13} aria-hidden="true" />
+          Flush queue
+        </Button>
+      </div>
+    </DialogFooter>
+  );
+}
+
+function CommandQueueDialog({
+  open,
+  onOpenChange,
+  isLoading,
+  commands,
+  commandCount,
+  isDeleting,
+  isFlushing,
+  onDelete,
+  onRequestFlush,
+}: CommandQueueDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[min(90dvh,40rem)] min-h-0 w-[calc(100vw-2rem)] max-w-lg flex-col gap-0 p-0">
+        <DialogHeader className="border-b border-chatroom-border px-5 py-4 pr-12">
+          <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+            <ListTodo size={15} className="text-chatroom-accent" aria-hidden="true" />
+            Command queue
+            <span className="text-muted-foreground">({commandCount})</span>
+          </DialogTitle>
+          <DialogDescription>
+            Unacknowledged commands for the selected machine. Processing commands may already be in
+            flight.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogScrollBody>
+          {isLoading ? (
+            <div className="flex min-h-32 items-center justify-center">
+              <ChatroomLoader size="md" />
+            </div>
+          ) : (
+            <QueuedCommandList
+              commands={commands}
+              isDeleting={isDeleting}
+              isFlushing={isFlushing}
+              onDelete={onDelete}
+            />
+          )}
+        </DialogScrollBody>
+
+        <CommandQueueFooter
+          commandCount={commandCount}
+          isFlushing={isFlushing}
+          onClose={() => onOpenChange(false)}
+          onRequestFlush={onRequestFlush}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface FlushCommandDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  commandCount: number;
+  isFlushing: boolean;
+  onConfirm: () => void;
+}
+
+function FlushCommandDialog({
+  open,
+  onOpenChange,
+  commandCount,
+  isFlushing,
+  onConfirm,
+}: FlushCommandDialogProps) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle size={17} className="text-destructive" aria-hidden="true" />
+            Flush command queue?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This removes all{' '}
+            {commandCount === 1 ? 'queued command' : `${commandCount} queued commands`} for this
+            machine, including commands currently marked as processing. Agents that already started
+            are not stopped.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isFlushing}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            disabled={isFlushing}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isFlushing && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
+            Flush queue
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+interface CommandQueuePanelViewProps {
+  machineId: string | null | undefined;
+  isOpen: boolean;
+  isFlushConfirmOpen: boolean;
+  isLoading: boolean;
+  commands: QueueCommand[];
+  commandCount: number;
+  isDeleting: (commandId: string) => boolean;
+  isFlushing: boolean;
+  onOpenChange: (open: boolean) => void;
+  onFlushConfirmChange: (open: boolean) => void;
+  onDelete: (commandId: Id<'chatroom_machineCommandInbox'>) => void;
+  onRequestFlush: () => void;
+  onConfirmFlush: () => void;
+}
+
+function CommandQueuePanelView({
+  machineId,
+  isOpen,
+  isFlushConfirmOpen,
+  isLoading,
+  commands,
+  commandCount,
+  isDeleting,
+  isFlushing,
+  onOpenChange,
+  onFlushConfirmChange,
+  onDelete,
+  onRequestFlush,
+  onConfirmFlush,
+}: CommandQueuePanelViewProps) {
+  return (
+    <>
+      <CommandQueueSummary
+        machineId={machineId}
+        isLoading={isLoading}
+        commandCount={commandCount}
+        onOpen={() => onOpenChange(true)}
+      />
+      <CommandQueueDialog
+        open={isOpen}
+        onOpenChange={onOpenChange}
+        isLoading={isLoading}
+        commands={commands}
+        commandCount={commandCount}
+        isDeleting={isDeleting}
+        isFlushing={isFlushing}
+        onDelete={onDelete}
+        onRequestFlush={onRequestFlush}
+      />
+      <FlushCommandDialog
+        open={isFlushConfirmOpen}
+        onOpenChange={onFlushConfirmChange}
+        commandCount={commandCount}
+        isFlushing={isFlushing}
+        onConfirm={onConfirmFlush}
+      />
+    </>
+  );
+}
+
 export const CommandQueuePanel = memo(function CommandQueuePanel({
   machineId,
 }: CommandQueuePanelProps) {
@@ -143,192 +510,20 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
   }, [deleteAllMutation, machineId]);
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        disabled={!machineId || isLoading}
-        className="w-full appearance-none border-0 border-b border-chatroom-border bg-transparent px-3 py-2 text-left transition-colors hover:bg-chatroom-bg-hover focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-chatroom-accent disabled:pointer-events-none disabled:opacity-40"
-        aria-label={`Command queue: ${machineId && isLoading ? 'loading' : `${commandCount} queued commands`}`}
-        data-testid="command-queue-panel"
-      >
-        <div className="flex items-center gap-2">
-          <ListTodo size={12} className="shrink-0 text-chatroom-accent" aria-hidden="true" />
-          <span className="min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-            Command queue
-          </span>
-          <span
-            className={cn(
-              'min-w-5 px-1.5 py-0.5 text-center text-[10px] font-bold tabular-nums',
-              commandCount > 0
-                ? 'bg-chatroom-accent/10 text-chatroom-accent'
-                : 'bg-chatroom-bg-tertiary text-chatroom-text-muted'
-            )}
-            aria-label={`${commandCount} queued commands`}
-          >
-            {machineId && isLoading ? '…' : commandCount}
-          </span>
-        </div>
-        <p className="mt-1 pl-5 text-[10px] text-chatroom-text-muted">
-          {machineId
-            ? 'Commands waiting for this machine'
-            : 'Select a workspace to inspect its machine'}
-        </p>
-      </button>
-
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="flex max-h-[min(90dvh,40rem)] min-h-0 w-[calc(100vw-2rem)] max-w-lg flex-col gap-0 p-0">
-          <DialogHeader className="border-b border-chatroom-border px-5 py-4 pr-12">
-            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
-              <ListTodo size={15} className="text-chatroom-accent" aria-hidden="true" />
-              Command queue
-              <span className="text-muted-foreground">({commandCount})</span>
-            </DialogTitle>
-            <DialogDescription>
-              Unacknowledged commands for the selected machine. Processing commands may already be
-              in flight.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogScrollBody>
-            {isLoading ? (
-              <div className="flex min-h-32 items-center justify-center">
-                <ChatroomLoader size="md" />
-              </div>
-            ) : commandCount === 0 ? (
-              <div className="flex min-h-40 flex-col items-center justify-center px-6 text-center">
-                <ListTodo size={22} className="mb-3 text-muted-foreground/60" aria-hidden="true" />
-                <p className="text-xs font-medium text-foreground">Queue is clear</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  New agent and daemon commands will appear here.
-                </p>
-              </div>
-            ) : (
-              <ul aria-label="Queued commands">
-                {commands.map((command) => {
-                  const detail = getCommandDetail(command.command);
-                  const isDeleting = deletingCommandId === command._id;
-                  const label = statusLabel(command);
-                  const isExpired = label === 'Expired';
-                  return (
-                    <li
-                      key={command._id}
-                      className="flex items-start gap-3 border-b border-chatroom-border px-5 py-3 last:border-b-0"
-                    >
-                      <span
-                        className={cn(
-                          'mt-1.5 size-1.5 shrink-0',
-                          command.status === 'processing'
-                            ? 'bg-blue-500'
-                            : isExpired
-                              ? 'bg-amber-500'
-                              : 'bg-chatroom-accent'
-                        )}
-                        aria-hidden="true"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <p className="text-xs font-semibold text-foreground">
-                            {getCommandTitle(command.command)}
-                          </p>
-                          <span
-                            className={cn(
-                              'text-[9px] font-bold uppercase tracking-wide',
-                              command.status === 'processing'
-                                ? 'text-blue-500'
-                                : isExpired
-                                  ? 'text-amber-600 dark:text-amber-400'
-                                  : 'text-chatroom-accent'
-                            )}
-                          >
-                            {label}
-                          </span>
-                        </div>
-                        {detail && (
-                          <p
-                            className="mt-1 truncate text-[10px] text-muted-foreground"
-                            title={detail}
-                          >
-                            {detail}
-                          </p>
-                        )}
-                        <p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground/70">
-                          <Clock3 size={10} aria-hidden="true" />
-                          {formatQueuedAt(command.createdAt)}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(command._id)}
-                        disabled={isDeleting || isFlushing}
-                        className="mt-0.5 flex size-7 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
-                        title="Delete command"
-                        aria-label={`Delete ${getCommandTitle(command.command)}`}
-                      >
-                        {isDeleting ? (
-                          <Loader2 size={13} className="animate-spin" aria-hidden="true" />
-                        ) : (
-                          <Trash2 size={13} aria-hidden="true" />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </DialogScrollBody>
-
-          <DialogFooter className="px-5 py-3 sm:justify-between">
-            <p className="text-[10px] text-muted-foreground">
-              {commandCount === 0
-                ? 'Nothing to flush'
-                : `${commandCount} command${commandCount === 1 ? '' : 's'} queued`}
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setIsOpen(false)}>
-                Close
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setIsFlushConfirmOpen(true)}
-                disabled={commandCount === 0 || isFlushing}
-              >
-                <Trash2 size={13} aria-hidden="true" />
-                Flush queue
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={isFlushConfirmOpen} onOpenChange={setIsFlushConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle size={17} className="text-destructive" aria-hidden="true" />
-              Flush command queue?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes all{' '}
-              {commandCount === 1 ? 'queued command' : `${commandCount} queued commands`} for this
-              machine, including commands currently marked as processing. Agents that already
-              started are not stopped.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isFlushing}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void handleFlush()}
-              disabled={isFlushing}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isFlushing && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
-              Flush queue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+    <CommandQueuePanelView
+      machineId={machineId}
+      isOpen={isOpen}
+      isFlushConfirmOpen={isFlushConfirmOpen}
+      isLoading={isLoading}
+      commands={commands}
+      commandCount={commandCount}
+      isDeleting={(commandId) => deletingCommandId === commandId}
+      isFlushing={isFlushing}
+      onOpenChange={setIsOpen}
+      onFlushConfirmChange={setIsFlushConfirmOpen}
+      onDelete={(commandId) => void handleDelete(commandId)}
+      onRequestFlush={() => setIsFlushConfirmOpen(true)}
+      onConfirmFlush={() => void handleFlush()}
+    />
   );
 });
