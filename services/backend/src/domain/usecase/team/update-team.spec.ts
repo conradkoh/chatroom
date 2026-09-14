@@ -9,7 +9,7 @@ import { t } from '../../../../test.setup';
 import { createTestSession } from '../../../../tests/helpers/integration';
 
 describe('updateTeam use case', () => {
-  test('updates only compatibility team fields and does not reconcile agents', async () => {
+  test('records a structural switch without reconciling agent lifecycle state', async () => {
     const { sessionId } = await createTestSession('test-utu-structural-switch');
     const chatroomId = await t.mutation(api.chatrooms.create, {
       sessionId: sessionId as any,
@@ -40,12 +40,8 @@ describe('updateTeam use case', () => {
     });
 
     const room = await t.run((ctx) => ctx.db.get('chatroom_rooms', chatroomId));
-    expect(room).toMatchObject({
-      teamId: 'solo',
-      teamName: 'Solo Team',
-      teamRoles: ['builder'],
-      teamEntryPoint: 'builder',
-    });
+    expect(room?.teamId).toBeUndefined();
+    expect(room?.teamRoles).toBeUndefined();
     expect(await t.run((ctx) => ctx.db.query('chatroom_agentDesiredConfigs').collect())).toEqual(
       []
     );

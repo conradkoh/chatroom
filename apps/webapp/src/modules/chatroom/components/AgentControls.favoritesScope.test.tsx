@@ -192,14 +192,14 @@ describe('AgentControls favorites scope', () => {
     });
   });
 
-  it('restores the most recent workspace machine after async workspace loading', async () => {
+  it('uses the active workspace machine after async workspace loading', async () => {
     const view = render(<AsyncFavoritesScopeHarness loaded={false} />);
     view.rerender(<AsyncFavoritesScopeHarness loaded />);
 
     await waitFor(() => {
       expect(mockUseSessionQuery).toHaveBeenCalledWith(
         'machineConfigFavorites:getMachineConfigFavorites',
-        { machineId: 'machine-b', teamRoleKey: 'team_squad#role_planner' }
+        { machineId: 'machine-a', teamRoleKey: 'team_squad#role_planner' }
       );
     });
   });

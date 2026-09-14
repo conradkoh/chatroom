@@ -131,7 +131,7 @@ describe('Handoff target role validation', () => {
     expect(result.error?.code).toBe('INVALID_TARGET_ROLE');
     expect(result.error?.message).toContain('Cannot hand off to "architect"');
     expect(result.error?.message).toContain('not part of the current team');
-    expect(result.error?.suggestedTargets).toEqual(['user', 'planner', 'builder']);
+    expect(result.error?.suggestedTargets).toEqual(['user', 'planner', 'enhancer', 'builder']);
   });
 
   test('handoff to valid team role succeeds', async () => {

@@ -8,7 +8,6 @@ import { describe, expect, test } from 'vitest';
 import { releaseTaskAfterTurnFailure } from './release-task-after-turn-failure';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 import {
   WorkspaceTaskInboxEventStatus,
@@ -37,21 +36,25 @@ async function seedRemoteConfig(
   machineId: string
 ): Promise<void> {
   await t.run(async (ctx) => {
-    const room = await ctx.db.get('chatroom_rooms', chatroomId);
-    if (!room?.teamId) throw new Error('chatroom missing teamId');
+    const user = await ctx.db.query('users').first();
+    if (!user) throw new Error('test user missing');
     const now = Date.now();
-    await ctx.db.insert('chatroom_agentDesiredConfigs', {
-      teamRoleKey: buildTeamRoleKey(chatroomId, room.teamId, role),
+    await ctx.db.insert('chatroom_agentLastSentLaunchRequests', {
+      requestKey: `${chatroomId}:duo@1:${role}`,
+      requestId: crypto.randomUUID(),
+      commandId: crypto.randomUUID(),
       chatroomId,
+      teamStructureId: 'duo@1',
       role,
-      type: 'remote',
+      agentType: 'remote',
       machineId,
       agentHarness: 'opencode-sdk',
       model: 'model',
       workingDir: '/tmp',
-      enabled: true,
-      createdAt: now,
-      updatedAt: now,
+      reason: 'user.config',
+      wantResume: false,
+      requestedBy: user._id,
+      requestedAt: now,
     });
   });
 }

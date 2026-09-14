@@ -49,6 +49,9 @@ vi.mock('../../api.js', () => ({
       join: 'participants:join',
       getByRole: 'participants:getByRole',
     },
+    agents: {
+      getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
+    },
     messages: {
       getTaskDeliveryPrompt: 'messages:getTaskDeliveryPrompt',
       getInitPrompt: 'messages:getInitPrompt',
@@ -82,6 +85,9 @@ describe('get-next-task — agent config ownership', () => {
       }
       if (queryFn === 'participants:getByRole') {
         return { role: 'builder', chatroomId: TEST_CHATROOM_ID };
+      }
+      if (queryFn === 'agents:getLastSentLaunchRequest') {
+        return null;
       }
       if (queryFn === 'machines:getTeamAgentConfigs') {
         return [];

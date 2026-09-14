@@ -87,7 +87,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
     expect(rolePrompt!.length).toBeGreaterThan(0);
 
     // Should have team and role header
-    expect(rolePrompt).toContain('# Duo Team');
+    expect(rolePrompt).toContain('# Duo');
     expect(rolePrompt).toContain('## Your Role: BUILDER');
 
     // Should have Getting Started section with CHATROOM_CONVEX_URL commands
@@ -96,8 +96,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
     expect(rolePrompt).toContain('### Get Next Task');
     expect(rolePrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
-    // Should have task intake section (builder is entry point)
-    expect(rolePrompt).toContain('### Start working');
+    // Builder is not the entry point in the canonical duo structure.
+    expect(rolePrompt).toContain('### Start Working');
     expect(rolePrompt).toContain('harness output (stdout tokens)');
 
     // Should have builder operating model instructions
@@ -112,12 +112,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
     expect(rolePrompt).toContain('### Next');
     expect(rolePrompt).toContain('chatroom get-next-task');
 
-    // Should contain context view-template hint near context new commands
-    expect(rolePrompt).toContain('chatroom context view-template');
-
     // Snapshot the full rolePrompt for regression detection
     expect(rolePrompt).toMatchInlineSnapshot(`
-      "# Duo Team
+      "# Duo
 
       ## Your Role: BUILDER
 
@@ -283,30 +280,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
 
 
-      ### Start working
+      ### Start Working
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
-
-      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running context new, run:**
-      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
-      — check only whether the pinned context's \`--trigger-message-id\` matches this task's Origin Message ID (do NOT create another context if it matches). **If a staleness warning is present, do not act on the stale goal — create a new context for the current user message.** Only the entry point role can set contexts:
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="ORIGIN_MESSAGE_ID" << 'CHATROOM_CONTEXT_END'
-      ## Goal
-      - **User-centric:** _Describe what the user wants in plain language._
-      - **Development-centric:** _Describe what we are building or changing._
-
-      ## Requirements
-      - _One concrete outcome or requirement per bullet._
-
-      ## Structure
-      - _Key files, folders, or architecture decisions (e.g. module boundaries, SSOT locations)._
-
-      ## Avoid
-      - _Out-of-scope work or anti-patterns to skip._
-      CHATROOM_CONTEXT_END
-      \`\`\`
-      REQUIRED: All context content MUST conform to the template. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context view-template\` (no flags). \`--trigger-message-id\` must be the task's \`origin-message-id\` attribute (never \`task-id\`). Use the pre-filled value in the command above when provided.
+      The task body contains your work description. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
 
        **Duo Team Context:**
@@ -359,7 +335,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
        
 
       ### Handoff Options
-      Available targets: planner, user
+      Available targets: planner, enhancer, user
 
       ### Commands
 

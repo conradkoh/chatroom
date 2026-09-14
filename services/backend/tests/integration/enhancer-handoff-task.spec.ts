@@ -99,7 +99,9 @@ describe('request-first enhancer handoff', () => {
       await t.run((ctx) =>
         ctx.db
           .query('chatroom_agentLastSentLaunchRequests')
-          .withIndex('by_requestKey', (q) => q.eq('requestKey', `${chatroomId}:duo@1:enhancer`))
+          .withIndex('by_chatroom_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'enhancer')
+          )
           .first()
       )
     ).toMatchObject({

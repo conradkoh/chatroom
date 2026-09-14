@@ -43,6 +43,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
+    agentWorkspaces: {
+      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
+      getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
+    },
     agents: {
       requestStop: 'agents:requestStop',
       requestStopAll: 'agents:requestStopAll',

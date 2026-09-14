@@ -1,8 +1,8 @@
 /**
  * Phase 3 Convex Query Wrappers — Integration Tests
  *
- * Tests the three new Convex queries (`getAgentViewStatus`, `getAgentStartConfig`,
- * `listAgentOverview`) that wrap Phase 1 use cases. Validates session auth,
+ * Tests the canonical Convex queries (`getViewStatus`, `getStartFormData`,
+ * `listChatroomStatus`) that wrap the current workspace-agent use cases. Validates session auth,
  * data shape, and basic correctness when called through the Convex API layer.
  */
 
@@ -23,21 +23,22 @@ import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 // getAgentViewStatus
 // ============================================================================
 
-describe('machines.getAgentViewStatus', () => {
+describe('agents.getViewStatus', () => {
   test('returns agent status for valid session', async () => {
     const { sessionId } = await createTestSession('test-gas-q-valid-1');
     const machineId = 'machine-gas-q-valid-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    const result = await t.query(api.machines.getAgentViewStatus, {
+    const result = await t.query(api.agents.getViewStatus, {
       sessionId: sessionId as any,
       chatroomId,
     });
 
     expect(result).not.toBeNull();
-    expect(result!.teamRoles).toEqual(['planner', 'builder']);
-    expect(result!.agents).toHaveLength(2);
+    expect(result!.teamRoles).toContain('planner');
+    expect(result!.teamRoles).toContain('builder');
+    expect(result!.agents).toHaveLength(result!.teamRoles.length);
     for (const agent of result!.agents) {
       expect(agent).toHaveProperty('role');
       expect(agent).toHaveProperty('state');
@@ -49,12 +50,12 @@ describe('machines.getAgentViewStatus', () => {
     const { sessionId } = await createTestSession('test-gas-q-invalid-setup');
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    const result = await t.query(api.machines.getAgentViewStatus, {
-      sessionId: 'bogus-session-id' as any,
-      chatroomId,
-    });
-
-    expect(result).toBeNull();
+    await expect(
+      t.query(api.agents.getViewStatus, {
+        sessionId: 'bogus-session-id' as any,
+        chatroomId,
+      })
+    ).rejects.toThrow(/Authentication failed/);
   });
 
   test('returns running state when agent has PID', async () => {
@@ -66,7 +67,7 @@ describe('machines.getAgentViewStatus', () => {
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 55555);
 
-    const result = await t.query(api.machines.getAgentViewStatus, {
+    const result = await t.query(api.agents.getViewStatus, {
       sessionId: sessionId as any,
       chatroomId,
     });
@@ -81,14 +82,14 @@ describe('machines.getAgentViewStatus', () => {
 // getAgentStartConfig
 // ============================================================================
 
-describe('machines.getAgentStartConfig', () => {
+describe('agents.getStartFormData', () => {
   test('returns start config for valid session', async () => {
     const { sessionId } = await createTestSession('test-gasc-q-valid-1');
     const machineId = 'machine-gasc-q-valid-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    const result = await t.query(api.machines.getAgentStartConfig, {
+    const result = await t.query(api.agents.getStartFormData, {
       sessionId: sessionId as any,
       chatroomId,
       role: 'builder',
@@ -106,13 +107,13 @@ describe('machines.getAgentStartConfig', () => {
     const { sessionId } = await createTestSession('test-gasc-q-invalid-setup');
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    const result = await t.query(api.machines.getAgentStartConfig, {
-      sessionId: 'bogus-session-id' as any,
-      chatroomId,
-      role: 'builder',
-    });
-
-    expect(result).toBeNull();
+    await expect(
+      t.query(api.agents.getStartFormData, {
+        sessionId: 'bogus-session-id' as any,
+        chatroomId,
+        role: 'builder',
+      })
+    ).rejects.toThrow(/Authentication failed/);
   });
 
   test('returns defaults from team config when available', async () => {
@@ -123,7 +124,7 @@ describe('machines.getAgentStartConfig', () => {
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
-    const result = await t.query(api.machines.getAgentStartConfig, {
+    const result = await t.query(api.agents.getStartFormData, {
       sessionId: sessionId as any,
       chatroomId,
       role: 'builder',
@@ -138,15 +139,15 @@ describe('machines.getAgentStartConfig', () => {
 });
 
 // ============================================================================
-// listAgentOverview
+// listChatroomStatus
 // ============================================================================
 
-describe('machines.listAgentOverview', () => {
+describe('agents.listChatroomStatus', () => {
   test('returns overview for valid session', async () => {
     const { sessionId } = await createTestSession('test-lao-q-valid-1');
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    const results = await t.query(api.machines.listAgentOverview, {
+    const results = await t.query(api.agents.listChatroomStatus, {
       sessionId: sessionId as any,
     });
 
@@ -158,7 +159,7 @@ describe('machines.listAgentOverview', () => {
   });
 
   test('returns empty array for invalid session', async () => {
-    const results = await t.query(api.machines.listAgentOverview, {
+    const results = await t.query(api.agents.listChatroomStatus, {
       sessionId: 'bogus-session-id' as any,
     });
 
@@ -174,7 +175,7 @@ describe('machines.listAgentOverview', () => {
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 77777);
 
-    const results = await t.query(api.machines.listAgentOverview, {
+    const results = await t.query(api.agents.listChatroomStatus, {
       sessionId: sessionId as any,
     });
 
@@ -192,7 +193,7 @@ describe('machines.listAgentOverview', () => {
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
-    const results = await t.query(api.machines.listAgentOverview, {
+    const results = await t.query(api.agents.listChatroomStatus, {
       sessionId: sessionId as any,
     });
 

@@ -3,10 +3,6 @@
 import { describe, expect, test } from 'vitest';
 
 import { api, internal } from '../../convex/_generated/api';
-import {
-  deleteMachineLastSeenAt,
-  upsertMachineLastSeenAt,
-} from '../../convex/lib/lastAtProjections';
 import { t } from '../../test.setup';
 import {
   createTestSession,
@@ -132,12 +128,14 @@ describe('workspace file-tree watch leases', () => {
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
       expect(machine).toBeDefined();
-      // Machine cleanup selection is projection-driven: backdate only the
-      // dedicated projection. Projections use max-wins semantics, so the
-      // fresh register-time row must be removed before seeding the stale value.
+      // Machine cleanup selection is driven by machine capabilities recency.
       const stale = Date.now() - 91 * 24 * 60 * 60 * 1000;
-      await deleteMachineLastSeenAt(ctx, machineId);
-      await upsertMachineLastSeenAt(ctx, machineId, stale);
+      const capabilities = await ctx.db
+        .query('chatroom_machineCapabilities')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      expect(capabilities).toBeDefined();
+      await ctx.db.patch(capabilities!._id, { lastSeenAt: stale });
     });
 
     await t.mutation(internal.chatroomCleanup.cleanupMachines, {});

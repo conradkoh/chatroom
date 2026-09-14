@@ -227,7 +227,7 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
         createdBy: 'user',
         content: 'entry pending task',
         status: 'pending',
-        assignedTo: 'builder',
+        assignedTo: 'planner',
         queuePosition: 0,
         createdAt: now,
         updatedAt: now,
@@ -241,7 +241,7 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
     expect(reassigned).toBe(0);
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task?.assignedTo).toBe('builder');
+    expect(task?.assignedTo).toBe('planner');
   });
 
   test('moves an acknowledged task on a removed role to pending under the new entry point', async () => {

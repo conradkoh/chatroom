@@ -37,8 +37,6 @@ describe('toParticipantPresence', () => {
       role: 'solo',
       lastSeenAt: null,
       lastSeenAction: null,
-      lastStatus: null,
-      lastDesiredState: null,
     });
   });
 
@@ -47,8 +45,6 @@ describe('toParticipantPresence', () => {
       role: 'architect',
       lastSeenAt: 1700000000000,
       lastSeenAction: 'get-next-task:started',
-      lastStatus: 'task.inProgress',
-      lastDesiredState: 'running',
     });
 
     expect(row).toEqual({
@@ -56,8 +52,6 @@ describe('toParticipantPresence', () => {
       role: 'architect',
       lastSeenAt: 1700000000000,
       lastSeenAction: 'get-next-task:started',
-      lastStatus: 'task.inProgress',
-      lastDesiredState: 'running',
     });
   });
 
@@ -66,11 +60,9 @@ describe('toParticipantPresence', () => {
       role: 'solo',
       lastSeenAt: null,
       lastSeenAction: null,
-      lastStatus: null,
-      lastDesiredState: null,
     });
 
     expect(row.lastSeenAt).toBeNull();
-    expect(row.lastStatus).toBeNull();
+    expect(row.lastSeenAction).toBeNull();
   });
 });

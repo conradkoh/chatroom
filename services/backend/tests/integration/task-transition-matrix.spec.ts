@@ -106,6 +106,13 @@ describe('task transition matrix', () => {
       if (task && task.status === 'pending') {
         await ctx.db.patch('chatroom_tasks', taskId, { status: 'acknowledged' });
       }
+      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+        chatroomId,
+        role: 'planner',
+        roleKind: 'persistent',
+        status: 'waiting',
+        projectedAt: Date.now(),
+      });
     });
 
     const { startTaskFromTokenActivity } =
@@ -115,7 +122,7 @@ describe('task transition matrix', () => {
         ctx,
         { chatroomId, role: 'planner' },
         {
-          lastStatus: 'agent.waiting',
+          lastSeenAction: 'native:waiting',
         }
       );
     });

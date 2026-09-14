@@ -69,7 +69,10 @@ function makeTestSession(config: {
 }
 
 /** Create a test machine service with configurable responses */
-function makeTestMachine(config: { machineId?: string | null | undefined; config?: any | undefined }) {
+function makeTestMachine(config: {
+  machineId?: string | null | undefined;
+  config?: any | undefined;
+}) {
   return Layer.succeed(RegisterAgentMachineService, {
     getMachineId: vi.fn(() =>
       Effect.succeed(config.machineId !== undefined ? config.machineId : 'test-machine-id')
@@ -246,11 +249,10 @@ describe('registerAgentEffect', () => {
     }
   });
 
-  test('fails with RegisterFailed when custom mutation throws', async () => {
+  test('fails with RegisterFailed when chatroom lookup throws', async () => {
     const testLayer = Layer.mergeAll(
       makeTestBackend({
-        queryResponse: { _id: 'chatroom-123' },
-        mutationResponse: new Error('Registration failed'),
+        queryResponse: new Error('Registration failed'),
       }),
       makeTestSession({ sessionId: 'test-session' }),
       makeTestMachine({})

@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 
 import { requestEphemeralAgentRelease } from './request-ephemeral-agent-release';
 import { api } from '../../../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 
 describe('requestEphemeralAgentRelease', () => {
@@ -24,31 +23,12 @@ describe('requestEphemeralAgentRelease', () => {
       os: 'linux',
       availableHarnesses: ['opencode'],
     });
-    const ids = await t.run(async (ctx) => {
-      const _room = await ctx.db.get(chatroomId);
-      const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
-        chatroomId,
-        role: 'enhancer',
-        type: 'remote',
-        machineId,
-        agentHarness: 'opencode',
-        model: 'test',
-        workingDir: '/tmp',
-        enabled: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-      await ctx.db.insert('chatroom_agentRuntimeStates', {
-        desiredConfigId: configId,
-        chatroomId,
-        role: 'enhancer',
-        machineId,
-        status: 'waiting',
-        desiredState: 'running',
-        pid: 4242,
-        updatedAt: Date.now(),
-      });
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'enhancer',
+    });
+    await t.run(async (ctx) => {
       const taskId = await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'planner',
@@ -60,15 +40,15 @@ describe('requestEphemeralAgentRelease', () => {
         queuePosition: 1,
       });
       await requestEphemeralAgentRelease(ctx, (await ctx.db.get(taskId)) as any);
-      return { configId };
     });
-    const runtime = await t.run((ctx) =>
+    const participant = await t.run((ctx) =>
       ctx.db
-        .query('chatroom_agentRuntimeStates')
-        .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', ids.configId))
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'enhancer')
+        )
         .first()
     );
-    expect(runtime?.desiredState).toBe('stopped');
-    expect(ids.configId).toBeDefined();
+    expect(participant?.lastSeenAction).toBe('exited');
   });
 });

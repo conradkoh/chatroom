@@ -16,13 +16,13 @@ async function createTestSession(id: string) {
   return { sessionId: id as SessionId };
 }
 
-async function createBuilderEntryChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
     teamRoles: ['planner', 'builder'],
-    teamEntryPoint: 'builder',
+    teamEntryPoint: 'planner',
   });
 }
 
@@ -31,7 +31,7 @@ async function insertQueueRecord(chatroomId: Id<'chatroom_rooms'>, content: stri
     await ctx.db.insert('chatroom_messageQueue', {
       chatroomId,
       senderRole: 'user',
-      targetRole: 'builder',
+      targetRole: 'planner',
       content,
       type: 'message',
       queuePosition: 1,
@@ -42,7 +42,7 @@ async function insertQueueRecord(chatroomId: Id<'chatroom_rooms'>, content: stri
 describe('maybePromoteNextQueuedTask', () => {
   test('promotes when queue has messages and no active tasks', async () => {
     const { sessionId } = await createTestSession('maybe-promote-1');
-    const chatroomId = await createBuilderEntryChatroom(sessionId);
+    const chatroomId = await createChatroom(sessionId);
     await insertQueueRecord(chatroomId, 'Queued work');
 
     const result = await t.run(async (ctx) => {
@@ -68,7 +68,7 @@ describe('maybePromoteNextQueuedTask', () => {
 
   test('returns active_task_exists when acknowledged task present', async () => {
     const { sessionId } = await createTestSession('maybe-promote-2');
-    const chatroomId = await createBuilderEntryChatroom(sessionId);
+    const chatroomId = await createChatroom(sessionId);
     await insertQueueRecord(chatroomId, 'Should not promote');
 
     const { taskId } = await t.mutation(api.tasks.createTask, {
@@ -80,7 +80,7 @@ describe('maybePromoteNextQueuedTask', () => {
     await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
       taskId,
     });
 
@@ -93,12 +93,12 @@ describe('maybePromoteNextQueuedTask', () => {
 
   test('returns skipped_not_entry_point when entryPointRole !== team entry point', async () => {
     const { sessionId } = await createTestSession('maybe-promote-3');
-    const chatroomId = await createBuilderEntryChatroom(sessionId);
+    const chatroomId = await createChatroom(sessionId);
     await insertQueueRecord(chatroomId, 'Planner cannot promote');
 
     const result = await t.run(async (ctx) => {
       return await maybePromoteNextQueuedTask(ctx, chatroomId, {
-        entryPointRole: 'planner',
+        entryPointRole: 'builder',
       });
     });
 
@@ -115,12 +115,12 @@ describe('maybePromoteNextQueuedTask', () => {
 
   test('promotes when entryPointRole matches team entry point', async () => {
     const { sessionId } = await createTestSession('maybe-promote-4');
-    const chatroomId = await createBuilderEntryChatroom(sessionId);
+    const chatroomId = await createChatroom(sessionId);
     await insertQueueRecord(chatroomId, 'Builder entry promotes');
 
     const result = await t.run(async (ctx) => {
       return await maybePromoteNextQueuedTask(ctx, chatroomId, {
-        entryPointRole: 'builder',
+        entryPointRole: 'planner',
       });
     });
 

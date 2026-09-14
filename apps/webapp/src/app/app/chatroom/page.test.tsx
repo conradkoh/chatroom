@@ -89,6 +89,35 @@ vi.mock('convex-helpers/react/sessions', () => ({
         requestedAt: 1,
       };
     }
+    if (query === 'agentWorkspaces:getAgentConfigForWorkspaceRole') {
+      if (typeof args === 'object' && args !== null && 'role' in args && args.role !== 'planner') {
+        return null;
+      }
+      return {
+        role: 'planner',
+        machineId: 'machine-a',
+        agentHarness: 'opencode-sdk',
+        model: 'opencode/big-pickle',
+        workingDir: '/code',
+        requestedAt: 1,
+      };
+    }
+    if (query === 'agentWorkspaces:getAgentStatusForWorkspaceRole') {
+      if (typeof args === 'object' && args !== null && 'role' in args && args.role !== 'planner') {
+        return null;
+      }
+      return {
+        role: 'planner',
+        status: 'offline',
+        isRunning: false,
+        workingDir: '/code',
+        lastSeenAt: null,
+        lastSeenAction: null,
+        activeWork: null,
+        error: null,
+        projectedAt: 1,
+      };
+    }
     if (query === 'machines:listMachines') {
       return {
         machines: [
@@ -126,6 +155,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       listLastSentLaunchRequests: 'agents:listLastSentLaunchRequests',
       getStatus: 'agents:getStatus',
       getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
+    },
+    agentWorkspaces: {
+      getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
+      getAgentStatusForWorkspaceRole: 'agentWorkspaces:getAgentStatusForWorkspaceRole',
     },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
@@ -299,30 +332,22 @@ describe('Chatroom page agents settings', () => {
           chatroomId: CHATROOM_ID,
         }
       );
-      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:listLastSentLaunchRequests', {
-        chatroomId: CHATROOM_ID,
-        workspaceId: 'r1',
-      });
-      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:getStatus', {
-        chatroomId: CHATROOM_ID,
-        workspaceId: 'r1',
-        role: 'planner',
-      });
-      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:getLastSentLaunchRequest', {
-        chatroomId: CHATROOM_ID,
-        workspaceId: 'r1',
-        role: 'planner',
-      });
-      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:getStatus', {
-        chatroomId: CHATROOM_ID,
-        workspaceId: 'r1',
-        role: 'builder',
-      });
-      expect(mockUseSessionQuery).toHaveBeenCalledWith('agents:getLastSentLaunchRequest', {
-        chatroomId: CHATROOM_ID,
-        workspaceId: 'r1',
-        role: 'builder',
-      });
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'agentWorkspaces:getAgentConfigForWorkspaceRole',
+        { workspaceId: 'r1', role: 'planner' }
+      );
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'agentWorkspaces:getAgentStatusForWorkspaceRole',
+        { workspaceId: 'r1', role: 'planner' }
+      );
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'agentWorkspaces:getAgentConfigForWorkspaceRole',
+        { workspaceId: 'r1', role: 'builder' }
+      );
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'agentWorkspaces:getAgentStatusForWorkspaceRole',
+        { workspaceId: 'r1', role: 'builder' }
+      );
     });
   });
 });

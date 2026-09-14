@@ -22,7 +22,7 @@ describe('Unread Status Tracking', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     // Join as builder
-    await joinParticipant(sessionId, chatroomId, 'builder');
+    await joinParticipant(sessionId, chatroomId, 'planner');
 
     // Send message from builder (non-user) role
     await t.mutation(api.messages.sendMessage, {
@@ -137,7 +137,7 @@ describe('Unread Status Tracking', () => {
       type: 'message',
     });
 
-    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner' });
     const acknowledgedTask = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_tasks')
@@ -150,14 +150,14 @@ describe('Unread Status Tracking', () => {
     await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
       taskId: acknowledgedTask!._id,
     });
 
     await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      senderRole: 'builder',
+      senderRole: 'planner',
       targetRole: 'user',
       content: 'Done with first — more queued',
     });
@@ -223,7 +223,7 @@ describe('Unread Status Tracking', () => {
   test('handoff-to-user with empty queue sets hasUnreadHandoff', async () => {
     const { sessionId } = await createTestSession('test-unread-handoff-empty');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
+    await joinParticipant(sessionId, chatroomId, 'planner');
 
     await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -233,7 +233,7 @@ describe('Unread Status Tracking', () => {
       type: 'message',
     });
 
-    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner' });
     const acknowledgedTask = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_tasks')
@@ -246,14 +246,14 @@ describe('Unread Status Tracking', () => {
     await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
-      role: 'builder',
+      role: 'planner',
       taskId: acknowledgedTask!._id,
     });
 
     await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      senderRole: 'builder',
+      senderRole: 'planner',
       targetRole: 'user',
       content: 'All done',
     });

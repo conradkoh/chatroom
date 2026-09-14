@@ -82,8 +82,8 @@ describe('Participant Lifecycle', () => {
       const { sessionId } = await createTestSession('test-non-idle-blocks-promo');
       const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
-      // Join planner first (no lastSeenAction — not waiting)
-      await joinParticipant(sessionId, chatroomId, 'planner');
+      // Join the non-entry role first (no lastSeenAction — not waiting).
+      await joinParticipant(sessionId, chatroomId, 'builder');
 
       // Create a queue record directly (no task — tasks are created at promotion time)
       let queuedMessageId: string | undefined;
@@ -98,10 +98,10 @@ describe('Participant Lifecycle', () => {
         })) as unknown as string;
       });
 
-      // Now join builder (entry point) — queue promotion SHOULD happen
+      // Now join planner (the static entry point) — queue promotion SHOULD happen
       // because no active tasks exist. The canPromote guard uses task state
       // (not participant state) as the source of truth.
-      await joinParticipant(sessionId, chatroomId, 'builder');
+      await joinParticipant(sessionId, chatroomId, 'planner');
 
       // Verify the queue record WAS consumed (task created from promotion)
       await t.run(async (ctx) => {
