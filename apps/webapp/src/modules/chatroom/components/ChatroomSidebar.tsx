@@ -3,27 +3,15 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import {
-  Archive,
-  ChevronDown,
-  Loader2,
-  Mail,
-  MailOpen,
-  MessageSquare,
-  Play,
-  RefreshCw,
-  Square,
-  Star,
-} from 'lucide-react';
+import { Archive, ChevronDown, Mail, MailOpen, MessageSquare, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
+import { ChatroomSidebarAgentActions } from './ChatroomSidebarAgentActions';
 import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
-import { useChatroomAgentOperations } from '../hooks/useChatroomAgentOperations';
 import { useChatroomStatus, useChatroomStatusMap } from '../hooks/useChatroomStatus';
 import {
   getChatroomActivityIndicatorClasses,
@@ -33,26 +21,128 @@ import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionCh
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import type { ChatroomStatus } from '@/domain/entities/chatroom-status';
 
 interface ChatroomSidebarItemProps {
   chatroom: ChatroomWithStatus;
   isActive: boolean;
   onSelect: (chatroomId: string) => void;
+}
+
+interface ChatroomSidebarItemTriggerProps {
+  chatroom: ChatroomWithStatus;
+  chatroomStatus: ChatroomStatus | undefined;
+  displayName: string;
+  isActive: boolean;
+  showStart: boolean;
+  onSelect: (chatroomId: string) => void;
+}
+
+function ChatroomSidebarItemIdentity({
+  chatroom,
+  chatroomStatus,
+  displayName,
+}: Pick<ChatroomSidebarItemTriggerProps, 'chatroom' | 'chatroomStatus' | 'displayName'>) {
+  return (
+    <>
+      <span
+        className={
+          chatroomStatus
+            ? getChatroomActivityIndicatorClasses(chatroomStatus.activityStatus)
+            : getChatroomActivityIndicatorLoadingClasses()
+        }
+      />
+      <span className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
+        <span className="text-xs font-bold uppercase tracking-wide truncate text-chatroom-text-primary">
+          {displayName}
+        </span>
+        {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
+      </span>
+      {chatroom.isFavorite && (
+        <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
+      )}
+    </>
+  );
+}
+
+function ChatroomSidebarItemTrigger({
+  chatroom,
+  chatroomStatus,
+  displayName,
+  isActive,
+  showStart,
+  onSelect,
+}: ChatroomSidebarItemTriggerProps) {
+  return (
+    <ContextMenuTrigger
+      render={
+        <div
+          role="button"
+          tabIndex={0}
+          className={`w-full cursor-pointer text-left px-3 py-2 flex items-center gap-2 transition-all duration-100 border-b border-chatroom-border ${
+            isActive
+              ? 'bg-chatroom-bg-hover border-l-2 border-l-chatroom-accent'
+              : 'border-l-2 border-l-transparent hover:bg-chatroom-bg-hover hover:border-l-chatroom-border'
+          }`}
+          onClick={() => onSelect(chatroom._id)}
+          onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
+        />
+      }
+    >
+      <ChatroomSidebarItemIdentity
+        chatroom={chatroom}
+        chatroomStatus={chatroomStatus}
+        displayName={displayName}
+      />
+      <ChatroomSidebarAgentActions
+        chatroomId={chatroom._id}
+        canStop={Boolean(chatroomStatus?.canStop)}
+        showStart={showStart}
+        isRunning={chatroomStatus?.remoteAgentStatus === 'running'}
+      />
+    </ContextMenuTrigger>
+  );
+}
+
+function ChatroomSidebarItemMenu({
+  isCompleted,
+  hasUnread,
+  onToggleReadStatus,
+  onArchive,
+}: {
+  isCompleted: boolean;
+  hasUnread: boolean;
+  onToggleReadStatus: () => void;
+  onArchive: () => void;
+}) {
+  if (isCompleted) return null;
+
+  return (
+    <ContextMenuContent className="min-w-[160px] rounded-none">
+      <ContextMenuItem onSelect={onToggleReadStatus} className="rounded-none">
+        {hasUnread ? (
+          <>
+            <MailOpen size={14} />
+            Mark as Read
+          </>
+        ) : (
+          <>
+            <Mail size={14} />
+            Mark as Unread
+          </>
+        )}
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={onArchive} className="rounded-none">
+        <Archive size={14} />
+        Archive Chat
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
 }
 
 const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
@@ -62,81 +152,9 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 }: ChatroomSidebarItemProps) {
   const displayName = getChatroomDisplayName(chatroom);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
-  const [isSubmittingStop, setIsSubmittingStop] = useState(false);
-  const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
-  const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
   const { status: chatroomStatus } = useChatroomStatus(chatroom._id);
-
-  const handleStop = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setStopConfirmOpen(true);
-  }, []);
-
-  const confirmStop = useCallback(async () => {
-    setIsSubmittingStop(true);
-    const [agentStop, commandStop] = await Promise.allSettled([
-      stopAgents(chatroom._id as Id<'chatroom_rooms'>),
-      stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
-    ]);
-    // Independent branches: one failure must not skip the other.
-    const failures = [
-      agentStop.status === 'rejected' ? `Agents: ${String(agentStop.reason)}` : null,
-      commandStop.status === 'rejected' ? `Command runs: ${String(commandStop.reason)}` : null,
-    ].filter(Boolean);
-    if (failures.length > 0) toast.error(failures.join('; '));
-    setIsSubmittingStop(false);
-    setStopConfirmOpen(false);
-  }, [chatroom._id, stopAgents, stopAllCommandRuns]);
-
-  const [isStarting, setIsStarting] = useState(false);
-  const [isRestarting, setIsRestarting] = useState(false);
-  const handleStart = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setIsStarting(true);
-      try {
-        const result = await startAgents(chatroom._id as Id<'chatroom_rooms'>);
-        if (result.failed.length > 0) {
-          toast.error(`Failed to start ${result.failed.length} agent(s)`);
-        } else if (result.requested.length > 0) {
-          toast.success(`Start requested for ${result.requested.length} agent(s)`);
-        } else if (result.skipped.length > 0) {
-          toast.error('No saved configuration is available for the permanent agents');
-        }
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to start agents');
-      } finally {
-        setIsStarting(false);
-      }
-    },
-    [chatroom._id, startAgents]
-  );
-
-  const handleRestart = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setIsRestarting(true);
-      try {
-        const result = await restartAgents(chatroom._id as Id<'chatroom_rooms'>);
-        if (result.failed.length > 0)
-          toast.error(`Failed to restart ${result.failed.length} agent(s)`);
-        else if (result.requested.length > 0)
-          toast.success(`Restart requested for ${result.requested.length} agent(s)`);
-        else toast.error('No saved configuration is available for the permanent agents');
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to restart agents');
-      } finally {
-        setIsRestarting(false);
-      }
-    },
-    [chatroom._id, restartAgents]
-  );
 
   const handleArchive = useCallback(() => {
     setArchiveDialogOpen(true);
@@ -169,117 +187,20 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger
-          render={
-            <div
-              role="button"
-              tabIndex={0}
-              className={`w-full cursor-pointer text-left px-3 py-2 flex items-center gap-2 transition-all duration-100 border-b border-chatroom-border ${
-                isActive
-                  ? 'bg-chatroom-bg-hover border-l-2 border-l-chatroom-accent'
-                  : 'border-l-2 border-l-transparent hover:bg-chatroom-bg-hover hover:border-l-chatroom-border'
-              }`}
-              onClick={() => onSelect(chatroom._id)}
-              onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
-            />
-          }
-        >
-          {/* Status indicator - square per theme guidelines */}
-          <span
-            className={
-              chatroomStatus
-                ? getChatroomActivityIndicatorClasses(chatroomStatus.activityStatus)
-                : getChatroomActivityIndicatorLoadingClasses()
-            }
-          />
-
-          {/* Name + inline unread */}
-          <span className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
-            <span className="text-xs font-bold uppercase tracking-wide truncate text-chatroom-text-primary">
-              {displayName}
-            </span>
-            {chatroom.hasUnread && (
-              <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />
-            )}
-          </span>
-
-          {/* Favorite star indicator */}
-          {chatroom.isFavorite && (
-            <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
-          )}
-
-          {/* Remote agent stop button */}
-          {chatroomStatus?.canStop && (
-            <button
-              onClick={handleStop}
-              title="Stop agents and command runs"
-              aria-label="Stop agents and command runs"
-              aria-busy={isSubmittingStop}
-              type="button"
-              disabled={isSubmittingStop}
-              className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
-            >
-              <Square size={8} fill="currentColor" />
-            </button>
-          )}
-
-          {/* Remote agent start button */}
-          {showStartButton && (
-            <button
-              onClick={handleStart}
-              title="Start with last configuration"
-              aria-label="Start agents"
-              aria-busy={isStarting}
-              disabled={isStarting}
-              className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {isStarting ? (
-                <Loader2 size={10} className="animate-spin" />
-              ) : (
-                <Play size={10} fill="currentColor" />
-              )}
-            </button>
-          )}
-
-          {chatroomStatus?.remoteAgentStatus === 'running' && (
-            <button
-              onClick={handleRestart}
-              title="Restart agents"
-              aria-label="Restart agents"
-              aria-busy={isRestarting}
-              type="button"
-              disabled={isRestarting || isSubmittingStop}
-              className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {isRestarting ? (
-                <Loader2 size={10} className="animate-spin" />
-              ) : (
-                <RefreshCw size={10} />
-              )}
-            </button>
-          )}
-        </ContextMenuTrigger>
-        {!isCompleted && (
-          <ContextMenuContent className="min-w-[160px] rounded-none">
-            <ContextMenuItem onSelect={handleToggleReadStatus} className="rounded-none">
-              {chatroom.hasUnread ? (
-                <>
-                  <MailOpen size={14} />
-                  Mark as Read
-                </>
-              ) : (
-                <>
-                  <Mail size={14} />
-                  Mark as Unread
-                </>
-              )}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={handleArchive} className="rounded-none">
-              <Archive size={14} />
-              Archive Chat
-            </ContextMenuItem>
-          </ContextMenuContent>
-        )}
+        <ChatroomSidebarItemTrigger
+          chatroom={chatroom}
+          chatroomStatus={chatroomStatus}
+          displayName={displayName}
+          isActive={isActive}
+          showStart={Boolean(showStartButton)}
+          onSelect={onSelect}
+        />
+        <ChatroomSidebarItemMenu
+          isCompleted={isCompleted}
+          hasUnread={chatroom.hasUnread}
+          onToggleReadStatus={handleToggleReadStatus}
+          onArchive={handleArchive}
+        />
       </ContextMenu>
 
       <LifecycleConfirmDialog
@@ -288,29 +209,6 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         chatroomId={chatroom._id as Id<'chatroom_rooms'>}
         action="archive"
       />
-
-      <AlertDialog open={stopConfirmOpen} onOpenChange={setStopConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Stop agents and command runs?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will stop all agents and active command runs in {displayName}.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSubmittingStop}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmStop();
-              }}
-              disabled={isSubmittingStop}
-            >
-              {isSubmittingStop ? 'Stopping…' : 'Stop all'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 });
@@ -318,6 +216,154 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 interface ChatroomSidebarProps {
   /** Currently active chatroom ID */
   activeChatroomId?: string;
+}
+
+type SidebarSections = ReturnType<typeof partitionChatroomListing>;
+interface ChatroomSidebarContentProps {
+  activeChatrooms: SidebarSections['active'];
+  recentByRecency: SidebarSections['recentByRecency'];
+  completed: SidebarSections['completed'];
+  hasRecentChatrooms: boolean;
+  completedExpanded: boolean;
+  activeChatroomId?: string;
+  onSelect: (chatroomId: string) => void;
+  onToggleCompleted: () => void;
+}
+
+function ActiveChatroomSection({
+  chatrooms,
+  activeChatroomId,
+  onSelect,
+}: Pick<ChatroomSidebarContentProps, 'activeChatroomId' | 'onSelect'> & {
+  chatrooms: SidebarSections['active'];
+}) {
+  if (chatrooms.length === 0) return null;
+
+  return (
+    <>
+      <SidebarSectionHeader label="Active" indicatorClassName="bg-chatroom-status-success" />
+      {chatrooms.map((chatroom) => (
+        <ChatroomSidebarItem
+          key={chatroom._id}
+          chatroom={chatroom}
+          isActive={chatroom._id === activeChatroomId}
+          onSelect={onSelect}
+        />
+      ))}
+    </>
+  );
+}
+
+function RecentChatroomSections({
+  recentByRecency,
+  hasRecentChatrooms,
+  activeChatroomsCount,
+  activeChatroomId,
+  onSelect,
+}: Pick<ChatroomSidebarContentProps, 'activeChatroomId' | 'hasRecentChatrooms' | 'onSelect'> & {
+  recentByRecency: SidebarSections['recentByRecency'];
+  activeChatroomsCount: number;
+}) {
+  if (!hasRecentChatrooms) return null;
+
+  return RECENCY_SECTIONS.map(({ key, label }, index) => {
+    const chatrooms = recentByRecency[key];
+    if (chatrooms.length === 0) return null;
+    return (
+      <React.Fragment key={key}>
+        <SidebarSectionHeader label={label} withTopBorder={activeChatroomsCount > 0 || index > 0} />
+        {chatrooms.map((chatroom) => (
+          <ChatroomSidebarItem
+            key={chatroom._id}
+            chatroom={chatroom}
+            isActive={chatroom._id === activeChatroomId}
+            onSelect={onSelect}
+          />
+        ))}
+      </React.Fragment>
+    );
+  });
+}
+
+function CompletedChatroomSection({
+  chatrooms,
+  expanded,
+  activeChatroomId,
+  onSelect,
+  onToggle,
+}: Pick<ChatroomSidebarContentProps, 'activeChatroomId' | 'onSelect'> & {
+  chatrooms: SidebarSections['completed'];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  if (chatrooms.length === 0) return null;
+
+  return (
+    <>
+      <button
+        className="w-full px-3 py-2 bg-chatroom-bg-tertiary border-t border-chatroom-border flex items-center justify-between hover:bg-chatroom-bg-hover"
+        onClick={onToggle}
+      >
+        <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+          Completed ({chatrooms.length})
+        </span>
+        <ChevronDown
+          className={`w-3 h-3 text-chatroom-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {expanded &&
+        chatrooms.map((chatroom) => (
+          <ChatroomSidebarItem
+            key={chatroom._id}
+            chatroom={chatroom}
+            isActive={chatroom._id === activeChatroomId}
+            onSelect={onSelect}
+          />
+        ))}
+    </>
+  );
+}
+
+function ChatroomSidebarContent({
+  activeChatrooms,
+  recentByRecency,
+  completed,
+  hasRecentChatrooms,
+  completedExpanded,
+  activeChatroomId,
+  onSelect,
+  onToggleCompleted,
+}: ChatroomSidebarContentProps) {
+  return (
+    <div className="chatroom-root flex flex-col w-full h-full overflow-hidden bg-chatroom-bg-surface">
+      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+          Chatrooms
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <ActiveChatroomSection
+          chatrooms={activeChatrooms}
+          activeChatroomId={activeChatroomId}
+          onSelect={onSelect}
+        />
+        <RecentChatroomSections
+          recentByRecency={recentByRecency}
+          hasRecentChatrooms={hasRecentChatrooms}
+          activeChatroomsCount={activeChatrooms.length}
+          activeChatroomId={activeChatroomId}
+          onSelect={onSelect}
+        />
+        <CompletedChatroomSection
+          chatrooms={completed}
+          expanded={completedExpanded}
+          activeChatroomId={activeChatroomId}
+          onSelect={onSelect}
+          onToggle={onToggleCompleted}
+        />
+      </div>
+    </div>
+  );
 }
 
 function SidebarSectionHeader({
@@ -404,81 +450,15 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   }
 
   return (
-    <div className="chatroom-root flex flex-col w-full h-full overflow-hidden bg-chatroom-bg-surface">
-      {/* Header - consistent with AgentPanel */}
-      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-          Chatrooms
-        </div>
-      </div>
-      {/* Scrollable list */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Active Section - chatrooms with agents present and engaged */}
-        {activeChatrooms.length > 0 && (
-          <>
-            <SidebarSectionHeader label="Active" indicatorClassName="bg-chatroom-status-success" />
-            {activeChatrooms.map((chatroom) => (
-              <ChatroomSidebarItem
-                key={chatroom._id}
-                chatroom={chatroom}
-                isActive={chatroom._id === activeChatroomId}
-                onSelect={handleSelect}
-              />
-            ))}
-          </>
-        )}
-
-        {hasRecentChatrooms &&
-          RECENCY_SECTIONS.map(({ key, label }, index) => {
-            const sectionChatrooms = recentByRecency[key];
-            if (sectionChatrooms.length === 0) return null;
-
-            return (
-              <React.Fragment key={key}>
-                <SidebarSectionHeader
-                  label={label}
-                  withTopBorder={activeChatrooms.length > 0 || index > 0}
-                />
-                {sectionChatrooms.map((chatroom) => (
-                  <ChatroomSidebarItem
-                    key={chatroom._id}
-                    chatroom={chatroom}
-                    isActive={chatroom._id === activeChatroomId}
-                    onSelect={handleSelect}
-                  />
-                ))}
-              </React.Fragment>
-            );
-          })}
-
-        {/* Completed Section - Collapsible */}
-        {completed.length > 0 && (
-          <>
-            <button
-              className="w-full px-3 py-2 bg-chatroom-bg-tertiary border-t border-chatroom-border flex items-center justify-between hover:bg-chatroom-bg-hover"
-              onClick={() => setCompletedExpanded(!completedExpanded)}
-            >
-              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                Completed ({completed.length})
-              </span>
-              <ChevronDown
-                className={`w-3 h-3 text-chatroom-text-muted transition-transform ${
-                  completedExpanded ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-            {completedExpanded &&
-              completed.map((chatroom) => (
-                <ChatroomSidebarItem
-                  key={chatroom._id}
-                  chatroom={chatroom}
-                  isActive={chatroom._id === activeChatroomId}
-                  onSelect={handleSelect}
-                />
-              ))}
-          </>
-        )}
-      </div>
-    </div>
+    <ChatroomSidebarContent
+      activeChatrooms={activeChatrooms}
+      recentByRecency={recentByRecency}
+      completed={completed}
+      hasRecentChatrooms={hasRecentChatrooms}
+      completedExpanded={completedExpanded}
+      activeChatroomId={activeChatroomId}
+      onSelect={handleSelect}
+      onToggleCompleted={() => setCompletedExpanded(!completedExpanded)}
+    />
   );
 });
