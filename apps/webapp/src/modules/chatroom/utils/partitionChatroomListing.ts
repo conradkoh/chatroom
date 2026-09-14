@@ -1,4 +1,5 @@
 import { groupChatroomsByRecency, type RecencyBucket } from './groupChatroomsByRecency';
+import type { ChatroomStatus } from '../../../domain/entities/chatroom-status';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 
 export const RECENCY_SECTIONS: readonly { key: RecencyBucket; label: string }[] = [
@@ -15,17 +16,26 @@ export interface PartitionedChatroomListing {
 }
 
 export function partitionChatroomListing(
-  chatrooms: ChatroomWithStatus[]
+  chatrooms: ChatroomWithStatus[],
+  statuses: ReadonlyMap<string, ChatroomStatus>
 ): PartitionedChatroomListing {
-  const completed = chatrooms.filter((c) => c.chatroomStatus.state === 'completed');
+  const completed = chatrooms.filter(
+    (c) => c.status === 'completed' || statuses.get(c._id)?.state === 'completed'
+  );
 
   const active = chatrooms
-    .filter((c) => c.chatroomStatus.state === 'active' || c.chatroomStatus.state === 'attention')
+    .filter((c) => {
+      const state = statuses.get(c._id)?.state;
+      return state === 'active' || state === 'attention';
+    })
     .sort((a, b) => a._creationTime - b._creationTime);
 
   const activeIds = new Set(active.map((c) => c._id));
   const remaining = chatrooms.filter(
-    (c) => !activeIds.has(c._id) && c.chatroomStatus.state !== 'completed'
+    (c) =>
+      !activeIds.has(c._id) &&
+      c.status !== 'completed' &&
+      statuses.get(c._id)?.state !== 'completed'
   );
 
   return {

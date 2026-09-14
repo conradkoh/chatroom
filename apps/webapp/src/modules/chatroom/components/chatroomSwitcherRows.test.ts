@@ -1,4 +1,3 @@
-import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,35 +6,21 @@ import {
   getChatroomSwitcherKeywords,
 } from './chatroomSwitcherRows';
 
-import { createChatroomStatus } from '@/domain/entities/chatroom-status';
-import type { ChatroomRemoteAgentStatus } from '@/domain/entities/chatroom-status';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
 
 function makeChatroom(
-  overrides: Partial<Omit<ChatroomWithStatus, 'chatroomStatus'>> &
-    Pick<ChatroomWithStatus, '_id'> & {
-      activityStatus?: ChatroomActivityStatus;
-      remoteAgentStatus?: ChatroomRemoteAgentStatus;
-    }
+  overrides: Partial<ChatroomWithStatus> & Pick<ChatroomWithStatus, '_id'>
 ): ChatroomWithStatus {
-  const activityStatus = overrides.activityStatus ?? 'idle';
-  const remoteAgentStatus = overrides.remoteAgentStatus ?? 'none';
-  const {
-    activityStatus: _activityStatus,
-    remoteAgentStatus: _remoteAgentStatus,
-    ...rest
-  } = overrides;
   return {
     _creationTime: Date.now(),
-    status: 'active',
+    status: 'active' as const,
     teamId: 'team-1',
     teamName: 'Team',
     teamRoles: [],
     isFavorite: false,
     hasUnread: false,
     hasUnreadHandoff: false,
-    ...rest,
-    chatroomStatus: createChatroomStatus(overrides._id, activityStatus, remoteAgentStatus),
+    ...overrides,
   };
 }
 

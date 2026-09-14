@@ -1,5 +1,9 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
+import {
+  deriveChatroomState,
+  isChatroomStopAvailable,
+} from '@workspace/shared/domain/chatroom-activity-status';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,8 +11,7 @@ import { ChatroomSidebar } from './ChatroomSidebar';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { useChatroomListing } from '../context/ChatroomListingContext';
 
-import type { ChatroomRemoteAgentStatus } from '@/domain/entities/chatroom-status';
-import { createChatroomStatus } from '@/domain/entities/chatroom-status';
+import type { ChatroomRemoteAgentStatus, ChatroomStatus } from '@/domain/entities/chatroom-status';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -105,9 +108,19 @@ vi.mock('../context/ChatroomListingContext', () => ({
   useChatroomListing: vi.fn().mockReturnValue({ chatrooms: [], isLoading: false }),
 }));
 
+const mockStatuses = new Map<string, ChatroomStatus>();
+
+vi.mock('../hooks/useChatroomStatus', () => ({
+  useChatroomStatus: (chatroomId: string) => ({
+    status: mockStatuses.get(chatroomId),
+    isLoading: !mockStatuses.has(chatroomId),
+  }),
+  useChatroomStatusMap: () => ({ statuses: mockStatuses, isLoading: false }),
+}));
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-type TestChatroomOverrides = Partial<Omit<ChatroomWithStatus, 'chatroomStatus'>> & {
+type TestChatroomOverrides = Partial<ChatroomWithStatus> & {
   activityStatus?: ChatroomActivityStatus;
   remoteAgentStatus?: ChatroomRemoteAgentStatus;
 };
@@ -122,10 +135,10 @@ const makeChatroom = (overrides: TestChatroomOverrides = {}): ChatroomWithStatus
     ...chatroomOverrides
   } = overrides;
 
-  return {
-    _id: 'chr-1',
+  const chatroom: ChatroomWithStatus = {
+    _id: chatroomId,
     _creationTime: 1_000_000,
-    status: 'active',
+    status: 'active' as const,
     name: 'Test Chat',
     teamId: 'team-1',
     teamName: 'Team',
@@ -135,9 +148,24 @@ const makeChatroom = (overrides: TestChatroomOverrides = {}): ChatroomWithStatus
     hasUnreadHandoff: false,
     lastActivityAt: 1_000_000,
     ...chatroomOverrides,
-    chatroomStatus: createChatroomStatus(chatroomId, activityStatus, remoteAgentStatus),
   };
+  mockStatuses.set(chatroomId, makeStatus(chatroomId, activityStatus, remoteAgentStatus));
+  return chatroom;
 };
+
+function makeStatus(
+  chatroomId: string,
+  activityStatus: ChatroomActivityStatus,
+  remoteAgentStatus: ChatroomRemoteAgentStatus
+): ChatroomStatus {
+  return {
+    chatroomId,
+    activityStatus,
+    state: deriveChatroomState(activityStatus),
+    remoteAgentStatus,
+    canStop: remoteAgentStatus === 'running' || isChatroomStopAvailable(activityStatus),
+  };
+}
 
 const makeCompletedChatroom = (): ChatroomWithStatus =>
   makeChatroom({
@@ -170,6 +198,7 @@ describe('ChatroomSidebar', () => {
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
     mockPush.mockReset();
+    mockStatuses.clear();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
   });
 
@@ -177,6 +206,24 @@ describe('ChatroomSidebar', () => {
     const chatroom = makeChatroom();
     renderSidebar([chatroom]);
     expect(screen.getByText('Test Chat')).toBeInTheDocument();
+  });
+
+  it('renders working status with the shared blue indicator', () => {
+    const chatroom = makeChatroom({ activityStatus: 'working' });
+    renderSidebar([chatroom]);
+
+    const item = screen.getByText('Test Chat').closest('[role="button"]');
+    expect(item?.querySelector('.bg-chatroom-status-info')).toBeInTheDocument();
+    expect(item?.querySelector('.bg-chatroom-status-success')).not.toBeInTheDocument();
+  });
+
+  it('renders a muted loading indicator before chatroom status resolves', () => {
+    const chatroom = makeChatroom();
+    mockStatuses.delete(chatroom._id);
+    renderSidebar([chatroom]);
+
+    const item = screen.getByText('Test Chat').closest('[role="button"]');
+    expect(item?.querySelector('.bg-chatroom-text-muted')).toBeInTheDocument();
   });
 
   it('renders skeleton loader while chatrooms are loading', () => {

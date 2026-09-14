@@ -23,7 +23,11 @@ import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { useAgentStop } from '../hooks/useAgentStop';
-import { getChatroomStateIndicatorClasses } from '../utils/activityStatusDisplay';
+import { useChatroomStatus, useChatroomStatusMap } from '../hooks/useChatroomStatus';
+import {
+  getChatroomActivityIndicatorClasses,
+  getChatroomActivityIndicatorLoadingClasses,
+} from '../utils/activityStatusDisplay';
 import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
@@ -64,6 +68,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
+  const { status: chatroomStatus } = useChatroomStatus(chatroom._id);
 
   const handleStop = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -115,12 +120,12 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     }
   }, [chatroom.hasUnread, chatroom._id, markAsRead, markAsUnread]);
 
-  const { chatroomStatus } = chatroom;
-  const isCompleted = chatroomStatus.state === 'completed' || chatroom.status === 'completed';
+  const isCompleted = chatroomStatus?.state === 'completed' || chatroom.status === 'completed';
 
   const showStartButton =
     chatroom.status !== 'completed' &&
     chatroom.teamId &&
+    chatroomStatus !== undefined &&
     (chatroomStatus.remoteAgentStatus === 'stopped' || chatroomStatus.remoteAgentStatus === 'none');
 
   return (
@@ -142,7 +147,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           }
         >
           {/* Status indicator - square per theme guidelines */}
-          <span className={getChatroomStateIndicatorClasses(chatroomStatus.state)} />
+          <span
+            className={
+              chatroomStatus
+                ? getChatroomActivityIndicatorClasses(chatroomStatus.activityStatus)
+                : getChatroomActivityIndicatorLoadingClasses()
+            }
+          />
 
           {/* Name + inline unread */}
           <span className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
@@ -160,7 +171,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           )}
 
           {/* Remote agent stop button */}
-          {chatroomStatus.canStop && (
+          {chatroomStatus?.canStop && (
             <button
               onClick={handleStop}
               title="Stop agents and command runs"
@@ -294,30 +305,35 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   const router = useRouter();
   const { chatrooms, isLoading } = useChatroomListing();
   const [completedExpanded, setCompletedExpanded] = useState(false);
+  const chatroomIds = useMemo(() => chatrooms?.map((chatroom) => chatroom._id) ?? [], [chatrooms]);
+  const { statuses } = useChatroomStatusMap(chatroomIds);
 
   // Compute sections
   const { activeChatrooms, recentByRecency, completed } = useMemo(() => {
     if (!chatrooms) {
       return {
         activeChatrooms: [],
-        recentByRecency: partitionChatroomListing([]).recentByRecency,
+        recentByRecency: partitionChatroomListing([], statuses).recentByRecency,
         completed: [],
       };
     }
-    const partitioned = partitionChatroomListing(chatrooms);
+    const partitioned = partitionChatroomListing(chatrooms, statuses);
     return {
       activeChatrooms: partitioned.active,
       recentByRecency: partitioned.recentByRecency,
       completed: partitioned.completed,
     };
-  }, [chatrooms]);
+  }, [chatrooms, statuses]);
 
   const hasRecentChatrooms = RECENCY_SECTIONS.some(({ key }) => recentByRecency[key].length > 0);
 
-  const handleSelect = (chatroomId: string) => {
-    if (chatroomId === activeChatroomId) return;
-    router.push(`/app/chatroom?id=${chatroomId}`);
-  };
+  const handleSelect = useCallback(
+    (chatroomId: string) => {
+      if (chatroomId === activeChatroomId) return;
+      router.push(`/app/chatroom?id=${chatroomId}`);
+    },
+    [activeChatroomId, router]
+  );
 
   if (isLoading) {
     return <ChatroomSidebarSkeleton />;

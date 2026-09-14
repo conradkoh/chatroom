@@ -1,7 +1,4 @@
-import type {
-  ChatroomActivityStatus,
-  ChatroomState,
-} from '@workspace/shared/domain/chatroom-activity-status';
+import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 
 /**
  * Shared chatroom-level status display utilities.
@@ -34,32 +31,6 @@ const CHATROOM_ACTIVITY_DISPLAY: Record<
   },
 };
 
-const CHATROOM_STATE_DISPLAY: Record<
-  ChatroomState,
-  { indicatorClass: string; label: string; description: string }
-> = {
-  active: {
-    indicatorClass: 'bg-chatroom-status-success',
-    label: 'Active',
-    description: 'Agents are active in this chatroom',
-  },
-  attention: {
-    indicatorClass: 'bg-chatroom-status-warning',
-    label: 'Attention',
-    description: 'Agents need attention in this chatroom',
-  },
-  offline: {
-    indicatorClass: 'bg-chatroom-text-muted opacity-40',
-    label: 'Offline',
-    description: 'No agents online',
-  },
-  completed: {
-    indicatorClass: 'bg-chatroom-text-muted opacity-40',
-    label: 'Completed',
-    description: 'Archived',
-  },
-};
-
 const INDICATOR_BASE = 'w-1.5 h-1.5 flex-shrink-0';
 
 /** Tailwind classes for the status square indicator (theme: square dots). */
@@ -69,12 +40,12 @@ export function getChatroomActivityIndicatorClasses(
   return `${INDICATOR_BASE} ${CHATROOM_ACTIVITY_DISPLAY[activityStatus].indicatorClass}`;
 }
 
+export function getChatroomActivityIndicatorLoadingClasses(): string {
+  return `${INDICATOR_BASE} bg-chatroom-text-muted opacity-40`;
+}
+
 /** Short label for compact UI (listing cards, table rows). */
 /** Accessible description of what the status means for the user. */
 export function getChatroomActivityDescription(activityStatus: ChatroomActivityStatus): string {
   return CHATROOM_ACTIVITY_DISPLAY[activityStatus].description;
-}
-
-export function getChatroomStateIndicatorClasses(state: ChatroomState): string {
-  return `${INDICATOR_BASE} ${CHATROOM_STATE_DISPLAY[state].indicatorClass}`;
 }

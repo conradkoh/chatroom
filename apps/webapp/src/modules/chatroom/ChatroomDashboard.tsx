@@ -1754,7 +1754,7 @@ function ChatroomDashboardContent({
           <ChatroomHeaderCenter
             displayName={displayName}
             chatroomId={chatroomId}
-            activityStatus={chatroomStatus?.activityStatus ?? 'idle'}
+            activityStatus={chatroomStatus?.activityStatus}
             isDesktop={isSmallScreen === false}
             onOpenSettings={handleOpenSettings}
             onSwitchChatrooms={handleOpenChatroomSwitcher}

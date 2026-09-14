@@ -1,5 +1,10 @@
 /** Canonical web-facing agent configuration and status reads. */
 
+import {
+  deriveChatroomActivityStatus,
+  deriveChatroomState,
+  isChatroomStopAvailable,
+} from '@workspace/shared/domain/chatroom-activity-status';
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -410,57 +415,29 @@ export const listStatus = query({
   },
 });
 
-/** Canonical owner-scoped status rows used by chatroom listings. */
-export const listChatroomStatus = query({
-  args: { ...SessionIdArg },
+/** Canonical chatroom status read model used by all chatroom-level UI. */
+export const getChatroomStatus = query({
+  args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms') },
   handler: async (ctx, args) => {
-    const session = await getSession(ctx, args.sessionId);
-    if (!session) return [];
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', session.userId))
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const rows = await ctx.db
+      .query('chatroom_agentRoleStatusReadModel')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
-    const results = await Promise.all(
-      chatrooms.map(async (chatroom) => {
-        const rows = await ctx.db
-          .query('chatroom_agentRoleStatusReadModel')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-          .collect();
-        const activeRows = rows.filter((row) => row.status !== 'offline');
-        return {
-          chatroomId: chatroom._id,
-          agentStatus: activeRows.length > 0 ? ('running' as const) : ('none' as const),
-          runningRoles: activeRows.map((row) => row.role),
-          aliveRoles: activeRows.map((row) => row.role),
-          runningAgents: activeRows.flatMap((row) =>
-            row.machineId ? [{ role: row.role, machineId: row.machineId }] : []
-          ),
-        };
-      })
+    const activityStatus = deriveChatroomActivityStatus(
+      chatroom.status,
+      rows.map((row) => ({ status: row.status }))
     );
-    return results;
-  },
-});
+    const state = deriveChatroomState(activityStatus);
+    const remoteAgentStatus = rows.some((row) => row.status !== 'offline') ? 'running' : 'none';
 
-/** Owner-scoped role status rows for activity indicators in listings. */
-export const listStatusForAllChatrooms = query({
-  args: { ...SessionIdArg },
-  handler: async (ctx, args) => {
-    const session = await getSession(ctx, args.sessionId);
-    if (!session) return [];
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', session.userId))
-      .collect();
-    const rows = await Promise.all(
-      chatrooms.map((chatroom) =>
-        ctx.db
-          .query('chatroom_agentRoleStatusReadModel')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-          .collect()
-      )
-    );
-    return rows.flat();
+    return {
+      chatroomId: args.chatroomId,
+      activityStatus,
+      state,
+      remoteAgentStatus,
+      canStop: remoteAgentStatus === 'running' || isChatroomStopAvailable(activityStatus),
+    } as const;
   },
 });
 

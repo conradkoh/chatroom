@@ -119,8 +119,16 @@ describe('ChatroomTitleEditor menu', () => {
 
   it('renders chat status indicator left of title', () => {
     render(<ChatroomTitleEditor {...base} activityStatus="working" isDesktop />);
-    expect(screen.getByLabelText('Agents are working on tasks')).toBeInTheDocument();
+    const indicator = screen.getByLabelText('Agents are working on tasks');
+    expect(indicator).toHaveClass('bg-chatroom-status-info');
     expect(screen.getByText('Demo Room')).toBeInTheDocument();
+  });
+
+  it('renders a muted loading indicator without labeling it idle', () => {
+    render(<ChatroomTitleEditor {...base} activityStatus={undefined} isDesktop />);
+    const indicator = screen.getByLabelText('Loading agent status');
+    expect(indicator).toHaveClass('bg-chatroom-text-muted');
+    expect(screen.queryByLabelText('No agents online')).not.toBeInTheDocument();
   });
 
   it('desktop: focus mode toggle enables focus mode without opening menu', async () => {

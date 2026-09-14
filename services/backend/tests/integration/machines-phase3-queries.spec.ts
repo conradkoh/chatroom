@@ -2,7 +2,7 @@
  * Phase 3 Convex Query Wrappers — Integration Tests
  *
  * Tests the canonical Convex queries (`getViewStatus`, `getStartFormData`,
- * `listChatroomStatus`) that wrap the current workspace-agent use cases. Validates session auth,
+ * `getChatroomStatus`) that wrap the current workspace-agent use cases. Validates session auth,
  * data shape, and basic correctness when called through the Convex API layer.
  */
 
@@ -139,73 +139,125 @@ describe('agents.getStartFormData', () => {
 });
 
 // ============================================================================
-// listChatroomStatus
+// getChatroomStatus
 // ============================================================================
 
-describe('agents.listChatroomStatus', () => {
-  test('returns overview for valid session', async () => {
-    const { sessionId } = await createTestSession('test-lao-q-valid-1');
+describe('agents.getChatroomStatus', () => {
+  test('returns idle status for a valid session', async () => {
+    const { sessionId } = await createTestSession('test-chatroom-status-idle');
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    const results = await t.query(api.agents.listChatroomStatus, {
+    const result = await t.query(api.agents.getChatroomStatus, {
       sessionId: sessionId as any,
+      chatroomId,
     });
 
-    expect(Array.isArray(results)).toBe(true);
-    const entry = results.find((r) => r.chatroomId === chatroomId);
-    expect(entry).toBeDefined();
-    expect(entry!.agentStatus).toBe('none');
-    expect(entry!.runningRoles).toEqual([]);
+    expect(result).toEqual({
+      chatroomId,
+      activityStatus: 'idle',
+      state: 'offline',
+      remoteAgentStatus: 'none',
+      canStop: false,
+    });
   });
 
-  test('returns empty array for invalid session', async () => {
-    const results = await t.query(api.agents.listChatroomStatus, {
-      sessionId: 'bogus-session-id' as any,
+  test('rejects an invalid session', async () => {
+    const { sessionId } = await createTestSession('test-chatroom-status-invalid');
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+
+    await expect(
+      t.query(api.agents.getChatroomStatus, {
+        sessionId: 'bogus-session-id' as any,
+        chatroomId,
+      })
+    ).rejects.toThrow(/Authentication failed/);
+  });
+
+  test('rejects access to another user’s chatroom', async () => {
+    const owner = await createTestSession('test-chatroom-status-owner');
+    const other = await createTestSession('test-chatroom-status-other');
+    const chatroomId = await createDuoTeamChatroom(owner.sessionId as any);
+
+    await expect(
+      t.query(api.agents.getChatroomStatus, {
+        sessionId: other.sessionId as any,
+        chatroomId,
+      })
+    ).rejects.toThrow(/Access denied/);
+  });
+
+  test.each([
+    ['working', 'working', 'active'],
+    ['waiting', 'active', 'active'],
+    ['starting', 'transitioning', 'attention'],
+    ['stopping', 'transitioning', 'attention'],
+    ['error', 'transitioning', 'attention'],
+  ] as const)(
+    'derives %s activity as %s and state %s',
+    async (agentStatus, expectedActivity, expectedState) => {
+      const { sessionId } = await createTestSession(`test-chatroom-status-${agentStatus}`);
+      const chatroomId = await createDuoTeamChatroom(sessionId as any);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+          chatroomId,
+          role: 'builder',
+          roleKind: 'persistent',
+          status: agentStatus,
+          projectedAt: Date.now(),
+        });
+      });
+
+      const result = await t.query(api.agents.getChatroomStatus, {
+        sessionId: sessionId as any,
+        chatroomId,
+      });
+
+      expect(result.activityStatus).toBe(expectedActivity);
+      expect(result.state).toBe(expectedState);
+      expect(result.remoteAgentStatus).toBe('running');
+      expect(result.canStop).toBe(true);
+    }
+  );
+
+  test('returns completed for an archived chatroom regardless of role rows', async () => {
+    const { sessionId } = await createTestSession('test-chatroom-status-completed');
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(chatroomId, { status: 'completed' });
+      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+        chatroomId,
+        role: 'builder',
+        roleKind: 'persistent',
+        status: 'working',
+        projectedAt: Date.now(),
+      });
     });
 
-    expect(results).toEqual([]);
+    const result = await t.query(api.agents.getChatroomStatus, {
+      sessionId: sessionId as any,
+      chatroomId,
+    });
+
+    expect(result.activityStatus).toBe('completed');
+    expect(result.state).toBe('completed');
   });
 
-  test('returns running status when agent has PID', async () => {
-    const { sessionId } = await createTestSession('test-lao-q-running-1');
-    const machineId = 'machine-lao-q-running-1';
+  test('reports a running remote agent when a role has a PID', async () => {
+    const { sessionId } = await createTestSession('test-chatroom-status-running');
+    const machineId = 'machine-chatroom-status-running';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 77777);
 
-    const results = await t.query(api.agents.listChatroomStatus, {
+    const result = await t.query(api.agents.getChatroomStatus, {
       sessionId: sessionId as any,
+      chatroomId,
     });
 
-    const entry = results.find((r) => r.chatroomId === chatroomId);
-    expect(entry).toBeDefined();
-    expect(entry!.agentStatus).toBe('running');
-    expect(entry!.runningRoles).toContain('builder');
-  });
-
-  test('overview entries do not contain machineId', async () => {
-    const { sessionId } = await createTestSession('test-lao-q-noleak-1');
-    const machineId = 'machine-lao-q-noleak-1';
-    await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
-
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-
-    const results = await t.query(api.agents.listChatroomStatus, {
-      sessionId: sessionId as any,
-    });
-
-    const entry = results.find((r) => r.chatroomId === chatroomId);
-    expect(entry).toBeDefined();
-    const keys = Object.keys(entry!).sort();
-    expect(keys).toEqual([
-      'agentStatus',
-      'aliveRoles',
-      'chatroomId',
-      'runningAgents',
-      'runningRoles',
-    ]);
+    expect(result.remoteAgentStatus).toBe('running');
+    expect(result.canStop).toBe(true);
   });
 });

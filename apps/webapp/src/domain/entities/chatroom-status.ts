@@ -2,10 +2,6 @@ import type {
   ChatroomActivityStatus,
   ChatroomState,
 } from '@workspace/shared/domain/chatroom-activity-status';
-import {
-  deriveChatroomState,
-  isChatroomStopAvailable,
-} from '@workspace/shared/domain/chatroom-activity-status';
 
 export type ChatroomRemoteAgentStatus = 'running' | 'stopped' | 'none';
 
@@ -21,20 +17,4 @@ export interface ChatroomStatus {
   state: ChatroomState;
   remoteAgentStatus: ChatroomRemoteAgentStatus;
   canStop: boolean;
-}
-
-export function createChatroomStatus(
-  chatroomId: string,
-  activityStatus: ChatroomActivityStatus,
-  remoteAgentStatus: ChatroomRemoteAgentStatus
-): ChatroomStatus {
-  const state: ChatroomState = deriveChatroomState(activityStatus);
-
-  return {
-    chatroomId,
-    activityStatus,
-    state,
-    remoteAgentStatus,
-    canStop: remoteAgentStatus === 'running' || isChatroomStopAvailable(activityStatus),
-  };
 }
