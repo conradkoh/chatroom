@@ -33,17 +33,18 @@ vi.mock('convex-helpers/react/sessions', () => ({
   },
 }));
 
-vi.mock('@/components/ui/dialog', () => ({
+vi.mock('../ui/dialog', () => ({
   Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div data-testid="queue-dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
   DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogScrollBody: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
 }));
 
-vi.mock('@/components/ui/alert-dialog', () => ({
+vi.mock('../ui/alert-dialog', () => ({
   AlertDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div data-testid="flush-dialog">{children}</div> : null,
   AlertDialogAction: ({
@@ -103,7 +104,7 @@ describe('CommandQueuePanel', () => {
     render(<CommandQueuePanel machineId="machine-1" />);
 
     expect(screen.getByLabelText('2 queued commands')).toBeInTheDocument();
-    fireEvent.click(screen.getByTitle('View command queue'));
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
 
     expect(screen.getByTestId('queue-dialog')).toBeInTheDocument();
     expect(screen.getByText('Start planner')).toBeInTheDocument();
@@ -113,7 +114,7 @@ describe('CommandQueuePanel', () => {
 
   it('deletes an individual queued command', async () => {
     render(<CommandQueuePanel machineId="machine-1" />);
-    fireEvent.click(screen.getByTitle('View command queue'));
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
     fireEvent.click(screen.getByRole('button', { name: 'Delete Start planner' }));
 
     await waitFor(() => expect(mocks.deleteCommand).toHaveBeenCalledWith({ commandId: 'cmd-1' }));
@@ -121,7 +122,7 @@ describe('CommandQueuePanel', () => {
 
   it('confirms before flushing the entire queue', async () => {
     render(<CommandQueuePanel machineId="machine-1" />);
-    fireEvent.click(screen.getByTitle('View command queue'));
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
     fireEvent.click(screen.getByRole('button', { name: 'Flush queue' }));
 
     expect(screen.getByTestId('flush-dialog')).toBeInTheDocument();

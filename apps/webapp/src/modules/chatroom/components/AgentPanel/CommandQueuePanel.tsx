@@ -17,17 +17,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+} from '../ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogScrollBody,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '../ui/dialog';
+
+import { Button } from '@/components/ui/button';
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 
 type QueueCommand = Doc<'chatroom_machineCommandInbox'>;
@@ -142,7 +144,14 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
 
   return (
     <>
-      <div className="border-b border-chatroom-border px-3 py-2" data-testid="command-queue-panel">
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        disabled={!machineId || isLoading}
+        className="w-full appearance-none border-0 border-b border-chatroom-border bg-transparent px-3 py-2 text-left transition-colors hover:bg-chatroom-bg-hover focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-chatroom-accent disabled:pointer-events-none disabled:opacity-40"
+        aria-label={`Command queue: ${machineId && isLoading ? 'loading' : `${commandCount} queued commands`}`}
+        data-testid="command-queue-panel"
+      >
         <div className="flex items-center gap-2">
           <ListTodo size={12} className="shrink-0 text-chatroom-accent" aria-hidden="true" />
           <span className="min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
@@ -159,26 +168,17 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
           >
             {machineId && isLoading ? '…' : commandCount}
           </span>
-          <button
-            type="button"
-            onClick={() => setIsOpen(true)}
-            disabled={!machineId || isLoading}
-            className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted transition-colors hover:text-chatroom-text-primary disabled:pointer-events-none disabled:opacity-40"
-            title="View command queue"
-          >
-            View
-          </button>
         </div>
         <p className="mt-1 pl-5 text-[10px] text-chatroom-text-muted">
           {machineId
             ? 'Commands waiting for this machine'
             : 'Select a workspace to inspect its machine'}
         </p>
-      </div>
+      </button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-lg gap-0 overflow-hidden p-0">
-          <DialogHeader className="border-b border-border px-5 py-4 pr-12">
+        <DialogContent className="flex max-h-[min(90dvh,40rem)] min-h-0 w-[calc(100vw-2rem)] max-w-lg flex-col gap-0 p-0">
+          <DialogHeader className="border-b border-chatroom-border px-5 py-4 pr-12">
             <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
               <ListTodo size={15} className="text-chatroom-accent" aria-hidden="true" />
               Command queue
@@ -190,7 +190,7 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-[min(60vh,28rem)] overflow-y-auto">
+          <DialogScrollBody>
             {isLoading ? (
               <div className="flex min-h-32 items-center justify-center">
                 <ChatroomLoader size="md" />
@@ -213,7 +213,7 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
                   return (
                     <li
                       key={command._id}
-                      className="flex items-start gap-3 border-b border-border px-5 py-3 last:border-b-0"
+                      className="flex items-start gap-3 border-b border-chatroom-border px-5 py-3 last:border-b-0"
                     >
                       <span
                         className={cn(
@@ -276,9 +276,9 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
                 })}
               </ul>
             )}
-          </div>
+          </DialogScrollBody>
 
-          <DialogFooter className="border-t border-border px-5 py-3 sm:justify-between">
+          <DialogFooter className="px-5 py-3 sm:justify-between">
             <p className="text-[10px] text-muted-foreground">
               {commandCount === 0
                 ? 'Nothing to flush'
