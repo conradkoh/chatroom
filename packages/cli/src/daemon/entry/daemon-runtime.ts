@@ -322,7 +322,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
           event.commandId,
           dedupTracker,
           effectContext,
-          session,
           event.claimedCommand,
           nativeDelivery
         );

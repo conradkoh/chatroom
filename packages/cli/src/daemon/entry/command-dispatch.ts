@@ -3,10 +3,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import {
-  AGENT_REQUEST_DEADLINE_MS,
-  MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS,
-} from '@workspace/backend/config/reliability.js';
+import { AGENT_REQUEST_DEADLINE_MS } from '@workspace/backend/config/reliability.js';
 import type { MachineCommandPayload } from '@workspace/backend/src/domain/entities/machine-command.js';
 import { Effect, Layer, Ref, type Context } from 'effect';
 
@@ -18,7 +15,6 @@ import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
 import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
 import type {
   DaemonAgentProcessManagerService,
-  DaemonSessionServiceShape,
   DaemonAgentProcessManagerCommandService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
@@ -300,34 +296,17 @@ export async function handleInboundCommandEvent(
   commandId: string,
   tracker: DedupTracker,
   effectContext: Context.Context<CommandDispatchDeps>,
-  session: DaemonSessionServiceShape,
   claimedCommand: ClaimedMachineCommand,
   nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>
 ): Promise<void> {
   if (claimedCommand.commandId !== commandId) return;
-  const renewTimer = setInterval(() => {
-    void session.backend
-      .mutation(api.daemon.machineCommandInbox.renewClaim, {
-        sessionId: session.sessionId,
-        commandId: claimedCommand.commandId,
-      })
-      .catch(() => undefined);
-  }, MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS);
-  try {
-    const { commandId: _id, machineId, deadline, timestamp, ...rest } = claimedCommand;
-    await Effect.runPromise(
-      dispatchCommandEventEffect(
-        { _id, machineId, deadline, timestamp, ...rest } as unknown as CommandEvent,
-        tracker,
-        nativeDelivery
-      ).pipe(Effect.provide(effectContext))
-    );
-    await session.backend.mutation(api.daemon.machineCommandInbox.acknowledge, {
-      sessionId: session.sessionId,
-      commandId: claimedCommand.commandId,
-    });
-  } finally {
-    clearInterval(renewTimer);
-  }
+  const { commandId: _id, machineId, deadline, timestamp, ...rest } = claimedCommand;
+  await Effect.runPromise(
+    dispatchCommandEventEffect(
+      { _id, machineId, deadline, timestamp, ...rest } as unknown as CommandEvent,
+      tracker,
+      nativeDelivery
+    ).pipe(Effect.provide(effectContext))
+  );
 }
 // fallow-ignore-file code-duplication
