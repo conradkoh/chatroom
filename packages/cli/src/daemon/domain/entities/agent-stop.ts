@@ -15,6 +15,7 @@ export interface AgentStopTargetDescriptor {
   pid: number;
   agentHarness: AgentHarness;
   machineId: string;
+  workingDir?: string | undefined;
   targetKey: string;
 }
 export class AgentStopError extends Error {

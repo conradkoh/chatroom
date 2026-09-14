@@ -9,10 +9,10 @@ import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
 import { startAllSubscribers } from './subscriber-registry.js';
-import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { createLogServer, resolveLogsDbPath } from '../../infrastructure/log-server/index.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
+import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { createLogRepository } from '../infrastructure/repository/log-repository.js';
 import { ingestChatroomEvent } from '../local-web/client/lib/socket.js';
@@ -79,6 +79,7 @@ export async function startDaemon(): Promise<void> {
         type: 'agent.stop';
         chatroomId: string;
         role?: string;
+        workingDir?: string;
         finalizeChatroom?: boolean;
       };
       return executeChatroomStopCommand({
@@ -86,6 +87,7 @@ export async function startDaemon(): Promise<void> {
         chatroomId: stopCommand.chatroomId,
         commandId: stopCommand.commandId,
         role: stopCommand.role,
+        workingDir: stopCommand.workingDir,
         finalizeChatroom: stopCommand.finalizeChatroom,
         runSerializedForAgent: init.agentProcessManagerService.runSerializedForAgent,
       });

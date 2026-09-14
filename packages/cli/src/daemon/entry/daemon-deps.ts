@@ -30,13 +30,16 @@ export interface MachineStateOps {
     chatroomId: string,
     role: string,
     pid: number,
-    harness: AgentHarness
+    harness: AgentHarness,
+    workingDir?: string
   ) => Promise<void>;
   /** List all persisted agent entries for a machine */
-  listAgentEntries: (
-    machineId: string
-  ) => Promise<
-    { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[]
+  listAgentEntries: (machineId: string) => Promise<
+    {
+      chatroomId: string;
+      role: string;
+      entry: { pid: number; harness: AgentHarness; workingDir?: string };
+    }[]
   >;
   /** Persist the event stream cursor (last processed event ID) */
   persistEventCursor: (machineId: string, lastSeenEventId: string) => Promise<void>;

@@ -68,12 +68,15 @@ export interface DaemonMachineServiceShape {
     chatroomId: string,
     role: string,
     pid: number,
-    harness: AgentHarness
+    harness: AgentHarness,
+    workingDir?: string
   ) => Effect.Effect<void>;
-  listAgentEntries: (
-    machineId: string
-  ) => Effect.Effect<
-    { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[]
+  listAgentEntries: (machineId: string) => Effect.Effect<
+    {
+      chatroomId: string;
+      role: string;
+      entry: { pid: number; harness: AgentHarness; workingDir?: string };
+    }[]
   >;
   persistEventCursor: (machineId: string, lastSeenEventId: string) => Effect.Effect<void>;
   loadEventCursor: (machineId: string) => Effect.Effect<string | null>;
@@ -89,8 +92,10 @@ export const DaemonMachineServiceLive = (ops: MachineStateOps): Layer.Layer<Daem
   Layer.succeed(DaemonMachineService, {
     clearAgentPid: (machineId, chatroomId, role) =>
       Effect.promise(() => ops.clearAgentPid(machineId, chatroomId, role)),
-    persistAgentPid: (machineId, chatroomId, role, pid, harness) =>
-      Effect.promise(() => ops.persistAgentPid(machineId, chatroomId, role, pid, harness)),
+    persistAgentPid: (machineId, chatroomId, role, pid, harness, workingDir) =>
+      Effect.promise(() =>
+        ops.persistAgentPid(machineId, chatroomId, role, pid, harness, workingDir)
+      ),
     listAgentEntries: (machineId) => Effect.promise(() => ops.listAgentEntries(machineId)),
     persistEventCursor: (machineId, lastSeenEventId) =>
       Effect.promise(() => ops.persistEventCursor(machineId, lastSeenEventId)),
@@ -124,7 +129,11 @@ export interface DaemonAgentProcessManagerServiceShape {
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
-  getSlot: (chatroomId: string, role: string) => AgentProcessSlotView | undefined;
+  getSlot: (
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ) => AgentProcessSlotView | undefined;
   listActive: () => { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot: (
     chatroomId: string,
@@ -155,7 +164,7 @@ export const DaemonAgentProcessManagerServiceLive = (
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),
-    getSlot: (chatroomId, role) => mgr.getSlot(chatroomId, role),
+    getSlot: (chatroomId, role, workingDir) => mgr.getSlot(chatroomId, role, workingDir),
     listActive: () => mgr.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>
       Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role, options)),

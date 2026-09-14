@@ -17,10 +17,13 @@ import type { ChatroomRemoteAgentStatus, ChatroomStatus } from '@/domain/entitie
 
 const mockArchiveChatroom = vi.fn().mockResolvedValue({ success: true, disabledPromptCount: 0 });
 const mockRequestChatroomStop = vi.fn().mockResolvedValue({ stopCommandId: 'stop' });
-const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
-const mockStartAllPermanent = vi
+const mockRequestChatroomStart = vi
   .fn()
-  .mockResolvedValue({ started: ['planner'], skipped: [], failed: [] });
+  .mockResolvedValue({ requested: [{ role: 'planner' }], skipped: [], failed: [] });
+const mockRequestChatroomRestart = vi
+  .fn()
+  .mockResolvedValue({ requested: [{ role: 'planner' }], skipped: [], failed: [] });
+const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
 const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
@@ -31,6 +34,8 @@ vi.mock('../hooks/useAgentStop', () => ({
   useAgentStop: () => ({
     requestAgentStop: vi.fn(),
     requestChatroomStop: mockRequestChatroomStop,
+    requestChatroomStart: mockRequestChatroomStart,
+    requestChatroomRestart: mockRequestChatroomRestart,
   }),
 }));
 
@@ -80,9 +85,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'stopAllCommandRunsForChatroom') {
         return mockStopAllCommandRuns;
       }
-      if (name === 'startAllPermanent') {
-        return mockStartAllPermanent;
-      }
     }
     return () => {};
   },
@@ -103,7 +105,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       stopAllCommandRunsForChatroom: { name: 'stopAllCommandRunsForChatroom' },
     },
     agents: {
-      startAllPermanent: { name: 'startAllPermanent' },
+      requestChatroomAgentOperation: { name: 'requestChatroomAgentOperation' },
     },
   },
 }));
@@ -195,6 +197,18 @@ describe('ChatroomSidebar', () => {
     mockArchiveChatroom.mockResolvedValue({ success: true, disabledPromptCount: 0 });
     mockRequestChatroomStop.mockReset();
     mockRequestChatroomStop.mockResolvedValue({ stopCommandId: 'stop' });
+    mockRequestChatroomStart.mockReset();
+    mockRequestChatroomStart.mockResolvedValue({
+      requested: [{ role: 'planner' }],
+      skipped: [],
+      failed: [],
+    });
+    mockRequestChatroomRestart.mockReset();
+    mockRequestChatroomRestart.mockResolvedValue({
+      requested: [{ role: 'planner' }],
+      skipped: [],
+      failed: [],
+    });
     mockStopAllCommandRuns.mockReset();
     mockStopAllCommandRuns.mockResolvedValue({ stoppedCount: 0 });
     mockMarkAsUnread.mockReset();
@@ -452,7 +466,7 @@ describe('ChatroomSidebar', () => {
     fireEvent.click(playButton);
 
     await waitFor(() => {
-      expect(mockStartAllPermanent).toHaveBeenCalledWith({ chatroomId: 'chr-1' });
+      expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1');
     });
     expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
   });

@@ -13,16 +13,28 @@ export interface AgentStopTarget {
 
 export function useAgentStop() {
   const requestAgent = useSessionMutation(api.agents.requestStop);
-  const requestChatroom = useSessionMutation(api.agents.requestStopAll);
+  const requestChatroomOperation = useSessionMutation(api.agents.requestChatroomAgentOperation);
 
   const requestAgentStop = useCallback(
     (target: AgentStopTarget) => requestAgent(target),
     [requestAgent]
   );
   const requestChatroomStop = useCallback(
-    (chatroomId: Id<'chatroom_rooms'>) => requestChatroom({ chatroomId }),
-    [requestChatroom]
+    (chatroomId: Id<'chatroom_rooms'>) =>
+      requestChatroomOperation({ chatroomId, operation: 'stop' }),
+    [requestChatroomOperation]
   );
 
-  return { requestAgentStop, requestChatroomStop };
+  const requestChatroomStart = useCallback(
+    (chatroomId: Id<'chatroom_rooms'>) =>
+      requestChatroomOperation({ chatroomId, operation: 'start' }),
+    [requestChatroomOperation]
+  );
+  const requestChatroomRestart = useCallback(
+    (chatroomId: Id<'chatroom_rooms'>) =>
+      requestChatroomOperation({ chatroomId, operation: 'restart' }),
+    [requestChatroomOperation]
+  );
+
+  return { requestAgentStop, requestChatroomStop, requestChatroomStart, requestChatroomRestart };
 }

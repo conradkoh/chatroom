@@ -194,14 +194,15 @@ export interface AgentProcessManagerDeps {
       chatroomId: string,
       role: string,
       pid: number,
-      harness: AgentHarness
+      harness: AgentHarness,
+      workingDir?: string
     ) => Promise<void>;
     clearAgentPid: (machineId: string, chatroomId: string, role: string) => Promise<void>;
     listAgentEntries: (machineId: string) => Promise<
       {
         chatroomId: string;
         role: string;
-        entry: { pid: number; harness: AgentHarness };
+        entry: { pid: number; harness: AgentHarness; workingDir?: string };
       }[]
     >;
   };
@@ -218,6 +219,10 @@ export interface AgentProcessManagerDeps {
 
 function agentKey(chatroomId: string, role: string): string {
   return `${chatroomId}:${role.toLowerCase()}`;
+}
+
+function serializedAgentKey(chatroomId: string, role: string, workingDir?: string): string {
+  return `${agentKey(chatroomId, role)}:${workingDir ?? ''}`;
 }
 
 // ─── Retry Queue Types ────────────────────────────────────────────────────────
@@ -277,10 +282,10 @@ export class AgentProcessManager {
   }
 
   runSerializedForAgent<T>(
-    key: { chatroomId: string; role: string },
+    key: { chatroomId: string; role: string; workingDir?: string },
     operation: () => Promise<T>
   ): Promise<T> {
-    const serializedKey = agentKey(key.chatroomId, key.role);
+    const serializedKey = serializedAgentKey(key.chatroomId, key.role, key.workingDir);
     const previous = this.serializedOperationTails.get(serializedKey) ?? Promise.resolve();
     const current = previous.catch(() => undefined).then(operation);
     const tail = current.then(
@@ -364,7 +369,13 @@ export class AgentProcessManager {
   }
 
   /** Claim stop intent before asynchronous termination begins. */
-  public markStopIntent(chatroomId: string, role: string, reason: string, pid?: number): number {
+  public markStopIntent(
+    chatroomId: string,
+    role: string,
+    reason: string,
+    pid?: number,
+    _workingDir?: string
+  ): number {
     const slot = this.getOrCreateSlot(agentKey(chatroomId, role));
     if (slot.stopRequested) return slot.stopGeneration ?? 0;
     const generation = this.bumpStopGeneration(slot);
@@ -378,7 +389,7 @@ export class AgentProcessManager {
   public markChatroomStopIntent(chatroomId: string, reason: string): void {
     for (const { chatroomId: cid, role, slot } of this.listAllSlots()) {
       if (cid === chatroomId) {
-        this.markStopIntent(chatroomId, role, reason, slot.pid);
+        this.markStopIntent(chatroomId, role, reason, slot.pid, slot.workingDir);
       }
     }
   }
@@ -490,7 +501,13 @@ export class AgentProcessManager {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
 
-    this.markStopIntent(opts.chatroomId, opts.role, opts.reason, opts.pid ?? slot?.pid);
+    this.markStopIntent(
+      opts.chatroomId,
+      opts.role,
+      opts.reason,
+      opts.pid ?? slot?.pid,
+      opts.workingDir
+    );
 
     const earlyResult = await this.handleStopEarlyReturns(slot, opts, key);
     if (earlyResult) {
@@ -516,6 +533,7 @@ export class AgentProcessManager {
         role,
         pid: slot.pid,
         agentHarness: slot.harness,
+        workingDir: slot.workingDir,
       });
       targets.set(target.targetKey, target);
     }
@@ -530,6 +548,7 @@ export class AgentProcessManager {
           role,
           pid: entry.pid,
           agentHarness: entry.harness,
+          workingDir: entry.workingDir,
         });
         targets.set(target.targetKey, target);
       }
@@ -576,7 +595,7 @@ export class AgentProcessManager {
       return { ok: false, reason: 'no_slot' };
     if (slot.state === AGENT_SLOT_STATE.STOPPING || slot.pendingOperation)
       return { ok: false, reason: 'concurrent' };
-    this.markStopIntent(opts.chatroomId, opts.role, opts.reason, slot.pid);
+    this.markStopIntent(opts.chatroomId, opts.role, opts.reason, slot.pid, opts.workingDir);
     slot.state = AGENT_SLOT_STATE.STOPPING;
     slot.stoppingSince = this.deps.clock.now();
     try {
@@ -656,7 +675,11 @@ export class AgentProcessManager {
     harness: AgentHarness;
     completion?: TurnCompletionResult;
   }): Promise<void> {
-    const slot = this.slots.get(agentKey(opts.chatroomId, opts.role));
+    const slot = [...this.slots.entries()].find(
+      ([candidateKey, candidate]) =>
+        candidateKey.startsWith(`${opts.chatroomId}:${opts.role.toLowerCase()}`) &&
+        candidate.pid === opts.pid
+    )?.[1];
     if (
       !slot ||
       slot.pid !== opts.pid ||
@@ -898,7 +921,7 @@ export class AgentProcessManager {
       .catch(() => {});
   }
 
-  getSlot(chatroomId: string, role: string): AgentSlot | undefined {
+  getSlot(chatroomId: string, role: string, _workingDir?: string): AgentSlot | undefined {
     return this.getSlotFromMirror(chatroomId, role);
   }
 
@@ -1070,10 +1093,14 @@ export class AgentProcessManager {
    * Kill any live agent process for this chatroom+role before spawning.
    * Covers in-memory slot PIDs and persisted PIDs (orphans after restart).
    */
-  private async killExistingBeforeSpawn(chatroomId: string, role: string): Promise<void> {
+  private async killExistingBeforeSpawn(
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ): Promise<void> {
     const key = agentKey(chatroomId, role);
     await this.killInMemorySlotIfAlive(key, chatroomId, role);
-    await this.killPersistedProcessIfAlive(chatroomId, role);
+    await this.killPersistedProcessIfAlive(chatroomId, role, workingDir);
   }
 
   private async killInMemorySlotIfAlive(
@@ -1101,11 +1128,15 @@ export class AgentProcessManager {
     }
   }
 
-  private async killPersistedProcessIfAlive(chatroomId: string, role: string): Promise<void> {
+  private async killPersistedProcessIfAlive(
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ): Promise<void> {
     let entries: {
       chatroomId: string;
       role: string;
-      entry: { pid: number; harness: AgentHarness };
+      entry: { pid: number; harness: AgentHarness; workingDir?: string };
     }[] = [];
     try {
       entries = await this.deps.persistence.listAgentEntries(this.deps.machineId);
@@ -1114,7 +1145,10 @@ export class AgentProcessManager {
     }
 
     const persisted = entries.find(
-      (e) => e.chatroomId === chatroomId && e.role.toLowerCase() === role.toLowerCase()
+      (e) =>
+        e.chatroomId === chatroomId &&
+        e.role.toLowerCase() === role.toLowerCase() &&
+        (!workingDir || !e.entry.workingDir || e.entry.workingDir === workingDir)
     );
     if (!persisted) {
       return;
@@ -1504,28 +1538,34 @@ export class AgentProcessManager {
 
     spawnResult.onExit(({ code, signal }) => {
       const reconcileExit = async (): Promise<void> => {
-        const currentSlot = this.slots.get(agentKey(opts.chatroomId, opts.role));
+        const currentSlot = [...this.slots.entries()].find(
+          ([candidateKey, candidate]) =>
+            candidateKey.startsWith(`${opts.chatroomId}:${opts.role.toLowerCase()}`) &&
+            candidate.pid === pid
+        )?.[1];
         const hasUnresolvedNativeTurn =
           currentSlot?.pid === pid &&
           currentSlot.nativeTurnPhase === 'turn_in_flight' &&
           !this.typedCompletionSeenPids.has(pid);
 
         if (hasUnresolvedNativeTurn) {
-          await this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
-            this.runHandleAgentEnd({
-              chatroomId: opts.chatroomId,
-              role: opts.role,
-              pid,
-              harness: opts.agentHarness,
-              completion: {
-                turnId: `${pid}:process-exit`,
-                status: 'process_exited',
-                source: 'agent-process-manager.process-exit',
-                error: signal
-                  ? `process exited with signal ${signal}`
-                  : `process exited with code ${code ?? 'unknown'}`,
-              },
-            })
+          await this.runSerializedForAgent(
+            { chatroomId: opts.chatroomId, role: opts.role, workingDir: opts.workingDir },
+            () =>
+              this.runHandleAgentEnd({
+                chatroomId: opts.chatroomId,
+                role: opts.role,
+                pid,
+                harness: opts.agentHarness,
+                completion: {
+                  turnId: `${pid}:process-exit`,
+                  status: 'process_exited',
+                  source: 'agent-process-manager.process-exit',
+                  error: signal
+                    ? `process exited with signal ${signal}`
+                    : `process exited with code ${code ?? 'unknown'}`,
+                },
+              })
           );
         }
 
@@ -1548,14 +1588,16 @@ export class AgentProcessManager {
     if (spawnResult.onTurnResult) {
       spawnResult.onTurnResult((completion) => {
         this.typedCompletionSeenPids.add(pid);
-        void this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
-          this.runHandleAgentEnd({
-            chatroomId: opts.chatroomId,
-            role: opts.role,
-            pid,
-            harness: opts.agentHarness,
-            completion,
-          })
+        void this.runSerializedForAgent(
+          { chatroomId: opts.chatroomId, role: opts.role, workingDir: opts.workingDir },
+          () =>
+            this.runHandleAgentEnd({
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              pid,
+              harness: opts.agentHarness,
+              completion,
+            })
         ).catch((error: unknown) => {
           console.warn(
             `[AgentProcessManager] typed turn-result handling failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
@@ -1564,13 +1606,15 @@ export class AgentProcessManager {
       });
     } else if (spawnResult.onAgentEnd) {
       spawnResult.onAgentEnd(() => {
-        void this.runSerializedForAgent({ chatroomId: opts.chatroomId, role: opts.role }, () =>
-          this.runHandleAgentEnd({
-            chatroomId: opts.chatroomId,
-            role: opts.role,
-            pid,
-            harness: opts.agentHarness,
-          })
+        void this.runSerializedForAgent(
+          { chatroomId: opts.chatroomId, role: opts.role, workingDir: opts.workingDir },
+          () =>
+            this.runHandleAgentEnd({
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              pid,
+              harness: opts.agentHarness,
+            })
         ).catch((error: unknown) => {
           console.warn(
             `[AgentProcessManager] turn-end handling failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
@@ -1608,7 +1652,8 @@ export class AgentProcessManager {
         opts.chatroomId,
         opts.role,
         pid,
-        opts.agentHarness
+        opts.agentHarness,
+        opts.workingDir
       );
     } catch {
       // Non-critical

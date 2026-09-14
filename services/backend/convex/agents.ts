@@ -27,6 +27,7 @@ import {
 } from '../src/domain/usecase/agent/get-last-sent-launch-request';
 import { recordLastSentLaunchRequest } from '../src/domain/usecase/agent/record-last-sent-launch-request';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
+import { requestChatroomAgentOperation as requestChatroomAgentOperationUseCase } from '../src/domain/usecase/agent/request-chatroom-agent-operation';
 import {
   requestChatroomWorkspaceAgentStop,
   requestWorkspaceAgentStop,
@@ -156,6 +157,23 @@ export const startAllPermanent = mutation({
     return startPermanentAgentsFromCurrentConfig(ctx, {
       chatroomId: args.chatroomId,
       roles,
+      requestedBy: session.userId,
+    });
+  },
+});
+
+/** Single chatroom-level lifecycle endpoint used by every bulk agent control. */
+export const requestChatroomAgentOperation = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    operation: v.union(v.literal('start'), v.literal('stop'), v.literal('restart')),
+  },
+  handler: async (ctx, args) => {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return requestChatroomAgentOperationUseCase(ctx, {
+      chatroomId: args.chatroomId,
+      operation: args.operation,
       requestedBy: session.userId,
     });
   },

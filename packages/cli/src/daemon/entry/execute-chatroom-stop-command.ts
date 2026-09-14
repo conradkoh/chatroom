@@ -12,11 +12,13 @@ export async function executeChatroomStopCommand(args: {
   chatroomId: string;
   commandId: string;
   role?: string | undefined;
+  workingDir?: string | undefined;
   finalizeChatroom?: boolean | undefined;
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
 }): Promise<void> {
-  if (args.role) args.apm.markStopIntent(args.chatroomId, args.role, 'user.stop');
-  else {
+  if (args.role)
+    args.apm.markStopIntent(args.chatroomId, args.role, 'user.stop', undefined, args.workingDir);
+  else if (!args.workingDir) {
     args.apm.markChatroomStopIntent(args.chatroomId, 'user.stop');
     await abortEnhancerSpawnsForChatroom(args.chatroomId);
   }
@@ -26,7 +28,11 @@ export async function executeChatroomStopCommand(args: {
   const roles = [
     ...new Set(
       targets
-        .filter((target) => !args.role || target.role.toLowerCase() === args.role.toLowerCase())
+        .filter(
+          (target) =>
+            (!args.role || target.role.toLowerCase() === args.role.toLowerCase()) &&
+            (!args.workingDir || target.workingDir === args.workingDir)
+        )
         .map((target) => target.role.toLowerCase())
     ),
   ];
@@ -34,7 +40,7 @@ export async function executeChatroomStopCommand(args: {
   const results = await Promise.allSettled(
     roles.map((role) =>
       args.runSerializedForAgent(
-        { chatroomId: args.chatroomId, role },
+        { chatroomId: args.chatroomId, role, workingDir: args.workingDir },
         { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
         async (_ops, context) => {
           if (context.signal.aborted) throw context.signal.reason;
@@ -44,6 +50,7 @@ export async function executeChatroomStopCommand(args: {
             chatroomId: args.chatroomId,
             role,
             reason: 'user.stop',
+            workingDir: args.workingDir,
           });
         }
       )

@@ -37,6 +37,7 @@ export function buildStopTargetDescriptor(args: {
   role: string;
   pid: number;
   agentHarness: AgentHarness;
+  workingDir?: string | undefined;
 }): AgentStopTargetDescriptor {
   return { ...args, targetKey: buildAgentStopTargetKey(args) };
 }

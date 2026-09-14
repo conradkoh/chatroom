@@ -237,7 +237,8 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE,
         PID,
-        'opencode'
+        'opencode',
+        '/tmp/test'
       );
     });
 

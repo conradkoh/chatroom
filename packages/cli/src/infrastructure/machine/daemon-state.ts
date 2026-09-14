@@ -52,6 +52,8 @@ export interface DaemonAgentEntry {
   harness: AgentHarness;
   /** When the agent was started (ISO string) */
   startedAt: string;
+  /** Workspace path used to scope command routing after daemon recovery. */
+  workingDir?: string;
 }
 
 /** On-disk shape of a per-machine state file */
@@ -158,7 +160,8 @@ export async function persistAgentPid(
   chatroomId: string,
   role: string,
   pid: number,
-  harness: AgentHarness
+  harness: AgentHarness,
+  workingDir?: string
 ): Promise<void> {
   const state = await loadOrCreate(machineId);
 
@@ -166,6 +169,7 @@ export async function persistAgentPid(
     pid,
     harness,
     startedAt: new Date().toISOString(),
+    ...(workingDir ? { workingDir } : {}),
   };
   state.updatedAt = new Date().toISOString();
 

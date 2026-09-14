@@ -6,6 +6,7 @@ export interface AgentStopTargetDescriptor {
   role: string;
   pid: number;
   agentHarness: string;
+  workingDir?: string;
   targetKey: string;
 }
 export function normalizeAgentStopRole(role: string): string {

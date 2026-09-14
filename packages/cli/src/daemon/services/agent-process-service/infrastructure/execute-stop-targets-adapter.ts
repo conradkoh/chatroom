@@ -67,14 +67,17 @@ export async function runRoleScopedStop(args: {
   chatroomId: string;
   role: string;
   reason: AgentStopReason;
+  workingDir?: string | undefined;
 }) {
   // Claim stop intent before discovering targets (which performs async I/O),
   // so task activation cannot win the race while the stop command is prepared.
-  args.apm.markStopIntent(args.chatroomId, args.role, args.reason);
+  args.apm.markStopIntent(args.chatroomId, args.role, args.reason, undefined, args.workingDir);
   const deps = createStopAgentTargetsDeps(args);
   const discovered = await args.apm.discoverStopTargets(args.chatroomId);
   const targets = discovered.filter(
-    (target) => normalizeAgentStopRole(target.role) === normalizeAgentStopRole(args.role)
+    (target) =>
+      normalizeAgentStopRole(target.role) === normalizeAgentStopRole(args.role) &&
+      (!args.workingDir || target.workingDir === args.workingDir)
   );
   return stopAgentTargets(deps, {
     chatroomId: args.chatroomId,

@@ -50,6 +50,8 @@ export const machineCommandPayloadValidator = v.union(
     type: v.literal('agent.stop'),
     chatroomId: v.id('chatroom_rooms'),
     role: v.optional(v.string()),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
+    workingDir: v.optional(v.string()),
     finalizeChatroom: v.optional(v.boolean()),
   }),
   v.object({ type: v.literal('daemon.ping') }),
