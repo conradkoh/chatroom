@@ -9,6 +9,10 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
+  chatroomIndustrialButtonDestructiveClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+} from '../shared/industrialDialogStyles';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -28,7 +32,6 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 
-import { Button } from '@/components/ui/button';
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 
@@ -281,18 +284,25 @@ function CommandQueueFooter({
           : `${commandCount} command${commandCount === 1 ? '' : 's'} queued`}
       </p>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={onClose}>
+        <button
+          type="button"
+          onClick={onClose}
+          className={chatroomIndustrialButtonSecondaryClassName}
+        >
           Close
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
+        </button>
+        <button
+          type="button"
           onClick={onRequestFlush}
           disabled={commandCount === 0 || isFlushing}
+          className={cn(
+            chatroomIndustrialButtonDestructiveClassName,
+            'gap-1.5 disabled:cursor-not-allowed disabled:opacity-50'
+          )}
         >
           <Trash2 size={13} aria-hidden="true" />
           Flush queue
-        </Button>
+        </button>
       </div>
     </DialogFooter>
   );
@@ -382,11 +392,7 @@ function FlushCommandDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isFlushing}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onConfirm}
-            disabled={isFlushing}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
+          <AlertDialogAction onClick={onConfirm} disabled={isFlushing} className="gap-1.5">
             {isFlushing && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
             Flush queue
           </AlertDialogAction>

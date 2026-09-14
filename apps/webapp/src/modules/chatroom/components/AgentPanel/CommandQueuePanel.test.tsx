@@ -112,6 +112,19 @@ describe('CommandQueuePanel', () => {
     expect(screen.getByText('Processing')).toBeInTheDocument();
   });
 
+  it('uses chatroom industrial buttons in the queue footer', () => {
+    render(<CommandQueuePanel machineId="machine-1" />);
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
+
+    const closeButton = screen.getByRole('button', { name: 'Close' });
+    const flushButton = screen.getAllByRole('button', { name: 'Flush queue' })[0];
+
+    expect(closeButton).toHaveClass('rounded-none', 'h-9', 'border-chatroom-border');
+    expect(flushButton).toHaveClass('rounded-none', 'h-9', 'bg-chatroom-status-error');
+    expect(closeButton).not.toHaveAttribute('data-slot', 'button');
+    expect(flushButton).not.toHaveAttribute('data-slot', 'button');
+  });
+
   it('deletes an individual queued command', async () => {
     render(<CommandQueuePanel machineId="machine-1" />);
     fireEvent.click(screen.getByTestId('command-queue-panel'));
