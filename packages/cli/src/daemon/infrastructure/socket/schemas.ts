@@ -28,6 +28,9 @@ export const logDimensionsInputSchema = z.object({
   chatroomId: z.string().min(1),
   limit: z.number().int().positive().max(1000).optional(),
 });
+export const debugStateInputSchema = z.object({
+  chatroomId: z.string().min(1),
+});
 export const eventStreamHistoryInputSchema = z.object({
   chatroomId: z.string().min(1),
   afterId: z.number().int().nonnegative().optional(),

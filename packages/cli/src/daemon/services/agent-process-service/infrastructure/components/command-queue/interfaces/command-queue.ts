@@ -3,6 +3,7 @@ import type {
   ReceivedCommandMessage,
   SentCommandMessage,
 } from '../entities/command-message.js';
+import type { StoredCommandMessage } from '../infra/store/command-queue-store.js';
 
 export interface SendCommandMessageInput<T> {
   body: T;
@@ -26,4 +27,6 @@ export interface CommandQueue<T> {
   changeMessageVisibility(receiptHandle: string, visibilityTimeoutMs: number): Promise<void>;
   /** Remove matching queued and leased messages and return what was removed. */
   purge(input: PurgeCommandMessagesInput): Promise<CommandMessage<T>[]>;
+  /** Read-only diagnostic view of queued and leased messages. */
+  debugSnapshot?(): StoredCommandMessage<T>[];
 }

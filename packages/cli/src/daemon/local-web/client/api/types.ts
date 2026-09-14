@@ -18,7 +18,12 @@ export type LocalWebHealth = {
 
 export type HealthGetAck = SocketAck<LocalWebHealth>;
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type LogMetadata = { chatroomId?: string | undefined; role?: string | undefined; pid?: number | undefined; harness?: string | undefined };
+export type LogMetadata = {
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  pid?: number | undefined;
+  harness?: string | undefined;
+};
 export type LogLine = {
   id?: number | undefined;
   timestamp: number;
@@ -48,6 +53,7 @@ export type LogHistoryResult = { entries: LogLine[] };
 export type LogSourcesResult = { sources: string[] };
 export type LogsHistoryAck = SocketAck<LogHistoryResult>;
 export type LogsSourcesAck = SocketAck<LogSourcesResult>;
+export type DaemonDebugStateAck = SocketAck<unknown>;
 export type EventStreamEntry = {
   id: number;
   timestamp: number;

@@ -173,6 +173,31 @@ describe('startLocalWebServer', () => {
     }
   });
 
+  it('responds to daemon.debug.state with the requested chatroom', async () => {
+    const server = await startLocalWebServer(
+      { host: '127.0.0.1' },
+      {
+        debugState: async (chatroomId) => ({ chatroomId, state: 'diagnostic' }),
+      }
+    );
+    const client = ioClient(`http://127.0.0.1:${server.port}`, {
+      transports: ['websocket'],
+    });
+    try {
+      await connectSocket(client);
+      const ack = await client.emitWithAck('daemon.debug.state', {
+        chatroomId: 'room-1',
+      });
+      expect(ack).toEqual({
+        ok: true,
+        data: { chatroomId: 'room-1', state: 'diagnostic' },
+      });
+    } finally {
+      client.close();
+      await server.stop();
+    }
+  });
+
   it('stop resolves while a Socket.IO client is connected', async () => {
     const server = await startLocalWebServer({ host: '127.0.0.1', port: 0 });
     const client = ioClient(`http://127.0.0.1:${server.port}`, {

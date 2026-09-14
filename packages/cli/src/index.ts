@@ -83,6 +83,70 @@ program
   });
 
 // ============================================================================
+// DIAGNOSTIC COMMANDS (local daemon state and logs)
+// ============================================================================
+
+program
+  .command('debug')
+  .description('Dump local daemon state for a chatroom as JSON')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .option('--port <port>', 'Local daemon web port')
+  .option('--output <path>', 'Write the JSON dump to a file')
+  .action(async (options: { chatroomId: string; port?: string; output?: string }) => {
+    const { debugDaemon } = await import('./commands/diagnostics/index.js');
+    await debugDaemon({
+      chatroomId: options.chatroomId,
+      port: options.port ? Number(options.port) : undefined,
+      output: options.output,
+    });
+  });
+
+program
+  .command('logs')
+  .description('Show daemon logs for a chatroom (defaults to the last hour)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .option('--since <duration>', 'Time window, e.g. 15m, 1h, or 2d', '1h')
+  .option('--from <timestamp>', 'Start time as epoch milliseconds or ISO timestamp')
+  .option('--to <timestamp>', 'End time as epoch milliseconds or ISO timestamp')
+  .option('--source <source>', 'Filter by log source')
+  .option('--role <role>', 'Filter by agent role')
+  .option('--harness <harness>', 'Filter by harness')
+  .option('--limit <n>', 'Keep only the newest N matching entries')
+  .option('--format <format>', 'Output format: text or json', 'text')
+  .option('--output <path>', 'Write output to a file')
+  .action(
+    async (options: {
+      chatroomId: string;
+      since: string;
+      from?: string;
+      to?: string;
+      source?: string;
+      role?: string;
+      harness?: string;
+      limit?: string;
+      format: string;
+      output?: string;
+    }) => {
+      if (options.format !== 'text' && options.format !== 'json') {
+        throw new Error('--format must be text or json');
+      }
+      const { logs } = await import('./commands/diagnostics/index.js');
+      await logs({
+        chatroomId: options.chatroomId,
+        since: options.since,
+        from: options.from,
+        to: options.to,
+        source: options.source,
+        role: options.role,
+        harness: options.harness,
+        limit: options.limit,
+        format: options.format,
+        output: options.output,
+      });
+    }
+  );
+
+// ============================================================================
 // USER COMMANDS (no auth required)
 // ============================================================================
 

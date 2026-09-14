@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-class-member
+
 import type {
   CommandMessage,
   ReceivedCommandMessage,
@@ -9,7 +11,7 @@ import type {
   ReceiveCommandMessagesOptions,
   SendCommandMessageInput,
 } from '../interfaces/command-queue.js';
-import type { CommandQueueStore } from './store/command-queue-store.js';
+import type { CommandQueueStore, StoredCommandMessage } from './store/command-queue-store.js';
 
 const DEFAULT_VISIBILITY_TIMEOUT_MS = 30_000;
 
@@ -131,6 +133,10 @@ export class InMemoryCommandQueue<T> implements CommandQueue<T> {
     this.options.store.update(stored.message.messageId, {
       visibilityExpiresAt: this.now() + Math.max(0, visibilityTimeoutMs),
     });
+  }
+
+  debugSnapshot(): StoredCommandMessage<T>[] {
+    return this.options.store.list();
   }
 
   async purge(input: PurgeCommandMessagesInput): Promise<CommandMessage<T>[]> {

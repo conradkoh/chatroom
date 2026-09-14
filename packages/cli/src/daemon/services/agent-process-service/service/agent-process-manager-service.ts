@@ -123,6 +123,14 @@ export interface AgentProcessManagerService {
   startProcessing(): void;
   stopProcessing(): Promise<void>;
 
+  /** Read-only diagnostic view of service and in-memory queue state. */
+  debugState?(): {
+    processingStarted: boolean;
+    resetting: boolean;
+    pendingOperationIds: string[];
+    queuedCommands: unknown[];
+  };
+
   /** Non-lifecycle manager operations exposed through the same boundary. */
   handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
   getSlot(chatroomId: string, role: string, workingDir?: string): AgentProcessSlotView | undefined;
@@ -366,6 +374,12 @@ export function createAgentProcessManagerService(
       processingStarted = false;
       await deps.commandBus.stop();
     },
+    debugState: () => ({
+      processingStarted,
+      resetting,
+      pendingOperationIds: [...pendingOperations.keys()],
+      queuedCommands: deps.commandBus.debugSnapshot?.() ?? [],
+    }),
     handleExit: (input) => deps.execution.handleExit(input),
     getSlot: (chatroomId, role, workingDir) =>
       workingDir === undefined

@@ -3,6 +3,7 @@ import type { Server, Socket } from 'socket.io';
 import { normalizeError } from './normalize-error.js';
 import {
   chatroomEventIngestInputSchema,
+  debugStateInputSchema,
   eventStreamHistoryInputSchema,
   harnessHistoryInputSchema,
   logHistoryInputSchema,
@@ -38,6 +39,7 @@ export type RegisterSocketHandlersDeps = {
   eventStreamHub?: EventStreamHub | undefined;
   backend?: BackendOps | undefined;
   sessionId?: string | undefined;
+  debugState?: ((chatroomId: string) => unknown | Promise<unknown>) | undefined;
 };
 
 type AckFn = (response: SocketAck<unknown>) => void;
@@ -82,6 +84,17 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
       try {
         const data = getLocalWebHealth(deps.port);
         callAck(ack, { ok: true, data });
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
+    });
+
+    socket.on('daemon.debug.state', async (...args) => {
+      const { payload, ack } = extractAck(args);
+      try {
+        if (!deps.debugState) throw new Error('daemon debug state is not configured');
+        const { chatroomId } = debugStateInputSchema.parse(payload ?? {});
+        callAck(ack, { ok: true, data: await deps.debugState(chatroomId) });
       } catch (err) {
         callAck(ack, { ok: false, error: normalizeError(err) });
       }

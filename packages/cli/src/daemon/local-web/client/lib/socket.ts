@@ -11,6 +11,7 @@ import type {
   EventStreamHistoryAck,
   EventStreamHistoryInput,
   EventStreamEntry,
+  DaemonDebugStateAck,
 } from '../api/types.js';
 
 let socket: Socket | null = null;
@@ -27,6 +28,12 @@ export async function fetchHealth(): Promise<HealthGetAck> {
   const s = getSocket();
   await ensureConnected(s);
   return s.emitWithAck('health.get') as Promise<HealthGetAck>;
+}
+
+export async function fetchDaemonDebugState(chatroomId: string): Promise<DaemonDebugStateAck> {
+  const s = getSocket();
+  await ensureConnected(s);
+  return s.emitWithAck('daemon.debug.state', { chatroomId }) as Promise<DaemonDebugStateAck>;
 }
 async function ensureConnected(s: Socket): Promise<void> {
   if (!s.connected) {

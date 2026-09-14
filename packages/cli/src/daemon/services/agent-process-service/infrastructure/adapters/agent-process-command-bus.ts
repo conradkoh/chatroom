@@ -48,7 +48,8 @@ export function createAgentProcessCommandBus(
           assertStopSucceeded(await deps.execution.stop(input));
           return;
         case 'restart':
-          if (!deps.restartAgent) throw new Error('Agent process manager restart execution is not wired yet');
+          if (!deps.restartAgent)
+            throw new Error('Agent process manager restart execution is not wired yet');
           await deps.restartAgent(input);
           return;
       }
@@ -62,5 +63,6 @@ export function createAgentProcessCommandBus(
     purge: async (input) => queue.purge(input),
     start: () => consumer.start(),
     stop: () => consumer.stop(),
+    debugSnapshot: () => queue.debugSnapshot?.() ?? [],
   };
 }
