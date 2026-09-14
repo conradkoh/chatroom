@@ -6,7 +6,7 @@ Composition root — wiring only. **No business logic.**
 
 TaskService owns native task delivery composition. Entry only calls that facade as composition wiring.
 
-Task inbox startup is composed in `entry/task-inbox-runtime.ts` and registers active workspace rooms with the task service. Workspace membership refresh (`entry/workspace-membership-refresh-registry.ts`) is composition wiring shared by task, enhancer, and Git watchers — a workspace nudge keeps all of them in sync.
+Task inbox startup is composed in `entry/task-inbox-runtime.ts` and registers active workspace rooms with the task service. Workspace membership and workspace-scoped watchers are initialized from the daemon's startup reconcile.
 
 ## Belongs here
 

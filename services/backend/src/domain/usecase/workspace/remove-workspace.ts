@@ -17,7 +17,6 @@
  * Throws if the workspace document does not exist.
  */
 
-import { enqueueWorkspaceListChangedForChatroom } from './enqueue-workspace-list-changed';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -42,8 +41,6 @@ export async function removeWorkspace(
   await ctx.db.patch('chatroom_workspaces', input.workspaceId, {
     removedAt: Date.now(),
   });
-  await enqueueWorkspaceListChangedForChatroom(ctx, workspace.chatroomId);
-
   // Purge workspace-scoped data to prevent ghost machines
   await purgeLastSentLaunchRequestsForWorkspace(
     ctx,

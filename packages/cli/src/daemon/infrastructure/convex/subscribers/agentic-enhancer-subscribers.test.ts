@@ -255,66 +255,6 @@ describe('agentic-query and enhancer v2 subscribers', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(vi.mocked(wsClient.onUpdate).mock.calls).toHaveLength(0);
   });
-  it('claimed daemon.workspaceListChanged nudges the enhancer room refresh', async () => {
-    const workspace = (chatroomId: string) => ({
-      _id: `ws-${chatroomId}`,
-      chatroomId,
-      workingDir: `/${chatroomId}`,
-      hostname: 'h',
-      registeredAt: 1,
-      registeredBy: 'user',
-    });
-    const entries: {
-      query: unknown;
-      args: unknown;
-      cb: (r: unknown) => void;
-      unsub: () => void;
-    }[] = [];
-    let currentRooms = [workspace('room-1')];
-    const query = vi.fn(async () => currentRooms);
-    const mutation = vi.fn().mockResolvedValue(null);
-    const onUpdate = vi.fn((q: unknown, args: unknown, cb: (r: unknown) => void) => {
-      entries.push({ query: q, args, cb, unsub: vi.fn() });
-      return vi.fn();
-    });
-    const wsClient = { onUpdate, query, mutation } as unknown as ConvexClient;
-    const hasChatroomId = (e: { args: unknown }) =>
-      e.args != null && typeof e.args === 'object' && 'chatroomId' in (e.args as object);
-
-    void startAllSubscribers({
-      wsClient,
-      sessionId: SESSION_ID,
-      machineId: MACHINE_ID,
-      router: {
-        command: {},
-        workspaceGit: {},
-        file: {},
-        agenticQuery: {},
-        enhancer: { deliverInbound: async () => {} },
-      },
-    });
-    await new Promise((r) => setTimeout(r, 0));
-    const enhancerCalls = () => entries.filter(hasChatroomId);
-    expect(enhancerCalls()).toHaveLength(1);
-
-    currentRooms = [workspace('room-1'), workspace('room-2')];
-    const watchNext = entries.find((e) => !hasChatroomId(e))!;
-    mutation.mockResolvedValueOnce({
-      commandId: 'cmd-ws',
-      machineId: MACHINE_ID,
-      type: 'daemon.workspaceListChanged',
-      deadline: Date.now() + 60_000,
-      timestamp: Date.now(),
-    });
-    watchNext.cb({ commandId: 'cmd-ws' });
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(enhancerCalls()).toHaveLength(2);
-    expect(enhancerCalls()[1].args).toMatchObject({ chatroomId: 'room-2' });
-    expect(mutation).toHaveBeenCalled();
-  });
-
   it('event router dispatches agentic-query and enhancer events to handlers', async () => {
     const agenticHandled: AgenticQueryInboundEvent[] = [];
     const enhancerHandled: EnhancerInboundEvent[] = [];

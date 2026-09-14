@@ -8,10 +8,6 @@ import type { WorkspaceGitInboundEvent } from '../../../domain/usecase/handle-wo
 import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
-import {
-  registerWorkspaceMembershipRefresh,
-  unregisterWorkspaceMembershipRefresh,
-} from '../../../entry/workspace-membership-refresh-registry.js';
 
 const GIT_REQUEST_ID = 'git_req_1';
 const SESSION_ID = 'session-test' as SessionId;
@@ -282,59 +278,6 @@ describe('workspace-git v2 subscribers', () => {
 
     expect(events.filter((event) => event.type === 'git.request')).toHaveLength(1);
     await handle.stop();
-  });
-
-  it('claimed daemon.workspaceListChanged nudges the git workspace refresh', async () => {
-    const refreshWorkspaceRooms = vi.fn().mockResolvedValue(undefined);
-    registerWorkspaceMembershipRefresh(refreshWorkspaceRooms);
-    const entries: {
-      args: unknown;
-      cb: (r: unknown) => void;
-    }[] = [];
-    let currentWorkspaces = [workspaceView('/a')];
-    const query = vi.fn(async () => currentWorkspaces);
-    const mutation = vi.fn().mockResolvedValue(null);
-    const onUpdate = vi.fn((_q: unknown, args: unknown, cb: (r: unknown) => void) => {
-      entries.push({ args, cb });
-      return vi.fn();
-    });
-    const wsClient = { onUpdate, query, mutation } as unknown as ConvexClient;
-
-    const registry = startAllSubscribers({
-      wsClient,
-      sessionId: SESSION_ID,
-      machineId: MACHINE_ID,
-      router: {
-        command: {},
-        workspaceGit: { deliverInbound: async () => {} },
-        file: {},
-        agenticQuery: {},
-        enhancer: {},
-      },
-    });
-    await new Promise((r) => setTimeout(r, 0));
-    const gitCalls = () => entries.filter((e) => gitWatchArgs([null, e.args]));
-    expect(gitCalls()).toHaveLength(1);
-
-    currentWorkspaces = [workspaceView('/a'), workspaceView('/b')];
-    const watchNext = entries.find((e) => !gitWatchArgs([null, e.args]))!;
-    mutation.mockResolvedValueOnce({
-      commandId: 'cmd-ws',
-      machineId: MACHINE_ID,
-      type: 'daemon.workspaceListChanged',
-      deadline: Date.now() + 60_000,
-      timestamp: Date.now(),
-    });
-    watchNext.cb({ commandId: 'cmd-ws' });
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(gitCalls()).toHaveLength(2);
-    expect(gitCalls()[1].args).toMatchObject({ workingDir: '/b' });
-    expect(refreshWorkspaceRooms).toHaveBeenCalledOnce();
-    expect(mutation).toHaveBeenCalled();
-    await registry.stopAll();
-    unregisterWorkspaceMembershipRefresh();
   });
 
   it('default router deps provide deliverInbound hook', () => {

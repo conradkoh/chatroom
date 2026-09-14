@@ -55,14 +55,18 @@ describe('machine command inbox subscriber', () => {
       claimedCommand: CLAIMED,
     });
   });
-  it('serializes drain while onClaimed is in flight', async () => {
+  it('serializes commands per workspace while running different workspaces in parallel', async () => {
     const mock = createInboxMockWsClient();
     const seen: string[] = [];
     let release!: () => void;
     const gate = new Promise<void>((r) => {
       release = r;
     });
-    mock.queueClaims({ ...CLAIMED, commandId: 'a' }, { ...CLAIMED, commandId: 'b' });
+    mock.queueClaims(
+      { ...CLAIMED, commandId: 'a', type: 'agent.requestStart', workingDir: '/workspace/a' },
+      { ...CLAIMED, commandId: 'b', type: 'agent.requestStart', workingDir: '/workspace/a' },
+      { ...CLAIMED, commandId: 'c', type: 'agent.requestStart', workingDir: '/workspace/b' }
+    );
     const handle = startMachineCommandInboxSubscriber(
       { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       async (c) => {
@@ -74,10 +78,10 @@ describe('machine command inbox subscriber', () => {
     mock.emitWatch({ commandId: 'a' });
     mock.emitWatch({ commandId: 'b' });
     await new Promise((r) => setTimeout(r, 0));
-    expect(seen).toEqual(['a']);
+    expect(seen).toEqual(['a', 'c']);
     release();
     await new Promise((r) => setTimeout(r, 0));
-    expect(seen).toEqual(['a', 'b']);
+    expect(seen).toEqual(['a', 'c', 'b']);
     await handle.stop();
   });
 });

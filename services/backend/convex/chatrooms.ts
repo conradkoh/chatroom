@@ -21,8 +21,6 @@ import {
   upsertActiveTeamStructure,
 } from '../src/domain/usecase/team/active-team-structure';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
-import { enqueueWorkspaceListChangedForChatroom } from '../src/domain/usecase/workspace/enqueue-workspace-list-changed';
-import { scheduleObservationExpiryNudge } from '../src/domain/usecase/workspace/schedule-observation-expiry-nudge';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -650,11 +648,6 @@ export const recordChatroomObservation = mutation({
         patch.lastRefreshedAt = now;
       }
       await ctx.db.patch('chatroom_observation', existing._id, patch);
-      await scheduleObservationExpiryNudge(ctx, {
-        chatroomId: args.chatroomId,
-        lastObservedAt: now,
-      });
-      if (isRefresh) await enqueueWorkspaceListChangedForChatroom(ctx, args.chatroomId);
     } else {
       // Create new observation record
       await ctx.db.insert('chatroom_observation', {
@@ -662,11 +655,6 @@ export const recordChatroomObservation = mutation({
         lastObservedAt: now,
         ...(args.refresh ? { lastRefreshedAt: now } : {}),
       });
-      await scheduleObservationExpiryNudge(ctx, {
-        chatroomId: args.chatroomId,
-        lastObservedAt: now,
-      });
-      await enqueueWorkspaceListChangedForChatroom(ctx, args.chatroomId);
     }
   },
 });

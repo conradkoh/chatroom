@@ -93,7 +93,7 @@ describe('CommandQueuePanel', () => {
         reason: 'user.start',
         wantResume: false,
       }),
-      makeCommand('cmd-2', { type: 'daemon.workspaceListChanged' }, 'processing'),
+      makeCommand('cmd-2', { type: 'daemon.ping' }, 'processing'),
     ];
     mocks.deleteCommand.mockClear();
     mocks.deleteAll.mockClear();
@@ -107,7 +107,7 @@ describe('CommandQueuePanel', () => {
 
     expect(screen.getByTestId('queue-dialog')).toBeInTheDocument();
     expect(screen.getByText('Start planner')).toBeInTheDocument();
-    expect(screen.getByText('Refresh workspaces')).toBeInTheDocument();
+    expect(screen.getByText('Daemon ping')).toBeInTheDocument();
     expect(screen.getByText('Processing')).toBeInTheDocument();
   });
 
