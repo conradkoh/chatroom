@@ -14,14 +14,23 @@ export type SubscriberHandle = { stop(): Promise<void> };
 
 const MACHINE_COMMAND_KEY = '__machine__';
 
-/** Commands with a working directory are serialized within that workspace. */
+/** Agent lifecycle commands serialize per chatroom/role/workspace, not workspace-wide. */
+// fallow-ignore-next-line complexity
 function getMachineCommandConcurrencyKey(command: ClaimedMachineCommand): string {
-  return 'workingDir' in command && typeof command.workingDir === 'string'
-    ? `workspace:${command.workingDir}`
-    : MACHINE_COMMAND_KEY;
+  if (
+    'chatroomId' in command &&
+    typeof command.chatroomId === 'string' &&
+    'role' in command &&
+    typeof command.role === 'string' &&
+    'workingDir' in command &&
+    typeof command.workingDir === 'string'
+  ) {
+    return `agent:${command.chatroomId}:${command.role.toLowerCase()}:${command.workingDir}`;
+  }
+  return MACHINE_COMMAND_KEY;
 }
 
-/** Watches for lightweight nudges and dispatches claimed commands by workspace. */
+/** Watches for lightweight nudges and dispatches claimed commands by agent. */
 export function startMachineCommandInboxSubscriber(
   deps: ConvexSubscriberDeps,
   onClaimed: (claimed: ClaimedMachineCommand) => Promise<void>
@@ -76,6 +85,7 @@ export function startMachineCommandInboxSubscriber(
   };
 
   const args = { sessionId: deps.sessionId, machineId: deps.machineId };
+  // fallow-ignore-next-line complexity
   const drain = async () => {
     if (stopped || draining) {
       queued = true;

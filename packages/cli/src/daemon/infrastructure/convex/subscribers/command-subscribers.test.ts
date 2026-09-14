@@ -55,7 +55,7 @@ describe('machine command inbox subscriber', () => {
       claimedCommand: CLAIMED,
     });
   });
-  it('serializes commands per workspace while running different workspaces in parallel', async () => {
+  it('serializes the same agent while running different roles in the same workspace in parallel', async () => {
     const mock = createInboxMockWsClient();
     const seen: string[] = [];
     let release!: () => void;
@@ -63,9 +63,30 @@ describe('machine command inbox subscriber', () => {
       release = r;
     });
     mock.queueClaims(
-      { ...CLAIMED, commandId: 'a', type: 'agent.stop', workingDir: '/workspace/a' },
-      { ...CLAIMED, commandId: 'b', type: 'agent.restart', workingDir: '/workspace/a' },
-      { ...CLAIMED, commandId: 'c', type: 'agent.stop', workingDir: '/workspace/b' }
+      {
+        ...CLAIMED,
+        commandId: 'a',
+        type: 'agent.requestStart',
+        chatroomId: 'room-1',
+        role: 'planner',
+        workingDir: '/workspace/a',
+      },
+      {
+        ...CLAIMED,
+        commandId: 'b',
+        type: 'agent.restart',
+        chatroomId: 'room-1',
+        role: 'builder',
+        workingDir: '/workspace/a',
+      },
+      {
+        ...CLAIMED,
+        commandId: 'c',
+        type: 'agent.requestStart',
+        chatroomId: 'room-1',
+        role: 'planner',
+        workingDir: '/workspace/a',
+      }
     );
     const handle = startMachineCommandInboxSubscriber(
       { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
@@ -78,10 +99,10 @@ describe('machine command inbox subscriber', () => {
     mock.emitWatch({ commandId: 'a' });
     mock.emitWatch({ commandId: 'b' });
     await new Promise((r) => setTimeout(r, 0));
-    expect(seen).toEqual(['a', 'c']);
+    expect(seen).toEqual(['a', 'b']);
     release();
     await new Promise((r) => setTimeout(r, 0));
-    expect(seen).toEqual(['a', 'c', 'b']);
+    expect(seen).toEqual(['a', 'b', 'c']);
     await handle.stop();
   });
 });
