@@ -51,13 +51,17 @@ describe.sequential('daemon.machineCommandInbox', () => {
   test('lists pending and processing commands', async () => {
     const sessionId = await owner();
     await put();
-    const processingId = await put();
-    await t.mutation(api.daemon.machineCommandInbox.claimNext, { sessionId, machineId });
+    await put();
+    const claimed = await t.mutation(api.daemon.machineCommandInbox.claimNext, {
+      sessionId,
+      machineId,
+    });
 
     const rows = await t.query(api.daemon.machineCommandInbox.list, { sessionId, machineId });
     expect(rows).toHaveLength(2);
-    expect(rows.map((row) => row._id)).toContain(processingId);
-    expect(rows.map((row) => row.status)).toEqual(['pending', 'processing']);
+    expect(claimed).not.toBeNull();
+    expect(rows.find((row) => row._id === claimed!.commandId)?.status).toBe('processing');
+    expect(rows.map((row) => row.status).sort()).toEqual(['pending', 'processing']);
   });
   test('claim flattens payload', async () => {
     const sessionId = await owner();
