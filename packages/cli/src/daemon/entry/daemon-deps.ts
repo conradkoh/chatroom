@@ -23,7 +23,12 @@ import type { AgentProcessManager } from '../services/service-interfaces.js';
  */
 export interface MachineStateOps {
   /** Clear an agent's PID from local state */
-  clearAgentPid: (machineId: string, chatroomId: string, role: string) => Promise<void>;
+  clearAgentPid: (
+    machineId: string,
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ) => Promise<void>;
   /** Persist a spawned agent's PID for restart recovery */
   persistAgentPid: (
     machineId: string,

@@ -17,8 +17,8 @@ export type StartAgentFromCurrentConfigResult =
 
 /**
  * Start a permanent role from the last configuration recorded for the
- * chatroom's active workspace. The caller never supplies workspace or machine
- * identity; those are resolved from backend state.
+ * chatroom's active workspace. The caller may identify the workspace, while
+ * machine identity and launch settings are always resolved from backend state.
  */
 export async function startAgentFromCurrentWorkspaceConfig(
   ctx: MutationCtx,

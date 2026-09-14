@@ -74,6 +74,7 @@ export interface StopOpts {
 export interface HandleExitOpts {
   readonly chatroomId: string;
   readonly role: string;
+  readonly workingDir?: string | undefined;
   readonly pid: number;
   readonly code: number | null;
   readonly signal: string | null;

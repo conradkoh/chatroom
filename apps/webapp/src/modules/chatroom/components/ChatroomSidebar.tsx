@@ -23,7 +23,7 @@ import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
-import { useAgentStop } from '../hooks/useAgentStop';
+import { useChatroomAgentOperations } from '../hooks/useChatroomAgentOperations';
 import { useChatroomStatus, useChatroomStatusMap } from '../hooks/useChatroomStatus';
 import {
   getChatroomActivityIndicatorClasses,
@@ -64,7 +64,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [isSubmittingStop, setIsSubmittingStop] = useState(false);
-  const { requestChatroomStop, requestChatroomStart, requestChatroomRestart } = useAgentStop();
+  const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
@@ -79,7 +79,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const confirmStop = useCallback(async () => {
     setIsSubmittingStop(true);
     const [agentStop, commandStop] = await Promise.allSettled([
-      requestChatroomStop(chatroom._id as Id<'chatroom_rooms'>),
+      stopAgents(chatroom._id as Id<'chatroom_rooms'>),
       stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
     ]);
     // Independent branches: one failure must not skip the other.
@@ -90,7 +90,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     if (failures.length > 0) toast.error(failures.join('; '));
     setIsSubmittingStop(false);
     setStopConfirmOpen(false);
-  }, [chatroom._id, requestChatroomStop, stopAllCommandRuns]);
+  }, [chatroom._id, stopAgents, stopAllCommandRuns]);
 
   const [isStarting, setIsStarting] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
@@ -100,7 +100,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
       e.preventDefault();
       setIsStarting(true);
       try {
-        const result = await requestChatroomStart(chatroom._id as Id<'chatroom_rooms'>);
+        const result = await startAgents(chatroom._id as Id<'chatroom_rooms'>);
         if (result.failed.length > 0) {
           toast.error(`Failed to start ${result.failed.length} agent(s)`);
         } else if (result.requested.length > 0) {
@@ -114,7 +114,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         setIsStarting(false);
       }
     },
-    [chatroom._id, requestChatroomStart]
+    [chatroom._id, startAgents]
   );
 
   const handleRestart = useCallback(
@@ -123,7 +123,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
       e.preventDefault();
       setIsRestarting(true);
       try {
-        const result = await requestChatroomRestart(chatroom._id as Id<'chatroom_rooms'>);
+        const result = await restartAgents(chatroom._id as Id<'chatroom_rooms'>);
         if (result.failed.length > 0)
           toast.error(`Failed to restart ${result.failed.length} agent(s)`);
         else if (result.requested.length > 0)
@@ -135,7 +135,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         setIsRestarting(false);
       }
     },
-    [chatroom._id, requestChatroomRestart]
+    [chatroom._id, restartAgents]
   );
 
   const handleArchive = useCallback(() => {

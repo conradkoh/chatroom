@@ -46,6 +46,22 @@ export function isAgentSlotActive(slot: AgentSlotSnapshot): boolean {
   return isAgentSlotStarted(slot) || isAgentSlotStartInFlight(slot);
 }
 
-export function agentKey(chatroomId: string, role: string): string {
-  return `${chatroomId}:${role.toLowerCase()}`;
+const AGENT_KEY_SEPARATOR = '\u0000';
+
+/** Stable identity for one role in one chatroom workspace. */
+export function agentKey(chatroomId: string, role: string, workingDir?: string): string {
+  return [chatroomId, role.toLowerCase(), workingDir ?? ''].join(AGENT_KEY_SEPARATOR);
+}
+
+export function parseAgentKey(key: string): {
+  chatroomId: string;
+  role: string;
+  workingDir?: string;
+} {
+  const [chatroomId, role, workingDir] = key.split(AGENT_KEY_SEPARATOR);
+  return {
+    chatroomId,
+    role,
+    ...(workingDir ? { workingDir } : {}),
+  };
 }

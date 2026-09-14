@@ -98,11 +98,21 @@ export async function requestChatroomWorkspaceAgentStop(
 
 export async function requestWorkspaceAgentStop(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; machineId: string; role: string }
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    machineId: string;
+    role: string;
+    workingDir?: string | undefined;
+  }
 ): Promise<{ commandIds: Id<'chatroom_machineCommandInbox'>[] }> {
   const commandId = await enqueueMachineCommand(ctx, {
     machineId: args.machineId,
-    command: { type: 'agent.stop', chatroomId: args.chatroomId, role: args.role },
+    command: {
+      type: 'agent.stop',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      ...(args.workingDir ? { workingDir: args.workingDir } : {}),
+    },
   });
   return { commandIds: [commandId] };
 }

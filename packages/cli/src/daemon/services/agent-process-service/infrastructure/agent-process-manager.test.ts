@@ -216,6 +216,31 @@ describe('AgentProcessManager', () => {
   // ── ensureRunning ─────────────────────────────────────────────────────
 
   describe('ensureRunning', () => {
+    test('keeps the same role independent across workspaces', async () => {
+      await manager.ensureRunning(createOpts({ workingDir: '/workspace/one' }));
+      await manager.ensureRunning(createOpts({ workingDir: '/workspace/two' }));
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE, '/workspace/one')).toMatchObject({
+        state: 'running',
+        workingDir: '/workspace/one',
+      });
+      expect(manager.getSlot(CHATROOM_ID, ROLE, '/workspace/two')).toMatchObject({
+        state: 'running',
+        workingDir: '/workspace/two',
+      });
+      expect(manager.listActive()).toHaveLength(2);
+
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+        workingDir: '/workspace/one',
+      });
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE, '/workspace/one')?.state).toBe('idle');
+      expect(manager.getSlot(CHATROOM_ID, ROLE, '/workspace/two')?.state).toBe('running');
+    });
+
     test('idle → spawning → running: spawns process and transitions correctly', async () => {
       const result = await manager.ensureRunning(createOpts());
 
@@ -563,7 +588,8 @@ describe('AgentProcessManager', () => {
       expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
         'test-machine',
         CHATROOM_ID,
-        ROLE
+        ROLE,
+        '/tmp/test'
       );
       expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -769,7 +795,8 @@ describe('AgentProcessManager', () => {
       expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
         'test-machine',
         CHATROOM_ID,
-        ROLE
+        ROLE,
+        '/tmp/test'
       );
     });
 
@@ -956,7 +983,8 @@ describe('AgentProcessManager', () => {
       expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
         'test-machine',
         CHATROOM_ID,
-        ROLE
+        ROLE,
+        '/tmp/test'
       );
       expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({

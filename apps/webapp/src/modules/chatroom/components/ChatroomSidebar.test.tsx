@@ -30,12 +30,11 @@ const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockPush = vi.fn();
 
-vi.mock('../hooks/useAgentStop', () => ({
-  useAgentStop: () => ({
-    requestAgentStop: vi.fn(),
-    requestChatroomStop: mockRequestChatroomStop,
-    requestChatroomStart: mockRequestChatroomStart,
-    requestChatroomRestart: mockRequestChatroomRestart,
+vi.mock('../hooks/useChatroomAgentOperations', () => ({
+  useChatroomAgentOperations: () => ({
+    startAgents: mockRequestChatroomStart,
+    stopAgents: mockRequestChatroomStop,
+    restartAgents: mockRequestChatroomRestart,
   }),
 }));
 

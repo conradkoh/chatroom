@@ -62,7 +62,12 @@ export const AgentLifecycleOutboxServiceLive = (
 
 /** Effect service wrapping MachineStateOps (PID persistence, event cursor). */
 export interface DaemonMachineServiceShape {
-  clearAgentPid: (machineId: string, chatroomId: string, role: string) => Effect.Effect<void>;
+  clearAgentPid: (
+    machineId: string,
+    chatroomId: string,
+    role: string,
+    workingDir?: string
+  ) => Effect.Effect<void>;
   persistAgentPid: (
     machineId: string,
     chatroomId: string,
@@ -90,8 +95,12 @@ export class DaemonMachineService extends Context.Tag('DaemonMachineService')<
 
 export const DaemonMachineServiceLive = (ops: MachineStateOps): Layer.Layer<DaemonMachineService> =>
   Layer.succeed(DaemonMachineService, {
-    clearAgentPid: (machineId, chatroomId, role) =>
-      Effect.promise(() => ops.clearAgentPid(machineId, chatroomId, role)),
+    clearAgentPid: (machineId, chatroomId, role, workingDir) =>
+      Effect.promise(() =>
+        workingDir === undefined
+          ? ops.clearAgentPid(machineId, chatroomId, role)
+          : ops.clearAgentPid(machineId, chatroomId, role, workingDir)
+      ),
     persistAgentPid: (machineId, chatroomId, role, pid, harness, workingDir) =>
       Effect.promise(() =>
         ops.persistAgentPid(machineId, chatroomId, role, pid, harness, workingDir)
@@ -138,7 +147,7 @@ export interface DaemonAgentProcessManagerServiceShape {
   clearStuckStoppingSlot: (
     chatroomId: string,
     role: string,
-    options?: { clearStopIntent?: boolean }
+    options?: { clearStopIntent?: boolean; workingDir?: string | undefined }
   ) => Effect.Effect<boolean>;
   /** Waits until any in-progress agent turn ends and the manager becomes idle. */
   whenTurnEndsIdle: () => Effect.Effect<void>;
@@ -146,6 +155,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     chatroomId: string;
     role: string;
     prompt: string;
+    workingDir?: string | undefined;
   }) => Effect.Effect<void>;
   subscribeAgentTurnEnded: (handler: AgentTurnEndedHandler) => () => void;
   subscribeAgentStarted: (handler: AgentStartedHandler) => () => void;

@@ -74,10 +74,15 @@ export interface AgentProcessManagerExecutionPort {
   clearStuckStoppingSlot(
     chatroomId: string,
     role: string,
-    options?: { clearStopIntent?: boolean }
+    options?: { clearStopIntent?: boolean; workingDir?: string | undefined }
   ): Promise<boolean>;
   whenTurnEndsIdle(): Promise<void>;
-  resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
+  resumeTurnForSlot(args: {
+    chatroomId: string;
+    role: string;
+    prompt: string;
+    workingDir?: string | undefined;
+  }): Promise<void>;
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
   subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
@@ -125,10 +130,15 @@ export interface AgentProcessManagerService {
   clearStuckStoppingSlot(
     chatroomId: string,
     role: string,
-    options?: { clearStopIntent?: boolean }
+    options?: { clearStopIntent?: boolean; workingDir?: string | undefined }
   ): Promise<boolean>;
   whenTurnEndsIdle(): Promise<void>;
-  resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
+  resumeTurnForSlot(args: {
+    chatroomId: string;
+    role: string;
+    prompt: string;
+    workingDir?: string | undefined;
+  }): Promise<void>;
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
   subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
@@ -357,7 +367,10 @@ export function createAgentProcessManagerService(
       await deps.commandBus.stop();
     },
     handleExit: (input) => deps.execution.handleExit(input),
-    getSlot: (chatroomId, role) => deps.execution.getSlot(chatroomId, role),
+    getSlot: (chatroomId, role, workingDir) =>
+      workingDir === undefined
+        ? deps.execution.getSlot(chatroomId, role)
+        : deps.execution.getSlot(chatroomId, role, workingDir),
     listActive: () => deps.execution.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>
       deps.execution.clearStuckStoppingSlot(chatroomId, role, options),

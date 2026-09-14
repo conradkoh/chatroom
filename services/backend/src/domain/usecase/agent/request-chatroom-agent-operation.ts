@@ -4,6 +4,7 @@ import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request'
 import { requestAgentRestart } from './request-agent-restart';
 import { requestChatroomWorkspaceAgentStop } from './request-chatroom-workspace-agent-stop';
 import { startAgentFromCurrentWorkspaceConfig } from './start-agent-from-current-config';
+import { normalizeWorkingDir } from './workspace-match';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getTeamStructure } from '../../entities/team-presets';
@@ -110,6 +111,16 @@ export async function requestChatroomAgentOperation(
             result.skipped.push({
               ...context,
               reason: 'Saved machine is not available to the requester',
+            });
+            return;
+          }
+          if (
+            machine.machineId !== workspace.machineId ||
+            normalizeWorkingDir(launch.workingDir) !== normalizeWorkingDir(workspace.workingDir)
+          ) {
+            result.skipped.push({
+              ...context,
+              reason: 'Saved launch configuration is not for this workspace',
             });
             return;
           }

@@ -77,7 +77,7 @@ import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
-import { useAgentStop } from './hooks/useAgentStop';
+import { useChatroomAgentOperations } from './hooks/useChatroomAgentOperations';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useChatroomStatus } from './hooks/useChatroomStatus';
 import { useCommandRunner } from './hooks/useCommandRunner';
@@ -1085,7 +1085,7 @@ function ChatroomDashboardContent({
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData();
-  const { requestChatroomStop, requestChatroomStart, requestChatroomRestart } = useAgentStop();
+  const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
   const [isRequestingStop, setIsRequestingStop] = useState(false);
   const isStoppingAgents = isRequestingStop;
   const lifecycle = agentPanelData.lifecycle;
@@ -1384,7 +1384,7 @@ function ChatroomDashboardContent({
   const handleStartAllRemoteAgents = useCallback(async () => {
     setIsStartingAllAgents(true);
     try {
-      const result = await requestChatroomStart(chatroomId as Id<'chatroom_rooms'>);
+      const result = await startAgents(chatroomId as Id<'chatroom_rooms'>);
       if (result.failed.length > 0) {
         toast.error(`Failed to start ${result.failed.length} agent(s)`);
       } else if (result.requested.length > 0) {
@@ -1395,19 +1395,19 @@ function ChatroomDashboardContent({
     } finally {
       setIsStartingAllAgents(false);
     }
-  }, [chatroomId, requestChatroomStart]);
+  }, [chatroomId, startAgents]);
 
   // Stop all remote agents immediately from the quick-action button.
   const handleStopAllRemoteAgents = useCallback(async () => {
     setIsRequestingStop(true);
     try {
-      await requestChatroomStop(chatroomId as Id<'chatroom_rooms'>);
+      await stopAgents(chatroomId as Id<'chatroom_rooms'>);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to stop agents');
     } finally {
       setIsRequestingStop(false);
     }
-  }, [chatroomId, requestChatroomStop]);
+  }, [chatroomId, stopAgents]);
 
   // Restart all remote agents through the atomic backend restart path.
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
@@ -1415,7 +1415,7 @@ function ChatroomDashboardContent({
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
     setIsRestartingAllAgents(true);
     try {
-      const result = await requestChatroomRestart(chatroomIdTyped);
+      const result = await restartAgents(chatroomIdTyped);
       if (result.failed.length > 0) {
         toast.error(`Failed to restart ${result.failed.length} agent(s)`);
       } else if (result.requested.length > 0) {
@@ -1428,7 +1428,7 @@ function ChatroomDashboardContent({
     } finally {
       // Stay latched until status returns to running; the daemon mutation is async.
     }
-  }, [chatroomId, requestChatroomRestart]);
+  }, [chatroomId, restartAgents]);
 
   // Per-role restart
   const restartableAgentRoles = useMemo(

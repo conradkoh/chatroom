@@ -17,7 +17,7 @@
  *   "machineId": "uuid",
  *   "updatedAt": "ISO string",
  *   "agents": {
- *     "<chatroomId>/<role>": {
+ *     "<chatroomId>/<role>/<encoded-workingDir>": {
  *       "pid": 12345,
  *       "harness": "opencode",
  *       "startedAt": "ISO string"
@@ -64,7 +64,7 @@ export interface DaemonStateFile {
   machineId: string;
   /** Last time this file was written (ISO string) */
   updatedAt: string;
-  /** Spawned agents keyed by "<chatroomId>/<role>" */
+  /** Spawned agents keyed by a legacy role key or a workspace-qualified key. */
   agents: Record<string, DaemonAgentEntry>;
   /**
    * Last processed event stream event ID (string form of Convex `_id`).
@@ -78,8 +78,10 @@ export interface DaemonStateFile {
 // ---------------------------------------------------------------------------
 
 /** Build the composite key used in the agents map */
-function agentKey(chatroomId: string, role: string): string {
-  return `${chatroomId}/${role}`;
+function agentKey(chatroomId: string, role: string, workingDir?: string): string {
+  return workingDir
+    ? `${chatroomId}/${role}/${encodeURIComponent(workingDir)}`
+    : `${chatroomId}/${role}`;
 }
 
 /** Ensure the state directory tree exists */
@@ -165,7 +167,7 @@ export async function persistAgentPid(
 ): Promise<void> {
   const state = await loadOrCreate(machineId);
 
-  state.agents[agentKey(chatroomId, role)] = {
+  state.agents[agentKey(chatroomId, role, workingDir)] = {
     pid,
     harness,
     startedAt: new Date().toISOString(),
@@ -184,15 +186,23 @@ export async function persistAgentPid(
 export async function clearAgentPid(
   machineId: string,
   chatroomId: string,
-  role: string
+  role: string,
+  workingDir?: string
 ): Promise<void> {
   const state = await loadDaemonState(machineId);
   if (!state) return;
 
-  const key = agentKey(chatroomId, role);
-  if (!(key in state.agents)) return;
+  const key = agentKey(chatroomId, role, workingDir);
+  if (!(key in state.agents)) {
+    if (workingDir === undefined) return;
+    const legacyKey = agentKey(chatroomId, role);
+    const legacy = state.agents[legacyKey];
+    if (!legacy || legacy.workingDir !== workingDir) return;
+    delete state.agents[legacyKey];
+  } else {
+    delete state.agents[key];
+  }
 
-  delete state.agents[key];
   state.updatedAt = new Date().toISOString();
 
   await saveDaemonState(state);
@@ -213,12 +223,24 @@ export async function listAgentEntries(
   const results: { chatroomId: string; role: string; entry: DaemonAgentEntry }[] = [];
 
   for (const [key, entry] of Object.entries(state.agents)) {
-    const separatorIndex = key.lastIndexOf('/');
-    if (separatorIndex === -1) continue; // Malformed key — skip
+    const parts = key.split('/');
+    if (parts.length < 2) continue; // Malformed key — skip
 
-    const chatroomId = key.substring(0, separatorIndex);
-    const role = key.substring(separatorIndex + 1);
-    results.push({ chatroomId, role, entry });
+    const chatroomId = parts[0];
+    const role = parts[1];
+    if (parts.length === 2) {
+      results.push({ chatroomId, role, entry });
+      continue;
+    }
+    try {
+      results.push({
+        chatroomId,
+        role,
+        entry: { ...entry, workingDir: decodeURIComponent(parts.slice(2).join('/')) },
+      });
+    } catch {
+      // Malformed workspace key — skip rather than treating it as legacy state.
+    }
   }
 
   return results;

@@ -594,6 +594,7 @@ export function useAgentControls({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         machineId: displayAgentConfig.machineId,
         role,
+        workingDir: displayAgentConfig.workingDir,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop agent');
