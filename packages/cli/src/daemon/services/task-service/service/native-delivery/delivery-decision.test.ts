@@ -29,6 +29,7 @@ function context(
     slot: { state: 'running', pid: 42, harnessSessionId: 'session-1', nativeTurnPhase: 'idle' },
     activeTaskId: undefined,
     deliveryInFlight: false,
+    agentConfig: { agentHarness: 'codex-sdk', model: 'model-1', workingDir: '/workspace' },
     agentLifecycleInFlight: false,
     isNativeHarness: (harness) => harness.endsWith('-sdk'),
     taskRequestsNativeColdSession: (row) => row.requestsNativeColdSession === true,
@@ -67,7 +68,7 @@ describe('decideNextDelivery', () => {
   });
 
   test('waits for a spawning or stopping slot', () => {
-    const explain = vi.fn(() => 'slot_not_running (slotState=spawning)');
+    const explain = vi.fn(() => 'slot_not_running' as const);
     expect(
       decideNextDelivery(
         [task()],
@@ -77,7 +78,7 @@ describe('decideNextDelivery', () => {
   });
 
   test('waits for the agent to become idle before delivering', () => {
-    const explain = vi.fn(() => 'turn_not_idle (nativeTurnPhase=turn_in_flight)');
+    const explain = vi.fn(() => 'turn_not_idle' as const);
     expect(
       decideNextDelivery(
         [task()],
@@ -131,7 +132,6 @@ describe('decideNextDelivery', () => {
     'slot_missing',
     'slot_not_running',
     'slot_pid_missing',
-    'working_dir_missing',
   ] as const)('preserves stable blocked reason %s', (reason) => {
     expect(
       decideNextDelivery([task()], context({ explainNativeDeliveryBlock: vi.fn(() => reason) }))

@@ -4,7 +4,7 @@ import {
   explainColdSessionDeliveryBlock,
   isNativeColdSessionDeliveryOwnedSpawn,
 } from './native-cold-session-delivery.js';
-import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
+import type { DeliveryBlockReason } from './native-delivery-reason.js';
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../../domain/usecase/check-agent-slot.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
@@ -20,17 +20,15 @@ export function isAgentReadyForNativeDelivery(
   return explainAgentReadyForNativeDeliveryBlock(task, slot, agentConfig) === null;
 }
 
-/** Human-readable reason when agent/slot is not ready; null when ready. */
+/** Stable reason when agent/slot is not ready; null when ready. */
 // fallow-ignore-next-line complexity
 export function explainAgentReadyForNativeDeliveryBlock(
   task: AssignedTask,
   slot: AgentProcessSlotView | undefined,
   agentConfig: AgentConfigEntry | undefined
-): string | null {
+): DeliveryBlockReason | null {
   if (!agentConfig) return 'agent_config_missing';
-  if (!isNativeHarness(agentConfig.agentHarness)) {
-    return `not_native_harness (harness=${agentConfig.agentHarness})`;
-  }
+  if (!isNativeHarness(agentConfig.agentHarness)) return 'not_native_harness';
   // Explicit cold-session tasks: apply stop/circuit/transition guards first.
   // When the slot is down (missing/idle) and unblocked, delivery owns the
   // cold start and bypasses the running-slot gates below; a running slot
@@ -45,9 +43,7 @@ export function explainAgentReadyForNativeDeliveryBlock(
   if (!slot) {
     return 'slot_missing';
   }
-  if (!isSlotRunning(slot.state)) {
-    return `slot_not_running (slotState=${slot.state})`;
-  }
+  if (!isSlotRunning(slot.state)) return 'slot_not_running';
   if (slot.pid == null) {
     return 'slot_pid_missing';
   }
@@ -57,9 +53,7 @@ export function explainAgentReadyForNativeDeliveryBlock(
     return 'harness_session_missing';
   }
   const turnPhase = slot.nativeTurnPhase ?? 'idle';
-  if (!isTurnPhaseIdle(turnPhase)) {
-    return `turn_not_idle (nativeTurnPhase=${turnPhase})`;
-  }
+  if (!isTurnPhaseIdle(turnPhase)) return 'turn_not_idle';
   return null;
 }
 

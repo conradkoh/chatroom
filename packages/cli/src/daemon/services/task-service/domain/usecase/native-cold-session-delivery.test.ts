@@ -60,10 +60,10 @@ describe('native-cold-session-delivery', () => {
   });
 
   it('blocks cold delivery while spawning or stopping', () => {
-    expect(explainColdSessionDeliveryBlock(coldTask, { state: 'spawning' } as never)).toContain(
+    expect(explainColdSessionDeliveryBlock(coldTask, { state: 'spawning' } as never)).toBe(
       'slot_spawning'
     );
-    expect(explainColdSessionDeliveryBlock(coldTask, { state: 'stopping' } as never)).toContain(
+    expect(explainColdSessionDeliveryBlock(coldTask, { state: 'stopping' } as never)).toBe(
       'slot_stopping'
     );
   });

@@ -58,7 +58,7 @@ describe('native-ready-invariant', () => {
         }),
         idleSlot({ pid: 42, nativeTurnPhase: 'turn_in_flight' })
       )
-    ).toBe('turn_not_idle (nativeTurnPhase=turn_in_flight)');
+    ).toBe('turn_not_idle');
   });
 
   it('allows a healthy local slot without backend process metadata', () => {
@@ -90,6 +90,6 @@ describe('native-ready-invariant', () => {
         }),
         idleSlot({ pid: 99, state: 'spawning' })
       )
-    ).toBe('slot_not_running (slotState=spawning)');
+    ).toBe('slot_not_running');
   });
 });

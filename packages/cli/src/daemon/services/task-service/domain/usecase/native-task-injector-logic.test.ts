@@ -150,7 +150,7 @@ describe('shouldDeliverNativeTask', () => {
       explainNativeDeliveryBlock(makeTask(), {
         slot: { ...runningSlot, nativeTurnPhase: 'turn_in_flight' },
       })
-    ).toContain('turn_not_idle');
+    ).toBe('turn_not_idle');
   });
 
   test('does not deliver when harness is injecting', () => {

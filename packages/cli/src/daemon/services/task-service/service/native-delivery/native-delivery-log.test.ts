@@ -28,14 +28,9 @@ describe('native-delivery-log', () => {
 
   test('logNativeDeliverySkip includes block reason', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliverySkip(
-      'builder',
-      'room_1',
-      'task_1',
-      'turn_not_idle (nativeTurnPhase=turn_in_flight)'
-    );
+    logNativeDeliverySkip('builder', 'room_1', 'task_1', 'turn_not_idle');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:skip] builder@room_1 task task_1 — turn_not_idle (nativeTurnPhase=turn_in_flight)'
+      '[NativeDelivery:skip] builder@room_1 task task_1 — turn_not_idle'
     );
   });
 

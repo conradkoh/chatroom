@@ -9,19 +9,9 @@ import {
 } from '../../../../domain/usecase/check-agent-slot.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
+import type { DeliveryBlockReason } from '../../domain/usecase/native-delivery-reason.js';
 
-export type DeliveryBlockReason =
-  | 'not_native_harness'
-  | 'agent_config_missing'
-  | 'task_status_not_deliverable'
-  | 'acknowledged_wrong_role'
-  | 'chatroom_stop_scope_active'
-  | 'slot_missing'
-  | 'slot_not_running'
-  | 'slot_pid_missing'
-  | 'harness_session_missing'
-  | 'turn_not_idle'
-  | 'working_dir_missing';
+export type { DeliveryBlockReason } from '../../domain/usecase/native-delivery-reason.js';
 
 export type DeliveryWaitReason =
   | 'slot_spawning'
@@ -56,30 +46,14 @@ export type DeliveryDecisionContext = {
     task: AssignedTask,
     options: {
       slot: AgentProcessSlotView | undefined;
+      agentConfig: AgentConfigEntry | undefined;
     }
-  ) => string | null;
+  ) => DeliveryBlockReason | null;
 };
 
 function taskSort(a: AssignedTask, b: AssignedTask): number {
   const pendingOrder = Number(b.status === 'pending') - Number(a.status === 'pending');
   return pendingOrder || a.createdAt - b.createdAt;
-}
-
-function stableBlockReason(reason: string): DeliveryBlockReason {
-  const reasons: DeliveryBlockReason[] = [
-    'not_native_harness',
-    'agent_config_missing',
-    'task_status_not_deliverable',
-    'acknowledged_wrong_role',
-    'chatroom_stop_scope_active',
-    'slot_missing',
-    'slot_not_running',
-    'slot_pid_missing',
-    'harness_session_missing',
-    'turn_not_idle',
-    'working_dir_missing',
-  ];
-  return reasons.find((candidate) => reason.startsWith(candidate)) ?? 'working_dir_missing';
 }
 
 /**
@@ -115,7 +89,7 @@ export function decideNextDelivery(
 
   const agentConfig = context.agentConfig;
   if (!agentConfig) {
-    return { kind: 'blocked', taskId: task.taskId, reason: 'working_dir_missing' };
+    return { kind: 'blocked', taskId: task.taskId, reason: 'agent_config_missing' };
   }
   if (!context.isNativeHarness(agentConfig.agentHarness)) {
     return { kind: 'blocked', taskId: task.taskId, reason: 'not_native_harness' };
@@ -145,8 +119,7 @@ export function decideNextDelivery(
   }
 
   const coldSession = context.taskRequestsNativeColdSession(task);
-  const startAllowed =
-    blockReason.startsWith('slot_missing') || blockReason.startsWith('slot_not_running');
+  const startAllowed = blockReason === 'slot_missing' || blockReason === 'slot_not_running';
   if (
     startAllowed &&
     !coldSession &&
@@ -157,12 +130,12 @@ export function decideNextDelivery(
     return { kind: 'start-agent', taskId: task.taskId };
   }
 
-  if (blockReason.startsWith('harness_session_missing')) {
+  if (blockReason === 'harness_session_missing') {
     return { kind: 'wait', taskId: task.taskId, reason: 'session_not_ready' };
   }
-  if (blockReason.startsWith('turn_not_idle')) {
+  if (blockReason === 'turn_not_idle') {
     return { kind: 'wait', taskId: task.taskId, reason: 'turn_not_idle' };
   }
 
-  return { kind: 'blocked', taskId: task.taskId, reason: stableBlockReason(blockReason) };
+  return { kind: 'blocked', taskId: task.taskId, reason: blockReason };
 }

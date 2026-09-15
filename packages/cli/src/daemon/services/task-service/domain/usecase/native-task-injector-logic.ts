@@ -1,5 +1,6 @@
 import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
+import type { DeliveryBlockReason } from './native-delivery-reason.js';
 import {
   explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
@@ -27,21 +28,19 @@ export function shouldDeliverNativeTask(
   return explainNativeDeliveryBlock(task, opts) === null;
 }
 
-/** Human-readable reason when delivery is blocked; null when shouldDeliverNativeTask is true. */
+/** Stable reason when delivery is blocked; null when shouldDeliverNativeTask is true. */
 // fallow-ignore-next-line complexity
 export function explainNativeDeliveryBlock(
   task: AssignedTask,
   opts: NativeDeliveryReadinessOptions
-): string | null {
+): DeliveryBlockReason | null {
   if (!isDeliverableNativeTaskStatus(task.status)) {
-    return `task_status_not_deliverable (status=${task.status})`;
+    return 'task_status_not_deliverable';
   }
   if (task.status === 'acknowledged') {
     const assignedTo = task.assignedTo?.toLowerCase();
     const role = task.agentConfig.role.toLowerCase();
-    if (assignedTo !== role) {
-      return `acknowledged_wrong_role (assignedTo=${assignedTo ?? 'none'}, role=${role})`;
-    }
+    if (assignedTo !== role) return 'acknowledged_wrong_role';
   }
   return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.agentConfig);
 }
