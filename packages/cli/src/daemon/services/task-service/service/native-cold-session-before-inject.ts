@@ -60,7 +60,9 @@ export async function ensureColdSessionBeforeNativeInject(
   const { role } = taskAgentConfig;
 
   const slot = deps.agentMgr.getSlot(chatroomId, role);
-  const agentConfig = deps.configurationService.get(chatroomId, role);
+  const agentConfig =
+    deps.configurationService?.get(chatroomId, role) ??
+    (task.assignee?.type === 'ephemeral' ? task.assignee.ephemeral : undefined);
   if (!agentConfig?.model) return null;
   const { agentHarness, model, workingDir } = agentConfig;
   const slotState = slot?.state;
