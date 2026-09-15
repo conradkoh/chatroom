@@ -2,11 +2,7 @@ import type {
   AssignedTask,
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
-import type {
-  AgentKey,
-  SerializedAgentOperations,
-  AgentProcessSlotView,
-} from '../../../agent-process-contracts.js';
+import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 import type { WorkspaceTaskInboxEvent } from '../task-service.js';
 
 export interface NativeTaskDeliveryGateway {
@@ -85,12 +81,4 @@ export interface NativeTaskDeliveryAuditPort {
 export interface NativeTaskDeliveryAgentPort {
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
   getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
-}
-
-export interface NativeTaskDeliverySerializationPort {
-  runSerializedForAgent: <T>(
-    key: AgentKey,
-    options: { timeoutMs: number },
-    operation: (ops: SerializedAgentOperations, context: { signal: AbortSignal }) => Promise<T>
-  ) => Promise<T>;
 }
