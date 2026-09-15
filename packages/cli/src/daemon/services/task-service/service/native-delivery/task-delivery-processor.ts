@@ -17,6 +17,7 @@ import {
 } from './native-task-delivery-coordinator.js';
 import type { TaskDeliveryService } from './task-delivery-service.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
+import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
 import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import type {
   DaemonAgentProcessManagerService,
@@ -88,7 +89,21 @@ export async function processTasksUpdate(
         wantResume: false,
         taskId: task.taskId,
       };
-      if (acquireNativeDeliverySlot) return acquireNativeDeliverySlot(startInput);
+      // Task-borne ephemeral parameters override the resolved config; only
+      // harness/model are honored — other fields are intentionally ignored.
+      const ephemeralOverrides =
+        task.assignee?.type === TaskAssigneeType.Ephemeral
+          ? {
+              agentHarness: task.assignee.ephemeral.agentHarness,
+              model: task.assignee.ephemeral.model,
+            }
+          : undefined;
+      if (acquireNativeDeliverySlot) {
+        return acquireNativeDeliverySlot({
+          ...startInput,
+          ...(ephemeralOverrides ? { overrides: ephemeralOverrides } : {}),
+        });
+      }
       return runSerializedForAgent(
         { chatroomId: task.chatroomId, role: task.agentConfig.role },
         { timeoutMs: 120_000 },

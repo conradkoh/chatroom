@@ -9,6 +9,7 @@ import type {
   HandleAgentProcessExitInput,
   AgentProcessOperationResult,
   AcquireNativeDeliverySlotInput,
+  AgentConfigOverrides,
   StopAgentProcessInput,
 } from './ports/agent-process-lifecycle.js';
 import type {
@@ -95,7 +96,10 @@ export interface AgentProcessManagerExecutionPort {
 
 export interface AgentProcessManagerService {
   /** Enqueue a start operation for one chatroom/role agent. */
-  startAgent(input: EnsureAgentProcessInput): Promise<AgentOperationResult>;
+  startAgent(
+    input: EnsureAgentProcessInput,
+    overrides?: AgentConfigOverrides
+  ): Promise<AgentOperationResult>;
   /** Enqueue a stop operation for one chatroom/role agent. */
   stopAgent(input: StopAgentProcessInput): Promise<AgentOperationResult>;
   /** Enqueue a restart operation for one chatroom/role agent. */
@@ -190,7 +194,7 @@ function isNativeDeliveryReady(slot: DeliverySlotCandidate): boolean {
 // fallow-ignore-next-line complexity
 function hasDeliveryConfigMismatch(
   slot: DeliverySlotCandidate,
-  input: AcquireNativeDeliverySlotInput
+  input: EnsureAgentProcessInput
 ): boolean {
   return (
     (slot.harness !== undefined && slot.harness !== input.agentHarness) ||
@@ -214,6 +218,18 @@ function assertNotAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
     throw signal.reason ?? new Error('Native delivery slot acquisition cancelled');
   }
+}
+
+/** Applies caller-supplied harness/model overrides on top of the resolved config. */
+function applyAgentConfigOverrides(input: AcquireNativeDeliverySlotInput): EnsureAgentProcessInput {
+  const { overrides, timeoutMs: _timeoutMs, signal: _signal, ...processInput } = input;
+  if (!overrides) return processInput;
+  return {
+    ...processInput,
+    agentHarness: (overrides.agentHarness ??
+      processInput.agentHarness) as EnsureAgentProcessInput['agentHarness'],
+    ...(overrides.model === undefined ? {} : { model: overrides.model }),
+  };
 }
 
 function waitForSlotChange(
@@ -364,10 +380,15 @@ export function createAgentProcessManagerService(
     return completion;
   };
 
-  const startAgent = (input: EnsureAgentProcessInput): Promise<AgentOperationResult> => {
+  const startAgent = (
+    input: EnsureAgentProcessInput,
+    overrides?: AgentConfigOverrides
+  ): Promise<AgentOperationResult> => {
+    const effectiveInput =
+      overrides === undefined ? input : applyAgentConfigOverrides({ ...input, overrides });
     if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
-    return runExclusive(input, () =>
-      submit((operationId) => ({ operationId, type: 'start', input }))
+    return runExclusive(effectiveInput, () =>
+      submit((operationId) => ({ operationId, type: 'start', input: effectiveInput }))
     );
   };
 
@@ -375,18 +396,18 @@ export function createAgentProcessManagerService(
   const acquireNativeDeliverySlot = async (
     input: AcquireNativeDeliverySlotInput
   ): Promise<AgentProcessSlotView> => {
-    if (!getHarnessCapabilities(input.agentHarness).supportsNativeIntegration) {
+    assertNotAborted(input.signal);
+    const effectiveInput = applyAgentConfigOverrides(input);
+    if (!getHarnessCapabilities(effectiveInput.agentHarness).supportsNativeIntegration) {
       throw new Error('not_native_harness');
     }
-    assertNotAborted(input.signal);
-    const { timeoutMs: _timeoutMs, signal: _signal, ...processInput } = input;
     const deadline = Date.now() + (input.timeoutMs ?? NATIVE_DELIVERY_SLOT_WAIT_MS);
 
     while (true) {
       assertNotAborted(input.signal);
       const slot = deps.execution.getSlot(input.chatroomId, input.role, input.workingDir);
       if (slot) {
-        if (hasDeliveryConfigMismatch(slot, input)) {
+        if (hasDeliveryConfigMismatch(slot, effectiveInput)) {
           throw new Error('agent_config_mismatch');
         }
         if (isNativeDeliveryReady(slot)) return slot;
@@ -396,7 +417,7 @@ export function createAgentProcessManagerService(
       if (remainingMs <= 0) throw new Error('native_delivery_slot_timeout');
 
       if (needsStartRequest(slot)) {
-        await startAgent(processInput);
+        await startAgent(effectiveInput);
       }
       await waitForSlotChange(deps.execution, input, remainingMs);
     }
