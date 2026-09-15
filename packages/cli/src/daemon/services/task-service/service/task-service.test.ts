@@ -74,6 +74,33 @@ describe('TaskService.loadAssignedTaskForAction', () => {
 });
 
 describe('TaskService inbox consumption', () => {
+  test('rehydrates a pending task from the authoritative status feed', async () => {
+    const statusTask = {
+      taskId: 'task-rehydrated',
+      chatroomId: 'room-1',
+      status: 'pending',
+      assignedTo: 'builder',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    };
+    const query = vi.fn().mockResolvedValueOnce([statusTask]).mockResolvedValueOnce([]);
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      backend: { mutation: vi.fn(async () => ({ processed: true })), query },
+    });
+
+    await service.startTaskInbox();
+
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      { taskId: 'task-rehydrated', status: 'pending', updatedAt: 2_000 },
+    ]);
+    service.stopTaskInbox();
+  });
+
   test('keeps a permanent assignment visible when no agent slot exists yet', async () => {
     const event = {
       _id: 'event-permanent-1',

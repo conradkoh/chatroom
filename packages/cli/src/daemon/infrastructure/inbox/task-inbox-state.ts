@@ -67,7 +67,36 @@ export class TaskInboxState {
 
   upsert(tasks: readonly AssignedTask[]): void {
     for (const task of tasks) {
-      this.tasks.set(taskKey(task.taskId, task.agentConfig.role), task);
+      const key = taskKey(task.taskId, task.agentConfig.role);
+      const current = this.tasks.get(key);
+      if (current && isStaleStatusPatch(current, task.status, task.updatedAt)) continue;
+      this.tasks.set(key, task);
+    }
+  }
+
+  /** Reconciles authoritative task statuses and removes tasks no longer active. */
+  // fallow-ignore-next-line complexity
+  reconcileStatuses(tasks: readonly AssignedTask[]): void {
+    const byKey = new Map(
+      tasks.map((task) => [taskKey(task.taskId, task.agentConfig.role), task] as const)
+    );
+    for (const key of this.tasks.keys()) {
+      if (!byKey.has(key)) this.tasks.delete(key);
+    }
+    for (const task of byKey.values()) {
+      const key = taskKey(task.taskId, task.agentConfig.role);
+      const current = this.tasks.get(key);
+      if (current) {
+        this.markStatus(
+          task.chatroomId,
+          task.agentConfig.role,
+          task.taskId,
+          task.status,
+          task.updatedAt
+        );
+      } else {
+        this.tasks.set(key, task);
+      }
     }
   }
 

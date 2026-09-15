@@ -69,6 +69,7 @@ import type * as daemon_enhancer_taskDeliveryForJob from "../daemon/enhancer/tas
 import type * as daemon_harnessCapabilities_capabilities from "../daemon/harnessCapabilities/capabilities.js";
 import type * as daemon_machineCommandInbox from "../daemon/machineCommandInbox.js";
 import type * as daemon_machineWorkspaces from "../daemon/machineWorkspaces.js";
+import type * as daemon_taskStatus from "../daemon/taskStatus.js";
 import type * as dev from "../dev.js";
 import type * as discussions from "../discussions.js";
 import type * as e2e from "../e2e.js";
@@ -230,6 +231,7 @@ declare const fullApi: ApiFromModules<{
   "daemon/harnessCapabilities/capabilities": typeof daemon_harnessCapabilities_capabilities;
   "daemon/machineCommandInbox": typeof daemon_machineCommandInbox;
   "daemon/machineWorkspaces": typeof daemon_machineWorkspaces;
+  "daemon/taskStatus": typeof daemon_taskStatus;
   dev: typeof dev;
   discussions: typeof discussions;
   e2e: typeof e2e;

@@ -7,7 +7,10 @@ import type {
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 
 import { api, type Id } from '../../../../../api.js';
-import { mapAssignedTaskView } from '../../../../../infrastructure/mappers/map-assigned-task-view.js';
+import {
+  mapAssignedTaskList,
+  mapAssignedTaskView,
+} from '../../../../../infrastructure/mappers/map-assigned-task-view.js';
 import type {
   AssignedTask,
   AssignedTaskWithContent,
@@ -22,6 +25,13 @@ type Backend = {
 
 export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeTaskDeliveryGateway {
   return {
+    listActiveTaskStatuses: async ({ sessionId, machineId }) => {
+      const rows = await backend.query(api.daemon.taskStatus.listActive, {
+        sessionId,
+        machineId,
+      });
+      return mapAssignedTaskList(rows as Parameters<typeof mapAssignedTaskList>[0]);
+    },
     listPendingTaskInboxEvents: async ({ sessionId, machineId }) => {
       const rows = await backend.query(api.chatroomWorkspaceTaskInbox.listPending, {
         sessionId,

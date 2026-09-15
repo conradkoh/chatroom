@@ -8,7 +8,7 @@ import type {
 } from '../../../chatroom-workspace-configuration-service/index.js';
 
 export interface PendingTaskReconciliationWatcher {
-  /** Starts a 10-second fallback timer for a pending task if absent already. */
+  /** Starts a 10-second fallback timer for a deliverable task if absent already. */
   watch(task: AssignedTask): void;
   /** Stops the fallback timer for one task identity. */
   clear(chatroomId: string, role: string, taskId: string): void;
@@ -20,7 +20,7 @@ export interface PendingTaskReconciliationWatcher {
  * Watches task-record status for delivery fallback.
  *
  * This is not a task-inbox-event retry. It is a per-task safety net: while a
- * task remains `pending`, every 10-second tick reads the current task from the
+ * task remains `pending` or `acknowledged`, every 10-second tick reads the current task from the
  * daemon task state and the latest agent configuration, then emits a normal
  * reconciliation notification. It stops as soon as the task is removed or
  * changes status, so lifecycle events remain the fast path and this watcher
@@ -50,18 +50,24 @@ export function createPendingTaskReconciliationWatcher(deps: {
   };
 
   return {
+    // fallow-ignore-next-line complexity
     watch: (task) => {
-      if (task.status !== 'pending') return;
+      if (task.status !== 'pending' && task.status !== 'acknowledged') return;
       const key = taskKey(task.chatroomId, task.agentConfig.role, task.taskId);
       if (timers.has(key)) return;
 
+      // fallow-ignore-next-line complexity
       const timer = setInterval(() => {
         const currentTask = deps.taskState.getForRole(
           task.chatroomId,
           task.agentConfig.role,
           task.taskId
         );
-        if (deps.isStopped() || !currentTask || currentTask.status !== 'pending') {
+        if (
+          deps.isStopped() ||
+          !currentTask ||
+          (currentTask.status !== 'pending' && currentTask.status !== 'acknowledged')
+        ) {
           clear(task.chatroomId, task.agentConfig.role, task.taskId);
           return;
         }

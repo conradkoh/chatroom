@@ -134,6 +134,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const taskInboxState = new TaskInboxState();
   const listeners = new Set<TaskServiceListener>();
   let stopInboxWatch: (() => void) | undefined;
+  let stopTaskStatusWatch: (() => void) | undefined;
   let inboxStopped = false;
   // These in-memory sets prevent duplicate work during this daemon run. A restart
   // intentionally replays any event that was not durably marked as processed.
@@ -218,7 +219,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         try {
           if (!applyInboxEvent(event)) return;
           const currentTask = taskInboxState.getForRole(event.chatroomId, event.role, event.taskId);
-          if (currentTask?.status === 'pending') {
+          if (currentTask?.status === 'pending' || currentTask?.status === 'acknowledged') {
             pendingTaskReconciliationWatcher.watch(currentTask);
           } else {
             pendingTaskReconciliationWatcher.clear(event.chatroomId, event.role, event.taskId);
@@ -263,6 +264,17 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
   });
 
+  const reconcileTaskStatuses = (tasks: readonly AssignedTask[]): void => {
+    taskInboxState.reconcileStatuses(tasks);
+    for (const task of tasks) {
+      if (task.status === 'pending' || task.status === 'acknowledged') {
+        pendingTaskReconciliationWatcher.watch(task);
+      } else {
+        pendingTaskReconciliationWatcher.clear(task.chatroomId, task.agentConfig.role, task.taskId);
+      }
+    }
+  };
+
   const pendingTaskReconciliationWatcher = createPendingTaskReconciliationWatcher({
     taskState: taskInboxState,
     configurationService: deps.configurationService,
@@ -292,6 +304,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const service: TaskService = {
     startTaskInbox: async (wsClient) => {
       inboxStopped = false;
+      try {
+        const statusTasks = await gateway.listActiveTaskStatuses({
+          sessionId: deps.sessionId,
+          machineId: deps.machineId,
+        });
+        reconcileTaskStatuses(statusTasks);
+      } catch (error) {
+        console.warn('[TaskService] task-status bootstrap failed:', error);
+      }
       if (wsClient && !stopInboxWatch) {
         stopInboxWatch = wsClient.onUpdate(
           api.chatroomWorkspaceTaskInbox.listPending,
@@ -301,6 +322,14 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           },
           (error) => console.warn(`[daemon] task-inbox watch error: ${String(error)}`)
         );
+        if (!stopTaskStatusWatch) {
+          stopTaskStatusWatch = wsClient.onUpdate(
+            api.daemon.taskStatus.listActive,
+            { sessionId: deps.sessionId as SessionId, machineId: deps.machineId },
+            (tasks) => reconcileTaskStatuses(tasks as AssignedTask[]),
+            (error) => console.warn(`[daemon] task-status watch error: ${String(error)}`)
+          );
+        }
       } else if (!wsClient) {
         const events = await gateway.listPendingTaskInboxEvents({
           sessionId: deps.sessionId,
@@ -317,6 +346,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       inboxStopped = true;
       stopInboxWatch?.();
       stopInboxWatch = undefined;
+      stopTaskStatusWatch?.();
+      stopTaskStatusWatch = undefined;
       pendingEvents.clear();
       scheduledEventIds.clear();
       deliveredEventIds.clear();

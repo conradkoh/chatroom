@@ -6,6 +6,10 @@ import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 import type { WorkspaceTaskInboxEvent } from '../task-service.js';
 
 export interface NativeTaskDeliveryGateway {
+  listActiveTaskStatuses(args: {
+    sessionId: string;
+    machineId: string;
+  }): Promise<readonly AssignedTask[]>;
   listPendingTaskInboxEvents(args: {
     sessionId: string;
     machineId: string;
