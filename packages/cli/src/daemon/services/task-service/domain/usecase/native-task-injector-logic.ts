@@ -9,14 +9,13 @@ import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';
-export { isDeliverableNativeTaskStatus } from './native-ready-invariant.js';
 
 /**
  * Readiness inputs for native delivery gating.
  */
 export type NativeDeliveryReadinessOptions = {
   slot: AgentProcessSlotView | undefined;
-  runtimeConfig: AgentConfigEntry | undefined;
+  agentConfig: AgentConfigEntry | undefined;
 };
 
 /** True when daemon should deliver a task into a live native harness session. */
@@ -44,7 +43,7 @@ export function explainNativeDeliveryBlock(
       return `acknowledged_wrong_role (assignedTo=${assignedTo ?? 'none'}, role=${role})`;
     }
   }
-  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.runtimeConfig);
+  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.agentConfig);
 }
 
 const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {

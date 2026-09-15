@@ -51,7 +51,7 @@ export type NativeDeliveryExecution =
   { kind: 'delivered'; delivered?: NativeDeliveryDelivered } | { kind: 'task-unavailable' };
 
 export type NativeDeliveryExecutors = {
-  startAgent: (task: AssignedTask, runtimeConfig: AgentConfigEntry | undefined) => Promise<unknown>;
+  startAgent: (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => Promise<unknown>;
   injectTask: (
     task: AssignedTask,
     harnessSessionId: string | undefined
@@ -87,6 +87,8 @@ export class NativeTaskDeliveryCoordinator {
     ) => Promise<T>;
     taskService: TaskDeliveryService;
     configurationService: AgentConfigRegistry;
+    /** Optional config snapshot from TaskService's periodic wakeup. */
+    agentConfig?: AgentConfigEntry | undefined;
     sessionDeps: NativeTaskDeliverySessionDeps;
     lifecycleOutbox: {
       enqueue: (fact: AgentLifecycleFact) => Promise<unknown>;
@@ -127,7 +129,8 @@ export class NativeTaskDeliveryCoordinator {
       if (!firstTask) continue;
       const { role } = firstTask.agentConfig;
       const slot = agentMgr.getSlot(firstTask.chatroomId, role);
-      const runtimeConfig = params.configurationService.get(firstTask.chatroomId, role);
+      const agentConfig =
+        params.agentConfig ?? params.configurationService.get(firstTask.chatroomId, role);
       const activeTaskId = roleTasks.find((candidate) =>
         isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
       )?.taskId;
@@ -136,7 +139,7 @@ export class NativeTaskDeliveryCoordinator {
         slot,
         activeTaskId,
         deliveryInFlight: false,
-        runtimeConfig,
+        agentConfig,
         agentLifecycleInFlight: isRestartOrchestratorInFlight(firstTask.chatroomId, role),
         isNativeHarness: taskService.isNativeHarness,
         taskRequestsNativeColdSession: taskService.taskRequestsNativeColdSession,
@@ -177,10 +180,10 @@ export class NativeTaskDeliveryCoordinator {
         continue;
       }
       if (decision.kind === 'start-agent') {
-        if (!runtimeConfig || (slot && !isSlotIdle(slot.state))) continue;
+        if (!agentConfig || (slot && !isSlotIdle(slot.state))) continue;
         try {
           if (executors) {
-            const startResult = await executors.startAgent(row, runtimeConfig);
+            const startResult = await executors.startAgent(row, agentConfig);
             console.log(
               `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=start-agent result=${startResult && typeof startResult === 'object' && 'success' in startResult ? startResult.success : 'completed'}`
             );
@@ -194,9 +197,9 @@ export class NativeTaskDeliveryCoordinator {
                 {
                   chatroomId: row.chatroomId,
                   role,
-                  agentHarness: runtimeConfig.agentHarness as AgentHarness,
-                  model: runtimeConfig.model ?? '',
-                  workingDir: runtimeConfig.workingDir,
+                  agentHarness: agentConfig.agentHarness as AgentHarness,
+                  model: agentConfig.model ?? '',
+                  workingDir: agentConfig.workingDir,
                   reason: AgentStartReasonEnum['platform.pending_task_wake'],
                   wantResume: false,
                   taskId: row.taskId,

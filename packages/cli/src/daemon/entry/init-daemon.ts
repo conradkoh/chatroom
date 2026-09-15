@@ -419,6 +419,7 @@ function assembleDaemonSessionInit(args: {
     machineId,
     convexUrl,
     backend: deps.backend,
+    configurationService: agentConfigRegistry,
     logEvent: activeLogEvent ?? (async () => undefined),
   });
 

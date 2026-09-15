@@ -48,7 +48,7 @@ export type DeliveryDecisionContext = {
   activeTaskId: string | undefined;
   deliveryInFlight: boolean;
   /** Configuration resolved from ChatroomWorkspaceConfigurationService. */
-  runtimeConfig: AgentConfigEntry | undefined;
+  agentConfig: AgentConfigEntry | undefined;
   agentLifecycleInFlight: boolean;
   isNativeHarness: (harness: string) => boolean;
   taskRequestsNativeColdSession: (task: AssignedTask) => boolean;
@@ -113,11 +113,11 @@ export function decideNextDelivery(
     return { kind: 'deduplicated', taskId: task.taskId, reason: 'delivery_in_flight' };
   }
 
-  const runtimeConfig = context.runtimeConfig;
-  if (!runtimeConfig) {
+  const agentConfig = context.agentConfig;
+  if (!agentConfig) {
     return { kind: 'blocked', taskId: task.taskId, reason: 'working_dir_missing' };
   }
-  if (!context.isNativeHarness(runtimeConfig.agentHarness)) {
+  if (!context.isNativeHarness(agentConfig.agentHarness)) {
     return { kind: 'blocked', taskId: task.taskId, reason: 'not_native_harness' };
   }
 
@@ -127,7 +127,7 @@ export function decideNextDelivery(
 
   const blockReason = context.explainNativeDeliveryBlock(task, {
     slot: context.slot,
-    runtimeConfig,
+    agentConfig,
   });
   if (blockReason === null) {
     return {
@@ -152,7 +152,7 @@ export function decideNextDelivery(
     !coldSession &&
     task.status === 'pending' &&
     isSlotIdle(context.slot?.state ?? 'idle') &&
-    runtimeConfig.workingDir
+    agentConfig.workingDir
   ) {
     return { kind: 'start-agent', taskId: task.taskId };
   }

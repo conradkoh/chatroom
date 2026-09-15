@@ -15,9 +15,9 @@ import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration
 export function isAgentReadyForNativeDelivery(
   task: AssignedTask,
   slot: AgentProcessSlotView | undefined,
-  runtimeConfig: AgentConfigEntry | undefined
+  agentConfig: AgentConfigEntry | undefined
 ): boolean {
-  return explainAgentReadyForNativeDeliveryBlock(task, slot, runtimeConfig) === null;
+  return explainAgentReadyForNativeDeliveryBlock(task, slot, agentConfig) === null;
 }
 
 /** Human-readable reason when agent/slot is not ready; null when ready. */
@@ -25,11 +25,11 @@ export function isAgentReadyForNativeDelivery(
 export function explainAgentReadyForNativeDeliveryBlock(
   task: AssignedTask,
   slot: AgentProcessSlotView | undefined,
-  runtimeConfig: AgentConfigEntry | undefined
+  agentConfig: AgentConfigEntry | undefined
 ): string | null {
-  if (!runtimeConfig) return 'agent_config_missing';
-  if (!isNativeHarness(runtimeConfig.agentHarness)) {
-    return `not_native_harness (harness=${runtimeConfig.agentHarness})`;
+  if (!agentConfig) return 'agent_config_missing';
+  if (!isNativeHarness(agentConfig.agentHarness)) {
+    return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
   // Explicit cold-session tasks: apply stop/circuit/transition guards first.
   // When the slot is down (missing/idle) and unblocked, delivery owns the

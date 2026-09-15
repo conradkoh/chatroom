@@ -38,6 +38,8 @@ export type TaskDeliveryContext = Context.Context<
 >;
 export type ProcessTasksUpdateOptions = {
   tasks: readonly AssignedTask[];
+  /** Snapshot read by TaskService for a periodic task-status wakeup. */
+  agentConfig?: AgentConfigEntry | undefined;
   onTaskDelivered?: (args: {
     chatroomId: string;
     role: string;
@@ -73,8 +75,8 @@ export async function processTasksUpdate(
   if (!first) return;
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
-    startAgent: (task: AssignedTask, runtimeConfig: AgentConfigEntry | undefined) => {
-      if (!runtimeConfig) return Promise.resolve({ success: false, error: 'agent config missing' });
+    startAgent: (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => {
+      if (!agentConfig) return Promise.resolve({ success: false, error: 'agent config missing' });
       return runSerializedForAgent(
         { chatroomId: task.chatroomId, role: task.agentConfig.role },
         { timeoutMs: 120_000 },
@@ -83,9 +85,9 @@ export async function processTasksUpdate(
             {
               chatroomId: task.chatroomId,
               role: task.agentConfig.role,
-              agentHarness: runtimeConfig.agentHarness as AgentHarness,
-              model: runtimeConfig.model ?? '',
-              workingDir: runtimeConfig.workingDir,
+              agentHarness: agentConfig.agentHarness as AgentHarness,
+              model: agentConfig.model ?? '',
+              workingDir: agentConfig.workingDir,
               reason: AgentStartReasonEnum['platform.pending_task_wake'],
               wantResume: false,
               taskId: task.taskId,
@@ -124,6 +126,7 @@ export async function processTasksUpdate(
     runSerializedForAgent,
     taskService,
     configurationService,
+    agentConfig: options.agentConfig,
     sessionDeps,
     lifecycleOutbox,
     isTaskActive,

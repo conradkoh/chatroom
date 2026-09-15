@@ -13,7 +13,10 @@ import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
-import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
+import type {
+  AgentConfigEntry,
+  AgentConfigRegistry,
+} from '../../chatroom-workspace-configuration-service/index.js';
 import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
@@ -282,6 +285,15 @@ export class AgentWorkManager {
       await this.requestReconcileForTasks(notification.tasks, 'bootstrap');
       return;
     }
+    if (notification.kind === 'periodic-reconcile') {
+      await this.requestReconcile({
+        chatroomId: notification.task.chatroomId,
+        role: notification.task.agentConfig.role,
+        source: 'periodic-reconcile',
+        agentConfig: notification.agentConfig,
+      });
+      return;
+    }
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
       await this.cancelTaskWork(
         notification.event.chatroomId,
@@ -331,18 +343,23 @@ export class AgentWorkManager {
     chatroomId: string;
     role: string;
     source: AgentWorkPass;
+    agentConfig?: AgentConfigEntry | undefined;
     onTaskDelivered?: AgentTaskDeliveredHandler;
   }): Promise<void> {
     const key = `${params.chatroomId}:${params.role.toLowerCase()}`;
     const existing = this.reconcileStates.get(key);
     if (existing) {
       existing.pendingSource = params.source;
+      if (params.agentConfig !== undefined) {
+        existing.pendingAgentConfig = params.agentConfig;
+      }
       await existing.promise;
       return;
     }
 
     const state = {
       pendingSource: undefined as AgentWorkPass | undefined,
+      pendingAgentConfig: params.agentConfig,
       promise: Promise.resolve(),
     };
     // fallow-ignore-next-line complexity
@@ -350,7 +367,9 @@ export class AgentWorkManager {
       try {
         do {
           const source = state.pendingSource ?? params.source;
+          const agentConfig = state.pendingAgentConfig;
           state.pendingSource = undefined;
+          state.pendingAgentConfig = undefined;
           const tasks = this.deps.taskInboxState.listForRole(params.chatroomId, params.role);
           if (tasks.length === 0) {
             logNativeDeliveryDecision(source, params.role, params.chatroomId, 'idle', undefined, {
@@ -358,7 +377,7 @@ export class AgentWorkManager {
               attemptId: `${Date.now()}-${params.chatroomId}-${params.role}`,
             });
           }
-          await this.reconcileRole(source, tasks, params.onTaskDelivered);
+          await this.reconcileRole(source, tasks, params.onTaskDelivered, agentConfig);
         } while (state.pendingSource !== undefined);
       } finally {
         if (this.reconcileStates.get(key) === state) this.reconcileStates.delete(key);
@@ -404,7 +423,8 @@ export class AgentWorkManager {
   private async reconcileRole(
     pass: AgentWorkPass | LegacyAgentWorkPass,
     tasks: readonly AssignedTask[],
-    onTaskDelivered?: AgentTaskDeliveredHandler
+    onTaskDelivered?: AgentTaskDeliveredHandler,
+    agentConfig?: AgentConfigEntry
   ): Promise<void> {
     if (tasks.length === 0) return;
     await processTasksUpdate(
@@ -422,6 +442,7 @@ export class AgentWorkManager {
         this.deps.agentTaskState.get({ chatroomId, role })?.taskId === taskId,
       {
         tasks,
+        agentConfig,
         onTaskDelivered: (args) => {
           this.recordTaskDelivered(args);
           onTaskDelivered?.(args);

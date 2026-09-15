@@ -16,13 +16,13 @@ export {
   buildNativeInjectionPrompt,
   explainNativeDeliveryBlock,
   isNativeHarness,
-  isDeliverableNativeTaskStatus,
   shouldDeliverNativeTask,
   type NativeDeliveryReadinessOptions,
 } from './domain/usecase/native-task-injector-logic.js';
 export {
   isAgentReadyForNativeDelivery,
   explainAgentReadyForNativeDeliveryBlock,
+  isDeliverableNativeTaskStatus,
 } from './domain/usecase/native-ready-invariant.js';
 export {
   taskRequestsNativeColdSession,

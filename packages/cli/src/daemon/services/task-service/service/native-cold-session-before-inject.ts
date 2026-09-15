@@ -60,9 +60,9 @@ export async function ensureColdSessionBeforeNativeInject(
   const { role } = agentConfig;
 
   const slot = deps.agentMgr.getSlot(chatroomId, role);
-  const runtimeConfig = deps.configurationService.get(chatroomId, role);
-  if (!runtimeConfig?.model) return null;
-  const { agentHarness, model, workingDir } = runtimeConfig;
+  const agentConfig = deps.configurationService.get(chatroomId, role);
+  if (!agentConfig?.model) return null;
+  const { agentHarness, model, workingDir } = agentConfig;
   const slotState = slot?.state;
   if (slotState === 'spawning' || slotState === 'stopping') {
     return null;

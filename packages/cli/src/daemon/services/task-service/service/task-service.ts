@@ -10,6 +10,9 @@ import {
   buildTaskServiceDebugState,
   type TaskServiceDebugState,
 } from './task-service-debug-state.js';
+import { createPendingTaskReconciliationWatcher } from './watchers/pending-task-reconciliation-watcher.js';
+import { createTaskInboxAcknowledgementRetryWatcher } from './watchers/task-inbox-acknowledgement-retry-watcher.js';
+import { createTaskInboxDeliveryRetryWatcher } from './watchers/task-inbox-delivery-retry-watcher.js';
 import { api } from '../../../../api.js';
 import type {
   TaskAssigneeType,
@@ -20,12 +23,14 @@ import {
   TaskInboxState,
   type TaskInboxStateReader,
 } from '../../../infrastructure/inbox/task-inbox-state.js';
+import type {
+  AgentConfigEntry,
+  AgentConfigRegistry,
+} from '../../chatroom-workspace-configuration-service/index.js';
 import {
   mapPendingTaskInboxRows,
   createConvexNativeTaskDeliveryGateway,
 } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
-
-const TASK_INBOX_RETRY_DELAY_MS = 1_000;
 
 interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
@@ -73,6 +78,12 @@ export type TaskServiceNotification =
   | {
       readonly kind: 'inbox-event';
       readonly event: WorkspaceTaskInboxEvent;
+    }
+  | {
+      /** Safety-net wakeup for a task whose task-record status is still pending. */
+      readonly kind: 'periodic-reconcile';
+      readonly task: AssignedTask;
+      readonly agentConfig: AgentConfigEntry | undefined;
     };
 
 export type TaskServiceListener = (notification: TaskServiceNotification) => Promise<void> | void;
@@ -113,6 +124,8 @@ export interface TaskService {
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
   convexUrl: string;
+  /** Daemon-local source of the latest agent harness/model/workingDir config. */
+  configurationService: AgentConfigRegistry;
 }
 
 export function createTaskService(deps: TaskServiceCompositionDependencies): TaskService {
@@ -127,8 +140,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const pendingEvents = new Map<string, WorkspaceTaskInboxEvent>();
   const scheduledEventIds = new Set<string>();
   const deliveredEventIds = new Set<string>();
-  const deliveryRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const acknowledgementRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const taskChains = new Map<string, Promise<void>>();
 
   const notify = async (notification: TaskServiceNotification): Promise<void> => {
@@ -166,41 +177,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const taskKey = (event: WorkspaceTaskInboxEvent): string =>
     `${event.chatroomId}:${event.role.toLowerCase()}:${event.taskId}`;
 
-  const clearRetryTimer = (
-    timers: Map<string, ReturnType<typeof setTimeout>>,
-    eventId: string
-  ): void => {
-    const timer = timers.get(eventId);
-    if (timer) clearTimeout(timer);
-    timers.delete(eventId);
-  };
-
-  /** Retry local delivery while the event remains durably pending. */
-  const retryDelivery = (eventId: string): void => {
-    if (inboxStopped || deliveryRetryTimers.has(eventId) || !pendingEvents.has(eventId)) return;
-    const timer = setTimeout(() => {
-      deliveryRetryTimers.delete(eventId);
-      const event = pendingEvents.get(eventId);
-      if (event) scheduleEvent(event);
-    }, TASK_INBOX_RETRY_DELAY_MS);
-    deliveryRetryTimers.set(eventId, timer);
-    timer.unref?.();
-  };
-
-  /** Retry only the durable acknowledgement after delivery has succeeded. */
-  const retryAcknowledgement = (eventId: string): void => {
-    if (inboxStopped || acknowledgementRetryTimers.has(eventId) || !pendingEvents.has(eventId)) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      acknowledgementRetryTimers.delete(eventId);
-      const event = pendingEvents.get(eventId);
-      if (event) void acknowledgeEvent(event);
-    }, TASK_INBOX_RETRY_DELAY_MS);
-    acknowledgementRetryTimers.set(eventId, timer);
-    timer.unref?.();
-  };
-
   /**
    * Delivery and acknowledgement are separate failure boundaries. If the
    * acknowledgement fails after delivery, retrying it must not redeliver.
@@ -214,7 +190,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       });
     } catch (error) {
       console.warn('[TaskService] task inbox acknowledgement failed:', error);
-      retryAcknowledgement(event.eventId);
+      acknowledgementRetryWatcher.schedule(event.eventId);
     }
   };
 
@@ -235,11 +211,17 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       .then(async () => {
         try {
           if (!applyInboxEvent(event)) return;
+          const currentTask = taskInboxState.getForRole(event.chatroomId, event.role, event.taskId);
+          if (currentTask?.status === 'pending') {
+            pendingTaskReconciliationWatcher.watch(currentTask);
+          } else {
+            pendingTaskReconciliationWatcher.clear(event.chatroomId, event.role, event.taskId);
+          }
           await notify({ kind: 'inbox-event', event });
           deliveredEventIds.add(event.eventId);
         } catch (error) {
           console.warn('[TaskService] task inbox delivery failed:', error);
-          retryDelivery(event.eventId);
+          deliveryRetryWatcher.schedule(event.eventId);
           return;
         } finally {
           scheduledEventIds.delete(event.eventId);
@@ -253,6 +235,31 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     return current;
   };
 
+  const deliveryRetryWatcher = createTaskInboxDeliveryRetryWatcher({
+    isStopped: () => inboxStopped,
+    hasPendingEvent: (eventId) => pendingEvents.has(eventId),
+    retry: (eventId) => {
+      const event = pendingEvents.get(eventId);
+      if (event) void scheduleEvent(event);
+    },
+  });
+
+  const acknowledgementRetryWatcher = createTaskInboxAcknowledgementRetryWatcher({
+    isStopped: () => inboxStopped,
+    hasPendingEvent: (eventId) => pendingEvents.has(eventId),
+    retry: (eventId) => {
+      const event = pendingEvents.get(eventId);
+      if (event) void acknowledgeEvent(event);
+    },
+  });
+
+  const pendingTaskReconciliationWatcher = createPendingTaskReconciliationWatcher({
+    taskState: taskInboxState,
+    configurationService: deps.configurationService,
+    notify,
+    isStopped: () => inboxStopped,
+  });
+
   /** Reconcile a reactive snapshot and schedule only newly observed events. */
   const reconcilePendingEvents = (events: readonly WorkspaceTaskInboxEvent[]): Promise<void> => {
     const nextIds = new Set(events.map((event) => event.eventId));
@@ -260,8 +267,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       if (!nextIds.has(eventId)) {
         pendingEvents.delete(eventId);
         deliveredEventIds.delete(eventId);
-        clearRetryTimer(deliveryRetryTimers, eventId);
-        clearRetryTimer(acknowledgementRetryTimers, eventId);
+        deliveryRetryWatcher.clear(eventId);
+        acknowledgementRetryWatcher.clear(eventId);
       }
     }
     return Promise.all(
@@ -303,10 +310,9 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       pendingEvents.clear();
       scheduledEventIds.clear();
       deliveredEventIds.clear();
-      for (const timer of deliveryRetryTimers.values()) clearTimeout(timer);
-      deliveryRetryTimers.clear();
-      for (const timer of acknowledgementRetryTimers.values()) clearTimeout(timer);
-      acknowledgementRetryTimers.clear();
+      deliveryRetryWatcher.stop();
+      acknowledgementRetryWatcher.stop();
+      pendingTaskReconciliationWatcher.stop();
       taskChains.clear();
     },
     listPendingTaskInboxEvents: () =>
@@ -338,6 +344,12 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         result.status,
         result.updatedAt
       );
+      const currentTask = taskInboxState.getForRole(args.chatroomId, args.role, args.taskId);
+      if (currentTask?.status === 'pending') {
+        pendingTaskReconciliationWatcher.watch(currentTask);
+      } else {
+        pendingTaskReconciliationWatcher.clear(args.chatroomId, args.role, args.taskId);
+      }
       return result;
     },
     loadAssignedTaskForAction: async ({ chatroomId, role, taskId }) => {

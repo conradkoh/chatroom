@@ -12,7 +12,7 @@ export interface TaskDeliveryService {
     task: AssignedTask,
     options: {
       slot: AgentProcessSlotView | undefined;
-      runtimeConfig: AgentConfigEntry | undefined;
+      agentConfig: AgentConfigEntry | undefined;
     }
   ): string | null;
   releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
