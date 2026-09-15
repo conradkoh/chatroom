@@ -156,6 +156,39 @@ export const updateTaskStartInNewSession = mutation({
   },
 });
 
+/** Re-enqueues a stuck task through the durable workspace task inbox. */
+export const redeliverTask = mutation({
+  args: {
+    ...SessionIdArg,
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) throw new Error('Task not found');
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+    if (task.status !== 'pending' && task.status !== 'acknowledged') {
+      throw new Error('Only pending or acknowledged tasks can be redelivered');
+    }
+
+    const existingEvents = await ctx.db
+      .query('chatroomWorkspaceTaskInbox')
+      .withIndex('by_chatroom_taskId', (q) =>
+        q.eq('chatroomId', task.chatroomId).eq('taskId', task._id)
+      )
+      .collect();
+    if (existingEvents.some((event) => event.status === 'pending')) {
+      return { eventIds: [], taskId: task._id, skipped: true };
+    }
+
+    const eventIds = await writeWorkspaceTaskInboxEvent(
+      ctx,
+      WorkspaceTaskInboxEventType.TaskUpdated,
+      task
+    );
+    return { eventIds, taskId: task._id, skipped: false };
+  },
+});
+
 /** Claims a pending task for a role (pending → acknowledged). */
 export const claimTask = mutation({
   args: {

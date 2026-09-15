@@ -2,7 +2,7 @@
 
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
-import type { Doc } from '../../../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import {
@@ -17,10 +17,10 @@ export async function writeWorkspaceTaskInboxEvent(
   ctx: MutationCtx,
   eventType: WorkspaceTaskInboxEventType,
   task: Doc<'chatroom_tasks'>
-): Promise<void> {
+): Promise<Id<'chatroomWorkspaceTaskInbox'>[]> {
   const assignedRole = task.assignedTo;
   if (!assignedRole || assignedRole.toLowerCase() === 'user') {
-    return;
+    return [];
   }
 
   const launchRequests = await listLastSentLaunchRequestsForChatroom(ctx, {
@@ -92,9 +92,10 @@ export async function writeWorkspaceTaskInboxEvent(
     }
   }
 
+  const eventIds: Id<'chatroomWorkspaceTaskInbox'>[] = [];
   for (const target of targets.values()) {
     if (isEphemeralAgentRole(target.role) && !target.ephemeral) continue;
-    await ctx.db.insert('chatroomWorkspaceTaskInbox', {
+    const eventId = await ctx.db.insert('chatroomWorkspaceTaskInbox', {
       machineId: target.machineId,
       chatroomId: task.chatroomId,
       taskId: task._id,
@@ -110,7 +111,9 @@ export async function writeWorkspaceTaskInboxEvent(
       task: taskPayload,
       createdAt: Date.now(),
     });
+    eventIds.push(eventId);
   }
+  return eventIds;
 }
 
 type EphemeralAgentConfig = {

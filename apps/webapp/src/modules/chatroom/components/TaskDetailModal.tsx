@@ -1,9 +1,21 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { AlertCircle, Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
+import {
+  AlertCircle,
+  Check,
+  Paperclip,
+  MoreHorizontal,
+  RefreshCw,
+  StopCircle,
+  Trash2,
+  X,
+} from 'lucide-react';
 import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
+import { toast } from 'sonner';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { DetailModalMarkdownSurface, detailModalMarkdownProseClassNames } from './detail-modal';
@@ -102,6 +114,7 @@ function TaskDetailForm({
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const redeliverTask = useSessionMutation(api.tasks.redeliverTask);
 
   // Attachments context for adding to chat
   const { add, isAttached, canAddMore } = useAttachments();
@@ -149,6 +162,26 @@ function TaskDetailForm({
       setIsLoading(false);
     }
   }, [task, onDelete, onClose]);
+
+  const handleRedeliver = useCallback(async () => {
+    if (!task || (task.status !== 'pending' && task.status !== 'acknowledged')) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await redeliverTask({ taskId: task._id });
+      if (result.skipped) {
+        toast.info('Task delivery is already pending');
+      } else {
+        toast.success('Task queued for delivery');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to redeliver task';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, redeliverTask]);
 
   const handleForceComplete = useCallback(async () => {
     if (!task) return;
@@ -322,6 +355,16 @@ function TaskDetailForm({
                     Actions
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-[160px]">
+                    {(task.status === 'pending' || task.status === 'acknowledged') && (
+                      <DropdownMenuItem
+                        onClick={handleRedeliver}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <RefreshCw size={14} />
+                        Redeliver task
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() => {
                         if (task) {
