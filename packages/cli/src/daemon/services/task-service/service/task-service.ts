@@ -86,15 +86,15 @@ export type TaskServiceNotification =
       readonly agentConfig: AgentConfigEntry | undefined;
     };
 
-export type TaskServiceListener = (notification: TaskServiceNotification) => Promise<void> | void;
+export type TaskServiceListener = (
+  notification: TaskServiceNotification
+) => Promise<boolean | void> | boolean | void;
 
 export interface TaskService {
   /** Loads the initial task inbox state. */
   startTaskInbox(wsClient?: ConvexClient): Promise<void>;
   subscribe(listener: TaskServiceListener): () => void;
   stopTaskInbox(): void;
-  listPendingTaskInboxEvents(): Promise<readonly WorkspaceTaskInboxEvent[]>;
-  markTaskInboxEventProcessed(eventId: string): Promise<boolean>;
   listTasksForRole(chatroomId: string, role: string): readonly AssignedTask[];
   listAllTasks(): readonly AssignedTask[];
   /**
@@ -142,8 +142,14 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const deliveredEventIds = new Set<string>();
   const taskChains = new Map<string, Promise<void>>();
 
+  const notifyForDelivery = async (notification: TaskServiceNotification): Promise<boolean> => {
+    const results = await Promise.all(
+      [...listeners].map((listener) => Promise.resolve(listener(notification)))
+    );
+    return results.some((result) => result === true);
+  };
   const notify = async (notification: TaskServiceNotification): Promise<void> => {
-    await Promise.all([...listeners].map((listener) => Promise.resolve(listener(notification))));
+    await notifyForDelivery(notification);
   };
 
   const applyInboxEvent = (event: WorkspaceTaskInboxEvent): boolean => {
@@ -217,7 +223,11 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           } else {
             pendingTaskReconciliationWatcher.clear(event.chatroomId, event.role, event.taskId);
           }
-          await notify({ kind: 'inbox-event', event });
+          const delivered = await notifyForDelivery({ kind: 'inbox-event', event });
+          if (!delivered) {
+            deliveryRetryWatcher.schedule(event.eventId);
+            return;
+          }
           deliveredEventIds.add(event.eventId);
         } catch (error) {
           console.warn('[TaskService] task inbox delivery failed:', error);
@@ -315,17 +325,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       pendingTaskReconciliationWatcher.stop();
       taskChains.clear();
     },
-    listPendingTaskInboxEvents: () =>
-      gateway.listPendingTaskInboxEvents({
-        sessionId: deps.sessionId,
-        machineId: deps.machineId,
-      }),
-    markTaskInboxEventProcessed: (eventId) =>
-      gateway.markTaskInboxEventProcessed({
-        sessionId: deps.sessionId,
-        machineId: deps.machineId,
-        eventId,
-      }),
     listTasksForRole: (chatroomId, role) => taskInboxState.listForRole(chatroomId, role),
     listAllTasks: () => taskInboxState.listAll(),
     debugState: (chatroomId) => buildTaskServiceDebugState({ taskInboxState, chatroomId }),

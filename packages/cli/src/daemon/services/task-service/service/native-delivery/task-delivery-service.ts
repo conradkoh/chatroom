@@ -6,7 +6,6 @@ import type { DeliveryBlockReason } from '../../domain/usecase/native-delivery-r
 
 export interface TaskDeliveryService {
   isNativeHarness(harness: string): boolean;
-  taskRequestsNativeColdSession(task: AssignedTask): boolean;
   explainNativeDeliveryBlock(task: AssignedTask): DeliveryBlockReason | null;
   releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
     released: boolean;

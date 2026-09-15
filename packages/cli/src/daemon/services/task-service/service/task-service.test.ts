@@ -101,6 +101,7 @@ describe('TaskService inbox consumption', () => {
       sessionId: 'session-1',
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
       backend: { mutation, query },
     });
     const notifications: unknown[] = [];
@@ -112,7 +113,7 @@ describe('TaskService inbox consumption', () => {
 
     expect(service.listTasksForRole('room-1', 'builder')).toHaveLength(1);
     expect(notifications).toHaveLength(1);
-    expect(mutation).toHaveBeenCalledWith(
+    expect(mutation).not.toHaveBeenCalledWith(
       api.chatroomWorkspaceTaskInbox.markProcessed,
       expect.objectContaining({ eventId: 'event-permanent-1' })
     );
@@ -153,6 +154,7 @@ describe('TaskService inbox consumption', () => {
       sessionId: 'session-1',
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
       backend: { mutation, query },
       agentProcessService: {
         getSlot: vi.fn(),
@@ -183,9 +185,7 @@ describe('TaskService inbox consumption', () => {
         },
       },
     ]);
-    expect(mutation).toHaveBeenCalledTimes(1);
-    expect((mutation.mock.calls as unknown[][])[0]?.[1]).toMatchObject({ eventId: 'event-1' });
-
+    expect(mutation).toHaveBeenCalledTimes(0);
     service.stopTaskInbox();
   });
 
@@ -225,6 +225,7 @@ describe('TaskService inbox consumption', () => {
       const notifications: unknown[] = [];
       service.subscribe((notification) => {
         notifications.push(notification);
+        return true;
       });
 
       await service.startTaskInbox();

@@ -1,10 +1,7 @@
 import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import type { DeliveryBlockReason } from './native-delivery-reason.js';
-import {
-  explainAgentReadyForNativeDeliveryBlock,
-  isDeliverableNativeTaskStatus,
-} from './native-ready-invariant.js';
+import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';
@@ -36,7 +33,11 @@ export function explainNativeDeliveryBlock(
     const role = task.agentConfig.role.toLowerCase();
     if (assignedTo !== role) return 'acknowledged_wrong_role';
   }
-  return explainAgentReadyForNativeDeliveryBlock(task);
+  return null;
+}
+
+export function isDeliverableNativeTaskStatus(status: AssignedTask['status']): boolean {
+  return isDeliverableTaskStatus(status);
 }
 
 const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {

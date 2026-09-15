@@ -11,7 +11,7 @@ export type DeliveryDecision =
   | { kind: 'idle'; reason: 'no_deliverable_task' | 'not_assigned' }
   | {
       kind: 'waiting';
-      reason: 'config_sync_lag' | 'stop_scope_active' | 'agent_not_ready';
+      reason: 'config_sync_lag' | 'agent_not_ready';
       taskId: string;
     }
   | {
@@ -22,14 +22,13 @@ export type DeliveryDecision =
   | { kind: 'deliver'; taskId: string }
   | {
       kind: 'deduplicated';
-      reason: 'task_state_active' | 'delivery_in_flight';
+      reason: 'task_state_active';
       taskId: string;
     };
 
 export type DeliveryDecisionContext = {
   role: string;
   activeTaskId: string | undefined;
-  deliveryInFlight: boolean;
   /** Configuration resolved from ChatroomWorkspaceConfigurationService. */
   agentConfig: AgentConfigEntry | undefined;
   isNativeHarness: (harness: string) => boolean;
@@ -64,9 +63,6 @@ export function decideNextDelivery(
   if (context.activeTaskId === task.taskId) {
     return { kind: 'deduplicated', taskId: task.taskId, reason: 'task_state_active' };
   }
-  if (context.deliveryInFlight) {
-    return { kind: 'deduplicated', taskId: task.taskId, reason: 'delivery_in_flight' };
-  }
   if (
     task.status === 'acknowledged' &&
     task.assignedTo?.toLowerCase() !== context.role.toLowerCase()
@@ -82,9 +78,6 @@ export function decideNextDelivery(
   }
 
   const blockReason = context.explainNativeDeliveryBlock(task);
-  if (blockReason === 'chatroom_stop_scope_active') {
-    return { kind: 'waiting', taskId: task.taskId, reason: 'stop_scope_active' };
-  }
   if (blockReason === 'task_status_not_deliverable') {
     return { kind: 'failed', taskId: task.taskId, reason: 'task_not_deliverable' };
   }

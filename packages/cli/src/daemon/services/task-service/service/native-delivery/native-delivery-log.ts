@@ -1,10 +1,14 @@
-type NativeDeliveryPass =
-  'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'restart' | 'agent-started';
-type ExtendedNativeDeliveryPass =
-  NativeDeliveryPass | 'agent-session-lost' | 'turn-ended' | 'restart-completed';
+export type NativeDeliveryPass =
+  | 'inbox-event'
+  | 'periodic-reconcile'
+  | 'bootstrap'
+  | 'agent-started'
+  | 'agent-session-lost'
+  | 'turn-ended'
+  | 'restart-completed';
 
 export function logNativeDeliveryDecision(
-  source: ExtendedNativeDeliveryPass,
+  source: NativeDeliveryPass,
   role: string,
   chatroomId: string,
   decision: string,
@@ -28,7 +32,7 @@ export function logNativeDeliveryDecision(
 
 /** Logs an event-driven delivery pass; this is not a fallback/recovery path. */
 export function logNativeDeliveryTrigger(
-  source: ExtendedNativeDeliveryPass,
+  source: NativeDeliveryPass,
   role: string,
   chatroomId: string,
   taskId?: string

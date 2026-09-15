@@ -54,26 +54,25 @@ describe('task-delivery-processor exact-task hydration', () => {
     const reconcileSpy = vi
       .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
       .mockImplementation(async (params) => {
-        capturedDeliver = params.executors?.deliverTask as never;
+        capturedDeliver = params.executors.deliverTask as never;
+        return false;
       });
 
     try {
       await processTasksUpdate(
-        {} as never,
-        {} as never,
-        {} as never,
-        (async () => undefined) as never,
         {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
           explainNativeDeliveryBlock: () => null,
+          releaseTaskAfterTurnFailure: async () => ({
+            released: false,
+            status: 'pending',
+            updatedAt: 0,
+          }),
         } as never,
         { get: () => config } as never,
-        {} as never,
-        'machine_processor',
         'bootstrap',
-        { enqueue: async () => undefined } as never,
         () => false,
         { tasks: [row] },
         vi.fn(async () => ({ harnessSessionId: 'harness-1' })) as never
@@ -101,26 +100,25 @@ describe('task-delivery-processor exact-task hydration', () => {
     const reconcileSpy = vi
       .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
       .mockImplementation(async (params) => {
-        capturedDeliver = params.executors?.deliverTask as never;
+        capturedDeliver = params.executors.deliverTask as never;
+        return false;
       });
 
     try {
       await processTasksUpdate(
-        {} as never,
-        {} as never,
-        {} as never,
-        (async () => undefined) as never,
         {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
           explainNativeDeliveryBlock: () => null,
+          releaseTaskAfterTurnFailure: async () => ({
+            released: false,
+            status: 'pending',
+            updatedAt: 0,
+          }),
         } as never,
         { get: () => config } as never,
-        {} as never,
-        'machine_processor',
         'bootstrap',
-        { enqueue: async () => undefined } as never,
         () => false,
         { tasks: [row] },
         vi.fn(async () => ({ harnessSessionId: 'harness-1' })) as never

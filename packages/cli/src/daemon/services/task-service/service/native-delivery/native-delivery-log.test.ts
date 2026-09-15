@@ -12,9 +12,9 @@ describe('native-delivery-log', () => {
 
   test('logNativeDeliveryTrigger identifies the event-driven source', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryTrigger('inbox-signal', 'builder', 'room_1', 'task_1');
+    logNativeDeliveryTrigger('inbox-event', 'builder', 'room_1', 'task_1');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:trigger] source=inbox-signal builder@room_1 task task_1'
+      '[NativeDelivery:trigger] source=inbox-event builder@room_1 task task_1'
     );
   });
 

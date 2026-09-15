@@ -19,15 +19,7 @@ export {
   shouldDeliverNativeTask,
   type NativeDeliveryReadinessOptions,
 } from './domain/usecase/native-task-injector-logic.js';
-export {
-  isAgentReadyForNativeDelivery,
-  explainAgentReadyForNativeDeliveryBlock,
-  isDeliverableNativeTaskStatus,
-} from './domain/usecase/native-ready-invariant.js';
-export {
-  taskRequestsNativeColdSession,
-  explainColdSessionDeliveryBlock,
-} from './domain/usecase/native-cold-session-delivery.js';
+export { isDeliverableNativeTaskStatus } from './domain/usecase/native-task-injector-logic.js';
 export {
   createTaskService,
   type TaskService,
@@ -42,6 +34,5 @@ export {
   type NativeDeliveryDelivered,
   type NativeDeliveryExecution,
   type NativeDeliveryExecutors,
-  type NativeTaskDeliverySessionDeps,
   NativeTaskDeliveryCoordinator,
 } from './service/native-delivery/native-task-delivery-coordinator.js';

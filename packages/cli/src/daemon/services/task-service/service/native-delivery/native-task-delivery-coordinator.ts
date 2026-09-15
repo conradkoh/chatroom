@@ -1,5 +1,3 @@
-import type { Runtime, Context } from 'effect';
-
 import { decideNextDelivery } from './delivery-decision.js';
 import {
   logNativeDeliveryDecision,
@@ -10,31 +8,11 @@ import {
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import type { TaskDeliveryService } from './task-delivery-service.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
-import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 import { TaskAssigneeType, type AssignedTask } from '../../../../domain/entities/assigned-task.js';
-import type {
-  DaemonAgentProcessManagerServiceShape,
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../../../entry/daemon-services.js';
 import type {
   AgentConfigEntry,
   AgentConfigRegistry,
 } from '../../../chatroom-workspace-configuration-service/index.js';
-import type {
-  AgentKey,
-  SerializedAgentOperations,
-  SerializedAgentOperationOptions,
-  SerializedAgentOperationContext,
-  NativeDeliverySessionHandles,
-} from '../../../service-interfaces.js';
-
-type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
-type TaskDeliveryContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
-
-export interface NativeTaskDeliverySessionDeps extends NativeDeliverySessionHandles {
-  convexUrl: string;
-}
 
 export type NativeDeliveryDelivered = {
   chatroomId: string;
@@ -47,28 +25,20 @@ export type NativeDeliveryExecution =
   { kind: 'delivered'; delivered?: NativeDeliveryDelivered } | { kind: 'task-unavailable' };
 
 export type NativeDeliveryExecutors = {
-  deliverTask?: (
+  deliverTask: (
     task: AssignedTask,
     agentConfig: AgentConfigEntry | undefined
   ) => Promise<NativeDeliveryExecution>;
-  /** Legacy compatibility; production uses deliverTask. */
-  startAgent?: (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => Promise<unknown>;
-  injectTask?: (
-    task: AssignedTask,
-    harnessSessionId: string | undefined
-  ) => Promise<NativeDeliveryExecution>;
 };
 
-type DeliveryPass =
-  | 'inbox-signal'
+export type DeliveryPass =
+  | 'inbox-event'
   | 'periodic-reconcile'
   | 'bootstrap'
-  | 'restart'
   | 'agent-started'
   | 'agent-session-lost'
   | 'turn-ended'
   | 'restart-completed';
-type LegacyDeliveryPass = 'inbox-signal' | 'restart';
 
 // fallow-ignore-next-line unused-export
 export class NativeTaskDeliveryCoordinator {
@@ -79,28 +49,12 @@ export class NativeTaskDeliveryCoordinator {
   // fallow-ignore-next-line complexity
   async reconcileRoleTasks(params: {
     tasks: AssignedTask[];
-    pass?: DeliveryPass | LegacyDeliveryPass;
-    runtime: TaskDeliveryRuntime;
-    effectContext: TaskDeliveryContext;
-    agentMgr: DaemonAgentProcessManagerServiceShape;
-    runSerializedForAgent: <T>(
-      key: AgentKey,
-      options: SerializedAgentOperationOptions,
-      operation: (
-        ops: SerializedAgentOperations,
-        context: SerializedAgentOperationContext
-      ) => Promise<T>
-    ) => Promise<T>;
+    pass?: DeliveryPass;
     taskService: TaskDeliveryService;
     configurationService: AgentConfigRegistry;
     /** Optional config snapshot from TaskService's periodic wakeup. */
     agentConfig?: AgentConfigEntry | undefined;
-    sessionDeps: NativeTaskDeliverySessionDeps;
-    lifecycleOutbox: {
-      enqueue: (fact: AgentLifecycleFact) => Promise<unknown>;
-    };
     isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean;
-    machineId: string;
     onTaskDelivered?:
       | ((args: {
           chatroomId: string;
@@ -109,10 +63,11 @@ export class NativeTaskDeliveryCoordinator {
           harnessSessionId: string;
         }) => void)
       | undefined;
-    executors?: NativeDeliveryExecutors;
-  }): Promise<void> {
+    executors: NativeDeliveryExecutors;
+  }): Promise<boolean> {
     const tasks = params.tasks;
-    if (tasks.length === 0) return;
+    if (tasks.length === 0) return false;
+    let deliveredAny = false;
     const { isTaskActive, onTaskDelivered, executors } = params;
     const deliveryState = getRoleDeliveryState();
     const taskService = params.taskService;
@@ -150,7 +105,6 @@ export class NativeTaskDeliveryCoordinator {
       const decision = decideNextDelivery(roleTasks, {
         role,
         activeTaskId,
-        deliveryInFlight: false,
         agentConfig,
         isNativeHarness: taskService.isNativeHarness,
         explainNativeDeliveryBlock: taskService.explainNativeDeliveryBlock,
@@ -158,7 +112,7 @@ export class NativeTaskDeliveryCoordinator {
       const attemptId = `${Date.now()}-${firstTask.taskId}`;
       const decisionReason = 'reason' in decision ? decision.reason : undefined;
       logNativeDeliveryDecision(
-        params.pass ?? 'inbox-signal',
+        params.pass ?? 'inbox-event',
         role,
         firstTask.chatroomId,
         decision.kind === 'failed' || decision.kind === 'waiting'
@@ -189,52 +143,18 @@ export class NativeTaskDeliveryCoordinator {
       }
 
       logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
-      if (executors?.deliverTask || executors?.injectTask) {
-        try {
-          const result = executors.deliverTask
-            ? await executors.deliverTask(row, agentConfig)
-            : await executors.injectTask?.(
-                row,
-                params.agentMgr.getSlot(row.chatroomId, role)?.harnessSessionId
-              );
-          if (!result || result.kind === 'task-unavailable') {
-            console.warn(
-              `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
-            );
-          } else if (result.delivered) {
-            onTaskDelivered?.(result.delivered);
-            deliveryState.clearNativeNudgeFailures(row.chatroomId, role);
-            console.log(
-              `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=success`
-            );
-          }
-        } catch (error) {
-          console.warn(
-            `[NativeDelivery:failure] role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject error=${getErrorMessage(error)}`
-          );
-        } finally {
-          deliveryState.releaseDelivery(row.chatroomId, role);
-        }
-        continue;
-      }
-      // Legacy/test compatibility only. Production supplies deliverTask, which
-      // acquires a ready slot before injecting.
       try {
-        const sessionId = params.agentMgr.getSlot(row.chatroomId, role)?.harnessSessionId;
-        const full = await taskService.loadAssignedTaskForAction({
-          chatroomId: row.chatroomId,
-          role: row.agentConfig.role,
-          taskId: row.taskId,
-        });
-        if (!full || !sessionId) {
+        const result = await executors.deliverTask(row, agentConfig);
+        if (!result || result.kind === 'task-unavailable') {
           console.warn(
             `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
           );
-        } else {
-          await taskService.deliverNativeTask(full, sessionId, (delivered) => {
-            onTaskDelivered?.(delivered);
-            deliveryState.clearNativeNudgeFailures(delivered.chatroomId, delivered.role);
-          });
+        } else if (result.delivered) {
+          onTaskDelivered?.(result.delivered);
+          deliveredAny = true;
+          console.log(
+            `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=success`
+          );
         }
       } catch (error) {
         console.warn(
@@ -244,6 +164,7 @@ export class NativeTaskDeliveryCoordinator {
         deliveryState.releaseDelivery(row.chatroomId, role);
       }
     }
+    return deliveredAny;
   }
 }
 

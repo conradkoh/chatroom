@@ -11,7 +11,7 @@ import {
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import {
   AgentWorkManager,
-  type NativeTaskDeliverySessionDeps,
+  type NativeDeliverySessionHandles,
 } from '../services/service-interfaces.js';
 import { createAgentTaskStateService } from '../services/service-interfaces.js';
 
@@ -34,13 +34,7 @@ export const startTaskInboxEffect = (
       enqueue: (fact: AgentLifecycleFact) =>
         Effect.runPromise(lifecycleOutboxService.enqueue(fact)),
     };
-    const effectContext = yield* Effect.context<
-      DaemonSessionService | DaemonAgentProcessManagerService
-    >();
-    const runtime = yield* Effect.runtime<
-      DaemonSessionService | DaemonAgentProcessManagerService
-    >();
-    const sessionDeps: NativeTaskDeliverySessionDeps = {
+    const sessionDeps: NativeDeliverySessionHandles & { convexUrl: string } = {
       sessionId: session.sessionId,
       convexUrl: session.convexUrl,
       machineId: session.machineId,
@@ -53,8 +47,6 @@ export const startTaskInboxEffect = (
     const agentTaskState = createAgentTaskStateService();
     const nativeDelivery = new AgentWorkManager({
       configurationService: session.agentConfigRegistry,
-      runtime,
-      effectContext,
       agentMgr,
       runSerializedForAgent: commandService.runSerializedForAgent,
       acquireNativeDeliverySlot: commandService.acquireNativeDeliverySlot,

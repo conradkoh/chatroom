@@ -24,7 +24,6 @@ function context(
   return {
     role: 'builder',
     activeTaskId: undefined,
-    deliveryInFlight: false,
     agentConfig: { agentHarness: 'codex-sdk', model: 'model-1', workingDir: '/workspace' },
     isNativeHarness: (harness) => harness.endsWith('-sdk'),
     explainNativeDeliveryBlock: vi.fn(() => null),
@@ -39,7 +38,7 @@ describe('decideNextDelivery', () => {
 
   test.each([
     ['in_progress', 'task_not_deliverable'],
-    ['completed', 'task_not_deliverable'],
+    ['completed' as never, 'task_not_deliverable'],
   ] as const)('fails a non-deliverable task (%s)', (status, reason) => {
     expect(decideNextDelivery([task({ status })], context())).toEqual({
       kind: 'failed',
@@ -70,27 +69,11 @@ describe('decideNextDelivery', () => {
     });
   });
 
-  test('maps the remaining task-domain block to its outcome', () => {
-    expect(
-      decideNextDelivery(
-        [task()],
-        context({
-          explainNativeDeliveryBlock: vi.fn(() => 'chatroom_stop_scope_active'),
-        })
-      )
-    ).toEqual({ kind: 'waiting', taskId: 'task-1', reason: 'stop_scope_active' });
-  });
-
-  test('deduplicates an active task and an in-flight delivery', () => {
+  test('deduplicates an active task', () => {
     expect(decideNextDelivery([task()], context({ activeTaskId: 'task-1' }))).toEqual({
       kind: 'deduplicated',
       taskId: 'task-1',
       reason: 'task_state_active',
-    });
-    expect(decideNextDelivery([task()], context({ deliveryInFlight: true }))).toEqual({
-      kind: 'deduplicated',
-      taskId: 'task-1',
-      reason: 'delivery_in_flight',
     });
   });
 });
