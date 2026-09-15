@@ -138,6 +138,46 @@ pnpm dev
 pnpm setup
 ```
 
+### Version Updates
+
+**All workspace packages share one version.** There is no bump script — edit the
+`version` field in every tracked manifest together.
+
+The set is defined by `pnpm-workspace.yaml` (`apps/*`, `services/*`, `packages/*`)
+plus the root manifest. Currently that is six files, and it is exactly what
+`git ls-files '*package.json'` returns:
+
+```
+package.json                   # root — chatroom
+apps/local/package.json        # @workspace/local
+apps/webapp/package.json       # @workspace/webapp
+packages/cli/package.json      # chatroom-cli (published to npm)
+packages/shared/package.json   # @workspace/shared
+services/backend/package.json  # @workspace/backend
+```
+
+Do **not** bump, and do not add a `version` to:
+
+- `.opencode/package.json` — untracked, no `version` field
+- `packages/cli/.npm-publish/package.json` — gitignored build artifact, rewritten by
+  `packages/cli/scripts/prepare-npm-publish.ts`
+
+Nothing else needs updating: `pnpm-lock.yaml` does not record workspace versions,
+and the CLI reads its version at runtime from `packages/cli/package.json`
+(`packages/cli/src/version.ts`), so there is no version constant to keep in sync.
+
+Verify before committing — this must print exactly **one** line:
+
+```bash
+# All six manifests in sync?
+git ls-files '*package.json' | xargs grep -h '^  "version":' | sort -u
+```
+
+Bumping only a subset (for example just the npm publish set: root, `packages/cli`,
+`packages/shared`) strands the remaining packages and needs a repair bump later.
+A new workspace package under `apps/`, `services/`, or `packages/` must adopt the
+same version.
+
 ### Daemon Debugging
 
 ```bash
