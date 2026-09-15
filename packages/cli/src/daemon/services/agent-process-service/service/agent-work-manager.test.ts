@@ -183,7 +183,7 @@ describe('AgentWorkManager', () => {
           taskId: 'task-2',
           harnessSessionId: 'session-1',
         });
-        return true;
+        return ['task-1', 'task-2'];
       });
 
     const delivered = await service.reconcileAfterAgentRestart({
@@ -213,7 +213,7 @@ describe('AgentWorkManager', () => {
         onTurnEnded = handler;
       },
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(false);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
 
     await onTurnEnded?.({
       chatroomId: 'room-1',
@@ -285,7 +285,7 @@ describe('AgentWorkManager', () => {
         onAgentStarted = handler;
       },
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(false);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
     await onAgentStarted?.({ chatroomId: 'room-1', role: 'builder' } as never);
@@ -306,7 +306,7 @@ describe('AgentWorkManager', () => {
         onAgentStarted = handler;
       },
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(false);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
 
     await onAgentStarted?.({ chatroomId: 'room-1', role: 'builder' } as never);
 
@@ -325,7 +325,7 @@ describe('AgentWorkManager', () => {
         onSessionLost = handler;
       },
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(false);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
     onSessionLost?.({ chatroomId: 'room-1', role: 'builder' } as never);
@@ -341,7 +341,7 @@ describe('AgentWorkManager', () => {
 
   test('routes bootstrap notifications by affected role', async () => {
     const service = createService();
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(false);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
     const snapshot = {
       chatroomId: 'room-1',
       agentConfig: { role: 'builder' },
@@ -366,7 +366,7 @@ describe('AgentWorkManager', () => {
     const reconcileRole = vi
       .spyOn(service as any, 'reconcileRole')
       .mockImplementationOnce(async () => gate)
-      .mockResolvedValue(false);
+      .mockResolvedValue([]);
 
     const first = service.requestReconcile({
       chatroomId: 'room-1',

@@ -55,7 +55,7 @@ describe('task-delivery-processor exact-task hydration', () => {
       .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
       .mockImplementation(async (params) => {
         capturedDeliver = params.executors.deliverTask as never;
-        return false;
+        return [];
       });
 
     try {
@@ -101,7 +101,7 @@ describe('task-delivery-processor exact-task hydration', () => {
       .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
       .mockImplementation(async (params) => {
         capturedDeliver = params.executors.deliverTask as never;
-        return false;
+        return [];
       });
 
     try {

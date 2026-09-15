@@ -253,7 +253,9 @@ describe('TaskService inbox consumption', () => {
       const notifications: unknown[] = [];
       service.subscribe((notification) => {
         notifications.push(notification);
-        return true;
+        return {
+          handledEventIds: notification.kind === 'inbox-event' ? [notification.event.eventId] : [],
+        };
       });
 
       await service.startTaskInbox();

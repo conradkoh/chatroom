@@ -23,6 +23,7 @@ export {
   createTaskService,
   type TaskService,
   type TaskServiceCompositionDependencies,
+  type TaskServiceDeliveryConfirmation,
   type TaskServiceNotification,
   type WorkspaceTaskInboxEvent,
 } from './service/task-service.js';
