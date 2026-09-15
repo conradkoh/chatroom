@@ -43,9 +43,9 @@ import type {
 } from '../remote-agent-service.js';
 import { requireHarnessModel } from '../require-harness-model.js';
 import { tapProcessStreamWrites } from '../tap-process-stream-writes.js';
+import { turnCompletionFromError, type TurnCompletionResult } from '../turn-completion.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
-import { turnCompletionFromError, type TurnCompletionResult } from '../turn-completion.js';
 
 type Run = CursorSdkModule.Run;
 type SDKAgent = CursorSdkModule.SDKAgent;

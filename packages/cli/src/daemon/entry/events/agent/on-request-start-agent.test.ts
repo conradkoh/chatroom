@@ -3,14 +3,14 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { AgentRequestStartEventPayload } from './on-request-start-agent.js';
 import { onRequestStartAgentEffect } from './on-request-start-agent.js';
+import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
+import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
+import type { AgentProcessManagerService } from '../../../services/agent-process-service/index.js';
 import {
   DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
 } from '../../daemon-services.js';
-import type { AgentProcessManagerService } from '../../../services/agent-process-service/index.js';
 import { DaemonEventBus } from '../event-bus.js';
-import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
-import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
