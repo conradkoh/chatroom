@@ -45,6 +45,7 @@ function createService(
         { startAgent: vi.fn(), stopAgent: options.stopAgent ?? vi.fn() },
         { signal: new AbortController().signal }
       )) as never,
+    acquireNativeDeliverySlot: vi.fn().mockResolvedValue({ state: 'running' }),
     sessionDeps: {} as never,
     machineId: 'machine-1',
     taskInboxState: new TaskInboxState(),

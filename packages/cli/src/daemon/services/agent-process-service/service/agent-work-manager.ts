@@ -72,6 +72,7 @@ export interface AgentWorkManagerDependencies {
   readonly effectContext: TaskDeliveryContext;
   readonly agentMgr: DaemonAgentProcessManagerServiceShape;
   readonly runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
+  readonly acquireNativeDeliverySlot: AgentProcessManagerService['acquireNativeDeliverySlot'];
   readonly sessionDeps: NativeTaskDeliverySessionDeps;
   readonly machineId: string;
   /** Read-only task inbox state owned and mutated by TaskService. */
@@ -432,6 +433,7 @@ export class AgentWorkManager {
       this.deps.effectContext,
       this.deps.agentMgr,
       this.deps.runSerializedForAgent,
+      this.deps.acquireNativeDeliverySlot,
       this.deliveryTaskService,
       this.deps.configurationService,
       this.deps.sessionDeps,
@@ -447,7 +449,8 @@ export class AgentWorkManager {
           this.recordTaskDelivered(args);
           onTaskDelivered?.(args);
         },
-      }
+      },
+      this.deps.acquireNativeDeliverySlot
     );
   }
 

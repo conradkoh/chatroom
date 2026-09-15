@@ -57,6 +57,7 @@ export const startTaskInboxEffect = (
       effectContext,
       agentMgr,
       runSerializedForAgent: commandService.runSerializedForAgent,
+      acquireNativeDeliverySlot: commandService.acquireNativeDeliverySlot,
       sessionDeps,
       machineId: session.machineId,
       taskInboxState: session.taskService.taskInboxState,

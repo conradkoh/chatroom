@@ -24,6 +24,13 @@ export interface EnsureAgentProcessInput {
   readonly systemPrompt?: string | undefined;
 }
 
+/** Runtime inputs required to acquire a native delivery session. */
+export interface AcquireNativeDeliverySlotInput extends EnsureAgentProcessInput {
+  /** Maximum time to wait for a running, idle native session. */
+  readonly timeoutMs?: number | undefined;
+  readonly signal?: AbortSignal | undefined;
+}
+
 export interface StopAgentProcessInput {
   readonly chatroomId: string;
   readonly role: string;

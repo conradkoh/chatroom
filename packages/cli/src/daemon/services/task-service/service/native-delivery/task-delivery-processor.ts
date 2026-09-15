@@ -69,7 +69,8 @@ export async function processTasksUpdate(
   pass: TaskDeliveryPass | LegacyTaskDeliveryPass,
   lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> },
   isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean,
-  options: ProcessTasksUpdateOptions
+  options: ProcessTasksUpdateOptions,
+  acquireNativeDeliverySlot?: AgentProcessManagerService['acquireNativeDeliverySlot']
 ): Promise<void> {
   const first = options.tasks[0];
   if (!first) return;
@@ -77,23 +78,21 @@ export async function processTasksUpdate(
   const executors = {
     startAgent: (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => {
       if (!agentConfig) return Promise.resolve({ success: false, error: 'agent config missing' });
+      const startInput = {
+        chatroomId: task.chatroomId,
+        role: task.agentConfig.role,
+        agentHarness: agentConfig.agentHarness as AgentHarness,
+        model: agentConfig.model ?? '',
+        workingDir: agentConfig.workingDir,
+        reason: AgentStartReasonEnum['platform.pending_task_wake'],
+        wantResume: false,
+        taskId: task.taskId,
+      };
+      if (acquireNativeDeliverySlot) return acquireNativeDeliverySlot(startInput);
       return runSerializedForAgent(
         { chatroomId: task.chatroomId, role: task.agentConfig.role },
         { timeoutMs: 120_000 },
-        (ops, context) =>
-          ops.startAgent(
-            {
-              chatroomId: task.chatroomId,
-              role: task.agentConfig.role,
-              agentHarness: agentConfig.agentHarness as AgentHarness,
-              model: agentConfig.model ?? '',
-              workingDir: agentConfig.workingDir,
-              reason: AgentStartReasonEnum['platform.pending_task_wake'],
-              wantResume: false,
-              taskId: task.taskId,
-            },
-            context.signal
-          )
+        (ops, context) => ops.startAgent(startInput, context.signal)
       );
     },
     injectTask: async (task: AssignedTask, harnessSessionId: string | undefined) => {
