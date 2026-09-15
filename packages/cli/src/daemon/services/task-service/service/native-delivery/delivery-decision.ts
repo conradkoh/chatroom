@@ -16,7 +16,8 @@ export type DeliveryDecision =
     }
   | {
       kind: 'failed';
-      reason: 'unsupported_harness' | 'task_not_deliverable' | 'assigned_elsewhere';
+      reason:
+        'unsupported_harness' | 'no_agent_config' | 'task_not_deliverable' | 'assigned_elsewhere';
       taskId: string;
     }
   | { kind: 'deliver'; taskId: string }
@@ -31,6 +32,7 @@ export type DeliveryDecisionContext = {
   activeTaskId: string | undefined;
   /** Configuration resolved from ChatroomWorkspaceConfigurationService. */
   agentConfig: AgentConfigEntry | undefined;
+  configState: 'ready' | 'syncing' | 'absent';
   isNativeHarness: (harness: string) => boolean;
   explainNativeDeliveryBlock: (task: AssignedTask) => DeliveryBlockReason | null;
 };
@@ -70,7 +72,10 @@ export function decideNextDelivery(
     return { kind: 'failed', taskId: task.taskId, reason: 'assigned_elsewhere' };
   }
 
-  if (!context.agentConfig) {
+  if (context.configState === 'absent') {
+    return { kind: 'failed', taskId: task.taskId, reason: 'no_agent_config' };
+  }
+  if (context.configState === 'syncing' || !context.agentConfig) {
     return { kind: 'waiting', taskId: task.taskId, reason: 'config_sync_lag' };
   }
   if (!context.isNativeHarness(context.agentConfig.agentHarness)) {

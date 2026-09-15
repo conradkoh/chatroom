@@ -125,13 +125,11 @@ function applyColdSessionIfRequested(
   });
 }
 
-function claimPendingTaskIfNeeded(
+function claimTaskForDelivery(
   task: AssignedTaskWithContent,
   deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
-    if (task.status !== 'pending') return;
-
     const { chatroomId, taskId, agentConfig } = task;
     const { role } = agentConfig;
     const claimResult = yield* Effect.tryPromise({
@@ -414,7 +412,7 @@ export function runNativeInjectionEffect(
   deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
-    yield* claimPendingTaskIfNeeded(task, deps);
+    yield* claimTaskForDelivery(task, deps);
     const session = yield* resolveHarnessSessionForInject(task, deps, initialHarnessSessionId);
     yield* injectNativeTaskPrompt(
       task,

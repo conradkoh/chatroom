@@ -85,7 +85,9 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
     runSerializedForAgent,
     lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue(undefined) },
     convexUrl: 'http://test:3210',
-    configurationService: { get: () => undefined } as never,
+    configurationService: {
+      get: () => ({ agentHarness: 'codex-sdk', model: 'model-1', workingDir: '/workspace' }),
+    } as never,
     ...overrides,
   };
 }
@@ -177,7 +179,7 @@ describe('runNativeInjectionEffect', () => {
         !('machineId' in call[1]) &&
         !('deliveryKind' in call[1])
     );
-    expect(claimCalls).toHaveLength(0);
+    expect(claimCalls).toHaveLength(1);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
   });
 

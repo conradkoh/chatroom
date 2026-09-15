@@ -94,7 +94,9 @@ export async function processTasksUpdate(
       await taskService.deliverNativeTask(full, slot.harnessSessionId, (result) => {
         delivered = result;
       });
-      return { kind: 'delivered' as const, ...(delivered ? { delivered } : {}) };
+      if (!delivered)
+        return { kind: 'failed' as const, reason: 'injection_not_confirmed' as const };
+      return { kind: 'delivered' as const, delivered };
     },
   };
   return getNativeTaskDeliveryCoordinator().reconcileRoleTasks({

@@ -22,7 +22,9 @@ export type NativeDeliveryDelivered = {
 };
 
 export type NativeDeliveryExecution =
-  { kind: 'delivered'; delivered?: NativeDeliveryDelivered } | { kind: 'task-unavailable' };
+  | { kind: 'delivered'; delivered: NativeDeliveryDelivered }
+  | { kind: 'task-unavailable' }
+  | { kind: 'failed'; reason: 'injection_not_confirmed' };
 
 export type NativeDeliveryExecutors = {
   deliverTask: (
@@ -95,10 +97,13 @@ export class NativeTaskDeliveryCoordinator {
           : undefined;
       const agentConfig =
         params.agentConfig ??
-        params.configurationService?.get(firstTask.chatroomId, role) ??
+        params.configurationService.get(firstTask.chatroomId, role) ??
         // Legacy/test callers predate the configuration service. Production
         // always resolves configuration through that service.
         ephemeralConfig;
+      const configState =
+        params.configurationService.state?.(firstTask.chatroomId, role) ??
+        (agentConfig ? 'ready' : 'syncing');
       const activeTaskId = roleTasks.find((candidate) =>
         isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
       )?.taskId;
@@ -106,6 +111,7 @@ export class NativeTaskDeliveryCoordinator {
         role,
         activeTaskId,
         agentConfig,
+        configState,
         isNativeHarness: taskService.isNativeHarness,
         explainNativeDeliveryBlock: taskService.explainNativeDeliveryBlock,
       });
@@ -149,7 +155,11 @@ export class NativeTaskDeliveryCoordinator {
           console.warn(
             `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
           );
-        } else if (result.delivered) {
+        } else if (result.kind === 'failed') {
+          console.warn(
+            `[NativeDelivery:failure] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject reason=${result.reason}`
+          );
+        } else {
           onTaskDelivered?.(result.delivered);
           deliveredAny = true;
           console.log(

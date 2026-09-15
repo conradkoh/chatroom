@@ -55,7 +55,10 @@ function baseParams(overrides: Record<string, any> = {}) {
   };
   return {
     tasks: [acknowledgedRow()],
-    configurationService: { get: () => undefined },
+    configurationService: {
+      get: () => undefined,
+      state: () => 'ready',
+    },
     executors,
     sessionDeps: {
       sessionId: 'session_coordinator',

@@ -25,6 +25,7 @@ function context(
     role: 'builder',
     activeTaskId: undefined,
     agentConfig: { agentHarness: 'codex-sdk', model: 'model-1', workingDir: '/workspace' },
+    configState: 'ready',
     isNativeHarness: (harness) => harness.endsWith('-sdk'),
     explainNativeDeliveryBlock: vi.fn(() => null),
     ...overrides,

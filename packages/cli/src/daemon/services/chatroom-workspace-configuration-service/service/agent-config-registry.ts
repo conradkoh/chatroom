@@ -43,6 +43,8 @@ export interface AgentConfigRegistry {
   stop(): void;
   /** Latest agent config for one `(chatroomId, role)`; undefined when unknown. */
   get(chatroomId: string, role: string): AgentConfigEntry | undefined;
+  /** Whether config is ready, still synchronizing, or absent for this machine. */
+  state?(chatroomId: string, role: string): 'ready' | 'syncing' | 'absent';
 }
 
 /**
@@ -68,8 +70,11 @@ export function createAgentConfigRegistry(
   const configs = new Map<string, AgentConfigEntry>();
   /** Events seen but not yet durably acked; guards ack retries. */
   const pendingEventIds = new Set<string>();
+  const pendingConfigKeys = new Set<string>();
+  const pendingEventKeys = new Map<string, string>();
   const ackRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let stopped = false;
+  let initialReplayComplete = false;
   let stopWatch: (() => void) | undefined;
 
   /** Roles are case-insensitive across the daemon; keys normalize to lowercase. */
@@ -82,6 +87,7 @@ export function createAgentConfigRegistry(
    * and still acked so they never replay.
    */
   const applyEvent = (event: AgentConfigInboxEvent): boolean => {
+    const key = entryKey(event.chatroomId, event.role);
     if (event.machineId !== deps.machineId) {
       console.warn(
         `[AgentConfigRegistry] ignoring config event for foreign machine ${event.machineId}`
@@ -94,7 +100,7 @@ export function createAgentConfigRegistry(
       );
       return false;
     }
-    configs.set(entryKey(event.chatroomId, event.role), {
+    configs.set(key, {
       agentHarness: event.agentHarness,
       model: event.model,
       workingDir: event.workingDir,
@@ -111,6 +117,11 @@ export function createAgentConfigRegistry(
         eventId,
       });
       pendingEventIds.delete(eventId);
+      const key = pendingEventKeys.get(eventId);
+      if (key) {
+        pendingEventKeys.delete(eventId);
+        pendingConfigKeys.delete(key);
+      }
       const timer = ackRetryTimers.get(eventId);
       if (timer) clearTimeout(timer);
       ackRetryTimers.delete(eventId);
@@ -141,6 +152,9 @@ export function createAgentConfigRegistry(
     for (const event of events) {
       if (stopped) return;
       pendingEventIds.add(event.eventId);
+      const key = entryKey(event.chatroomId, event.role);
+      pendingEventKeys.set(event.eventId, key);
+      pendingConfigKeys.add(key);
       applyEvent(event);
       await acknowledge(event.eventId);
     }
@@ -175,7 +189,9 @@ export function createAgentConfigRegistry(
       api.daemon.agentConfigInbox.listPending,
       { sessionId: deps.sessionId as SessionId, machineId: deps.machineId },
       (rows) => {
-        void reconcileRows(rows);
+        void reconcileRows(rows).finally(() => {
+          initialReplayComplete = true;
+        });
       },
       (error) => console.warn(`[daemon] agent-config watch error: ${String(error)}`)
     );
@@ -189,6 +205,7 @@ export function createAgentConfigRegistry(
           machineId: deps.machineId,
         })
       );
+      initialReplayComplete = true;
     } catch (error) {
       console.error(
         '[AgentConfigRegistry] agent config inbox rows deviate from the declared structure — skipping batch:',
@@ -211,9 +228,18 @@ export function createAgentConfigRegistry(
       stopWatch?.();
       stopWatch = undefined;
       pendingEventIds.clear();
+      pendingEventKeys.clear();
+      pendingConfigKeys.clear();
+      initialReplayComplete = false;
       for (const timer of ackRetryTimers.values()) clearTimeout(timer);
       ackRetryTimers.clear();
     },
     get: (chatroomId, role) => configs.get(entryKey(chatroomId, role)),
+    state: (chatroomId, role) => {
+      const key = entryKey(chatroomId, role);
+      if (pendingConfigKeys.has(key) || !initialReplayComplete) return 'syncing';
+      if (configs.has(key)) return 'ready';
+      return 'absent';
+    },
   };
 }
