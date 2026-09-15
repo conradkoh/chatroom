@@ -16,11 +16,9 @@ function snapshotRow() {
     assignedTo: ROLE,
     updatedAt: 1_700_000_000_000,
     createdAt: 1_700_000_000_000,
-    agentConfig: {
-      role: ROLE,
-      machineId: 'machine_processor',
-      agentHarness: 'cursor-sdk',
-      workingDir: '/test',
+    agentConfig: { role: ROLE, machineId: 'machine_processor' },
+    assignee: {
+      type: 'permanent' as const,
     },
     participant: {
       lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
@@ -33,35 +31,30 @@ function snapshotRow() {
 function fullTask() {
   return {
     ...(snapshotRow() as unknown as Record<string, unknown>),
-    taskContent: '## Goal\nProcessor facade test',
+    taskContent: 'Do the thing',
   } as never;
 }
 
+const config = { agentHarness: 'cursor-sdk', model: 'model-1', workingDir: '/test' };
+
 describe('task-delivery-processor exact-task hydration', () => {
-  test('injectTask hydrates through TaskService.loadAssignedTaskForAction before deliverNativeTask', async () => {
+  test('merged delivery hydrates before deliverNativeTask', async () => {
     const row = snapshotRow();
     const full = fullTask();
     const loadAssignedTaskForAction = vi.fn(async () => full);
-    const deliverNativeTask = vi.fn(
-      async (
-        _task: unknown,
-        _harnessSessionId: unknown,
-        onTaskDelivered?: (args: never) => void
-      ) => {
-        onTaskDelivered?.({
-          chatroomId: CHATROOM_ID,
-          role: ROLE,
-          taskId: TASK_ID,
-          harnessSessionId: 'harness-1',
-        } as never);
-      }
-    );
-    let capturedInject:
-      ((task: never, harnessSessionId: string | undefined) => Promise<unknown>) | undefined;
+    const deliverNativeTask = vi.fn(async (_task, _session, onDelivered) => {
+      onDelivered?.({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        taskId: TASK_ID,
+        harnessSessionId: 'harness-1',
+      });
+    });
+    let capturedDeliver: ((task: never, agentConfig: never) => Promise<unknown>) | undefined;
     const reconcileSpy = vi
       .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
       .mockImplementation(async (params) => {
-        capturedInject = params.executors?.injectTask as never;
+        capturedDeliver = params.executors?.deliverTask as never;
       });
 
     try {
@@ -74,25 +67,20 @@ describe('task-delivery-processor exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         } as never,
-        {
-          sessionId: 'session_processor',
-          machineId: 'machine_processor',
-          convexUrl: 'http://test:3210',
-          backend: { mutation: vi.fn(), query: vi.fn() },
-        } as never,
+        { get: () => config } as never,
+        {} as never,
         'machine_processor',
         'bootstrap',
         { enqueue: async () => undefined } as never,
         () => false,
-        { tasks: [row] }
+        { tasks: [row] },
+        vi.fn(async () => ({ harnessSessionId: 'harness-1' })) as never
       );
 
-      expect(capturedInject).toBeDefined();
-      const result = await capturedInject?.(row as never, 'harness-1');
-
+      expect(capturedDeliver).toBeDefined();
+      const result = await capturedDeliver?.(row, config as never);
       expect(loadAssignedTaskForAction).toHaveBeenCalledWith({
         chatroomId: CHATROOM_ID,
         role: ROLE,
@@ -105,16 +93,15 @@ describe('task-delivery-processor exact-task hydration', () => {
     }
   });
 
-  test('injectTask returns task-unavailable without delivering when hydration is null', async () => {
+  test('merged delivery returns task-unavailable when hydration is null', async () => {
     const row = snapshotRow();
     const loadAssignedTaskForAction = vi.fn(async () => null);
     const deliverNativeTask = vi.fn(async () => undefined);
-    let capturedInject:
-      ((task: never, harnessSessionId: string | undefined) => Promise<unknown>) | undefined;
+    let capturedDeliver: ((task: never, agentConfig: never) => Promise<unknown>) | undefined;
     const reconcileSpy = vi
       .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
       .mockImplementation(async (params) => {
-        capturedInject = params.executors?.injectTask as never;
+        capturedDeliver = params.executors?.deliverTask as never;
       });
 
     try {
@@ -127,24 +114,19 @@ describe('task-delivery-processor exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         } as never,
-        {
-          sessionId: 'session_processor',
-          machineId: 'machine_processor',
-          convexUrl: 'http://test:3210',
-          backend: { mutation: vi.fn(), query: vi.fn() },
-        } as never,
+        { get: () => config } as never,
+        {} as never,
         'machine_processor',
         'bootstrap',
         { enqueue: async () => undefined } as never,
         () => false,
-        { tasks: [row] }
+        { tasks: [row] },
+        vi.fn(async () => ({ harnessSessionId: 'harness-1' })) as never
       );
 
-      const result = await capturedInject?.(row as never, undefined);
-
+      const result = await capturedDeliver?.(row, config as never);
       expect(result).toEqual({ kind: 'task-unavailable' });
       expect(deliverNativeTask).not.toHaveBeenCalled();
     } finally {
