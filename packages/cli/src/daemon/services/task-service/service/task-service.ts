@@ -6,6 +6,10 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
+import {
+  buildTaskServiceDebugState,
+  type TaskServiceDebugState,
+} from './task-service-debug-state.js';
 import { api } from '../../../../api.js';
 import type {
   TaskAssigneeType,
@@ -82,6 +86,12 @@ export interface TaskService {
   markTaskInboxEventProcessed(eventId: string): Promise<boolean>;
   listTasksForRole(chatroomId: string, role: string): readonly AssignedTask[];
   listAllTasks(): readonly AssignedTask[];
+  /**
+   * Diagnostic snapshot of this service's state for one chatroom: the local
+   * read model plus the backend's full inbox event history for that chatroom.
+   * Read-only and never used by the delivery path.
+   */
+  debugState(chatroomId: string): Promise<TaskServiceDebugState>;
   readonly taskInboxState: TaskInboxStateReader;
   /**
    * Releases a single in-flight task back to backend `pending` after a native
@@ -311,6 +321,17 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       }),
     listTasksForRole: (chatroomId, role) => taskInboxState.listForRole(chatroomId, role),
     listAllTasks: () => taskInboxState.listAll(),
+    debugState: (chatroomId) =>
+      buildTaskServiceDebugState({
+        taskInboxState,
+        loadInboxEvents: () =>
+          gateway.listTaskInboxEventsForChatroom({
+            sessionId: deps.sessionId,
+            machineId: deps.machineId,
+            chatroomId,
+          }),
+        chatroomId,
+      }),
     taskInboxState,
     releaseTaskAfterTurnFailure: async (args) => {
       const result = await gateway.releaseTaskAfterTurnFailure({

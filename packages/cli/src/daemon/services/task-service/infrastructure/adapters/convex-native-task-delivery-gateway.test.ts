@@ -67,3 +67,66 @@ describe('createConvexNativeTaskDeliveryGateway.loadAssignedTaskForAction', () =
     expect(query).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('createConvexNativeTaskDeliveryGateway.listTaskInboxEventsForChatroom', () => {
+  test('queries the chatroom history endpoint and flattens each row', async () => {
+    const query = vi.fn(async () => [
+      {
+        _id: 'event_1',
+        eventType: 'task_assigned',
+        status: 'processed',
+        role: 'planner',
+        taskId: 'task_1',
+        createdAt: 100,
+        processedAt: 500,
+        task: { status: 'pending' },
+      },
+      {
+        _id: 'event_2',
+        eventType: 'task_updated',
+        status: 'pending',
+        role: 'planner',
+        taskId: 'task_1',
+        createdAt: 90,
+        task: { status: 'pending' },
+      },
+    ]);
+    const gateway = createConvexNativeTaskDeliveryGateway({
+      mutation: vi.fn(async () => undefined),
+      query,
+    });
+
+    const result = await gateway.listTaskInboxEventsForChatroom({
+      sessionId: 'session_1',
+      machineId: 'machine_1',
+      chatroomId: 'room_1',
+    });
+
+    expect(query).toHaveBeenCalledWith(api.chatroomWorkspaceTaskInbox.listForChatroom, {
+      sessionId: 'session_1',
+      machineId: 'machine_1',
+      chatroomId: 'room_1',
+    });
+    expect(result).toEqual([
+      {
+        eventId: 'event_1',
+        eventType: 'task_assigned',
+        status: 'processed',
+        role: 'planner',
+        taskId: 'task_1',
+        taskStatus: 'pending',
+        createdAt: 100,
+        processedAt: 500,
+      },
+      {
+        eventId: 'event_2',
+        eventType: 'task_updated',
+        status: 'pending',
+        role: 'planner',
+        taskId: 'task_1',
+        taskStatus: 'pending',
+        createdAt: 90,
+      },
+    ]);
+  });
+});
