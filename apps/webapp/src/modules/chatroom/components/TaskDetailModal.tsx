@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
+import { AlertCircle, Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
 
@@ -38,6 +38,15 @@ interface Task {
   updatedAt: number;
   queuePosition: number;
   assignedTo?: string;
+  deliveryFailure?: {
+    reason:
+      | 'no_agent_config'
+      | 'unsupported_harness'
+      | 'injection_not_confirmed'
+      | 'task_not_deliverable'
+      | 'assigned_elsewhere';
+    occurredAt: number;
+  };
 }
 
 interface TaskDetailModalProps {
@@ -184,6 +193,15 @@ function TaskDetailForm({
             </span>
             {task.assignedTo && (
               <span className="text-[10px] text-chatroom-text-muted">→ {task.assignedTo}</span>
+            )}
+            {task.deliveryFailure && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] text-chatroom-status-warning"
+                title={`Delivery failed: ${task.deliveryFailure.reason}`}
+              >
+                <AlertCircle size={11} />
+                Delivery failed: {task.deliveryFailure.reason.replaceAll('_', ' ')}
+              </span>
             )}
           </div>
         </FixedModalHeader>

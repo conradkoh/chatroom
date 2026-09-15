@@ -5,7 +5,25 @@ import type {
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 import type { WorkspaceTaskInboxEvent } from '../task-service.js';
 
+export type TaskDeliveryFailureReason =
+  | 'no_agent_config'
+  | 'unsupported_harness'
+  | 'injection_not_confirmed'
+  | 'task_not_deliverable'
+  | 'assigned_elsewhere';
+
 export interface NativeTaskDeliveryGateway {
+  recordDeliveryFailure(args: {
+    sessionId: string;
+    machineId: string;
+    taskId: string;
+    reason: TaskDeliveryFailureReason;
+  }): Promise<boolean>;
+  clearDeliveryFailure(args: {
+    sessionId: string;
+    machineId: string;
+    taskId: string;
+  }): Promise<boolean>;
   listActiveTaskStatuses(args: {
     sessionId: string;
     machineId: string;

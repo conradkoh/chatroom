@@ -12,6 +12,16 @@ export interface TaskDeliveryService {
     status: AssignedTask['status'];
     updatedAt: number;
   }>;
+  recordDeliveryFailure(args: {
+    taskId: string;
+    reason:
+      | 'no_agent_config'
+      | 'unsupported_harness'
+      | 'injection_not_confirmed'
+      | 'task_not_deliverable'
+      | 'assigned_elsewhere';
+  }): Promise<boolean>;
+  clearDeliveryFailure(taskId: string): Promise<boolean>;
   loadAssignedTaskForAction(args: {
     chatroomId: string;
     role: string;

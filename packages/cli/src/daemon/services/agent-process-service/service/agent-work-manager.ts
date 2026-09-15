@@ -120,6 +120,8 @@ export class AgentWorkManager {
       isNativeHarness,
       explainNativeDeliveryBlock,
       releaseTaskAfterTurnFailure: deps.taskService.releaseTaskAfterTurnFailure,
+      recordDeliveryFailure: deps.taskService.recordDeliveryFailure,
+      clearDeliveryFailure: deps.taskService.clearDeliveryFailure,
       loadAssignedTaskForAction: deps.taskService.loadAssignedTaskForAction,
       deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
         this.nativeTaskDeliveryQueue.enqueue({ task, harnessSessionId, onTaskDelivered }),

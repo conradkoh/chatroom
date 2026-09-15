@@ -33,6 +33,25 @@ export type NativeDeliveryExecutors = {
   ) => Promise<NativeDeliveryExecution>;
 };
 
+async function recordDeliveryFailure(
+  taskService: TaskDeliveryService,
+  taskId: string,
+  reason:
+    | 'no_agent_config'
+    | 'unsupported_harness'
+    | 'injection_not_confirmed'
+    | 'task_not_deliverable'
+    | 'assigned_elsewhere'
+): Promise<void> {
+  try {
+    await taskService.recordDeliveryFailure({ taskId, reason });
+  } catch (error) {
+    console.warn(
+      `[NativeDelivery:failure] task=${taskId} operation=record-failure error=${getErrorMessage(error)}`
+    );
+  }
+}
+
 export type DeliveryPass =
   | 'inbox-event'
   | 'periodic-reconcile'
@@ -133,10 +152,12 @@ export class NativeTaskDeliveryCoordinator {
           ? sortedTasks.find((candidate) => candidate.taskId === decision.taskId)
           : firstTask) ?? firstTask;
 
-      if (decision.kind === 'idle' || decision.kind === 'failed' || decision.kind === 'waiting') {
-        if (decision.kind !== 'idle') {
-          logNativeDeliverySkip(role, row.chatroomId, decision.taskId, decision.reason);
-        }
+      if (decision.kind === 'idle' || decision.kind === 'waiting') {
+        continue;
+      }
+      if (decision.kind === 'failed') {
+        logNativeDeliverySkip(role, row.chatroomId, decision.taskId, decision.reason);
+        await recordDeliveryFailure(taskService, decision.taskId, decision.reason);
         continue;
       }
       if (decision.kind === 'deduplicated') {
@@ -155,11 +176,20 @@ export class NativeTaskDeliveryCoordinator {
           console.warn(
             `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
           );
+          await recordDeliveryFailure(taskService, row.taskId, 'injection_not_confirmed');
         } else if (result.kind === 'failed') {
           console.warn(
             `[NativeDelivery:failure] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject reason=${result.reason}`
           );
+          await recordDeliveryFailure(taskService, row.taskId, result.reason);
         } else {
+          try {
+            await taskService.clearDeliveryFailure(row.taskId);
+          } catch (error) {
+            console.warn(
+              `[NativeDelivery:failure] task=${row.taskId} operation=clear-failure error=${getErrorMessage(error)}`
+            );
+          }
           onTaskDelivered?.(result.delivered);
           deliveredAny = true;
           console.log(
@@ -170,6 +200,7 @@ export class NativeTaskDeliveryCoordinator {
         console.warn(
           `[NativeDelivery:failure] role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject error=${getErrorMessage(error)}`
         );
+        await recordDeliveryFailure(taskService, row.taskId, 'injection_not_confirmed');
       } finally {
         deliveryState.releaseDelivery(row.chatroomId, role);
       }

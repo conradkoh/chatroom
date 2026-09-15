@@ -707,6 +707,19 @@ export default defineSchema({
     taskEnvelope: v.optional(taskEnvelopeV1Validator),
     /** Execution receipt: when a requested new session was actually consumed. */
     sessionPolicyConsumedAt: v.optional(v.number()),
+    /** Latest daemon delivery failure surfaced for this task. */
+    deliveryFailure: v.optional(
+      v.object({
+        reason: v.union(
+          v.literal('no_agent_config'),
+          v.literal('unsupported_harness'),
+          v.literal('injection_not_confirmed'),
+          v.literal('task_not_deliverable'),
+          v.literal('assigned_elsewhere')
+        ),
+        occurredAt: v.number(),
+      })
+    ),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])

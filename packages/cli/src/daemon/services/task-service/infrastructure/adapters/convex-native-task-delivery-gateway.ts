@@ -25,6 +25,23 @@ type Backend = {
 
 export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeTaskDeliveryGateway {
   return {
+    recordDeliveryFailure: async ({ sessionId, machineId, taskId, reason }) => {
+      const result = await backend.mutation(api.daemon.taskStatus.recordDeliveryFailure, {
+        sessionId,
+        machineId,
+        taskId: taskId as Id<'chatroom_tasks'>,
+        reason,
+      });
+      return Boolean((result as { recorded?: boolean }).recorded);
+    },
+    clearDeliveryFailure: async ({ sessionId, machineId, taskId }) => {
+      const result = await backend.mutation(api.daemon.taskStatus.clearDeliveryFailure, {
+        sessionId,
+        machineId,
+        taskId: taskId as Id<'chatroom_tasks'>,
+      });
+      return Boolean((result as { cleared?: boolean }).cleared);
+    },
     listActiveTaskStatuses: async ({ sessionId, machineId }) => {
       const rows = await backend.query(api.daemon.taskStatus.listActive, {
         sessionId,

@@ -120,6 +120,16 @@ export interface TaskService {
     role: string;
     taskId: string;
   }): Promise<AssignedTaskWithContent | null>;
+  recordDeliveryFailure(args: {
+    taskId: string;
+    reason:
+      | 'no_agent_config'
+      | 'unsupported_harness'
+      | 'injection_not_confirmed'
+      | 'task_not_deliverable'
+      | 'assigned_elsewhere';
+  }): Promise<boolean>;
+  clearDeliveryFailure(taskId: string): Promise<boolean>;
 }
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
@@ -391,6 +401,19 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       });
       return task?.chatroomId === chatroomId ? task : null;
     },
+    recordDeliveryFailure: ({ taskId, reason }) =>
+      gateway.recordDeliveryFailure({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId,
+        reason,
+      }),
+    clearDeliveryFailure: (taskId) =>
+      gateway.clearDeliveryFailure({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId,
+      }),
   };
   return service;
 }
