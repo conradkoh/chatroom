@@ -92,6 +92,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let enhancerWorkerHandle: { stop: () => void } | null = null;
   let taskInboxHandle: { stop: () => void; nativeDelivery: AgentWorkManager } | null = null;
+  let agentConfigRegistryHandle: { stop: () => void } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
@@ -136,6 +137,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     gitSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
+    agentConfigRegistryHandle?.stop();
     taskInboxHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     agenticQueryWorkerHandle?.stop();
@@ -276,6 +278,19 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     });
 
     taskInboxHandle = yield* startTaskInboxEffect(deps.wsClient);
+
+    agentConfigRegistryHandle = session.agentConfigRegistry;
+    yield* Effect.tryPromise({
+      try: () => session.agentConfigRegistry.start(deps.wsClient),
+      catch: (error) => error,
+    }).pipe(
+      Effect.catchAll((error) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Agent config inbox bootstrap failed: ${getErrorMessage(error)}`
+        );
+        return Effect.void;
+      })
+    );
 
     logObserverSubscriptionHandle = startLogObserverSubscription(
       { sessionId: session.sessionId, machineId: session.machineId },

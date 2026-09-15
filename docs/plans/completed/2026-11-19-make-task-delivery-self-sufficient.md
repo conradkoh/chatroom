@@ -1,0 +1,99 @@
+# Make Task Delivery Self-Sufficient
+
+> **Shipped:** Durable agent-config inbox and workspace configuration service, acquire-and-inject delivery boundary, typed waiting/failed outcomes, acknowledgement only after confirmed delivery, task-status feed with daemon-boot rehydration, delivery-failure surfacing, and a webapp redeliver action. Delivery remains intentionally at-least-once across daemon restarts, so replay may duplicate injection.
+
+## Problem
+
+Native task delivery cannot start an agent on its own: runtime config
+(harness/model/workingDir) is resolved from the in-memory slot, which is lost on
+daemon restart, so a pending task for a stopped agent is blocked as
+`working_dir_missing`, its inbox event is acknowledged without delivery, and the
+task is stuck pending forever. Working directory is an attribute of the agent
+model (launch request), not the task or the slot.
+
+## Removal checklist
+
+Code that exists to compensate for the missing agent-model read model. Each row
+is either removed (✅) or not (⬜).
+
+| #   | Boundary                                | File → Component                                                                                           | Responsibility to remove                                                                                                                                | Done |
+| --- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 1   | daemon/task-service · delivery decision | `delivery-decision.ts` → `stableBlockReason()`                                                             | String-prefix matching over block reasons with `working_dir_missing` fallback (mislabels unknown reasons)                                               | ✅   |
+| 2   | daemon/task-service · delivery decision | `assigned-task.ts` → `resolveAgentRuntimeConfig(task, slot)`                                               | Slot-fallback config resolution (`slot?.harness` / `slot.workingDir` missing → `undefined`) — the circular "config from the running process" dependency | ✅   |
+| 3   | daemon/task-service · delivery decision | `native-ready-invariant.ts` → `explainAgentReadyForNativeDeliveryBlock`                                    | `agent_config_missing` gate duplicating the runtime-config resolution already done in `decideNextDelivery`                                              | ✅   |
+| 4   | daemon/task-service · service surface   | `task-service.ts` → `TaskService`                                                                          | `listPendingTaskInboxEvents` and `markTaskInboxEventProcessed` (no production callers)                                                                  | ✅   |
+| 5   | daemon/task-service · service surface   | `role-delivery-state.ts` → `RoleDeliveryState`                                                             | `nativeNudgeFailures` record/clear/get with no reader                                                                                                   | ✅   |
+| 6   | daemon/task-service · service surface   | `native-task-delivery-coordinator.ts` → `reconcileRoleTasks`                                               | Hardcoded `deliveryInFlight: false` context field                                                                                                       | ✅   |
+| 7   | daemon/task-service · service surface   | `native-task-delivery-coordinator.ts` → `reconcileRoleTasks`                                               | Dead raw-Effect inject branch (`executors` is always provided)                                                                                          | ✅   |
+| 8   | daemon/task-service · service surface   | `task-delivery-processor.ts`, `native-task-delivery-coordinator.ts`, `native-delivery-log.ts` → pass types | `LegacyDeliveryPass` aliases (`inbox-signal`, `restart`) and the legacy/extended pass-type split                                                        | ✅   |
+
+Ordering note: rows 9–10 depend on the additive side (agent config inbox +
+configuration service) landing first.
+
+Removed from scope (owner decision, 2026-09-15): rows 9 and 10 (backend ephemeral-config duplication into task events) are superseded by the ephemeral/enhancer workflow unification, which remains a separate project; row 31 (reassignment retraction events) is demoted behind the task-status read model (row 25) and the backend claim, which already guard stale assignments.
+
+## Responsibilities to retire
+
+Conditional behaviors rather than components; verifiable the same way.
+
+| #   | Boundary                                | Where                                                                  | Behavior to retire                                                                                                                                                                                                                                                                                              | Done |
+| --- | --------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 11  | daemon/task-service · delivery decision | `delivery-decision.ts` → `decideNextDelivery`                          | Slot consulted as a config store by delivery decisions (`AgentProcessSlotView.harness/model/workingDir`); slot keeps pid, harnessSessionId, turn phase only                                                                                                                                                     | ✅   |
+| 12  | daemon/task-service · delivery decision | `delivery-decision.ts` → `start-agent` branch                          | `task.status === 'pending'` gate — an acknowledged task with a dead slot must be startable too                                                                                                                                                                                                                  | ✅   |
+| 13  | daemon/task-service · inbox lifecycle   | `task-service.ts` → `scheduleEvent`                                    | Ack-without-delivery: event marked processed after a `blocked` decision, failed start, hydration miss, or failed injection                                                                                                                                                                                      | ✅   |
+| 24  | daemon · agent-process-service          | `agent-config-registry.ts` consumer + wiring                           | Config read model hosted by the process service (wrong home — process service must stay config-agnostic); move to the new configuration service                                                                                                                                                                 | ✅   |
+| 26  | daemon · agent-process-service          | `agent-process-manager-service.ts` → `acquireNativeDeliverySlot`       | Throw `agent_config_mismatch` when the live slot's harness/model differs from the requested config — instead warn (console.warn) and restart the slot with the requested config                                                                                                                                 | ✅   |
+| 27  | daemon/task-service · delivery decision | `native-delivery-reason.ts` → `DeliveryBlockReason` slot members       | `slot_missing`, `slot_not_running`, `slot_pid_missing`, `harness_session_missing`, `turn_not_idle`, `slot_spawning`, `slot_stopping` as decision inputs — slot lifecycle is agent-service interior state; replaced by a single opaque `agent_not_ready` waiting reason resolved via `acquireNativeDeliverySlot` | ✅   |
+| 28  | daemon/task-service · delivery decision | `DeliveryBlockReason` → `agent_config_missing`                         | Decision-level missing-config block; classification (absent launch request = `failed` vs inbox sync lag = `waiting`) moves to the configuration service (row 19)                                                                                                                                                | ✅   |
+| 29  | daemon/task-service · delivery decision | `DeliveryBlockReason` → `not_native_harness`                           | Retryable harness block; replaced by upfront validation producing a terminal `unsupported_harness` failed outcome, surfaced once                                                                                                                                                                                | ✅   |
+| 30  | daemon/task-service · delivery decision | `delivery-decision.ts` → `DeliveryWaitReason` + `blocked`/`wait` kinds | All wait reasons are acquisition interior states; decision outcomes collapse to deliver / idle / waiting / failed (see row 18)                                                                                                                                                                                  | ✅   |
+
+## Addition checklist
+
+The replacement path. Each row is either added and verifiable (✅) or not (⬜).
+
+| #   | Boundary                                                        | Component to add                                                           | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Done |
+| --- | --------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 14  | backend · agent config inbox                                    | `chatroomWorkspaceAgentConfigInbox` table (durable, pending → processed)   | When a launch request is recorded (save, start, or restart of a remote agent — all funnel through `recordLastSentLaunchRequest`), a pending config event is written per `(machineId, chatroomId, role)`; payload is the agent config — `agentHarness`, `model`, `workingDir`; same lifecycle as `chatroomWorkspaceTaskInbox`                                                                                                                                                                                    | ✅   |
+| 15  | daemon · chatroom-workspace-configuration-service (new service) | `ChatroomWorkspaceConfigurationService` + `AgentConfigRegistry` read model | New daemon service — long-term home for workspace settings. Owns `chatroomWorkspaceAgentConfigInbox` consumption: watch + boot-time replay of pending events (same pattern as `TaskService`), keyed `chatroomId:role`; validates `agentType === 'remote'` and `machineId` match; acks only after apply. It is the daemon's source of truth for config reads (Convex launch requests stay authoritative; no direct cross-DB reads). Future workspace settings arrive as additional durable inboxes consumed here | ✅   |
+| 16  | daemon/task-service · delivery decision                         | `decideNextDelivery` config resolution                                     | Runtime config resolved from `ChatroomWorkspaceConfigurationService` at decision time (never cached from an earlier pass) — no slot fallback, no ephemeral/permanent bifurcation. Delivery depends on the configuration service; agent-process-service depends on neither                                                                                                                                                                                                                                       | ✅   |
+| 17  | daemon/task-service · delivery decision                         | `decideNextDelivery`                                                       | `start-agent` unconditional for any deliverable task (pending or acknowledged) when the slot is missing/idle; `ensureRunning` stays the idempotent entry point                                                                                                                                                                                                                                                                                                                                                  | ✅   |
+| 18  | daemon/task-service · delivery decision                         | decision sum type                                                          | Discriminated `waiting(reason)` / `failed(reason)` outcomes replacing `blocked`/`wait` string plumbing; every outcome logged with its reason                                                                                                                                                                                                                                                                                                                                                                    | ✅   |
+| 19  | daemon/task-service · delivery decision                         | upfront validation                                                         | Unusable event → immediate `failed`, surfaced once, not retried silently. "No agent config exists for this role" (stale or absent launch request) is `failed`; "config event not yet synced" (inbox lag) is `waiting`, retried by the periodic reconcile — never conflated                                                                                                                                                                                                                                      | ✅   |
+| 20  | daemon/task-service · inbox lifecycle                           | `scheduleEvent`                                                            | Ack only after confirmed injection (receipt recorded + turn accepted); all other outcomes leave the event durably pending with bounded retry                                                                                                                                                                                                                                                                                                                                                                    | ✅   |
+| 21  | daemon/task-service · injection                                 | inject action                                                              | Claim folded inside inject for both statuses (idempotent via `claimTask` same-role return); a failed resume/injection surfaces as `failed`, never a silent success                                                                                                                                                                                                                                                                                                                                              | ✅   |
+| 22  | daemon/task-service · task-status fallback                      | `TaskService` per-task pending-delivery timer                              | For each task whose **task record** status is `pending` (not the task inbox event status), schedule a 10-second fresh delivery attempt; each tick propagates through the canonical chain — TaskService → AgentWorkManager → delivery decision → workspace configuration service → agent process service → injection — and stops when the task status is no longer pending or becomes terminal                                                                                                                   | ✅   |
+| 23  | backend + webapp · failure surfacing                            | task status / audit for `failed`                                           | A `failed` decision updates task state or audit so the UI shows why a task is not progressing (start param missing, no launch request, wrong machine)                                                                                                                                                                                                                                                                                                                                                           | ✅   |
+| 25  | daemon/task-service · task-status source                        | active task-status read model/feed                                         | Expose current task-record status independently of task-inbox-event processing and rehydrate `pending` tasks on daemon boot; status changes drive the per-task fallback timer, while cross-DB synchronization still uses an inbox                                                                                                                                                                                                                                                                               | ✅   |
+
+Delivery semantics: delivery is at-least-once across daemon restarts; a replayed
+inbox event may inject again after a restart. TaskUpdated lifecycle events for
+non-deliverable states (in progress, completed, or deleted) are handled without
+agent injection.
+
+Ordering: 14–15 before 16–19; 20–21 together; 25 before 22; 22 and 23
+independent of each other but after 18.
+
+Task-status fallback note: the 10-second timer is owned by `TaskService` and
+is keyed by the task record (`taskId`, `chatroomId`, `role`, and current task
+status). It is not a retry of a processed task-inbox event. Every tick must
+propagate through the normal delivery chain and recompute current task,
+configuration, and slot state; it must not call the process service directly
+or replay a stale inbox event.
+
+Consistency notes:
+
+- Inbox rule: no delivery-path sync subscribes across the DB boundary directly;
+  every cross-DB sync uses a durable inbox (task events and agent config events
+  in `chatroomWorkspaceAgentConfigInbox` are both pending → processed, replayed
+  on boot).
+- Coverage: inbox events are only ever written to `(machineId, role)` targets
+  derived from the launch-request table
+  (`listLastSentLaunchRequestsForChatroom`), and the config event is written
+  whenever that launch request is recorded (`recordLastSentLaunchRequest`) —
+  so a task event is always preceded by its config event. The ephemeral
+  duplication in task events buys nothing.
+- Freshness: ephemeral config must be read fresh from the configuration
+  service at
+  decision/inject time ("last sent" is mutable; supersessions arrive as new
+  inbox events).

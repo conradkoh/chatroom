@@ -20,6 +20,7 @@ import {
 } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 import type { AgentKey, SerializedAgentOperations } from '../../agent-process-contracts.js';
+import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
 import { buildNativeInjectionPrompt } from '../domain/usecase/native-task-injector-logic.js';
 
 export type NativeInjectorAgentMgr = NativeTaskDeliveryAgentPort;
@@ -37,6 +38,8 @@ export interface NativeDeliverySessionHandles {
 }
 
 export interface NativeInjectorDeps extends NativeDeliverySessionHandles {
+  /** Daemon-local source of agent harness/model/workingDir configuration. */
+  configurationService: AgentConfigRegistry;
   agentMgr: NativeInjectorAgentMgr;
   /** Narrow coordination capability used by the cold-session flow. */
   runSerializedForAgent: <T>(
@@ -122,13 +125,11 @@ function applyColdSessionIfRequested(
   });
 }
 
-function claimPendingTaskIfNeeded(
+function claimTaskForDelivery(
   task: AssignedTaskWithContent,
   deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
-    if (task.status !== 'pending') return;
-
     const { chatroomId, taskId, agentConfig } = task;
     const { role } = agentConfig;
     const claimResult = yield* Effect.tryPromise({
@@ -411,7 +412,7 @@ export function runNativeInjectionEffect(
   deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
-    yield* claimPendingTaskIfNeeded(task, deps);
+    yield* claimTaskForDelivery(task, deps);
     const session = yield* resolveHarnessSessionForInject(task, deps, initialHarnessSessionId);
     yield* injectNativeTaskPrompt(
       task,

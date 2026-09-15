@@ -52,6 +52,19 @@ describe('TaskItem cancel enhancer', () => {
     expect(screen.queryByTestId('cancel-enhancer-task')).not.toBeInTheDocument();
   });
 
+  it('shows the latest delivery failure reason', () => {
+    render(
+      <TaskItem
+        task={makeTask({
+          status: 'in_progress',
+          deliveryFailure: { reason: 'no_agent_config', occurredAt: Date.now() },
+        })}
+      />
+    );
+
+    expect(screen.getByText('Delivery failed: no agent config')).toBeInTheDocument();
+  });
+
   it('hides cancel button when no onCancelEnhancer provided', () => {
     render(<TaskItem task={makeTask({ assignedTo: 'enhancer' })} isProtected showCancelEnhancer />);
 

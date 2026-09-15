@@ -1,4 +1,4 @@
-import { Sparkles, Trash2 } from 'lucide-react';
+import { AlertCircle, Sparkles, Trash2 } from 'lucide-react';
 
 import { TaskNewSessionToggle } from './TaskNewSessionToggle';
 import type { Task } from './types';
@@ -64,6 +64,15 @@ export function TaskItem({
           </span>
           {task.assignedTo && (
             <span className="text-[9px] text-chatroom-text-muted">→ {task.assignedTo}</span>
+          )}
+          {task.deliveryFailure && (
+            <span
+              className="inline-flex items-center gap-1 text-[9px] text-chatroom-status-warning"
+              title={`Delivery failed: ${task.deliveryFailure.reason}`}
+            >
+              <AlertCircle size={10} />
+              Delivery failed: {task.deliveryFailure.reason.replaceAll('_', ' ')}
+            </span>
           )}
         </div>
 

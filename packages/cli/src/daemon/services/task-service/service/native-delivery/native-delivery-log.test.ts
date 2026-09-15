@@ -12,9 +12,9 @@ describe('native-delivery-log', () => {
 
   test('logNativeDeliveryTrigger identifies the event-driven source', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryTrigger('inbox-signal', 'builder', 'room_1', 'task_1');
+    logNativeDeliveryTrigger('inbox-event', 'builder', 'room_1', 'task_1');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:trigger] source=inbox-signal builder@room_1 task task_1'
+      '[NativeDelivery:trigger] source=inbox-event builder@room_1 task task_1'
     );
   });
 
@@ -28,14 +28,9 @@ describe('native-delivery-log', () => {
 
   test('logNativeDeliverySkip includes block reason', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliverySkip(
-      'builder',
-      'room_1',
-      'task_1',
-      'turn_not_idle (nativeTurnPhase=turn_in_flight)'
-    );
+    logNativeDeliverySkip('builder', 'room_1', 'task_1', 'turn_not_idle');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:skip] builder@room_1 task task_1 — turn_not_idle (nativeTurnPhase=turn_in_flight)'
+      '[NativeDelivery:skip] builder@room_1 task task_1 — turn_not_idle'
     );
   });
 

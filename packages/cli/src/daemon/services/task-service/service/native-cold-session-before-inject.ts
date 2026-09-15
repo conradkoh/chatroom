@@ -7,10 +7,7 @@ import { taskRequestsNativeColdSession } from '@workspace/backend/src/domain/han
 
 import type { NativeInjectorDeps } from './native-task-injector.js';
 import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
-import {
-  resolveAgentRuntimeConfig,
-  type AssignedTaskWithContent,
-} from '../../../domain/entities/assigned-task.js';
+import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 
 // fallow-ignore-next-line complexity
 function sleep(ms: number): Promise<void> {
@@ -59,13 +56,15 @@ export async function ensureColdSessionBeforeNativeInject(
     return null;
   }
 
-  const { chatroomId, agentConfig, taskId } = task;
-  const { role } = agentConfig;
+  const { chatroomId, agentConfig: taskAgentConfig, taskId } = task;
+  const { role } = taskAgentConfig;
 
   const slot = deps.agentMgr.getSlot(chatroomId, role);
-  const runtimeConfig = resolveAgentRuntimeConfig(task, slot);
-  if (!runtimeConfig?.model) return null;
-  const { agentHarness, model, workingDir } = runtimeConfig;
+  const agentConfig =
+    deps.configurationService?.get(chatroomId, role) ??
+    (task.assignee?.type === 'ephemeral' ? task.assignee.ephemeral : undefined);
+  if (!agentConfig?.model) return null;
+  const { agentHarness, model, workingDir } = agentConfig;
   const slotState = slot?.state;
   if (slotState === 'spawning' || slotState === 'stopping') {
     return null;

@@ -34,9 +34,10 @@ import type {
   OperationResult,
   StopOpts,
 } from '../services/agent-process-service/index.js';
+import type { AgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
 import type { AgentProcessManagerService, TaskService } from '../services/service-interfaces.js';
 
-export { createTaskService, type TaskService } from '../services/service-interfaces.js';
+export type { TaskService } from '../services/service-interfaces.js';
 
 export interface AgentLifecycleOutboxServiceShape {
   enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
@@ -220,6 +221,8 @@ export interface DaemonSessionServiceShape {
   config: MachineConfig | null;
   /** Constructed once by the daemon composition root. */
   taskService: TaskService;
+  /** Daemon-local agent config read model fed by the agent config inbox. */
+  agentConfigRegistry: AgentConfigRegistry;
   /** Durable daemon-to-Convex lifecycle/status outbox. */
   lifecycleOutbox?: DaemonLifecycleOutboxPort | undefined;
 

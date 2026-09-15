@@ -17,6 +17,15 @@ export interface Task {
   updatedAt: number;
   queuePosition: number;
   assignedTo?: string;
+  deliveryFailure?: {
+    reason:
+      | 'no_agent_config'
+      | 'unsupported_harness'
+      | 'injection_not_confirmed'
+      | 'task_not_deliverable'
+      | 'assigned_elsewhere';
+    occurredAt: number;
+  };
   backlog?: {
     status: BacklogStatus;
   };

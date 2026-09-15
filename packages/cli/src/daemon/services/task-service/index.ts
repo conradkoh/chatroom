@@ -16,23 +16,14 @@ export {
   buildNativeInjectionPrompt,
   explainNativeDeliveryBlock,
   isNativeHarness,
-  isDeliverableNativeTaskStatus,
   shouldDeliverNativeTask,
   type NativeDeliveryReadinessOptions,
 } from './domain/usecase/native-task-injector-logic.js';
 export {
-  isAgentReadyForNativeDelivery,
-  explainAgentReadyForNativeDeliveryBlock,
-} from './domain/usecase/native-ready-invariant.js';
-export {
-  taskRequestsNativeColdSession,
-  isNativeColdSessionDeliveryOwnedSpawn,
-  explainColdSessionDeliveryBlock,
-} from './domain/usecase/native-cold-session-delivery.js';
-export {
   createTaskService,
   type TaskService,
   type TaskServiceCompositionDependencies,
+  type TaskServiceDeliveryConfirmation,
   type TaskServiceNotification,
   type WorkspaceTaskInboxEvent,
 } from './service/task-service.js';
@@ -43,6 +34,5 @@ export {
   type NativeDeliveryDelivered,
   type NativeDeliveryExecution,
   type NativeDeliveryExecutors,
-  type NativeTaskDeliverySessionDeps,
   NativeTaskDeliveryCoordinator,
 } from './service/native-delivery/native-task-delivery-coordinator.js';

@@ -8,33 +8,22 @@
  */
 
 import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
-import type { Runtime, Context } from 'effect';
 
 import { logNativeDeliveryTrigger } from './native-delivery-log.js';
 import {
   getNativeTaskDeliveryCoordinator,
-  type NativeTaskDeliverySessionDeps,
+  type DeliveryPass,
 } from './native-task-delivery-coordinator.js';
 import type { TaskDeliveryService } from './task-delivery-service.js';
-import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
-import {
-  resolveAgentRuntimeConfig,
-  type AssignedTask,
-} from '../../../../domain/entities/assigned-task.js';
-import type {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-  DaemonAgentProcessManagerServiceShape,
-} from '../../../../entry/daemon-services.js';
+import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
+import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
+import type {
+  AgentConfigEntry,
+  AgentConfigRegistry,
+} from '../../../chatroom-workspace-configuration-service/index.js';
 import type { AgentProcessManagerService } from '../../../service-interfaces.js';
 
-export type TaskDeliveryRuntime = Runtime.Runtime<
-  DaemonSessionService | DaemonAgentProcessManagerService
->;
-export type TaskDeliveryContext = Context.Context<
-  DaemonSessionService | DaemonAgentProcessManagerService
->;
 export type ProcessTasksUpdateOptions = {
   tasks: readonly AssignedTask[];
   onTaskDelivered?: (args: {
@@ -45,64 +34,53 @@ export type ProcessTasksUpdateOptions = {
   }) => void;
 };
 
-type TaskDeliveryPass =
-  | 'periodic-reconcile'
-  | 'bootstrap'
-  | 'agent-session-lost'
-  | 'agent-started'
-  | 'turn-ended'
-  | 'restart-completed';
-type LegacyTaskDeliveryPass = 'inbox-signal' | 'restart';
-
 export async function processTasksUpdate(
-  runtime: TaskDeliveryRuntime,
-  effectContext: TaskDeliveryContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
   taskService: TaskDeliveryService,
-  sessionDeps: NativeTaskDeliverySessionDeps,
-  machineId: string,
-  pass: TaskDeliveryPass | LegacyTaskDeliveryPass,
-  lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> },
+  configurationService: AgentConfigRegistry,
+  pass: DeliveryPass,
   isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean,
-  options: ProcessTasksUpdateOptions
-): Promise<void> {
+  options: ProcessTasksUpdateOptions,
+  acquireNativeDeliverySlot: AgentProcessManagerService['acquireNativeDeliverySlot']
+): Promise<readonly string[]> {
   const first = options.tasks[0];
-  if (!first) return;
+  if (!first) return [];
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
-    startAgent: (task: AssignedTask) => {
-      const runtimeConfig = resolveAgentRuntimeConfig(
-        task,
-        agentMgr.getSlot(task.chatroomId, task.agentConfig.role)
-      );
-      if (!runtimeConfig) return Promise.resolve({ success: false, error: 'agent config missing' });
-      return runSerializedForAgent(
-        { chatroomId: task.chatroomId, role: task.agentConfig.role },
-        { timeoutMs: 120_000 },
-        (ops, context) =>
-          ops.startAgent(
-            {
-              chatroomId: task.chatroomId,
-              role: task.agentConfig.role,
-              agentHarness: runtimeConfig.agentHarness as AgentHarness,
-              model: runtimeConfig.model ?? '',
-              workingDir: runtimeConfig.workingDir,
-              reason: AgentStartReasonEnum['platform.pending_task_wake'],
-              wantResume: false,
-              taskId: task.taskId,
-            },
-            context.signal
-          )
-      );
-    },
-    injectTask: async (task: AssignedTask, harnessSessionId: string | undefined) => {
+    deliverTask: async (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => {
+      if (!agentConfig) return { kind: 'task-unavailable' as const };
+      const startInput = {
+        chatroomId: task.chatroomId,
+        role: task.agentConfig.role,
+        agentHarness: agentConfig.agentHarness as AgentHarness,
+        model: agentConfig.model ?? '',
+        workingDir: agentConfig.workingDir,
+        reason: AgentStartReasonEnum['platform.pending_task_wake'],
+        wantResume: false,
+        taskId: task.taskId,
+      };
+      // Task-borne ephemeral parameters override only harness/model. The
+      // task's working directory and all other fields remain workspace-owned.
+      const ephemeralOverrides =
+        task.assignee?.type === TaskAssigneeType.Ephemeral
+          ? {
+              agentHarness: task.assignee.ephemeral.agentHarness,
+              model: task.assignee.ephemeral.model,
+            }
+          : undefined;
+      const effectiveStartInput = {
+        ...startInput,
+        ...(ephemeralOverrides ? { overrides: ephemeralOverrides } : {}),
+      };
+      const slot = await acquireNativeDeliverySlot({
+        ...effectiveStartInput,
+        timeoutMs: 30_000,
+      });
       const full = await taskService.loadAssignedTaskForAction({
         chatroomId: task.chatroomId,
         role: task.agentConfig.role,
         taskId: task.taskId,
       });
-      if (!full) return { kind: 'task-unavailable' as const };
+      if (!full || !slot?.harnessSessionId) return { kind: 'task-unavailable' as const };
       let delivered:
         | {
             chatroomId: string;
@@ -111,24 +89,20 @@ export async function processTasksUpdate(
             harnessSessionId: string;
           }
         | undefined;
-      await taskService.deliverNativeTask(full, harnessSessionId, (result) => {
+      await taskService.deliverNativeTask(full, slot.harnessSessionId, (result) => {
         delivered = result;
       });
-      return { kind: 'delivered' as const, ...(delivered ? { delivered } : {}) };
+      if (!delivered)
+        return { kind: 'failed' as const, reason: 'injection_not_confirmed' as const };
+      return { kind: 'delivered' as const, delivered };
     },
   };
-  await getNativeTaskDeliveryCoordinator().reconcileRoleTasks({
+  return getNativeTaskDeliveryCoordinator().reconcileRoleTasks({
     tasks: [...options.tasks],
     pass,
-    runtime,
-    effectContext,
-    agentMgr,
-    runSerializedForAgent,
     taskService,
-    sessionDeps,
-    lifecycleOutbox,
+    configurationService,
     isTaskActive,
-    machineId,
     onTaskDelivered: options.onTaskDelivered,
     executors,
   });

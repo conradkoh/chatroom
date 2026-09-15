@@ -121,6 +121,7 @@ export class NativeOrchestrationSimulator {
         backend,
         taskGateway: createConvexNativeTaskDeliveryGateway(backend),
         audit: createDaemonAuditPort(logEvent),
+        configurationService: { get: () => undefined } as never,
         lifecycleOutbox: { enqueue: async () => ({ success: true }) },
         agentMgr: this.harness,
         runSerializedForAgent: (async (_key, _options, operation) =>

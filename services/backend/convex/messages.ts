@@ -50,7 +50,6 @@ import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status
 import { completeEnhancerJob } from '../src/domain/usecase/enhancer/complete-enhancer-job';
 import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
-  hasActiveEnhancerWork,
   transitionEnhancerEntryPointToEnhancing,
   transitionEnhancerEntryPointToWaiting,
 } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
@@ -668,7 +667,6 @@ export async function runHandoffHandler(
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
   const normalizedStructuralRoles = normalizedTeamRoles;
   const enhancerEntryPointRole = getEnhancerEntryPointRole(chatroom);
-  const normalizedEnhancerEntryPointRole = enhancerEntryPointRole?.toLowerCase();
   const isEnhancerDelivery = normalizedSenderRole === 'enhancer';
   if (isEnhancerDelivery && normalizedTargetRole !== (enhancerEntryPointRole ?? '').toLowerCase()) {
     return {
@@ -701,24 +699,6 @@ export async function runHandoffHandler(
   const isHandoffToEnhancer = normalizedTargetRole === 'enhancer';
   let enhancerConfig: Awaited<ReturnType<typeof getEnhancerTeamAgentConfig>> = null;
   let enhancerEnabledAtEnqueue: boolean | undefined;
-
-  if (normalizedSenderRole === normalizedEnhancerEntryPointRole && !isHandoffToEnhancer) {
-    const enhancerReviewInProgress = await hasActiveEnhancerWork(ctx, args.chatroomId);
-    if (enhancerReviewInProgress) {
-      return {
-        success: false,
-        error: {
-          code: 'ENHANCER_REVIEW_IN_PROGRESS',
-          message:
-            'Cannot hand off while enhancer analysis is in progress. Run get-next-task and wait for planning input, then incorporate it before proceeding.',
-        },
-        messageId: null,
-        completedTaskIds: [],
-        newTaskId: null,
-        promotedTaskId: null,
-      };
-    }
-  }
 
   if (isHandoffToEnhancer) {
     if (!normalizedStructuralRoles.includes('enhancer')) {
@@ -823,20 +803,6 @@ export async function runHandoffHandler(
         error: {
           code: 'ENHANCER_ALREADY_USED',
           message: 'Enhancer analysis already ran for this originating user message',
-        },
-        messageId: null,
-        completedTaskIds: [],
-        newTaskId: null,
-        promotedTaskId: null,
-      };
-    }
-
-    if (await hasActiveEnhancerWork(ctx, args.chatroomId)) {
-      return {
-        success: false,
-        error: {
-          code: 'ACTIVE_JOB_EXISTS',
-          message: 'An enhancer job is already active for this handoff',
         },
         messageId: null,
         completedTaskIds: [],
