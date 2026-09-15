@@ -7,10 +7,7 @@ import { taskRequestsNativeColdSession } from '@workspace/backend/src/domain/han
 
 import type { NativeInjectorDeps } from './native-task-injector.js';
 import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
-import {
-  resolveAgentRuntimeConfig,
-  type AssignedTaskWithContent,
-} from '../../../domain/entities/assigned-task.js';
+import type { AssignedTaskWithContent } from '../../../domain/entities/assigned-task.js';
 
 // fallow-ignore-next-line complexity
 function sleep(ms: number): Promise<void> {
@@ -63,7 +60,7 @@ export async function ensureColdSessionBeforeNativeInject(
   const { role } = agentConfig;
 
   const slot = deps.agentMgr.getSlot(chatroomId, role);
-  const runtimeConfig = resolveAgentRuntimeConfig(task, slot);
+  const runtimeConfig = deps.configurationService.get(chatroomId, role);
   if (!runtimeConfig?.model) return null;
   const { agentHarness, model, workingDir } = runtimeConfig;
   const slotState = slot?.state;

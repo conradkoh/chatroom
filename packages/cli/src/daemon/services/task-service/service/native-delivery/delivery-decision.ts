@@ -1,14 +1,14 @@
 import {
-  resolveAgentRuntimeConfig,
   type AssignedTask,
+  isDeliverableTaskStatus,
 } from '../../../../domain/entities/assigned-task.js';
-import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import {
   isSlotIdle,
   isSlotSpawning,
   isSlotStopping,
 } from '../../../../domain/usecase/check-agent-slot.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
+import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
 
 export type DeliveryBlockReason =
   | 'not_native_harness'
@@ -47,6 +47,8 @@ export type DeliveryDecisionContext = {
   slot: AgentProcessSlotView | undefined;
   activeTaskId: string | undefined;
   deliveryInFlight: boolean;
+  /** Configuration resolved from ChatroomWorkspaceConfigurationService. */
+  runtimeConfig: AgentConfigEntry | undefined;
   agentLifecycleInFlight: boolean;
   isNativeHarness: (harness: string) => boolean;
   taskRequestsNativeColdSession: (task: AssignedTask) => boolean;
@@ -111,7 +113,7 @@ export function decideNextDelivery(
     return { kind: 'deduplicated', taskId: task.taskId, reason: 'delivery_in_flight' };
   }
 
-  const runtimeConfig = resolveAgentRuntimeConfig(task, context.slot);
+  const runtimeConfig = context.runtimeConfig;
   if (!runtimeConfig) {
     return { kind: 'blocked', taskId: task.taskId, reason: 'working_dir_missing' };
   }
@@ -125,6 +127,7 @@ export function decideNextDelivery(
 
   const blockReason = context.explainNativeDeliveryBlock(task, {
     slot: context.slot,
+    runtimeConfig,
   });
   if (blockReason === null) {
     return {

@@ -17,16 +17,17 @@ import {
 } from './native-task-delivery-coordinator.js';
 import type { TaskDeliveryService } from './task-delivery-service.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
-import {
-  resolveAgentRuntimeConfig,
-  type AssignedTask,
-} from '../../../../domain/entities/assigned-task.js';
+import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
   DaemonAgentProcessManagerServiceShape,
 } from '../../../../entry/daemon-services.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
+import type {
+  AgentConfigEntry,
+  AgentConfigRegistry,
+} from '../../../chatroom-workspace-configuration-service/index.js';
 import type { AgentProcessManagerService } from '../../../service-interfaces.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
@@ -60,6 +61,7 @@ export async function processTasksUpdate(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'],
   taskService: TaskDeliveryService,
+  configurationService: AgentConfigRegistry,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   pass: TaskDeliveryPass | LegacyTaskDeliveryPass,
@@ -71,11 +73,7 @@ export async function processTasksUpdate(
   if (!first) return;
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
-    startAgent: (task: AssignedTask) => {
-      const runtimeConfig = resolveAgentRuntimeConfig(
-        task,
-        agentMgr.getSlot(task.chatroomId, task.agentConfig.role)
-      );
+    startAgent: (task: AssignedTask, runtimeConfig: AgentConfigEntry | undefined) => {
       if (!runtimeConfig) return Promise.resolve({ success: false, error: 'agent config missing' });
       return runSerializedForAgent(
         { chatroomId: task.chatroomId, role: task.agentConfig.role },
@@ -125,6 +123,7 @@ export async function processTasksUpdate(
     agentMgr,
     runSerializedForAgent,
     taskService,
+    configurationService,
     sessionDeps,
     lifecycleOutbox,
     isTaskActive,

@@ -4,30 +4,29 @@ import {
   explainColdSessionDeliveryBlock,
   isNativeColdSessionDeliveryOwnedSpawn,
 } from './native-cold-session-delivery.js';
-import {
-  resolveAgentRuntimeConfig,
-  type AssignedTask,
-} from '../../../../domain/entities/assigned-task.js';
+import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../../domain/usecase/check-agent-slot.js';
 import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
+import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 // fallow-ignore-next-line unused-export
 export function isAgentReadyForNativeDelivery(
   task: AssignedTask,
-  slot: AgentProcessSlotView | undefined
+  slot: AgentProcessSlotView | undefined,
+  runtimeConfig: AgentConfigEntry | undefined
 ): boolean {
-  return explainAgentReadyForNativeDeliveryBlock(task, slot) === null;
+  return explainAgentReadyForNativeDeliveryBlock(task, slot, runtimeConfig) === null;
 }
 
 /** Human-readable reason when agent/slot is not ready; null when ready. */
 // fallow-ignore-next-line complexity
 export function explainAgentReadyForNativeDeliveryBlock(
   task: AssignedTask,
-  slot: AgentProcessSlotView | undefined
+  slot: AgentProcessSlotView | undefined,
+  runtimeConfig: AgentConfigEntry | undefined
 ): string | null {
-  const runtimeConfig = resolveAgentRuntimeConfig(task, slot);
   if (!runtimeConfig) return 'agent_config_missing';
   if (!isNativeHarness(runtimeConfig.agentHarness)) {
     return `not_native_harness (harness=${runtimeConfig.agentHarness})`;

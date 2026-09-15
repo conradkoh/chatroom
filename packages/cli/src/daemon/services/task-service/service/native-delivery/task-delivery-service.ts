@@ -3,13 +3,17 @@ import type {
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
 import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
+import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
 
 export interface TaskDeliveryService {
   isNativeHarness(harness: string): boolean;
   taskRequestsNativeColdSession(task: AssignedTask): boolean;
   explainNativeDeliveryBlock(
     task: AssignedTask,
-    options: { slot: AgentProcessSlotView | undefined }
+    options: {
+      slot: AgentProcessSlotView | undefined;
+      runtimeConfig: AgentConfigEntry | undefined;
+    }
   ): string | null;
   releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
     released: boolean;

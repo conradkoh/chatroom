@@ -13,6 +13,7 @@ import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
+import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
 import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
@@ -62,6 +63,8 @@ export type AgentTaskDeliveredHandler = (args: {
 }) => void;
 
 export interface AgentWorkManagerDependencies {
+  /** Workspace configuration source for delivery-time agent runtime config. */
+  readonly configurationService: AgentConfigRegistry;
   readonly runtime: TaskDeliveryRuntime;
   readonly effectContext: TaskDeliveryContext;
   readonly agentMgr: DaemonAgentProcessManagerServiceShape;
@@ -105,6 +108,7 @@ export class AgentWorkManager {
         runNativeInjectionEffect(entry.task, entry.harnessSessionId, {
           ...deps.sessionDeps,
           convexUrl: deps.sessionDeps.convexUrl,
+          configurationService: deps.configurationService,
           agentMgr: {
             resumeTurnForSlot: (args) => Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args)),
             getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
@@ -409,6 +413,7 @@ export class AgentWorkManager {
       this.deps.agentMgr,
       this.deps.runSerializedForAgent,
       this.deliveryTaskService,
+      this.deps.configurationService,
       this.deps.sessionDeps,
       this.deps.machineId,
       pass,

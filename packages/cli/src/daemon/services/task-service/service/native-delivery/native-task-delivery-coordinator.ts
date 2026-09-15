@@ -12,10 +12,7 @@ import { getRoleDeliveryState } from './role-delivery-state.js';
 import type { TaskDeliveryService } from './task-delivery-service.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
-import {
-  resolveAgentRuntimeConfig,
-  type AssignedTask,
-} from '../../../../domain/entities/assigned-task.js';
+import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import { isSlotIdle } from '../../../../domain/usecase/check-agent-slot.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
@@ -24,6 +21,10 @@ import type {
 } from '../../../../entry/daemon-services.js';
 import type { AgentHarness } from '../../../../entry/daemon-types.js';
 import { isRestartOrchestratorInFlight } from '../../../../entry/restart-orchestrator-in-flight.js';
+import type {
+  AgentConfigEntry,
+  AgentConfigRegistry,
+} from '../../../chatroom-workspace-configuration-service/index.js';
 import type {
   AgentKey,
   SerializedAgentOperations,
@@ -50,7 +51,7 @@ export type NativeDeliveryExecution =
   { kind: 'delivered'; delivered?: NativeDeliveryDelivered } | { kind: 'task-unavailable' };
 
 export type NativeDeliveryExecutors = {
-  startAgent: (task: AssignedTask) => Promise<unknown>;
+  startAgent: (task: AssignedTask, runtimeConfig: AgentConfigEntry | undefined) => Promise<unknown>;
   injectTask: (
     task: AssignedTask,
     harnessSessionId: string | undefined
@@ -85,6 +86,7 @@ export class NativeTaskDeliveryCoordinator {
       ) => Promise<T>
     ) => Promise<T>;
     taskService: TaskDeliveryService;
+    configurationService: AgentConfigRegistry;
     sessionDeps: NativeTaskDeliverySessionDeps;
     lifecycleOutbox: {
       enqueue: (fact: AgentLifecycleFact) => Promise<unknown>;
@@ -125,7 +127,7 @@ export class NativeTaskDeliveryCoordinator {
       if (!firstTask) continue;
       const { role } = firstTask.agentConfig;
       const slot = agentMgr.getSlot(firstTask.chatroomId, role);
-      const runtimeConfig = resolveAgentRuntimeConfig(firstTask, slot);
+      const runtimeConfig = params.configurationService.get(firstTask.chatroomId, role);
       const activeTaskId = roleTasks.find((candidate) =>
         isTaskActive({ chatroomId: candidate.chatroomId, role, taskId: candidate.taskId })
       )?.taskId;
@@ -134,6 +136,7 @@ export class NativeTaskDeliveryCoordinator {
         slot,
         activeTaskId,
         deliveryInFlight: false,
+        runtimeConfig,
         agentLifecycleInFlight: isRestartOrchestratorInFlight(firstTask.chatroomId, role),
         isNativeHarness: taskService.isNativeHarness,
         taskRequestsNativeColdSession: taskService.taskRequestsNativeColdSession,
@@ -177,7 +180,7 @@ export class NativeTaskDeliveryCoordinator {
         if (!runtimeConfig || (slot && !isSlotIdle(slot.state))) continue;
         try {
           if (executors) {
-            const startResult = await executors.startAgent(row);
+            const startResult = await executors.startAgent(row, runtimeConfig);
             console.log(
               `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=start-agent result=${startResult && typeof startResult === 'object' && 'success' in startResult ? startResult.success : 'completed'}`
             );

@@ -52,6 +52,7 @@ export const startTaskInboxEffect = (
     };
     const agentTaskState = createAgentTaskStateService();
     const nativeDelivery = new AgentWorkManager({
+      configurationService: session.agentConfigRegistry,
       runtime,
       effectContext,
       agentMgr,
