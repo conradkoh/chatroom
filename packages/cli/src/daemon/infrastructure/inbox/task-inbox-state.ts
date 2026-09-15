@@ -104,7 +104,7 @@ export class TaskInboxState {
           task.updatedAt
         );
       } else {
-        this.tasks.set(key, task);
+        this.upsert([task]);
       }
     }
   }
@@ -113,8 +113,11 @@ export class TaskInboxState {
   remove(chatroomId: string, role: string, taskId: string, updatedAt?: number): boolean {
     const key = taskKey(taskId, role);
     const task = this.tasks.get(key);
-    if (!task || task.chatroomId !== chatroomId) return false;
-    this.tombstones.set(key, Math.max(this.tombstones.get(key) ?? 0, updatedAt ?? task.updatedAt));
+    if (task && task.chatroomId !== chatroomId) return false;
+    const tombstoneAt = updatedAt ?? task?.updatedAt;
+    if (tombstoneAt !== undefined) {
+      this.tombstones.set(key, Math.max(this.tombstones.get(key) ?? 0, tombstoneAt));
+    }
     return this.tasks.delete(key);
   }
 

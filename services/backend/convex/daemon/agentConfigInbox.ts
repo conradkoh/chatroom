@@ -19,6 +19,26 @@ export const listPending = query({
   },
 });
 
+export const listLatest = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const rows = await ctx.db
+      .query('chatroomWorkspaceAgentConfigInbox')
+      .withIndex('by_machine_status_createdAt', (q) =>
+        q.eq('machineId', args.machineId).eq('status', WorkspaceAgentConfigInboxStatus.Processed)
+      )
+      .order('desc')
+      .collect();
+    const latest = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const key = `${row.chatroomId}:${row.role.toLowerCase()}`;
+      if (!latest.has(key)) latest.set(key, row);
+    }
+    return [...latest.values()];
+  },
+});
+
 export const markProcessed = mutation({
   args: {
     ...SessionIdArg,

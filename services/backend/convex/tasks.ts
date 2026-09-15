@@ -180,12 +180,15 @@ export const redeliverTask = mutation({
       return { eventIds: [], taskId: task._id, skipped: true };
     }
 
+    await ctx.db.patch('chatroom_tasks', task._id, { updatedAt: Date.now() });
+    const refreshedTask = await ctx.db.get('chatroom_tasks', task._id);
+    if (!refreshedTask) throw new Error('Task disappeared during redelivery');
     const eventIds = await writeWorkspaceTaskInboxEvent(
       ctx,
       WorkspaceTaskInboxEventType.TaskUpdated,
-      task
+      refreshedTask
     );
-    return { eventIds, taskId: task._id, skipped: false };
+    return { eventIds, taskId: task._id, skipped: eventIds.length === 0 };
   },
 });
 

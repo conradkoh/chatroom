@@ -68,6 +68,8 @@ export function createAgentConfigRegistry(
 
   /** Applied agent configs, keyed `chatroomId:role` (role lowercased). */
   const configs = new Map<string, AgentConfigEntry>();
+  /** Creation time of the newest applied event per config key. */
+  const latestEventTimes = new Map<string, number>();
   /** Events seen but not yet durably acked; guards ack retries. */
   const pendingEventIds = new Set<string>();
   const pendingConfigKeys = new Set<string>();
@@ -86,6 +88,7 @@ export function createAgentConfigRegistry(
    * shape local state (foreign machine, non-remote agent); those are logged
    * and still acked so they never replay.
    */
+  // fallow-ignore-next-line complexity
   const applyEvent = (event: AgentConfigInboxEvent): boolean => {
     const key = entryKey(event.chatroomId, event.role);
     if (event.machineId !== deps.machineId) {
@@ -100,6 +103,8 @@ export function createAgentConfigRegistry(
       );
       return false;
     }
+    if ((latestEventTimes.get(key) ?? -Infinity) >= event._creationTime) return true;
+    latestEventTimes.set(key, event._creationTime);
     configs.set(key, {
       agentHarness: event.agentHarness,
       model: event.model,
@@ -180,6 +185,12 @@ export function createAgentConfigRegistry(
     await reconcile(events);
   };
 
+  let reconcileChain = Promise.resolve();
+  const enqueueRows = (rows: unknown): Promise<void> => {
+    reconcileChain = reconcileChain.then(() => reconcileRows(rows));
+    return reconcileChain;
+  };
+
   const startWatch = (wsClient: ConvexClient): void => {
     if (stopWatch) return;
 
@@ -189,7 +200,7 @@ export function createAgentConfigRegistry(
       api.daemon.agentConfigInbox.listPending,
       { sessionId: deps.sessionId as SessionId, machineId: deps.machineId },
       (rows) => {
-        void reconcileRows(rows).finally(() => {
+        void enqueueRows(rows).finally(() => {
           initialReplayComplete = true;
         });
       },
@@ -199,6 +210,14 @@ export function createAgentConfigRegistry(
 
   const replayPending = async (): Promise<void> => {
     try {
+      // Rehydrate the last applied config first; processed inbox rows are no
+      // longer returned by listPending after acknowledgement.
+      await reconcile(
+        await gateway.listLatestAgentConfigEvents({
+          sessionId: deps.sessionId,
+          machineId: deps.machineId,
+        })
+      );
       await reconcile(
         await gateway.listPendingAgentConfigEvents({
           sessionId: deps.sessionId,
@@ -218,6 +237,16 @@ export function createAgentConfigRegistry(
     start: async (wsClient) => {
       stopped = false;
       if (wsClient) {
+        try {
+          await reconcile(
+            await gateway.listLatestAgentConfigEvents({
+              sessionId: deps.sessionId,
+              machineId: deps.machineId,
+            })
+          );
+        } catch (error) {
+          console.warn('[AgentConfigRegistry] latest config bootstrap failed:', error);
+        }
         startWatch(wsClient);
         return;
       }

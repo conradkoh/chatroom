@@ -12,6 +12,7 @@ import { api } from '../../../../../api.js';
  */
 const agentConfigInboxRowSchema = z.strictObject({
   _id: z.string(),
+  _creationTime: z.number(),
   machineId: z.string(),
   chatroomId: z.string(),
   role: z.string(),
@@ -59,6 +60,10 @@ export interface AgentConfigGateway {
     sessionId: string;
     machineId: string;
   }): Promise<readonly AgentConfigInboxEvent[]>;
+  listLatestAgentConfigEvents(args: {
+    sessionId: string;
+    machineId: string;
+  }): Promise<readonly AgentConfigInboxEvent[]>;
   /** Returns false when the event was already processed or belongs to another machine. */
   markAgentConfigEventProcessed(args: {
     sessionId: string;
@@ -71,6 +76,13 @@ export function createConvexAgentConfigGateway(backend: Backend): AgentConfigGat
   return {
     listPendingAgentConfigEvents: async ({ sessionId, machineId }) => {
       const rows = await backend.query(api.daemon.agentConfigInbox.listPending, {
+        sessionId,
+        machineId,
+      });
+      return mapAgentConfigInboxRows(rows);
+    },
+    listLatestAgentConfigEvents: async ({ sessionId, machineId }) => {
+      const rows = await backend.query(api.daemon.agentConfigInbox.listLatest, {
         sessionId,
         machineId,
       });
