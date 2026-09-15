@@ -402,15 +402,37 @@ export function createAgentProcessManagerService(
       throw new Error('not_native_harness');
     }
     const deadline = Date.now() + (input.timeoutMs ?? NATIVE_DELIVERY_SLOT_WAIT_MS);
+    let warnedConfigMismatch = false;
+    let lastRestartPid: number | undefined;
 
     while (true) {
       assertNotAborted(input.signal);
       const slot = deps.execution.getSlot(input.chatroomId, input.role, input.workingDir);
       if (slot) {
         if (hasDeliveryConfigMismatch(slot, effectiveInput)) {
-          throw new Error('agent_config_mismatch');
+          // A live slot running a different harness/model cannot serve this
+          // delivery — restart it with the requested config instead of failing.
+          if (isSlotRunning(slot.state) && slot.pid !== undefined && slot.pid !== lastRestartPid) {
+            if (!warnedConfigMismatch) {
+              console.warn(
+                `[AgentProcessManager] delivery slot config mismatch for ${input.role}@${input.chatroomId}; restarting with requested config (harness=${effectiveInput.agentHarness})`
+              );
+              warnedConfigMismatch = true;
+            }
+            lastRestartPid = slot.pid;
+            await deps.execution.stop({
+              chatroomId: input.chatroomId,
+              role: input.role,
+              reason: 'daemon.respawn',
+              pid: slot.pid,
+              workingDir: input.workingDir,
+            });
+          }
+          // Idle/stopping/spawning slots settle through the loop; the next
+          // start request carries the effective config.
+        } else if (isNativeDeliveryReady(slot)) {
+          return slot;
         }
-        if (isNativeDeliveryReady(slot)) return slot;
       }
 
       const remainingMs = deadline - Date.now();

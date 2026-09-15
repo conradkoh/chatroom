@@ -34,12 +34,13 @@ configuration service) landing first.
 
 Conditional behaviors rather than components; verifiable the same way.
 
-| #   | Boundary                                | Where                                         | Behavior to retire                                                                                                                                          | Done |
-| --- | --------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| 11  | daemon/task-service · delivery decision | `delivery-decision.ts` → `decideNextDelivery` | Slot consulted as a config store by delivery decisions (`AgentProcessSlotView.harness/model/workingDir`); slot keeps pid, harnessSessionId, turn phase only | ✅   |
-| 12  | daemon/task-service · delivery decision | `delivery-decision.ts` → `start-agent` branch | `task.status === 'pending'` gate — an acknowledged task with a dead slot must be startable too                                                              | ⬜   |
-| 13  | daemon/task-service · inbox lifecycle   | `task-service.ts` → `scheduleEvent`           | Ack-without-delivery: event marked processed after a `blocked` decision, failed start, hydration miss, or failed injection                                  | ⬜   |
-| 24  | daemon · agent-process-service          | `agent-config-registry.ts` consumer + wiring  | Config read model hosted by the process service (wrong home — process service must stay config-agnostic); move to the new configuration service             | ✅   |
+| #   | Boundary                                | Where                                                            | Behavior to retire                                                                                                                                                              | Done |
+| --- | --------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 11  | daemon/task-service · delivery decision | `delivery-decision.ts` → `decideNextDelivery`                    | Slot consulted as a config store by delivery decisions (`AgentProcessSlotView.harness/model/workingDir`); slot keeps pid, harnessSessionId, turn phase only                     | ✅   |
+| 12  | daemon/task-service · delivery decision | `delivery-decision.ts` → `start-agent` branch                    | `task.status === 'pending'` gate — an acknowledged task with a dead slot must be startable too                                                                                  | ⬜   |
+| 13  | daemon/task-service · inbox lifecycle   | `task-service.ts` → `scheduleEvent`                              | Ack-without-delivery: event marked processed after a `blocked` decision, failed start, hydration miss, or failed injection                                                      | ⬜   |
+| 24  | daemon · agent-process-service          | `agent-config-registry.ts` consumer + wiring                     | Config read model hosted by the process service (wrong home — process service must stay config-agnostic); move to the new configuration service                                 | ✅   |
+| 26  | daemon · agent-process-service          | `agent-process-manager-service.ts` → `acquireNativeDeliverySlot` | Throw `agent_config_mismatch` when the live slot's harness/model differs from the requested config — instead warn (console.warn) and restart the slot with the requested config | ✅   |
 
 ## Addition checklist
 
