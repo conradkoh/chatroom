@@ -9,6 +9,8 @@ export type DurableCoalescingStateStore = {
   getPending(key: string): { payloadJson: string; attempts: number } | null;
   markDone(key: string): void;
   markPendingRetry(key: string, error: unknown): void;
+  /** Archive a rejected snapshot; the caller owns removal of the current state. */
+  quarantine(key: string, payloadJson: string, error: unknown): void;
   listPendingKeys(): string[];
   close(): void;
 };
@@ -39,6 +41,11 @@ export function openDurableCoalescingStateStore(path: string): DurableCoalescing
       db.prepare(
         "UPDATE coalescing_outbox_entries SET status='pending',last_error=?,attempts=attempts+1,updated_at=? WHERE delivery_key=?"
       ).run(String(error), Date.now(), key);
+    },
+    quarantine: (key, payloadJson, error) => {
+      db.prepare(
+        'INSERT INTO coalescing_outbox_quarantine(delivery_key,payload_json,last_error,quarantined_at) VALUES(?,?,?,?)'
+      ).run(key, payloadJson, String(error), Date.now());
     },
     listPendingKeys: () =>
       db

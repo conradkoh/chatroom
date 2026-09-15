@@ -1,9 +1,12 @@
+// fallow-ignore-file complexity
 import { openDurableFifoQueueStore } from './lib/durable-fifo-queue-store.js';
 import {
   createKeyedFifoBatchedOutboxRegistry,
   type KeyedFifoBatchedOutboxRegistry,
 } from './lib/keyed-fifo-batched-outbox-registry.js';
+import { isOutboxArgumentValidationError, type OutboxErrorLogger } from './lib/outbox-failure.js';
 import { resolveOutboxDbPath } from './outbox-db-path.js';
+import { workspaceFileTreeDeltaSchema } from './workspace-file-tree-outbox-schema.js';
 import type { DeltaPushResult } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
 import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
 
@@ -23,7 +26,11 @@ export function createWorkspaceFileTreeDeltaOutboxRegistry(
   createSend: (
     key: string
   ) => (unit: WorkspaceFileTreeDeltaDeliveryUnit) => Promise<DeltaPushResult>,
-  options?: { batchSize?: number | undefined; onError?:( (key: string, e: unknown) => void) | undefined }
+  options?: {
+    batchSize?: number | undefined;
+    onError?: ((key: string, e: unknown) => void) | undefined;
+    logger?: OutboxErrorLogger | undefined;
+  }
 ): WorkspaceFileTreeDeltaOutboxRegistry {
   const store = openDurableFifoQueueStore(resolveOutboxDbPath(machineId, 'file-tree-delta'));
   return createKeyedFifoBatchedOutboxRegistry({
@@ -38,10 +45,12 @@ export function createWorkspaceFileTreeDeltaOutboxRegistry(
       return out;
     },
     serialize: JSON.stringify,
-    deserialize: JSON.parse,
+    deserialize: (json) => workspaceFileTreeDeltaSchema.parse(JSON.parse(json)),
     retryDelayMs: WORKSPACE_FILE_TREE_DELTA_OUTBOX_RETRY_DELAY_MS,
     maxRetryDelayMs: WORKSPACE_FILE_TREE_DELTA_OUTBOX_MAX_RETRY_DELAY_MS,
     onError: options?.onError,
+    logger: options?.logger,
+    isPermanentError: isOutboxArgumentValidationError,
     classifyOutcome: (result, unit) =>
       result.status === 'conflict'
         ? { kind: 'retry', item: { ...unit, baseRevision: result.revision } }

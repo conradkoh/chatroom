@@ -371,11 +371,12 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
         coordinatorPromise = startWorkspaceFileTreeCoordinator({
           machineId: session.machineId,
           workingDir: normalized,
-          // Enqueue only — error retry/backoff lives in the outbox send adapters.
+          // This coordinator needs server revisions before advancing its manifest.
+          // Lifecycle commands use persistence-only enqueue instead.
           onDelta: (delta, baseRevision) =>
-            deltaOutboxRegistry.enqueue(normalized, { delta, baseRevision }),
+            deltaOutboxRegistry.enqueueAndWait(normalized, { delta, baseRevision }),
           onCheckpoint: (tree, revision) =>
-            checkpointOutboxRegistry.enqueue(normalized, { tree, revision }),
+            checkpointOutboxRegistry.enqueueAndWait(normalized, { tree, revision }),
           onError: (error) =>
             logSubscriptionWarn(`File tree coordinator failed for ${normalized}`, error),
           onReconciled: (correctedPathCount) => {

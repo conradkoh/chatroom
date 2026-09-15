@@ -17,10 +17,10 @@ describe('keyed coalescing state outbox registry', () => {
       },
       minIntervalMs: 0,
     });
-    const a1 = registry.enqueue('a', '1');
+    const a1 = registry.enqueueAndWait('a', '1');
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    const a2 = registry.enqueue('a', '2');
-    const b = registry.enqueue('b', 'b');
+    const a2 = registry.enqueueAndWait('a', '2');
+    const b = registry.enqueueAndWait('b', 'b');
     await expect(b).resolves.toBe('b');
     release();
     await expect(a1).resolves.toBe('1');
@@ -34,10 +34,11 @@ describe('keyed coalescing state outbox registry', () => {
       createSend: () => async (state) => state,
       minIntervalMs: 100,
     });
-    const pending = registry.enqueue('a', 1);
+    const pending = registry.enqueueAndWait('a', 1);
+    await registry.flushNow('a');
     await registry.stop('a');
     await expect(pending).resolves.toBe(1);
-    await expect(registry.enqueue('b', 2)).resolves.toBe(2);
+    await expect(registry.enqueueAndWait('b', 2)).resolves.toBe(2);
     await registry.stopAll();
   });
 
@@ -54,11 +55,11 @@ describe('keyed coalescing state outbox registry', () => {
       maxRetryDelayMs: 200,
     });
 
-    void registry.enqueue('/ws-a', 1).catch(() => undefined);
+    void registry.enqueueAndWait('/ws-a', 1).catch(() => undefined);
     await vi.advanceTimersByTimeAsync(0);
     expect(sendByKey['/ws-a']).toHaveBeenCalledTimes(1);
 
-    const otherWorkspace = registry.enqueue('/ws-b', 1);
+    const otherWorkspace = registry.enqueueAndWait('/ws-b', 1);
     await vi.advanceTimersByTimeAsync(0);
     await expect(otherWorkspace).resolves.toBe(1);
     expect(sendByKey['/ws-b']).toHaveBeenCalledTimes(1);

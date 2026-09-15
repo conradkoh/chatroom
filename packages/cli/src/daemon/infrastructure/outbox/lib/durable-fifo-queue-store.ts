@@ -17,6 +17,8 @@ export type DurableFifoQueueStore = {
   markPending(id: number): void;
   updatePayload(id: number, payloadJson: string): void;
   markPendingRetry(id: number, error: unknown): void;
+  quarantine(id: number, error: unknown): void;
+  listPendingKeys(): string[];
   listPendingForRecovery(key: string): DurableFifoQueueEntry[];
   close(): void;
 };
@@ -66,6 +68,18 @@ export function openDurableFifoQueueStore(dbPath: string): DurableFifoQueueStore
         "UPDATE fifo_outbox_entries SET status='pending', last_error=?, updated_at=? WHERE id=?"
       ).run(String(error), Date.now(), id);
     },
+    quarantine: (id, error) => {
+      db.prepare(
+        "UPDATE fifo_outbox_entries SET status='quarantined', last_error=?, updated_at=? WHERE id=?"
+      ).run(String(error), Date.now(), id);
+    },
+    listPendingKeys: () =>
+      db
+        .prepare(
+          "SELECT DISTINCT delivery_key as key FROM fifo_outbox_entries WHERE status IN ('pending','in_flight')"
+        )
+        .all()
+        .map((row) => String((row as { key: string }).key)),
     listPendingForRecovery: (key) =>
       db
         .prepare(

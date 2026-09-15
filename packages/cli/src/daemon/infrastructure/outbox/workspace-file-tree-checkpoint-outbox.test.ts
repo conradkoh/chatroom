@@ -20,7 +20,7 @@ describe('workspace-file-tree-checkpoint-outbox', () => {
       revision: 7,
     };
 
-    await expect(outbox.enqueue('/workspace', state)).resolves.toEqual({ revision: 7 });
+    await expect(outbox.enqueueAndWait('/workspace', state)).resolves.toEqual({ revision: 7 });
     expect(send).toHaveBeenCalledWith(state);
 
     await outbox.stop('/workspace');

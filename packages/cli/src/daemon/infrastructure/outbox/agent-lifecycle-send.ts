@@ -1,6 +1,7 @@
+// fallow-ignore-file complexity
 import type { FunctionArgs } from 'convex/server';
 
-import type { AgentLifecycleOutboxResult } from './agent-lifecycle-outbox.js';
+import type { AgentLifecycleDeliveryResult } from './agent-lifecycle-outbox.js';
 import { api, type Id } from '../../../api.js';
 import {
   normalizeAgentLifecycleFact,
@@ -33,7 +34,7 @@ function toConvexLifecycleFact(fact: AgentLifecycleFact): ConvexLifecycleFact {
 export function createAgentLifecycleSend(
   session: Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>
 ) {
-  return async (fact: AgentLifecycleFact): Promise<AgentLifecycleOutboxResult> => {
+  return async (fact: AgentLifecycleFact): Promise<AgentLifecycleDeliveryResult> => {
     const args = {
       sessionId: session.sessionId as ProjectAgentLifecycleFactArgs['sessionId'],
       machineId: session.machineId,
@@ -44,7 +45,7 @@ export function createAgentLifecycleSend(
         ? api.machines.recordAgentActivityHeartbeat
         : api.machines.projectAgentLifecycleFact,
       args as ProjectAgentLifecycleFactArgs & RecordAgentActivityHeartbeatArgs
-    )) as AgentLifecycleOutboxResult;
+    )) as AgentLifecycleDeliveryResult;
     return result;
   };
 }

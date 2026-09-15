@@ -10,6 +10,10 @@ import {
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../../infrastructure/local/harness/bound-harness-registry.js';
 import type { SpawnResult } from '../../../infrastructure/local/harness/services/remote-agent-service.js';
 import { DEFAULT_TRIGGER_PROMPT } from '../../../infrastructure/local/harness/services/spawn-prompt.js';
+import {
+  createAgentLifecycleOutboxRegistry,
+  agentLifecycleKey,
+} from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
 
@@ -216,6 +220,30 @@ describe('AgentProcessManager', () => {
   // ── ensureRunning ─────────────────────────────────────────────────────
 
   describe('ensureRunning', () => {
+    test('returns after local spawn even when lifecycle sync never settles', async () => {
+      const machineId = `test-spawn-outbox-${Date.now()}-${Math.random()}`;
+      const registry = createAgentLifecycleOutboxRegistry(
+        machineId,
+        () => () => new Promise<{ success: true }>(() => {})
+      );
+      deps = createDeps({
+        lifecycleOutbox: {
+          enqueue: (fact) => registry.enqueue(agentLifecycleKey(machineId, fact), fact),
+        },
+      });
+      manager = new AgentProcessManager(deps);
+
+      const result = await manager.ensureRunning(createOpts());
+
+      expect(result).toEqual({
+        success: true,
+        pid: PID,
+        disposition: 'started',
+      });
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('running');
+      await registry.stopAll();
+    });
+
     test('keeps the same role independent across workspaces', async () => {
       await manager.ensureRunning(createOpts({ workingDir: '/workspace/one' }));
       await manager.ensureRunning(createOpts({ workingDir: '/workspace/two' }));

@@ -1,7 +1,12 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { AgentWorkManager } from './agent-work-manager.js';
+import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import { TaskInboxState } from '../../../infrastructure/inbox/task-inbox-state.js';
+import {
+  createAgentLifecycleOutboxRegistry,
+  agentLifecycleKey,
+} from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 import { createAgentTaskStateService } from '../index.js';
 
 function createService(
@@ -83,6 +88,48 @@ function failedTurnEvent(overrides: Record<string, unknown> = {}): Record<string
 }
 
 describe('AgentWorkManager', () => {
+  test('releases a completed turn while a previous lifecycle send is blocked', async () => {
+    const machineId = `test-turn-outbox-${Date.now()}-${Math.random()}`;
+    const send = vi.fn(() => new Promise<{ success: true }>(() => {}));
+    const registry = createAgentLifecycleOutboxRegistry(machineId, () => send);
+    const enqueue = (fact: AgentLifecycleFact) =>
+      registry.enqueue(agentLifecycleKey(machineId, fact), fact);
+    await enqueue({
+      kind: 'spawned',
+      chatroomId: 'room-1',
+      role: 'builder',
+      pid: 42,
+      emittedAt: Date.now(),
+      revisionKey: 'spawn:1',
+    });
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+    const service = createService({ enqueueFact: (fact) => enqueue(fact as AgentLifecycleFact) });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    const disposition = await service.handleAgentTurnEnded(
+      failedTurnEvent({
+        completion: { turnId: 'turn-1', status: 'completed', source: 'provider.result' },
+      }) as never
+    );
+    expect(disposition).toEqual({ kind: 'release-slot' });
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    service.dispose();
+    await registry.stopAll();
+  });
+
+  test('releases a completed turn even if its projection cannot be persisted', async () => {
+    const service = createService({
+      enqueueFact: async () => {
+        throw new Error('disk full');
+      },
+    });
+    const disposition = await service.handleAgentTurnEnded(
+      failedTurnEvent({
+        completion: { turnId: 'turn-1', status: 'completed', source: 'provider.result' },
+      }) as never
+    );
+    expect(disposition).toEqual({ kind: 'release-slot' });
+    service.dispose();
+  });
   test('stops the active agent when its task is cancelled', async () => {
     const stopAgent = vi.fn().mockResolvedValue({ success: true });
     const service = createService({
@@ -440,7 +487,7 @@ describe('AgentWorkManager', () => {
     service.dispose();
   });
 
-  test('failed turn with no active task holds the slot when the fact enqueue fails', async () => {
+  test('failed turn with no active task releases the slot when projection persistence fails', async () => {
     const enqueueFact = vi.fn(async () => {
       throw new Error('outbox down');
     });
@@ -448,10 +495,7 @@ describe('AgentWorkManager', () => {
 
     const disposition = await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
-    expect(disposition).toEqual({
-      kind: 'hold-slot',
-      reason: 'turn-failed-outbox-enqueue-failed',
-    });
+    expect(disposition).toEqual({ kind: 'release-slot' });
     service.dispose();
   });
 

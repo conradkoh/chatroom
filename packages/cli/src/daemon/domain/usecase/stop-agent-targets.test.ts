@@ -18,7 +18,7 @@ function setup(targets: ReturnType<typeof make>[]) {
     discovery: { listTargets: vi.fn(async () => targets) },
     harnessStop: { stop: vi.fn(async () => {}) },
     liveness: { isAlive: vi.fn(() => false) },
-    lifecycle: { awaitExitedFact: vi.fn(async () => {}) },
+    lifecycle: { enqueueExitedFact: vi.fn(async () => {}) },
     buildRevisionKey: vi.fn(() => 'r'),
   };
   return { d, release };
@@ -46,7 +46,7 @@ describe('stopAgentTargets', () => {
   });
   it('releases the barrier on failures', async () => {
     const { d, release } = setup([make('a', 1)]);
-    d.lifecycle.awaitExitedFact.mockRejectedValue(new Error('x'));
+    d.lifecycle.enqueueExitedFact.mockRejectedValue(new Error('x'));
     const r = await stopAgentTargets(d, {
       chatroomId: 'c',
       scope: { kind: 'chatroom' },
@@ -55,7 +55,7 @@ describe('stopAgentTargets', () => {
     });
     expect(r.failures).toHaveLength(0);
     expect(r.targets).toHaveLength(1);
-    expect(r.targets[0]?.lifecycleWarning).toContain('Failed to deliver');
+    expect(r.targets[0]?.lifecycleWarning).toContain('Failed to persist');
     expect(release).toHaveBeenCalledTimes(1);
   });
   it('returns empty discovery', async () => {

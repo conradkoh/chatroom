@@ -210,17 +210,12 @@ export class AgentWorkManager {
         emittedAt: Date.now(),
       };
       try {
-        // The local outbox is the fire-and-forget boundary to the backend. The
-        // enqueue itself is awaited so the manager receives a real disposition.
-        // When a task was recovered above, the backend queue already holds it;
-        // a secondary fact-enqueue failure must not re-orphan the task/slot.
+        // Await only local persistence. A projection failure cannot hold an idle slot.
         await this.deps.lifecycleOutbox.enqueue(fact);
       } catch (error) {
         console.error(
           `[NativeDelivery:turn-failed-outbox-error] chatroom=${event.chatroomId} role=${event.role} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
         );
-        if (activeTask) return { kind: 'release-slot' };
-        return { kind: 'hold-slot', reason: 'turn-failed-outbox-enqueue-failed' };
       }
       return { kind: 'release-slot' };
     }
@@ -242,7 +237,6 @@ export class AgentWorkManager {
       console.error(
         `[NativeDelivery:turn-ended-outbox-error] chatroom=${event.chatroomId} role=${event.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
-      return { kind: 'hold-slot', reason: 'turn-ended-outbox-enqueue-failed' };
     }
     // The manager invokes this handler while the agent's lifecycle operation
     // is still serialized. Schedule delivery for the next turn of the event

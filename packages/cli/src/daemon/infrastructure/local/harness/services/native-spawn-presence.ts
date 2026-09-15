@@ -32,8 +32,8 @@ export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceConte
 }
 
 /**
- * After native harness spawn: emit agent.waiting via participants.join.
- * Returns true if join was attempted and succeeded; false if harness is not native or join failed.
+ * After native harness spawn: durably enqueue the waiting projection.
+ * Returns true after local persistence; backend delivery proceeds independently.
  */
 export async function emitNativeWaitingAfterSpawn(
   ctx: NativeSpawnPresenceContext,
