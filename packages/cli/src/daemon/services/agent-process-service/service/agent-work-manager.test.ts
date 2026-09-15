@@ -360,8 +360,8 @@ describe('AgentWorkManager', () => {
   test('coalesces duplicate role reconciliations and runs a fresh pass afterward', async () => {
     const service = createService();
     let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
+    const gate = new Promise<readonly string[]>((resolve) => {
+      release = () => resolve([]);
     });
     const reconcileRole = vi
       .spyOn(service as any, 'reconcileRole')
@@ -387,7 +387,6 @@ describe('AgentWorkManager', () => {
       2,
       'agent-session-lost',
       expect.any(Array),
-      undefined,
       undefined
     );
   });
