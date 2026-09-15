@@ -433,7 +433,6 @@ export class AgentWorkManager {
       this.deps.effectContext,
       this.deps.agentMgr,
       this.deps.runSerializedForAgent,
-      this.deps.acquireNativeDeliverySlot,
       this.deliveryTaskService,
       this.deps.configurationService,
       this.deps.sessionDeps,

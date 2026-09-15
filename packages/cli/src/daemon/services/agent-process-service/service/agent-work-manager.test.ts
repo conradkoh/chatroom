@@ -390,6 +390,7 @@ describe('AgentWorkManager', () => {
       2,
       'agent-session-lost',
       expect.any(Array),
+      undefined,
       undefined
     );
   });
