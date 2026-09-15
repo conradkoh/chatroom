@@ -2,53 +2,38 @@ import {
   type AssignedTask,
   isDeliverableTaskStatus,
 } from '../../../../domain/entities/assigned-task.js';
-import {
-  isSlotIdle,
-  isSlotSpawning,
-  isSlotStopping,
-} from '../../../../domain/usecase/check-agent-slot.js';
-import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
 import type { DeliveryBlockReason } from '../../domain/usecase/native-delivery-reason.js';
 
 export type { DeliveryBlockReason } from '../../domain/usecase/native-delivery-reason.js';
 
-export type DeliveryWaitReason =
-  | 'slot_spawning'
-  | 'slot_stopping'
-  | 'agent_start_in_flight'
-  | 'session_not_ready'
-  | 'turn_not_idle';
-
 export type DeliveryDecision =
-  | { kind: 'idle'; reason: 'no_deliverable_task' | 'not_assigned'; taskId?: string }
-  | { kind: 'blocked'; reason: DeliveryBlockReason; taskId: string }
-  | { kind: 'start-agent'; taskId: string }
-  | { kind: 'wait'; reason: DeliveryWaitReason; taskId: string }
-  | { kind: 'inject'; taskId: string; harnessSessionId?: string | undefined }
+  | { kind: 'idle'; reason: 'no_deliverable_task' | 'not_assigned' }
+  | {
+      kind: 'waiting';
+      reason: 'config_sync_lag' | 'stop_scope_active' | 'agent_not_ready';
+      taskId: string;
+    }
+  | {
+      kind: 'failed';
+      reason: 'unsupported_harness' | 'task_not_deliverable' | 'assigned_elsewhere';
+      taskId: string;
+    }
+  | { kind: 'deliver'; taskId: string }
   | {
       kind: 'deduplicated';
-      taskId: string;
       reason: 'task_state_active' | 'delivery_in_flight';
+      taskId: string;
     };
 
 export type DeliveryDecisionContext = {
   role: string;
-  slot: AgentProcessSlotView | undefined;
   activeTaskId: string | undefined;
   deliveryInFlight: boolean;
   /** Configuration resolved from ChatroomWorkspaceConfigurationService. */
   agentConfig: AgentConfigEntry | undefined;
-  agentLifecycleInFlight: boolean;
   isNativeHarness: (harness: string) => boolean;
-  taskRequestsNativeColdSession: (task: AssignedTask) => boolean;
-  explainNativeDeliveryBlock: (
-    task: AssignedTask,
-    options: {
-      slot: AgentProcessSlotView | undefined;
-      agentConfig: AgentConfigEntry | undefined;
-    }
-  ) => DeliveryBlockReason | null;
+  explainNativeDeliveryBlock: (task: AssignedTask) => DeliveryBlockReason | null;
 };
 
 function taskSort(a: AssignedTask, b: AssignedTask): number {
@@ -57,8 +42,8 @@ function taskSort(a: AssignedTask, b: AssignedTask): number {
 }
 
 /**
- * Purely evaluates the next action for one role. It does not read Convex,
- * start processes, inject prompts, mutate task state, or acquire locks.
+ * Evaluates task-domain delivery policy. Agent-process slot state is owned by
+ * acquireNativeDeliverySlot and is intentionally absent from this context.
  */
 // fallow-ignore-next-line complexity
 export function decideNextDelivery(
@@ -72,11 +57,7 @@ export function decideNextDelivery(
 
   if (!task) {
     if (assignedTasks.length > 0) {
-      return {
-        kind: 'blocked',
-        taskId: assignedTasks[0].taskId,
-        reason: 'task_status_not_deliverable',
-      };
+      return { kind: 'failed', taskId: assignedTasks[0].taskId, reason: 'task_not_deliverable' };
     }
     return { kind: 'idle', reason: tasks.length > 0 ? 'not_assigned' : 'no_deliverable_task' };
   }
@@ -86,56 +67,30 @@ export function decideNextDelivery(
   if (context.deliveryInFlight) {
     return { kind: 'deduplicated', taskId: task.taskId, reason: 'delivery_in_flight' };
   }
-
-  const agentConfig = context.agentConfig;
-  if (!agentConfig) {
-    return { kind: 'blocked', taskId: task.taskId, reason: 'agent_config_missing' };
-  }
-  if (!context.isNativeHarness(agentConfig.agentHarness)) {
-    return { kind: 'blocked', taskId: task.taskId, reason: 'not_native_harness' };
-  }
-
-  if (context.agentLifecycleInFlight) {
-    return { kind: 'wait', taskId: task.taskId, reason: 'agent_start_in_flight' };
-  }
-
-  const blockReason = context.explainNativeDeliveryBlock(task, {
-    slot: context.slot,
-    agentConfig,
-  });
-  if (blockReason === null) {
-    return {
-      kind: 'inject',
-      taskId: task.taskId,
-      harnessSessionId: context.slot?.harnessSessionId,
-    };
-  }
-
-  if (isSlotSpawning(context.slot?.state ?? 'idle')) {
-    return { kind: 'wait', taskId: task.taskId, reason: 'slot_spawning' };
-  }
-  if (isSlotStopping(context.slot?.state ?? 'idle')) {
-    return { kind: 'wait', taskId: task.taskId, reason: 'slot_stopping' };
-  }
-
-  const coldSession = context.taskRequestsNativeColdSession(task);
-  const startAllowed = blockReason === 'slot_missing' || blockReason === 'slot_not_running';
   if (
-    startAllowed &&
-    !coldSession &&
-    task.status === 'pending' &&
-    isSlotIdle(context.slot?.state ?? 'idle') &&
-    agentConfig.workingDir
+    task.status === 'acknowledged' &&
+    task.assignedTo?.toLowerCase() !== context.role.toLowerCase()
   ) {
-    return { kind: 'start-agent', taskId: task.taskId };
+    return { kind: 'failed', taskId: task.taskId, reason: 'assigned_elsewhere' };
   }
 
-  if (blockReason === 'harness_session_missing') {
-    return { kind: 'wait', taskId: task.taskId, reason: 'session_not_ready' };
+  if (!context.agentConfig) {
+    return { kind: 'waiting', taskId: task.taskId, reason: 'config_sync_lag' };
   }
-  if (blockReason === 'turn_not_idle') {
-    return { kind: 'wait', taskId: task.taskId, reason: 'turn_not_idle' };
+  if (!context.isNativeHarness(context.agentConfig.agentHarness)) {
+    return { kind: 'failed', taskId: task.taskId, reason: 'unsupported_harness' };
   }
 
-  return { kind: 'blocked', taskId: task.taskId, reason: blockReason };
+  const blockReason = context.explainNativeDeliveryBlock(task);
+  if (blockReason === 'chatroom_stop_scope_active') {
+    return { kind: 'waiting', taskId: task.taskId, reason: 'stop_scope_active' };
+  }
+  if (blockReason === 'task_status_not_deliverable') {
+    return { kind: 'failed', taskId: task.taskId, reason: 'task_not_deliverable' };
+  }
+  if (blockReason === 'acknowledged_wrong_role') {
+    return { kind: 'failed', taskId: task.taskId, reason: 'assigned_elsewhere' };
+  }
+
+  return { kind: 'deliver', taskId: task.taskId };
 }

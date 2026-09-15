@@ -208,7 +208,7 @@ describe('user message pending delivery path', () => {
     });
   });
 
-  test('stuck pending: does not inject when harness turn is still in flight', async () => {
+  test('delegates turn readiness to the agent service', async () => {
     const snapshot = createTaskState();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
@@ -218,7 +218,7 @@ describe('user message pending delivery path', () => {
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot({ nativeTurnPhase: 'turn_in_flight' }),
       })
-    ).toBe(false);
+    ).toBe(true);
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
@@ -254,7 +254,7 @@ describe('user message pending delivery path', () => {
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
   });
 
-  test('stuck pending: does not inject when harness session id is missing on slot', async () => {
+  test('delegates session readiness to the agent service', async () => {
     const snapshot = createTaskState();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
@@ -264,7 +264,7 @@ describe('user message pending delivery path', () => {
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot({ harnessSessionId: undefined }),
       })
-    ).toBe(false);
+    ).toBe(true);
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
@@ -298,7 +298,7 @@ describe('user message pending delivery path', () => {
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
   });
 
-  test('stuck pending: does not inject when local slot is spawning with a mismatched PID', async () => {
+  test('delegates spawning readiness to the agent service', async () => {
     const snapshot = createTaskState();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
@@ -308,7 +308,7 @@ describe('user message pending delivery path', () => {
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot({ pid: SPAWNED_PID + 1, state: 'spawning' }),
       })
-    ).toBe(false);
+    ).toBe(true);
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();

@@ -32,6 +32,7 @@ export function createAgentProcessCommandBus(
     queue,
     notifier: deps.notifier,
     ...deps.consumer,
+    // fallow-ignore-next-line complexity
     dispatch: async (message: ReceivedCommandMessage<AgentProcessManagerCommand>) => {
       const { type, input } = message.body;
       switch (type) {

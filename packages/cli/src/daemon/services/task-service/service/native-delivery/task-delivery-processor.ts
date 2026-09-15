@@ -77,8 +77,8 @@ export async function processTasksUpdate(
   if (!first) return;
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
-    startAgent: (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => {
-      if (!agentConfig) return Promise.resolve({ success: false, error: 'agent config missing' });
+    deliverTask: async (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => {
+      if (!agentConfig) return { kind: 'task-unavailable' as const };
       const startInput = {
         chatroomId: task.chatroomId,
         role: task.agentConfig.role,
@@ -89,8 +89,8 @@ export async function processTasksUpdate(
         wantResume: false,
         taskId: task.taskId,
       };
-      // Task-borne ephemeral parameters override the resolved config; only
-      // harness/model are honored — other fields are intentionally ignored.
+      // Task-borne ephemeral parameters override only harness/model. The
+      // task's working directory and all other fields remain workspace-owned.
       const ephemeralOverrides =
         task.assignee?.type === TaskAssigneeType.Ephemeral
           ? {
@@ -98,17 +98,36 @@ export async function processTasksUpdate(
               model: task.assignee.ephemeral.model,
             }
           : undefined;
-      if (acquireNativeDeliverySlot) {
-        return acquireNativeDeliverySlot({
-          ...startInput,
-          ...(ephemeralOverrides ? { overrides: ephemeralOverrides } : {}),
-        });
-      }
-      return runSerializedForAgent(
-        { chatroomId: task.chatroomId, role: task.agentConfig.role },
-        { timeoutMs: 120_000 },
-        (ops, context) => ops.startAgent(startInput, context.signal)
-      );
+      const effectiveStartInput = {
+        ...startInput,
+        ...(ephemeralOverrides ? { overrides: ephemeralOverrides } : {}),
+      };
+      const slot = acquireNativeDeliverySlot
+        ? await acquireNativeDeliverySlot({ ...effectiveStartInput, timeoutMs: 30_000 })
+        : (await runSerializedForAgent(
+            { chatroomId: task.chatroomId, role: task.agentConfig.role },
+            { timeoutMs: 30_000 },
+            (ops, context) => ops.startAgent(startInput, context.signal)
+          ),
+          agentMgr.getSlot(task.chatroomId, task.agentConfig.role, agentConfig.workingDir));
+      const full = await taskService.loadAssignedTaskForAction({
+        chatroomId: task.chatroomId,
+        role: task.agentConfig.role,
+        taskId: task.taskId,
+      });
+      if (!full || !slot?.harnessSessionId) return { kind: 'task-unavailable' as const };
+      let delivered:
+        | {
+            chatroomId: string;
+            role: string;
+            taskId: string;
+            harnessSessionId: string;
+          }
+        | undefined;
+      await taskService.deliverNativeTask(full, slot.harnessSessionId, (result) => {
+        delivered = result;
+      });
+      return { kind: 'delivered' as const, ...(delivered ? { delivered } : {}) };
     },
     injectTask: async (task: AssignedTask, harnessSessionId: string | undefined) => {
       const full = await taskService.loadAssignedTaskForAction({

@@ -1,11 +1,5 @@
 import type { DeliveryBlockReason } from './native-delivery-reason.js';
 import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
-import {
-  isSlotIdle,
-  isSlotSpawning,
-  isSlotStopping,
-} from '../../../../domain/usecase/check-agent-slot.js';
-import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
 import { isChatroomStopScopeActive } from '../../../agent-process-contracts.js';
 
 /**
@@ -30,35 +24,11 @@ export function taskRequestsNativeColdSession(task: AssignedTask): boolean {
   return task.requestsNativeColdSession === true;
 }
 
-/**
- * Cold-start eligible by local slot state alone: missing or idle.
- * Spawning and stopping are lifecycle transitions (wait); running is handled
- * by the normal ready gates plus the injector's cold-replacement step.
- */
-// fallow-ignore-next-line unused-export
-export function isColdStartEligibleSlotState(slot: AgentProcessSlotView | undefined): boolean {
-  if (!slot) return true;
-  return isSlotIdle(slot.state);
-}
-
-/** True when delivery's cold-session path should own the next spawn. */
-export function isNativeColdSessionDeliveryOwnedSpawn(
-  task: AssignedTask,
-  slot: AgentProcessSlotView | undefined
-): boolean {
-  return taskRequestsNativeColdSession(task) && isColdStartEligibleSlotState(slot);
-}
-
 // fallow-ignore-next-line complexity
-export function explainColdSessionDeliveryBlock(
-  task: AssignedTask,
-  slot: AgentProcessSlotView | undefined
-): DeliveryBlockReason | null {
+export function explainColdSessionDeliveryBlock(task: AssignedTask): DeliveryBlockReason | null {
   if (!taskRequestsNativeColdSession(task)) return null;
   if (isChatroomStopScopeActive(task.chatroomId)) {
     return 'chatroom_stop_scope_active';
   }
-  if (slot && isSlotSpawning(slot.state)) return 'slot_spawning';
-  if (slot && isSlotStopping(slot.state)) return 'slot_stopping';
   return null;
 }

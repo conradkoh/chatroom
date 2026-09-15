@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   explainColdSessionDeliveryBlock,
-  isColdStartEligibleSlotState,
-  isNativeColdSessionDeliveryOwnedSpawn,
   taskRequestsNativeColdSession,
 } from './native-cold-session-delivery.js';
 
@@ -18,8 +16,6 @@ const coldTask = {
   agentConfig: {
     role: 'builder',
     machineId: 'machine-1',
-    agentHarness: 'cursor-sdk',
-    workingDir: '/tmp',
   },
 };
 
@@ -31,40 +27,13 @@ describe('native-cold-session-delivery', () => {
     );
   });
 
-  it('treats missing or idle slots as delivery-owned spawn for cold-session tasks', () => {
-    expect(isNativeColdSessionDeliveryOwnedSpawn(coldTask, undefined)).toBe(true);
-    expect(isNativeColdSessionDeliveryOwnedSpawn(coldTask, { state: 'idle' } as never)).toBe(true);
-    expect(
-      isNativeColdSessionDeliveryOwnedSpawn(
-        { ...coldTask, requestsNativeColdSession: false },
-        undefined
-      )
-    ).toBe(false);
+  it('allows delivery-owned spawn when no stop scope is active', () => {
+    expect(explainColdSessionDeliveryBlock(coldTask)).toBeNull();
   });
 
-  it('does not treat transitions or running slots as delivery-owned down slots', () => {
-    expect(isColdStartEligibleSlotState({ state: 'spawning' } as never)).toBe(false);
-    expect(isColdStartEligibleSlotState({ state: 'stopping' } as never)).toBe(false);
-    expect(isColdStartEligibleSlotState({ state: 'running' } as never)).toBe(false);
-    expect(
-      isNativeColdSessionDeliveryOwnedSpawn(coldTask, {
-        state: 'spawning',
-        pid: undefined,
-        nativeTurnPhase: 'idle',
-      } as never)
-    ).toBe(false);
-  });
-
-  it('allows delivery-owned spawn when slot is idle', () => {
-    expect(explainColdSessionDeliveryBlock(coldTask, undefined)).toBeNull();
-  });
-
-  it('blocks cold delivery while spawning or stopping', () => {
-    expect(explainColdSessionDeliveryBlock(coldTask, { state: 'spawning' } as never)).toBe(
-      'slot_spawning'
-    );
-    expect(explainColdSessionDeliveryBlock(coldTask, { state: 'stopping' } as never)).toBe(
-      'slot_stopping'
+  it('does not block ordinary tasks', () => {
+    expect(explainColdSessionDeliveryBlock({ ...coldTask, requestsNativeColdSession: false })).toBe(
+      null
     );
   });
 });

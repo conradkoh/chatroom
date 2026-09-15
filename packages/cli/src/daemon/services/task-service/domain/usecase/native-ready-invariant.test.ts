@@ -11,85 +11,22 @@ const task = (overrides: Record<string, unknown> = {}) =>
     assignedTo: 'builder',
     updatedAt: 1,
     createdAt: 1,
-    agentConfig: {
-      role: 'builder',
-      machineId: 'machine-1',
-      agentHarness: 'cursor-sdk',
-      workingDir: '/tmp',
-    },
+    agentConfig: { role: 'builder', machineId: 'machine-1' },
     assignee: {
       type: TaskAssigneeType.Ephemeral,
-      ephemeral: {
-        agentHarness: 'cursor-sdk',
-        model: 'test-model',
-        workingDir: '/tmp',
-      },
+      ephemeral: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/tmp' },
     },
-    participant: { lastSeenAction: null, lastSeenAt: null, lastStatus: null },
-    ...overrides,
-  }) as never;
-
-const idleSlot = (overrides: Record<string, unknown> = {}) =>
-  ({
-    state: 'running',
-    pid: 99,
-    harnessSessionId: 'harness-1',
-    nativeTurnPhase: 'idle',
     ...overrides,
   }) as never;
 
 describe('native-ready-invariant', () => {
-  it('allows delivery-owned cold spawn when slot is down', () => {
+  it('allows delivery-owned cold spawn when no stop scope is active', () => {
     expect(
-      explainAgentReadyForNativeDeliveryBlock(task({ requestsNativeColdSession: true }), undefined)
+      explainAgentReadyForNativeDeliveryBlock(task({ requestsNativeColdSession: true }))
     ).toBeNull();
   });
 
-  it('still blocks when the locally running slot has a turn in flight', () => {
-    expect(
-      explainAgentReadyForNativeDeliveryBlock(
-        task({
-          agentConfig: {
-            role: 'builder',
-            machineId: 'machine-1',
-            agentHarness: 'cursor-sdk',
-            workingDir: '/tmp',
-          },
-        }),
-        idleSlot({ pid: 42, nativeTurnPhase: 'turn_in_flight' })
-      )
-    ).toBe('turn_not_idle');
-  });
-
-  it('allows a healthy local slot without backend process metadata', () => {
-    expect(
-      explainAgentReadyForNativeDeliveryBlock(
-        task({
-          agentConfig: {
-            role: 'builder',
-            machineId: 'machine-1',
-            agentHarness: 'cursor-sdk',
-            workingDir: '/tmp',
-          },
-        }),
-        idleSlot({ pid: 123 })
-      )
-    ).toBeNull();
-  });
-
-  it('blocks when the local slot is not running', () => {
-    expect(
-      explainAgentReadyForNativeDeliveryBlock(
-        task({
-          agentConfig: {
-            role: 'builder',
-            machineId: 'machine-1',
-            agentHarness: 'cursor-sdk',
-            workingDir: '/tmp',
-          },
-        }),
-        idleSlot({ pid: 99, state: 'spawning' })
-      )
-    ).toBe('slot_not_running');
+  it('does not block normal delivery based on process state', () => {
+    expect(explainAgentReadyForNativeDeliveryBlock(task())).toBeNull();
   });
 });

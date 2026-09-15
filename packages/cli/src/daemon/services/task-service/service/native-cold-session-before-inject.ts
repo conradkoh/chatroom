@@ -56,8 +56,8 @@ export async function ensureColdSessionBeforeNativeInject(
     return null;
   }
 
-  const { chatroomId, agentConfig, taskId } = task;
-  const { role } = agentConfig;
+  const { chatroomId, agentConfig: taskAgentConfig, taskId } = task;
+  const { role } = taskAgentConfig;
 
   const slot = deps.agentMgr.getSlot(chatroomId, role);
   const agentConfig = deps.configurationService.get(chatroomId, role);

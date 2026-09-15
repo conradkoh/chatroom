@@ -12,9 +12,6 @@ export function logNativeDeliveryDecision(
   details?: {
     reason?: string;
     attemptId?: string;
-    slotState?: string;
-    nativeTurnPhase?: string;
-    harnessSessionPresent?: boolean;
   }
 ): void {
   const taskSuffix = taskId ? ` task=${taskId}` : '';

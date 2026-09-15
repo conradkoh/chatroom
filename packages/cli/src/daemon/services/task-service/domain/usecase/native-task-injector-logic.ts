@@ -6,18 +6,14 @@ import {
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
 import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
-import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
-import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
 
 export { isNativeHarness } from '../../../../domain/native-integration/index.js';
 
 /**
  * Readiness inputs for native delivery gating.
  */
-export type NativeDeliveryReadinessOptions = {
-  slot: AgentProcessSlotView | undefined;
-  agentConfig: AgentConfigEntry | undefined;
-};
+/** Compatibility options; readiness no longer inspects process state. */
+export type NativeDeliveryReadinessOptions = Record<string, unknown>;
 
 /** True when daemon should deliver a task into a live native harness session. */
 // fallow-ignore-next-line unused-export
@@ -32,17 +28,15 @@ export function shouldDeliverNativeTask(
 // fallow-ignore-next-line complexity
 export function explainNativeDeliveryBlock(
   task: AssignedTask,
-  opts: NativeDeliveryReadinessOptions
+  _opts?: NativeDeliveryReadinessOptions
 ): DeliveryBlockReason | null {
-  if (!isDeliverableNativeTaskStatus(task.status)) {
-    return 'task_status_not_deliverable';
-  }
+  if (!isDeliverableNativeTaskStatus(task.status)) return 'task_status_not_deliverable';
   if (task.status === 'acknowledged') {
     const assignedTo = task.assignedTo?.toLowerCase();
     const role = task.agentConfig.role.toLowerCase();
     if (assignedTo !== role) return 'acknowledged_wrong_role';
   }
-  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot, opts.agentConfig);
+  return explainAgentReadyForNativeDeliveryBlock(task);
 }
 
 const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {

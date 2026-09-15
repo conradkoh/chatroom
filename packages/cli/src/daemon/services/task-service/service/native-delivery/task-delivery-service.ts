@@ -2,20 +2,12 @@ import type {
   AssignedTask,
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
-import type { AgentProcessSlotView } from '../../../agent-process-service/index.js';
-import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
 import type { DeliveryBlockReason } from '../../domain/usecase/native-delivery-reason.js';
 
 export interface TaskDeliveryService {
   isNativeHarness(harness: string): boolean;
   taskRequestsNativeColdSession(task: AssignedTask): boolean;
-  explainNativeDeliveryBlock(
-    task: AssignedTask,
-    options: {
-      slot: AgentProcessSlotView | undefined;
-      agentConfig: AgentConfigEntry | undefined;
-    }
-  ): DeliveryBlockReason | null;
+  explainNativeDeliveryBlock(task: AssignedTask): DeliveryBlockReason | null;
   releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
     released: boolean;
     status: AssignedTask['status'];

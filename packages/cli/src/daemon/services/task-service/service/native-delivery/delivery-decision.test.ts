@@ -10,10 +10,7 @@ const task = (overrides: Partial<AssignedTask> = {}): AssignedTask => ({
   assignedTo: 'builder',
   createdAt: 1,
   updatedAt: 1,
-  agentConfig: {
-    role: 'builder',
-    machineId: 'machine-1',
-  },
+  agentConfig: { role: 'builder', machineId: 'machine-1' },
   assignee: {
     type: TaskAssigneeType.Ephemeral,
     ephemeral: { agentHarness: 'codex-sdk', model: 'model-1', workingDir: '/workspace' },
@@ -26,73 +23,62 @@ function context(
 ): Parameters<typeof decideNextDelivery>[1] {
   return {
     role: 'builder',
-    slot: { state: 'running', pid: 42, harnessSessionId: 'session-1', nativeTurnPhase: 'idle' },
     activeTaskId: undefined,
     deliveryInFlight: false,
     agentConfig: { agentHarness: 'codex-sdk', model: 'model-1', workingDir: '/workspace' },
-    agentLifecycleInFlight: false,
     isNativeHarness: (harness) => harness.endsWith('-sdk'),
-    taskRequestsNativeColdSession: (row) => row.requestsNativeColdSession === true,
     explainNativeDeliveryBlock: vi.fn(() => null),
     ...overrides,
   };
 }
 
 describe('decideNextDelivery', () => {
-  test('returns inject for a ready native role', () => {
-    expect(decideNextDelivery([task()], context())).toEqual({
-      kind: 'inject',
+  test('returns deliver for a valid task without inspecting slot state', () => {
+    expect(decideNextDelivery([task()], context())).toEqual({ kind: 'deliver', taskId: 'task-1' });
+  });
+
+  test.each([
+    ['in_progress', 'task_not_deliverable'],
+    ['completed', 'task_not_deliverable'],
+  ] as const)('fails a non-deliverable task (%s)', (status, reason) => {
+    expect(decideNextDelivery([task({ status })], context())).toEqual({
+      kind: 'failed',
       taskId: 'task-1',
-      harnessSessionId: 'session-1',
+      reason,
     });
   });
 
-  test('returns start-agent for pending work and an idle slot', () => {
-    const explain = vi.fn(() => 'slot_missing');
+  test('fails an acknowledged task assigned elsewhere', () => {
     expect(
-      decideNextDelivery(
-        [task()],
-        context({ slot: { state: 'idle' }, explainNativeDeliveryBlock: explain })
-      )
-    ).toEqual({ kind: 'start-agent', taskId: 'task-1' });
+      decideNextDelivery([task({ status: 'acknowledged', assignedTo: 'planner' })], context())
+    ).toEqual({ kind: 'failed', taskId: 'task-1', reason: 'assigned_elsewhere' });
   });
 
-  test('starts pending work when the local slot and backend PID are both missing', () => {
-    const explain = vi.fn(() => 'slot_missing');
-    expect(
-      decideNextDelivery(
-        [task()],
-        context({ slot: undefined, explainNativeDeliveryBlock: explain })
-      )
-    ).toEqual({ kind: 'start-agent', taskId: 'task-1' });
+  test('waits while configuration sync is pending', () => {
+    expect(decideNextDelivery([task()], context({ agentConfig: undefined }))).toEqual({
+      kind: 'waiting',
+      taskId: 'task-1',
+      reason: 'config_sync_lag',
+    });
   });
 
-  test('waits for a spawning or stopping slot', () => {
-    const explain = vi.fn(() => 'slot_not_running' as const);
-    expect(
-      decideNextDelivery(
-        [task()],
-        context({ slot: { state: 'spawning' }, explainNativeDeliveryBlock: explain })
-      )
-    ).toEqual({ kind: 'wait', taskId: 'task-1', reason: 'slot_spawning' });
+  test('fails for an unsupported harness', () => {
+    expect(decideNextDelivery([task()], context({ isNativeHarness: () => false }))).toEqual({
+      kind: 'failed',
+      taskId: 'task-1',
+      reason: 'unsupported_harness',
+    });
   });
 
-  test('waits for the agent to become idle before delivering', () => {
-    const explain = vi.fn(() => 'turn_not_idle' as const);
+  test('maps the remaining task-domain block to its outcome', () => {
     expect(
       decideNextDelivery(
         [task()],
         context({
-          slot: {
-            state: 'running',
-            pid: 42,
-            harnessSessionId: 'session-1',
-            nativeTurnPhase: 'turn_in_flight',
-          },
-          explainNativeDeliveryBlock: explain,
+          explainNativeDeliveryBlock: vi.fn(() => 'chatroom_stop_scope_active'),
         })
       )
-    ).toEqual({ kind: 'wait', taskId: 'task-1', reason: 'turn_not_idle' });
+    ).toEqual({ kind: 'waiting', taskId: 'task-1', reason: 'stop_scope_active' });
   });
 
   test('deduplicates an active task and an in-flight delivery', () => {
@@ -106,52 +92,5 @@ describe('decideNextDelivery', () => {
       taskId: 'task-1',
       reason: 'delivery_in_flight',
     });
-  });
-
-  test('returns idle when no task is deliverable', () => {
-    expect(decideNextDelivery([task({ status: 'in_progress' })], context())).toEqual({
-      kind: 'blocked',
-      taskId: 'task-1',
-      reason: 'task_status_not_deliverable',
-    });
-  });
-
-  test('distinguishes a task assigned to another role', () => {
-    expect(
-      decideNextDelivery(
-        [task({ agentConfig: { ...task().agentConfig, role: 'planner' } })],
-        context()
-      )
-    ).toEqual({ kind: 'idle', reason: 'not_assigned' });
-  });
-
-  test.each([
-    'not_native_harness',
-    'acknowledged_wrong_role',
-    'chatroom_stop_scope_active',
-    'slot_missing',
-    'slot_not_running',
-    'slot_pid_missing',
-  ] as const)('preserves stable blocked reason %s', (reason) => {
-    expect(
-      decideNextDelivery([task()], context({ explainNativeDeliveryBlock: vi.fn(() => reason) }))
-    ).toEqual({ kind: 'blocked', taskId: 'task-1', reason });
-  });
-
-  test('waits while an agent lifecycle operation is in flight', () => {
-    expect(decideNextDelivery([task()], context({ agentLifecycleInFlight: true }))).toEqual({
-      kind: 'wait',
-      taskId: 'task-1',
-      reason: 'agent_start_in_flight',
-    });
-  });
-
-  test('waits for a missing harness session', () => {
-    expect(
-      decideNextDelivery(
-        [task()],
-        context({ explainNativeDeliveryBlock: vi.fn(() => 'harness_session_missing') })
-      )
-    ).toEqual({ kind: 'wait', taskId: 'task-1', reason: 'session_not_ready' });
   });
 });

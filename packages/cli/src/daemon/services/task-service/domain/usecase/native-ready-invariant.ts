@@ -1,60 +1,20 @@
-import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/types.js';
-
-import {
-  explainColdSessionDeliveryBlock,
-  isNativeColdSessionDeliveryOwnedSpawn,
-} from './native-cold-session-delivery.js';
+import { explainColdSessionDeliveryBlock } from './native-cold-session-delivery.js';
 import type { DeliveryBlockReason } from './native-delivery-reason.js';
+import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../../domain/entities/assigned-task.js';
-import { isSlotRunning, isTurnPhaseIdle } from '../../../../domain/usecase/check-agent-slot.js';
-import type { AgentProcessSlotView } from '../../../agent-process-contracts.js';
-import type { AgentConfigEntry } from '../../../chatroom-workspace-configuration-service/index.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 // fallow-ignore-next-line unused-export
-export function isAgentReadyForNativeDelivery(
-  task: AssignedTask,
-  slot: AgentProcessSlotView | undefined,
-  agentConfig: AgentConfigEntry | undefined
-): boolean {
-  return explainAgentReadyForNativeDeliveryBlock(task, slot, agentConfig) === null;
+export function isAgentReadyForNativeDelivery(task: AssignedTask): boolean {
+  return explainAgentReadyForNativeDeliveryBlock(task) === null;
 }
 
 /** Stable reason when agent/slot is not ready; null when ready. */
 // fallow-ignore-next-line complexity
 export function explainAgentReadyForNativeDeliveryBlock(
-  task: AssignedTask,
-  slot: AgentProcessSlotView | undefined,
-  agentConfig: AgentConfigEntry | undefined
+  task: AssignedTask
 ): DeliveryBlockReason | null {
-  if (!agentConfig) return 'agent_config_missing';
-  if (!isNativeHarness(agentConfig.agentHarness)) return 'not_native_harness';
-  // Explicit cold-session tasks: apply stop/circuit/transition guards first.
-  // When the slot is down (missing/idle) and unblocked, delivery owns the
-  // cold start and bypasses the running-slot gates below; a running slot
-  // falls through so the injector can cold-replace the existing session.
-  const coldBlock = explainColdSessionDeliveryBlock(task, slot);
-  if (coldBlock) {
-    return coldBlock;
-  }
-  if (isNativeColdSessionDeliveryOwnedSpawn(task, slot)) {
-    return null;
-  }
-  if (!slot) {
-    return 'slot_missing';
-  }
-  if (!isSlotRunning(slot.state)) return 'slot_not_running';
-  if (slot.pid == null) {
-    return 'slot_pid_missing';
-  }
-  // The backend PID can lag behind a successful local spawn. Once the local
-  // slot is healthy, it is the authoritative process identity for delivery.
-  if (typeof slot.harnessSessionId !== 'string' || slot.harnessSessionId.length === 0) {
-    return 'harness_session_missing';
-  }
-  const turnPhase = slot.nativeTurnPhase ?? 'idle';
-  if (!isTurnPhaseIdle(turnPhase)) return 'turn_not_idle';
-  return null;
+  return explainColdSessionDeliveryBlock(task);
 }
 
 /** Pending or acknowledged tasks eligible for (re)delivery when agent is ready. */

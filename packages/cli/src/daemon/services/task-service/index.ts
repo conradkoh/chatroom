@@ -26,7 +26,6 @@ export {
 } from './domain/usecase/native-ready-invariant.js';
 export {
   taskRequestsNativeColdSession,
-  isNativeColdSessionDeliveryOwnedSpawn,
   explainColdSessionDeliveryBlock,
 } from './domain/usecase/native-cold-session-delivery.js';
 export {
