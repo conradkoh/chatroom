@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { storedFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
 import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
+import { workspaceAgentConfigInboxEventValidator } from '../src/domain/entities/chatroom-workspace-agent-config-inbox';
 import { workspaceTaskInboxEventValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
@@ -1426,6 +1427,17 @@ export default defineSchema({
   chatroomWorkspaceTaskInbox: defineTable(workspaceTaskInboxEventValidator)
     .index('by_machine_status_createdAt', ['machineId', 'status', 'createdAt'])
     .index('by_chatroom_taskId', ['chatroomId', 'taskId']),
+
+  /**
+   * Agent configuration events for workspace daemons — the durable sync of
+   * "who runs where and how" (harness, model, workingDir). Written in the same
+   * mutation as task inbox events for the same `(machineId, role)`. Events are
+   * not leased or retried: the daemon marks an event processed after applying
+   * it to its local agent registry.
+   */
+  chatroomWorkspaceAgentConfigInbox: defineTable(workspaceAgentConfigInboxEventValidator)
+    .index('by_machine_status_createdAt', ['machineId', 'status', 'createdAt'])
+    .index('by_chatroom_role', ['chatroomId', 'role']),
 
   /**
    * Pre-aggregated agent restart metrics.
