@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-type
+
 export {
   createAgentProcessManagerService,
   type AgentOperationResult,
@@ -13,12 +15,6 @@ export {
   type AgentProcessManagerExecutionPort,
   type RestartAgentInput,
 } from './agent-process-manager-service.js';
-export {
-  AgentWorkManager,
-  type AgentWorkManagerDependencies,
-  type AgentWorkPass,
-  type AgentTaskDeliveredHandler,
-} from './agent-work-manager.js';
 export type {
   AgentProcessCommandBus,
   AgentProcessCommandMessage,

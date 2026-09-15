@@ -42,8 +42,6 @@ beforeEach(() => {
   lifecycleOutbox.enqueue.mockClear();
 });
 
-type NativeTaskDeliverySessionDeps = NativeDeliverySessionHandles & { convexUrl: string };
-
 const HARNESS_SESSION_ID = 'harness-user-message';
 const MACHINE_ID = 'machine-user-message-pending';
 const SESSION_ID = 'session-user-message-pending';

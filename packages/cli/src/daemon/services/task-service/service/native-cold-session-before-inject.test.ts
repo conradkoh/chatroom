@@ -62,6 +62,7 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
     audit: createDaemonAuditPort(logEvent),
     agentMgr,
     runSerializedForAgent,
+    configurationService: { get: () => undefined } as never,
     ...overrides,
   };
 }

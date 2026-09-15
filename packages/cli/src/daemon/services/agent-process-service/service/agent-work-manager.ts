@@ -256,7 +256,6 @@ export class AgentWorkManager {
     }, 0);
   }
 
-  // fallow-ignore-next-line unused-class-member
   dispose(): void {
     this.unsubscribeAgentTurnEnded();
     this.unsubscribeAgentStarted();
@@ -266,7 +265,6 @@ export class AgentWorkManager {
     this.nativeTaskDeliveryQueue.stop();
   }
 
-  // fallow-ignore-next-line unused-class-member
   get agentTaskState(): AgentTaskStateService {
     return this.deps.agentTaskState;
   }

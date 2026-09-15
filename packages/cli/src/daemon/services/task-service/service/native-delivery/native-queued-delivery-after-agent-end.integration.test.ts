@@ -26,8 +26,6 @@ import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index
 
 type NativeTaskDeliverySessionDeps = NativeDeliverySessionHandles & { convexUrl: string };
 
-type NativeTaskDeliverySessionDeps = NativeDeliverySessionHandles & { convexUrl: string };
-
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
 const SESSION_ID = 'session-native-queued-delivery';

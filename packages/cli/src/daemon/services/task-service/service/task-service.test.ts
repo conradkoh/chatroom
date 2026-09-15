@@ -221,6 +221,7 @@ describe('TaskService inbox consumption', () => {
         machineId: 'machine-1',
         convexUrl: 'http://test:3210',
         backend: { mutation, query },
+        configurationService: { get: () => undefined } as never,
       });
       const notifications: unknown[] = [];
       service.subscribe((notification) => {

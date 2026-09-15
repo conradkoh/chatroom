@@ -27,17 +27,13 @@ export function explainNativeDeliveryBlock(
   task: AssignedTask,
   _opts?: NativeDeliveryReadinessOptions
 ): DeliveryBlockReason | null {
-  if (!isDeliverableNativeTaskStatus(task.status)) return 'task_status_not_deliverable';
+  if (!isDeliverableTaskStatus(task.status)) return 'task_status_not_deliverable';
   if (task.status === 'acknowledged') {
     const assignedTo = task.assignedTo?.toLowerCase();
     const role = task.agentConfig.role.toLowerCase();
     if (assignedTo !== role) return 'acknowledged_wrong_role';
   }
   return null;
-}
-
-export function isDeliverableNativeTaskStatus(status: AssignedTask['status']): boolean {
-  return isDeliverableTaskStatus(status);
 }
 
 const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {

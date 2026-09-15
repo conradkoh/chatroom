@@ -85,6 +85,7 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
     runSerializedForAgent,
     lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue(undefined) },
     convexUrl: 'http://test:3210',
+    configurationService: { get: () => undefined } as never,
     ...overrides,
   };
 }

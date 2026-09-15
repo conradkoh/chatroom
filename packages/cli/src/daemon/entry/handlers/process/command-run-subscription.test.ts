@@ -69,6 +69,7 @@ function makeSession(): DaemonSessionServiceShape {
     lastPushedHarnessFingerprint: null,
     logEvent: async () => undefined,
     taskService: {} as never,
+    agentConfigRegistry: { get: () => undefined } as never,
   };
 }
 

@@ -16,7 +16,6 @@ export {
   buildNativeInjectionPrompt,
   explainNativeDeliveryBlock,
   isNativeHarness,
-  isDeliverableNativeTaskStatus,
   shouldDeliverNativeTask,
   resetRoleDeliveryState,
   createConvexNativeTaskDeliveryGateway,
@@ -28,4 +27,4 @@ export {
   type AgentWorkManagerDependencies,
   type AgentWorkPass,
   type AgentTaskDeliveredHandler,
-} from './agent-process-service/index.js';
+} from './agent-process-service/service/agent-work-manager.js';

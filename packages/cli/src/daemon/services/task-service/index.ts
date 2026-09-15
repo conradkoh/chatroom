@@ -19,7 +19,6 @@ export {
   shouldDeliverNativeTask,
   type NativeDeliveryReadinessOptions,
 } from './domain/usecase/native-task-injector-logic.js';
-export { isDeliverableNativeTaskStatus } from './domain/usecase/native-task-injector-logic.js';
 export {
   createTaskService,
   type TaskService,

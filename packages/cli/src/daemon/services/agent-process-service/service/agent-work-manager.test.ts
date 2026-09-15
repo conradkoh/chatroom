@@ -183,6 +183,7 @@ describe('AgentWorkManager', () => {
           taskId: 'task-2',
           harnessSessionId: 'session-1',
         });
+        return true;
       });
 
     const delivered = await service.reconcileAfterAgentRestart({
