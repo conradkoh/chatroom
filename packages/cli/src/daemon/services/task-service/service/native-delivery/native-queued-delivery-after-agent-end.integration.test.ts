@@ -9,13 +9,9 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import { Context, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
-import {
-  NativeTaskDeliveryCoordinator,
-  type NativeTaskDeliverySessionDeps,
-} from './native-task-delivery-coordinator.js';
+import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import {
   createTaskState,
   taskDocToSignal,
@@ -25,7 +21,10 @@ import { withTestTaskService } from './test-task-service.js';
 import { api } from '../../../../../api.js';
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import type { NativeDeliverySessionHandles } from '../../../service-interfaces.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
+
+type NativeTaskDeliverySessionDeps = NativeDeliverySessionHandles & { convexUrl: string };
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
@@ -82,12 +81,6 @@ describe('native queued delivery after agent_end', () => {
     coordinator.reconcileRoleTasks(
       withTestTaskService({
         tasks: [row!],
-        runtime: Runtime.defaultRuntime as Parameters<
-          NativeTaskDeliveryCoordinator['reconcileRoleTasks']
-        >[0]['runtime'],
-        effectContext: Context.empty() as Parameters<
-          NativeTaskDeliveryCoordinator['reconcileRoleTasks']
-        >[0]['effectContext'],
         agentMgr,
         runSerializedForAgent: vi.fn() as never,
         sessionDeps: {

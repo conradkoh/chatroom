@@ -34,6 +34,54 @@ describe('TaskInboxState', () => {
     expect(state.getForRole('other-room', 'builder', 'task-1')).toBeNull();
   });
 
+  describe('reconcileStatuses', () => {
+    it('rehydrates missing tasks, updates status, and removes tasks no longer active', () => {
+      const state = new TaskInboxState();
+      state.replace([row('stale'), row('existing')]);
+
+      state.reconcileStatuses([
+        { ...row('existing'), status: 'acknowledged' as const, updatedAt: 2 },
+        { ...row('rehydrated'), updatedAt: 3 },
+      ]);
+
+      expect(state.getForRole('room-1', 'builder', 'stale')).toBeNull();
+      expect(state.getForRole('room-1', 'builder', 'existing')).toMatchObject({
+        status: 'acknowledged',
+        updatedAt: 2,
+      });
+      expect(state.getForRole('room-1', 'builder', 'rehydrated')).toMatchObject({
+        status: 'pending',
+        updatedAt: 3,
+      });
+    });
+  });
+
+  describe('terminal tombstones', () => {
+    it('ignores a stale status row after terminal removal', () => {
+      const state = new TaskInboxState();
+      state.replace([row('task-1')]);
+
+      state.remove('room-1', 'builder', 'task-1', 100);
+      expect(state.upsert([{ ...row('task-1'), status: 'pending', updatedAt: 99 }])).toBe(
+        'tombstoned'
+      );
+
+      expect(state.getForRole('room-1', 'builder', 'task-1')).toBeNull();
+    });
+
+    it('accepts a newer status row after terminal removal', () => {
+      const state = new TaskInboxState();
+      state.replace([row('task-1')]);
+
+      state.remove('room-1', 'builder', 'task-1', 100);
+      expect(state.upsert([{ ...row('task-1'), status: 'pending', updatedAt: 101 }])).toBe(
+        'applied'
+      );
+
+      expect(state.getForRole('room-1', 'builder', 'task-1')).toMatchObject({ updatedAt: 101 });
+    });
+  });
+
   describe('markStatus', () => {
     it('applies a normal post-backend-success in_progress → pending patch', () => {
       const state = new TaskInboxState();

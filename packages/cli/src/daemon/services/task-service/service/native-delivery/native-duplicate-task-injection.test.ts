@@ -133,7 +133,7 @@ describe('native duplicate task injection', () => {
       taskId: TASK_ID,
       harnessSessionId: HARNESS_SESSION_ID,
     };
-    const injectTask = vi
+    const deliverTask = vi
       .fn()
       .mockRejectedValueOnce(new Error('inject failed'))
       .mockResolvedValue({ kind: 'delivered', delivered });
@@ -156,8 +156,7 @@ describe('native duplicate task injection', () => {
       isTaskActive: () => false,
       onTaskDelivered,
       executors: {
-        startAgent: vi.fn(),
-        injectTask,
+        deliverTask,
       },
     });
 
@@ -165,9 +164,9 @@ describe('native duplicate task injection', () => {
     await coordinator.reconcileRoleTasks(params);
     await coordinator.reconcileRoleTasks(params);
 
-    expect(injectTask).toHaveBeenCalledTimes(2);
-    expect(injectTask).toHaveBeenNthCalledWith(1, row, HARNESS_SESSION_ID);
-    expect(injectTask).toHaveBeenNthCalledWith(2, row, HARNESS_SESSION_ID);
+    expect(deliverTask).toHaveBeenCalledTimes(2);
+    expect(deliverTask).toHaveBeenNthCalledWith(1, row, expect.anything());
+    expect(deliverTask).toHaveBeenNthCalledWith(2, row, expect.anything());
     expect(onTaskDelivered).toHaveBeenCalledWith(delivered);
   });
 });

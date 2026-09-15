@@ -74,6 +74,33 @@ describe('TaskService.loadAssignedTaskForAction', () => {
 });
 
 describe('TaskService inbox consumption', () => {
+  test('rehydrates a pending task from the authoritative status feed', async () => {
+    const statusTask = {
+      taskId: 'task-rehydrated',
+      chatroomId: 'room-1',
+      status: 'pending',
+      assignedTo: 'builder',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    };
+    const query = vi.fn().mockResolvedValueOnce([statusTask]).mockResolvedValueOnce([]);
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      backend: { mutation: vi.fn(async () => ({ processed: true })), query },
+    });
+
+    await service.startTaskInbox();
+
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      { taskId: 'task-rehydrated', status: 'pending', updatedAt: 2_000 },
+    ]);
+    service.stopTaskInbox();
+  });
+
   test('keeps a permanent assignment visible when no agent slot exists yet', async () => {
     const event = {
       _id: 'event-permanent-1',
@@ -101,6 +128,7 @@ describe('TaskService inbox consumption', () => {
       sessionId: 'session-1',
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
       backend: { mutation, query },
     });
     const notifications: unknown[] = [];
@@ -112,7 +140,7 @@ describe('TaskService inbox consumption', () => {
 
     expect(service.listTasksForRole('room-1', 'builder')).toHaveLength(1);
     expect(notifications).toHaveLength(1);
-    expect(mutation).toHaveBeenCalledWith(
+    expect(mutation).not.toHaveBeenCalledWith(
       api.chatroomWorkspaceTaskInbox.markProcessed,
       expect.objectContaining({ eventId: 'event-permanent-1' })
     );
@@ -153,6 +181,7 @@ describe('TaskService inbox consumption', () => {
       sessionId: 'session-1',
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
       backend: { mutation, query },
       agentProcessService: {
         getSlot: vi.fn(),
@@ -183,9 +212,7 @@ describe('TaskService inbox consumption', () => {
         },
       },
     ]);
-    expect(mutation).toHaveBeenCalledTimes(1);
-    expect((mutation.mock.calls as unknown[][])[0]?.[1]).toMatchObject({ eventId: 'event-1' });
-
+    expect(mutation).toHaveBeenCalledTimes(0);
     service.stopTaskInbox();
   });
 
@@ -221,10 +248,14 @@ describe('TaskService inbox consumption', () => {
         machineId: 'machine-1',
         convexUrl: 'http://test:3210',
         backend: { mutation, query },
+        configurationService: { get: () => undefined } as never,
       });
       const notifications: unknown[] = [];
       service.subscribe((notification) => {
         notifications.push(notification);
+        return {
+          handledEventIds: notification.kind === 'inbox-event' ? [notification.event.eventId] : [],
+        };
       });
 
       await service.startTaskInbox();

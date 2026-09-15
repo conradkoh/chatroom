@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
+import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
+
+import { assertStartSucceeded, assertStopSucceeded } from './operation-result-assertions.js';
 import type { AgentProcessCommandBus } from './ports/agent-process-command-bus.js';
 import type {
   EnsureAgentProcessInput,
   HandleAgentProcessExitInput,
   AgentProcessOperationResult,
+  AcquireNativeDeliverySlotInput,
+  AgentConfigOverrides,
   StopAgentProcessInput,
 } from './ports/agent-process-lifecycle.js';
 import type {
@@ -13,6 +18,7 @@ import type {
   AgentProcessNotificationListener,
   AgentProcessNotifier,
 } from './ports/agent-process-notifier.js';
+import { isSlotRunning, isTurnPhaseIdle } from '../../../domain/usecase/check-agent-slot.js';
 import type {
   AgentProcessSlotView,
   AgentSessionLostHandler,
@@ -90,7 +96,10 @@ export interface AgentProcessManagerExecutionPort {
 
 export interface AgentProcessManagerService {
   /** Enqueue a start operation for one chatroom/role agent. */
-  startAgent(input: EnsureAgentProcessInput): Promise<AgentOperationResult>;
+  startAgent(
+    input: EnsureAgentProcessInput,
+    overrides?: AgentConfigOverrides
+  ): Promise<AgentOperationResult>;
   /** Enqueue a stop operation for one chatroom/role agent. */
   stopAgent(input: StopAgentProcessInput): Promise<AgentOperationResult>;
   /** Enqueue a restart operation for one chatroom/role agent. */
@@ -134,6 +143,7 @@ export interface AgentProcessManagerService {
   /** Non-lifecycle manager operations exposed through the same boundary. */
   handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
   getSlot(chatroomId: string, role: string, workingDir?: string): AgentProcessSlotView | undefined;
+  acquireNativeDeliverySlot(input: AcquireNativeDeliverySlotInput): Promise<AgentProcessSlotView>;
   listActive(): { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot(
     chatroomId: string,
@@ -164,6 +174,128 @@ export interface AgentProcessManagerServiceDependencies {
   notifier: AgentProcessNotifier<AgentProcessManagerCommand>;
 }
 
+const NATIVE_DELIVERY_SLOT_WAIT_MS = 120_000;
+const SLOT_CHANGE_POLL_MS = 100;
+
+type DeliverySlotCandidate = AgentProcessSlotView;
+
+// fallow-ignore-next-line complexity
+function isNativeDeliveryReady(slot: DeliverySlotCandidate): boolean {
+  return (
+    isSlotRunning(slot.state) &&
+    slot.pid !== undefined &&
+    typeof slot.harnessSessionId === 'string' &&
+    slot.harnessSessionId.length > 0 &&
+    isTurnPhaseIdle(slot.nativeTurnPhase ?? 'idle')
+  );
+}
+
+/** True when the live slot's runtime identity conflicts with the requested config. */
+// fallow-ignore-next-line complexity
+function hasDeliveryConfigMismatch(
+  slot: DeliverySlotCandidate,
+  input: EnsureAgentProcessInput
+): boolean {
+  return (
+    (slot.harness !== undefined && slot.harness !== input.agentHarness) ||
+    (slot.workingDir !== undefined &&
+      normalizeWorkingDir(slot.workingDir) !== normalizeWorkingDir(input.workingDir)) ||
+    (slot.model !== undefined && input.model !== undefined && slot.model !== input.model)
+  );
+}
+
+/** Slots in these states cannot make progress without a (re)start request. */
+function needsStartRequest(slot: DeliverySlotCandidate | undefined): boolean {
+  if (!slot) return true;
+  return slot.state === 'idle' || (slot.state === 'running' && slot.pid === undefined);
+}
+
+function normalizeWorkingDir(workingDir: string): string {
+  return workingDir.trim().replace(/[/\\\\]+$/, '');
+}
+
+async function awaitWithinDeadline<T>(
+  operation: Promise<T>,
+  remainingMs: number,
+  signal: AbortSignal | undefined
+): Promise<T> {
+  assertNotAborted(signal);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('native_delivery_slot_timeout')), remainingMs);
+  });
+  const aborted = signal
+    ? new Promise<never>((_, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason ?? new Error('cancelled')), {
+          once: true,
+        });
+      })
+    : undefined;
+  try {
+    return await Promise.race([operation, timeout, ...(aborted ? [aborted] : [])]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function assertNotAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw signal.reason ?? new Error('Native delivery slot acquisition cancelled');
+  }
+}
+
+/** Applies caller-supplied harness/model overrides on top of the resolved config. */
+function applyAgentConfigOverrides(input: AcquireNativeDeliverySlotInput): EnsureAgentProcessInput {
+  const { overrides, timeoutMs: _timeoutMs, signal: _signal, ...processInput } = input;
+  if (!overrides) return processInput;
+  return {
+    ...processInput,
+    agentHarness: (overrides.agentHarness ??
+      processInput.agentHarness) as EnsureAgentProcessInput['agentHarness'],
+    ...(overrides.model === undefined ? {} : { model: overrides.model }),
+  };
+}
+
+function waitForSlotChange(
+  execution: AgentProcessManagerExecutionPort,
+  input: AcquireNativeDeliverySlotInput,
+  remainingMs: number
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error?: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribeStarted();
+      unsubscribeTurnEnded();
+      unsubscribeSessionLost();
+      input.signal?.removeEventListener('abort', onAbort);
+      if (error !== undefined) reject(error);
+      else resolve();
+    };
+    const matches = (event: { chatroomId: string; role: string }) =>
+      event.chatroomId === input.chatroomId &&
+      event.role.toLowerCase() === input.role.toLowerCase();
+    const onStarted = async (event: { chatroomId: string; role: string }) => {
+      if (matches(event)) finish();
+    };
+    const onTurnEnded = async (event: { chatroomId: string; role: string }) => {
+      if (matches(event)) finish();
+    };
+    const onSessionLost = (event: { chatroomId: string; role: string }) => {
+      if (matches(event)) finish();
+    };
+    const onAbort = () =>
+      finish(input.signal?.reason ?? new Error('Native delivery slot acquisition cancelled'));
+    const unsubscribeStarted = execution.subscribeAgentStarted(onStarted);
+    const unsubscribeTurnEnded = execution.subscribeAgentTurnEnded(onTurnEnded);
+    const unsubscribeSessionLost = execution.subscribeAgentSessionLost(onSessionLost);
+    const timer = setTimeout(finish, Math.min(remainingMs, SLOT_CHANGE_POLL_MS));
+    input.signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 function messageGroupId(input: { chatroomId: string; role: string; workingDir?: string }): string {
   const base = `${input.chatroomId}:${input.role.toLowerCase()}`;
   return input.workingDir ? `${base}:${input.workingDir}` : base;
@@ -175,18 +307,6 @@ function commandMessage(command: AgentProcessManagerCommand): {
 } {
   const input = command.input as { chatroomId: string; role: string };
   return { body: command, messageGroupId: messageGroupId(input) };
-}
-
-function assertStartSucceeded(result: AgentProcessOperationResult): void {
-  if (!result.success) {
-    throw new Error(`Agent start failed${result.error ? `: ${result.error}` : ''}`);
-  }
-}
-
-function assertStopSucceeded(result: { success: boolean }): void {
-  if (!result.success) {
-    throw new Error('Agent stop failed');
-  }
 }
 
 interface PendingOperation {
@@ -284,13 +404,79 @@ export function createAgentProcessManagerService(
     return completion;
   };
 
+  const startAgent = (
+    input: EnsureAgentProcessInput,
+    overrides?: AgentConfigOverrides
+  ): Promise<AgentOperationResult> => {
+    const effectiveInput =
+      overrides === undefined ? input : applyAgentConfigOverrides({ ...input, overrides });
+    if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
+    return runExclusive(effectiveInput, () =>
+      submit((operationId) => ({ operationId, type: 'start', input: effectiveInput }))
+    );
+  };
+
+  // fallow-ignore-next-line complexity
+  const acquireNativeDeliverySlot = async (
+    input: AcquireNativeDeliverySlotInput
+  ): Promise<AgentProcessSlotView> => {
+    assertNotAborted(input.signal);
+    const effectiveInput = applyAgentConfigOverrides(input);
+    if (!getHarnessCapabilities(effectiveInput.agentHarness).supportsNativeIntegration) {
+      throw new Error('not_native_harness');
+    }
+    const deadline = Date.now() + (input.timeoutMs ?? NATIVE_DELIVERY_SLOT_WAIT_MS);
+    let warnedConfigMismatch = false;
+    let lastRestartPid: number | undefined;
+
+    while (true) {
+      assertNotAborted(input.signal);
+      const slot = deps.execution.getSlot(input.chatroomId, input.role, input.workingDir);
+      if (slot) {
+        if (hasDeliveryConfigMismatch(slot, effectiveInput)) {
+          // A live slot running a different harness/model cannot serve this
+          // delivery — restart it with the requested config instead of failing.
+          if (isSlotRunning(slot.state) && slot.pid !== undefined && slot.pid !== lastRestartPid) {
+            if (!warnedConfigMismatch) {
+              console.warn(
+                `[AgentProcessManager] delivery slot config mismatch for ${input.role}@${input.chatroomId}; restarting with requested config (harness=${effectiveInput.agentHarness})`
+              );
+              warnedConfigMismatch = true;
+            }
+            lastRestartPid = slot.pid;
+            const remaining = deadline - Date.now();
+            await awaitWithinDeadline(
+              deps.execution.stop({
+                chatroomId: input.chatroomId,
+                role: input.role,
+                reason: 'daemon.respawn',
+                pid: slot.pid,
+                workingDir: input.workingDir,
+              }),
+              remaining,
+              input.signal
+            );
+          }
+          // Idle/stopping/spawning slots settle through the loop; the next
+          // start request carries the effective config.
+        } else if (isNativeDeliveryReady(slot)) {
+          return slot;
+        }
+      }
+
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw new Error('native_delivery_slot_timeout');
+
+      if (needsStartRequest(slot)) {
+        await awaitWithinDeadline(startAgent(effectiveInput), remainingMs, input.signal);
+      }
+      await waitForSlotChange(deps.execution, input, remainingMs);
+    }
+  };
+
   return {
-    startAgent: (input) => {
-      if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
-      return runExclusive(input, () =>
-        submit((operationId) => ({ operationId, type: 'start', input }))
-      );
-    },
+    startAgent,
+
     stopAgent: (input) => {
       if (resetting) return Promise.reject(new Error('Agent process manager is resetting'));
       return runExclusive(input, () =>
@@ -303,6 +489,7 @@ export function createAgentProcessManagerService(
         submit((operationId) => ({ operationId, type: 'restart', input }))
       );
     },
+    // fallow-ignore-next-line complexity
     reset: async (input) => {
       if (resetting) throw new Error('Agent process manager reset is already in progress');
       resetting = true;
@@ -385,6 +572,7 @@ export function createAgentProcessManagerService(
       workingDir === undefined
         ? deps.execution.getSlot(chatroomId, role)
         : deps.execution.getSlot(chatroomId, role, workingDir),
+    acquireNativeDeliverySlot,
     listActive: () => deps.execution.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>
       deps.execution.clearStuckStoppingSlot(chatroomId, role, options),

@@ -1,9 +1,21 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
+import {
+  AlertCircle,
+  Check,
+  Paperclip,
+  MoreHorizontal,
+  RefreshCw,
+  StopCircle,
+  Trash2,
+  X,
+} from 'lucide-react';
 import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
+import { toast } from 'sonner';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { DetailModalMarkdownSurface, detailModalMarkdownProseClassNames } from './detail-modal';
@@ -38,7 +50,24 @@ interface Task {
   updatedAt: number;
   queuePosition: number;
   assignedTo?: string;
+  deliveryFailure?: {
+    reason:
+      | 'no_agent_config'
+      | 'unsupported_harness'
+      | 'injection_not_confirmed'
+      | 'task_not_deliverable'
+      | 'assigned_elsewhere';
+    occurredAt: number;
+  };
 }
+
+const canRedeliverTask = (task: Task | null): task is Task =>
+  task !== null && (task.status === 'pending' || task.status === 'acknowledged');
+
+const notifyRedeliveryResult = (skipped: boolean): void => {
+  if (skipped) toast.info('Task delivery is already pending');
+  else toast.success('Task queued for delivery');
+};
 
 interface TaskDetailModalProps {
   isOpen: boolean;
@@ -93,6 +122,7 @@ function TaskDetailForm({
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const redeliverTask = useSessionMutation(api.tasks.redeliverTask);
 
   // Attachments context for adding to chat
   const { add, isAttached, canAddMore } = useAttachments();
@@ -141,6 +171,22 @@ function TaskDetailForm({
     }
   }, [task, onDelete, onClose]);
 
+  const handleRedeliver = useCallback(async () => {
+    if (!canRedeliverTask(task)) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await redeliverTask({ taskId: task._id });
+      notifyRedeliveryResult(result.skipped);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to redeliver task';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, redeliverTask]);
+
   const handleForceComplete = useCallback(async () => {
     if (!task) return;
     setIsLoading(true);
@@ -184,6 +230,15 @@ function TaskDetailForm({
             </span>
             {task.assignedTo && (
               <span className="text-[10px] text-chatroom-text-muted">→ {task.assignedTo}</span>
+            )}
+            {task.deliveryFailure && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] text-chatroom-status-warning"
+                title={`Delivery failed: ${task.deliveryFailure.reason}`}
+              >
+                <AlertCircle size={11} />
+                Delivery failed: {task.deliveryFailure.reason.replaceAll('_', ' ')}
+              </span>
             )}
           </div>
         </FixedModalHeader>
@@ -304,6 +359,16 @@ function TaskDetailForm({
                     Actions
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-[160px]">
+                    {(task.status === 'pending' || task.status === 'acknowledged') && (
+                      <DropdownMenuItem
+                        onClick={handleRedeliver}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <RefreshCw size={14} />
+                        Redeliver task
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() => {
                         if (task) {

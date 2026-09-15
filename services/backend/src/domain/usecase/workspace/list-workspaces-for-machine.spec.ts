@@ -6,11 +6,11 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { listWorkspacesForMachine } from './list-workspaces-for-machine';
+import { OBSERVATION_TTL_MS } from '../../../../config/reliability';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
 
-import { OBSERVATION_TTL_MS } from '../../../../config/reliability';
 const FIXED_NOW = 1_800_000_000_000;
 
 beforeEach(() => {

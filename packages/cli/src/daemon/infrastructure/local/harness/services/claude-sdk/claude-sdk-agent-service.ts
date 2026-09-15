@@ -37,9 +37,9 @@ import type {
   HarnessSessionIdUpdatedInfo,
 } from '../remote-agent-service.js';
 import { requireHarnessModel } from '../require-harness-model.js';
+import { turnCompletionFromError, type TurnCompletionResult } from '../turn-completion.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
-import { turnCompletionFromError, type TurnCompletionResult } from '../turn-completion.js';
 
 type LoadedClaudeSdk = Awaited<ReturnType<typeof importBundledClaudeSdk>>;
 

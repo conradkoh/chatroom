@@ -1,4 +1,4 @@
-import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
+import type { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
 export { AgentRoleLifecycleTag as TaskAssigneeType } from '@workspace/shared/domain/agent-role';
@@ -15,12 +15,6 @@ export interface EphemeralAgentConfig {
 export type TaskAssignee =
   | { type: AgentRoleLifecycleTag.Permanent }
   | { type: AgentRoleLifecycleTag.Ephemeral; ephemeral: EphemeralAgentConfig };
-
-export interface AgentRuntimeConfig {
-  agentHarness: string;
-  model?: string | undefined;
-  workingDir: string;
-}
 
 export interface AssignedTaskAgentConfig {
   role: string;
@@ -45,20 +39,6 @@ export interface AssignedTask {
   participant?: AssignedTaskParticipant | undefined;
   /** Explicit native cold-restart intent projected at write time. */
   requestsNativeColdSession?: boolean | undefined;
-}
-
-// fallow-ignore-next-line complexity
-export function resolveAgentRuntimeConfig(
-  task: AssignedTask,
-  slot?: {
-    harness?: string | undefined;
-    model?: string | undefined;
-    workingDir?: string | undefined;
-  }
-): AgentRuntimeConfig | undefined {
-  if (task.assignee?.type === AgentRoleLifecycleTag.Ephemeral) return task.assignee.ephemeral;
-  if (!slot?.harness || !slot.workingDir) return undefined;
-  return { agentHarness: slot.harness, model: slot.model, workingDir: slot.workingDir };
 }
 
 export function isDeliverableTaskStatus(status: ActiveTaskStatus): boolean {

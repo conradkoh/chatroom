@@ -16,13 +16,9 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import { Context, Runtime } from 'effect';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-import {
-  NativeTaskDeliveryCoordinator,
-  type NativeTaskDeliverySessionDeps,
-} from './native-task-delivery-coordinator.js';
+import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import {
   createTaskState,
   taskDocToSignal,
@@ -35,7 +31,10 @@ import {
   type AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import type { NativeDeliverySessionHandles } from '../../../service-interfaces.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
+
+type NativeTaskDeliverySessionDeps = NativeDeliverySessionHandles & { convexUrl: string };
 
 const lifecycleOutbox = { enqueue: vi.fn().mockResolvedValue(undefined) };
 
@@ -136,12 +135,6 @@ describe('user message pending delivery path', () => {
     coordinator.reconcileRoleTasks(
       withTestTaskService({
         tasks: [row!],
-        runtime: Runtime.defaultRuntime as Parameters<
-          NativeTaskDeliveryCoordinator['reconcileRoleTasks']
-        >[0]['runtime'],
-        effectContext: Context.empty() as Parameters<
-          NativeTaskDeliveryCoordinator['reconcileRoleTasks']
-        >[0]['effectContext'],
         agentMgr,
         runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
           operation(
@@ -208,7 +201,7 @@ describe('user message pending delivery path', () => {
     });
   });
 
-  test('stuck pending: does not inject when harness turn is still in flight', async () => {
+  test('delegates turn readiness to the agent service', async () => {
     const snapshot = createTaskState();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
@@ -218,15 +211,13 @@ describe('user message pending delivery path', () => {
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot({ nativeTurnPhase: 'turn_in_flight' }),
       })
-    ).toBe(false);
+    ).toBe(true);
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
     coordinator.reconcileRoleTasks(
       withTestTaskService({
         tasks: [row!],
-        runtime: Runtime.defaultRuntime as never,
-        effectContext: Context.empty() as never,
         agentMgr: {
           getSlot: vi
             .fn()
@@ -254,7 +245,7 @@ describe('user message pending delivery path', () => {
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
   });
 
-  test('stuck pending: does not inject when harness session id is missing on slot', async () => {
+  test('delegates session readiness to the agent service', async () => {
     const snapshot = createTaskState();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
@@ -264,15 +255,13 @@ describe('user message pending delivery path', () => {
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot({ harnessSessionId: undefined }),
       })
-    ).toBe(false);
+    ).toBe(true);
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
     coordinator.reconcileRoleTasks(
       withTestTaskService({
         tasks: [row!],
-        runtime: Runtime.defaultRuntime as never,
-        effectContext: Context.empty() as never,
         agentMgr: {
           getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot({ harnessSessionId: undefined })),
           resumeTurnForSlot,
@@ -298,7 +287,7 @@ describe('user message pending delivery path', () => {
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
   });
 
-  test('stuck pending: does not inject when local slot is spawning with a mismatched PID', async () => {
+  test('delegates spawning readiness to the agent service', async () => {
     const snapshot = createTaskState();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(taskDocToSignal(makeUserMessagePendingSnapshotDoc()));
@@ -308,15 +297,13 @@ describe('user message pending delivery path', () => {
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot({ pid: SPAWNED_PID + 1, state: 'spawning' }),
       })
-    ).toBe(false);
+    ).toBe(true);
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
     coordinator.reconcileRoleTasks(
       withTestTaskService({
         tasks: [row!],
-        runtime: Runtime.defaultRuntime as never,
-        effectContext: Context.empty() as never,
         agentMgr: {
           getSlot: vi
             .fn()

@@ -6,11 +6,11 @@ import { render, screen } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AttachmentsProvider } from '../attachments';
+import { MessageInput } from './MessageInput';
 import {
   requestComposerFocusAfterNavigation,
   resetPendingComposerFocusForTests,
 } from '../utils/pendingComposerFocus';
-import { MessageInput } from './MessageInput';
 
 const mockSendMessage = vi.fn().mockResolvedValue('msg-id');
 

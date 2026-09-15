@@ -57,6 +57,7 @@ import {
   AgentProcessManager,
   createAgentProcessService,
 } from '../services/agent-process-service/index.js';
+import { createAgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
 import { createTaskService } from '../services/service-interfaces.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
@@ -408,11 +409,17 @@ function assembleDaemonSessionInit(args: {
   const agentProcessManagerService = createAgentProcessService({
     execution: deps.agentProcessManager,
   });
+  const agentConfigRegistry = createAgentConfigRegistry({
+    sessionId: typedSessionId,
+    machineId,
+    backend: deps.backend,
+  });
   const taskService = createTaskService({
     sessionId: typedSessionId,
     machineId,
     convexUrl,
     backend: deps.backend,
+    configurationService: agentConfigRegistry,
     logEvent: activeLogEvent ?? (async () => undefined),
   });
 
@@ -429,6 +436,7 @@ function assembleDaemonSessionInit(args: {
     agentProcessManager: deps.agentProcessManager,
     agentProcessManagerService,
     taskService,
+    agentConfigRegistry,
     agentLifecycleOutbox,
     events: new DaemonEventBus(),
     agentServices,

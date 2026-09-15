@@ -7,8 +7,8 @@
  */
 
 import type { SpawnPrompt } from './spawn-prompt.js';
-import type { HarnessActivityEmitter } from '../../../../services/service-interfaces.js';
 import type { TurnCompletionResult } from './turn-completion.js';
+import type { HarnessActivityEmitter } from '../../../../services/service-interfaces.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

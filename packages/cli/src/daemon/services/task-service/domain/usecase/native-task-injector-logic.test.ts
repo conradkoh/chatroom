@@ -7,7 +7,6 @@ import { describe, expect, test } from 'vitest';
 
 import {
   buildNativeInjectionPrompt,
-  explainNativeDeliveryBlock,
   isNativeHarness,
   shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
@@ -66,14 +65,6 @@ describe('shouldDeliverNativeTask', () => {
         slot: runningSlot,
       })
     ).toBe(true);
-  });
-
-  test('does not deliver when harness session is missing on slot', () => {
-    expect(
-      shouldDeliverNativeTask(makeTask(), {
-        slot: { ...runningSlot, harnessSessionId: undefined },
-      })
-    ).toBe(false);
   });
 
   test('delivers pending task after prior injection (redelivery after release)', () => {
@@ -138,43 +129,6 @@ describe('shouldDeliverNativeTask', () => {
         { slot: runningSlot }
       )
     ).toBe(true);
-  });
-
-  test('does not deliver when harness turn is still in flight', () => {
-    expect(
-      shouldDeliverNativeTask(makeTask(), {
-        slot: { ...runningSlot, nativeTurnPhase: 'turn_in_flight' },
-      })
-    ).toBe(false);
-    expect(
-      explainNativeDeliveryBlock(makeTask(), {
-        slot: { ...runningSlot, nativeTurnPhase: 'turn_in_flight' },
-      })
-    ).toContain('turn_not_idle');
-  });
-
-  test('does not deliver when harness is injecting', () => {
-    expect(
-      shouldDeliverNativeTask(makeTask(), {
-        slot: { ...runningSlot, nativeTurnPhase: 'injecting' },
-      })
-    ).toBe(false);
-  });
-
-  test('does not deliver when turn in flight even if participant is native:waiting', () => {
-    expect(
-      shouldDeliverNativeTask(
-        makeTask({
-          participant: {
-            lastSeenAction: NATIVE_WAITING_ACTION,
-            lastSeenAt: 500,
-          },
-        }),
-        {
-          slot: { ...runningSlot, nativeTurnPhase: 'turn_in_flight' },
-        }
-      )
-    ).toBe(false);
   });
 
   test('acknowledged retry delivers when slot is idle', () => {

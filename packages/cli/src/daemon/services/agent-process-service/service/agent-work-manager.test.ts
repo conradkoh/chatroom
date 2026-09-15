@@ -23,8 +23,7 @@ function createService(
   } = {}
 ): AgentWorkManager {
   return new AgentWorkManager({
-    runtime: {} as never,
-    effectContext: {} as never,
+    configurationService: { get: () => undefined } as never,
     agentMgr: {
       subscribeAgentTurnEnded: (handler: (event: never) => Promise<unknown>) => {
         options.onTurnEnded?.(handler);
@@ -45,6 +44,7 @@ function createService(
         { startAgent: vi.fn(), stopAgent: options.stopAgent ?? vi.fn() },
         { signal: new AbortController().signal }
       )) as never,
+    acquireNativeDeliverySlot: vi.fn().mockResolvedValue({ state: 'running' }),
     sessionDeps: {} as never,
     machineId: 'machine-1',
     taskInboxState: new TaskInboxState(),
@@ -54,8 +54,6 @@ function createService(
       subscribe: () => () => undefined,
       startTaskInbox: async () => undefined,
       stopTaskInbox: () => undefined,
-      listPendingTaskInboxEvents: async () => [],
-      markTaskInboxEventProcessed: async () => true,
       listTasksForRole: () => [],
       listAllTasks: () => [],
       taskInboxState: new TaskInboxState(),
@@ -63,7 +61,6 @@ function createService(
       loadAssignedTaskForAction: async () => null,
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
-      taskRequestsNativeColdSession: () => false,
       explainNativeDeliveryBlock: () => null,
     } as never,
   });
@@ -186,6 +183,7 @@ describe('AgentWorkManager', () => {
           taskId: 'task-2',
           harnessSessionId: 'session-1',
         });
+        return ['task-1', 'task-2'];
       });
 
     const delivered = await service.reconcileAfterAgentRestart({
@@ -215,7 +213,7 @@ describe('AgentWorkManager', () => {
         onTurnEnded = handler;
       },
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
 
     await onTurnEnded?.({
       chatroomId: 'room-1',
@@ -287,7 +285,7 @@ describe('AgentWorkManager', () => {
         onAgentStarted = handler;
       },
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
     await onAgentStarted?.({ chatroomId: 'room-1', role: 'builder' } as never);
@@ -308,7 +306,7 @@ describe('AgentWorkManager', () => {
         onAgentStarted = handler;
       },
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
 
     await onAgentStarted?.({ chatroomId: 'room-1', role: 'builder' } as never);
 
@@ -327,7 +325,7 @@ describe('AgentWorkManager', () => {
         onSessionLost = handler;
       },
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
     onSessionLost?.({ chatroomId: 'room-1', role: 'builder' } as never);
@@ -343,7 +341,7 @@ describe('AgentWorkManager', () => {
 
   test('routes bootstrap notifications by affected role', async () => {
     const service = createService();
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue(undefined);
+    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
     const snapshot = {
       chatroomId: 'room-1',
       agentConfig: { role: 'builder' },
@@ -362,13 +360,13 @@ describe('AgentWorkManager', () => {
   test('coalesces duplicate role reconciliations and runs a fresh pass afterward', async () => {
     const service = createService();
     let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
+    const gate = new Promise<readonly string[]>((resolve) => {
+      release = () => resolve([]);
     });
     const reconcileRole = vi
       .spyOn(service as any, 'reconcileRole')
       .mockImplementationOnce(async () => gate)
-      .mockResolvedValue(undefined);
+      .mockResolvedValue([]);
 
     const first = service.requestReconcile({
       chatroomId: 'room-1',

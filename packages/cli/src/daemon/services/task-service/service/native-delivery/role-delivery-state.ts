@@ -7,7 +7,6 @@ function roleKey(chatroomId: string, role: string): string {
 class RoleDeliveryState {
   private readonly generation = new Map<string, number>();
   private readonly inFlight = new Set<string>();
-  private readonly nativeNudgeFailures = new Map<string, number>();
 
   getGeneration(chatroomId: string, role: string): number {
     return this.generation.get(roleKey(chatroomId, role)) ?? 0;
@@ -19,7 +18,6 @@ class RoleDeliveryState {
     const next = (this.generation.get(key) ?? 0) + 1;
     this.generation.set(key, next);
     this.inFlight.delete(key);
-    this.nativeNudgeFailures.delete(key);
     return next;
   }
 
@@ -32,21 +30,6 @@ class RoleDeliveryState {
 
   releaseDelivery(chatroomId: string, role: string): void {
     this.inFlight.delete(roleKey(chatroomId, role));
-  }
-
-  recordNativeNudgeFailure(chatroomId: string, role: string): number {
-    const key = roleKey(chatroomId, role);
-    const count = (this.nativeNudgeFailures.get(key) ?? 0) + 1;
-    this.nativeNudgeFailures.set(key, count);
-    return count;
-  }
-
-  clearNativeNudgeFailures(chatroomId: string, role: string): void {
-    this.nativeNudgeFailures.delete(roleKey(chatroomId, role));
-  }
-
-  getNativeNudgeFailures(chatroomId: string, role: string): number {
-    return this.nativeNudgeFailures.get(roleKey(chatroomId, role)) ?? 0;
   }
 }
 

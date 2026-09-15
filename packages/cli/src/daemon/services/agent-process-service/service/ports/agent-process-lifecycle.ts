@@ -24,6 +24,21 @@ export interface EnsureAgentProcessInput {
   readonly systemPrompt?: string | undefined;
 }
 
+/** Caller-supplied harness/model that wins over the resolved agent config. */
+export interface AgentConfigOverrides {
+  readonly agentHarness?: string | undefined;
+  readonly model?: string | undefined;
+}
+
+/** Runtime inputs required to acquire a native delivery session. */
+export interface AcquireNativeDeliverySlotInput extends EnsureAgentProcessInput {
+  /** Maximum time to wait for a running, idle native session. */
+  readonly timeoutMs?: number | undefined;
+  readonly signal?: AbortSignal | undefined;
+  /** Harness/model overrides (e.g. ephemeral task-borne parameters). */
+  readonly overrides?: AgentConfigOverrides | undefined;
+}
+
 export interface StopAgentProcessInput {
   readonly chatroomId: string;
   readonly role: string;

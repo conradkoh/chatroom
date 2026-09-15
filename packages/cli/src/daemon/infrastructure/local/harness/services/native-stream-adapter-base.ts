@@ -1,3 +1,4 @@
+import { formatAgentLogLine } from './agent-log-format.js';
 import { createAssistantTextCapture } from './assistant-text-capture.js';
 import {
   createTurnCompletion,
@@ -5,7 +6,6 @@ import {
   type TurnCompletionInput,
   type TurnCompletionResult,
 } from './turn-completion.js';
-import { formatAgentLogLine } from './agent-log-format.js';
 import {
   createHarnessActivityEmitter,
   type HarnessActivityEmitter,

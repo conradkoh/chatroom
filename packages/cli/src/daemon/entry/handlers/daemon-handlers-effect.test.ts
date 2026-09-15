@@ -53,7 +53,8 @@ function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<Daem
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
     logEvent: async () => undefined,
-      taskService: {} as never,
+    taskService: {} as never,
+    agentConfigRegistry: { get: () => undefined } as never,
   });
 }
 

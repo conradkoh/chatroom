@@ -13,11 +13,14 @@ import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { DaemonEventBus } from './events/event-bus.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
-import type { AgentProcessManager } from '../services/service-interfaces.js';
-import type { AgentProcessManagerService } from '../services/service-interfaces.js';
-import type { TaskService } from '../services/service-interfaces.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
+import type { AgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
+import type {
+  AgentProcessManager,
+  AgentProcessManagerService,
+  TaskService,
+} from '../services/service-interfaces.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
 /**
@@ -55,13 +58,15 @@ export interface StartAgentCommand {
    * Logged by the daemon to distinguish automatic restarts from user-initiated starts.
    */
   reason: StartAgentReason;
-  payload: {
-    chatroomId: string;
-    role: string;
-    agentHarness: AgentHarness;
-    model?: string | undefined;
-    workingDir?: string | undefined;
-  } | undefined;
+  payload:
+    | {
+        chatroomId: string;
+        role: string;
+        agentHarness: AgentHarness;
+        model?: string | undefined;
+        workingDir?: string | undefined;
+      }
+    | undefined;
 }
 
 /**
@@ -127,6 +132,7 @@ export interface DaemonSessionInit {
   agentProcessManager: AgentProcessManager;
   agentProcessManagerService: AgentProcessManagerService;
   taskService: TaskService;
+  agentConfigRegistry: AgentConfigRegistry;
   agentLifecycleOutbox: AgentLifecycleOutboxRegistry;
 
   // ─── Shared data ──────────────────────────────────────────────────

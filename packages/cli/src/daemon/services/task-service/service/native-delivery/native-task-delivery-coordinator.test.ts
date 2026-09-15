@@ -1,5 +1,4 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { Context, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
@@ -7,7 +6,6 @@ import {
   resetRoleDeliveryState,
 } from './native-task-delivery-coordinator.js';
 import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
 
 const CHATROOM_ID = 'room_coordinator_facade';
 const ROLE = 'builder';
@@ -38,28 +36,30 @@ function acknowledgedRow() {
   } as never;
 }
 
-function agentMgr() {
-  return {
-    getSlot: vi.fn().mockReturnValue({
-      state: 'running',
-      harness: 'cursor-sdk',
-      model: 'model-1',
-      workingDir: '/test',
-      pid: 42_001,
-      harnessSessionId: HARNESS_SESSION_ID,
-      nativeTurnPhase: 'idle' as const,
-    }),
-    resumeTurnForSlot: vi.fn(),
-  } as unknown as DaemonAgentProcessManagerServiceShape;
-}
-
-function baseParams(overrides: Record<string, unknown> = {}) {
+function baseParams(overrides: Record<string, any> = {}) {
+  const taskService = overrides.taskService;
+  const executors = overrides.executors ?? {
+    deliverTask: async (row: any) => {
+      const full = await taskService.loadAssignedTaskForAction({
+        chatroomId: row.chatroomId,
+        role: row.agentConfig.role,
+        taskId: row.taskId,
+      });
+      if (!full) return { kind: 'task-unavailable' as const };
+      let delivered: any;
+      await taskService.deliverNativeTask(full, 'harness-coordinator-session', (result: any) => {
+        delivered = result;
+      });
+      return { kind: 'delivered' as const, ...(delivered ? { delivered } : {}) };
+    },
+  };
   return {
     tasks: [acknowledgedRow()],
-    runtime: Runtime.defaultRuntime as never,
-    effectContext: Context.empty() as never,
-    agentMgr: agentMgr(),
-    runSerializedForAgent: vi.fn() as never,
+    configurationService: {
+      get: () => undefined,
+      state: () => 'ready',
+    },
+    executors,
     sessionDeps: {
       sessionId: 'session_coordinator',
       machineId: 'machine_coordinator',
@@ -107,7 +107,6 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         },
         onTaskDelivered,
@@ -141,7 +140,6 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
           deliverNativeTask,
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
-          taskRequestsNativeColdSession: () => false,
           explainNativeDeliveryBlock: () => null,
         },
       })

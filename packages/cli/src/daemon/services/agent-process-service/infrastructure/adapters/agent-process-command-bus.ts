@@ -3,6 +3,10 @@ import type {
   AgentProcessManagerExecutionPort,
   RestartAgentInput,
 } from '../../service/agent-process-manager-service.js';
+import {
+  assertStartSucceeded,
+  assertStopSucceeded,
+} from '../../service/operation-result-assertions.js';
 import type { AgentProcessCommandBus } from '../../service/ports/agent-process-command-bus.js';
 import type { AgentProcessNotifier } from '../../service/ports/agent-process-notifier.js';
 import {
@@ -11,16 +15,6 @@ import {
   type CommandQueueConsumerOptions,
   type ReceivedCommandMessage,
 } from '../components/command-queue/index.js';
-
-function assertStartSucceeded(result: { success: boolean; error?: string | undefined }): void {
-  if (!result.success) {
-    throw new Error(`Agent start failed${result.error ? `: ${result.error}` : ''}`);
-  }
-}
-
-function assertStopSucceeded(result: { success: boolean }): void {
-  if (!result.success) throw new Error('Agent stop failed');
-}
 
 export interface AgentProcessCommandBusDependencies {
   readonly execution: AgentProcessManagerExecutionPort;
@@ -38,6 +32,7 @@ export function createAgentProcessCommandBus(
     queue,
     notifier: deps.notifier,
     ...deps.consumer,
+    // fallow-ignore-next-line complexity
     dispatch: async (message: ReceivedCommandMessage<AgentProcessManagerCommand>) => {
       const { type, input } = message.body;
       switch (type) {

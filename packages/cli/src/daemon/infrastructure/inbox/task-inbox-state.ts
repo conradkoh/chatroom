@@ -3,6 +3,8 @@ import type { ChatroomRole } from '@workspace/shared/domain/chatroom-role';
 
 import type { AssignedTask } from '../../domain/entities/assigned-task.js';
 
+export type TaskStateApplicationResult = 'applied' | 'stale' | 'tombstoned';
+
 function taskKey(taskId: string, role: string): string {
   return `${taskId}:${role.toLowerCase()}`;
 }
@@ -36,6 +38,8 @@ function isStaleStatusPatch(
  */
 export class TaskInboxState {
   private readonly tasks = new Map<string, AssignedTask>();
+  /** Highest terminal timestamp seen; prevents stale status feeds resurrecting tasks. */
+  private readonly tombstones = new Map<string, number>();
   private initialized = false;
 
   replace(tasks: readonly AssignedTask[]): void {
@@ -65,16 +69,65 @@ export class TaskInboxState {
     return [...this.tasks.values()];
   }
 
-  upsert(tasks: readonly AssignedTask[]): void {
+  // fallow-ignore-next-line complexity
+  upsert(tasks: readonly AssignedTask[]): TaskStateApplicationResult {
+    let result: TaskStateApplicationResult = 'applied';
     for (const task of tasks) {
-      this.tasks.set(taskKey(task.taskId, task.agentConfig.role), task);
+      const key = taskKey(task.taskId, task.agentConfig.role);
+      const tombstoneAt = this.tombstones.get(key);
+      if (tombstoneAt !== undefined && task.updatedAt <= tombstoneAt) {
+        result = 'tombstoned';
+        continue;
+      }
+      const current = this.tasks.get(key);
+      if (current && isStaleStatusPatch(current, task.status, task.updatedAt)) {
+        result = 'stale';
+        continue;
+      }
+      this.tasks.set(key, task);
+    }
+    return result;
+  }
+
+  /** Reconciles authoritative task statuses and removes tasks no longer active. */
+  // fallow-ignore-next-line complexity
+  reconcileStatuses(tasks: readonly AssignedTask[]): void {
+    const byKey = new Map(
+      tasks.map((task) => [taskKey(task.taskId, task.agentConfig.role), task] as const)
+    );
+    for (const key of this.tasks.keys()) {
+      if (!byKey.has(key)) {
+        const current = this.tasks.get(key);
+        if (current) this.tombstones.set(key, current.updatedAt);
+        this.tasks.delete(key);
+      }
+    }
+    for (const task of byKey.values()) {
+      const key = taskKey(task.taskId, task.agentConfig.role);
+      const current = this.tasks.get(key);
+      if (current) {
+        this.markStatus(
+          task.chatroomId,
+          task.agentConfig.role,
+          task.taskId,
+          task.status,
+          task.updatedAt
+        );
+      } else {
+        this.upsert([task]);
+      }
     }
   }
 
-  remove(chatroomId: string, role: string, taskId: string): boolean {
+  // fallow-ignore-next-line complexity
+  remove(chatroomId: string, role: string, taskId: string, updatedAt?: number): boolean {
     const key = taskKey(taskId, role);
     const task = this.tasks.get(key);
-    if (!task || task.chatroomId !== chatroomId) return false;
+    if (task && task.chatroomId !== chatroomId) return false;
+    const tombstoneAt = updatedAt ?? task?.updatedAt;
+    if (tombstoneAt !== undefined) {
+      this.tombstones.set(key, Math.max(this.tombstones.get(key) ?? 0, tombstoneAt));
+    }
     return this.tasks.delete(key);
   }
 

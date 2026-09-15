@@ -2,21 +2,21 @@ import { readFileSync } from 'node:fs';
 import { Writable } from 'node:stream';
 
 import type { SDKMessage as ClaudeMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { ThreadEvent } from '@openai/codex-sdk';
 import type { SDKMessage as CursorMessage } from '@cursor/sdk';
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent';
+import type { ThreadEvent } from '@openai/codex-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ClaudeSdkStreamAdapter } from './claude-sdk/claude-sdk-stream-adapter.js';
 import { CodexSdkStreamAdapter } from './codex-sdk/codex-sdk-stream-adapter.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk/cursor-sdk-stream-adapter.js';
-import { PiSdkStreamAdapter } from './pi-sdk/pi-sdk-stream-adapter.js';
 import {
   startSessionEventForwarder,
   type SessionEventForwarderClient,
 } from './opencode-sdk/session-event-forwarder.js';
-import { createHarnessActivityEmitter } from '../../../../services/service-interfaces.js';
+import { PiSdkStreamAdapter } from './pi-sdk/pi-sdk-stream-adapter.js';
 import type { TurnCompletionResult } from './turn-completion.js';
+import { createHarnessActivityEmitter } from '../../../../services/service-interfaces.js';
 
 type JsonRecord = Record<string, unknown>;
 type LogEmitter = (line: string) => void;

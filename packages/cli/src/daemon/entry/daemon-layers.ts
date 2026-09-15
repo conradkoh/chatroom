@@ -6,6 +6,7 @@
 
 import { Layer } from 'effect';
 
+import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import {
   DaemonAgentProcessManagerServiceLive,
   DaemonAgentProcessManagerCommandServiceLive,
@@ -15,7 +16,6 @@ import {
   DaemonSessionService,
   DaemonSpawningServiceLive,
 } from './daemon-services.js';
-import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import type { DaemonSessionInit } from './daemon-types.js';
 import { BackendServiceLive } from '../../infrastructure/services/backend.js';
 import { ClockServiceLive } from '../../infrastructure/services/clock.js';
@@ -73,6 +73,7 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
       lastPushedHarnessFingerprint: init.lastPushedHarnessFingerprint,
       logEvent: init.logEvent,
       taskService: init.taskService,
+      agentConfigRegistry: init.agentConfigRegistry,
       lifecycleOutbox: {
         enqueue: (fact) =>
           enqueueAgentLifecycleFact(init.agentLifecycleOutbox, init.machineId, fact),
