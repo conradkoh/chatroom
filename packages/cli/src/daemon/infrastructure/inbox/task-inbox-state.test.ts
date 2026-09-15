@@ -56,6 +56,28 @@ describe('TaskInboxState', () => {
     });
   });
 
+  describe('terminal tombstones', () => {
+    it('ignores a stale status row after terminal removal', () => {
+      const state = new TaskInboxState();
+      state.replace([row('task-1')]);
+
+      state.remove('room-1', 'builder', 'task-1', 100);
+      state.upsert([{ ...row('task-1'), status: 'pending', updatedAt: 99 }]);
+
+      expect(state.getForRole('room-1', 'builder', 'task-1')).toBeNull();
+    });
+
+    it('accepts a newer status row after terminal removal', () => {
+      const state = new TaskInboxState();
+      state.replace([row('task-1')]);
+
+      state.remove('room-1', 'builder', 'task-1', 100);
+      state.upsert([{ ...row('task-1'), status: 'pending', updatedAt: 101 }]);
+
+      expect(state.getForRole('room-1', 'builder', 'task-1')).toMatchObject({ updatedAt: 101 });
+    });
+  });
+
   describe('markStatus', () => {
     it('applies a normal post-backend-success in_progress → pending patch', () => {
       const state = new TaskInboxState();
