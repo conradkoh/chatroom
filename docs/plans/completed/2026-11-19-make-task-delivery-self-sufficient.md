@@ -1,5 +1,7 @@
 # Make Task Delivery Self-Sufficient
 
+> **Shipped:** Durable agent-config inbox and workspace configuration service, acquire-and-inject delivery boundary, typed waiting/failed outcomes, acknowledgement only after confirmed delivery, task-status feed with daemon-boot rehydration, delivery-failure surfacing, and a webapp redeliver action. Delivery remains intentionally at-least-once across daemon restarts, so replay may duplicate injection.
+
 ## Problem
 
 Native task delivery cannot start an agent on its own: runtime config
