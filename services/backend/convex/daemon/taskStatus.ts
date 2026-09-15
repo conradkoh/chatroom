@@ -24,7 +24,7 @@ export const clearDeliveryFailure = mutation({
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    return clearTaskDeliveryFailure(ctx, { taskId: args.taskId });
+    return clearTaskDeliveryFailure(ctx, { taskId: args.taskId, machineId: args.machineId });
   },
 });
 
@@ -47,6 +47,7 @@ export const recordDeliveryFailure = mutation({
       taskId: args.taskId,
       reason: args.reason,
       occurredAt: Date.now(),
+      machineId: args.machineId,
     });
   },
 });

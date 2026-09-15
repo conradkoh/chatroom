@@ -26,8 +26,6 @@ import type { AgentProcessManagerService } from '../../../service-interfaces.js'
 
 export type ProcessTasksUpdateOptions = {
   tasks: readonly AssignedTask[];
-  /** Snapshot read by TaskService for a periodic task-status wakeup. */
-  agentConfig?: AgentConfigEntry | undefined;
   onTaskDelivered?: (args: {
     chatroomId: string;
     role: string;
@@ -43,9 +41,9 @@ export async function processTasksUpdate(
   isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean,
   options: ProcessTasksUpdateOptions,
   acquireNativeDeliverySlot: AgentProcessManagerService['acquireNativeDeliverySlot']
-): Promise<boolean> {
+): Promise<readonly string[]> {
   const first = options.tasks[0];
-  if (!first) return false;
+  if (!first) return [];
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
     deliverTask: async (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => {
@@ -104,7 +102,6 @@ export async function processTasksUpdate(
     pass,
     taskService,
     configurationService,
-    agentConfig: options.agentConfig,
     isTaskActive,
     onTaskDelivered: options.onTaskDelivered,
     executors,

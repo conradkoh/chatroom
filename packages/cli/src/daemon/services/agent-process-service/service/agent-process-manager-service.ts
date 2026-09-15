@@ -214,6 +214,30 @@ function normalizeWorkingDir(workingDir: string): string {
   return workingDir.trim().replace(/[/\\\\]+$/, '');
 }
 
+async function awaitWithinDeadline<T>(
+  operation: Promise<T>,
+  remainingMs: number,
+  signal: AbortSignal | undefined
+): Promise<T> {
+  assertNotAborted(signal);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('native_delivery_slot_timeout')), remainingMs);
+  });
+  const aborted = signal
+    ? new Promise<never>((_, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason ?? new Error('cancelled')), {
+          once: true,
+        });
+      })
+    : undefined;
+  try {
+    return await Promise.race([operation, timeout, ...(aborted ? [aborted] : [])]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function assertNotAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
     throw signal.reason ?? new Error('Native delivery slot acquisition cancelled');
@@ -420,13 +444,18 @@ export function createAgentProcessManagerService(
               warnedConfigMismatch = true;
             }
             lastRestartPid = slot.pid;
-            await deps.execution.stop({
-              chatroomId: input.chatroomId,
-              role: input.role,
-              reason: 'daemon.respawn',
-              pid: slot.pid,
-              workingDir: input.workingDir,
-            });
+            const remaining = deadline - Date.now();
+            await awaitWithinDeadline(
+              deps.execution.stop({
+                chatroomId: input.chatroomId,
+                role: input.role,
+                reason: 'daemon.respawn',
+                pid: slot.pid,
+                workingDir: input.workingDir,
+              }),
+              remaining,
+              input.signal
+            );
           }
           // Idle/stopping/spawning slots settle through the loop; the next
           // start request carries the effective config.
@@ -439,7 +468,7 @@ export function createAgentProcessManagerService(
       if (remainingMs <= 0) throw new Error('native_delivery_slot_timeout');
 
       if (needsStartRequest(slot)) {
-        await startAgent(effectiveInput);
+        await awaitWithinDeadline(startAgent(effectiveInput), remainingMs, input.signal);
       }
       await waitForSlotChange(deps.execution, input, remainingMs);
     }

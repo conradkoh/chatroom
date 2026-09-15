@@ -13,10 +13,7 @@ import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
-import type {
-  AgentConfigEntry,
-  AgentConfigRegistry,
-} from '../../chatroom-workspace-configuration-service/index.js';
+import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
 import type {
   AgentStartedEvent,
   AgentSessionLostEvent,
@@ -31,7 +28,10 @@ import {
   explainNativeDeliveryBlock,
   isNativeHarness,
 } from '../../task-service/domain/usecase/native-task-injector-logic.js';
-import type { TaskServiceNotification } from '../../task-service/index.js';
+import type {
+  TaskServiceDeliveryConfirmation,
+  TaskServiceNotification,
+} from '../../task-service/index.js';
 import { createConvexNativeTaskDeliveryGateway } from '../../task-service/infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../../task-service/infrastructure/adapters/daemon-audit-port.js';
 import { logNativeDeliveryDecision } from '../../task-service/service/native-delivery/native-delivery-log.js';
@@ -87,8 +87,7 @@ export class AgentWorkManager {
     string,
     {
       pendingSource: AgentWorkPass | undefined;
-      pendingAgentConfig: AgentConfigEntry | undefined;
-      promise: Promise<boolean>;
+      promise: Promise<readonly string[]>;
     }
   >();
   private unsubscribeTaskService: (() => void) | undefined;
@@ -271,19 +270,20 @@ export class AgentWorkManager {
     return this.deps.agentTaskState;
   }
 
-  async handleTaskServiceNotification(notification: TaskServiceNotification): Promise<boolean> {
+  async handleTaskServiceNotification(
+    notification: TaskServiceNotification
+  ): Promise<TaskServiceDeliveryConfirmation | void> {
     if (notification.kind === 'bootstrap') {
       await this.requestReconcileForTasks(notification.tasks, 'bootstrap');
-      return false;
+      return;
     }
     if (notification.kind === 'periodic-reconcile') {
       await this.requestReconcile({
         chatroomId: notification.task.chatroomId,
         role: notification.task.agentConfig.role,
         source: 'periodic-reconcile',
-        agentConfig: notification.agentConfig,
       });
-      return false;
+      return;
     }
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
       await this.cancelTaskWork(
@@ -293,13 +293,20 @@ export class AgentWorkManager {
       );
     }
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
-      return true;
+      return { handledEventIds: [notification.event.eventId] };
     }
-    return this.requestReconcile({
+    if (
+      notification.event.task.status !== 'pending' &&
+      notification.event.task.status !== 'acknowledged'
+    ) {
+      return { handledEventIds: [notification.event.eventId] };
+    }
+    const deliveredTaskIds = await this.requestReconcile({
       chatroomId: notification.event.chatroomId,
       role: notification.event.role,
       source: 'inbox-event',
     });
+    return { deliveredTaskIds };
   }
 
   private async cancelTaskWork(chatroomId: string, role: string, taskId: string): Promise<void> {
@@ -337,37 +344,29 @@ export class AgentWorkManager {
     chatroomId: string;
     role: string;
     source: AgentWorkPass;
-    agentConfig?: AgentConfigEntry | undefined;
     onTaskDelivered?: AgentTaskDeliveredHandler;
-  }): Promise<boolean> {
+  }): Promise<readonly string[]> {
     const key = `${params.chatroomId}:${params.role.toLowerCase()}`;
     const existing = this.reconcileStates.get(key);
     if (existing) {
       existing.pendingSource = params.source;
-      if (params.agentConfig !== undefined) {
-        existing.pendingAgentConfig = params.agentConfig;
-      }
       return existing.promise;
     }
 
     const state: {
       pendingSource: AgentWorkPass | undefined;
-      pendingAgentConfig: AgentConfigEntry | undefined;
-      promise: Promise<boolean>;
+      promise: Promise<readonly string[]>;
     } = {
       pendingSource: undefined,
-      pendingAgentConfig: params.agentConfig,
-      promise: Promise.resolve(true),
+      promise: Promise.resolve([]),
     };
     // fallow-ignore-next-line complexity
     state.promise = (async () => {
-      let delivered = false;
+      const delivered: string[] = [];
       try {
         do {
           const source = state.pendingSource ?? params.source;
-          const agentConfig = state.pendingAgentConfig;
           state.pendingSource = undefined;
-          state.pendingAgentConfig = undefined;
           const tasks = this.deps.taskInboxState.listForRole(params.chatroomId, params.role);
           if (tasks.length === 0) {
             logNativeDeliveryDecision(source, params.role, params.chatroomId, 'idle', undefined, {
@@ -375,9 +374,7 @@ export class AgentWorkManager {
               attemptId: `${Date.now()}-${params.chatroomId}-${params.role}`,
             });
           }
-          delivered =
-            (await this.reconcileRole(source, tasks, params.onTaskDelivered, agentConfig)) ||
-            delivered;
+          delivered.push(...(await this.reconcileRole(source, tasks, params.onTaskDelivered)));
         } while (state.pendingSource !== undefined);
       } finally {
         if (this.reconcileStates.get(key) === state) this.reconcileStates.delete(key);
@@ -424,10 +421,9 @@ export class AgentWorkManager {
   private async reconcileRole(
     pass: AgentWorkPass,
     tasks: readonly AssignedTask[],
-    onTaskDelivered?: AgentTaskDeliveredHandler,
-    agentConfig?: AgentConfigEntry
-  ): Promise<boolean> {
-    if (tasks.length === 0) return false;
+    onTaskDelivered?: AgentTaskDeliveredHandler
+  ): Promise<readonly string[]> {
+    if (tasks.length === 0) return [];
     return processTasksUpdate(
       this.deliveryTaskService,
       this.deps.configurationService,
@@ -436,7 +432,6 @@ export class AgentWorkManager {
         this.deps.agentTaskState.get({ chatroomId, role })?.taskId === taskId,
       {
         tasks,
-        agentConfig,
         onTaskDelivered: (args) => {
           this.recordTaskDelivered(args);
           onTaskDelivered?.(args);

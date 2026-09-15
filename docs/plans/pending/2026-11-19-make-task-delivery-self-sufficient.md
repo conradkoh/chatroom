@@ -64,6 +64,11 @@ The replacement path. Each row is either added and verifiable (✅) or not (⬜)
 | 23  | backend + webapp · failure surfacing                            | task status / audit for `failed`                                           | A `failed` decision updates task state or audit so the UI shows why a task is not progressing (start param missing, no launch request, wrong machine)                                                                                                                                                                                                                                                                                                                                                           | ✅   |
 | 25  | daemon/task-service · task-status source                        | active task-status read model/feed                                         | Expose current task-record status independently of task-inbox-event processing and rehydrate `pending` tasks on daemon boot; status changes drive the per-task fallback timer, while cross-DB synchronization still uses an inbox                                                                                                                                                                                                                                                                               | ✅   |
 
+Delivery semantics: delivery is at-least-once across daemon restarts; a replayed
+inbox event may inject again after a restart. TaskUpdated lifecycle events for
+non-deliverable states (in progress, completed, or deleted) are handled without
+agent injection.
+
 Ordering: 14–15 before 16–19; 20–21 together; 25 before 22; 22 and 23
 independent of each other but after 18.
 

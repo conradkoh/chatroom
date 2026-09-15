@@ -14,27 +14,15 @@ export interface WorkspaceAgentConfigInboxInput {
 /**
  * Writes an agent config event to the machine's agent config inbox.
  *
- * One pending event per `(machineId, chatroomId, role)`: an unseen pending
- * event is patched with the newest config; otherwise a new event is inserted.
- * Processed events remain as history. The daemon applies config in
- * `createdAt` order, so a superseding event always wins.
+ * Each write appends an immutable pending event. Processed events remain as
+ * history, and the daemon applies config in `createdAt` order so a superseding
+ * event always wins.
  */
 export async function writeWorkspaceAgentConfigInboxEvent(
   ctx: MutationCtx,
   input: WorkspaceAgentConfigInboxInput
 ): Promise<void> {
   const role = input.role.trim().toLowerCase();
-  const pending = await ctx.db
-    .query('chatroomWorkspaceAgentConfigInbox')
-    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', input.chatroomId).eq('role', role))
-    .filter((q) =>
-      q.and(
-        q.eq(q.field('machineId'), input.machineId),
-        q.eq(q.field('status'), WorkspaceAgentConfigInboxStatus.Pending)
-      )
-    )
-    .first();
-
   const fields = {
     machineId: input.machineId,
     chatroomId: input.chatroomId,
@@ -47,9 +35,8 @@ export async function writeWorkspaceAgentConfigInboxEvent(
     createdAt: Date.now(),
   };
 
-  if (pending) {
-    await ctx.db.patch('chatroomWorkspaceAgentConfigInbox', pending._id, fields);
-    return;
-  }
+  // Config events are immutable. Patching a pending row allows a delayed
+  // acknowledgement for revision A to acknowledge revision B without the
+  // daemon ever applying B.
   await ctx.db.insert('chatroomWorkspaceAgentConfigInbox', fields);
 }

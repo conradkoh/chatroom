@@ -73,8 +73,6 @@ export class NativeTaskDeliveryCoordinator {
     pass?: DeliveryPass;
     taskService: TaskDeliveryService;
     configurationService: AgentConfigRegistry;
-    /** Optional config snapshot from TaskService's periodic wakeup. */
-    agentConfig?: AgentConfigEntry | undefined;
     isTaskActive: (args: { chatroomId: string; role: string; taskId: string }) => boolean;
     onTaskDelivered?:
       | ((args: {
@@ -85,10 +83,10 @@ export class NativeTaskDeliveryCoordinator {
         }) => void)
       | undefined;
     executors: NativeDeliveryExecutors;
-  }): Promise<boolean> {
+  }): Promise<readonly string[]> {
     const tasks = params.tasks;
-    if (tasks.length === 0) return false;
-    let deliveredAny = false;
+    if (tasks.length === 0) return [];
+    const deliveredTaskIds: string[] = [];
     const { isTaskActive, onTaskDelivered, executors } = params;
     const deliveryState = getRoleDeliveryState();
     const taskService = params.taskService;
@@ -115,11 +113,7 @@ export class NativeTaskDeliveryCoordinator {
           ? firstTask.assignee.ephemeral
           : undefined;
       const agentConfig =
-        params.agentConfig ??
-        params.configurationService.get(firstTask.chatroomId, role) ??
-        // Legacy/test callers predate the configuration service. Production
-        // always resolves configuration through that service.
-        ephemeralConfig;
+        params.configurationService.get(firstTask.chatroomId, role) ?? ephemeralConfig;
       const configState =
         params.configurationService.state?.(firstTask.chatroomId, role) ??
         (agentConfig ? 'ready' : 'syncing');
@@ -191,7 +185,7 @@ export class NativeTaskDeliveryCoordinator {
             );
           }
           onTaskDelivered?.(result.delivered);
-          deliveredAny = true;
+          deliveredTaskIds.push(row.taskId);
           console.log(
             `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=success`
           );
@@ -205,7 +199,7 @@ export class NativeTaskDeliveryCoordinator {
         deliveryState.releaseDelivery(row.chatroomId, role);
       }
     }
-    return deliveredAny;
+    return deliveredTaskIds;
   }
 }
 

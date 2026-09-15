@@ -23,10 +23,7 @@ import {
   TaskInboxState,
   type TaskInboxStateReader,
 } from '../../../infrastructure/inbox/task-inbox-state.js';
-import type {
-  AgentConfigEntry,
-  AgentConfigRegistry,
-} from '../../chatroom-workspace-configuration-service/index.js';
+import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
 import {
   mapPendingTaskInboxRows,
   createConvexNativeTaskDeliveryGateway,
@@ -83,12 +80,16 @@ export type TaskServiceNotification =
       /** Safety-net wakeup for a task whose task-record status is still pending. */
       readonly kind: 'periodic-reconcile';
       readonly task: AssignedTask;
-      readonly agentConfig: AgentConfigEntry | undefined;
     };
+
+export type TaskServiceDeliveryConfirmation = {
+  readonly deliveredTaskIds?: readonly string[];
+  readonly handledEventIds?: readonly string[];
+};
 
 export type TaskServiceListener = (
   notification: TaskServiceNotification
-) => Promise<boolean | void> | boolean | void;
+) => Promise<TaskServiceDeliveryConfirmation | void> | TaskServiceDeliveryConfirmation | void;
 
 export interface TaskService {
   /** Loads the initial task inbox state. */
@@ -153,11 +154,16 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const deliveredEventIds = new Set<string>();
   const taskChains = new Map<string, Promise<void>>();
 
-  const notifyForDelivery = async (notification: TaskServiceNotification): Promise<boolean> => {
+  const notifyForDelivery = async (
+    notification: TaskServiceNotification
+  ): Promise<TaskServiceDeliveryConfirmation> => {
     const results = await Promise.all(
       [...listeners].map((listener) => Promise.resolve(listener(notification)))
     );
-    return results.some((result) => result === true);
+    return {
+      deliveredTaskIds: results.flatMap((result) => result?.deliveredTaskIds ?? []),
+      handledEventIds: results.flatMap((result) => result?.handledEventIds ?? []),
+    };
   };
   const notify = async (notification: TaskServiceNotification): Promise<void> => {
     await notifyForDelivery(notification);
@@ -168,7 +174,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       event.eventType === WorkspaceTaskInboxEventType.TaskDeleted ||
       (event.task.status as string) === 'completed'
     ) {
-      taskInboxState.remove(event.chatroomId, event.role, event.taskId);
+      taskInboxState.remove(event.chatroomId, event.role, event.taskId, event.task.updatedAt);
       return true;
     }
 
@@ -234,8 +240,11 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           } else {
             pendingTaskReconciliationWatcher.clear(event.chatroomId, event.role, event.taskId);
           }
-          const delivered = await notifyForDelivery({ kind: 'inbox-event', event });
-          if (!delivered) {
+          const confirmation = await notifyForDelivery({ kind: 'inbox-event', event });
+          const handledWithoutDelivery =
+            confirmation.handledEventIds?.includes(event.eventId) ?? false;
+          const delivered = confirmation.deliveredTaskIds?.includes(event.taskId) ?? false;
+          if (!handledWithoutDelivery && !delivered) {
             deliveryRetryWatcher.schedule(event.eventId);
             return;
           }
@@ -287,7 +296,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const pendingTaskReconciliationWatcher = createPendingTaskReconciliationWatcher({
     taskState: taskInboxState,
-    configurationService: deps.configurationService,
     notify,
     isStopped: () => inboxStopped,
   });

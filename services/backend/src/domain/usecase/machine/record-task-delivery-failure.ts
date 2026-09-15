@@ -1,3 +1,4 @@
+import { isTaskRoutedToMachine } from './is-task-routed-to-machine';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -8,16 +9,20 @@ export type TaskDeliveryFailureReason =
   | 'task_not_deliverable'
   | 'assigned_elsewhere';
 
+// fallow-ignore-next-line complexity
 export async function recordTaskDeliveryFailure(
   ctx: MutationCtx,
   args: {
     taskId: Id<'chatroom_tasks'>;
     reason: TaskDeliveryFailureReason;
     occurredAt: number;
+    machineId: string;
   }
 ): Promise<{ recorded: boolean }> {
   const task = await ctx.db.get('chatroom_tasks', args.taskId);
-  if (!task) return { recorded: false };
+  if (!task || !(await isTaskRoutedToMachine(ctx, task, args.machineId))) {
+    return { recorded: false };
+  }
   if (task.deliveryFailure?.reason === args.reason) return { recorded: false };
 
   await ctx.db.patch('chatroom_tasks', args.taskId, {

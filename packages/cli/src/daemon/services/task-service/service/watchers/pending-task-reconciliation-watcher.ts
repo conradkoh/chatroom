@@ -2,10 +2,6 @@ import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliabil
 
 import type { AssignedTask } from '../../../../domain/entities/assigned-task.js';
 import type { TaskInboxStateReader } from '../../../../infrastructure/inbox/task-inbox-state.js';
-import type {
-  AgentConfigEntry,
-  AgentConfigRegistry,
-} from '../../../chatroom-workspace-configuration-service/index.js';
 
 export interface PendingTaskReconciliationWatcher {
   /** Starts a 10-second fallback timer for a deliverable task if absent already. */
@@ -29,11 +25,9 @@ export interface PendingTaskReconciliationWatcher {
  */
 export function createPendingTaskReconciliationWatcher(deps: {
   taskState: TaskInboxStateReader;
-  configurationService: AgentConfigRegistry;
   notify: (notification: {
     readonly kind: 'periodic-reconcile';
     readonly task: AssignedTask;
-    readonly agentConfig: AgentConfigEntry | undefined;
   }) => Promise<void>;
   isStopped: () => boolean;
 }): PendingTaskReconciliationWatcher {
@@ -76,10 +70,6 @@ export function createPendingTaskReconciliationWatcher(deps: {
           .notify({
             kind: 'periodic-reconcile',
             task: currentTask,
-            agentConfig: deps.configurationService.get(
-              currentTask.chatroomId,
-              currentTask.agentConfig.role
-            ),
           })
           .catch((error: unknown) => {
             console.warn('[TaskService] periodic task reconciliation failed:', error);
