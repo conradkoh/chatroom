@@ -61,6 +61,14 @@ interface Task {
   };
 }
 
+const canRedeliverTask = (task: Task | null): task is Task =>
+  task !== null && (task.status === 'pending' || task.status === 'acknowledged');
+
+const notifyRedeliveryResult = (skipped: boolean): void => {
+  if (skipped) toast.info('Task delivery is already pending');
+  else toast.success('Task queued for delivery');
+};
+
 interface TaskDetailModalProps {
   isOpen: boolean;
   task: Task | null;
@@ -164,16 +172,12 @@ function TaskDetailForm({
   }, [task, onDelete, onClose]);
 
   const handleRedeliver = useCallback(async () => {
-    if (!task || (task.status !== 'pending' && task.status !== 'acknowledged')) return;
+    if (!canRedeliverTask(task)) return;
     setIsLoading(true);
     setError(null);
     try {
       const result = await redeliverTask({ taskId: task._id });
-      if (result.skipped) {
-        toast.info('Task delivery is already pending');
-      } else {
-        toast.success('Task queued for delivery');
-      }
+      notifyRedeliveryResult(result.skipped);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to redeliver task';
       setError(message);
