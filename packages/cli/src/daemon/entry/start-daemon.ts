@@ -100,6 +100,7 @@ export async function startDaemon(): Promise<void> {
       chatroomId,
       manager: init.agentProcessManager.getDebugState(chatroomId),
       service: init.agentProcessManagerService.debugState?.() ?? null,
+      taskService: await init.taskService.debugState(chatroomId),
       persistedState: {
         version: persisted?.version ?? null,
         updatedAt: persisted?.updatedAt ?? null,
