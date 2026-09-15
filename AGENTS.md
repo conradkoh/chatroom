@@ -138,6 +138,13 @@ pnpm dev
 pnpm setup
 ```
 
+### Daemon Debugging
+
+```bash
+chatroom logs --chatroom-id <id> --since 1h
+chatroom debug --chatroom-id <id>
+```
+
 ### Database migrations
 
 Run pending Convex data migrations as a **one-off command** while `pnpm dev` is already running — do not restart the dev server.
