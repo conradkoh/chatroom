@@ -1618,23 +1618,27 @@ export class AgentProcessManager {
     });
 
     const emittedAt = this.deps.clock.now();
-    return this.deps.lifecycleOutbox
-      .enqueue({
-        kind: 'spawned',
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid,
-        model: opts.model,
-        reason: opts.reason,
-        ...(spawnResult.harnessSessionId ? { harnessSessionId: spawnResult.harnessSessionId } : {}),
-        revisionKey: buildAgentLifecycleRevisionKey('spawned', {
+    return Promise.resolve()
+      .then(() =>
+        this.deps.lifecycleOutbox.enqueue({
+          kind: 'spawned',
           chatroomId: opts.chatroomId,
           role: opts.role,
           pid,
+          model: opts.model,
+          reason: opts.reason,
+          ...(spawnResult.harnessSessionId
+            ? { harnessSessionId: spawnResult.harnessSessionId }
+            : {}),
+          revisionKey: buildAgentLifecycleRevisionKey('spawned', {
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            emittedAt,
+          }),
           emittedAt,
-        }),
-        emittedAt,
-      })
+        })
+      )
       .then(() => undefined)
       .catch((err: Error) =>
         console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`)
@@ -1783,6 +1787,7 @@ export class AgentProcessManager {
     const { pid } = spawnResult;
 
     this.assignRunningSlotState(key, slot, opts, spawnResult, wantResume, pid);
+    // Enqueue acknowledges the local durable write, never backend delivery.
     await this.emitSpawnedAgentUpdate(slot, opts, spawnResult, pid);
 
     try {

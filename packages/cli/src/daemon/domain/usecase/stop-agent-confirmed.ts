@@ -13,7 +13,8 @@ export interface ProcessLivenessPort {
   isAlive(pid: number): boolean;
 }
 export interface LifecycleDeliveryPort {
-  awaitExitedFact(args: {
+  /** Resolves on durable local enqueue, not remote projection. */
+  enqueueExitedFact(args: {
     target: AgentStopTargetDescriptor;
     reason: AgentStopReason;
     revisionKey: string;
@@ -45,11 +46,11 @@ export async function stopAgentConfirmed(
       termination: 'absent',
     };
     try {
-      await deps.lifecycle.awaitExitedFact({ target, reason, revisionKey, outcome });
+      await deps.lifecycle.enqueueExitedFact({ target, reason, revisionKey, outcome });
     } catch (cause) {
       throw new AgentStopError(
         'lifecycle_delivery_failed',
-        `Failed to deliver exited fact for ${target.role}`,
+        `Failed to persist exited fact for ${target.role}`,
         cause
       );
     }
@@ -77,8 +78,7 @@ export async function stopAgentConfirmed(
           usedForceKill = true;
           await forceKill.forceKill(target);
         });
-    } else
-      await deps.harnessStop.stop(target);
+    } else await deps.harnessStop.stop(target);
   } catch (cause) {
     if (!deps.forceKill) {
       throw new AgentStopError(
@@ -114,11 +114,11 @@ export async function stopAgentConfirmed(
     termination: usedForceKill ? 'forced' : 'graceful',
   };
   try {
-    await deps.lifecycle.awaitExitedFact({ target, reason, revisionKey, outcome });
+    await deps.lifecycle.enqueueExitedFact({ target, reason, revisionKey, outcome });
   } catch (cause) {
     throw new AgentStopError(
       'lifecycle_delivery_failed',
-      `Failed to deliver exited fact for ${target.role}`,
+      `Failed to persist exited fact for ${target.role}`,
       cause
     );
   }

@@ -14,7 +14,7 @@ function deps(alive = true) {
   return {
     harnessStop: { stop: vi.fn(async () => {}) },
     liveness: { isAlive: vi.fn(() => alive) },
-    lifecycle: { awaitExitedFact: vi.fn(async () => {}) },
+    lifecycle: { enqueueExitedFact: vi.fn(async () => {}) },
   };
 }
 describe('stopAgentConfirmed', () => {
@@ -28,12 +28,12 @@ describe('stopAgentConfirmed', () => {
       })
     ).rejects.toMatchObject({ code: 'harness_missing' });
   });
-  it('delivers an already-stopped fact for a dead pid', async () => {
+  it('enqueues an already-stopped fact for a dead pid', async () => {
     const d = deps(false);
     await expect(
       stopAgentConfirmed(d, { target, reason: 'user.stop', revisionKey: 'r' })
     ).resolves.toMatchObject({ kind: 'already_stopped' });
-    expect(d.lifecycle.awaitExitedFact).toHaveBeenCalledTimes(1);
+    expect(d.lifecycle.enqueueExitedFact).toHaveBeenCalledTimes(1);
   });
   it('uses the explicitly selected harness target', async () => {
     const d = deps();
@@ -41,16 +41,16 @@ describe('stopAgentConfirmed', () => {
     await stopAgentConfirmed(d, { target, reason: 'user.stop', revisionKey: 'r' });
     expect(d.harnessStop.stop).toHaveBeenCalledWith(target);
   });
-  it('rejects and does not deliver when still alive', async () => {
+  it('rejects and does not enqueue when still alive', async () => {
     const d = deps();
     await expect(
       stopAgentConfirmed(d, { target, reason: 'user.stop', revisionKey: 'r' })
     ).rejects.toMatchObject({ code: 'still_alive' });
-    expect(d.lifecycle.awaitExitedFact).not.toHaveBeenCalled();
+    expect(d.lifecycle.enqueueExitedFact).not.toHaveBeenCalled();
   });
-  it('wraps lifecycle delivery failures', async () => {
+  it('wraps lifecycle persistence failures', async () => {
     const d = deps(false);
-    d.lifecycle.awaitExitedFact.mockRejectedValue(new Error('no'));
+    d.lifecycle.enqueueExitedFact.mockRejectedValue(new Error('no'));
     await expect(
       stopAgentConfirmed(d, { target, reason: 'user.stop', revisionKey: 'r' })
     ).rejects.toMatchObject({ code: 'lifecycle_delivery_failed' });

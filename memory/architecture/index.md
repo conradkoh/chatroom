@@ -6,5 +6,6 @@
 - [Workspace file-tree sync queue and daemon lifecycle](workspace-file-tree-sync-queue.md) — per-workspace queue, debounce, orphan reap, walk exclusions
 - [Request-first enhancer workflow](request-first-enhancer-workflow.md) — one memoryless analysis pass before the stateful Solo or Duo entry point begins work
 - [Agent stop golden path](agent-stop-golden-path.md) — durable aggregate stops, exact-target execution, projection-driven UI
+- [Daemon outbox acknowledgement and recovery](daemon-outbox-delivery.md) — local persistence acknowledgements, background retries, schema quarantine, and delivery barriers
 - [Explicit optional props for intermediate states](explicit-optional-props.md) — distinguish omitted capabilities from temporarily unavailable values at TypeScript component boundaries
 - [Bandwidth at rest across projects](bandwidth-at-rest-scaling.md) — cross-app audit of Convex subscription and heartbeat paths when many projects are idle

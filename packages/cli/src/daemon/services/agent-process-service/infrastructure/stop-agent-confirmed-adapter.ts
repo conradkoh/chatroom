@@ -42,7 +42,6 @@ export function buildStopTargetDescriptor(args: {
   return { ...args, targetKey: buildAgentStopTargetKey(args) };
 }
 
-// fallow-ignore-next-line unused-export
 export function createStopAgentConfirmedDeps(
   deps: ConfirmedStopAdapterDeps
 ): StopAgentConfirmedDeps {
@@ -60,7 +59,7 @@ export function createStopAgentConfirmedDeps(
       },
     },
     lifecycle: {
-      awaitExitedFact: async ({ target, reason, revisionKey }) => {
+      enqueueExitedFact: async ({ target, reason, revisionKey }) => {
         const exitArgs: AgentExitAuditArgs = {
           sessionId: deps.sessionId,
           machineId: deps.machineId,
@@ -70,7 +69,10 @@ export function createStopAgentConfirmedDeps(
           stopReason: reason,
           agentHarness: target.agentHarness,
         };
-        await logDaemonAuditEvent(deps.logEvent, { type: 'agent.exited', ...exitArgs });
+        void logDaemonAuditEvent(deps.logEvent, { type: 'agent.exited', ...exitArgs }).catch(
+          (error: unknown) => console.warn('[daemon] Failed to log confirmed agent stop', error)
+        );
+        // Confirm local persistence; backend delivery is retried independently.
         const result = await deps.lifecycleOutbox.enqueue({
           kind: 'exited',
           chatroomId: target.chatroomId,
@@ -82,7 +84,10 @@ export function createStopAgentConfirmedDeps(
           emittedAt: deps.clock.now(),
         });
         if (!result?.success)
-          throw new AgentStopError('lifecycle_delivery_failed', 'Lifecycle outbox enqueue failed');
+          throw new AgentStopError(
+            'lifecycle_delivery_failed',
+            'Lifecycle outbox persistence failed'
+          );
       },
     },
     forceKill: {

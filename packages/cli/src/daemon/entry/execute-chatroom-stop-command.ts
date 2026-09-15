@@ -1,5 +1,6 @@
 import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
+// fallow-ignore-file complexity
 import { abortEnhancerSpawnsForChatroom } from './enhancer/enhancer-spawn-registry.js';
 import { runRoleScopedStop } from '../services/agent-process-service/index.js';
 import type {
@@ -60,6 +61,8 @@ export async function executeChatroomStopCommand(args: {
     if (result.status === 'rejected')
       console.warn('[daemon] chatroom stop attempt failed', result.reason);
 
+  // Persist the backend acknowledgement before returning. Delivery can finish
+  // after reconnect without keeping this command's local execution in flight.
   await confirmedDeps.lifecycleOutbox.enqueue({
     kind: 'chatroom_shutdown_complete',
     chatroomId: args.chatroomId,

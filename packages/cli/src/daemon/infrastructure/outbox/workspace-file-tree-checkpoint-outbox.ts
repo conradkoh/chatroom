@@ -5,7 +5,9 @@ import {
   createKeyedCoalescingStateOutboxRegistry,
   type KeyedCoalescingStateOutboxRegistry,
 } from './lib/keyed-coalescing-state-outbox-registry.js';
+import { isOutboxArgumentValidationError, type OutboxErrorLogger } from './lib/outbox-failure.js';
 import { resolveOutboxDbPath } from './outbox-db-path.js';
+import { workspaceFileTreeCheckpointSchema } from './workspace-file-tree-outbox-schema.js';
 
 export const WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS = 5_000;
 const WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_RETRY_DELAY_MS = 5_000;
@@ -28,16 +30,21 @@ export function createWorkspaceFileTreeCheckpointOutboxRegistry(
   createSend: (
     normalizedWorkingDir: string
   ) => (state: WorkspaceFileTreeCheckpointState) => Promise<WorkspaceFileTreeCheckpointSendResult>,
-  options?: { onError?:( (normalizedWorkingDir: string, error: unknown) => void) | undefined }
+  options?: {
+    onError?: ((normalizedWorkingDir: string, error: unknown) => void) | undefined;
+    logger?: OutboxErrorLogger | undefined;
+  }
 ): WorkspaceFileTreeCheckpointOutboxRegistry {
   return createKeyedCoalescingStateOutboxRegistry({
     store: openDurableCoalescingStateStore(resolveOutboxDbPath(machineId, 'file-tree-checkpoint')),
     serialize: JSON.stringify,
-    deserialize: JSON.parse,
+    deserialize: (json) => workspaceFileTreeCheckpointSchema.parse(JSON.parse(json)),
     createSend,
     minIntervalMs: WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS,
     retryDelayMs: WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_RETRY_DELAY_MS,
     maxRetryDelayMs: WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MAX_RETRY_DELAY_MS,
     onError: options?.onError,
+    logger: options?.logger,
+    isPermanentError: isOutboxArgumentValidationError,
   });
 }

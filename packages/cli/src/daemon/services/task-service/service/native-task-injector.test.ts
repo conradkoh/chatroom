@@ -7,6 +7,10 @@ import {
   TaskAssigneeType,
   type AssignedTaskWithContent,
 } from '../../../domain/entities/assigned-task.js';
+import {
+  createAgentLifecycleOutboxRegistry,
+  agentLifecycleKey,
+} from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 import { createConvexNativeTaskDeliveryGateway } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../infrastructure/adapters/daemon-audit-port.js';
 
@@ -86,6 +90,31 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
 }
 
 describe('runNativeInjectionEffect', () => {
+  test('injects a task while prior lifecycle delivery is blocked', async () => {
+    const machineId = `test-inject-outbox-${Date.now()}-${Math.random()}`;
+    const send = vi.fn(() => new Promise<{ success: true }>(() => {}));
+    const registry = createAgentLifecycleOutboxRegistry(machineId, () => send);
+    const deps = createDeps({
+      lifecycleOutbox: {
+        enqueue: (fact) => registry.enqueue(agentLifecycleKey(machineId, fact), fact),
+      },
+    });
+    await deps.lifecycleOutbox!.enqueue({
+      kind: 'spawned',
+      chatroomId: 'room_1',
+      role: 'builder',
+      pid: 42,
+      emittedAt: Date.now(),
+      revisionKey: 'spawn:1',
+    });
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+    try {
+      await Effect.runPromise(runNativeInjectionEffect(makeTask(), HARNESS_SESSION_ID, deps));
+      expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalledOnce();
+    } finally {
+      await registry.stopAll();
+    }
+  });
   test('claim → query → activity → receipt → resumeTurn in order', async () => {
     const deps = createDeps();
     const task = makeTask();

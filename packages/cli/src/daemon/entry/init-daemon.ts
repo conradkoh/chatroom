@@ -1,6 +1,7 @@
 /**
  * Daemon Initialization — validates auth and connects to Convex.
  */
+// fallow-ignore-file complexity
 
 import { stat } from 'node:fs/promises';
 
@@ -475,12 +476,8 @@ const cleanPreviousDaemonStateEffect = (
   Effect.gen(function* () {
     yield* Effect.catchAllCause(
       Effect.gen(function* () {
-        const clearedCount = yield* clearStaleSpawnedPidsEffect().pipe(
-          Effect.provide(daemonSessionToLayers(init))
-        );
-        if (clearedCount > 0) {
-          console.log(`   🧹 Cleared ${clearedCount} stale agent PID(s) from backend`);
-        }
+        yield* clearStaleSpawnedPidsEffect().pipe(Effect.provide(daemonSessionToLayers(init)));
+        console.log('   🧹 Queued stale agent PID cleanup');
       }),
       (cause) =>
         Effect.sync(() => {

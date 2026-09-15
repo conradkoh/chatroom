@@ -1,4 +1,6 @@
-// fallow-ignore-file code-duplication
+// fallow-ignore-file code-duplication complexity
+import { agentLifecycleFactSchema } from './agent-lifecycle-fact-schema.js';
+
 export type AgentLifecycleFact =
   | {
       kind: 'activity';
@@ -109,25 +111,7 @@ export function normalizeAgentLifecycleFact(raw: unknown): AgentLifecycleFact {
   }
   const value = raw as Record<string, unknown>;
   const { sessionId: _sessionId, machineId: _machineId, ...rest } = value;
-  const kind = rest.kind;
-  if (kind === 'cleared_all_pids') {
-    return {
-      kind: 'cleared_all_pids',
-      revisionKey: String(rest.revisionKey),
-      emittedAt: Number(rest.emittedAt),
-    };
-  }
-  if (
-    kind === 'spawned' ||
-    kind === 'exited' ||
-    kind === 'activity' ||
-    kind === 'turn_failed' ||
-    kind === 'status' ||
-    kind === 'chatroom_shutdown_complete'
-  ) {
-    return rest as AgentLifecycleFact;
-  }
-  throw new Error(`Unknown agent lifecycle fact kind: ${String(kind)}`);
+  return agentLifecycleFactSchema.parse(rest);
 }
 
 export function buildActivityLifecycleFact(params: {

@@ -1,3 +1,5 @@
+import { DatabaseSync } from 'node:sqlite';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { createAgentLifecycleOutboxRegistry } from './agent-lifecycle-outbox.js';
@@ -15,6 +17,51 @@ const fact = (role: string): AgentLifecycleFact => ({
 });
 
 describe('agent lifecycle outbox', () => {
+  it('replays durable facts after restart without another enqueue or explicit flush', async () => {
+    const machineId = `test-auto-replay-${Date.now()}-${Math.random()}`;
+    const key = 'machine:room:builder';
+    const send = vi.fn(() => new Promise<{ success: true }>(() => {}));
+    const registry = createAgentLifecycleOutboxRegistry(machineId, () => send);
+    await expect(registry.enqueue(key, fact('builder'))).resolves.toEqual({ success: true });
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+    await registry.stopAll();
+    const recoveredSend = vi.fn(async () => ({ success: true as const }));
+    const recovered = createAgentLifecycleOutboxRegistry(machineId, () => recoveredSend);
+    await vi.waitFor(() => expect(recoveredSend).toHaveBeenCalledOnce());
+    await recovered.stopAll();
+    const store = openDurableFifoQueueStore(resolveOutboxDbPath(machineId, 'agent-lifecycle'));
+    expect(store.listPendingForRecovery(key)).toEqual([]);
+    store.close();
+  });
+
+  it.each([
+    { kind: 'obsolete' },
+    { ...fact('builder'), pid: 'not-a-number' },
+    { ...fact('builder'), obsoleteField: 'old-schema' },
+  ])(
+    'quarantines an unsupported persisted schema and delivers its successor: %j',
+    async (invalid) => {
+      const machineId = `test-invalid-${Date.now()}-${Math.random()}`;
+      const path = resolveOutboxDbPath(machineId, 'agent-lifecycle');
+      const key = 'machine:room:builder';
+      const store = openDurableFifoQueueStore(path);
+      store.enqueue(key, JSON.stringify(invalid));
+      store.enqueue(key, JSON.stringify(fact('builder')));
+      store.close();
+      const send = vi.fn(async () => ({ success: true as const }));
+      const registry = createAgentLifecycleOutboxRegistry(machineId, () => send, {
+        logger: { error: vi.fn() },
+      });
+      await registry.flushNow();
+      expect(send).toHaveBeenCalledOnce();
+      await registry.stopAll();
+      const db = new DatabaseSync(path);
+      expect(db.prepare('SELECT status, payload_json FROM fifo_outbox_entries').all()).toEqual([
+        { status: 'quarantined', payload_json: JSON.stringify(invalid) },
+      ]);
+      db.close();
+    }
+  );
   it('delivers facts and keeps role keys independent', async () => {
     const send = vi.fn(async () => ({ success: true as const }));
     const registry = createAgentLifecycleOutboxRegistry(
@@ -25,6 +72,7 @@ describe('agent lifecycle outbox', () => {
       registry.enqueue('machine:room:builder', fact('builder')),
       registry.enqueue('machine:room:planner', fact('planner')),
     ]);
+    await registry.flushNow();
     expect(send).toHaveBeenCalledTimes(2);
     await registry.stopAll();
   });
@@ -44,11 +92,12 @@ describe('agent lifecycle outbox', () => {
       revisionKey: 'clear:1',
       emittedAt: Date.now(),
     });
+    await registry.flushNow();
     expect(send).not.toHaveBeenCalled();
     await registry.stopAll();
   });
 
-  it('retries failed sends', async () => {
+  it('acknowledges persistence and retries transient delivery failures', async () => {
     vi.useFakeTimers();
     let attempts = 0;
     const registry = createAgentLifecycleOutboxRegistry(
@@ -60,9 +109,10 @@ describe('agent lifecycle outbox', () => {
       }
     );
     const result = registry.enqueue('machine:room:builder', fact('builder'));
-    await vi.runOnlyPendingTimersAsync();
-    await vi.advanceTimersByTimeAsync(500);
     await expect(result).resolves.toEqual({ success: true });
+    await vi.runOnlyPendingTimersAsync();
+    expect(attempts).toBe(1);
+    await vi.advanceTimersByTimeAsync(500);
     expect(attempts).toBe(2);
     await registry.stopAll();
     vi.useRealTimers();
