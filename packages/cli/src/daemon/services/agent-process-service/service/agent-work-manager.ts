@@ -34,7 +34,6 @@ import type {
 } from '../../task-service/index.js';
 import { createConvexNativeTaskDeliveryGateway } from '../../task-service/infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../../task-service/infrastructure/adapters/daemon-audit-port.js';
-import { logNativeDeliveryDecision } from '../../task-service/service/native-delivery/native-delivery-log.js';
 import { getRoleDeliveryState } from '../../task-service/service/native-delivery/role-delivery-state.js';
 import { processTasksUpdate } from '../../task-service/service/native-delivery/task-delivery-processor.js';
 import type { TaskDeliveryService } from '../../task-service/service/native-delivery/task-delivery-service.js';
@@ -295,9 +294,25 @@ export class AgentWorkManager {
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
       return { handledEventIds: [notification.event.eventId] };
     }
+    const currentTask = this.deps.taskInboxState.getForRole(
+      notification.event.chatroomId,
+      notification.event.role,
+      notification.event.taskId
+    );
     if (
-      notification.event.task.status !== 'pending' &&
-      notification.event.task.status !== 'acknowledged'
+      !currentTask ||
+      (currentTask.status !== 'pending' && currentTask.status !== 'acknowledged')
+    ) {
+      if (currentTask) {
+        await this.clearExpectedTaskDeliveryFailure(currentTask.taskId);
+      }
+      return { handledEventIds: [notification.event.eventId] };
+    }
+    if (
+      this.deps.agentTaskState.get({
+        chatroomId: notification.event.chatroomId,
+        role: notification.event.role,
+      })?.taskId === notification.event.taskId
     ) {
       return { handledEventIds: [notification.event.eventId] };
     }
@@ -307,6 +322,18 @@ export class AgentWorkManager {
       source: 'inbox-event',
     });
     return { deliveredTaskIds };
+  }
+
+  private async clearExpectedTaskDeliveryFailure(taskId: string): Promise<void> {
+    try {
+      await this.deliveryTaskService.clearDeliveryFailure(taskId, 'task_not_deliverable');
+    } catch (error) {
+      console.warn(
+        `[AgentWorkManager] failed to clear stale task delivery failure task=${taskId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 
   private async cancelTaskWork(chatroomId: string, role: string, taskId: string): Promise<void> {
@@ -368,12 +395,6 @@ export class AgentWorkManager {
           const source = state.pendingSource ?? params.source;
           state.pendingSource = undefined;
           const tasks = this.deps.taskInboxState.listForRole(params.chatroomId, params.role);
-          if (tasks.length === 0) {
-            logNativeDeliveryDecision(source, params.role, params.chatroomId, 'idle', undefined, {
-              reason: 'no_deliverable_task',
-              attemptId: `${Date.now()}-${params.chatroomId}-${params.role}`,
-            });
-          }
           delivered.push(...(await this.reconcileRole(source, tasks, params.onTaskDelivered)));
         } while (state.pendingSource !== undefined);
       } finally {

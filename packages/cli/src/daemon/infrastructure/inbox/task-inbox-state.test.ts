@@ -62,7 +62,9 @@ describe('TaskInboxState', () => {
       state.replace([row('task-1')]);
 
       state.remove('room-1', 'builder', 'task-1', 100);
-      state.upsert([{ ...row('task-1'), status: 'pending', updatedAt: 99 }]);
+      expect(state.upsert([{ ...row('task-1'), status: 'pending', updatedAt: 99 }])).toBe(
+        'tombstoned'
+      );
 
       expect(state.getForRole('room-1', 'builder', 'task-1')).toBeNull();
     });
@@ -72,7 +74,9 @@ describe('TaskInboxState', () => {
       state.replace([row('task-1')]);
 
       state.remove('room-1', 'builder', 'task-1', 100);
-      state.upsert([{ ...row('task-1'), status: 'pending', updatedAt: 101 }]);
+      expect(state.upsert([{ ...row('task-1'), status: 'pending', updatedAt: 101 }])).toBe(
+        'applied'
+      );
 
       expect(state.getForRole('room-1', 'builder', 'task-1')).toMatchObject({ updatedAt: 101 });
     });

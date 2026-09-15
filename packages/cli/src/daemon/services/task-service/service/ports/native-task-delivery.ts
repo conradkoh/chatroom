@@ -23,6 +23,7 @@ export interface NativeTaskDeliveryGateway {
     sessionId: string;
     machineId: string;
     taskId: string;
+    expectedReason?: TaskDeliveryFailureReason;
   }): Promise<boolean>;
   listActiveTaskStatuses(args: {
     sessionId: string;

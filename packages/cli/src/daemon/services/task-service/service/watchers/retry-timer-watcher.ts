@@ -16,21 +16,28 @@ export interface RetryTimerWatcher {
 
 export function createRetryTimerWatcher(deps: {
   delayMs: number;
+  maxDelayMs?: number;
   isStopped: () => boolean;
   hasPendingEvent: (eventId: string) => boolean;
   retry: (eventId: string) => void;
 }): RetryTimerWatcher {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const attempts = new Map<string, number>();
+  const maxDelayMs = deps.maxDelayMs ?? deps.delayMs * 32;
+
+  const canSchedule = (eventId: string): boolean =>
+    !deps.isStopped() && !timers.has(eventId) && deps.hasPendingEvent(eventId);
 
   const schedule = (eventId: string): void => {
-    if (deps.isStopped()) return;
-    if (timers.has(eventId)) return;
-    if (!deps.hasPendingEvent(eventId)) return;
+    if (!canSchedule(eventId)) return;
 
+    const attempt = attempts.get(eventId) ?? 0;
+    const delayMs = Math.min(deps.delayMs * 2 ** attempt, maxDelayMs);
+    attempts.set(eventId, attempt + 1);
     const timer = setTimeout(() => {
       timers.delete(eventId);
       deps.retry(eventId);
-    }, deps.delayMs);
+    }, delayMs);
     unrefTimer(timer);
     timers.set(eventId, timer);
   };
@@ -39,11 +46,13 @@ export function createRetryTimerWatcher(deps: {
     const timer = timers.get(eventId);
     if (timer) clearTimeout(timer);
     timers.delete(eventId);
+    attempts.delete(eventId);
   };
 
   const stop = (): void => {
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
+    attempts.clear();
   };
 
   return { schedule, clear, stop };

@@ -37,16 +37,15 @@ describe('decideNextDelivery', () => {
     expect(decideNextDelivery([task()], context())).toEqual({ kind: 'deliver', taskId: 'task-1' });
   });
 
-  test.each([
-    ['in_progress', 'task_not_deliverable'],
-    ['completed' as never, 'task_not_deliverable'],
-  ] as const)('fails a non-deliverable task (%s)', (status, reason) => {
-    expect(decideNextDelivery([task({ status })], context())).toEqual({
-      kind: 'failed',
-      taskId: 'task-1',
-      reason,
-    });
-  });
+  test.each(['in_progress', 'completed' as never] as const)(
+    'idles for a non-deliverable task (%s)',
+    (status) => {
+      expect(decideNextDelivery([task({ status })], context())).toEqual({
+        kind: 'idle',
+        reason: 'not_assigned',
+      });
+    }
+  );
 
   test('fails an acknowledged task assigned elsewhere', () => {
     expect(

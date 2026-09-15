@@ -57,9 +57,6 @@ export function decideNextDelivery(
   const task = assignedTasks.find((candidate) => isDeliverableTaskStatus(candidate.status));
 
   if (!task) {
-    if (assignedTasks.length > 0) {
-      return { kind: 'failed', taskId: assignedTasks[0].taskId, reason: 'task_not_deliverable' };
-    }
     return { kind: 'idle', reason: tasks.length > 0 ? 'not_assigned' : 'no_deliverable_task' };
   }
   if (context.activeTaskId === task.taskId) {
@@ -83,9 +80,6 @@ export function decideNextDelivery(
   }
 
   const blockReason = context.explainNativeDeliveryBlock(task);
-  if (blockReason === 'task_status_not_deliverable') {
-    return { kind: 'failed', taskId: task.taskId, reason: 'task_not_deliverable' };
-  }
   if (blockReason === 'acknowledged_wrong_role') {
     return { kind: 'failed', taskId: task.taskId, reason: 'assigned_elsewhere' };
   }

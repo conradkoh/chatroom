@@ -21,10 +21,15 @@ export const clearDeliveryFailure = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     taskId: v.id('chatroom_tasks'),
+    expectedReason: v.optional(v.literal('task_not_deliverable')),
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    return clearTaskDeliveryFailure(ctx, { taskId: args.taskId, machineId: args.machineId });
+    return clearTaskDeliveryFailure(ctx, {
+      taskId: args.taskId,
+      machineId: args.machineId,
+      expectedReason: args.expectedReason,
+    });
   },
 });
 

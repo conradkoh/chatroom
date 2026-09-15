@@ -6,6 +6,7 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
+import type { TaskDeliveryFailureReason } from './ports/native-task-delivery.js';
 import {
   buildTaskServiceDebugState,
   type TaskServiceDebugState,
@@ -22,6 +23,7 @@ import type {
 import {
   TaskInboxState,
   type TaskInboxStateReader,
+  type TaskStateApplicationResult,
 } from '../../../infrastructure/inbox/task-inbox-state.js';
 import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
 import {
@@ -130,7 +132,10 @@ export interface TaskService {
       | 'task_not_deliverable'
       | 'assigned_elsewhere';
   }): Promise<boolean>;
-  clearDeliveryFailure(taskId: string): Promise<boolean>;
+  clearDeliveryFailure(
+    taskId: string,
+    expectedReason?: TaskDeliveryFailureReason
+  ): Promise<boolean>;
 }
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
@@ -169,16 +174,18 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     await notifyForDelivery(notification);
   };
 
-  const applyInboxEvent = (event: WorkspaceTaskInboxEvent): boolean => {
+  const applyInboxEvent = (
+    event: WorkspaceTaskInboxEvent
+  ): TaskStateApplicationResult | 'handled' => {
     if (
       event.eventType === WorkspaceTaskInboxEventType.TaskDeleted ||
       (event.task.status as string) === 'completed'
     ) {
       taskInboxState.remove(event.chatroomId, event.role, event.taskId, event.task.updatedAt);
-      return true;
+      return 'handled';
     }
 
-    taskInboxState.upsert([
+    return taskInboxState.upsert([
       {
         taskId: event.task.taskId,
         chatroomId: event.task.chatroomId,
@@ -194,7 +201,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         assignee: event.assignee,
       },
     ]);
-    return true;
   };
 
   const taskKey = (event: WorkspaceTaskInboxEvent): string =>
@@ -233,7 +239,24 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       .catch(() => undefined)
       .then(async () => {
         try {
-          if (!applyInboxEvent(event)) return;
+          const application = applyInboxEvent(event);
+          if (application === 'handled' || application === 'tombstoned') {
+            await gateway.clearDeliveryFailure({
+              sessionId: deps.sessionId,
+              machineId: deps.machineId,
+              taskId: event.taskId,
+              expectedReason: 'task_not_deliverable',
+            });
+            deliveredEventIds.add(event.eventId);
+            await acknowledgeEvent(event);
+            return;
+          }
+          if (application === 'stale') {
+            await notifyForDelivery({ kind: 'inbox-event', event });
+            deliveredEventIds.add(event.eventId);
+            await acknowledgeEvent(event);
+            return;
+          }
           const currentTask = taskInboxState.getForRole(event.chatroomId, event.role, event.taskId);
           if (currentTask?.status === 'pending' || currentTask?.status === 'acknowledged') {
             pendingTaskReconciliationWatcher.watch(currentTask);
@@ -416,11 +439,12 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         taskId,
         reason,
       }),
-    clearDeliveryFailure: (taskId) =>
+    clearDeliveryFailure: (taskId, expectedReason) =>
       gateway.clearDeliveryFailure({
         sessionId: deps.sessionId,
         machineId: deps.machineId,
         taskId,
+        ...(expectedReason ? { expectedReason } : {}),
       }),
   };
   return service;

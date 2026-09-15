@@ -34,11 +34,12 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
       });
       return Boolean((result as { recorded?: boolean }).recorded);
     },
-    clearDeliveryFailure: async ({ sessionId, machineId, taskId }) => {
+    clearDeliveryFailure: async ({ sessionId, machineId, taskId, expectedReason }) => {
       const result = await backend.mutation(api.daemon.taskStatus.clearDeliveryFailure, {
         sessionId,
         machineId,
         taskId: taskId as Id<'chatroom_tasks'>,
+        ...(expectedReason ? { expectedReason } : {}),
       });
       return Boolean((result as { cleared?: boolean }).cleared);
     },

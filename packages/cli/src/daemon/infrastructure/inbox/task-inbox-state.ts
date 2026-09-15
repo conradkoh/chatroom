@@ -3,6 +3,8 @@ import type { ChatroomRole } from '@workspace/shared/domain/chatroom-role';
 
 import type { AssignedTask } from '../../domain/entities/assigned-task.js';
 
+export type TaskStateApplicationResult = 'applied' | 'stale' | 'tombstoned';
+
 function taskKey(taskId: string, role: string): string {
   return `${taskId}:${role.toLowerCase()}`;
 }
@@ -68,15 +70,23 @@ export class TaskInboxState {
   }
 
   // fallow-ignore-next-line complexity
-  upsert(tasks: readonly AssignedTask[]): void {
+  upsert(tasks: readonly AssignedTask[]): TaskStateApplicationResult {
+    let result: TaskStateApplicationResult = 'applied';
     for (const task of tasks) {
       const key = taskKey(task.taskId, task.agentConfig.role);
       const tombstoneAt = this.tombstones.get(key);
-      if (tombstoneAt !== undefined && task.updatedAt <= tombstoneAt) continue;
+      if (tombstoneAt !== undefined && task.updatedAt <= tombstoneAt) {
+        result = 'tombstoned';
+        continue;
+      }
       const current = this.tasks.get(key);
-      if (current && isStaleStatusPatch(current, task.status, task.updatedAt)) continue;
+      if (current && isStaleStatusPatch(current, task.status, task.updatedAt)) {
+        result = 'stale';
+        continue;
+      }
       this.tasks.set(key, task);
     }
+    return result;
   }
 
   /** Reconciles authoritative task statuses and removes tasks no longer active. */

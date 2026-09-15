@@ -3,6 +3,7 @@ import type {
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
 import type { DeliveryBlockReason } from '../../domain/usecase/native-delivery-reason.js';
+import type { TaskDeliveryFailureReason } from '../ports/native-task-delivery.js';
 
 export interface TaskDeliveryService {
   isNativeHarness(harness: string): boolean;
@@ -21,7 +22,10 @@ export interface TaskDeliveryService {
       | 'task_not_deliverable'
       | 'assigned_elsewhere';
   }): Promise<boolean>;
-  clearDeliveryFailure(taskId: string): Promise<boolean>;
+  clearDeliveryFailure(
+    taskId: string,
+    expectedReason?: TaskDeliveryFailureReason
+  ): Promise<boolean>;
   loadAssignedTaskForAction(args: {
     chatroomId: string;
     role: string;
