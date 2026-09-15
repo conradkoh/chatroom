@@ -1,14 +1,6 @@
-import {
-  WorkspaceTaskInboxEventStatus,
-  WorkspaceTaskInboxEventType,
-} from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import type { TaskInboxEventHistoryRow } from './ports/native-task-delivery.js';
-import {
-  buildTaskServiceDebugState,
-  type TaskServiceDebugState,
-} from './task-service-debug-state.js';
+import { buildTaskServiceDebugState } from './task-service-debug-state.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
 import { TaskInboxState } from '../../../infrastructure/inbox/task-inbox-state.js';
 
@@ -26,79 +18,24 @@ function task(taskId: string, chatroomId = CHATROOM, status: AssignedTask['statu
   } satisfies AssignedTask;
 }
 
-function event(overrides: Partial<TaskInboxEventHistoryRow> = {}): TaskInboxEventHistoryRow {
-  return {
-    eventId: 'event-1',
-    eventType: WorkspaceTaskInboxEventType.TaskAssigned,
-    status: WorkspaceTaskInboxEventStatus.Pending,
-    role: 'planner',
-    taskId: 'task-1',
-    taskStatus: 'pending',
-    createdAt: 100,
-    ...overrides,
-  };
-}
-
-function sources(rows: readonly TaskInboxEventHistoryRow[]) {
-  return {
-    taskInboxState: new TaskInboxState(),
-    loadInboxEvents: vi.fn().mockResolvedValue(rows),
-    chatroomId: CHATROOM,
-  };
-}
-
 describe('buildTaskServiceDebugState', () => {
-  it('reports the local read model for the requested chatroom only', async () => {
-    const input = sources([]);
-    input.taskInboxState.upsert([task('kept'), task('other-room', 'room-2')]);
+  it('reports the daemon-local read model for the requested chatroom only', () => {
+    const taskInboxState = new TaskInboxState();
+    taskInboxState.upsert([task('kept'), task('other-room', 'room-2')]);
 
-    const state = await buildTaskServiceDebugState(input);
+    const state = buildTaskServiceDebugState({ taskInboxState, chatroomId: CHATROOM });
 
     expect(state.tasks.map((entry) => entry.taskId)).toEqual(['kept']);
     expect(state.knownTaskCount).toBe(2);
   });
 
-  it('reports processed events so an acknowledged-but-undelivered task is visible', async () => {
-    const input = sources([
-      event({
-        eventId: 'event-1',
-        status: WorkspaceTaskInboxEventStatus.Processed,
-        processedAt: 500,
-      }),
-      event({ eventId: 'event-2', eventType: WorkspaceTaskInboxEventType.TaskUpdated }),
-    ]);
-
-    const state = await buildTaskServiceDebugState(input);
-
-    expect(state.inboxEvents).toEqual([
-      expect.objectContaining({
-        eventId: 'event-1',
-        status: WorkspaceTaskInboxEventStatus.Processed,
-        processedAt: 500,
-      }),
-      expect.objectContaining({
-        eventId: 'event-2',
-        eventType: WorkspaceTaskInboxEventType.TaskUpdated,
-      }),
-    ]);
-  });
-
-  it('reports an empty read model when the inbox never received a task', async () => {
-    const state = await buildTaskServiceDebugState(sources([]));
+  it('reports an empty read model when the inbox never received a task', () => {
+    const state = buildTaskServiceDebugState({
+      taskInboxState: new TaskInboxState(),
+      chatroomId: CHATROOM,
+    });
 
     expect(state.tasks).toEqual([]);
     expect(state.knownTaskCount).toBe(0);
-  });
-
-  it('surfaces an inbox query failure without dropping the read model', async () => {
-    const input = sources([]);
-    input.taskInboxState.upsert([task('task-1')]);
-    input.loadInboxEvents.mockRejectedValue(new Error('backend unavailable'));
-
-    const state: TaskServiceDebugState = await buildTaskServiceDebugState(input);
-
-    expect(state.inboxEventsError).toBe('backend unavailable');
-    expect(state.inboxEvents).toEqual([]);
-    expect(state.tasks.map((entry) => entry.taskId)).toEqual(['task-1']);
   });
 });

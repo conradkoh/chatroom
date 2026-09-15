@@ -67,6 +67,7 @@ async function localFallbackDebugState(chatroomId: string, port: number, error: 
   return {
     capturedAt: new Date().toISOString(),
     warning: `Could not connect to local daemon on port ${port}: ${error instanceof Error ? error.message : String(error)}`,
+    chatroomId,
     process: { pidFile: getPidFilePath(), running: isDaemonRunning().running },
     daemon: {
       convexUrl: getConvexUrl(),
@@ -74,8 +75,12 @@ async function localFallbackDebugState(chatroomId: string, port: number, error: 
       machineId,
       config,
     },
-    chatroomId,
-    persistedState: persisted,
+    // No daemon means no in-memory state to report, and the server snapshot is
+    // fetched by the daemon itself — hence empty rather than absent.
+    localState: {
+      persistedAgents: persisted,
+    },
+    backendState: {},
   };
 }
 

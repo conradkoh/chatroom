@@ -10,16 +10,6 @@ export interface NativeTaskDeliveryGateway {
     sessionId: string;
     machineId: string;
   }): Promise<readonly WorkspaceTaskInboxEvent[]>;
-  /**
-   * Every task inbox event this machine holds for one chatroom, newest first,
-   * including already-processed rows. Diagnostics only: the delivery path must
-   * keep using `listPendingTaskInboxEvents` so acknowledged work never replays.
-   */
-  listTaskInboxEventsForChatroom(args: {
-    sessionId: string;
-    machineId: string;
-    chatroomId: string;
-  }): Promise<readonly TaskInboxEventHistoryRow[]>;
   markTaskInboxEventProcessed(args: {
     sessionId: string;
     machineId: string;
@@ -86,18 +76,6 @@ export interface NativeTaskDeliveryGateway {
 
 export interface NativeTaskDeliveryAuditPort {
   emit(event: Record<string, unknown>): Promise<void>;
-}
-
-/** One inbox event reduced to the fields that explain a stuck task. */
-export interface TaskInboxEventHistoryRow {
-  readonly eventId: string;
-  readonly eventType: WorkspaceTaskInboxEvent['eventType'];
-  readonly status: WorkspaceTaskInboxEvent['status'];
-  readonly role: string;
-  readonly taskId: string;
-  readonly taskStatus: string;
-  readonly createdAt: number;
-  readonly processedAt?: number | undefined;
 }
 
 export interface NativeTaskDeliveryAgentPort {

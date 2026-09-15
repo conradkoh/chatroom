@@ -9,7 +9,7 @@ import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
 import { startAllSubscribers } from './subscriber-registry.js';
-import { api } from '../../api.js';
+import { api, type Id } from '../../api.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { createLogServer, resolveLogsDbPath } from '../../infrastructure/log-server/index.js';
 import { loadDaemonState } from '../../infrastructure/machine/daemon-state.js';
@@ -63,19 +63,23 @@ export async function startDaemon(): Promise<void> {
     const persistedAgents = Object.fromEntries(
       Object.entries(persisted?.agents ?? {}).filter(([key]) => key.startsWith(`${chatroomId}/`))
     );
-    let inbox: unknown[] = [];
-    let inboxError: string | undefined;
+
+    // Server-side models are queried in one place (`api.daemon.chatroom.debug`),
+    // keyed by table name, so the dump states which model each value came from.
+    let backendState: Record<string, unknown> = {};
     try {
-      const rows = (await init.backend.query(api.daemon.machineCommandInbox.list, {
+      backendState = (await init.backend.query(api.daemon.chatroom.debug, {
         sessionId: asConvexSessionId(init.sessionId),
         machineId: init.machineId,
-      })) as { command?: { chatroomId?: string }; [key: string]: unknown }[];
-      inbox = rows.filter((row) => row.command?.chatroomId === chatroomId);
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      })) as Record<string, unknown>;
     } catch (error) {
-      inboxError = error instanceof Error ? error.message : String(error);
+      backendState = { error: error instanceof Error ? error.message : String(error) };
     }
+
     return {
       capturedAt: new Date().toISOString(),
+      chatroomId,
       process: {
         pid: process.pid,
         uptimeSeconds: process.uptime(),
@@ -97,20 +101,30 @@ export async function startDaemon(): Promise<void> {
             }
           : null,
       },
-      chatroomId,
-      manager: init.agentProcessManager.getDebugState(chatroomId),
-      service: init.agentProcessManagerService.debugState?.() ?? null,
-      taskService: await init.taskService.debugState(chatroomId),
-      persistedState: {
-        version: persisted?.version ?? null,
-        updatedAt: persisted?.updatedAt ?? null,
-        lastSeenEventId: persisted?.lastSeenEventId ?? null,
-        agents: persistedAgents,
+      /**
+       * In-memory daemon state. Authoritative for "does this daemon know the task",
+       * and the source of every delivery decision — no server query can show it.
+       */
+      localState: {
+        /** Slot mirror: what the daemon believes each chatroom/role process is. */
+        slots: init.agentProcessManager.getDebugState(chatroomId),
+        agentProcessService: init.agentProcessManagerService.debugState?.() ?? null,
+        /** In-memory task read model that native delivery reads. */
+        taskInboxReadModel: init.taskService.debugState(chatroomId),
+        /** PIDs the daemon last persisted, restored across restarts. */
+        persistedAgents: {
+          version: persisted?.version ?? null,
+          updatedAt: persisted?.updatedAt ?? null,
+          lastSeenEventId: persisted?.lastSeenEventId ?? null,
+          agents: persistedAgents,
+        },
       },
-      convex: {
-        machineCommandInbox: inbox,
-        ...(inboxError ? { machineCommandInboxError: inboxError } : {}),
-      },
+      /**
+       * Server-authoritative rows per model. Compare with `localState` to see what
+       * the daemon has not been told about. Task status lives in `chatroom_tasks`;
+       * notification queue state lives in `chatroomWorkspaceTaskInbox`.
+       */
+      backendState,
     };
   };
   const localWeb = await startLocalWebServer(

@@ -87,11 +87,12 @@ export interface TaskService {
   listTasksForRole(chatroomId: string, role: string): readonly AssignedTask[];
   listAllTasks(): readonly AssignedTask[];
   /**
-   * Diagnostic snapshot of this service's state for one chatroom: the local
-   * read model plus the backend's full inbox event history for that chatroom.
-   * Read-only and never used by the delivery path.
+   * Daemon-local diagnostic snapshot for one chatroom: the in-memory read model
+   * that delivery reads. Server-side models are queried separately by
+   * `chatroom debug` via `api.daemon.chatroom.debug`. Never used by the delivery
+   * path.
    */
-  debugState(chatroomId: string): Promise<TaskServiceDebugState>;
+  debugState(chatroomId: string): TaskServiceDebugState;
   readonly taskInboxState: TaskInboxStateReader;
   /**
    * Releases a single in-flight task back to backend `pending` after a native
@@ -321,17 +322,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       }),
     listTasksForRole: (chatroomId, role) => taskInboxState.listForRole(chatroomId, role),
     listAllTasks: () => taskInboxState.listAll(),
-    debugState: (chatroomId) =>
-      buildTaskServiceDebugState({
-        taskInboxState,
-        loadInboxEvents: () =>
-          gateway.listTaskInboxEventsForChatroom({
-            sessionId: deps.sessionId,
-            machineId: deps.machineId,
-            chatroomId,
-          }),
-        chatroomId,
-      }),
+    debugState: (chatroomId) => buildTaskServiceDebugState({ taskInboxState, chatroomId }),
     taskInboxState,
     releaseTaskAfterTurnFailure: async (args) => {
       const result = await gateway.releaseTaskAfterTurnFailure({

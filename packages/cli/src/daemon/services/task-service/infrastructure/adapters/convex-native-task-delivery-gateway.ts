@@ -12,10 +12,7 @@ import type {
   AssignedTask,
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
-import type {
-  NativeTaskDeliveryGateway,
-  TaskInboxEventHistoryRow,
-} from '../../service/ports/native-task-delivery.js';
+import type { NativeTaskDeliveryGateway } from '../../service/ports/native-task-delivery.js';
 import type { WorkspaceTaskInboxEvent } from '../../service/task-service.js';
 
 type Backend = {
@@ -31,14 +28,6 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
         machineId,
       });
       return mapPendingTaskInboxRows(rows);
-    },
-    listTaskInboxEventsForChatroom: async ({ sessionId, machineId, chatroomId }) => {
-      const rows = await backend.query(api.chatroomWorkspaceTaskInbox.listForChatroom, {
-        sessionId,
-        machineId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      });
-      return mapTaskInboxHistoryRows(rows);
     },
     markTaskInboxEventProcessed: async ({ sessionId, machineId, eventId }) => {
       const result = await backend.mutation(api.chatroomWorkspaceTaskInbox.markProcessed, {
@@ -85,19 +74,6 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
       return mapAssignedTaskView(row) satisfies AssignedTaskWithContent;
     },
   };
-}
-
-function mapTaskInboxHistoryRows(rows: unknown): TaskInboxEventHistoryRow[] {
-  return (rows as Record<string, unknown>[]).map((row) => ({
-    eventId: row._id as string,
-    eventType: row.eventType as TaskInboxEventHistoryRow['eventType'],
-    status: row.status as TaskInboxEventHistoryRow['status'],
-    role: row.role as string,
-    taskId: row.taskId as string,
-    taskStatus: (row.task as { status: string }).status,
-    createdAt: row.createdAt as number,
-    ...(row.processedAt === undefined ? {} : { processedAt: row.processedAt as number }),
-  }));
 }
 
 export function mapPendingTaskInboxRows(rows: unknown): WorkspaceTaskInboxEvent[] {

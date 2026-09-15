@@ -58,6 +58,7 @@ import type * as daemon_agenticQuery_queue from "../daemon/agenticQuery/queue.js
 import type * as daemon_agenticQuery_runs from "../daemon/agenticQuery/runs.js";
 import type * as daemon_agenticQuery_syncFromRunTurn from "../daemon/agenticQuery/syncFromRunTurn.js";
 import type * as daemon_agenticQuery_turns from "../daemon/agenticQuery/turns.js";
+import type * as daemon_chatroom from "../daemon/chatroom.js";
 import type * as daemon_commands from "../daemon/commands.js";
 import type * as daemon_enhancer_auth from "../daemon/enhancer/auth.js";
 import type * as daemon_enhancer_index from "../daemon/enhancer/index.js";
@@ -217,6 +218,7 @@ declare const fullApi: ApiFromModules<{
   "daemon/agenticQuery/runs": typeof daemon_agenticQuery_runs;
   "daemon/agenticQuery/syncFromRunTurn": typeof daemon_agenticQuery_syncFromRunTurn;
   "daemon/agenticQuery/turns": typeof daemon_agenticQuery_turns;
+  "daemon/chatroom": typeof daemon_chatroom;
   "daemon/commands": typeof daemon_commands;
   "daemon/enhancer/auth": typeof daemon_enhancer_auth;
   "daemon/enhancer/index": typeof daemon_enhancer_index;
