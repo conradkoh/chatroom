@@ -9,6 +9,8 @@ import { api } from '../../../../../api.js';
  * `AgentConfigInboxEvent` type is inferred from this schema — the wire shape
  * and the static type cannot drift apart. `strictObject` fails parsing on
  * unknown fields so backend additions surface here first, not downstream.
+ * `processedAt` is transport bookkeeping for processed rows and is omitted
+ * from the daemon event below.
  */
 const agentConfigInboxRowSchema = z.strictObject({
   _id: z.string(),
@@ -22,6 +24,7 @@ const agentConfigInboxRowSchema = z.strictObject({
   workingDir: z.string(),
   status: z.enum(WorkspaceAgentConfigInboxStatus),
   createdAt: z.number(),
+  processedAt: z.number().optional(),
 });
 
 /**
@@ -30,7 +33,7 @@ const agentConfigInboxRowSchema = z.strictObject({
  * ascending order — consumers rely on that for supersession ordering.
  */
 const agentConfigInboxEventSchema = agentConfigInboxRowSchema.transform(
-  ({ _id: eventId, ...row }) => ({ ...row, eventId })
+  ({ _id: eventId, processedAt: _processedAt, ...row }) => ({ ...row, eventId })
 );
 
 export type AgentConfigInboxEvent = z.infer<typeof agentConfigInboxEventSchema>;
