@@ -37,10 +37,14 @@ const TEST_CHATROOM_ID = 'test_chatroom_id_12345678';
 const TEST_SESSION_ID = 'test-session-id';
 
 function createMockDeps(overrides?: Partial<HandoffDeps>): HandoffDeps {
+  const mutation = vi.fn().mockResolvedValue({ success: true });
   return {
     backend: {
-      mutation: vi.fn().mockResolvedValue({ success: true }),
+      mutation,
       query: vi.fn().mockResolvedValue(true),
+    },
+    gateway: {
+      handoff: vi.fn().mockImplementation((args) => mutation(null, args)),
     },
     session: {
       getSessionId: vi.fn().mockResolvedValue(TEST_SESSION_ID),

@@ -3,21 +3,31 @@ import { Effect, Layer } from 'effect';
 
 import type { BackendService } from './backend.js';
 import { BackendServiceLive } from './backend.js';
+import type { CliGatewayService } from './cli-gateway.js';
+import { CliGatewayServiceLive } from './cli-gateway.js';
 import { SessionService, SessionServiceLive } from './session.js';
+import type { HandoffGatewayOps } from '../../commands/handoff/deps.js';
 import type { BackendOps, SessionOps } from '../deps/index.js';
 
 export type CommandServicesDeps = {
   backend: BackendOps & {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    action?:( (endpoint: any, args: any) => Promise<any>) | undefined;
+    action?: ((endpoint: any, args: any) => Promise<any>) | undefined;
   };
   session: SessionOps;
+  gateway?: HandoffGatewayOps;
 };
 
 export function commandServicesLayerFromDeps(
   deps: CommandServicesDeps
-): Layer.Layer<BackendService | SessionService> {
+): Layer.Layer<BackendService | CliGatewayService | SessionService> {
+  const gateway: HandoffGatewayOps = deps.gateway ?? {
+    handoff: async () => {
+      throw new Error('CLI gateway is unavailable');
+    },
+  };
   return Layer.mergeAll(
+    CliGatewayServiceLive(gateway),
     BackendServiceLive({
       query: deps.backend.query,
       mutation: deps.backend.mutation,
