@@ -2,8 +2,6 @@ import type { Id } from '../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../convex/_generated/server';
 import {
   reassignTasksOnTeamSwitch,
-  releaseTasksOnAgentExit,
-  shouldReleaseTasksOnAgentExit,
 } from '../../domain/usecase/task/release-tasks-on-agent-exit';
 
 export interface OnAgentExitedArgs {
@@ -16,11 +14,15 @@ export interface OnAgentExitedArgs {
 /**
  * Handles the `agent.exited` event (backend side).
  *
- * On unexpected exit, release in-flight tasks for this role so get-next-task can
- * reclaim them immediately. Process restart decisions are not made here.
+ * The backend no longer infers task-state transitions from agent exits. In-flight
+ * task recovery is daemon-owned: the daemon releases the tasks it tracks through
+ * the scoped `releaseTaskAfterTurnFailure` path (turn failures, daemon shutdown)
+ * and re-delivers `pending`/`acknowledged` tasks on reconcile. This removes the
+ * role-wide release race where a planned restart's exit release destroyed the
+ * replacement session's claim (incident 2026-09-16, plan R1/R2).
  *
- * `platform.team_switch` reassigns tasks to the new team entry point instead of
- * releasing them unassigned. `user.stop` and `daemon.shutdown` release to pending.
+ * `platform.team_switch` remains backend-owned: tasks reassign to the new team
+ * entry point instead of releasing unassigned.
  */
 export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): Promise<void> {
   if (args.stopReason === 'platform.team_switch') {
@@ -28,15 +30,5 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
       chatroomId: args.chatroomId,
       role: args.role,
     });
-    return;
   }
-
-  if (!shouldReleaseTasksOnAgentExit(args.stopReason)) {
-    return;
-  }
-
-  await releaseTasksOnAgentExit(ctx, {
-    chatroomId: args.chatroomId,
-    role: args.role,
-  });
 }

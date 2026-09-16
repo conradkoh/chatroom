@@ -1,9 +1,11 @@
 /**
- * Release in-flight tasks when an agent exits unexpectedly.
+ * Release in-flight tasks for a role back to `pending` with cleared claim fields
+ * so get-next-task can reclaim immediately (no RECOVERY_GRACE_PERIOD_MS block on
+ * acknowledgedAt).
  *
- * Resets acknowledged/in_progress tasks assigned to the exited role back to
- * `pending` with cleared claim fields so get-next-task can reclaim immediately
- * (no RECOVERY_GRACE_PERIOD_MS block on acknowledgedAt).
+ * Callers are explicit, user-initiated flows only (chatroom stop interrupts the
+ * enhancer role; agent restart requests). The `agent.exited` lifecycle fact no
+ * longer triggers this — see `onAgentExited` (plan R1/R2).
  */
 
 import { transitionTask } from './transition-task';
@@ -17,14 +19,6 @@ import { getTeamEntryPoint } from '../../entities/team';
 import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 
 const RELEASE_FROM_STATUSES: TaskStatus[] = ['acknowledged', 'in_progress'];
-
-/**
- * Whether agent exit should release tasks back to pending for the exiting role.
- * `platform.team_switch` reassigns to the new team entry point instead.
- */
-export function shouldReleaseTasksOnAgentExit(stopReason?: string): boolean {
-  return stopReason !== 'platform.team_switch';
-}
 
 export async function releaseTasksOnAgentExit(
   ctx: MutationCtx,

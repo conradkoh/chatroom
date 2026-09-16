@@ -33,6 +33,35 @@ export const onDaemonShutdownEffect: Effect.Effect<
   if (activeAgents.length > 0) {
     console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s) locally...`);
 
+    // Release in-flight tasks the daemon tracks for active roles back to
+    // `pending` before stopping them. The backend no longer infers task
+    // releases from `agent.exited` facts (plan R1/R2) — shutdown recovery is
+    // daemon-owned via the scoped, per-task release path. The scoped mutation
+    // no-ops on tasks that are not acknowledged/in_progress.
+    yield* Effect.promise(async () => {
+      let tasksReleased = 0;
+      for (const { chatroomId, role } of activeAgents) {
+        try {
+          for (const task of session.taskService.listTasksForRole(chatroomId, role)) {
+            if (task.status !== 'acknowledged' && task.status !== 'in_progress') continue;
+            await session.taskService.releaseTaskAfterTurnFailure({
+              chatroomId,
+              role,
+              taskId: task.taskId,
+            });
+            tasksReleased += 1;
+          }
+        } catch (e) {
+          console.log(
+            `   ⚠️  Failed to release in-flight tasks for ${role}@${chatroomId}: ${(e as Error).message}`
+          );
+        }
+      }
+      if (tasksReleased > 0) {
+        console.log(`[${formatTimestamp()}] Released ${tasksReleased} in-flight task(s) to pending`);
+      }
+    });
+
     let totalStopped = 0;
     let totalFailed = 0;
     yield* Effect.all(

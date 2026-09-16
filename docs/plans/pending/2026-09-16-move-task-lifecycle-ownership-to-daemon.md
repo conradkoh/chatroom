@@ -128,8 +128,8 @@ Code that exists to keep Convex authoritative. Each row is removed (✅) or not 
 
 | #   | Boundary                              | File → Component                                                                                                                                    | Responsibility to remove                                                                                                                     | Done                      |
 | --- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| R1  | convex · task recovery                | `src/domain/usecase/task/release-tasks-on-agent-exit.ts` → `releaseTasksOnAgentExit`, `shouldReleaseTasksOnAgentExit`                               | Role-wide task release on agent exit (recovery decision moves to the daemon, which owns process lifecycle and the restart plan)              | ⬜                        |
-| R2  | convex · task recovery                | `src/events/agent/on-agent-exited.ts` → `onAgentExited` task-release call (fact auditing stays)                                                     | Backend interpretation of `exited` facts as task-state transitions                                                                           | ⬜                        |
+| R1  | convex · task recovery                | `src/domain/usecase/task/release-tasks-on-agent-exit.ts` → `releaseTasksOnAgentExit`, `shouldReleaseTasksOnAgentExit`                               | Role-wide task release on agent exit (recovery decision moves to the daemon, which owns process lifecycle and the restart plan)              | ◐ `shouldReleaseTasksOnAgentExit` removed; the exited-fact path no longer releases. `releaseTasksOnAgentExit` retained for the two explicit user-initiated callers (chatroom-stop enhancer interrupt, `request-agent-restart`) until they migrate; `reassignTasksOnTeamSwitch` retained (open question 2) |
+| R2  | convex · task recovery                | `src/events/agent/on-agent-exited.ts` → `onAgentExited` task-release call (fact auditing stays)                                                     | Backend interpretation of `exited` facts as task-state transitions                                                                           | ✅ `onAgentExited` no longer releases tasks on exit facts (team-switch reassignment kept); recovery is daemon-owned — scoped `releaseTaskAfterTurnFailure` on turn failures plus an explicit shutdown release (`on-daemon-shutdown.ts`) |
 | R3  | convex · task recovery                | `convex/tasks.ts` → `releaseTaskAfterTurnFailure` mutation + gateway port `claimPendingTask`-style call in `convex-native-task-delivery-gateway.ts` | Backend turn-failure release; daemon transitions locally instead                                                                             | ⬜                        |
 | R4  | convex · task adoption                | `src/domain/usecase/participant/start-task-from-token-activity.ts` → token-activity rules                                                           | Ack/resume heuristics compensating for agents that never claimed (injector claim replaces)                                                   | ⬜                        |
 | R5  | convex · task FSM                     | `convex/lib/taskStateMachine.ts` + `src/domain/usecase/task/transition-task.ts`                                                                     | Backend FSM validation/guards for daemon-owned lifecycle transitions; becomes ingress creation + projection writes only                      | ⬜                        |
@@ -207,3 +207,18 @@ Implemented on `plans/daemon-task-lifecycle-ownership` in three commits: `0e4655
 
 - F5: gateway logs persist via the daemon log repository (currently in-memory debug ring + stdout only).
 - F6: move `HandoffGatewayOps`/handoff types to a neutral gateway contract module (daemon service currently imports command-layer types).
+
+## Implementation status — exit-release removal (R1/R2, second task)
+
+Backend no longer transitions task state from `agent.exited` facts. `onAgentExited` now only handles `platform.team_switch` reassignment (kept per open question 2); `shouldReleaseTasksOnAgentExit` deleted; `releaseTasksOnAgentExit` retained solely for the explicit user-initiated callers (chatroom-stop enhancer interrupt, `request-agent-restart`).
+
+**Recovery matrix after removal (validated during implementation):**
+
+| Exit scenario | Recovery | Status |
+| --- | --- | --- |
+| Agent crash/kill while daemon alive (`turn.failed`) | Daemon scoped `releaseTaskAfterTurnFailure` (R3, per-task) → pending → redeliver | unchanged ✅ |
+| Planned cold restart (`platform.task_start_in_new_session`) | Restart redelivers the task itself; no exit release → the 2026-09-16 claim-destroy race is structurally gone (V1) | fixed ✅ |
+| Graceful daemon shutdown (`daemon.shutdown`) | New daemon-owned release: `on-daemon-shutdown.ts` releases acknowledged/in_progress tasks via the scoped mutation before stopping agents (backend exit-fact release was the previous path) | compensated ✅ |
+| Daemon crash / power loss | No exited facts emitted today either (the fact producer is the crashed daemon) — pre-existing gap, closed by plan A1/A5 (durable store + daemon-side requeue) | open, unchanged ⬜ |
+
+Owner note: the shutdown release is a compensating change added during this task (not explicitly dictated) to avoid regressing graceful-shutdown recovery; veto or rehome it freely. Fallow pre-commit reports pre-existing clone groups + CRITICAL complexity in `cli-gateway-service` handoff — deferred tech debt (aligned with reviewer F6).
