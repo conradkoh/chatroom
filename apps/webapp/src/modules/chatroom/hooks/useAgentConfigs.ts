@@ -12,7 +12,7 @@ export function useAgentConfigs(chatroomId: string, options?: { enabled?: boolea
     api.agents.listLastSentLaunchRequests,
     enabled ? { chatroomId: chatroomId as Id<'chatroom_rooms'> } : 'skip'
   );
-  const machines = useSessionQuery(api.machines.listMachines);
+  const machines = useSessionQuery(api.machines.getUserMachines);
   const configs = useMemo<AgentConfig[]>(
     () =>
       (result ?? []).map((request) => {
@@ -27,8 +27,8 @@ export function useAgentConfigs(chatroomId: string, options?: { enabled?: boolea
           agentType: request.agentHarness,
           workingDir: request.workingDir,
           model: request.model,
-          availableHarnesses: (machine?.availableHarnesses ??
-            []) as AgentConfig['availableHarnesses'],
+          // Capability data is served per-machine now; configs no longer carry it.
+          availableHarnesses: [] as AgentConfig['availableHarnesses'],
           updatedAt: request.requestedAt,
         };
       }),

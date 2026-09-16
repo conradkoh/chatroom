@@ -221,6 +221,6 @@ describe('Machine Status', () => {
     expect((machine as Record<string, unknown>).daemonConnected).toBeUndefined();
 
     const status = await t.query(api.machines.getDaemonStatus, { sessionId, machineId });
-    expect(status.connected).toBe(true);
+    expect(status).toEqual({ connected: true });
   });
 });

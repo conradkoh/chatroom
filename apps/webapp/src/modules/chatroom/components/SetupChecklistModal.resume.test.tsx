@@ -5,18 +5,37 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SetupChecklistModal } from './SetupChecklistModal';
 
 const mockUseChatroomWorkspaces = vi.fn();
-const mockUseAgentPanelData = vi.fn();
+const mockUseUserMachines = vi.fn();
+const mockUseAgentConfigs = vi.fn();
+const mockUseAgentCommandSender = vi.fn();
+const mockUseDaemonConnectivity = vi.fn();
+const mockSetupWorkspaceStep = vi.fn();
 
 vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: (...args: unknown[]) => mockUseChatroomWorkspaces(...args),
 }));
 
-vi.mock('../hooks/useAgentPanelData', () => ({
-  useAgentPanelData: (...args: unknown[]) => mockUseAgentPanelData(...args),
+vi.mock('../hooks/useAgentCommandSender', () => ({
+  useAgentCommandSender: (...args: unknown[]) => mockUseAgentCommandSender(...args),
+}));
+
+vi.mock('../hooks/useAgentConfigs', () => ({
+  useAgentConfigs: (...args: unknown[]) => mockUseAgentConfigs(...args),
+}));
+
+vi.mock('@/hooks/useUserMachines', () => ({
+  useUserMachines: (...args: unknown[]) => mockUseUserMachines(...args),
+}));
+
+vi.mock('@/hooks/useDaemonConnectivity', () => ({
+  useDaemonConnectivity: (...args: unknown[]) => mockUseDaemonConnectivity(...args),
 }));
 
 vi.mock('./setup/SetupWorkspaceStep', () => ({
-  SetupWorkspaceStep: () => <div data-testid="setup-workspace-step" />,
+  SetupWorkspaceStep: (props: unknown) => {
+    mockSetupWorkspaceStep(props);
+    return <div data-testid="setup-workspace-step" />;
+  },
 }));
 
 vi.mock('./setup/SetupAgentTeamStep', () => ({
@@ -62,13 +81,16 @@ function renderModal(overrides?: Partial<React.ComponentProps<typeof SetupCheckl
 describe('SetupChecklistModal resume', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseAgentPanelData.mockReturnValue({
-      connectedMachines: [],
-      machineConfigs: [],
+    mockUseDaemonConnectivity.mockReturnValue(new Map());
+    mockUseUserMachines.mockReturnValue({
+      machines: [],
       isLoading: false,
-      sendCommand: vi.fn(),
-      agents: [],
     });
+    mockUseAgentConfigs.mockReturnValue({
+      isLoading: false,
+      configs: [],
+    });
+    mockUseAgentCommandSender.mockReturnValue(vi.fn());
   });
 
   it('opens on agents step when a workspace is already registered', () => {
@@ -100,6 +122,47 @@ describe('SetupChecklistModal resume', () => {
     renderModal();
     expect(screen.getByTestId('setup-workspace-step')).toBeInTheDocument();
     expect(screen.queryByTestId('setup-agent-team-step')).not.toBeInTheDocument();
+  });
+
+  it('passes only connected machines to the workspace step', () => {
+    const connectedMachine = {
+      machineId: 'm1',
+      hostname: 'connected-host',
+      os: 'darwin',
+      registeredAt: 1,
+    };
+    const offlineMachine = {
+      machineId: 'm2',
+      hostname: 'offline-host',
+      os: 'darwin',
+      registeredAt: 2,
+    };
+    mockUseUserMachines.mockReturnValue({
+      machines: [connectedMachine, offlineMachine],
+      isLoading: false,
+    });
+    mockUseDaemonConnectivity.mockReturnValue(
+      new Map([
+        ['m1', { connected: true }],
+        ['m2', { connected: false }],
+      ])
+    );
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [], isLoading: false });
+
+    renderModal();
+
+    expect(mockUseDaemonConnectivity).toHaveBeenCalledWith();
+    expect(mockSetupWorkspaceStep).toHaveBeenCalledWith(
+      expect.objectContaining({ connectedMachines: [connectedMachine] })
+    );
+  });
+
+  it('does not subscribe to connectivity while the modal is closed', () => {
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [], isLoading: false });
+
+    renderModal({ isOpen: false });
+
+    expect(mockUseDaemonConnectivity).not.toHaveBeenCalled();
   });
 
   it('does not flash workspace step while workspaces are loading', () => {

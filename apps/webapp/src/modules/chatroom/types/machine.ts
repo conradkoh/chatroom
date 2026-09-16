@@ -37,6 +37,15 @@ export interface MachineInfo {
   // availableModels removed in v1.38.4 — now served via getMachineModels query / useMachineModels hook
 }
 
+/** Cold registration metadata for a machine owned by the current user (getUserMachines). */
+export interface UserMachine {
+  machineId: string;
+  hostname: string;
+  alias?: string;
+  os: string;
+  registeredAt: number;
+}
+
 export interface AgentConfig {
   machineId: string;
   hostname: string;

@@ -624,6 +624,38 @@ export const listMachines = query({
 });
 
 /**
+ * Narrow registration list for machines owned by the current user.
+ * Cold read only: chatroom_machines metadata — no daemon-fed tables
+ * (capabilities/status) so the subscription only invalidates on register/rename.
+ */
+export const getUserMachines = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return { machines: [] };
+    }
+
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return {
+      machines: machines.map((machine) => ({
+        machineId: machine.machineId,
+        hostname: machine.hostname,
+        alias: machine.alias,
+        os: machine.os,
+        registeredAt: machine.registeredAt,
+      })),
+    };
+  },
+});
+
+/**
  * Per-machine available model list from the daemon capability read model.
  */
 export const getMachineModels = query({
@@ -649,6 +681,31 @@ export const getMachineModels = query({
   },
 });
 
+/**
+ * Per-machine daemon capabilities (available harnesses + versions) from the
+ * capability read model. Serves consumers that only need one machine's
+ * capabilities without the machine-wide subscription.
+ */
+export const getMachineCapabilities = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) {
+      return { availableHarnesses: [], harnessVersions: {} };
+    }
+
+    const capabilities = await ctx.db
+      .query('chatroom_machineCapabilities')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    return {
+      availableHarnesses: capabilities?.availableHarnesses ?? [],
+      harnessVersions: capabilities?.harnessVersions ?? {},
+    };
+  },
+});
+
 /** Returns daemon connectivity status for a specific machine. Used by the webapp to detect daemon presence via Convex instead of localhost HTTP. */
 export const getDaemonStatus = query({
   args: {
@@ -658,7 +715,7 @@ export const getDaemonStatus = query({
   handler: async (ctx, args) => {
     const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) {
-      return { connected: false, lastSeenAt: null };
+      return { connected: false };
     }
 
     // Read status from materialized machineStatus table
@@ -667,60 +724,41 @@ export const getDaemonStatus = query({
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
 
-    // Read lastSeenAt from liveness table (updated at most every DAEMON_LIVENESS_WRITE_INTERVAL_MS)
-    const liveness = await ctx.db
-      .query('chatroom_machineLiveness')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    return {
-      connected: machineStatus?.status === 'online',
-      lastSeenAt: liveness?.lastSeenAt ?? 0,
-    };
+    return { connected: machineStatus?.status === 'online' };
   },
 });
 
-const MAX_DAEMON_STATUS_BATCH = 10;
-
-/** Batch daemon connectivity for multiple machines in one subscription. */
-export const getDaemonStatusesBatch = query({
+/** Returns daemon connectivity for all of the user's machines in one stable subscription. */
+export const listMachineConnectivity = query({
   args: {
     ...SessionIdArg,
-    machineIds: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const machineIds = args.machineIds.slice(0, MAX_DAEMON_STATUS_BATCH);
-    const statuses: {
-      machineId: string;
-      connected: boolean;
-      lastSeenAt: number | null;
-    }[] = [];
-
-    for (const machineId of machineIds) {
-      const auth = await getMachineOwner(ctx, args.sessionId, machineId);
-      if (!auth) {
-        statuses.push({ machineId, connected: false, lastSeenAt: null });
-        continue;
-      }
-
-      const machineStatus = await ctx.db
-        .query('chatroom_machineStatus')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-
-      statuses.push({
-        machineId,
-        connected: machineStatus?.status === 'online',
-        lastSeenAt: liveness?.lastSeenAt ?? null,
-      });
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return { machines: [] };
     }
 
-    return { statuses };
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return {
+      machines: await Promise.all(
+        machines.map(async (machine) => {
+          const machineStatus = await ctx.db
+            .query('chatroom_machineStatus')
+            .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+            .first();
+
+          return {
+            machineId: machine.machineId,
+            connected: machineStatus?.status === 'online',
+          };
+        })
+      ),
+    };
   },
 });
 

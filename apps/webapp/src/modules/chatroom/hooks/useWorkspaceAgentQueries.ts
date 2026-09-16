@@ -2,14 +2,14 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useMemo } from 'react';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { useMemo } from 'react';
 
+import { useAgentCommandSender } from './useAgentCommandSender';
 import { useChatroomTeam } from './useChatroomTeam';
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
 import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
-import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
-import { dispatchAgentCommand } from '../utils/agentCommand';
+import type { AgentConfig, MachineInfo } from '../types/machine';
 import { getWorkspaceAgentRoles } from '../utils/workspaceAgentRoles';
 
 export type { WorkspaceAgentRole } from '../utils/workspaceAgentRoles';
@@ -94,29 +94,18 @@ export function useWorkspaceAgentDirectory() {
 /** Control-only machine data. It is not used to decide which agents exist or their status. */
 export function useWorkspaceAgentControlData() {
   const result = useSessionQuery(api.machines.listMachines);
-  const sendCommandMutation = useSessionMutation(api.machines.sendCommand);
-  const requestStart = useSessionMutation(api.agents.requestStart);
-  const requestRestart = useSessionMutation(api.agents.requestRestart);
-  const sendCommand = useCallback<SendCommandFn>(
-    (command) =>
-      dispatchAgentCommand(command, {
-        requestStart,
-        requestRestart,
-        sendCommand: sendCommandMutation as unknown as SendCommandFn,
-      }),
-    [requestRestart, requestStart, sendCommandMutation]
-  );
+  const sendCommand = useAgentCommandSender();
   const machines = useMemo<MachineInfo[]>(
     () => (result?.machines ?? []) as MachineInfo[],
     [result?.machines]
   );
-  const daemonConnectivity = useDaemonConnectivity(machines.map((machine) => machine.machineId));
+  const daemonConnectivity = useDaemonConnectivity();
 
   return {
     machines,
     daemonConnectivity,
     agentConfigs: [] as AgentConfig[],
     isLoadingMachines: result === undefined,
-    sendCommand: sendCommand as unknown as SendCommandFn,
+    sendCommand,
   };
 }

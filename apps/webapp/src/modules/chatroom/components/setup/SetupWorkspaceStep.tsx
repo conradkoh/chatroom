@@ -8,13 +8,14 @@ import { SetupWorkspaceConfirmButton } from './SetupWorkspaceConfirmButton';
 import { SetupWorkspaceLoadingPanel } from './SetupWorkspaceLoadingPanel';
 import { SetupWorkspacePrerequisitesPanel } from './SetupWorkspacePrerequisitesPanel';
 import { useSetupWorkspaceFolderPicker } from './useSetupWorkspaceFolderPicker';
-import type { MachineInfo } from '../../types/machine';
+import type { UserMachine } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 
+import { useMachineCapabilities } from '@/hooks/useMachineCapabilities';
 import { getAuthLoginCommand, getDaemonStartCommand } from '@/lib/environment';
 
 interface SetupWorkspaceStepProps {
-  connectedMachines: MachineInfo[];
+  connectedMachines: UserMachine[];
   isLoadingMachines: boolean;
   onConfirm: (machineId: string, workingDir: string) => Promise<void>;
 }
@@ -34,18 +35,15 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
     typeof window !== 'undefined' ? window.location.origin : ''
   );
 
-  const detectedHarnesses = useMemo(() => {
-    const all = connectedMachines.flatMap((m) => m.availableHarnesses);
-    return [...new Set(all)];
-  }, [connectedMachines]);
-
-  const harnessDone = detectedHarnesses.length > 0;
-  const daemonDone = connectedMachines.length > 0;
-
   const selectedMachine = useMemo(
     () => connectedMachines.find((m) => m.machineId === selectedMachineId) ?? null,
     [connectedMachines, selectedMachineId]
   );
+  const { availableHarnesses } = useMachineCapabilities(selectedMachine?.machineId ?? null);
+  const detectedHarnesses = availableHarnesses;
+
+  const harnessDone = detectedHarnesses.length > 0;
+  const daemonDone = connectedMachines.length > 0;
 
   const {
     requestId,

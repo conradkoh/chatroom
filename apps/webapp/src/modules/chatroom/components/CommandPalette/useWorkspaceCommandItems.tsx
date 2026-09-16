@@ -20,7 +20,6 @@ import type { Workspace } from '../../types/workspace';
 import { useWorkspaceGit } from '../../workspace/hooks/useWorkspaceGit';
 import { copyWorkspacePathToClipboard } from '../../workspace/utils/clipboard';
 
-import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import type { LocalActionType } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 
@@ -63,7 +62,7 @@ function getWorkingDirBasename(workingDir: string): string {
 /**
  * Generate command palette items for a single workspace.
  *
- * Calls `useWorkspaceGit` and `useDaemonConnected` hooks internally.
+ * Calls `useWorkspaceGit` internally and derives machine actions from workspace metadata.
  * Must be called from a component that renders once per workspace.
  *
  * @param workspace  - The workspace to generate commands for.
@@ -78,7 +77,6 @@ export function useWorkspaceCommandItems(
 ): CommandItem[] {
   const machineId = workspace.machineId ?? '';
   const workingDir = workspace.workingDir;
-  const { isConnected } = useDaemonConnected(workspace.machineId);
   const gitState = useWorkspaceGit(machineId, workingDir);
   const { sendAction, openExternalUrl, onOpenGitPanel } = callbacks;
 
@@ -89,8 +87,8 @@ export function useWorkspaceCommandItems(
     const hostname = getWorkspaceDisplayHostname(workspace);
     const workingDirBasename = getWorkingDirBasename(workingDir);
 
-    // Only show machine actions when daemon is connected (local workspace)
-    if (isConnected) {
+    // Machine actions are available for registered machines; failures are handled when invoked.
+    if (workspace.machineId) {
       items.push({
         id: `ws-${wsKey}-open-vscode`,
         blacklistKey: workspaceCommandBlacklistKey('open-vscode'),
@@ -256,12 +254,12 @@ export function useWorkspaceCommandItems(
   }, [
     workspace,
     isMulti,
-    isConnected,
     gitState,
     machineId,
     workingDir,
     sendAction,
     openExternalUrl,
     onOpenGitPanel,
+    chatroomId,
   ]);
 }

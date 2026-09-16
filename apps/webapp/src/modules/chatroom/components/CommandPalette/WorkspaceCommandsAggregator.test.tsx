@@ -25,7 +25,7 @@ function mkWorkspace(machineId: string, workingDir: string): Workspace {
 }
 
 describe('WorkspaceCommandsAggregator', () => {
-  it('renders one watcher per unique workspace id (no duplicate React keys)', () => {
+  it('renders one invisible command watcher per unique workspace id', () => {
     const machineId = '352a8994-0b30-4558-835c-0a87b95c62ca';
     const workingDir = '/Users/conradkoh/Documents/Repos/baby-tracker';
     const duplicates = [mkWorkspace(machineId, workingDir), mkWorkspace(machineId, workingDir)];
@@ -34,7 +34,7 @@ describe('WorkspaceCommandsAggregator', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     mocks.useWorkspaceCommandItems.mockClear();
 
-    render(
+    const { container } = render(
       <WorkspaceCommandsAggregator
         workspaces={workspaces}
         callbacks={{
@@ -46,6 +46,7 @@ describe('WorkspaceCommandsAggregator', () => {
       />
     );
 
+    expect(container).toBeEmptyDOMElement();
     expect(mocks.useWorkspaceCommandItems).toHaveBeenCalledTimes(1);
 
     const duplicateKeyErrors = consoleError.mock.calls.filter(([msg]) =>

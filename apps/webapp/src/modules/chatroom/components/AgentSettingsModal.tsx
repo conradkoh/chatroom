@@ -349,12 +349,7 @@ const MachineRow = memo(function MachineRow({
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Connectivity via getDaemonStatus — tiny heartbeat payload, doesn't invalidate listMachines.
   const { isConnected: daemonConnected } = useDaemonConnected(machine.machineId);
-  const statusResult = useSessionQuery(api.machines.getDaemonStatus, {
-    machineId: machine.machineId,
-  });
-  const lastSeenAt = statusResult?.lastSeenAt ?? 0;
 
   const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
 
@@ -462,11 +457,6 @@ const MachineRow = memo(function MachineRow({
           {daemonConnected ? 'online' : 'offline'} · {machine.os}
         </div>
       </div>
-      {lastSeenAt ? (
-        <div className="text-[10px] text-chatroom-text-muted flex-shrink-0">
-          {new Date(lastSeenAt).toLocaleTimeString()}
-        </div>
-      ) : null}
     </div>
   );
 });

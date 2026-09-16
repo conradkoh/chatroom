@@ -137,7 +137,7 @@ The screenshot is consistent with the following priority order:
 1. `listRecentlyObservedWorkspacesForMachine`: large project/workspace set retained by the seven-day window.
 2. `subscribeMachineAgentOperationalStatus`: all machine projects and roles in one reactive result.
 3. `getAgentOverviewForChatroom`: current-chatroom data; large totals may indicate repeated observers, reconnects, or a busy chatroom rather than all-machine scaling.
-4. `getDaemonStatus` and `getDaemonStatusesBatch`: compact payloads; high totals likely indicate observer/invocation frequency rather than payload size.
+4. `getDaemonStatus` and `listMachineConnectivity`: compact payloads; high totals likely indicate observer/invocation frequency rather than payload size.
 5. `daemonHeartbeat`: periodic machine cost, largely independent of project count.
 6. `subscribeTaskStatusSignalsSince` and `machineCommandInbox.watchNext`: event-driven paths that should be quiet when idle.
 7. Cleanup functions: backend maintenance traffic, not a primary client idle-bandwidth concern.

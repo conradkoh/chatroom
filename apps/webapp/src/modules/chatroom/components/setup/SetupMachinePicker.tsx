@@ -2,11 +2,11 @@
 
 import { Monitor } from 'lucide-react';
 
-import type { MachineInfo } from '../../types/machine';
+import type { UserMachine } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 
 interface SetupMachinePickerProps {
-  machines: MachineInfo[];
+  machines: UserMachine[];
   selectedMachineId: string | null;
   onSelectMachine: (machineId: string) => void;
 }
