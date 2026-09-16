@@ -48,14 +48,13 @@ interface SetupMachineConnectivityProps {
   children: (connectedMachines: MachineInfo[]) => React.ReactNode;
 }
 
-// Keep this helper beneath FixedModal so Base UI unmounts the batch subscription
+// Keep this helper beneath FixedModal so Base UI unmounts the connectivity subscription
 // with the closed dialog instead of keeping it alive on the chatroom page.
 const SetupMachineConnectivity = memo(function SetupMachineConnectivity({
   machines,
   children,
 }: SetupMachineConnectivityProps) {
-  const machineIds = useMemo(() => machines.map((machine) => machine.machineId), [machines]);
-  const connectivity = useDaemonConnectivity(machineIds);
+  const connectivity = useDaemonConnectivity();
   const connectedMachines = useMemo(
     () => machines.filter((machine) => connectivity.get(machine.machineId)?.connected === true),
     [machines, connectivity]

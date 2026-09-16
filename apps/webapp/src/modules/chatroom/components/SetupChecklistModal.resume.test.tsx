@@ -144,7 +144,7 @@ describe('SetupChecklistModal resume', () => {
 
     renderModal();
 
-    expect(mockUseDaemonConnectivity).toHaveBeenCalledWith(['m1', 'm2']);
+    expect(mockUseDaemonConnectivity).toHaveBeenCalledWith();
     expect(mockSetupWorkspaceStep).toHaveBeenCalledWith(
       expect.objectContaining({ connectedMachines: [connectedMachine] })
     );

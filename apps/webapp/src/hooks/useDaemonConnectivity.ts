@@ -1,11 +1,8 @@
 /**
- * useDaemonConnectivity — per-machine daemon status subscriptions.
+ * useDaemonConnectivity — daemon connectivity for all of the user's machines.
  *
- * Returns a Map<machineId, { connected: boolean }> for a
- * list of machine IDs. Uses a single batch subscription (getDaemonStatusesBatch)
- * instead of 10 fixed-slot queries, reducing Convex subscription churn.
- *
- * Supports up to MAX_MACHINES machines.
+ * Uses one stable session-only subscription instead of a machineIds-array batch
+ * that resubscribed whenever the array identity changed.
  */
 
 'use client';
@@ -19,36 +16,18 @@ export interface MachineConnectivity {
   connected: boolean;
 }
 
-/** Maximum number of machines supported by this hook. */
-const MAX_MACHINES = 10;
-
 /**
- * Returns daemon connectivity info for up to MAX_MACHINES machines.
- * Each entry in the returned Map is updated reactively when machine status changes.
- *
- * @param machineIds - List of machine IDs to subscribe to. Order doesn't matter.
+ * Returns daemon connectivity info for all machines of the current user.
+ * Entries are absent while loading; consumers already treat missing as disconnected.
  */
-export function useDaemonConnectivity(machineIds: string[]): Map<string, MachineConnectivity> {
-  const stableIds = useMemo(() => machineIds.slice(0, MAX_MACHINES), [machineIds]);
-
-  const batch = useSessionQuery(
-    api.machines.getDaemonStatusesBatch,
-    stableIds.length > 0 ? { machineIds: stableIds } : 'skip'
-  );
+export function useDaemonConnectivity(): Map<string, MachineConnectivity> {
+  const result = useSessionQuery(api.machines.listMachineConnectivity);
 
   return useMemo(() => {
     const map = new Map<string, MachineConnectivity>();
-    if (!batch) {
-      for (const id of stableIds) {
-        map.set(id, { connected: false });
-      }
-      return map;
-    }
-    for (const row of batch.statuses) {
-      map.set(row.machineId, {
-        connected: row.connected,
-      });
+    for (const row of result?.machines ?? []) {
+      map.set(row.machineId, { connected: row.connected });
     }
     return map;
-  }, [batch, stableIds]);
+  }, [result]);
 }

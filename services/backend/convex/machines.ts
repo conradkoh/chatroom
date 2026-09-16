@@ -671,40 +671,37 @@ export const getDaemonStatus = query({
   },
 });
 
-const MAX_DAEMON_STATUS_BATCH = 10;
-
-/** Batch daemon connectivity for multiple machines in one subscription. */
-export const getDaemonStatusesBatch = query({
+/** Returns daemon connectivity for all of the user's machines in one stable subscription. */
+export const listMachineConnectivity = query({
   args: {
     ...SessionIdArg,
-    machineIds: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const machineIds = args.machineIds.slice(0, MAX_DAEMON_STATUS_BATCH);
-    const statuses: {
-      machineId: string;
-      connected: boolean;
-    }[] = [];
-
-    for (const machineId of machineIds) {
-      const auth = await getMachineOwner(ctx, args.sessionId, machineId);
-      if (!auth) {
-        statuses.push({ machineId, connected: false });
-        continue;
-      }
-
-      const machineStatus = await ctx.db
-        .query('chatroom_machineStatus')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-
-      statuses.push({
-        machineId,
-        connected: machineStatus?.status === 'online',
-      });
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return { machines: [] };
     }
 
-    return { statuses };
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return {
+      machines: await Promise.all(
+        machines.map(async (machine) => {
+          const machineStatus = await ctx.db
+            .query('chatroom_machineStatus')
+            .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+            .first();
+
+          return {
+            machineId: machine.machineId,
+            connected: machineStatus?.status === 'online',
+          };
+        })
+      ),
+    };
   },
 });
 

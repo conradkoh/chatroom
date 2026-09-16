@@ -110,7 +110,7 @@ export function useWorkspaceAgentControlData() {
     () => (result?.machines ?? []) as MachineInfo[],
     [result?.machines]
   );
-  const daemonConnectivity = useDaemonConnectivity(machines.map((machine) => machine.machineId));
+  const daemonConnectivity = useDaemonConnectivity();
 
   return {
     machines,
