@@ -349,11 +349,7 @@ const MachineRow = memo(function MachineRow({
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Connectivity and heartbeat timestamp share one getDaemonStatus subscription.
-  const { isConnected: daemonConnected, lastSeenAt: daemonLastSeenAt } = useDaemonConnected(
-    machine.machineId
-  );
-  const lastSeenAt = daemonLastSeenAt ?? 0;
+  const { isConnected: daemonConnected } = useDaemonConnected(machine.machineId);
 
   const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
 
@@ -461,11 +457,6 @@ const MachineRow = memo(function MachineRow({
           {daemonConnected ? 'online' : 'offline'} · {machine.os}
         </div>
       </div>
-      {lastSeenAt ? (
-        <div className="text-[10px] text-chatroom-text-muted flex-shrink-0">
-          {new Date(lastSeenAt).toLocaleTimeString()}
-        </div>
-      ) : null}
     </div>
   );
 });

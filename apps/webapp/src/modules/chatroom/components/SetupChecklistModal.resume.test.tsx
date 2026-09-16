@@ -136,8 +136,8 @@ describe('SetupChecklistModal resume', () => {
     });
     mockUseDaemonConnectivity.mockReturnValue(
       new Map([
-        ['m1', { connected: true, lastSeenAt: 1 }],
-        ['m2', { connected: false, lastSeenAt: 1 }],
+        ['m1', { connected: true }],
+        ['m2', { connected: false }],
       ])
     );
     mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [], isLoading: false });

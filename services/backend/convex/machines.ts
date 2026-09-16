@@ -658,7 +658,7 @@ export const getDaemonStatus = query({
   handler: async (ctx, args) => {
     const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) {
-      return { connected: false, lastSeenAt: null };
+      return { connected: false };
     }
 
     // Read status from materialized machineStatus table
@@ -667,16 +667,7 @@ export const getDaemonStatus = query({
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
 
-    // Read lastSeenAt from liveness table (updated at most every DAEMON_LIVENESS_WRITE_INTERVAL_MS)
-    const liveness = await ctx.db
-      .query('chatroom_machineLiveness')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    return {
-      connected: machineStatus?.status === 'online',
-      lastSeenAt: liveness?.lastSeenAt ?? 0,
-    };
+    return { connected: machineStatus?.status === 'online' };
   },
 });
 
@@ -693,13 +684,12 @@ export const getDaemonStatusesBatch = query({
     const statuses: {
       machineId: string;
       connected: boolean;
-      lastSeenAt: number | null;
     }[] = [];
 
     for (const machineId of machineIds) {
       const auth = await getMachineOwner(ctx, args.sessionId, machineId);
       if (!auth) {
-        statuses.push({ machineId, connected: false, lastSeenAt: null });
+        statuses.push({ machineId, connected: false });
         continue;
       }
 
@@ -708,15 +698,9 @@ export const getDaemonStatusesBatch = query({
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
 
-      const liveness = await ctx.db
-        .query('chatroom_machineLiveness')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-
       statuses.push({
         machineId,
         connected: machineStatus?.status === 'online',
-        lastSeenAt: liveness?.lastSeenAt ?? null,
       });
     }
 

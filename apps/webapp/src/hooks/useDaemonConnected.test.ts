@@ -1,6 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { DAEMON_HEARTBEAT_TTL_MS } from '@workspace/backend/config/reliability';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useDaemonConnected } from './useDaemonConnected';
 
@@ -10,12 +9,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: mockUseSessionQuery,
 }));
 
-const NOW = 1_700_000_000_000;
-
 describe('useDaemonConnected', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW);
     mockUseSessionQuery.mockReset();
   });
 
@@ -28,45 +23,32 @@ describe('useDaemonConnected', () => {
 
     const { result } = renderHook(() => useDaemonConnected('machine-a'));
 
-    expect(result.current).toEqual({
-      isConnected: false,
-      isLoading: true,
-      lastSeenAt: null,
-    });
+    expect(result.current).toEqual({ isConnected: false, isLoading: true });
   });
 
-  it('returns connected status and the source timestamp for a fresh online daemon', () => {
-    const lastSeenAt = NOW - 1_000;
-    mockUseSessionQuery.mockReturnValue({ connected: true, lastSeenAt });
+  it('returns connected status for an online daemon', () => {
+    mockUseSessionQuery.mockReturnValue({ connected: true });
 
     const { result } = renderHook(() => useDaemonConnected('machine-a'));
 
-    expect(result.current).toEqual({ isConnected: true, isLoading: false, lastSeenAt });
+    expect(result.current).toEqual({ isConnected: true, isLoading: false });
   });
 
-  it('marks an old online daemon disconnected while preserving its timestamp', () => {
-    const lastSeenAt = NOW - DAEMON_HEARTBEAT_TTL_MS - 1;
-    mockUseSessionQuery.mockReturnValue({ connected: true, lastSeenAt });
+  it('returns disconnected status for an offline daemon', () => {
+    mockUseSessionQuery.mockReturnValue({ connected: false });
 
     const { result } = renderHook(() => useDaemonConnected('machine-a'));
 
-    expect(result.current).toEqual({ isConnected: false, isLoading: false, lastSeenAt });
+    expect(result.current).toEqual({ isConnected: false, isLoading: false });
   });
 
-  it('returns an offline daemon status and its timestamp', () => {
-    const lastSeenAt = NOW - 60_000;
-    mockUseSessionQuery.mockReturnValue({ connected: false, lastSeenAt });
+  it('does not apply client-side timestamp staleness to an online result', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-01-01T00:00:00.000Z'));
+    mockUseSessionQuery.mockReturnValue({ connected: true });
 
     const { result } = renderHook(() => useDaemonConnected('machine-a'));
 
-    expect(result.current).toEqual({ isConnected: false, isLoading: false, lastSeenAt });
-  });
-
-  it('returns null when an offline daemon has no liveness timestamp', () => {
-    mockUseSessionQuery.mockReturnValue({ connected: false, lastSeenAt: null });
-
-    const { result } = renderHook(() => useDaemonConnected('machine-a'));
-
-    expect(result.current).toEqual({ isConnected: false, isLoading: false, lastSeenAt: null });
+    expect(result.current).toEqual({ isConnected: true, isLoading: false });
   });
 });

@@ -34,11 +34,8 @@ describe('getDaemonStatusesBatch', () => {
     const status2 = result.statuses.find((s) => s.machineId === machineId2);
     if (!status1 || !status2) throw new Error('expected statuses for both machines');
 
-    expect(status1.connected).toBe(true);
-    expect(status1.lastSeenAt).toBeTypeOf('number');
-
-    expect(status2.connected).toBe(true);
-    expect(status2.lastSeenAt).toBeTypeOf('number');
+    expect(status1).toEqual({ machineId: machineId1, connected: true });
+    expect(status2).toEqual({ machineId: machineId2, connected: true });
   });
 
   test('unauthorized machine ID returns connected: false', async () => {
@@ -61,10 +58,11 @@ describe('getDaemonStatusesBatch', () => {
     const unauthorizedStatus = result.statuses.find((s) => s.machineId === unauthorizedMachineId);
     if (!ownedStatus || !unauthorizedStatus) throw new Error('expected statuses for both machines');
 
-    expect(ownedStatus.connected).toBe(true);
-
-    expect(unauthorizedStatus.connected).toBe(false);
-    expect(unauthorizedStatus.lastSeenAt).toBe(null);
+    expect(ownedStatus).toEqual({ machineId: ownedMachineId, connected: true });
+    expect(unauthorizedStatus).toEqual({
+      machineId: unauthorizedMachineId,
+      connected: false,
+    });
   });
 
   test('truncates to MAX_DAEMON_STATUS_BATCH (10) machines', async () => {
@@ -87,6 +85,9 @@ describe('getDaemonStatusesBatch', () => {
     expect(result.statuses).toHaveLength(10);
     expect(result.statuses[0].machineId).toBe(machineIds[0]);
     expect(result.statuses[9].machineId).toBe(machineIds[9]);
+    expect(result.statuses).toEqual(
+      machineIds.slice(0, 10).map((machineId) => ({ machineId, connected: true }))
+    );
   });
 
   test('empty machineIds returns empty statuses', async () => {
