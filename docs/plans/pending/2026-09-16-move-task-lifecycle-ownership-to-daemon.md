@@ -222,3 +222,36 @@ Backend no longer transitions task state from `agent.exited` facts. `onAgentExit
 | Daemon crash / power loss | No exited facts emitted today either (the fact producer is the crashed daemon) — pre-existing gap, closed by plan A1/A5 (durable store + daemon-side requeue) | open, unchanged ⬜ |
 
 Owner note: the shutdown release is a compensating change added during this task (not explicitly dictated) to avoid regressing graceful-shutdown recovery; veto or rehome it freely. Fallow pre-commit reports pre-existing clone groups + CRITICAL complexity in `cli-gateway-service` handoff — deferred tech debt (aligned with reviewer F6).
+
+## Sqlite handoff repository (A1 first slice — validation criteria)
+
+The daemon task service gains a durable, sqlite-backed handoff repository so
+handoff state survives daemon restarts, and in-flight task recovery becomes a
+deterministic daemon-owned rule keyed on that durable state — replacing the
+removed Convex exit-release (R1/R2) for the daemon-crash row of the recovery
+matrix above. Owner decisions (confirmed 2026-09-17): bootstrap sweep is in
+scope this round; implemented via worker + reviewer delegation; a sqlite write
+failure after a committed handoff logs a distinct failure and still returns
+success (the backend commit is the source of truth).
+
+### Repository
+
+| #   | Boundary                     | Criterion                                                                                                                                                                                                                                        | Verify                                                     | Done |
+| --- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ---- |
+| V22 | daemon · task-service        | A sqlite-backed handoff repository, owned by the task service, persists the latest handoff per `(chatroomId, role)`: handed-off task(s), adopted next task, target role, timestamp. File lives under the daemon sqlite pattern (`~/.chatroom/daemon/<machine>/`); schema is minimal and documented. | repository unit test (upsert/read semantics); no backend diff   | ⬜   |
+| V23 | daemon · restart persistence | The durable handoff record survives a daemon restart; after restart the bootstrap sweep can read the pre-restart handoff state.                                                                                                                                                 | restart integration test (write → new repository instance → read)| ⬜   |
+
+### Durable write path (CLI gateway)
+
+| #   | Boundary                     | Criterion                                                                                                                                                                                                                                        | Verify                                                     | Done |
+| --- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ---- |
+| V24 | cli-gateway → task-service   | On a successful gateway handoff, the durable sqlite write completes BEFORE the CLI command returns success — the response is held until the write completes; ordering is backend commit → durable write → in-memory update → response.                 | gateway test asserting ordering (sqlite write awaited before result resolves) | ⬜   |
+| V25 | cli-gateway                  | A sqlite write failure after a committed handoff logs a distinct failure line and still returns success (backend commit is the source of truth; no retryable failure reported for committed handoffs).                                                    | gateway test (sqlite write throws → success + distinct log)     | ⬜   |
+
+### Release rule (replaces the removed Convex exit-release)
+
+| #   | Boundary                     | Criterion                                                                                                                                                                                                                                        | Verify                                                     | Done |
+| --- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ---- |
+| V26 | daemon · agent-work-manager  | On every agent turn end (completed or failed), if an active task exists whose latest durable handoff does not cover it, the daemon releases it via the scoped `releaseTaskAfterTurnFailure` path (→ pending → redelivered by reconcile). A handoff that covers the task produces no release; no active task produces nothing. | work-manager tests: turn-end no-handoff → released; handoff covers → no release; no active task → nothing | ⬜   |
+| V27 | daemon · bootstrap           | On daemon bootstrap, in_progress tasks whose latest durable handoff does not cover them are released via the same scoped path (closes the daemon-crash row of the recovery matrix — the last Convex exit-release replacement).                          | bootstrap sweep test (uncovered in_progress → released; covered → untouched) | ⬜   |
+| V28 | scope                        | No `services/backend` changes; the release rule reuses the existing scoped mutation; the CLI handoff backend mutation stays unchanged (R6 undictated).                                                                                                    | `git diff` scope check                                          | ⬜   |
