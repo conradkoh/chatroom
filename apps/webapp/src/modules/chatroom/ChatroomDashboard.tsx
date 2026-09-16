@@ -126,7 +126,6 @@ import { resolveWorkspaceFileLinkOpenTarget } from './workspace/utils/workspaceF
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { PromptsProvider } from '@/contexts/PromptsContext';
-import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { exhaustive } from '@/lib/exhaustive';
@@ -1312,7 +1311,6 @@ function ChatroomDashboardContent({
   }, []);
 
   // ─── Workspace context for command palette actions ─────────────────────────
-  const { isConnected: isLocalWorkspace } = useDaemonConnected(activeWorkspace?.machineId ?? null);
   const sendAction = useSendLocalAction();
   const gitState = useWorkspaceGit(
     activeWorkspace?.machineId ?? '',
@@ -1584,9 +1582,9 @@ function ChatroomDashboardContent({
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
     onCreateNewChatroom: handleCreateNewChatroom,
     onOpenFileSelector: handleOpenFileSelector,
-    onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
-    onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
-    onOpenDaemonLogs: isLocalWorkspace ? handleOpenDaemonLogs : null,
+    onOpenInVSCode: handleOpenInVSCode,
+    onOpenInGitHubDesktop: handleOpenInGitHubDesktop,
+    onOpenDaemonLogs: handleOpenDaemonLogs,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
     onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,

@@ -48,8 +48,8 @@ const WorkspaceWatcher = memo(function WorkspaceWatcher({
  * Renders one invisible WorkspaceWatcher per workspace.
  * Aggregates their command items and reports the combined list via `onCommandsChange`.
  *
- * This pattern allows each workspace to call its own React hooks
- * (`useWorkspaceGit`, `useDaemonConnected`) while respecting the rules of hooks.
+ * This pattern allows each workspace to call its own React hooks (`useWorkspaceGit`)
+ * while respecting the rules of hooks.
  */
 export const WorkspaceCommandsAggregator = memo(function WorkspaceCommandsAggregator({
   workspaces,
