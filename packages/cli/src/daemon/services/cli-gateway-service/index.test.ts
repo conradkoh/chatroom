@@ -90,6 +90,36 @@ describe('CLI gateway service', () => {
     });
   });
 
+  test('clears sender tasks and returns success when post-commit adoption fails', async () => {
+    const events: string[] = [];
+    const recordHandoffOutcome = vi.fn(() => events.push('task-service'));
+    const logs: string[] = [];
+    const service = createCliGatewayService({
+      backend: {
+        mutation: vi.fn(async () => ({ success: true, newTaskId: 'task-next' })),
+      } as never,
+      port: 18765,
+      taskService: {
+        loadAssignedTaskForAction: vi.fn(async () => {
+          events.push('load');
+          throw new Error('adoption failed');
+        }),
+        recordHandoffOutcome,
+      },
+      log: (line) => logs.push(line),
+    });
+
+    await expect(service.handoff(args)).resolves.toMatchObject({ success: true });
+    expect(events).toEqual(['load', 'task-service']);
+    expect(recordHandoffOutcome).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'planner',
+    });
+    expect(logs).toContain(
+      '[CliGateway:post-commit sync failure chatroom=room-1 error=adoption failed]'
+    );
+  });
+
   test('logs and rethrows backend failures', async () => {
     const error = new Error('backend unavailable');
     const logs: string[] = [];

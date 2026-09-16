@@ -36,23 +36,43 @@ export function createCliGatewayService(deps: {
       writeLog(`backend result success=${result.success}`);
       if (result.success) {
         let nextTask: AssignedTask | undefined;
-        if (result.newTaskId && args.targetRole.toLowerCase() !== 'user') {
-          nextTask =
-            (await deps.taskService.loadAssignedTaskForAction({
-              chatroomId: args.chatroomId,
-              role: args.targetRole,
-              taskId: result.newTaskId,
-            })) ?? undefined;
+        let senderCleanupNeeded = false;
+        try {
+          if (result.newTaskId && args.targetRole.toLowerCase() !== 'user') {
+            nextTask =
+              (await deps.taskService.loadAssignedTaskForAction({
+                chatroomId: args.chatroomId,
+                role: args.targetRole,
+                taskId: result.newTaskId,
+              })) ?? undefined;
+          }
+          deps.taskService.recordHandoffOutcome({
+            chatroomId: args.chatroomId,
+            role: args.senderRole,
+            nextTask,
+          });
+          senderCleanupNeeded = true;
+          writeLog(
+            `task-service updated chatroom=${args.chatroomId} role=${args.senderRole}` +
+              (nextTask ? ` adopted=${nextTask.taskId}` : '')
+          );
+        } catch (error) {
+          writeLog(
+            `post-commit sync failure chatroom=${args.chatroomId} error=${error instanceof Error ? error.message : String(error)}`
+          );
+          if (!senderCleanupNeeded) {
+            try {
+              deps.taskService.recordHandoffOutcome({
+                chatroomId: args.chatroomId,
+                role: args.senderRole,
+              });
+            } catch (cleanupError) {
+              writeLog(
+                `post-commit cleanup failure chatroom=${args.chatroomId} error=${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+              );
+            }
+          }
         }
-        deps.taskService.recordHandoffOutcome({
-          chatroomId: args.chatroomId,
-          role: args.senderRole,
-          nextTask,
-        });
-        writeLog(
-          `task-service updated chatroom=${args.chatroomId} role=${args.senderRole}` +
-            (nextTask ? ` adopted=${nextTask.taskId}` : '')
-        );
       }
       return result;
     },

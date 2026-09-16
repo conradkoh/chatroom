@@ -110,8 +110,8 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
         if (!deps.debugState) throw new Error('daemon debug state is not configured');
         const { chatroomId } = debugStateInputSchema.parse(payload ?? {});
         const data = await deps.debugState(chatroomId);
-        if (data && typeof data === 'object') {
-          (data as Record<string, unknown>).cliGateway = deps.cliGateway?.debugState() ?? null;
+        if (data && typeof data === 'object' && deps.cliGateway) {
+          (data as Record<string, unknown>).cliGateway = deps.cliGateway.debugState();
         }
         callAck(ack, { ok: true, data });
       } catch (err) {

@@ -17,6 +17,7 @@ import { ConvexError } from 'convex/values';
 import { Effect } from 'effect';
 
 import type { HandoffDeps } from './deps.js';
+import { LocalDaemonServerError } from '../../commands/diagnostics/local-daemon.js';
 import { createLocalHandoffGateway } from '../../infrastructure/cli-gateway/local-handoff-gateway.js';
 import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import {
@@ -110,6 +111,8 @@ export const handoffEffect = (
         let errorData: { code?: string | undefined; message?: string | undefined } | undefined;
         if (cause instanceof ConvexError) {
           errorData = cause.data as { code?: string | undefined; message?: string | undefined };
+        } else if (cause instanceof LocalDaemonServerError && cause.details) {
+          errorData = cause.details as { code?: string | undefined; message?: string | undefined };
         }
         return { _tag: 'HandoffFailed', cause, errorData };
       })

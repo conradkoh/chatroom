@@ -4,6 +4,7 @@ import { createLocalHandoffGateway } from './local-handoff-gateway.js';
 import { requestLocalDaemon } from '../../commands/diagnostics/local-daemon.js';
 
 vi.mock('../../commands/diagnostics/local-daemon.js', () => ({
+  LocalDaemonServerError: class LocalDaemonServerError extends Error {},
   requestLocalDaemon: vi.fn(),
 }));
 vi.mock('../../daemon/entry/resolve-local-web-port.js', () => ({

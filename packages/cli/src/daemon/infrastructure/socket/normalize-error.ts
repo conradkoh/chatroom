@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import { ZodError } from 'zod';
 
 import type { AppError } from '../../domain/entities/app-error.js';
@@ -9,6 +10,14 @@ export function normalizeError(err: unknown): AppError {
       code: 'validation_error',
       message: 'Invalid request payload',
       details: err.flatten(),
+    };
+  }
+  if (err instanceof ConvexError) {
+    const data = err.data as { code?: string; message?: string };
+    return {
+      code: (data.code ?? 'internal_error') as AppError['code'],
+      message: data.message ?? err.message,
+      details: err.data,
     };
   }
   if (err instanceof Error) {
