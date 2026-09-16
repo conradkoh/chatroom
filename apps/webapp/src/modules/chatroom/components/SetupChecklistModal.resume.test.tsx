@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SetupChecklistModal } from './SetupChecklistModal';
 
 const mockUseChatroomWorkspaces = vi.fn();
-const mockUseAgentPanelData = vi.fn();
+const mockUseUserMachines = vi.fn();
+const mockUseAgentConfigs = vi.fn();
+const mockUseAgentCommandSender = vi.fn();
 const mockUseDaemonConnectivity = vi.fn();
 const mockSetupWorkspaceStep = vi.fn();
 
@@ -13,8 +15,16 @@ vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: (...args: unknown[]) => mockUseChatroomWorkspaces(...args),
 }));
 
-vi.mock('../hooks/useAgentPanelData', () => ({
-  useAgentPanelData: (...args: unknown[]) => mockUseAgentPanelData(...args),
+vi.mock('../hooks/useAgentCommandSender', () => ({
+  useAgentCommandSender: (...args: unknown[]) => mockUseAgentCommandSender(...args),
+}));
+
+vi.mock('../hooks/useAgentConfigs', () => ({
+  useAgentConfigs: (...args: unknown[]) => mockUseAgentConfigs(...args),
+}));
+
+vi.mock('@/hooks/useUserMachines', () => ({
+  useUserMachines: (...args: unknown[]) => mockUseUserMachines(...args),
 }));
 
 vi.mock('@/hooks/useDaemonConnectivity', () => ({
@@ -72,13 +82,15 @@ describe('SetupChecklistModal resume', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseDaemonConnectivity.mockReturnValue(new Map());
-    mockUseAgentPanelData.mockReturnValue({
+    mockUseUserMachines.mockReturnValue({
       machines: [],
-      machineConfigs: [],
       isLoading: false,
-      sendCommand: vi.fn(),
-      agents: [],
     });
+    mockUseAgentConfigs.mockReturnValue({
+      isLoading: false,
+      configs: [],
+    });
+    mockUseAgentCommandSender.mockReturnValue(vi.fn());
   });
 
   it('opens on agents step when a workspace is already registered', () => {
@@ -117,22 +129,17 @@ describe('SetupChecklistModal resume', () => {
       machineId: 'm1',
       hostname: 'connected-host',
       os: 'darwin',
-      availableHarnesses: ['opencode-sdk'],
-      harnessVersions: {},
+      registeredAt: 1,
     };
     const offlineMachine = {
       machineId: 'm2',
       hostname: 'offline-host',
       os: 'darwin',
-      availableHarnesses: ['opencode-sdk'],
-      harnessVersions: {},
+      registeredAt: 2,
     };
-    mockUseAgentPanelData.mockReturnValue({
+    mockUseUserMachines.mockReturnValue({
       machines: [connectedMachine, offlineMachine],
-      machineConfigs: [],
       isLoading: false,
-      sendCommand: vi.fn(),
-      agents: [],
     });
     mockUseDaemonConnectivity.mockReturnValue(
       new Map([

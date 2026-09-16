@@ -4,7 +4,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SetupAgentTeamStep } from './SetupAgentTeamStep';
-import type { AgentConfig, MachineInfo, SendCommandFn } from '../../types/machine';
+import type { AgentConfig, UserMachine, SendCommandFn } from '../../types/machine';
 
 vi.mock('../../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({
@@ -58,6 +58,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
     },
     machines: {
+      getMachineCapabilities: 'machines:getMachineCapabilities',
       getMachineModels: 'machines:getMachineModels',
       getMachineModelFilters: 'machines:getMachineModelFilters',
       upsertMachineModelFilters: 'machines:upsertMachineModelFilters',
@@ -74,6 +75,14 @@ vi.mock('../../../../hooks/useMachineModels', () => ({
       'cursor-sdk': ['cursor-sdk/claude-sonnet', 'cursor-sdk/gpt-4o'],
       opencode: ['opencode/claude-sonnet'],
     },
+    isLoading: false,
+  }),
+}));
+
+vi.mock('../../../../hooks/useMachineCapabilities', () => ({
+  useMachineCapabilities: () => ({
+    availableHarnesses: ['cursor-sdk', 'opencode'],
+    harnessVersions: {},
     isLoading: false,
   }),
 }));
@@ -100,13 +109,12 @@ const CHATROOM_ID = 'jd7testchatroom0000000000000001';
 const MACHINE_ID = 'machine-setup-test';
 const WORKING_DIR = '/tmp/workspace';
 
-function mkMachine(): MachineInfo {
+function mkMachine(): UserMachine {
   return {
     machineId: MACHINE_ID,
     hostname: 'dev-mac',
     os: 'darwin',
-    availableHarnesses: ['cursor-sdk', 'opencode'],
-    harnessVersions: {},
+    registeredAt: 1,
   };
 }
 
@@ -123,11 +131,10 @@ function renderSetupStep(overrides?: Partial<React.ComponentProps<typeof SetupAg
       participants={[]}
       machineId={MACHINE_ID}
       workingDir={WORKING_DIR}
-      connectedMachines={[mkMachine()]}
+      machines={[mkMachine()]}
       isLoadingMachines={false}
       agentConfigs={[] as AgentConfig[]}
       sendCommand={sendCommand}
-      agentRoleViews={[]}
       onAllAgentsStarted={onAllAgentsStarted}
       onBack={onBack}
       {...overrides}

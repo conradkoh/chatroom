@@ -5,14 +5,21 @@ import { AgentRoleLifecycleTag, getPermanentRoleNames } from '@workspace/shared/
 import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { AgentRoleView } from '../../hooks/useAgentPanelData';
-import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
+import type {
+  MachineInfo,
+  UserMachine,
+  AgentConfig,
+  SendCommandFn,
+  AgentHarness,
+} from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 import { getFailedAgentRoles } from '../../utils/agentBulkStart';
 import { startAgentsBatch } from '../../utils/agentStart';
 import { countJoinedRoles } from '../../utils/countJoinedRoles';
 import { AgentControlDataProvider } from '../AgentPanel/AgentControlDataContext';
 import { InlineAgentCard } from '../AgentPanel/InlineAgentCard';
+
+import { useMachineCapabilities } from '@/hooks/useMachineCapabilities';
 
 interface Participant {
   role: string;
@@ -27,11 +34,10 @@ interface SetupAgentTeamStepProps {
   participants: Participant[];
   machineId: string;
   workingDir: string;
-  connectedMachines: MachineInfo[];
+  machines: UserMachine[];
   isLoadingMachines: boolean;
   agentConfigs: AgentConfig[];
   sendCommand: SendCommandFn;
-  agentRoleViews: AgentRoleView[];
   onAllAgentsStarted: () => void;
   onBack: () => void;
 }
@@ -45,7 +51,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   participants,
   machineId,
   workingDir,
-  connectedMachines,
+  machines,
   isLoadingMachines,
   agentConfigs,
   sendCommand,
@@ -58,10 +64,14 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     Map<string, { harness: AgentHarness; model: string }>
   >(() => new Map());
 
-  const machine = useMemo(
-    () => connectedMachines.find((m) => m.machineId === machineId) ?? null,
-    [connectedMachines, machineId]
-  );
+  const { availableHarnesses, harnessVersions } = useMachineCapabilities(machineId);
+  const lockedMachine = useMemo<MachineInfo | null>(() => {
+    const base = machines.find((m) => m.machineId === machineId);
+    if (!base) return null;
+    return { ...base, availableHarnesses, harnessVersions };
+  }, [machines, machineId, availableHarnesses, harnessVersions]);
+
+  const machine = lockedMachine;
 
   const persistentTeamRoles = useMemo(() => getPermanentRoleNames(teamRoles), [teamRoles]);
 
@@ -161,7 +171,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
         </div>
         <AgentControlDataProvider
           value={{
-            machines: connectedMachines,
+            machines: lockedMachine ? [lockedMachine] : [],
             daemonConnectivity: new Map(),
             isLoadingMachines,
             agentConfigs,

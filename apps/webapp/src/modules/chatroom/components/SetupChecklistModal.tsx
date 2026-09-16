@@ -8,8 +8,9 @@ import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
 
 import { SetupAgentTeamStep } from './setup/SetupAgentTeamStep';
 import { SetupWorkspaceStep } from './setup/SetupWorkspaceStep';
-import { useAgentPanelData } from '../hooks/useAgentPanelData';
-import type { MachineInfo } from '../types/machine';
+import { useAgentCommandSender } from '../hooks/useAgentCommandSender';
+import { useAgentConfigs } from '../hooks/useAgentConfigs';
+import type { UserMachine } from '../types/machine';
 import { countJoinedRoles } from '../utils/countJoinedRoles';
 import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
 import { pickSetupWorkspace } from '../utils/pickSetupWorkspace';
@@ -23,6 +24,7 @@ import {
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
 import { useDaemonConnectivity } from '@/hooks/useDaemonConnectivity';
+import { useUserMachines } from '@/hooks/useUserMachines';
 
 interface Participant {
   role: string;
@@ -44,8 +46,8 @@ interface SetupChecklistModalProps {
 type SetupStep = 'workspace' | 'agents';
 
 interface SetupMachineConnectivityProps {
-  machines: MachineInfo[];
-  children: (connectedMachines: MachineInfo[]) => React.ReactNode;
+  machines: UserMachine[];
+  children: (connectedMachines: UserMachine[]) => React.ReactNode;
 }
 
 // Keep this helper beneath FixedModal so Base UI unmounts the connectivity subscription
@@ -91,13 +93,11 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   const [setupWorkingDir, setSetupWorkingDir] = useState<string | null>(null);
 
   const registerWorkspace = useSessionMutation(api.workspaces.registerWorkspace);
-  const {
-    machines,
-    machineConfigs,
-    isLoading,
-    sendCommand,
-    agents: agentRoleViews,
-  } = useAgentPanelData();
+  const { machines: userMachines, isLoading: isLoadingMachines } = useUserMachines();
+  const { configs: machineConfigs, isLoading: isLoadingConfigs } = useAgentConfigs(chatroomId, {
+    enabled: true,
+  });
+  const sendCommand = useAgentCommandSender();
   const { workspaces: chatroomWorkspaces, isLoading: isLoadingWorkspaces } =
     useChatroomWorkspaces(chatroomId);
 
@@ -131,7 +131,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   );
 
   const handleConfirmWorkspace = useCallback(
-    async (machineId: string, workingDir: string, connectedMachines: MachineInfo[]) => {
+    async (machineId: string, workingDir: string, connectedMachines: UserMachine[]) => {
       const machine = connectedMachines.find((m) => m.machineId === machineId);
       await registerWorkspace({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -167,7 +167,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl">
-      <SetupMachineConnectivity machines={machines}>
+      <SetupMachineConnectivity machines={userMachines}>
         {/* fallow-ignore-next-line complexity */}
         {(connectedMachines) => (
           <FixedModalContent>
@@ -196,7 +196,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
               ) : step === 'workspace' ? (
                 <SetupWorkspaceStep
                   connectedMachines={connectedMachines}
-                  isLoadingMachines={isLoading}
+                  isLoadingMachines={isLoadingMachines}
                   onConfirm={(machineId, workingDir) =>
                     handleConfirmWorkspace(machineId, workingDir, connectedMachines)
                   }
@@ -210,11 +210,10 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
                   participants={participants}
                   machineId={setupMachineId}
                   workingDir={setupWorkingDir}
-                  connectedMachines={connectedMachines}
-                  isLoadingMachines={isLoading}
+                  machines={connectedMachines}
+                  isLoadingMachines={isLoadingMachines || isLoadingConfigs}
                   agentConfigs={machineConfigs}
                   sendCommand={sendCommand}
-                  agentRoleViews={agentRoleViews}
                   onAllAgentsStarted={handleAllAgentsStarted}
                   onBack={handleBackToWorkspace}
                 />

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect } from 'react';
 
-import type { MachineInfo } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 
 import { useFolderPicker } from '@/hooks/useFolderPicker';
@@ -11,7 +10,7 @@ type FolderPickerRequest = NonNullable<ReturnType<typeof useFolderPicker>['reque
 
 interface UseSetupWorkspaceFolderPickerOptions {
   selectedMachineId: string | null;
-  selectedMachine: MachineInfo | null;
+  selectedMachine: { hostname: string; alias?: string } | null;
   onPathSelected: (path: string) => void;
   setError: (error: string | null) => void;
 }
