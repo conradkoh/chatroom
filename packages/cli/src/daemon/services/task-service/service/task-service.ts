@@ -31,7 +31,6 @@ import {
   createConvexNativeTaskDeliveryGateway,
 } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import {
-  createInMemoryTaskHandoffRepository,
   type TaskHandoffRepository,
   type TaskHandoffRecord,
 } from '../infrastructure/repository/task-handoff-repository.js';
@@ -158,12 +157,12 @@ export interface TaskServiceCompositionDependencies extends NativeDeliverySessio
   /** Daemon-local source of the latest agent harness/model/workingDir config. */
   configurationService: AgentConfigRegistry;
   /** Durable latest-handoff repository owned by this task service. */
-  handoffRepository?: TaskHandoffRepository;
+  handoffRepository: TaskHandoffRepository;
 }
 
 export function createTaskService(deps: TaskServiceCompositionDependencies): TaskService {
   const gateway = createConvexNativeTaskDeliveryGateway(deps.backend);
-  const handoffRepository = deps.handoffRepository ?? createInMemoryTaskHandoffRepository();
+  const handoffRepository = deps.handoffRepository;
 
   const taskInboxState = new TaskInboxState();
   const listeners = new Set<TaskServiceListener>();
@@ -176,29 +175,70 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const scheduledEventIds = new Set<string>();
   const deliveredEventIds = new Set<string>();
   const taskChains = new Map<string, Promise<void>>();
+  const maxBootstrapSweepFailures = 3;
+  let bootstrapSweepPending = true;
+  let bootstrapSweepFailures = 0;
+  let bootstrapSweepInFlight = false;
+  let bootstrapSweepPromise: Promise<void> | undefined;
 
   const sweepUncoveredInProgressTasks = async (): Promise<number> => {
     let released = 0;
+    let failures = 0;
     for (const task of taskInboxState.listAll()) {
       if (task.status !== 'in_progress') continue;
-      const handoff = await handoffRepository.getLatest(task.chatroomId, task.agentConfig.role);
-      if (handoff?.taskIds.includes(task.taskId)) continue;
-      const result = await gateway.releaseTaskAfterTurnFailure({
-        sessionId: deps.sessionId,
-        chatroomId: task.chatroomId,
-        role: task.agentConfig.role,
-        taskId: task.taskId,
-      });
-      taskInboxState.markStatus(
-        task.chatroomId,
-        task.agentConfig.role,
-        task.taskId,
-        result.status,
-        result.updatedAt
-      );
-      released += 1;
+      try {
+        const handoff = await handoffRepository.getLatest(task.chatroomId, task.agentConfig.role);
+        if (handoff?.taskIds.includes(task.taskId)) continue;
+        const result = await gateway.releaseTaskAfterTurnFailure({
+          sessionId: deps.sessionId,
+          chatroomId: task.chatroomId,
+          role: task.agentConfig.role,
+          taskId: task.taskId,
+        });
+        taskInboxState.markStatus(
+          task.chatroomId,
+          task.agentConfig.role,
+          task.taskId,
+          result.status,
+          result.updatedAt
+        );
+        released += 1;
+      } catch (error) {
+        failures += 1;
+        console.warn(
+          `[TaskService] bootstrap task release failed chatroom=${task.chatroomId} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     }
+    if (failures > 0) throw new Error(`${failures} bootstrap task release(s) failed`);
     return released;
+  };
+
+  const runBootstrapSweep = (): Promise<void> => {
+    if (!bootstrapSweepPending) return Promise.resolve();
+    if (bootstrapSweepInFlight) return bootstrapSweepPromise ?? Promise.resolve();
+    bootstrapSweepInFlight = true;
+    bootstrapSweepPromise = sweepUncoveredInProgressTasks()
+      .then(() => {
+        bootstrapSweepPending = false;
+        bootstrapSweepFailures = 0;
+      })
+      .catch((error) => {
+        bootstrapSweepFailures += 1;
+        if (bootstrapSweepFailures >= maxBootstrapSweepFailures) {
+          bootstrapSweepPending = false;
+          console.warn('[TaskService] bootstrap sweep giving up after 3 failed attempts');
+        } else {
+          console.warn(
+            `[TaskService] bootstrap sweep failed (attempt ${bootstrapSweepFailures}/3): ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      })
+      .finally(() => {
+        bootstrapSweepInFlight = false;
+        bootstrapSweepPromise = undefined;
+      });
+    return bootstrapSweepPromise;
   };
 
   const notifyForDelivery = async (
@@ -350,6 +390,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const reconcileTaskStatuses = (tasks: readonly AssignedTask[]): void => {
     taskInboxState.reconcileStatuses(tasks);
+    runBootstrapSweep();
     for (const task of tasks) {
       if (task.status === 'pending' || task.status === 'acknowledged') {
         pendingTaskReconciliationWatcher.watch(task);
@@ -393,8 +434,9 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           machineId: deps.machineId,
         });
         reconcileTaskStatuses(statusTasks);
-        await sweepUncoveredInProgressTasks();
+        await runBootstrapSweep();
       } catch (error) {
+        bootstrapSweepPending = true;
         console.warn('[TaskService] task-status bootstrap failed:', error);
       }
       if (wsClient && !stopInboxWatch) {

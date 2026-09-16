@@ -15,6 +15,7 @@ const nextTask: AssignedTaskWithContent = {
 };
 
 function createService(result: Record<string, unknown>, events: string[]) {
+  const listTasksForRole = vi.fn(() => [{ taskId: 'task-before', status: 'in_progress' }]);
   const mutation = vi.fn(async () => {
     events.push('backend');
     return result;
@@ -30,10 +31,17 @@ function createService(result: Record<string, unknown>, events: string[]) {
   const service = createCliGatewayService({
     backend: { mutation } as never,
     port: 18765,
-    taskService: { loadAssignedTaskForAction, recordHandoffOutcome },
+    taskService: { loadAssignedTaskForAction, recordHandoffOutcome, listTasksForRole },
     log: (line) => logs.push(line),
   });
-  return { service, mutation, loadAssignedTaskForAction, recordHandoffOutcome, logs };
+  return {
+    service,
+    mutation,
+    loadAssignedTaskForAction,
+    recordHandoffOutcome,
+    listTasksForRole,
+    logs,
+  };
 }
 
 const args = {
@@ -66,6 +74,7 @@ describe('CLI gateway service', () => {
       role: 'planner',
       targetRole: 'builder',
       nextTask,
+      taskIds: ['task-before'],
     });
     expect(logs).toEqual([
       '[CliGateway:request handoff chatroom=room-1 role=planner]',
@@ -89,6 +98,7 @@ describe('CLI gateway service', () => {
       role: 'planner',
       targetRole: 'user',
       nextTask: undefined,
+      taskIds: ['task-before'],
     });
   });
 
@@ -122,6 +132,66 @@ describe('CLI gateway service', () => {
     });
     expect(logs).toContain(
       '[CliGateway:post-commit sync failure chatroom=room-1 error=adoption failed]'
+    );
+  });
+
+  test('does not resolve until durable handoff persistence completes', async () => {
+    const events: string[] = [];
+    let resolveDurable!: () => void;
+    const durable = new Promise<void>((resolve) => {
+      resolveDurable = resolve;
+    });
+    const service = createCliGatewayService({
+      backend: { mutation: vi.fn(async () => ({ success: true, newTaskId: null })) } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn(() => [{ taskId: 'task-before', status: 'in_progress' }]),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(() =>
+          durable.then(() => {
+            events.push('durable');
+          })
+        ),
+      },
+      log: () => undefined,
+    });
+    let settled = false;
+    const pending = service.handoff({ ...args, targetRole: 'user' }).then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    resolveDurable();
+    await pending;
+    expect(events).toEqual(['durable']);
+  });
+
+  test('returns success and logs post-commit failures when durable persistence rejects', async () => {
+    const logs: string[] = [];
+    const error = new Error('sqlite unavailable');
+    const recordHandoffOutcome = vi
+      .fn()
+      .mockRejectedValueOnce(error)
+      .mockRejectedValueOnce(new Error('cleanup unavailable'));
+    const service = createCliGatewayService({
+      backend: { mutation: vi.fn(async () => ({ success: true, newTaskId: null })) } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn(() => [{ taskId: 'task-before', status: 'in_progress' }]),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome,
+      },
+      log: (line) => logs.push(line),
+    });
+    await expect(service.handoff({ ...args, targetRole: 'user' })).resolves.toMatchObject({
+      success: true,
+    });
+    expect(recordHandoffOutcome).toHaveBeenCalledTimes(2);
+    expect(logs).toContain(
+      '[CliGateway:post-commit sync failure chatroom=room-1 error=sqlite unavailable]'
+    );
+    expect(logs).toContain(
+      '[CliGateway:post-commit cleanup failure chatroom=room-1 error=cleanup unavailable]'
     );
   });
 

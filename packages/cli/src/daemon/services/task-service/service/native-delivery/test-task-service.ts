@@ -7,6 +7,7 @@ import type { TaskDeliveryService } from './task-delivery-service.js';
 import type { AgentConfigRegistry } from '../../../chatroom-workspace-configuration-service/service/agent-config-registry.js';
 import {
   createTaskService,
+  createInMemoryTaskHandoffRepository,
   createConvexNativeTaskDeliveryGateway,
   createDaemonAuditPort,
   explainNativeDeliveryBlock,
@@ -43,6 +44,7 @@ export function withTestTaskService<T extends ReconcileLike>(
   const taskService = createTaskService({
     ...params.sessionDeps,
     configurationService: { get: () => undefined } as never,
+    handoffRepository: createInMemoryTaskHandoffRepository(),
   });
   const taskGateway = createConvexNativeTaskDeliveryGateway(params.sessionDeps.backend);
   const audit = createDaemonAuditPort(params.sessionDeps.logEvent ?? (async () => undefined));

@@ -7,6 +7,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { createTaskService } from './task-service.js';
 import { api } from '../../../../api.js';
 import { TaskAssigneeType } from '../../../domain/entities/assigned-task.js';
+import { createInMemoryTaskHandoffRepository } from '../infrastructure/repository/task-handoff-repository.js';
 
 function backendRow() {
   return {
@@ -170,6 +171,7 @@ describe('TaskService inbox consumption', () => {
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
       configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
       backend: { mutation: vi.fn(async () => ({ processed: true })), query },
     });
 
@@ -209,6 +211,7 @@ describe('TaskService inbox consumption', () => {
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
       configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
       backend: { mutation, query },
     });
     const notifications: unknown[] = [];
@@ -262,6 +265,7 @@ describe('TaskService inbox consumption', () => {
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
       configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
       backend: { mutation, query },
       agentProcessService: {
         getSlot: vi.fn(),
@@ -329,6 +333,7 @@ describe('TaskService inbox consumption', () => {
         convexUrl: 'http://test:3210',
         backend: { mutation, query },
         configurationService: { get: () => undefined } as never,
+        handoffRepository: createInMemoryTaskHandoffRepository(),
       });
       const notifications: unknown[] = [];
       service.subscribe((notification) => {
