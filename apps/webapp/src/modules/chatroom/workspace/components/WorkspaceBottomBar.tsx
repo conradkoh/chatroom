@@ -543,26 +543,23 @@ const MobileStatusContent = memo(function MobileStatusContent({
 const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   workspace,
   allWorkspaces,
-  isOpen,
   onClose,
   onOpenGitPanel,
   onSwitchWorkspace,
-  isLocal,
   sendAction,
 }: {
   workspace: WorkspaceWithMachine;
   allWorkspaces: WorkspaceWithMachine[];
-  isOpen: boolean;
   onClose: () => void;
   onOpenGitPanel: () => void;
   onSwitchWorkspace: (workspaceId: string) => void;
-  isLocal: boolean;
   sendAction: (
     machineId: string,
     action: 'open-vscode' | 'open-finder' | 'open-github-desktop' | 'open-cursor',
     workingDir: string
   ) => void;
 }) {
+  const { isConnected: isLocal } = useDaemonConnected(workspace.machineId);
   const {
     isAvailable,
     isLoading,
@@ -590,7 +587,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   const hasRemoteActions = remotes.length > 1;
 
   return (
-    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-[96vw]">
+    <FixedModal isOpen onClose={onClose} maxWidth="max-w-[96vw]">
       <FixedModalContent>
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>
@@ -1063,7 +1060,6 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     setMobileModalOpen(false);
   }, []);
 
-  const { isConnected: isLocal } = useDaemonConnected(activeWorkspace?.machineId ?? null);
   const sendAction = useSendLocalAction();
 
   if (validWorkspaces.length === 0) return null;
@@ -1146,7 +1142,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                           <ClipboardCopy size={13} className="mr-2" />
                           Copy workspace path
                         </DropdownMenuItem>
-                        {isLocal && (
+                        {ws.machineId && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -1204,15 +1200,14 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
       </WorkspaceBottomBarShell>
 
       {/* ── Mobile Workspace Modal ── */}
-      {!isDesktop && activeWorkspace && (
+      {/* Mount only while open so the mobile modal owns its status observer for its visible lifetime. */}
+      {!isDesktop && activeWorkspace && mobileModalOpen && (
         <MobileWorkspaceModal
           workspace={activeWorkspace}
           allWorkspaces={validWorkspaces}
-          isOpen={mobileModalOpen}
           onClose={handleCloseMobileModal}
           onOpenGitPanel={handleOpenGitPanel}
           onSwitchWorkspace={handleSwitchWorkspace}
-          isLocal={isLocal}
           sendAction={sendAction}
         />
       )}
