@@ -624,6 +624,38 @@ export const listMachines = query({
 });
 
 /**
+ * Narrow registration list for machines owned by the current user.
+ * Cold read only: chatroom_machines metadata — no daemon-fed tables
+ * (capabilities/status) so the subscription only invalidates on register/rename.
+ */
+export const getUserMachines = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return { machines: [] };
+    }
+
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return {
+      machines: machines.map((machine) => ({
+        machineId: machine.machineId,
+        hostname: machine.hostname,
+        alias: machine.alias,
+        os: machine.os,
+        registeredAt: machine.registeredAt,
+      })),
+    };
+  },
+});
+
+/**
  * Per-machine available model list from the daemon capability read model.
  */
 export const getMachineModels = query({
@@ -646,6 +678,31 @@ export const getMachineModels = query({
       return { availableModels: newRow.availableModels };
     }
     return { availableModels: {} as Record<string, string[]> };
+  },
+});
+
+/**
+ * Per-machine daemon capabilities (available harnesses + versions) from the
+ * capability read model. Serves consumers that only need one machine's
+ * capabilities without the machine-wide subscription.
+ */
+export const getMachineCapabilities = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) {
+      return { availableHarnesses: [], harnessVersions: {} };
+    }
+
+    const capabilities = await ctx.db
+      .query('chatroom_machineCapabilities')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    return {
+      availableHarnesses: capabilities?.availableHarnesses ?? [],
+      harnessVersions: capabilities?.harnessVersions ?? {},
+    };
   },
 });
 
