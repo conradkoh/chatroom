@@ -349,12 +349,11 @@ const MachineRow = memo(function MachineRow({
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Connectivity via getDaemonStatus — tiny heartbeat payload, doesn't invalidate listMachines.
-  const { isConnected: daemonConnected } = useDaemonConnected(machine.machineId);
-  const statusResult = useSessionQuery(api.machines.getDaemonStatus, {
-    machineId: machine.machineId,
-  });
-  const lastSeenAt = statusResult?.lastSeenAt ?? 0;
+  // Connectivity and heartbeat timestamp share one getDaemonStatus subscription.
+  const { isConnected: daemonConnected, lastSeenAt: daemonLastSeenAt } = useDaemonConnected(
+    machine.machineId
+  );
+  const lastSeenAt = daemonLastSeenAt ?? 0;
 
   const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
 

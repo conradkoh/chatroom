@@ -20,6 +20,8 @@ export interface UseDaemonConnectedResult {
   isConnected: boolean;
   /** true while the initial query is loading. */
   isLoading: boolean;
+  /** Last heartbeat timestamp, independent of the staleness decision. */
+  lastSeenAt: number | null;
 }
 
 /**
@@ -33,11 +35,11 @@ const STALENESS_THRESHOLD_MS = DAEMON_HEARTBEAT_TTL_MS;
  * Query Convex for the daemon's connectivity status for a given machine.
  *
  * @param machineId - The machine UUID to check, or null if unknown
- * @returns Whether the daemon is connected and recently seen
+ * @returns Whether the daemon is connected and recently seen, plus the last heartbeat timestamp
  *
  * @example
  * ```tsx
- * const { isConnected } = useDaemonConnected(workspace.machineId);
+ * const { isConnected, lastSeenAt } = useDaemonConnected(workspace.machineId);
  * if (isConnected) {
  *   return <button onClick={handleOpenVSCode}>Open in VS Code</button>;
  * }
@@ -47,7 +49,7 @@ export function useDaemonConnected(machineId: string | null): UseDaemonConnected
   const result = useSessionQuery(api.machines.getDaemonStatus, machineId ? { machineId } : 'skip');
 
   if (result === undefined) {
-    return { isConnected: false, isLoading: true };
+    return { isConnected: false, isLoading: true, lastSeenAt: null };
   }
 
   const { connected, lastSeenAt } = result;
@@ -56,12 +58,13 @@ export function useDaemonConnected(machineId: string | null): UseDaemonConnected
   if (connected && lastSeenAt) {
     const age = Date.now() - lastSeenAt;
     if (age > STALENESS_THRESHOLD_MS) {
-      return { isConnected: false, isLoading: false };
+      return { isConnected: false, isLoading: false, lastSeenAt };
     }
   }
 
   return {
     isConnected: connected,
     isLoading: false,
+    lastSeenAt,
   };
 }
