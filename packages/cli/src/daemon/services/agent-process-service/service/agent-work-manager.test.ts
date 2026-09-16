@@ -17,6 +17,7 @@ function createService(
     readonly releaseTaskAfterTurnFailure?: (
       args: Record<string, string>
     ) => Promise<{ released: boolean; status: 'pending'; updatedAt: number }>;
+    readonly getLatestHandoff?: () => Promise<{ taskIds: readonly string[] } | null>;
     readonly enqueueFact?: (fact: Record<string, unknown>) => Promise<unknown>;
     readonly getSlot?: () => { state: 'running' | 'idle' | 'spawning' | 'stopping'; pid?: number };
     readonly stopAgent?: ReturnType<typeof vi.fn>;
@@ -59,6 +60,7 @@ function createService(
       taskInboxState: new TaskInboxState(),
       isNativeHarness: () => true,
       loadAssignedTaskForAction: async () => null,
+      getLatestHandoff: options.getLatestHandoff ?? (async () => null),
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
       explainNativeDeliveryBlock: () => null,
@@ -127,6 +129,63 @@ describe('AgentWorkManager', () => {
     expect(disposition).toEqual({ kind: 'release-slot' });
     service.dispose();
   });
+  test('releases an active task when a completed turn has no covering handoff', async () => {
+    const releaseTaskAfterTurnFailure = vi.fn().mockResolvedValue({
+      released: true,
+      status: 'pending',
+      updatedAt: Date.now(),
+    });
+    const service = createService({ releaseTaskAfterTurnFailure });
+    service.recordTaskDelivered({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-1',
+    });
+
+    await service.handleAgentTurnEnded({
+      chatroomId: 'room-1',
+      role: 'builder',
+      pid: 42,
+      harness: 'opencode-sdk',
+      slot: { state: 'running', nativeTurnPhase: 'turn_in_flight' },
+      eventId: 'turn-no-handoff',
+      completion: { turnId: 'turn-no-handoff', status: 'completed', source: 'provider.result' },
+    } as never);
+
+    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-1',
+    });
+    service.dispose();
+  });
+
+  test('does not release an active task covered by the latest handoff', async () => {
+    const releaseTaskAfterTurnFailure = vi.fn();
+    const service = createService({
+      releaseTaskAfterTurnFailure,
+      getLatestHandoff: async () => ({ taskIds: ['task-1'] }),
+    });
+    service.recordTaskDelivered({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-1',
+    });
+
+    await service.handleAgentTurnEnded({
+      chatroomId: 'room-1',
+      role: 'builder',
+      pid: 42,
+      harness: 'opencode-sdk',
+      slot: { state: 'running', nativeTurnPhase: 'turn_in_flight' },
+      eventId: 'turn-with-handoff',
+      completion: { turnId: 'turn-with-handoff', status: 'completed', source: 'provider.result' },
+    } as never);
+
+    expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
   test('stops the active agent when its task is cancelled', async () => {
     const stopAgent = vi.fn().mockResolvedValue({ success: true });
     const service = createService({

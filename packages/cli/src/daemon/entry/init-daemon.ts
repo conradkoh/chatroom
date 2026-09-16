@@ -28,6 +28,7 @@ import {
 import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
+import { resolveTaskHandoffRepositoryPath } from './task-handoff-repository-path.js';
 import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
@@ -59,6 +60,7 @@ import {
 } from '../services/agent-process-service/index.js';
 import { createAgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
 import { createTaskService } from '../services/service-interfaces.js';
+import { createTaskHandoffRepository } from '../services/task-service/index.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -420,6 +422,7 @@ function assembleDaemonSessionInit(args: {
     convexUrl,
     backend: deps.backend,
     configurationService: agentConfigRegistry,
+    handoffRepository: createTaskHandoffRepository(resolveTaskHandoffRepositoryPath(machineId)),
     logEvent: activeLogEvent ?? (async () => undefined),
   });
 

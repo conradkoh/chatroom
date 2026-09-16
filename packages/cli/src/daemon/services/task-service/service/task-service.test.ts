@@ -74,6 +74,86 @@ describe('TaskService.loadAssignedTaskForAction', () => {
 });
 
 describe('TaskService inbox consumption', () => {
+  test('bootstrap sweep releases uncovered in-progress tasks', async () => {
+    const task = {
+      taskId: 'task-in-progress',
+      chatroomId: 'room-1',
+      status: 'in_progress' as const,
+      assignedTo: 'builder',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    };
+    const mutation = vi.fn().mockResolvedValue({
+      released: true,
+      status: 'pending',
+      updatedAt: 3_000,
+    });
+    const repository = {
+      record: vi.fn(),
+      getLatest: vi.fn().mockResolvedValue(null),
+      close: vi.fn(),
+    };
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: repository,
+      backend: {
+        mutation,
+        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+      },
+    });
+
+    await service.startTaskInbox();
+
+    expect(repository.getLatest).toHaveBeenCalledWith('room-1', 'builder');
+    expect(mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ taskId: 'task-in-progress' })
+    );
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      { taskId: 'task-in-progress', status: 'pending', updatedAt: 3_000 },
+    ]);
+  });
+
+  test('bootstrap sweep leaves a handoff-covered in-progress task untouched', async () => {
+    const task = {
+      taskId: 'task-covered',
+      chatroomId: 'room-1',
+      status: 'in_progress' as const,
+      assignedTo: 'builder',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    };
+    const mutation = vi.fn();
+    const repository = {
+      record: vi.fn(),
+      getLatest: vi.fn().mockResolvedValue({ taskIds: ['task-covered'] }),
+      close: vi.fn(),
+    };
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: repository,
+      backend: {
+        mutation,
+        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+      },
+    });
+
+    await service.startTaskInbox();
+
+    expect(mutation).not.toHaveBeenCalled();
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      { taskId: 'task-covered', status: 'in_progress' },
+    ]);
+  });
+
   test('rehydrates a pending task from the authoritative status feed', async () => {
     const statusTask = {
       taskId: 'task-rehydrated',

@@ -217,11 +217,32 @@ export class AgentWorkManager {
       }
       return { kind: 'release-slot' };
     }
-    // A completed native turn leaves the harness idle. The task may still be
-    // acknowledged (for example, if the agent did not read it), so retaining
-    // the local marker would make every subsequent reconcile look like a
-    // duplicate forever. In-progress/completed task tasks are filtered by
-    // the normal task-status gate on the next pass.
+    // A completed turn without a durable handoff must release its active task.
+    // This replaces the backend agent.exited release while keeping the decision
+    // scoped to the task owned by this daemon/session.
+    const activeTask = this.deps.agentTaskState.get({
+      chatroomId: event.chatroomId,
+      role: event.role,
+    });
+    if (activeTask) {
+      const handoff = await this.deps.taskService.getLatestHandoff(event.chatroomId, event.role);
+      if (!handoff?.taskIds.includes(activeTask.taskId)) {
+        try {
+          await this.deps.taskService.releaseTaskAfterTurnFailure({
+            chatroomId: event.chatroomId,
+            role: event.role,
+            taskId: activeTask.taskId,
+          });
+        } catch (error) {
+          console.error(
+            `[NativeDelivery:turn-ended-recovery-error] chatroom=${event.chatroomId} role=${event.role} task=${activeTask.taskId} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+          );
+          return { kind: 'hold-slot', reason: 'task-recovery-failed' };
+        }
+      }
+    }
+    // Clear after the durable handoff check/release so the next reconcile can
+    // deliver the task when needed.
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
     try {
       await this.deps.lifecycleOutbox.enqueue(

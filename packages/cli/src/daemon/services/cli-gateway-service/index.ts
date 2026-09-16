@@ -14,7 +14,8 @@ export interface CliGatewayService {
 export function createCliGatewayService(deps: {
   backend: BackendOps;
   port: number;
-  taskService: Pick<TaskService, 'recordHandoffOutcome' | 'loadAssignedTaskForAction'>;
+  taskService: Pick<TaskService, 'recordHandoffOutcome' | 'loadAssignedTaskForAction'> &
+    Partial<Pick<TaskService, 'listTasksForRole'>>;
   log?: (message: string) => void;
 }): CliGatewayService {
   const logs: CliGatewayLog[] = [];
@@ -26,6 +27,10 @@ export function createCliGatewayService(deps: {
   return {
     handoff: async (args) => {
       writeLog(`request handoff chatroom=${args.chatroomId} role=${args.senderRole}`);
+      const taskIdsBeforeCommit = deps.taskService
+        .listTasksForRole?.(args.chatroomId, args.senderRole)
+        .filter((task) => task.status === 'acknowledged' || task.status === 'in_progress')
+        .map((task) => task.taskId);
       let result: HandoffResult;
       try {
         result = (await deps.backend.mutation(api.messages.handoff, args)) as HandoffResult;
@@ -46,10 +51,12 @@ export function createCliGatewayService(deps: {
                 taskId: result.newTaskId,
               })) ?? undefined;
           }
-          deps.taskService.recordHandoffOutcome({
+          await deps.taskService.recordHandoffOutcome({
             chatroomId: args.chatroomId,
             role: args.senderRole,
+            targetRole: args.targetRole,
             nextTask,
+            taskIds: taskIdsBeforeCommit,
           });
           senderCleanupNeeded = true;
           writeLog(
@@ -62,9 +69,10 @@ export function createCliGatewayService(deps: {
           );
           if (!senderCleanupNeeded) {
             try {
-              deps.taskService.recordHandoffOutcome({
+              await deps.taskService.recordHandoffOutcome({
                 chatroomId: args.chatroomId,
                 role: args.senderRole,
+                targetRole: args.targetRole,
               });
             } catch (cleanupError) {
               writeLog(

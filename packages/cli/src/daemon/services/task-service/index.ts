@@ -28,6 +28,12 @@ export {
   type WorkspaceTaskInboxEvent,
 } from './service/task-service.js';
 export { createConvexNativeTaskDeliveryGateway } from './infrastructure/adapters/convex-native-task-delivery-gateway.js';
+export {
+  createTaskHandoffRepository,
+  createInMemoryTaskHandoffRepository,
+  type TaskHandoffRecord,
+  type TaskHandoffRepository,
+} from './infrastructure/repository/task-handoff-repository.js';
 export { createDaemonAuditPort } from './infrastructure/adapters/daemon-audit-port.js';
 export {
   resetRoleDeliveryState,

@@ -23,7 +23,7 @@ function createService(result: Record<string, unknown>, events: string[]) {
     events.push('load');
     return nextTask;
   });
-  const recordHandoffOutcome = vi.fn(() => {
+  const recordHandoffOutcome = vi.fn(async () => {
     events.push('task-service');
   });
   const logs: string[] = [];
@@ -64,6 +64,7 @@ describe('CLI gateway service', () => {
     expect(recordHandoffOutcome).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'planner',
+      targetRole: 'builder',
       nextTask,
     });
     expect(logs).toEqual([
@@ -86,13 +87,16 @@ describe('CLI gateway service', () => {
     expect(recordHandoffOutcome).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'planner',
+      targetRole: 'user',
       nextTask: undefined,
     });
   });
 
   test('clears sender tasks and returns success when post-commit adoption fails', async () => {
     const events: string[] = [];
-    const recordHandoffOutcome = vi.fn(() => events.push('task-service'));
+    const recordHandoffOutcome = vi.fn(async () => {
+      events.push('task-service');
+    });
     const logs: string[] = [];
     const service = createCliGatewayService({
       backend: {
@@ -114,6 +118,7 @@ describe('CLI gateway service', () => {
     expect(recordHandoffOutcome).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'planner',
+      targetRole: 'builder',
     });
     expect(logs).toContain(
       '[CliGateway:post-commit sync failure chatroom=room-1 error=adoption failed]'

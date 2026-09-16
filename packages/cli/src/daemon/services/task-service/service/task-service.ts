@@ -30,6 +30,11 @@ import {
   mapPendingTaskInboxRows,
   createConvexNativeTaskDeliveryGateway,
 } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
+import {
+  createInMemoryTaskHandoffRepository,
+  type TaskHandoffRepository,
+  type TaskHandoffRecord,
+} from '../infrastructure/repository/task-handoff-repository.js';
 
 interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
@@ -116,8 +121,13 @@ export interface TaskService {
   recordHandoffOutcome(args: {
     chatroomId: string;
     role: string;
+    targetRole: string;
     nextTask?: AssignedTask | undefined;
-  }): void;
+    taskIds?: readonly string[] | undefined;
+  }): Promise<void>;
+  getLatestHandoff(chatroomId: string, role: string): Promise<TaskHandoffRecord | null>;
+  /** Releases rehydrated in-progress tasks whose latest handoff does not cover them. */
+  sweepUncoveredInProgressTasks(): Promise<number>;
   releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
     released: boolean;
     status: AssignedTask['status'];
@@ -147,10 +157,13 @@ export interface TaskServiceCompositionDependencies extends NativeDeliverySessio
   convexUrl: string;
   /** Daemon-local source of the latest agent harness/model/workingDir config. */
   configurationService: AgentConfigRegistry;
+  /** Durable latest-handoff repository owned by this task service. */
+  handoffRepository?: TaskHandoffRepository;
 }
 
 export function createTaskService(deps: TaskServiceCompositionDependencies): TaskService {
   const gateway = createConvexNativeTaskDeliveryGateway(deps.backend);
+  const handoffRepository = deps.handoffRepository ?? createInMemoryTaskHandoffRepository();
 
   const taskInboxState = new TaskInboxState();
   const listeners = new Set<TaskServiceListener>();
@@ -163,6 +176,30 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const scheduledEventIds = new Set<string>();
   const deliveredEventIds = new Set<string>();
   const taskChains = new Map<string, Promise<void>>();
+
+  const sweepUncoveredInProgressTasks = async (): Promise<number> => {
+    let released = 0;
+    for (const task of taskInboxState.listAll()) {
+      if (task.status !== 'in_progress') continue;
+      const handoff = await handoffRepository.getLatest(task.chatroomId, task.agentConfig.role);
+      if (handoff?.taskIds.includes(task.taskId)) continue;
+      const result = await gateway.releaseTaskAfterTurnFailure({
+        sessionId: deps.sessionId,
+        chatroomId: task.chatroomId,
+        role: task.agentConfig.role,
+        taskId: task.taskId,
+      });
+      taskInboxState.markStatus(
+        task.chatroomId,
+        task.agentConfig.role,
+        task.taskId,
+        result.status,
+        result.updatedAt
+      );
+      released += 1;
+    }
+    return released;
+  };
 
   const notifyForDelivery = async (
     notification: TaskServiceNotification
@@ -356,6 +393,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           machineId: deps.machineId,
         });
         reconcileTaskStatuses(statusTasks);
+        await sweepUncoveredInProgressTasks();
       } catch (error) {
         console.warn('[TaskService] task-status bootstrap failed:', error);
       }
@@ -401,20 +439,39 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       acknowledgementRetryWatcher.stop();
       pendingTaskReconciliationWatcher.stop();
       taskChains.clear();
+      handoffRepository.close();
     },
     listTasksForRole: (chatroomId, role) => taskInboxState.listForRole(chatroomId, role),
     listAllTasks: () => taskInboxState.listAll(),
     debugState: (chatroomId) => buildTaskServiceDebugState({ taskInboxState, chatroomId }),
     taskInboxState,
-    recordHandoffOutcome: ({ chatroomId, role, nextTask }) => {
+    recordHandoffOutcome: async ({
+      chatroomId,
+      role,
+      targetRole,
+      nextTask,
+      taskIds: providedTaskIds,
+    }) => {
+      const taskIds =
+        providedTaskIds ??
+        taskInboxState
+          .listForRole(chatroomId, role)
+          .filter((task) => task.status === 'acknowledged' || task.status === 'in_progress')
+          .map((task) => task.taskId);
+      await handoffRepository.record({
+        chatroomId,
+        role,
+        taskIds,
+        ...(nextTask?.taskId ? { nextTaskId: nextTask.taskId } : {}),
+        targetRole,
+        handedOffAt: Date.now(),
+      });
       const now = Date.now();
-      for (const task of taskInboxState.listForRole(chatroomId, role)) {
-        if (task.status === 'acknowledged' || task.status === 'in_progress') {
-          taskInboxState.remove(chatroomId, role, task.taskId, now);
-        }
-      }
+      for (const taskId of taskIds) taskInboxState.remove(chatroomId, role, taskId, now);
       if (nextTask) taskInboxState.upsert([nextTask]);
     },
+    getLatestHandoff: (chatroomId, role) => handoffRepository.getLatest(chatroomId, role),
+    sweepUncoveredInProgressTasks,
     releaseTaskAfterTurnFailure: async (args) => {
       const result = await gateway.releaseTaskAfterTurnFailure({
         sessionId: deps.sessionId,
