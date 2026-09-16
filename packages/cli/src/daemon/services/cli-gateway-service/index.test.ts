@@ -1,0 +1,112 @@
+import { describe, expect, test, vi } from 'vitest';
+
+import { createCliGatewayService } from './index.js';
+import type { AssignedTaskWithContent } from '../../domain/entities/assigned-task.js';
+
+const nextTask: AssignedTaskWithContent = {
+  taskId: 'task-next',
+  chatroomId: 'room-1',
+  status: 'pending',
+  assignedTo: 'builder',
+  updatedAt: 2,
+  createdAt: 1,
+  agentConfig: { role: 'builder', machineId: 'machine-1' },
+  taskContent: 'next task',
+};
+
+function createService(result: Record<string, unknown>, events: string[]) {
+  const mutation = vi.fn(async () => {
+    events.push('backend');
+    return result;
+  });
+  const loadAssignedTaskForAction = vi.fn(async () => {
+    events.push('load');
+    return nextTask;
+  });
+  const recordHandoffOutcome = vi.fn(() => {
+    events.push('task-service');
+  });
+  const logs: string[] = [];
+  const service = createCliGatewayService({
+    backend: { mutation } as never,
+    port: 18765,
+    taskService: { loadAssignedTaskForAction, recordHandoffOutcome },
+    log: (line) => logs.push(line),
+  });
+  return { service, mutation, loadAssignedTaskForAction, recordHandoffOutcome, logs };
+}
+
+const args = {
+  sessionId: 'session-1',
+  chatroomId: 'room-1',
+  senderRole: 'planner',
+  content: 'handoff content',
+  targetRole: 'builder',
+};
+
+describe('CLI gateway service', () => {
+  test('updates task service and adopts the next task before resolving', async () => {
+    const events: string[] = [];
+    const { service, loadAssignedTaskForAction, recordHandoffOutcome, logs } = createService(
+      { success: true, newTaskId: 'task-next' },
+      events
+    );
+
+    await expect(service.handoff(args)).resolves.toMatchObject({ success: true });
+
+    expect(service.debugState().port).toBe(18765);
+    expect(events).toEqual(['backend', 'load', 'task-service']);
+    expect(loadAssignedTaskForAction).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-next',
+    });
+    expect(recordHandoffOutcome).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'planner',
+      nextTask,
+    });
+    expect(logs).toEqual([
+      '[CliGateway:request handoff chatroom=room-1 role=planner]',
+      '[CliGateway:backend result success=true]',
+      '[CliGateway:task-service updated chatroom=room-1 role=planner adopted=task-next]',
+    ]);
+  });
+
+  test('updates the sender task without loading a user handoff task', async () => {
+    const events: string[] = [];
+    const { service, loadAssignedTaskForAction, recordHandoffOutcome } = createService(
+      { success: true, newTaskId: null },
+      events
+    );
+
+    await service.handoff({ ...args, targetRole: 'user' });
+
+    expect(loadAssignedTaskForAction).not.toHaveBeenCalled();
+    expect(recordHandoffOutcome).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'planner',
+      nextTask: undefined,
+    });
+  });
+
+  test('logs and rethrows backend failures', async () => {
+    const error = new Error('backend unavailable');
+    const logs: string[] = [];
+    const service = createCliGatewayService({
+      backend: { mutation: vi.fn(async () => Promise.reject(error)) } as never,
+      port: 18765,
+      taskService: {
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(),
+      },
+      log: (line) => logs.push(line),
+    });
+
+    await expect(service.handoff(args)).rejects.toBe(error);
+    expect(logs).toEqual([
+      '[CliGateway:request handoff chatroom=room-1 role=planner]',
+      '[CliGateway:backend failure=backend unavailable]',
+    ]);
+  });
+});

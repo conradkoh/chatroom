@@ -113,7 +113,11 @@ export interface TaskService {
    * turn failure, then patches the local state from the authoritative
    * backend response. The cache update happens only after backend success.
    */
-  recordHandoffOutcome(args: { chatroomId: string; role: string }): void;
+  recordHandoffOutcome(args: {
+    chatroomId: string;
+    role: string;
+    nextTask?: AssignedTask | undefined;
+  }): void;
   releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
     released: boolean;
     status: AssignedTask['status'];
@@ -402,13 +406,14 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     listAllTasks: () => taskInboxState.listAll(),
     debugState: (chatroomId) => buildTaskServiceDebugState({ taskInboxState, chatroomId }),
     taskInboxState,
-    recordHandoffOutcome: ({ chatroomId, role }) => {
+    recordHandoffOutcome: ({ chatroomId, role, nextTask }) => {
       const now = Date.now();
       for (const task of taskInboxState.listForRole(chatroomId, role)) {
         if (task.status === 'acknowledged' || task.status === 'in_progress') {
           taskInboxState.remove(chatroomId, role, task.taskId, now);
         }
       }
+      if (nextTask) taskInboxState.upsert([nextTask]);
     },
     releaseTaskAfterTurnFailure: async (args) => {
       const result = await gateway.releaseTaskAfterTurnFailure({

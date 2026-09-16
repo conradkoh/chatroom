@@ -60,6 +60,7 @@ export async function startDaemon(): Promise<void> {
   const localWebPort = resolveLocalWebPort();
   const cliGateway = createCliGatewayService({
     backend: init.backend,
+    port: localWebPort,
     taskService: init.taskService,
   });
   // fallow-ignore-next-line complexity

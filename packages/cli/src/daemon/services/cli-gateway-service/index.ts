@@ -1,18 +1,20 @@
 import { api } from '../../../api.js';
 import type { HandoffGatewayOps, HandoffResult } from '../../../commands/handoff/deps.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import type { AssignedTask } from '../../domain/entities/assigned-task.js';
 import type { TaskService } from '../service-interfaces.js';
 
 export type CliGatewayLog = { timestamp: number; message: string };
 
 export interface CliGatewayService {
   handoff(args: Parameters<HandoffGatewayOps['handoff']>[0]): Promise<HandoffResult>;
-  debugState(): { logs: readonly CliGatewayLog[] };
+  debugState(): { port: number; logs: readonly CliGatewayLog[] };
 }
 
 export function createCliGatewayService(deps: {
   backend: BackendOps;
-  taskService: Pick<TaskService, 'recordHandoffOutcome'>;
+  port: number;
+  taskService: Pick<TaskService, 'recordHandoffOutcome' | 'loadAssignedTaskForAction'>;
   log?: (message: string) => void;
 }): CliGatewayService {
   const logs: CliGatewayLog[] = [];
@@ -33,14 +35,27 @@ export function createCliGatewayService(deps: {
       }
       writeLog(`backend result success=${result.success}`);
       if (result.success) {
+        let nextTask: AssignedTask | undefined;
+        if (result.newTaskId && args.targetRole.toLowerCase() !== 'user') {
+          nextTask =
+            (await deps.taskService.loadAssignedTaskForAction({
+              chatroomId: args.chatroomId,
+              role: args.targetRole,
+              taskId: result.newTaskId,
+            })) ?? undefined;
+        }
         deps.taskService.recordHandoffOutcome({
           chatroomId: args.chatroomId,
           role: args.senderRole,
+          nextTask,
         });
-        writeLog(`task-service updated chatroom=${args.chatroomId} role=${args.senderRole}`);
+        writeLog(
+          `task-service updated chatroom=${args.chatroomId} role=${args.senderRole}` +
+            (nextTask ? ` adopted=${nextTask.taskId}` : '')
+        );
       }
       return result;
     },
-    debugState: () => ({ logs: [...logs] }),
+    debugState: () => ({ port: deps.port, logs: [...logs] }),
   };
 }

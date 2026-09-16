@@ -15,6 +15,7 @@ export type HandoffResult = {
   supportsNativeIntegration?: boolean | undefined;
   enhancerJobId?: string | null | undefined;
   enhancerRequestQueued?: boolean | undefined;
+  newTaskId?: string | null | undefined;
 };
 
 export interface HandoffGatewayOps {
