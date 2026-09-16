@@ -6,6 +6,8 @@ import { SetupChecklistModal } from './SetupChecklistModal';
 
 const mockUseChatroomWorkspaces = vi.fn();
 const mockUseAgentPanelData = vi.fn();
+const mockUseDaemonConnectivity = vi.fn();
+const mockSetupWorkspaceStep = vi.fn();
 
 vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: (...args: unknown[]) => mockUseChatroomWorkspaces(...args),
@@ -15,8 +17,15 @@ vi.mock('../hooks/useAgentPanelData', () => ({
   useAgentPanelData: (...args: unknown[]) => mockUseAgentPanelData(...args),
 }));
 
+vi.mock('@/hooks/useDaemonConnectivity', () => ({
+  useDaemonConnectivity: (...args: unknown[]) => mockUseDaemonConnectivity(...args),
+}));
+
 vi.mock('./setup/SetupWorkspaceStep', () => ({
-  SetupWorkspaceStep: () => <div data-testid="setup-workspace-step" />,
+  SetupWorkspaceStep: (props: unknown) => {
+    mockSetupWorkspaceStep(props);
+    return <div data-testid="setup-workspace-step" />;
+  },
 }));
 
 vi.mock('./setup/SetupAgentTeamStep', () => ({
@@ -62,8 +71,9 @@ function renderModal(overrides?: Partial<React.ComponentProps<typeof SetupCheckl
 describe('SetupChecklistModal resume', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseDaemonConnectivity.mockReturnValue(new Map());
     mockUseAgentPanelData.mockReturnValue({
-      connectedMachines: [],
+      machines: [],
       machineConfigs: [],
       isLoading: false,
       sendCommand: vi.fn(),
@@ -100,6 +110,52 @@ describe('SetupChecklistModal resume', () => {
     renderModal();
     expect(screen.getByTestId('setup-workspace-step')).toBeInTheDocument();
     expect(screen.queryByTestId('setup-agent-team-step')).not.toBeInTheDocument();
+  });
+
+  it('passes only connected machines to the workspace step', () => {
+    const connectedMachine = {
+      machineId: 'm1',
+      hostname: 'connected-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode-sdk'],
+      harnessVersions: {},
+    };
+    const offlineMachine = {
+      machineId: 'm2',
+      hostname: 'offline-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode-sdk'],
+      harnessVersions: {},
+    };
+    mockUseAgentPanelData.mockReturnValue({
+      machines: [connectedMachine, offlineMachine],
+      machineConfigs: [],
+      isLoading: false,
+      sendCommand: vi.fn(),
+      agents: [],
+    });
+    mockUseDaemonConnectivity.mockReturnValue(
+      new Map([
+        ['m1', { connected: true, lastSeenAt: 1 }],
+        ['m2', { connected: false, lastSeenAt: 1 }],
+      ])
+    );
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [], isLoading: false });
+
+    renderModal();
+
+    expect(mockUseDaemonConnectivity).toHaveBeenCalledWith(['m1', 'm2']);
+    expect(mockSetupWorkspaceStep).toHaveBeenCalledWith(
+      expect.objectContaining({ connectedMachines: [connectedMachine] })
+    );
+  });
+
+  it('does not subscribe to connectivity while the modal is closed', () => {
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [], isLoading: false });
+
+    renderModal({ isOpen: false });
+
+    expect(mockUseDaemonConnectivity).not.toHaveBeenCalled();
   });
 
   it('does not flash workspace step while workspaces are loading', () => {

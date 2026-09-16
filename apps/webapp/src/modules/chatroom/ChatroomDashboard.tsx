@@ -1115,11 +1115,11 @@ function ChatroomDashboardContent({
   // Machine name map for event stream display
   const machineNameMap = useMemo(() => {
     const map = new Map<string, { hostname: string; alias?: string }>();
-    for (const machine of agentPanelData.connectedMachines) {
+    for (const machine of agentPanelData.machines) {
       map.set(machine.machineId, { hostname: machine.hostname, alias: machine.alias });
     }
     return map;
-  }, [agentPanelData.connectedMachines]);
+  }, [agentPanelData.machines]);
 
   // Current team comes exclusively from the active team assignment.
   const teamRoles = agentPanelData.team.teamRoles;

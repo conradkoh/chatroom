@@ -9,6 +9,7 @@ import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
 import { SetupAgentTeamStep } from './setup/SetupAgentTeamStep';
 import { SetupWorkspaceStep } from './setup/SetupWorkspaceStep';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import type { MachineInfo } from '../types/machine';
 import { countJoinedRoles } from '../utils/countJoinedRoles';
 import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
 import { pickSetupWorkspace } from '../utils/pickSetupWorkspace';
@@ -21,6 +22,7 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
+import { useDaemonConnectivity } from '@/hooks/useDaemonConnectivity';
 
 interface Participant {
   role: string;
@@ -40,6 +42,27 @@ interface SetupChecklistModalProps {
 }
 
 type SetupStep = 'workspace' | 'agents';
+
+interface SetupMachineConnectivityProps {
+  machines: MachineInfo[];
+  children: (connectedMachines: MachineInfo[]) => React.ReactNode;
+}
+
+// Keep this helper beneath FixedModal so Base UI unmounts the batch subscription
+// with the closed dialog instead of keeping it alive on the chatroom page.
+const SetupMachineConnectivity = memo(function SetupMachineConnectivity({
+  machines,
+  children,
+}: SetupMachineConnectivityProps) {
+  const machineIds = useMemo(() => machines.map((machine) => machine.machineId), [machines]);
+  const connectivity = useDaemonConnectivity(machineIds);
+  const connectedMachines = useMemo(
+    () => machines.filter((machine) => connectivity.get(machine.machineId)?.connected === true),
+    [machines, connectivity]
+  );
+
+  return <>{children(connectedMachines)}</>;
+});
 
 const STEP_COPY: Record<SetupStep, { title: string; description: string }> = {
   workspace: {
@@ -70,7 +93,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
 
   const registerWorkspace = useSessionMutation(api.workspaces.registerWorkspace);
   const {
-    connectedMachines,
+    machines,
     machineConfigs,
     isLoading,
     sendCommand,
@@ -109,7 +132,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   );
 
   const handleConfirmWorkspace = useCallback(
-    async (machineId: string, workingDir: string) => {
+    async (machineId: string, workingDir: string, connectedMachines: MachineInfo[]) => {
       const machine = connectedMachines.find((m) => m.machineId === machineId);
       await registerWorkspace({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -128,7 +151,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
       setSetupWorkingDir(workingDir);
       setStep('agents');
     },
-    [connectedMachines, registerWorkspace, chatroomId, chatroomName, onRenameChatroom]
+    [registerWorkspace, chatroomId, chatroomName, onRenameChatroom]
   );
 
   const handleBackToWorkspace = useCallback(() => {
@@ -145,53 +168,62 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl">
-      <FixedModalContent>
-        <FixedModalHeader onClose={onClose}>
-          <div className="flex items-center gap-3 min-w-0">
-            <Settings2 size={18} className="text-chatroom-status-warning flex-shrink-0" />
-            <div className="min-w-0">
-              <FixedModalTitle>{title}</FixedModalTitle>
-              <p className="text-xs text-chatroom-text-muted mt-0.5 min-h-[1rem]">{stepSubtitle}</p>
-            </div>
-          </div>
-        </FixedModalHeader>
+      <SetupMachineConnectivity machines={machines}>
+        {/* fallow-ignore-next-line complexity */}
+        {(connectedMachines) => (
+          <FixedModalContent>
+            <FixedModalHeader onClose={onClose}>
+              <div className="flex items-center gap-3 min-w-0">
+                <Settings2 size={18} className="text-chatroom-status-warning flex-shrink-0" />
+                <div className="min-w-0">
+                  <FixedModalTitle>{title}</FixedModalTitle>
+                  <p className="text-xs text-chatroom-text-muted mt-0.5 min-h-[1rem]">
+                    {stepSubtitle}
+                  </p>
+                </div>
+              </div>
+            </FixedModalHeader>
 
-        <div className="flex-shrink-0 px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-tertiary min-h-[3.25rem] flex items-center">
-          <p className="text-xs text-chatroom-text-secondary">{description}</p>
-        </div>
-
-        <FixedModalBody>
-          {isLoadingWorkspaces ? (
-            <div className="flex items-center justify-center py-12 text-chatroom-text-muted">
-              <Loader2 size={18} className="animate-spin mr-2" />
-              <span className="text-sm">Loading workspace...</span>
+            <div className="flex-shrink-0 px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-tertiary min-h-[3.25rem] flex items-center">
+              <p className="text-xs text-chatroom-text-secondary">{description}</p>
             </div>
-          ) : step === 'workspace' ? (
-            <SetupWorkspaceStep
-              connectedMachines={connectedMachines}
-              isLoadingMachines={isLoading}
-              onConfirm={handleConfirmWorkspace}
-            />
-          ) : setupMachineId && setupWorkingDir ? (
-            <SetupAgentTeamStep
-              chatroomId={chatroomId}
-              teamId={teamId}
-              teamRoles={teamRoles}
-              teamEntryPoint={teamEntryPoint}
-              participants={participants}
-              machineId={setupMachineId}
-              workingDir={setupWorkingDir}
-              connectedMachines={connectedMachines}
-              isLoadingMachines={isLoading}
-              agentConfigs={machineConfigs}
-              sendCommand={sendCommand}
-              agentRoleViews={agentRoleViews}
-              onAllAgentsStarted={handleAllAgentsStarted}
-              onBack={handleBackToWorkspace}
-            />
-          ) : null}
-        </FixedModalBody>
-      </FixedModalContent>
+
+            <FixedModalBody>
+              {isLoadingWorkspaces ? (
+                <div className="flex items-center justify-center py-12 text-chatroom-text-muted">
+                  <Loader2 size={18} className="animate-spin mr-2" />
+                  <span className="text-sm">Loading workspace...</span>
+                </div>
+              ) : step === 'workspace' ? (
+                <SetupWorkspaceStep
+                  connectedMachines={connectedMachines}
+                  isLoadingMachines={isLoading}
+                  onConfirm={(machineId, workingDir) =>
+                    handleConfirmWorkspace(machineId, workingDir, connectedMachines)
+                  }
+                />
+              ) : setupMachineId && setupWorkingDir ? (
+                <SetupAgentTeamStep
+                  chatroomId={chatroomId}
+                  teamId={teamId}
+                  teamRoles={teamRoles}
+                  teamEntryPoint={teamEntryPoint}
+                  participants={participants}
+                  machineId={setupMachineId}
+                  workingDir={setupWorkingDir}
+                  connectedMachines={connectedMachines}
+                  isLoadingMachines={isLoading}
+                  agentConfigs={machineConfigs}
+                  sendCommand={sendCommand}
+                  agentRoleViews={agentRoleViews}
+                  onAllAgentsStarted={handleAllAgentsStarted}
+                  onBack={handleBackToWorkspace}
+                />
+              ) : null}
+            </FixedModalBody>
+          </FixedModalContent>
+        )}
+      </SetupMachineConnectivity>
     </FixedModal>
   );
 });

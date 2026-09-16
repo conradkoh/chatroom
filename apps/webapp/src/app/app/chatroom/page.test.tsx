@@ -211,7 +211,7 @@ vi.mock('@/modules/chatroom/hooks/useAgentPanelData', () => {
       },
     ],
     teamRoles: ['planner'],
-    connectedMachines: [
+    machines: [
       {
         machineId: 'machine-a',
         hostname: 'host-a',

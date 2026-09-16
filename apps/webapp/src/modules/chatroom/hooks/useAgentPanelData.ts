@@ -6,7 +6,6 @@ import { useCallback, useMemo } from 'react';
 
 import { useAgentConfigs } from './useAgentConfigs';
 import { useChatroomTeam } from './useChatroomTeam';
-import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
 import { dispatchAgentCommand } from '../utils/agentCommand';
 
@@ -22,7 +21,7 @@ export interface AgentRoleView {
 export interface AgentPanelData {
   agents: AgentRoleView[];
   teamRoles: string[];
-  connectedMachines: MachineInfo[];
+  machines: MachineInfo[];
   machineConfigs: AgentConfig[];
   isLoading: boolean;
   teamStructure: TeamStructure | null | undefined;
@@ -96,18 +95,6 @@ export function useAgentPanelDataSubscriptions(
     [machineResult?.machines]
   );
 
-  const allMachineIds = useMemo(() => allMachines.map((m) => m.machineId), [allMachines]);
-
-  // Per-machine daemon connectivity — lightweight, heartbeat-driven subscription
-  // that does NOT invalidate the heavier listMachines subscription.
-  const daemonConnectivity = useDaemonConnectivity(allMachineIds);
-
-  // Filter to machines where the daemon is currently connected.
-  const connectedMachines = useMemo<MachineInfo[]>(
-    () => allMachines.filter((m) => daemonConnectivity.get(m.machineId)?.connected === true),
-    [allMachines, daemonConnectivity]
-  );
-
   const isLoading =
     statusResult === undefined || machineResult === undefined || configsLoading || team.isLoading;
 
@@ -131,7 +118,7 @@ export function useAgentPanelDataSubscriptions(
   return {
     agents,
     teamRoles,
-    connectedMachines,
+    machines: allMachines,
     machineConfigs,
     isLoading,
     teamStructure: team.structure,
