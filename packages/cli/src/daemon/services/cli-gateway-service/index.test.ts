@@ -1,7 +1,17 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { createCliGatewayService } from './index.js';
-import type { AssignedTaskWithContent } from '../../domain/entities/assigned-task.js';
+import type { AssignedTask, AssignedTaskWithContent } from '../../domain/entities/assigned-task.js';
+
+const inProgressTask: AssignedTask = {
+  taskId: 'task-before',
+  chatroomId: 'room-1',
+  status: 'in_progress',
+  assignedTo: 'planner',
+  updatedAt: 2,
+  createdAt: 1,
+  agentConfig: { role: 'planner', machineId: 'machine-1' },
+};
 
 const nextTask: AssignedTaskWithContent = {
   taskId: 'task-next',
@@ -15,7 +25,7 @@ const nextTask: AssignedTaskWithContent = {
 };
 
 function createService(result: Record<string, unknown>, events: string[]) {
-  const listTasksForRole = vi.fn(() => [{ taskId: 'task-before', status: 'in_progress' }]);
+  const listTasksForRole = vi.fn((): readonly AssignedTask[] => [inProgressTask]);
   const mutation = vi.fn(async () => {
     events.push('backend');
     return result;
@@ -145,7 +155,7 @@ describe('CLI gateway service', () => {
       backend: { mutation: vi.fn(async () => ({ success: true, newTaskId: null })) } as never,
       port: 18765,
       taskService: {
-        listTasksForRole: vi.fn(() => [{ taskId: 'task-before', status: 'in_progress' }]),
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => [inProgressTask]),
         loadAssignedTaskForAction: vi.fn(),
         recordHandoffOutcome: vi.fn(() =>
           durable.then(() => {
@@ -177,7 +187,7 @@ describe('CLI gateway service', () => {
       backend: { mutation: vi.fn(async () => ({ success: true, newTaskId: null })) } as never,
       port: 18765,
       taskService: {
-        listTasksForRole: vi.fn(() => [{ taskId: 'task-before', status: 'in_progress' }]),
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => [inProgressTask]),
         loadAssignedTaskForAction: vi.fn(),
         recordHandoffOutcome,
       },
