@@ -1,5 +1,6 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { listChatroomTasksByStatus } from '../../entities/list-chatroom-tasks-by-status';
 
 /** Resolves the acknowledged task for a role, optionally by explicit task id. */
 export async function findAcknowledgedTaskForRole(
@@ -33,12 +34,7 @@ export async function findActiveAssignedTaskForRole(
 ) {
   const normalizedRole = args.role.toLowerCase();
   for (const status of ['in_progress', 'acknowledged'] as const) {
-    const tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', status)
-      )
-      .collect();
+    const tasks = await listChatroomTasksByStatus(ctx, args.chatroomId, status);
     const match = tasks.find((task) => task.assignedTo?.toLowerCase() === normalizedRole);
     if (match) return match;
   }

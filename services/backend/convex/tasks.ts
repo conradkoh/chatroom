@@ -42,7 +42,6 @@ import {
   transitionTask,
   type TransitionTaskOptions,
 } from '../src/domain/usecase/task/transition-task';
-import { writeTaskStatusSignals } from '../src/domain/usecase/task/write-task-status-signals';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -192,7 +191,14 @@ export const redeliverTask = mutation({
   },
 });
 
-/** Claims a pending task for a role (pending → acknowledged). */
+/**
+ * Claims a task for a role (pending → acknowledged).
+ *
+ * Non-pending tasks assigned to the claiming role are idempotent re-claims:
+ * the daemon owns task-state consistency, so a re-delivery may find the task
+ * already acknowledged or in_progress (e.g. claimed by another local delivery
+ * path) and must not fail — it receives the task unchanged.
+ */
 export const claimTask = mutation({
   args: {
     ...SessionIdArg,
@@ -228,14 +234,16 @@ export const claimTask = mutation({
       if (pendingTask.chatroomId !== args.chatroomId) {
         throw new Error('Task does not belong to this chatroom');
       }
-      if (pendingTask.status === 'acknowledged') {
+      if (pendingTask.status === 'acknowledged' || pendingTask.status === 'in_progress') {
         if (pendingTask.assignedTo?.toLowerCase() === normalizedRole) {
           return {
             taskId: pendingTask._id,
             content: normalizeMarkdownContent(pendingTask.content),
           };
         }
-        throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
+        throw new Error(
+          `Task is not claimable by role ${args.role} (assigned to ${pendingTask.assignedTo ?? 'nobody'})`
+        );
       }
       if (pendingTask.status !== 'pending') {
         throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
@@ -271,96 +279,6 @@ export const claimTask = mutation({
   },
 });
 
-/** Transitions an acknowledged task to in_progress for the assigned role. */
-export const startTask = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    taskId: v.optional(v.id('chatroom_tasks')), // Optional: specific task to start
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    let acknowledgedTask;
-
-    if (args.taskId) {
-      // Start a specific task (used by task read)
-      acknowledgedTask = await ctx.db.get('chatroom_tasks', args.taskId);
-
-      if (!acknowledgedTask) {
-        throw new Error(`Task ${args.taskId} not found`);
-      }
-
-      if (acknowledgedTask.chatroomId !== args.chatroomId) {
-        throw new Error('Task does not belong to this chatroom');
-      }
-
-      // IDEMPOTENCY: If task is already in_progress, accept it — this is a recovering agent
-      // picking up where a dead agent left off. The old agent's process is gone; we update
-      // assignedTo to reflect the new agent and emit task.inProgress for UI consistency.
-      if (acknowledgedTask.status === 'in_progress') {
-        const now = Date.now();
-        if (acknowledgedTask.assignedTo !== args.role) {
-          await ctx.db.patch('chatroom_tasks', acknowledgedTask._id, {
-            assignedTo: args.role,
-            updatedAt: now,
-          });
-          const reassignedTask = await ctx.db.get('chatroom_tasks', acknowledgedTask._id);
-          if (reassignedTask) {
-            await writeWorkspaceTaskInboxEvent(
-              ctx,
-              WorkspaceTaskInboxEventType.TaskUpdated,
-              reassignedTask
-            );
-            await writeTaskStatusSignals(ctx, reassignedTask);
-          }
-        }
-
-        return {
-          taskId: acknowledgedTask._id,
-          content: normalizeMarkdownContent(acknowledgedTask.content),
-        };
-      }
-
-      if (acknowledgedTask.status !== 'acknowledged') {
-        throw new Error(
-          `Task must be acknowledged to start (current status: ${acknowledgedTask.status})`
-        );
-      }
-
-      if (acknowledgedTask.assignedTo !== args.role) {
-        throw new Error(`Task is assigned to ${acknowledgedTask.assignedTo}, not ${args.role}`);
-      }
-    } else {
-      // Find any acknowledged task for this role (legacy behavior)
-      acknowledgedTask = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status_assignedTo', (q) =>
-          q
-            .eq('chatroomId', args.chatroomId)
-            .eq('status', 'acknowledged')
-            .eq('assignedTo', args.role)
-        )
-        .first();
-
-      if (!acknowledgedTask) {
-        throw new Error('No acknowledged task to start for this role');
-      }
-    }
-
-    // Transition: acknowledged → in_progress using FSM
-    // Note: transitionTask now emits task.inProgress directly, so no duplicate needed here.
-    await transitionTask(ctx, acknowledgedTask._id, 'in_progress', 'startTask');
-
-    return {
-      taskId: acknowledgedTask._id,
-      content: normalizeMarkdownContent(acknowledgedTask.content),
-    };
-  },
-});
-
 /**
  * Marks a task as in_progress when an agent reads it.
  * This is the primary way to transition a task from acknowledged → in_progress.
@@ -389,64 +307,6 @@ export const releaseTaskAfterTurnFailure = mutation({
       role: args.role,
       taskId: args.taskId,
     });
-  },
-});
-
-/** Completes all in_progress tasks in the chatroom. */
-export const completeTask = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Find ALL in_progress and acknowledged tasks (there should typically be only one, but complete all for resilience)
-    const [inProgressTasks, acknowledgedTasks] = await Promise.all([
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-        )
-        .collect(),
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
-        )
-        .collect(),
-    ]);
-    const allTasksToComplete = [...inProgressTasks, ...acknowledgedTasks];
-
-    if (allTasksToComplete.length === 0) {
-      // No tasks to complete - this is okay, just return
-      return { completed: false, completedCount: 0 };
-    }
-
-    // Complete ALL tasks (in_progress + acknowledged) → completed
-    for (const task of allTasksToComplete) {
-      await transitionTask(ctx, task._id, 'completed', 'completeTask', undefined, {
-        skipAutoPromotion: true,
-      });
-    }
-
-    // Log if multiple tasks were completed (indicates a stuck state that was cleaned up)
-    if (allTasksToComplete.length > 1) {
-      console.warn(
-        `[Task Cleanup] Processed ${allTasksToComplete.length} tasks (in_progress + acknowledged) in chatroom ${args.chatroomId}. ` +
-          `Task IDs: ${allTasksToComplete.map((t) => t._id).join(', ')}`
-      );
-    }
-
-    // Queue promotion is not triggered by completeTask. Promotion happens on
-    // handoff-to-user, force-complete of user-origin tasks, or manual promote.
-
-    return {
-      completed: true,
-      completedCount: allTasksToComplete.length,
-    };
   },
 });
 

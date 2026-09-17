@@ -11,9 +11,8 @@ import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex
 import {
   BackendService,
   commandServicesLayerFromDeps,
-  requireSessionIdEffect,
   SessionService,
-  validateChatroomIdEffect,
+  requireSessionForChatroomEffect,
 } from '../../infrastructure/services/index.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 
@@ -61,17 +60,7 @@ export const listSkillsEffect = (
 ): Effect.Effect<void, ListSkillsError, BackendService | SessionService> =>
   Effect.gen(function* () {
     const backend = yield* BackendService;
-
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     // Query skills
     const skills = yield* backend
@@ -114,17 +103,7 @@ export const activateSkillEffect = (
   Effect.gen(function* () {
     const session = yield* SessionService;
     const backend = yield* BackendService;
-
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     const convexUrl = yield* session.getConvexUrl();
 

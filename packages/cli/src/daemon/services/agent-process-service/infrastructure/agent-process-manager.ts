@@ -89,6 +89,8 @@ import type {
   AgentStartedHandler,
   AgentTurnEndedEvent,
   AgentTurnEndedHandler,
+  AgentTurnProgressEvent,
+  AgentTurnProgressHandler,
 } from '../domain/entities/agent-process.js';
 import {
   defaultNativeTurnPhase,
@@ -271,6 +273,7 @@ export class AgentProcessManager {
   /** Active retry interval timer handle, or null if queue is empty. */
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
   private readonly agentTurnEndedHandlers = new Set<AgentTurnEndedHandler>();
+  private readonly agentTurnProgressHandlers = new Set<AgentTurnProgressHandler>();
   private agentTurnEndedSequence = 0;
   private readonly agentStartedHandlers = new Set<AgentStartedHandler>();
   private readonly agentSessionLostHandlers = new Set<AgentSessionLostHandler>();
@@ -372,6 +375,23 @@ export class AgentProcessManager {
   subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void {
     this.agentSessionLostHandlers.add(handler);
     return () => this.agentSessionLostHandlers.delete(handler);
+  }
+
+  subscribeAgentTurnProgress(handler: AgentTurnProgressHandler): () => void {
+    this.agentTurnProgressHandlers.add(handler);
+    return () => this.agentTurnProgressHandlers.delete(handler);
+  }
+
+  private emitAgentTurnProgress(event: AgentTurnProgressEvent): void {
+    for (const handler of this.agentTurnProgressHandlers) {
+      try {
+        handler(event);
+      } catch (error) {
+        console.warn(
+          `[AgentProcessManager] turn-progress handler failed for ${event.role}@${event.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -1767,13 +1787,12 @@ export class AgentProcessManager {
     }
 
     wireTokenActivityReporting({
-      backend: this.deps.backend,
-      sessionId: this.deps.sessionId,
       chatroomId: opts.chatroomId,
       role: opts.role,
       spawnResult,
       now: () => this.deps.clock.now(),
       activityEmitter: spawnResult.activityEmitter,
+      onTurnProgress: (event) => this.emitAgentTurnProgress(event),
     });
   }
 
@@ -1810,11 +1829,13 @@ export class AgentProcessManager {
     await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
     if (getHarnessCapabilities(opts.agentHarness).supportsNativeIntegration) {
       for (const handler of this.agentStartedHandlers) {
-        void handler({ chatroomId: opts.chatroomId, role: opts.role }).catch((error: unknown) => {
-          console.warn(
-            `[AgentProcessManager] native delivery after start failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
-          );
-        });
+        void handler({ chatroomId: opts.chatroomId, role: opts.role, reason: opts.reason }).catch(
+          (error: unknown) => {
+            console.warn(
+              `[AgentProcessManager] native delivery after start failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        );
       }
     }
   }

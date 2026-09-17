@@ -41,6 +41,8 @@ export type AgentTurnEndedHandler = (
 export interface AgentStartedEvent {
   readonly chatroomId: string;
   readonly role: string;
+  /** Start reason from the spawn input (e.g. user.start, platform.pending_task_wake). */
+  readonly reason?: string | undefined;
 }
 
 export interface AgentStartResult {
@@ -59,3 +61,11 @@ export interface AgentSessionLostEvent {
 }
 
 export type AgentSessionLostHandler = (event: AgentSessionLostEvent) => void;
+
+/** The agent process is producing output/progress while a slot is active. */
+export interface AgentTurnProgressEvent {
+  readonly chatroomId: string;
+  readonly role: string;
+}
+
+export type AgentTurnProgressHandler = (event: AgentTurnProgressEvent) => void;

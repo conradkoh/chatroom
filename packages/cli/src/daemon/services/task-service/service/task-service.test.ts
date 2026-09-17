@@ -7,6 +7,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { createTaskService } from './task-service.js';
 import { api } from '../../../../api.js';
 import { TaskAssigneeType } from '../../../domain/entities/assigned-task.js';
+import { createInMemoryTaskHandoffRepository } from '../infrastructure/repository/task-handoff-repository.js';
 
 function backendRow() {
   return {
@@ -74,6 +75,86 @@ describe('TaskService.loadAssignedTaskForAction', () => {
 });
 
 describe('TaskService inbox consumption', () => {
+  test('bootstrap sweep releases uncovered in-progress tasks', async () => {
+    const task = {
+      taskId: 'task-in-progress',
+      chatroomId: 'room-1',
+      status: 'in_progress' as const,
+      assignedTo: 'builder',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    };
+    const mutation = vi.fn().mockResolvedValue({
+      released: true,
+      status: 'pending',
+      updatedAt: 3_000,
+    });
+    const repository = {
+      record: vi.fn(),
+      getLatest: vi.fn().mockResolvedValue(null),
+      close: vi.fn(),
+    };
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: repository,
+      backend: {
+        mutation,
+        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+      },
+    });
+
+    await service.startTaskInbox();
+
+    expect(repository.getLatest).toHaveBeenCalledWith('room-1', 'builder');
+    expect(mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ taskId: 'task-in-progress' })
+    );
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      { taskId: 'task-in-progress', status: 'pending', updatedAt: 3_000 },
+    ]);
+  });
+
+  test('bootstrap sweep leaves a handoff-covered in-progress task untouched', async () => {
+    const task = {
+      taskId: 'task-covered',
+      chatroomId: 'room-1',
+      status: 'in_progress' as const,
+      assignedTo: 'builder',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    };
+    const mutation = vi.fn();
+    const repository = {
+      record: vi.fn(),
+      getLatest: vi.fn().mockResolvedValue({ taskIds: ['task-covered'] }),
+      close: vi.fn(),
+    };
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: repository,
+      backend: {
+        mutation,
+        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+      },
+    });
+
+    await service.startTaskInbox();
+
+    expect(mutation).not.toHaveBeenCalled();
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      { taskId: 'task-covered', status: 'in_progress' },
+    ]);
+  });
+
   test('rehydrates a pending task from the authoritative status feed', async () => {
     const statusTask = {
       taskId: 'task-rehydrated',
@@ -90,6 +171,7 @@ describe('TaskService inbox consumption', () => {
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
       configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
       backend: { mutation: vi.fn(async () => ({ processed: true })), query },
     });
 
@@ -129,6 +211,7 @@ describe('TaskService inbox consumption', () => {
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
       configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
       backend: { mutation, query },
     });
     const notifications: unknown[] = [];
@@ -182,6 +265,7 @@ describe('TaskService inbox consumption', () => {
       machineId: 'machine-1',
       convexUrl: 'http://test:3210',
       configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
       backend: { mutation, query },
       agentProcessService: {
         getSlot: vi.fn(),
@@ -249,6 +333,7 @@ describe('TaskService inbox consumption', () => {
         convexUrl: 'http://test:3210',
         backend: { mutation, query },
         configurationService: { get: () => undefined } as never,
+        handoffRepository: createInMemoryTaskHandoffRepository(),
       });
       const notifications: unknown[] = [];
       service.subscribe((notification) => {
@@ -267,5 +352,171 @@ describe('TaskService inbox consumption', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('TaskService redelivery attempt cap (plan V2)', () => {
+  function trackerService(mutation: ReturnType<typeof vi.fn>, query?: ReturnType<typeof vi.fn>) {
+    return createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
+      backend: { mutation, query: query ?? vi.fn().mockResolvedValue([]) },
+    } as never);
+  }
+
+  test('caps consecutive uncovered turn ends and records the failure once', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: true });
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    // At the cap: failure recorded exactly once, further turns stay exhausted.
+    const recordCalls = mutation.mock.calls.filter(
+      ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+    );
+    expect(recordCalls).toHaveLength(1);
+    expect(recordCalls[0][1]).toMatchObject({ taskId: 'task-1', reason: 'redelivery_exhausted' });
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: true });
+    expect(
+      mutation.mock.calls.filter(
+        ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+      )
+    ).toHaveLength(1);
+  });
+
+  test('a user-initiated agent restart resets the exhausted cycle', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    service.clearRedeliveryTracking({ chatroomId: 'room-1', role: 'builder' });
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
+  });
+
+  test('a completed inbox event clears tracking for the task', async () => {
+    const task = backendRow();
+    const completed = { ...task, status: 'completed', updatedAt: 2_000 };
+    const event = {
+      _id: 'event-1',
+      machineId: 'machine-1',
+      chatroomId: 'room-1',
+      taskId: 'task-1',
+      role: 'builder',
+      eventType: WorkspaceTaskInboxEventType.TaskUpdated,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 2_000,
+      task: completed,
+    } as never;
+    const mutation = vi.fn(async () => ({ processed: true }));
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([]) // bootstrap status feed
+      .mockResolvedValueOnce([event]); // bootstrap pending events
+    const service = trackerService(mutation, query);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    await service.startTaskInbox();
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    service.stopTaskInbox();
+  });
+});
+
+describe('TaskService.handleAgentRestart', () => {
+  function inboxService(task: Record<string, unknown>, mutation: ReturnType<typeof vi.fn>) {
+    return createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
+      backend: {
+        mutation,
+        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+      },
+    } as never);
+  }
+
+  test('releases the role in-flight tasks to pending and resets the redelivery cap', async () => {
+    const task = {
+      taskId: 'task-in-flight',
+      chatroomId: 'room-1',
+      status: 'in_progress' as const,
+      assignedTo: 'builder',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    };
+    const mutation = vi.fn().mockResolvedValue({
+      released: true,
+      status: 'pending',
+      updatedAt: 3_000,
+    });
+    const service = inboxService(task, mutation);
+
+    await service.startTaskInbox();
+
+    // Exhaust the V2 attempt cap first: a user-initiated restart resets it.
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-in-flight' };
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    await service.handleAgentRestart({ chatroomId: 'room-1', role: 'builder' });
+
+    expect(mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ taskId: 'task-in-flight' })
+    );
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      { taskId: 'task-in-flight', status: 'pending', updatedAt: 3_000 },
+    ]);
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    service.stopTaskInbox();
+  });
+
+  test('does not touch tasks of other roles', async () => {
+    const task = {
+      taskId: 'task-planner',
+      chatroomId: 'room-1',
+      status: 'acknowledged' as const,
+      assignedTo: 'planner',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'planner', machineId: 'machine-1' },
+    };
+    const mutation = vi.fn().mockResolvedValue({
+      released: true,
+      status: 'pending',
+      updatedAt: 3_000,
+    });
+    const service = inboxService(task, mutation);
+
+    await service.startTaskInbox();
+
+    await service.handleAgentRestart({ chatroomId: 'room-1', role: 'builder' });
+
+    expect(mutation).not.toHaveBeenCalled();
+    expect(service.listTasksForRole('room-1', 'planner')).toMatchObject([
+      { taskId: 'task-planner', status: 'acknowledged' },
+    ]);
+    service.stopTaskInbox();
   });
 });

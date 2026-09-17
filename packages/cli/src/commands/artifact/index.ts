@@ -14,8 +14,7 @@ import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
   commandServicesLayerFromDeps,
-  requireSessionIdEffect,
-  validateChatroomIdEffect,
+  requireSessionForChatroomEffect,
 } from '../../infrastructure/services/index.js';
 import { readFileContent } from '../../utils/file-content.js';
 
@@ -85,17 +84,7 @@ export const createArtifactEffect = (
 ): Effect.Effect<string | undefined, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
     const backend = yield* BackendService;
-
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     // Validate file extension
     if (!options.fromFile.endsWith('.md')) {
@@ -163,17 +152,7 @@ export const viewArtifactEffect = (
 ): Effect.Effect<void, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
     const backend = yield* BackendService;
-
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     // Query artifact
     const artifact = yield* backend
@@ -232,17 +211,7 @@ export const viewManyArtifactsEffect = (
 ): Effect.Effect<void, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
     const backend = yield* BackendService;
-
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     if (options.artifactIds.length === 0) {
       return yield* Effect.fail<ArtifactError>({ _tag: 'NoArtifactIds' });

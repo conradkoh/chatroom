@@ -10,7 +10,6 @@
 import { describe, expect, test } from 'vitest';
 
 import { getBuilderGuidance } from '../../prompts/cli/roles/builder';
-import { getEnhancerGuidance } from '../../prompts/cli/roles/enhancer';
 import { getPlannerGuidance } from '../../prompts/cli/roles/planner';
 import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/selector-context';
 
@@ -278,18 +277,25 @@ describe('role guidance — handoff template discovery instruction', () => {
     );
   });
 
-  test('enhancer guidance mentions inspecting role-owned handoff templates without weakening restrictions', () => {
-    const guidance = getEnhancerGuidance({
-      role: 'enhancer',
-      teamRoles: ['planner', 'builder', 'enhancer'],
-      isEntryPoint: false,
-      convexUrl: CONVEX_URL,
-    });
-
-    expect(guidance).toContain('Role-owned handoff contracts');
-    expect(guidance).toContain('chatroom handoff list-templates --role="enhancer" --team-id="duo"');
-    expect(guidance).toContain(
-      'Do NOT implement, spawn subagents, or propose multiple alternative designs.'
+  test('enhancer role guidance returns the shared memoryless identity without weakening restrictions', () => {
+    const guidance = getRoleGuidanceFromContext(
+      buildSelectorContext({
+        role: 'enhancer',
+        teamRoles: ['planner', 'builder', 'enhancer'],
+        teamId: 'duo',
+        teamName: 'Duo',
+        teamEntryPoint: 'planner',
+        convexUrl: CONVEX_URL,
+        chatroomId: 'room-guidance',
+        nativeIntegration: false,
+      })
     );
+
+    expect(guidance).toContain('single-turn, memoryless **design advisor**');
+    expect(guidance).toContain('Do NOT implement changes, spawn subagents, or expand scope.');
+    expect(guidance).toContain('Do NOT propose multiple alternative approaches');
+    expect(guidance).toContain('chatroom handoff');
+    expect(guidance).toContain('--next-role=planner');
+    expect(guidance).not.toContain('enhancer complete');
   });
 });

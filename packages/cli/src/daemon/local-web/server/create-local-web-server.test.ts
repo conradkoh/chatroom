@@ -3,8 +3,9 @@ import { get } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { ConvexError } from 'convex/values';
 import { io as ioClient } from 'socket.io-client';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { startLocalWebServer } from './create-local-web-server.js';
 import { createPersistenceStore } from '../../infrastructure/persistence/index.js';
@@ -166,6 +167,79 @@ describe('startLocalWebServer', () => {
       expect(ack).toEqual({
         ok: true,
         data: { status: 'ok', service: 'v2-local-web', port: server.port },
+      });
+    } finally {
+      client.close();
+      await server.stop();
+    }
+  });
+
+  it('routes cli handoff and includes gateway debug state over Socket.IO', async () => {
+    const gateway = {
+      handoff: vi.fn(async (args: unknown) => ({ success: true, args })),
+      debugState: () => ({ port: 1234, logs: [{ timestamp: 1, message: 'gateway' }] }),
+    };
+    const server = await startLocalWebServer(
+      { host: '127.0.0.1', port: 0 },
+      {
+        debugState: async (chatroomId) => ({ chatroomId, state: 'diagnostic' }),
+        cliGateway: gateway,
+      }
+    );
+    const client = ioClient(`http://127.0.0.1:${server.port}`, { transports: ['websocket'] });
+    const payload = {
+      sessionId: 'session-1',
+      chatroomId: 'room-1',
+      senderRole: 'planner',
+      content: 'handoff',
+      targetRole: 'user',
+    };
+    try {
+      await connectSocket(client);
+      await expect(client.emitWithAck('cli.handoff', payload)).resolves.toEqual({
+        ok: true,
+        data: { success: true, args: payload },
+      });
+      expect(gateway.handoff).toHaveBeenCalledWith(payload);
+      await expect(
+        client.emitWithAck('daemon.debug.state', { chatroomId: 'room-1' })
+      ).resolves.toEqual({
+        ok: true,
+        data: {
+          chatroomId: 'room-1',
+          state: 'diagnostic',
+          cliGateway: { port: 1234, logs: [{ timestamp: 1, message: 'gateway' }] },
+        },
+      });
+    } finally {
+      client.close();
+      await server.stop();
+    }
+  });
+
+  it('preserves gateway server error metadata in the socket acknowledgement', async () => {
+    const gateway = {
+      handoff: vi.fn(async () => {
+        throw new ConvexError({ code: 'AUTH_FAILED', message: 'not authorized' });
+      }),
+      debugState: () => ({ port: 1234, logs: [] }),
+    };
+    const server = await startLocalWebServer(
+      { host: '127.0.0.1', port: 0 },
+      { cliGateway: gateway }
+    );
+    const client = ioClient(`http://127.0.0.1:${server.port}`, { transports: ['websocket'] });
+    try {
+      await connectSocket(client);
+      await expect(
+        client.emitWithAck('cli.handoff', { chatroomId: 'room-1', senderRole: 'planner' })
+      ).resolves.toEqual({
+        ok: false,
+        error: {
+          code: 'AUTH_FAILED',
+          message: 'not authorized',
+          details: { code: 'AUTH_FAILED', message: 'not authorized' },
+        },
       });
     } finally {
       client.close();

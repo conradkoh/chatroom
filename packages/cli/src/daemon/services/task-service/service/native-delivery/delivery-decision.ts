@@ -23,7 +23,7 @@ export type DeliveryDecision =
   | { kind: 'deliver'; taskId: string }
   | {
       kind: 'deduplicated';
-      reason: 'task_state_active';
+      reason: 'task_state_active' | 'redelivery_exhausted';
       taskId: string;
     };
 
@@ -35,6 +35,8 @@ export type DeliveryDecisionContext = {
   configState: 'ready' | 'syncing' | 'absent';
   isNativeHarness: (harness: string) => boolean;
   explainNativeDeliveryBlock: (task: AssignedTask) => DeliveryBlockReason | null;
+  /** Plan V2: tasks whose consecutive turn-end redelivery cap is reached are skipped. */
+  isRedeliveryExhausted: (taskId: string) => boolean;
 };
 
 function taskSort(a: AssignedTask, b: AssignedTask): number {
@@ -77,6 +79,10 @@ export function decideNextDelivery(
   }
   if (!context.isNativeHarness(context.agentConfig.agentHarness)) {
     return { kind: 'failed', taskId: task.taskId, reason: 'unsupported_harness' };
+  }
+
+  if (context.isRedeliveryExhausted(task.taskId)) {
+    return { kind: 'deduplicated', reason: 'redelivery_exhausted', taskId: task.taskId };
   }
 
   const blockReason = context.explainNativeDeliveryBlock(task);

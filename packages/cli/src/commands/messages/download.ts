@@ -14,9 +14,8 @@ import {
 import { api } from '../../api.js';
 import {
   BackendService,
-  requireSessionIdEffect,
-  validateChatroomIdEffect,
   commandServicesLayerFromDeps,
+  requireSessionForChatroomEffect,
   type BackendServiceShape,
 } from '../../infrastructure/services/index.js';
 
@@ -174,20 +173,10 @@ const fetchLatestBackward = (
 export const downloadMessagesEffect = (chatroomId: string, options: DownloadMessagesOptions) =>
   // fallow-ignore-next-line complexity
   Effect.gen(function* () {
-    // Mirrors sibling messages commands: session + chatroom validation before the query.
-    // fallow-ignore-next-line code-duplication
     const backend = yield* BackendService;
     const fs = yield* MessagesFsService;
 
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     const format = options.format ?? 'linear';
     const maxDownload = parseLimit(options.limit);

@@ -24,7 +24,6 @@ import type {
   DaemonMutableStateService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
-import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
 import {
   registerFileInboundHandler,
   unregisterFileInboundHandler,
@@ -39,7 +38,6 @@ import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
-import { getActiveLogSink } from './init-daemon.js';
 import { startTaskInboxEffect } from './task-inbox-runtime.js';
 import {
   startGitRequestSubscriptionEffect,
@@ -90,7 +88,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
-  let enhancerWorkerHandle: { stop: () => void } | null = null;
   let taskInboxHandle: { stop: () => void; nativeDelivery: AgentWorkManager } | null = null;
   let agentConfigRegistryHandle: { stop: () => void } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
@@ -141,7 +138,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     taskInboxHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     agenticQueryWorkerHandle?.stop();
-    enhancerWorkerHandle?.stop();
   };
 
   // fallow-ignore-next-line complexity
@@ -308,16 +304,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       },
       activeSessions,
       harnesses
-    );
-
-    enhancerWorkerHandle = startEnhancerSubscriptions(
-      session.sessionId,
-      session.machineId,
-      session.convexUrl,
-      deps.wsClient,
-      session.backend,
-      session.agentServices,
-      getActiveLogSink()
     );
 
     console.log(`\nListening for commands...`);

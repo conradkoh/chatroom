@@ -20,8 +20,8 @@ export interface CurrentTasksModalProps {
   tasks: Task[];
   onClose: () => void;
   onTaskClick: (task: Task) => void;
-  /** Cancel the active enhancer job for an enhancer-assigned task. */
-  onCancelEnhancer?: (task: Task) => void;
+  /** Cancel the in-flight enhancer task. */
+  onCancelEnhancer?: (taskId: string) => void;
   isCancellingEnhancer?: boolean;
 }
 
@@ -65,7 +65,7 @@ export function CurrentTasksModal({
 export interface CurrentTasksModalItemProps {
   task: Task;
   onClick: () => void;
-  onCancelEnhancer?: (task: Task) => void;
+  onCancelEnhancer?: (taskId: string) => void;
   isCancellingEnhancer?: boolean;
 }
 
@@ -149,7 +149,7 @@ export function CurrentTasksModalItem({
             disabled={isCancellingEnhancer}
             onClick={(e) => {
               e.stopPropagation();
-              onCancelEnhancer(task);
+              onCancelEnhancer(task._id);
             }}
             className="p-1.5 rounded transition-colors disabled:opacity-50 text-blue-500 dark:text-blue-400 hover:bg-blue-500/10"
           >

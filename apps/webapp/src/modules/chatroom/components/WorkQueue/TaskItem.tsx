@@ -13,7 +13,7 @@ export interface TaskItemProps {
   onClick?: () => void;
   /** Show the cancel-enhancer control for enhancer-assigned current tasks. */
   showCancelEnhancer?: boolean;
-  onCancelEnhancer?: () => void;
+  onCancelEnhancer?: (taskId: string) => void;
   isCancellingEnhancer?: boolean;
 }
 
@@ -116,7 +116,7 @@ export function TaskItem({
             disabled={isCancellingEnhancer}
             onClick={(e) => {
               e.stopPropagation();
-              onCancelEnhancer();
+              onCancelEnhancer(task._id);
             }}
             className="p-1.5 rounded transition-colors disabled:opacity-50 text-blue-500 dark:text-blue-400 hover:bg-blue-500/10"
           >

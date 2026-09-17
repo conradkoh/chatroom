@@ -96,18 +96,9 @@ const TRANSITIONS: TransitionRule[] = [
   {
     from: 'pending',
     to: 'in_progress',
-    trigger: 'resumeFromTokenActivity',
+    trigger: 'readTask',
     setFields: {
       acknowledgedAt: 'NOW',
-      startedAt: 'NOW',
-    },
-  },
-
-  {
-    from: 'acknowledged',
-    to: 'in_progress',
-    trigger: 'startTask',
-    setFields: {
       startedAt: 'NOW',
     },
   },
@@ -203,6 +194,24 @@ const TRANSITIONS: TransitionRule[] = [
     from: 'in_progress',
     to: 'pending',
     trigger: 'releaseTaskAfterTurnFailure',
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
+
+  // ==========================================================================
+  // DAEMON SHUTDOWN: machine-wide release for reprocessing on next boot
+  // ==========================================================================
+
+  {
+    from: 'acknowledged',
+    to: 'pending',
+    trigger: 'releaseTasksOnDaemonShutdown',
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
+
+  {
+    from: 'in_progress',
+    to: 'pending',
+    trigger: 'releaseTasksOnDaemonShutdown',
     clearFields: ['acknowledgedAt', 'startedAt'],
   },
 

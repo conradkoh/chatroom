@@ -102,7 +102,6 @@ describe('workspace-git v2 subscribers', () => {
         },
         file: {},
         agenticQuery: {},
-        enhancer: {},
       },
     });
     await new Promise((r) => setTimeout(r, 0));
@@ -129,7 +128,6 @@ describe('workspace-git v2 subscribers', () => {
         },
         file: {},
         agenticQuery: {},
-        enhancer: {},
       },
       { type: 'git.request', requestId: GIT_REQUEST_ID }
     );

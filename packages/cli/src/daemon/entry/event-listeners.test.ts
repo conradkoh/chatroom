@@ -73,6 +73,7 @@ function registerListeners(
         subscribeAgentTurnEnded: () => () => undefined,
         subscribeAgentStarted: () => () => undefined,
         subscribeAgentSessionLost: () => () => undefined,
+        subscribeAgentTurnProgress: () => () => undefined,
       })
     )
   );

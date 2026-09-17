@@ -162,14 +162,8 @@ describe('Context Read — Pinned Context', () => {
       type: 'message',
     });
 
-    // Planner claims and starts the task from message A
-    await t.mutation(api.tasks.claimTask, {
-      sessionId,
-      chatroomId,
-      role: 'planner',
-    });
-
-    const startResult = await t.mutation(api.tasks.startTask, {
+    // Planner claims and reads the task from message A
+    const claimed = await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
       role: 'planner',
@@ -179,7 +173,7 @@ describe('Context Read — Pinned Context', () => {
       sessionId,
       chatroomId,
       role: 'planner',
-      taskId: startResult.taskId,
+      taskId: claimed.taskId,
     });
 
     // Planner creates a context WITH triggerMessageId pointing to message A
@@ -211,17 +205,18 @@ describe('Context Read — Pinned Context', () => {
       type: 'message',
     });
 
-    // Planner claims/starts message E's task
-    await t.mutation(api.tasks.claimTask, {
+    // Planner claims/reads message E's task
+    const claimedTaskE = await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
       role: 'planner',
     });
 
-    await t.mutation(api.tasks.startTask, {
+    await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
       role: 'planner',
+      taskId: claimedTaskE.taskId,
     });
 
     // ===== QUERY CONTEXT =====

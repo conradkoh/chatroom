@@ -41,7 +41,7 @@ export async function applyAgentActivityHeartbeat(
   };
 
   if (args.action === 'get-next-task:started') {
-    const enhancing = await hasActiveEntryPointEnhancerJob(ctx, args.chatroomId, args.role);
+    const enhancing = await hasActiveEntryPointEnhancerJob(ctx, args.chatroomId);
     await transitionAgentStatus(
       ctx,
       args.chatroomId,

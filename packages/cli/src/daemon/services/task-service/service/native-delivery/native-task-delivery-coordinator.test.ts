@@ -108,6 +108,7 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
           explainNativeDeliveryBlock: () => null,
+          isRedeliveryExhausted: () => false,
         },
         onTaskDelivered,
       })
@@ -141,6 +142,7 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
           loadAssignedTaskForAction,
           isNativeHarness: () => true,
           explainNativeDeliveryBlock: () => null,
+          isRedeliveryExhausted: () => false,
         },
       })
     );

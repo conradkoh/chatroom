@@ -13,7 +13,6 @@ import {
   DaemonSessionService,
 } from '../../daemon-services.js';
 import type { AgentHarness } from '../../daemon-types.js';
-import { drainPendingEnhancerJobsIfRegistered } from '../../enhancer/enhancer-drain-registry.js';
 
 export interface AgentRequestStartEventPayload {
   _id: Id<'chatroom_machineCommandInbox'>;
@@ -46,6 +45,5 @@ export const onRequestStartAgentEffect = (
         deadline: event.deadline,
         wantResume: event.wantResume,
       });
-      await drainPendingEnhancerJobsIfRegistered();
     });
   });

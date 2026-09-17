@@ -27,6 +27,7 @@ import { asConvexSessionId } from '../../entry/daemon-types.js';
 import type { EventStreamHub } from '../../local-web/server/event-stream-hub.js';
 import type { LogStreamEvent, LogStreamHub } from '../../local-web/server/log-stream-hub.js';
 import type { HarnessStreamEvent, StreamHub } from '../../local-web/server/stream-hub.js';
+import type { CliGatewayService } from '../../services/cli-gateway-service/index.js';
 import type { HarnessStreamRepository } from '../repository/harness-stream-repository.js';
 import type { LogRepository } from '../repository/log-repository.js';
 
@@ -40,6 +41,7 @@ export type RegisterSocketHandlersDeps = {
   backend?: BackendOps | undefined;
   sessionId?: string | undefined;
   debugState?: ((chatroomId: string) => unknown | Promise<unknown>) | undefined;
+  cliGateway?: CliGatewayService | undefined;
 };
 
 type AckFn = (response: SocketAck<unknown>) => void;
@@ -56,6 +58,23 @@ function extractAck(args: unknown[]): { payload: unknown; ack: unknown } {
     return { payload: args.length > 1 ? args[0] : undefined, ack: last };
   }
   return { payload: args[0], ack: undefined };
+}
+
+/**
+ * Resolves the `daemon.debug.state` payload: the chatroom's local read model
+ * enriched with the CLI gateway log ring when the gateway is available.
+ */
+async function resolveDebugStatePayload(
+  deps: RegisterSocketHandlersDeps,
+  payload: unknown
+): Promise<unknown> {
+  if (!deps.debugState) throw new Error('daemon debug state is not configured');
+  const { chatroomId } = debugStateInputSchema.parse(payload ?? {});
+  const data = await deps.debugState(chatroomId);
+  if (data && typeof data === 'object' && deps.cliGateway) {
+    (data as Record<string, unknown>).cliGateway = deps.cliGateway.debugState();
+  }
+  return data;
 }
 
 export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersDeps): void {
@@ -89,12 +108,24 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
       }
     });
 
+    socket.on('cli.handoff', async (...args) => {
+      const { payload, ack } = extractAck(args);
+      try {
+        if (!deps.cliGateway) throw new Error('CLI gateway is not configured');
+        const data = await deps.cliGateway.handoff(
+          payload as Parameters<CliGatewayService['handoff']>[0]
+        );
+        callAck(ack, { ok: true, data });
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
+    });
+
     socket.on('daemon.debug.state', async (...args) => {
       const { payload, ack } = extractAck(args);
       try {
-        if (!deps.debugState) throw new Error('daemon debug state is not configured');
-        const { chatroomId } = debugStateInputSchema.parse(payload ?? {});
-        callAck(ack, { ok: true, data: await deps.debugState(chatroomId) });
+        const data = await resolveDebugStatePayload(deps, payload);
+        callAck(ack, { ok: true, data });
       } catch (err) {
         callAck(ack, { ok: false, error: normalizeError(err) });
       }

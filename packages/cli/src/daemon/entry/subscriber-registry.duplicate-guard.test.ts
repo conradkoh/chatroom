@@ -19,7 +19,6 @@ const V2_SUBSCRIBED_QUERIES = [
   'api.workspaces.listRecentlyObservedWorkspacesForMachine',
   'api.daemon.commands.listActionableCommandRuns',
   'api.daemon.machineCommandInbox.watchNext',
-  'api.daemon.enhancer.index.pendingForChatroom',
 ] as const;
 
 const LEGACY_INIT_FILES_TO_GUARD = [
@@ -29,7 +28,6 @@ const LEGACY_INIT_FILES_TO_GUARD = [
   'src/daemon/entry/workspace-git/workspace-list-subscription.ts',
   'src/daemon/entry/handlers/process/command-run-subscription.ts',
   'src/daemon/entry/agentic-query/start-subscriptions.ts',
-  'src/daemon/entry/enhancer/job-subscriber.ts',
   'src/daemon/entry/daemon-runtime.ts',
 ] as const;
 
@@ -54,7 +52,6 @@ describe('subscriber-registry duplicate guard (G4)', () => {
     expect(registrySource).toContain('startFileWriteRequestSubscriber');
     expect(registrySource).toContain('startAgenticQuerySessionSubscriber');
     expect(registrySource).toContain('startAgenticQueryPromptSubscriber');
-    expect(registrySource).toContain('startEnhancerJobSubscriber');
   });
 
   it('git-request v2 subscriber does not WS-subscribe the machine-wide query', () => {

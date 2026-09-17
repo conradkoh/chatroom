@@ -21,8 +21,7 @@ export type AgentRestartRequest = {
 };
 
 export type AgentRestartResult =
-  | { status: 'requested'; correlationId: string; releasedTaskCount: number }
-  | { status: 'skipped'; reason: string };
+  { status: 'requested'; correlationId: string } | { status: 'skipped'; reason: string };
 
 export function isRunnableRemoteTeamConfig(config: {
   type: string;

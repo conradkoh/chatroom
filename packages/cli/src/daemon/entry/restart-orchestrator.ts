@@ -20,7 +20,6 @@ import { api } from '../../api.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
-import { resetRoleDeliveryState } from '../services/service-interfaces.js';
 import type {
   AgentWorkManager,
   AgentProcessManagerService,
@@ -51,7 +50,7 @@ interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
-  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart'>;
+  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart' | 'handleAgentRestart'>;
 }
 
 async function emitPhase(
@@ -123,7 +122,10 @@ export async function runRestartOrchestrator(
 
   markRestartOrchestratorInFlight(chatroomId, role, event.correlationId);
   try {
-    resetRoleDeliveryState(chatroomId, role);
+    // The agent process service owns agent/session state; the task service
+    // decides what happens to the role's in-flight tasks (reset cap, release
+    // acknowledged/in_progress tasks to pending).
+    await deps.nativeDelivery.handleAgentRestart({ chatroomId, role });
 
     await emitPhase(deps, event, 'reset');
 

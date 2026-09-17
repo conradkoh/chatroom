@@ -10,7 +10,6 @@ import {
 } from '../../entities/agent-restart';
 import { getTeamStructure } from '../../entities/team-presets';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import { releaseTasksOnAgentExit } from '../task/release-tasks-on-agent-exit';
 import { getActiveTeamStructure } from '../team/active-team-structure';
 
 export async function requestAgentRestart(
@@ -38,14 +37,10 @@ export async function requestAgentRestart(
 
   await validateMachineHarness(ctx, machine, resolved.agentHarness);
 
-  const releasedTaskCount = await releaseRestartTasks(ctx, {
-    chatroomId: input.chatroomId,
-    role: input.role,
-  });
   const correlationId = crypto.randomUUID();
   await persistRestartAndEmit(ctx, input, resolved, correlationId, Date.now());
 
-  return { status: 'requested', correlationId, releasedTaskCount };
+  return { status: 'requested', correlationId };
 }
 
 function resolveRestartOverrides(request: AgentRestartRequest): RunnableRemoteAgentConfig {
@@ -70,12 +65,9 @@ async function validateMachineHarness(
   }
 }
 
-async function releaseRestartTasks(
-  ctx: MutationCtx,
-  input: { chatroomId: Id<'chatroom_rooms'>; role: string }
-): Promise<number> {
-  return releaseTasksOnAgentExit(ctx, { chatroomId: input.chatroomId, role: input.role });
-}
+// Task release is no longer decided here: in-flight tasks stay untouched until
+// the owning machine's agent process service notifies its task service
+// (`handleAgentRestart`), which decides what to do with them.
 
 // fallow-ignore-next-line complexity
 async function persistRestartAndEmit(

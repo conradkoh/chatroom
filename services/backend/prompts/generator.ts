@@ -24,6 +24,7 @@
 
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
+import { composeEnhancerSystemPrompt } from './enhancer/system-prompt';
 import {
   getNativeEnhancerRequestTurnEndGuidance,
   getHandoffTurnEndGuidance,
@@ -219,7 +220,23 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     return composeNativeSystemPrompt(input);
   }
 
-  const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
+  const { chatroomId, role, teamEntryPoint, convexUrl } = input;
+
+  // Ephemeral enhancer identity is harness-agnostic: CLI-mode spawns compose
+  // the same role prompt as native spawns, with CLI-mode general knowledge
+  // (non-native glossary + activated skills) instead of the native variant.
+  if (role.toLowerCase() === 'enhancer') {
+    return composeEnhancerSystemPrompt({
+      chatroomId,
+      cliEnvPrefix: getCliEnvPrefix(convexUrl),
+      convexUrl,
+      entryPointRole: teamEntryPoint,
+      nativeIntegration: false,
+      activatedSkills: input.activatedSkills,
+    });
+  }
+
+  const { teamId, teamName, teamRoles } = input;
 
   const selectorCtx = buildSelectorContext({
     role,

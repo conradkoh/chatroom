@@ -9,7 +9,9 @@ export interface RecordTaskDeliveryArgs {
   role: string;
   deliveryKind: DeliveryKind;
   harnessSessionId?: string | undefined;
-  jobId?: Id<'chatroom_enhancerJobs'> | undefined;
+  /** @deprecated Legacy enhancer job linkage (pipeline retired — table deleted);
+   *  never written by new code; typed as a plain string for legacy rows. */
+  jobId?: string | undefined;
   startedAt?: number | undefined;
 }
 

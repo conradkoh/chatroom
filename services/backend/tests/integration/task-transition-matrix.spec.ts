@@ -7,9 +7,7 @@
  *
  * | Role kind | Trigger | Expected result |
  * |-----------|---------|----------------|
- * | team_agent (planner) | native:task-injected + recordHarnessActivity | in_progress |
- * | team_agent (planner) | agent.waiting + recordHarnessActivity (activity resume) | in_progress |
- * | ephemeral (enhancer) | claimForSpawn | in_progress + participant row |
+ * | team_agent (planner) | readTask intent (daemon-driven) | in_progress |
  */
 
 import { describe, expect, test } from 'vitest';
@@ -22,7 +20,6 @@ import {
   createDuoTeamChatroom,
   createTestSession,
   joinParticipant,
-  registerMachineWithDaemon,
 } from '../helpers/integration';
 
 async function createSessionChatroomAndJoin(
@@ -54,147 +51,46 @@ async function seedPendingTask(
 }
 
 describe('task transition matrix', () => {
-  test('team agent + native:task-injected + recordHarnessActivity -> in_progress', async () => {
-    const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
-      'ttm-injected',
-      'planner'
-    );
+  test('team agent + readTask intent (daemon-driven) -> in_progress', async () => {
+    const { sessionId, chatroomId } = await createSessionChatroomAndJoin('ttm-injected', 'planner');
     await assertDuoTeamOnly(chatroomId);
 
     const taskId = await seedPendingTask(chatroomId, 'planner');
 
-    // Manually acknowledge the pending task to simulate native injection
-    await t.run(async (ctx) => {
-      const task = await ctx.db.get('chatroom_tasks', taskId);
-      if (task && task.status === 'pending') {
-        await ctx.db.patch('chatroom_tasks', taskId, { status: 'acknowledged' });
-      }
-    });
-    expect(await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status)).toBe(
-      'acknowledged'
-    );
-
-    // Simulate harness activity after native injection
-    const { startTaskFromTokenActivity } =
-      await import('../../src/domain/usecase/participant/start-task-from-token-activity');
-    await t.run(async (ctx) => {
-      await startTaskFromTokenActivity(
-        ctx,
-        { chatroomId, role: 'planner' },
-        {
-          lastSeenAction: 'native:task-injected',
-        }
-      );
-    });
-
-    const status = await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status);
-    expect(status).toBe('in_progress');
-  });
-
-  test('team agent + agent.waiting + recordHarnessActivity (activity resume) -> in_progress', async () => {
-    const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
-      'ttm-waiting',
-      'planner'
-    );
-    await assertDuoTeamOnly(chatroomId);
-
-    const taskId = await seedPendingTask(chatroomId, 'planner');
-
-    // Manually acknowledge the pending task
-    await t.run(async (ctx) => {
-      const task = await ctx.db.get('chatroom_tasks', taskId);
-      if (task && task.status === 'pending') {
-        await ctx.db.patch('chatroom_tasks', taskId, { status: 'acknowledged' });
-      }
-      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
-        chatroomId,
-        role: 'planner',
-        roleKind: 'persistent',
-        status: 'waiting',
-        projectedAt: Date.now(),
-      });
-    });
-
-    const { startTaskFromTokenActivity } =
-      await import('../../src/domain/usecase/participant/start-task-from-token-activity');
-    await t.run(async (ctx) => {
-      await startTaskFromTokenActivity(
-        ctx,
-        { chatroomId, role: 'planner' },
-        {
-          lastSeenAction: 'native:waiting',
-        }
-      );
-    });
-
-    const status = await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status);
-    expect(status).toBe('in_progress');
-  });
-
-  test('ephemeral role + claimForSpawn -> in_progress and registers participant', async () => {
-    const { sessionId } = await createTestSession('ttm-worker');
-    const cId = await createDuoTeamChatroom(sessionId);
-    await assertDuoTeamOnly(cId);
-
-    await registerMachineWithDaemon(sessionId, 'machine-ttm-worker');
-
-    // Seed enhancer job directly
-    const userId = await t.run(async (ctx) => {
-      const users = await ctx.db.query('users').collect();
-      return users[0]!._id;
-    });
-
-    const jobId = await t.run(async (ctx) => {
-      return ctx.db.insert('chatroom_enhancerJobs', {
-        chatroomId: cId,
-        userId,
-        targetId: 'handoff:planner-to-builder',
-        fromRole: 'planner',
-        toRole: 'enhancer',
-        status: 'pending',
-        draftContent: 'draft',
-        templateSnapshot: 'template',
-        agentHarness: 'opencode',
-        model: 'm',
-        machineId: 'machine-ttm-worker',
-        workingDir: '/tmp',
-        attemptCount: 1,
-        maxAttempts: 3,
-        createdAt: Date.now(),
-      });
-    });
-
-    const taskId = await seedPendingTask(cId, 'enhancer');
-
-    // Link task to job
-    await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_enhancerJobs', jobId, { taskId });
-    });
-
-    // Claim for spawn
-    const claim = await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+    // The daemon's delivery claims the pending task (pending → acknowledged)…
+    await t.mutation(api.tasks.claimTask, {
       sessionId,
-      jobId,
-      machineId: 'machine-ttm-worker',
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
-    expect(claim.claimed).toBe(true);
 
-    // After claim, the enhancer task should exist and be in_progress
-    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task).toBeDefined();
-    expect(task!.status).toBe('in_progress');
+    // …and applies the read intent once the turn produces output.
+    await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
+    });
 
-    // The active enhancer invocation is visible as a participant.
-    const enhancerParticipant = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', cId).eq('role', 'enhancer'))
-        .first();
+    const status = await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status);
+    expect(status).toBe('in_progress');
+  });
+
+  test('read intent on a pending task starts it without an acknowledged intermediate', async () => {
+    const { sessionId, chatroomId } = await createSessionChatroomAndJoin('ttm-waiting', 'planner');
+    await assertDuoTeamOnly(chatroomId);
+
+    const taskId = await seedPendingTask(chatroomId, 'planner');
+
+    await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
-    expect(enhancerParticipant).toMatchObject({
-      role: 'enhancer',
-      agentType: 'remote',
-      lastSeenAction: 'enhancer:started',
-    });
+
+    const status = await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status);
+    expect(status).toBe('in_progress');
   });
 });

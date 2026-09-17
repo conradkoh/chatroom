@@ -17,7 +17,7 @@ type TaskStatusView = {
 };
 
 // fallow-ignore-next-line complexity
-async function listCurrentRemoteRequests(
+export async function listCurrentRemoteRequests(
   ctx: QueryCtx,
   machineId: string
 ): Promise<readonly LaunchRequest[]> {

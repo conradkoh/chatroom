@@ -6,7 +6,7 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
-import type { TaskDeliveryFailureReason } from './ports/native-task-delivery.js';
+import type { TaskDeliveryOperations } from './ports/task-delivery-operations.js';
 import {
   buildTaskServiceDebugState,
   type TaskServiceDebugState,
@@ -30,6 +30,10 @@ import {
   mapPendingTaskInboxRows,
   createConvexNativeTaskDeliveryGateway,
 } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
+import {
+  type TaskHandoffRepository,
+  type TaskHandoffRecord,
+} from '../infrastructure/repository/task-handoff-repository.js';
 
 interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
@@ -93,7 +97,7 @@ export type TaskServiceListener = (
   notification: TaskServiceNotification
 ) => Promise<TaskServiceDeliveryConfirmation | void> | TaskServiceDeliveryConfirmation | void;
 
-export interface TaskService {
+export interface TaskService extends TaskDeliveryOperations {
   /** Loads the initial task inbox state. */
   startTaskInbox(wsClient?: ConvexClient): Promise<void>;
   subscribe(listener: TaskServiceListener): () => void;
@@ -113,39 +117,48 @@ export interface TaskService {
    * turn failure, then patches the local state from the authoritative
    * backend response. The cache update happens only after backend success.
    */
-  releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
-    released: boolean;
-    status: AssignedTask['status'];
-    updatedAt: number;
-  }>;
-  loadAssignedTaskForAction(args: {
+  recordHandoffOutcome(args: {
+    chatroomId: string;
+    role: string;
+    targetRole: string;
+    nextTask?: AssignedTask | undefined;
+    taskIds?: readonly string[] | undefined;
+  }): Promise<void>;
+  getLatestHandoff(chatroomId: string, role: string): Promise<TaskHandoffRecord | null>;
+  /** Releases rehydrated in-progress tasks whose latest handoff does not cover them. */
+  sweepUncoveredInProgressTasks(): Promise<number>;
+  /**
+   * Notifies the task service that a user-initiated agent restart happened for
+   * the role. The task service decides what to do with the role's in-flight
+   * tasks: it resets the redelivery cap and hands acknowledged/in_progress
+   * tasks back to `pending` so the fresh agent reprocesses them.
+   */
+  handleAgentRestart(args: { chatroomId: string; role: string }): Promise<void>;
+  /**
+   * Notifies the task service that a delivered task's agent turn is producing
+   * output (agent process service reports first turn progress). The task
+   * service decides what that means: apply the read intent (pending/
+   * acknowledged → in_progress, idempotent) and mark the open delivery
+   * receipt started, so the backend never infers state from raw signals.
+   */
+  handleAgentTurnProgress(args: {
     chatroomId: string;
     role: string;
     taskId: string;
-  }): Promise<AssignedTaskWithContent | null>;
-  recordDeliveryFailure(args: {
-    taskId: string;
-    reason:
-      | 'no_agent_config'
-      | 'unsupported_harness'
-      | 'injection_not_confirmed'
-      | 'task_not_deliverable'
-      | 'assigned_elsewhere';
-  }): Promise<boolean>;
-  clearDeliveryFailure(
-    taskId: string,
-    expectedReason?: TaskDeliveryFailureReason
-  ): Promise<boolean>;
+  }): Promise<void>;
 }
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
   convexUrl: string;
   /** Daemon-local source of the latest agent harness/model/workingDir config. */
   configurationService: AgentConfigRegistry;
+  /** Durable latest-handoff repository owned by this task service. */
+  handoffRepository: TaskHandoffRepository;
 }
 
 export function createTaskService(deps: TaskServiceCompositionDependencies): TaskService {
   const gateway = createConvexNativeTaskDeliveryGateway(deps.backend);
+  const handoffRepository = deps.handoffRepository;
 
   const taskInboxState = new TaskInboxState();
   const listeners = new Set<TaskServiceListener>();
@@ -158,6 +171,162 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const scheduledEventIds = new Set<string>();
   const deliveredEventIds = new Set<string>();
   const taskChains = new Map<string, Promise<void>>();
+  const maxBootstrapSweepFailures = 3;
+  let bootstrapSweepPending = true;
+  let bootstrapSweepFailures = 0;
+  let bootstrapSweepInFlight = false;
+  let bootstrapSweepPromise: Promise<void> | undefined;
+
+  // Plan V2: consecutive uncovered turn ends per (chatroom, role, taskId).
+  // In-memory on purpose — a daemon restart re-bounds the cycle (the bootstrap
+  // sweep re-delivers once and the counter rebuilds). Reset only on fresh task
+  // activity (task_assigned / completed / deleted) or a user-initiated agent
+  // restart (user.start); daemon-authored transitions (release, claim) emit
+  // task_updated events and deliberately do NOT reset the counter.
+  const REDIVERY_ATTEMPT_CAP = 3;
+  const turnEndAttemptCounts = new Map<string, number>();
+  const redeliveryExhaustedKeys = new Set<string>();
+  const redeliveryKey = (chatroomId: string, role: string, taskId: string): string =>
+    `${chatroomId}:${role.toLowerCase()}:${taskId}`;
+  const recordUncoveredTurnEnd = async (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<{ exceeded: boolean }> => {
+    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
+    if (redeliveryExhaustedKeys.has(key)) return { exceeded: true };
+    const attempts = (turnEndAttemptCounts.get(key) ?? 0) + 1;
+    turnEndAttemptCounts.set(key, attempts);
+    if (attempts < REDIVERY_ATTEMPT_CAP) return { exceeded: false };
+    redeliveryExhaustedKeys.add(key);
+    try {
+      await gateway.recordDeliveryFailure({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId: args.taskId,
+        reason: 'redelivery_exhausted',
+      });
+    } catch (error) {
+      console.warn(
+        `[TaskService] redelivery-exhausted failure record failed chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+    console.log(
+      `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} attempts=${attempts} — release/redelivery stopped; agent restart (user.start) resets`
+    );
+    return { exceeded: true };
+  };
+  const isRedeliveryExhausted = (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): boolean =>
+    redeliveryExhaustedKeys.has(redeliveryKey(args.chatroomId, args.role, args.taskId));
+  const clearRedeliveryTrackingForTask = (
+    chatroomId: string,
+    role: string,
+    taskId: string
+  ): void => {
+    const key = redeliveryKey(chatroomId, role, taskId);
+    turnEndAttemptCounts.delete(key);
+    redeliveryExhaustedKeys.delete(key);
+  };
+
+  const sweepUncoveredInProgressTasks = async (): Promise<number> => {
+    let released = 0;
+    let failures = 0;
+    for (const task of taskInboxState.listAll()) {
+      if (task.status !== 'in_progress') continue;
+      try {
+        const handoff = await handoffRepository.getLatest(task.chatroomId, task.agentConfig.role);
+        if (handoff?.taskIds.includes(task.taskId)) continue;
+        const result = await gateway.releaseTaskAfterTurnFailure({
+          sessionId: deps.sessionId,
+          chatroomId: task.chatroomId,
+          role: task.agentConfig.role,
+          taskId: task.taskId,
+        });
+        taskInboxState.markStatus(
+          task.chatroomId,
+          task.agentConfig.role,
+          task.taskId,
+          result.status,
+          result.updatedAt
+        );
+        released += 1;
+      } catch (error) {
+        failures += 1;
+        console.warn(
+          `[TaskService] bootstrap task release failed chatroom=${task.chatroomId} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+    if (failures > 0) throw new Error(`${failures} bootstrap task release(s) failed`);
+    return released;
+  };
+
+  /** Releases a single task back to `pending` via the backend, then patches
+   *  the local read model from the authoritative result. */
+  const releaseTask = async (args: { chatroomId: string; role: string; taskId: string }) => {
+    const result = await gateway.releaseTaskAfterTurnFailure({
+      sessionId: deps.sessionId,
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: args.taskId,
+    });
+    taskInboxState.markStatus(
+      args.chatroomId,
+      args.role,
+      args.taskId,
+      result.status,
+      result.updatedAt
+    );
+    const currentTask = taskInboxState.getForRole(args.chatroomId, args.role, args.taskId);
+    if (currentTask?.status === 'pending') {
+      pendingTaskReconciliationWatcher.watch(currentTask);
+    } else {
+      pendingTaskReconciliationWatcher.clear(args.chatroomId, args.role, args.taskId);
+    }
+    return result;
+  };
+
+  /** Clears exhausted/redelivery tracking for a whole role (user-initiated agent restart). */
+  const clearRoleRedeliveryTracking = (chatroomId: string, role: string): void => {
+    const prefix = `${chatroomId}:${role.toLowerCase()}:`;
+    for (const key of [...turnEndAttemptCounts.keys()]) {
+      if (key.startsWith(prefix)) turnEndAttemptCounts.delete(key);
+    }
+    for (const key of [...redeliveryExhaustedKeys]) {
+      if (key.startsWith(prefix)) redeliveryExhaustedKeys.delete(key);
+    }
+  };
+
+  const runBootstrapSweep = (): Promise<void> => {
+    if (!bootstrapSweepPending) return Promise.resolve();
+    if (bootstrapSweepInFlight) return bootstrapSweepPromise ?? Promise.resolve();
+    bootstrapSweepInFlight = true;
+    bootstrapSweepPromise = sweepUncoveredInProgressTasks()
+      .then(() => {
+        bootstrapSweepPending = false;
+        bootstrapSweepFailures = 0;
+      })
+      .catch((error) => {
+        bootstrapSweepFailures += 1;
+        if (bootstrapSweepFailures >= maxBootstrapSweepFailures) {
+          bootstrapSweepPending = false;
+          console.warn('[TaskService] bootstrap sweep giving up after 3 failed attempts');
+        } else {
+          console.warn(
+            `[TaskService] bootstrap sweep failed (attempt ${bootstrapSweepFailures}/3): ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      })
+      .finally(() => {
+        bootstrapSweepInFlight = false;
+        bootstrapSweepPromise = undefined;
+      });
+    return bootstrapSweepPromise;
+  };
 
   const notifyForDelivery = async (
     notification: TaskServiceNotification
@@ -182,7 +351,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       (event.task.status as string) === 'completed'
     ) {
       taskInboxState.remove(event.chatroomId, event.role, event.taskId, event.task.updatedAt);
+      clearRedeliveryTrackingForTask(event.chatroomId, event.role, event.taskId);
       return 'handled';
+    }
+
+    // A fresh assignment (new task or reassignment to this role) starts a new
+    // redelivery cycle. TaskUpdated transitions emitted by the daemon itself
+    // (release/claim) must not reset the V2 counter.
+    if (event.eventType === WorkspaceTaskInboxEventType.TaskAssigned) {
+      clearRedeliveryTrackingForTask(event.chatroomId, event.role, event.taskId);
     }
 
     return taskInboxState.upsert([
@@ -308,6 +485,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const reconcileTaskStatuses = (tasks: readonly AssignedTask[]): void => {
     taskInboxState.reconcileStatuses(tasks);
+    runBootstrapSweep();
     for (const task of tasks) {
       if (task.status === 'pending' || task.status === 'acknowledged') {
         pendingTaskReconciliationWatcher.watch(task);
@@ -351,7 +529,9 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           machineId: deps.machineId,
         });
         reconcileTaskStatuses(statusTasks);
+        await runBootstrapSweep();
       } catch (error) {
+        bootstrapSweepPending = true;
         console.warn('[TaskService] task-status bootstrap failed:', error);
       }
       if (wsClient && !stopInboxWatch) {
@@ -396,32 +576,59 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       acknowledgementRetryWatcher.stop();
       pendingTaskReconciliationWatcher.stop();
       taskChains.clear();
+      handoffRepository.close();
     },
     listTasksForRole: (chatroomId, role) => taskInboxState.listForRole(chatroomId, role),
     listAllTasks: () => taskInboxState.listAll(),
     debugState: (chatroomId) => buildTaskServiceDebugState({ taskInboxState, chatroomId }),
     taskInboxState,
-    releaseTaskAfterTurnFailure: async (args) => {
-      const result = await gateway.releaseTaskAfterTurnFailure({
-        sessionId: deps.sessionId,
-        chatroomId: args.chatroomId,
-        role: args.role,
-        taskId: args.taskId,
+    recordHandoffOutcome: async ({
+      chatroomId,
+      role,
+      targetRole,
+      nextTask,
+      taskIds: providedTaskIds,
+    }) => {
+      const taskIds =
+        providedTaskIds ??
+        taskInboxState
+          .listForRole(chatroomId, role)
+          .filter((task) => task.status === 'acknowledged' || task.status === 'in_progress')
+          .map((task) => task.taskId);
+      await handoffRepository.record({
+        chatroomId,
+        role,
+        taskIds,
+        ...(nextTask?.taskId ? { nextTaskId: nextTask.taskId } : {}),
+        targetRole,
+        handedOffAt: Date.now(),
       });
-      taskInboxState.markStatus(
-        args.chatroomId,
-        args.role,
-        args.taskId,
-        result.status,
-        result.updatedAt
-      );
-      const currentTask = taskInboxState.getForRole(args.chatroomId, args.role, args.taskId);
-      if (currentTask?.status === 'pending') {
-        pendingTaskReconciliationWatcher.watch(currentTask);
-      } else {
-        pendingTaskReconciliationWatcher.clear(args.chatroomId, args.role, args.taskId);
+      const now = Date.now();
+      for (const taskId of taskIds) taskInboxState.remove(chatroomId, role, taskId, now);
+      if (nextTask) taskInboxState.upsert([nextTask]);
+    },
+    getLatestHandoff: (chatroomId, role) => handoffRepository.getLatest(chatroomId, role),
+    sweepUncoveredInProgressTasks,
+    releaseTaskAfterTurnFailure: (args) => releaseTask(args),
+    handleAgentRestart: async ({ chatroomId, role }) => {
+      // A user-initiated restart is an explicit intervention: the fresh agent
+      // session reprocesses the role's in-flight work. Reset the redelivery
+      // cap and hand every acknowledged/in_progress task back to `pending` —
+      // the per-task release keeps each task's own state authoritative
+      // (already-pending/completed tasks are no-ops).
+      clearRoleRedeliveryTracking(chatroomId, role);
+      const inFlightTasks = taskInboxState
+        .listForRole(chatroomId, role)
+        .filter((task) => task.status === 'acknowledged' || task.status === 'in_progress');
+      for (const task of inFlightTasks) {
+        try {
+          await releaseTask({ chatroomId, role, taskId: task.taskId });
+        } catch (error) {
+          console.warn(
+            `[TaskService] agent-restart release failed chatroom=${chatroomId} role=${role} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
       }
-      return result;
     },
     loadAssignedTaskForAction: async ({ chatroomId, role, taskId }) => {
       const task = await gateway.loadAssignedTaskForAction({
@@ -431,6 +638,34 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         role,
       });
       return task?.chatroomId === chatroomId ? task : null;
+    },
+    handleAgentTurnProgress: async ({ chatroomId, role, taskId }) => {
+      const task = taskInboxState.getForRole(chatroomId, role, taskId);
+      if (!task) return;
+      if (task.status !== 'acknowledged' && task.status !== 'in_progress') return;
+
+      if (task.status === 'acknowledged') {
+        try {
+          await gateway.readTask({ sessionId: deps.sessionId, chatroomId, role, taskId });
+          taskInboxState.markStatus(chatroomId, role, taskId, 'in_progress', Date.now());
+        } catch (error) {
+          console.warn(
+            `[TaskService] turn-progress read failed chatroom=${chatroomId} role=${role} task=${taskId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+          return;
+        }
+      }
+
+      // The receipt may still be open (e.g. readTask succeeded but the receipt
+      // mark failed on an earlier progress signal) — markStarted is a no-op
+      // when nothing is open.
+      try {
+        await gateway.markReceiptStarted({ sessionId: deps.sessionId, chatroomId, role, taskId });
+      } catch (error) {
+        console.warn(
+          `[TaskService] turn-progress receipt mark failed chatroom=${chatroomId} role=${role} task=${taskId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     },
     recordDeliveryFailure: ({ taskId, reason }) =>
       gateway.recordDeliveryFailure({
@@ -446,6 +681,11 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         taskId,
         ...(expectedReason ? { expectedReason } : {}),
       }),
+    recordUncoveredTurnEnd,
+    isRedeliveryExhausted,
+    clearRedeliveryTracking: ({ chatroomId, role }) => {
+      clearRoleRedeliveryTracking(chatroomId, role);
+    },
   };
   return service;
 }

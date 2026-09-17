@@ -99,7 +99,7 @@ export interface ReadTaskResult {
  * @param ctx - Convex mutation context
  * @param args - Task identification (chatroomId, role, taskId)
  * @returns Task ID, content, and status
- * @throws Error if task not found, wrong chatroom, or wrong assignment
+ * @throws Error if task not found, wrong chatroom, wrong assignment, or a terminal state
  */
 export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<ReadTaskResult> {
   const { chatroomId, role, taskId } = args;
@@ -120,29 +120,15 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
     throw new Error(`Task is assigned to ${task.assignedTo}, not ${role}`);
   }
 
-  const now = Date.now();
-
-  // 4. IDEMPOTENCY: If task is already in_progress, accept it
-  //    This is a recovering agent picking up where a dead agent left off.
-  //    Update assignedTo if needed, emit event, patch participant status.
+  // 4. IDEMPOTENCY: If task is already in_progress, accept it — the reader is
+  //    the owner recovering or re-reading; no transition needed.
   if (task.status === 'in_progress') {
-    if (task.assignedTo && task.assignedTo.toLowerCase() !== role.toLowerCase()) {
-      await ctx.db.patch('chatroom_tasks', taskId, {
-        assignedTo: role,
-        updatedAt: now,
-      });
-    }
-
     return buildReadTaskResult(ctx, chatroomId, task, taskId);
   }
 
-  // 5. If status is not acknowledged → error
-  if (task.status !== 'acknowledged') {
-    throw new Error(`Task must be acknowledged to read (current status: ${task.status})`);
-  }
-
-  // 6. Transition: acknowledged → in_progress via FSM
-  // Note: transitionTask now emits task.inProgress directly, so no duplicate needed here.
+  // 5. Pending and acknowledged tasks start on read (owner verified above);
+  //    the daemon owns state consistency, so the backend applies the read
+  //    intent instead of gating on status.
   await transitionTask(ctx, taskId, 'in_progress', 'readTask');
 
   // 7–9. Fetch context/attachments and return

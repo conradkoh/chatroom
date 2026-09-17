@@ -18,7 +18,6 @@ import {
 } from '../src/domain/entities/participant';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
-import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
 import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 
@@ -202,22 +201,6 @@ export const leave = mutation({
         lastSeenAction: PARTICIPANT_EXITED_ACTION,
         connectionId: undefined,
       });
-    }
-  },
-});
-
-/** Records harness activity and may start an acknowledged task when output is detected. */
-export const recordHarnessActivity = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
-    if (participant) {
-      await startTaskFromTokenActivity(ctx, args, participant);
     }
   },
 });

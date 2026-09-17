@@ -33,6 +33,34 @@ export const onDaemonShutdownEffect: Effect.Effect<
   if (activeAgents.length > 0) {
     console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s) locally...`);
 
+    // Release every non-pending task the machine's roles hold back to
+    // `pending` before stopping agents — once the daemon exits, no agent on
+    // this machine can be processing anything, so all in-flight tasks must be
+    // reprocessable on the next boot. Runs as one machine-scoped backend
+    // mutation so it also covers tasks the local read model may have lost.
+    yield* Effect.promise(async () => {
+      try {
+        const tasksReleased = await session.backend.mutation(
+          api.daemon.taskStatus.releaseMachineTasks,
+          {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+          }
+        );
+        if (tasksReleased > 0) {
+          console.log(
+            `[${formatTimestamp()}] Released ${tasksReleased} in-flight task(s) to pending`
+          );
+        }
+      } catch (error) {
+        console.log(
+          `[${formatTimestamp()}] ⚠️  Failed to release in-flight tasks on shutdown: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    });
+
     let totalStopped = 0;
     let totalFailed = 0;
     yield* Effect.all(

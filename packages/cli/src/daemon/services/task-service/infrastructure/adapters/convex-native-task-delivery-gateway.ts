@@ -82,6 +82,10 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
         deliveryKind: 'native_inject',
       });
     },
+    readTask: async (args) =>
+      (await backend.mutation(api.tasks.readTask, args)) as { status: 'in_progress' },
+    markReceiptStarted: async (args) =>
+      (await backend.mutation(api.taskDeliveryReceipts.markStarted, args)) as { marked: boolean },
     joinWaitingParticipant: async (args) => {
       await backend.mutation(api.participants.join, {
         ...args,

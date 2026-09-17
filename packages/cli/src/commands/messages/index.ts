@@ -14,8 +14,7 @@ import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
   commandServicesLayerFromDeps,
-  requireSessionIdEffect,
-  validateChatroomIdEffect,
+  requireSessionForChatroomEffect,
 } from '../../infrastructure/services/index.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
@@ -110,17 +109,7 @@ export const listBySenderRoleEffect = (
 ): Effect.Effect<void, MessagesError, BackendService | SessionService> =>
   Effect.gen(function* () {
     const backend = yield* BackendService;
-
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     const messages = yield* backend
       .query<MessageItem[]>(api.messages.listBySenderRole, {
@@ -172,17 +161,7 @@ export const listSinceMessageEffect = (
 ): Effect.Effect<void, MessagesError, BackendService | SessionService> =>
   Effect.gen(function* () {
     const backend = yield* BackendService;
-
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     const messages = yield* backend
       .query<MessageItem[]>(api.messages.listSinceMessage, {

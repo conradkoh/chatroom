@@ -17,15 +17,14 @@ import { ConvexError } from 'convex/values';
 import { Effect } from 'effect';
 
 import type { HandoffDeps } from './deps.js';
-import { api } from '../../api.js';
-import type { Id } from '../../api.js';
+import { LocalDaemonServerError } from '../../commands/diagnostics/local-daemon.js';
+import { createLocalHandoffGateway } from '../../infrastructure/cli-gateway/local-handoff-gateway.js';
 import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import {
-  BackendService,
+  CliGatewayService,
   commandServicesLayerFromDeps,
-  requireSessionIdEffect,
+  requireSessionForChatroomEffect,
   SessionService,
-  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 import { formatAuthError, formatChatroomIdError } from '../../utils/error-formatting.js';
 
@@ -64,7 +63,8 @@ export type HandoffError =
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<HandoffDeps> {
-  return createConvexCommandDeps();
+  const deps = await createConvexCommandDeps();
+  return { backend: deps.backend, gateway: createLocalHandoffGateway(), session: deps.session };
 }
 
 // ─── Effect Programs ───────────────────────────────────────────────────────
@@ -77,52 +77,36 @@ async function createDefaultDeps(): Promise<HandoffDeps> {
 export const handoffEffect = (
   chatroomId: string,
   options: HandoffOptions
-): Effect.Effect<void, HandoffError, BackendService | SessionService> =>
+): Effect.Effect<void, HandoffError, CliGatewayService | SessionService> =>
   // fallow-ignore-next-line complexity
   Effect.gen(function* () {
     const session = yield* SessionService;
-    const backend = yield* BackendService;
+    const gateway = yield* CliGatewayService;
     const { role, message, nextRole } = options;
 
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
-
-    const result = yield* backend
-      .mutation<{
-        success: boolean;
-        error?: {
-          message: string;
-          code?: string | undefined;
-          suggestedTarget?: string | undefined;
-          suggestedTargets?: string[] | undefined;
-        } | undefined;
-        supportsNativeIntegration?: boolean | undefined;
-        enhancerJobId?: string | null | undefined;
-        enhancerRequestQueued?: boolean | undefined;
-      }>(api.messages.handoff, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        senderRole: role,
-        content: message,
-        targetRole: nextRole,
+    const result = yield* Effect.tryPromise({
+      try: () =>
+        gateway.handoff({
+          sessionId,
+          chatroomId,
+          senderRole: role,
+          content: message,
+          targetRole: nextRole,
+        }),
+      catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+    }).pipe(
+      Effect.mapError((cause): HandoffError => {
+        let errorData: { code?: string | undefined; message?: string | undefined } | undefined;
+        if (cause instanceof ConvexError) {
+          errorData = cause.data as { code?: string | undefined; message?: string | undefined };
+        } else if (cause instanceof LocalDaemonServerError && cause.details) {
+          errorData = cause.details as { code?: string | undefined; message?: string | undefined };
+        }
+        return { _tag: 'HandoffFailed', cause, errorData };
       })
-      .pipe(
-        Effect.mapError((cause): HandoffError => {
-          let errorData: { code?: string | undefined; message?: string | undefined } | undefined;
-          if (cause instanceof ConvexError) {
-            errorData = cause.data as { code?: string | undefined; message?: string | undefined };
-          }
-          return { _tag: 'HandoffFailed', cause, errorData };
-        })
-      );
+    );
 
     if (!result.success && result.error) {
       return yield* Effect.fail<HandoffError>({

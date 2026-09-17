@@ -3,21 +3,31 @@ import { Effect, Layer } from 'effect';
 
 import type { BackendService } from './backend.js';
 import { BackendServiceLive } from './backend.js';
+import type { CliGatewayService } from './cli-gateway.js';
+import { CliGatewayServiceLive } from './cli-gateway.js';
 import { SessionService, SessionServiceLive } from './session.js';
+import type { HandoffGatewayOps } from '../../commands/handoff/deps.js';
 import type { BackendOps, SessionOps } from '../deps/index.js';
 
 export type CommandServicesDeps = {
   backend: BackendOps & {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    action?:( (endpoint: any, args: any) => Promise<any>) | undefined;
+    action?: ((endpoint: any, args: any) => Promise<any>) | undefined;
   };
   session: SessionOps;
+  gateway?: HandoffGatewayOps;
 };
 
 export function commandServicesLayerFromDeps(
   deps: CommandServicesDeps
-): Layer.Layer<BackendService | SessionService> {
+): Layer.Layer<BackendService | CliGatewayService | SessionService> {
+  const gateway: HandoffGatewayOps = deps.gateway ?? {
+    handoff: async () => {
+      throw new Error('CLI gateway is unavailable');
+    },
+  };
   return Layer.mergeAll(
+    CliGatewayServiceLive(gateway),
     BackendServiceLive({
       query: deps.backend.query,
       mutation: deps.backend.mutation,
@@ -42,6 +52,44 @@ export function requireSessionIdEffect<E>(
       const convexUrl = yield* session.getConvexUrl();
       return yield* Effect.fail(fail({ convexUrl, otherUrls }));
     }
+    return sessionId;
+  });
+}
+
+/**
+ * Shared preamble for chatroom-scoped commands: resolve the session and
+ * validate the chatroom id — the standard first steps of every CLI command
+ * effect. Commands that need the backend yield `BackendService` themselves.
+ */
+/**
+ * Shared session/chatroom-id failures for chatroom-scoped CLI commands.
+ * Every command's error union structurally includes both variants.
+ */
+export type CommandSessionFailure =
+  | { _tag: 'NotAuthenticated'; convexUrl: string; otherUrls: string[] }
+  | { _tag: 'InvalidChatroomId'; id: string };
+
+/**
+ * Shared preamble for chatroom-scoped commands: resolve the session and
+ * validate the chatroom id — the standard first steps of every CLI command
+ * effect. Commands that need the backend yield `BackendService` themselves.
+ */
+export function requireSessionForChatroomEffect(params: {
+  chatroomId: string;
+}): Effect.Effect<SessionId, CommandSessionFailure, SessionService> {
+  return Effect.gen(function* () {
+    const sessionId = yield* requireSessionIdEffect(
+      ({ convexUrl, otherUrls }) =>
+        ({
+          _tag: 'NotAuthenticated' as const,
+          convexUrl,
+          otherUrls,
+        }) satisfies CommandSessionFailure
+    );
+    yield* validateChatroomIdEffect(
+      params.chatroomId,
+      (id) => ({ _tag: 'InvalidChatroomId' as const, id }) satisfies CommandSessionFailure
+    );
     return sessionId;
   });
 }

@@ -10,8 +10,13 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { Cause, Effect, Layer } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
+import type { HandoffResult } from './deps.js';
 import { handoffEffect, type HandoffError, type HandoffOptions } from './index.js';
-import { BackendService, SessionService } from '../../infrastructure/services/index.js';
+import {
+  BackendService,
+  CliGatewayServiceLive,
+  SessionService,
+} from '../../infrastructure/services/index.js';
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
 
@@ -22,29 +27,38 @@ function makeTestBackend(config: {
   queryResponses?: (unknown | Error)[] | undefined;
 }) {
   let queryCallCount = 0;
-  return Layer.succeed(BackendService, {
-    query: vi.fn((_endpoint: any, _args: unknown) => {
-      if (config.queryResponses) {
-        const response = config.queryResponses[queryCallCount] ?? null;
-        queryCallCount++;
-        if (response instanceof Error) {
-          return Effect.fail(response) as any;
-        }
-        return Effect.succeed(response) as any;
-      }
-      if (config.queryResponse instanceof Error) {
-        return Effect.fail(config.queryResponse) as any;
-      }
-      return Effect.succeed(config.queryResponse) as any;
-    }),
-    mutation: vi.fn((_endpoint: any, _args: unknown) => {
-      if (config.mutationResponse instanceof Error) {
-        return Effect.fail(config.mutationResponse) as any;
-      }
-      return Effect.succeed(config.mutationResponse) as any;
-    }),
-    action: vi.fn(() => Effect.fail(new Error('Action not used in handoff')) as any),
+  const mutation = vi.fn((_endpoint: any, _args: unknown) => {
+    if (config.mutationResponse instanceof Error) {
+      return Effect.fail(config.mutationResponse) as any;
+    }
+    return Effect.succeed(config.mutationResponse) as any;
   });
+  return Layer.mergeAll(
+    Layer.succeed(BackendService, {
+      query: vi.fn((_endpoint: any, _args: unknown) => {
+        if (config.queryResponses) {
+          const response = config.queryResponses[queryCallCount] ?? null;
+          queryCallCount++;
+          if (response instanceof Error) {
+            return Effect.fail(response) as any;
+          }
+          return Effect.succeed(response) as any;
+        }
+        if (config.queryResponse instanceof Error) {
+          return Effect.fail(config.queryResponse) as any;
+        }
+        return Effect.succeed(config.queryResponse) as any;
+      }),
+      mutation,
+      action: vi.fn(() => Effect.fail(new Error('Action not used in handoff')) as any),
+    }),
+    CliGatewayServiceLive({
+      handoff: async () => {
+        if (config.mutationResponse instanceof Error) throw config.mutationResponse;
+        return config.mutationResponse as HandoffResult;
+      },
+    })
+  );
 }
 
 /** Create a test session service with configurable responses */

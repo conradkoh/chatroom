@@ -16,6 +16,7 @@ import {
 } from '../../infrastructure/repository/index.js';
 import type { LogRepository } from '../../infrastructure/repository/log-repository.js';
 import { registerSocketHandlers } from '../../infrastructure/socket/register-handlers.js';
+import type { CliGatewayService } from '../../services/cli-gateway-service/index.js';
 
 export type LocalWebServerConfig = {
   host: '127.0.0.1';
@@ -32,6 +33,7 @@ export type LocalWebServerDeps = {
   sessionId?: string | undefined;
   clientDistDir?: string | undefined;
   debugState?: ((chatroomId: string) => unknown | Promise<unknown>) | undefined;
+  cliGateway?: CliGatewayService | undefined;
 };
 
 export type LocalWebServerHandle = {
@@ -89,6 +91,7 @@ export async function startLocalWebServer(
     backend: deps.backend,
     sessionId: deps.sessionId,
     debugState: deps.debugState,
+    cliGateway: deps.cliGateway,
   });
 
   return {

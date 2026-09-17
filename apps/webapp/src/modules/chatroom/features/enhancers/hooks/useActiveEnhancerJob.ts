@@ -7,9 +7,10 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 /**
- * Job-only enhancer hook: exposes the active entry-point→enhancer job and a
- * cancel action. Disabling enhancement is a separate concern (config-level,
- * next-message only) and must NOT cancel the in-flight job.
+ * Task-based enhancer hook: exposes the in-flight entry-point→enhancer task
+ * and a cancel action (delivers the planning-review-outcome cancelled handoff
+ * through the standard handoff flow). Disabling enhancement is a separate
+ * concern (config-level, next-message only) and must NOT cancel in-flight work.
  */
 export function useActiveEnhancerJob(chatroomId: string) {
   const [isCancelling, setIsCancelling] = useState(false);
@@ -18,20 +19,23 @@ export function useActiveEnhancerJob(chatroomId: string) {
   });
   const cancelMutation = useSessionMutation(api.web.enhancer.index.cancelActiveJob);
 
-  const cancelJob = useCallback(async () => {
-    if (!activeJob || isCancelling) return;
-    setIsCancelling(true);
-    try {
-      await cancelMutation({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        jobId: activeJob.jobId,
-      });
-    } catch (error) {
-      reportCancelFailure(error);
-    } finally {
-      setIsCancelling(false);
-    }
-  }, [activeJob, cancelMutation, chatroomId, isCancelling]);
+  const cancelJob = useCallback(
+    async (taskId: string) => {
+      if (!activeJob || isCancelling) return;
+      setIsCancelling(true);
+      try {
+        await cancelMutation({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        reportCancelFailure(error);
+      } finally {
+        setIsCancelling(false);
+      }
+    },
+    [activeJob, cancelMutation, chatroomId, isCancelling]
+  );
 
   return {
     activeJob: activeJob ?? null,
@@ -42,6 +46,6 @@ export function useActiveEnhancerJob(chatroomId: string) {
 }
 
 function reportCancelFailure(error: unknown): void {
-  console.error('Failed to cancel enhancer job:', error);
+  console.error('Failed to cancel enhancer work:', error);
   toast.error(error instanceof Error ? error.message : 'Failed to cancel planning review');
 }

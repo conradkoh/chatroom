@@ -1,9 +1,10 @@
 /**
- * Release in-flight tasks when an agent exits unexpectedly.
+ * Release in-flight tasks for a role back to `pending` with cleared claim fields
+ * so get-next-task can reclaim immediately (no RECOVERY_GRACE_PERIOD_MS block on
+ * acknowledgedAt).
  *
- * Resets acknowledged/in_progress tasks assigned to the exited role back to
- * `pending` with cleared claim fields so get-next-task can reclaim immediately
- * (no RECOVERY_GRACE_PERIOD_MS block on acknowledgedAt).
+ * Callers are team-switch flows (open question 2). The `agent.exited`
+ * lifecycle fact no longer triggers a release — see `onAgentExited` (R1/R2).
  */
 
 import { transitionTask } from './transition-task';
@@ -13,38 +14,44 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { withActiveTeamStructure } from '../../../../convex/lib/chatroomTeam';
 import type { TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
+import { listChatroomTasksByStatus } from '../../entities/list-chatroom-tasks-by-status';
 import { getTeamEntryPoint } from '../../entities/team';
 import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 
 const RELEASE_FROM_STATUSES: TaskStatus[] = ['acknowledged', 'in_progress'];
 
-/**
- * Whether agent exit should release tasks back to pending for the exiting role.
- * `platform.team_switch` reassigns to the new team entry point instead.
- */
-export function shouldReleaseTasksOnAgentExit(stopReason?: string): boolean {
-  return stopReason !== 'platform.team_switch';
+/** Builds the role filter for in-flight task release: no filter matches all. */
+function makeRoleFilter(assignedTo?: string | undefined) {
+  if (!assignedTo) return () => true;
+  const normalized = assignedTo.toLowerCase();
+  return (task: { assignedTo?: string | undefined }) =>
+    task.assignedTo?.toLowerCase() === normalized;
 }
 
-export async function releaseTasksOnAgentExit(
+/**
+ * Transitions every acknowledged/in_progress task (optionally filtered to one
+ * assigned role) back to `pending`. Trigger and overrides are caller-owned:
+ * plain releases clear nothing, team-switch reassignments pass
+ * `{ assignedTo: entryPoint }`.
+ */
+export async function transitionInFlightTasksToPending(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string }
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    trigger: string;
+    assignedTo?: string | undefined;
+    overrides?: Parameters<typeof transitionTask>[4];
+  }
 ): Promise<number> {
-  const normalizedRole = args.role.toLowerCase();
+  const matchesRole = makeRoleFilter(args.assignedTo);
   let released = 0;
 
   for (const status of RELEASE_FROM_STATUSES) {
-    const tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', status)
-      )
-      .collect();
+    const tasks = await listChatroomTasksByStatus(ctx, args.chatroomId, status);
 
     for (const task of tasks) {
-      if (task.assignedTo?.toLowerCase() !== normalizedRole) continue;
-
-      await transitionTask(ctx, task._id, 'pending', 'releaseTaskOnAgentExit', undefined, {
+      if (!matchesRole(task)) continue;
+      await transitionTask(ctx, task._id, 'pending', args.trigger, args.overrides, {
         skipAgentStatusUpdate: true,
       });
       released++;
@@ -73,24 +80,11 @@ export async function reassignInFlightTasksOnTeamSwitch(
   let reassigned = 0;
 
   // Acknowledged / in_progress → pending, reassigned to the new entry point.
-  for (const status of RELEASE_FROM_STATUSES) {
-    const tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', status))
-      .collect();
-
-    for (const task of tasks) {
-      await transitionTask(
-        ctx,
-        task._id,
-        'pending',
-        'reassignTaskOnTeamSwitch',
-        { assignedTo: entryPoint },
-        { skipAgentStatusUpdate: true }
-      );
-      reassigned++;
-    }
-  }
+  reassigned += await transitionInFlightTasksToPending(ctx, {
+    chatroomId,
+    trigger: 'reassignTaskOnTeamSwitch',
+    overrides: { assignedTo: entryPoint },
+  });
 
   // Already-pending tasks assigned to a now-stale role. transitionTask's no-op
   // guard (currentStatus === newStatus) prevents it from updating assignedTo here,
@@ -139,31 +133,10 @@ export async function reassignTasksOnTeamSwitch(
   const entryPoint = getTeamEntryPoint(chatroom);
   if (!entryPoint) return 0;
 
-  const normalizedRole = args.role.toLowerCase();
-  let reassigned = 0;
-
-  for (const status of RELEASE_FROM_STATUSES) {
-    const tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', status)
-      )
-      .collect();
-
-    for (const task of tasks) {
-      if (task.assignedTo?.toLowerCase() !== normalizedRole) continue;
-
-      await transitionTask(
-        ctx,
-        task._id,
-        'pending',
-        'reassignTaskOnTeamSwitch',
-        { assignedTo: entryPoint },
-        { skipAgentStatusUpdate: true }
-      );
-      reassigned++;
-    }
-  }
-
-  return reassigned;
+  return transitionInFlightTasksToPending(ctx, {
+    chatroomId: args.chatroomId,
+    trigger: 'reassignTaskOnTeamSwitch',
+    assignedTo: args.role,
+    overrides: { assignedTo: entryPoint },
+  });
 }
