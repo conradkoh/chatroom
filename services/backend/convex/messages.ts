@@ -1,9 +1,5 @@
 // fallow-ignore-file complexity code-duplication
 import {
-  legacyConversationMode,
-  plannerEnhancerEnabledForMode,
-} from '@workspace/shared/domain/conversation-mode';
-import {
   getEnhancerEntryPointRole,
   isEnhancerEntryPointRole,
 } from '@workspace/shared/domain/enhancer-team-capability';
@@ -27,19 +23,12 @@ import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
+import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
 import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import { findActiveEnhancerJobForChatroom } from './web/enhancer/jobHelpers';
-import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
-import { getCliEnvPrefix } from '../prompts/utils/index';
-import {
-  assemblePrimaryDeliveryAttachments,
-  resolvePrimaryDeliveryAssemblyInput,
-} from '../src/domain/entities/assemble-primary-delivery-attachments';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
-import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-attachments';
 import { isActiveParticipant } from '../src/domain/entities/participant';
-import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { getLastSentLaunchRequestForRole } from '../src/domain/usecase/agent/get-last-sent-launch-request';
@@ -176,89 +165,6 @@ async function enrichMessageAttachments(
     ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
     ...(msg.attachedSnippets?.length && { attachedSnippets: msg.attachedSnippets }),
   };
-}
-
-/**
- * Resolves primary-delivery attachments for task delivery from a task source
- * message's attachment IDs only (on-demand DB lookups). Returns undefined when
- * the message is absent or carries no primary-delivery attachments.
- */
-export async function resolveSourceAttachmentsForDelivery(
-  ctx: QueryCtx,
-  message: {
-    attachedSnippets?:
-      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
-    attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
-    attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
-    attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
-  } | null
-): Promise<PrimaryDeliveryAttachments | undefined> {
-  if (!message) return undefined;
-
-  const attachedTasksMap = new Map<
-    string,
-    { id: string; content: string; status: TaskStatus; createdBy: string }
-  >();
-  if (message.attachedTaskIds?.length) {
-    for (const taskId of message.attachedTaskIds) {
-      const t = await ctx.db.get('chatroom_tasks', taskId);
-      if (t) {
-        attachedTasksMap.set(taskId, {
-          id: t._id,
-          content: t.content,
-          status: t.status,
-          createdBy: t.createdBy,
-        });
-      }
-    }
-  }
-
-  const attachedBacklogItemsMap = new Map<
-    string,
-    { id: string; content: string; status: string }
-  >();
-  if (message.attachedBacklogItemIds?.length) {
-    for (const itemId of message.attachedBacklogItemIds) {
-      const item = await ctx.db.get('chatroom_backlog', itemId);
-      if (item) {
-        attachedBacklogItemsMap.set(itemId, {
-          id: item._id,
-          content: item.content,
-          status: item.status,
-        });
-      }
-    }
-  }
-
-  const attachedMessagesMap = new Map<
-    string,
-    { id: string; content: string; senderRole: string }
-  >();
-  if (message.attachedMessageIds?.length) {
-    for (const msgId of message.attachedMessageIds) {
-      const m = await ctx.db.get('chatroom_messages', msgId);
-      if (m) {
-        attachedMessagesMap.set(msgId, { id: m._id, content: m.content, senderRole: m.senderRole });
-      }
-    }
-  }
-
-  const primaryDeliveryInput = resolvePrimaryDeliveryAssemblyInput(
-    {
-      ...(message.attachedSnippets?.length ? { attachedSnippets: message.attachedSnippets } : {}),
-      ...(message.attachedBacklogItemIds?.length
-        ? { attachedBacklogItemIds: message.attachedBacklogItemIds }
-        : {}),
-      ...(message.attachedTaskIds?.length ? { attachedTaskIds: message.attachedTaskIds } : {}),
-      ...(message.attachedMessageIds?.length
-        ? { attachedMessageIds: message.attachedMessageIds }
-        : {}),
-    },
-    attachedBacklogItemsMap,
-    attachedTasksMap,
-    attachedMessagesMap
-  );
-  return assemblePrimaryDeliveryAttachments(primaryDeliveryInput);
 }
 
 /**
@@ -1905,135 +1811,15 @@ export const getTaskDeliveryPrompt = query({
   },
   handler: async (ctx, args): Promise<TaskDeliveryPromptResponse> => {
     // Validate session and check chatroom access
-    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
-      ctx,
-      args.sessionId,
-      args.chatroomId
-    );
-    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Fetch the task
-    const task = await ctx.db.get('chatroom_tasks', args.taskId);
-    if (!task) {
-      throw new ConvexError({
-        code: 'TASK_NOT_FOUND',
-        message: 'Task not found',
-      });
-    }
-
-    // Fetch the message: explicit messageId (CLI get-next-task) or task.sourceMessageId (native injection)
-    let message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null = null;
-    const messageIdToResolve = args.messageId ?? task.sourceMessageId;
-    if (messageIdToResolve) {
-      // Try chatroom_messages first
-      const regularMessage = await ctx.db
-        .get('chatroom_messages', messageIdToResolve as Id<'chatroom_messages'>)
-        .catch(() => null);
-      if (regularMessage) {
-        message = regularMessage;
-      } else if (args.messageId) {
-        // Try chatroom_messageQueue (only when caller passed an explicit queue id)
-        const queuedMessage = await ctx.db
-          .get('chatroom_messageQueue', args.messageId as Id<'chatroom_messageQueue'>)
-          .catch(() => null);
-        if (queuedMessage) {
-          message = queuedMessage;
-        }
-      }
-    }
-
-    // Fetch participants
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
-    );
-
-    const availableRoles = waitingParticipants.map((p) => p.role);
-
-    // Derive effective conversation mode: the explicit task envelope is the
-    // authoritative per-message policy. Legacy rows without an envelope use
-    // their persisted scalar snapshot and default to code mode.
-    const hasExplicitTaskEnvelope = task.taskEnvelope !== undefined;
-    const normalizedTaskEnvelope = normalizeTaskEnvelope(task);
-
-    const conversationMode = hasExplicitTaskEnvelope
-      ? normalizedTaskEnvelope.conversationMode
-      : legacyConversationMode(task.plannerEnhancerEnabled);
-
-    // When an explicit envelope is present, its mode is the source of truth for
-    // Explicit envelopes are authoritative; legacy rows use only their
-    // persisted scalar snapshot.
-    const plannerEnhancerEnabled = hasExplicitTaskEnvelope
-      ? plannerEnhancerEnabledForMode(normalizedTaskEnvelope.conversationMode)
-      : task.plannerEnhancerEnabled === true;
-
-    const deliveryMessageSenderRole =
-      message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
-
-    // Configured team roles are authoritative structural capability; active
-    // participants remain a legacy fallback for empty-membership rooms.
-    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
-    const availableHandoffRoles = buildAvailableHandoffRoles({
-      teamRoles,
-      currentRole: args.role,
-      fallbackParticipantRoles: availableRoles,
-      includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole === 'user',
-    });
-
-    // Primary-delivery attachments resolve from the task source message only.
-    const sourceAttachments = await resolveSourceAttachmentsForDelivery(ctx, message);
-
-    // Build and return the complete prompt
-    const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
-
-    // Determine entry point status for context management
-    const entryPoint = getTeamEntryPoint(chatroom);
-    const isEntryPoint = entryPoint ? args.role.toLowerCase() === entryPoint.toLowerCase() : true; // Default to true if no entry point configured
-
-    const existingAgentRequest = await getLastSentLaunchRequestForRole(ctx, {
+    return buildTaskDeliveryPrompt(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
+      taskId: args.taskId,
+      messageId: args.messageId,
+      convexUrl: args.convexUrl,
     });
-    const agentHarness = existingAgentRequest?.agentHarness;
-    const nativeIntegration = isNativeHarness(agentHarness);
-
-    const standingInstructions = getActiveStandingInstructions(chatroom);
-
-    // Generate the complete CLI output (backend-generated, CLI just prints it)
-    const fullCliOutput = generateFullCliOutput({
-      chatroomId: args.chatroomId,
-      role: args.role,
-      cliEnvPrefix,
-      teamId: chatroom.teamId ?? 'duo',
-      task: {
-        _id: task._id,
-        content: task.content,
-      },
-      message: message
-        ? {
-            _id: message._id,
-            senderRole: message.senderRole,
-            content: message.content,
-          }
-        : null,
-      isEntryPoint,
-      availableHandoffTargets: availableHandoffRoles,
-      nativeIntegration,
-      sourceAttachments,
-      standingInstructions,
-      plannerEnhancerEnabled,
-      conversationMode,
-      entryPointRole: getTeamEntryPoint(chatroom) ?? undefined,
-      originUserMessageId: task.originUserMessageId ?? undefined,
-    });
-
-    return {
-      fullCliOutput,
-    };
   },
 });
 

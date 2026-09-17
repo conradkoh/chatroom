@@ -1,4 +1,5 @@
 import { handoffCommand } from '../cli/handoff/command';
+import { getEnhancerHistoryRetrievalGuidance } from '../enhancer/history-retrieval';
 
 export function appendEnhancerRoleTaskDeliveryGuidance(
   lines: string[],
@@ -16,6 +17,12 @@ export function appendEnhancerRoleTaskDeliveryGuidance(
     'Recover the authoritative user request and history, inspect the repository, and return **one** complete recommended design.',
     ...(ctx.originUserMessageId ? [`Origin user message: \`${ctx.originUserMessageId}\``] : []),
     '</enhancer-task>',
+    '',
+    getEnhancerHistoryRetrievalGuidance({
+      chatroomId: ctx.chatroomId,
+      cliEnvPrefix: ctx.cliEnvPrefix,
+      originUserMessageId: ctx.originUserMessageId,
+    }),
     '',
     `Complete with a handoff to \`${ctx.entryPointRole}\` using the design-input template:`,
     '',

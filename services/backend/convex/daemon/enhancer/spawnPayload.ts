@@ -1,15 +1,16 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getDaemonMachineAuth } from './auth';
+import { loadRunningEnhancerJobForMachine } from './loadRunningJob';
 import {
   ENHANCER_STDIN_DELIMITER,
   HANDOFF_MESSAGE_MARKER,
   formatStdinHeredocCommand,
 } from '../../../prompts/cli/stdin-heredoc';
 import { getConfig } from '../../../prompts/config/index';
+import { getEnhancerHistoryRetrievalGuidance } from '../../../prompts/enhancer/history-retrieval';
 import { renderEnhancerTaskEnvelope } from '../../../prompts/enhancer/render-task-envelope';
-import { renderEnhancerSystemPrompt } from '../../../prompts/enhancer/system-prompt';
+import { composeEnhancerSystemPrompt } from '../../../prompts/enhancer/system-prompt';
 import { getCliEnvPrefix } from '../../../prompts/utils/index';
 import { query } from '../../_generated/server';
 
@@ -23,21 +24,8 @@ export const getSpawnPayload = query({
     ...SessionIdArg,
     jobId: v.id('chatroom_enhancerJobs'),
   },
-  // fallow-ignore-next-line complexity
   handler: async (ctx, args) => {
-    const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
-    if (!job || job.status !== 'running') {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'Enhancer job not running' });
-    }
-
-    const auth = await getDaemonMachineAuth(ctx, args.sessionId, job.machineId);
-    if (!auth) {
-      throw new ConvexError({
-        code: 'NOT_AUTHORIZED_MACHINE',
-        message: 'Not authorized for this machine',
-      });
-    }
-
+    const job = await loadRunningEnhancerJobForMachine(ctx, args);
     const chatroom = await ctx.db.get('chatroom_rooms', job.chatroomId);
     if (!chatroom) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Chatroom not found' });
@@ -59,13 +47,21 @@ export const getSpawnPayload = query({
       requestContent: job.draftContent,
       cliCompleteCommand: cliHandoffCommand,
     });
-    const systemPrompt = renderEnhancerSystemPrompt({
-      chatroomId: job.chatroomId,
-      jobId: job._id,
-      cliEnvPrefix,
-      originUserMessageId: job.originUserMessageId,
-      convexUrl: config.getConvexURLWithFallback(undefined),
-    });
+    const systemPrompt = [
+      composeEnhancerSystemPrompt({
+        chatroomId: job.chatroomId,
+        cliEnvPrefix,
+        convexUrl: config.getConvexURLWithFallback(undefined),
+      }),
+      // Legacy envelope delivery never renders the standard task prompt, so the
+      // origin-anchored history retrieval stays in this prompt until the
+      // deprecated spawn payload is removed.
+      getEnhancerHistoryRetrievalGuidance({
+        chatroomId: job.chatroomId,
+        cliEnvPrefix,
+        originUserMessageId: job.originUserMessageId,
+      }),
+    ].join('\n\n');
     return {
       chatroomId: job.chatroomId,
       jobId: job._id,

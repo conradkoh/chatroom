@@ -1,27 +1,13 @@
-import {
-  legacyConversationMode,
-  plannerEnhancerEnabledForMode,
-} from '@workspace/shared/domain/conversation-mode';
-import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { getDaemonMachineAuth } from './auth';
-import { generateFullCliOutput } from '../../../prompts/cli/get-next-task/fullOutput';
+import { loadEnhancerJobTask } from './loadJobTask';
+import { loadRunningEnhancerJobForMachine } from './loadRunningJob';
 import { getConfig } from '../../../prompts/config/index';
-import { renderEnhancerSystemPrompt } from '../../../prompts/enhancer/system-prompt';
+import { composeEnhancerSystemPrompt } from '../../../prompts/enhancer/system-prompt';
 import { getCliEnvPrefix } from '../../../prompts/utils/index';
-import { isNativeHarness } from '../../../src/domain/entities/harness/types';
-import { isActiveParticipant } from '../../../src/domain/entities/participant';
-import { getActiveStandingInstructions } from '../../../src/domain/entities/standing-instructions';
-import { getTeamEntryPoint } from '../../../src/domain/entities/team';
-import { getLastSentLaunchRequestForRole } from '../../../src/domain/usecase/agent/get-last-sent-launch-request';
-import { getTeamRolesFromChatroom } from '../../../src/domain/usecase/chatroom/get-team-roles';
-import type { Doc } from '../../_generated/dataModel';
 import { query } from '../../_generated/server';
-import { withActiveTeamStructure } from '../../lib/chatroomTeam';
-import { buildAvailableHandoffRoles } from '../../lib/handoffRoles';
-import { resolveSourceAttachmentsForDelivery } from '../../messages';
+import { buildTaskDeliveryPrompt } from '../../lib/taskDeliveryPrompt';
 
 const config = getConfig();
 
@@ -32,129 +18,29 @@ export const getTaskDeliveryForJob = query({
     jobId: v.id('chatroom_enhancerJobs'),
     convexUrl: v.optional(v.string()),
   },
-  // fallow-ignore-next-line complexity
   handler: async (ctx, args) => {
-    const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
-    if (!job || job.status !== 'running') {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'Enhancer job not running' });
-    }
+    const job = await loadRunningEnhancerJobForMachine(ctx, args);
+    const task = await loadEnhancerJobTask(ctx, job);
 
-    const auth = await getDaemonMachineAuth(ctx, args.sessionId, job.machineId);
-    if (!auth) {
-      throw new ConvexError({
-        code: 'NOT_AUTHORIZED_MACHINE',
-        message: 'Not authorized for this machine',
-      });
-    }
+    const convexUrl = config.getConvexURLWithFallback(args.convexUrl);
 
-    if (!job.taskId) {
-      throw new ConvexError({
-        code: 'NOT_FOUND',
-        message: 'Enhancer job missing linked task',
-      });
-    }
-
-    const task = await ctx.db.get('chatroom_tasks', job.taskId);
-    if (!task || task.chatroomId !== job.chatroomId) {
-      throw new ConvexError({ code: 'TASK_NOT_FOUND', message: 'Linked enhancer task not found' });
-    }
-
-    const rawChatroom = await ctx.db.get('chatroom_rooms', job.chatroomId);
-    if (!rawChatroom) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'Chatroom not found' });
-    }
-    const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
-
-    let message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null = null;
-    if (task.sourceMessageId) {
-      const regularMessage = await ctx.db
-        .get('chatroom_messages', task.sourceMessageId)
-        .catch(() => null);
-      if (regularMessage) {
-        message = regularMessage;
-      }
-    }
-
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', job.chatroomId))
-      .collect();
-
-    const role = job.toRole;
-    const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== role.toLowerCase() && isActiveParticipant(p)
-    );
-    const availableRoles = waitingParticipants.map((p) => p.role);
-
-    // The explicit task envelope is authoritative for mode/enhancer policy at
-    // this delivery boundary. Legacy rows use only their persisted snapshot.
-    const hasExplicitTaskEnvelope = task.taskEnvelope !== undefined;
-    const normalizedTaskEnvelope = normalizeTaskEnvelope(task);
-    const conversationMode = hasExplicitTaskEnvelope
-      ? normalizedTaskEnvelope.conversationMode
-      : legacyConversationMode(task.plannerEnhancerEnabled);
-    const plannerEnhancerEnabled = hasExplicitTaskEnvelope
-      ? plannerEnhancerEnabledForMode(normalizedTaskEnvelope.conversationMode)
-      : task.plannerEnhancerEnabled === true;
-
-    const deliveryMessageSenderRole =
-      message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
-
-    // Configured team roles are authoritative structural capability; active
-    // participants remain a legacy fallback for empty-membership rooms.
-    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
-    const availableHandoffRoles = buildAvailableHandoffRoles({
-      teamRoles,
-      currentRole: role,
-      fallbackParticipantRoles: availableRoles,
-      includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole === 'user',
-    });
-
-    const sourceAttachments = await resolveSourceAttachmentsForDelivery(ctx, message);
-    const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
-    const entryPoint = getTeamEntryPoint(chatroom);
-    const isEntryPoint = entryPoint ? role.toLowerCase() === entryPoint.toLowerCase() : false;
-
-    const existingAgentRequest = await getLastSentLaunchRequestForRole(ctx, {
+    // The delivery prompt is the standard task delivery prompt — the same
+    // builder the daemon native injector consumes. Job-specific behaviour is
+    // limited to auth, the spawn envelope, and legacy origin fallback.
+    const { fullCliOutput: taskDeliveryOutput } = await buildTaskDeliveryPrompt(ctx, {
       chatroomId: job.chatroomId,
-      role,
-    });
-    const nativeIntegration = isNativeHarness(existingAgentRequest?.agentHarness);
-
-    const taskDeliveryOutput = generateFullCliOutput({
-      chatroomId: job.chatroomId,
-      role,
-      cliEnvPrefix,
-      teamId: chatroom.teamId ?? 'duo',
-      task: {
-        _id: task._id,
-        content: task.content,
-      },
-      message: message
-        ? {
-            _id: message._id,
-            senderRole: message.senderRole,
-            content: message.content,
-          }
-        : null,
-      isEntryPoint,
-      availableHandoffTargets: availableHandoffRoles,
-      nativeIntegration,
-      sourceAttachments,
-      standingInstructions: getActiveStandingInstructions(chatroom),
-      plannerEnhancerEnabled,
-      conversationMode,
+      role: job.toRole,
+      taskId: task._id,
+      convexUrl: args.convexUrl,
       entryPointRole: job.fromRole,
-      originUserMessageId: task.originUserMessageId ?? job.originUserMessageId ?? undefined,
+      originUserMessageIdFallback: job.originUserMessageId,
     });
 
-    const systemPrompt = renderEnhancerSystemPrompt({
+    const systemPrompt = composeEnhancerSystemPrompt({
       chatroomId: job.chatroomId,
-      jobId: job._id,
-      cliEnvPrefix,
-      originUserMessageId: task.originUserMessageId ?? job.originUserMessageId,
+      cliEnvPrefix: getCliEnvPrefix(convexUrl),
       entryPointRole: job.fromRole,
-      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+      convexUrl,
     });
 
     return {
