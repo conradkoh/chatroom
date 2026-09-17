@@ -366,18 +366,6 @@ export const backfillSavedCommandScope = migrations.define({
   },
 });
 
-export const migrateEnhancerJobOriginToTask = migrations.define({
-  table: 'chatroom_enhancerJobs',
-  migrateOne: async (ctx, job) => {
-    if (!job.taskId || !job.originUserMessageId) return;
-    const task = await ctx.db.get('chatroom_tasks', job.taskId);
-    if (!task || task.originUserMessageId) return;
-    await ctx.db.patch('chatroom_tasks', job.taskId, {
-      originUserMessageId: job.originUserMessageId,
-    });
-  },
-});
-
 export const migrateTaskEnhancerEnabledSnapshot = migrations.define({
   table: 'chatroom_tasks',
   migrateOne: async (_ctx, task) => {
@@ -835,7 +823,6 @@ const allMigrationReferences = [
   internal.migrations.dropEmbeddedRecentCommits,
   // Saved Commands
   internal.migrations.backfillSavedCommandScope,
-  internal.migrations.migrateEnhancerJobOriginToTask,
   internal.migrations.migrateTaskEnhancerEnabledSnapshot,
   // Machine Config Favorites
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,

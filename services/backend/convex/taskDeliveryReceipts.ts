@@ -15,13 +15,8 @@ export const record = mutation({
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
     role: v.string(),
-    deliveryKind: v.union(
-      v.literal('native_inject'),
-      v.literal('enhancer_claim'),
-      v.literal('cli_get_next_task')
-    ),
+    deliveryKind: v.union(v.literal('native_inject'), v.literal('cli_get_next_task')),
     harnessSessionId: v.optional(v.string()),
-    jobId: v.optional(v.id('chatroom_enhancerJobs')),
     startedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -32,7 +27,6 @@ export const record = mutation({
       role: args.role,
       deliveryKind: args.deliveryKind,
       harnessSessionId: args.harnessSessionId,
-      jobId: args.jobId,
       startedAt: args.startedAt,
     });
     return { receiptId };

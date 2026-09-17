@@ -480,8 +480,9 @@ export default defineSchema({
     // Used to track processing status in the UI
     taskId: v.optional(v.id('chatroom_tasks')),
 
-    // Link to the enhancer job that produced this message (for enhanced handoffs)
-    enhancerJobId: v.optional(v.id('chatroom_enhancerJobs')),
+    // The planner draft the enhancer was asked to improve (stamped on
+    // enhanced handoffs so the UI diff survives without job rows)
+    enhancerOriginalContent: v.optional(v.string()),
 
     // When true, message appears only in the ALL timeline tab (not role-filtered views)
     visibleInAllTabOnly: v.optional(v.boolean()),
@@ -2774,70 +2775,12 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_chatroom_user', ['chatroomId', 'userId']),
 
-  /**
-   * One-shot enhancer job per originating user request.
-   */
-  chatroom_enhancerJobs: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    userId: v.id('users'),
-    targetId: v.literal('handoff:planner-to-builder'),
-    fromRole: v.string(),
-    toRole: v.string(),
-    status: v.union(
-      v.literal('pending'),
-      v.literal('running'),
-      v.literal('complete'),
-      v.literal('failed'),
-      v.literal('cancelled')
-    ),
-    /** Legacy field name; request-first jobs store the forwarded user request. */
-    draftContent: v.string(),
-    enhancedContent: v.optional(v.string()),
-    templateSnapshot: v.string(),
-    /** Legacy planner-draft template snapshot; retained for existing job documents. */
-    inputTemplateSnapshot: v.optional(v.string()),
-    agentHarness: agentHarnessValidator,
-    model: v.string(),
-    machineId: v.string(),
-    workingDir: v.string(),
-    attemptCount: v.number(),
-    maxAttempts: v.number(),
-    runningSince: v.optional(v.number()),
-    nextRetryAt: v.optional(v.number()),
-    lastError: v.optional(v.string()),
-    createdAt: v.number(),
-    completedAt: v.optional(v.number()),
-    originUserMessageId: v.optional(v.id('chatroom_messages')),
-    /** Task row created by traditional planner→enhancer handoff. */
-    taskId: v.optional(v.id('chatroom_tasks')),
-    /** Handoff message that created the enhancer task. */
-    handoffMessageId: v.optional(v.id('chatroom_messages')),
-    pendingHandoffArgs: v.optional(
-      v.object({
-        senderRole: v.string(),
-        targetRole: v.string(),
-        attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
-      })
-    ),
-  })
-    .index('by_chatroom_status', ['chatroomId', 'status'])
-    .index('by_machine_status', ['machineId', 'status'])
-    .index('by_status_nextRetryAt', ['status', 'nextRetryAt'])
-    .index('by_chatroom_originUserMessageId', ['chatroomId', 'originUserMessageId'])
-    .index('by_userId_status', ['userId', 'status'])
-    .index('by_machine_chatroom_status', ['machineId', 'chatroomId', 'status']),
-
   chatroom_taskDeliveryReceipts: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
     role: v.string(),
-    deliveryKind: v.union(
-      v.literal('native_inject'),
-      v.literal('enhancer_claim'),
-      v.literal('cli_get_next_task')
-    ),
+    deliveryKind: v.union(v.literal('native_inject'), v.literal('cli_get_next_task')),
     harnessSessionId: v.optional(v.string()),
-    jobId: v.optional(v.id('chatroom_enhancerJobs')),
     deliveredAt: v.number(),
     startedAt: v.optional(v.number()),
   })

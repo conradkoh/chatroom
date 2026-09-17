@@ -1,7 +1,7 @@
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
-export type DeliveryKind = 'native_inject' | 'enhancer_claim' | 'cli_get_next_task';
+export type DeliveryKind = 'native_inject' | 'cli_get_next_task';
 
 export interface RecordTaskDeliveryArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -9,7 +9,6 @@ export interface RecordTaskDeliveryArgs {
   role: string;
   deliveryKind: DeliveryKind;
   harnessSessionId?: string | undefined;
-  jobId?: Id<'chatroom_enhancerJobs'> | undefined;
   startedAt?: number | undefined;
 }
 
@@ -30,7 +29,6 @@ export async function recordTaskDelivery(
       deliveryKind: args.deliveryKind,
     };
     if (args.harnessSessionId) patch.harnessSessionId = args.harnessSessionId;
-    if (args.jobId) patch.jobId = args.jobId;
     if (args.startedAt !== undefined) patch.startedAt = args.startedAt;
     await ctx.db.patch('chatroom_taskDeliveryReceipts', existing._id, patch);
     return existing._id;
@@ -42,7 +40,6 @@ export async function recordTaskDelivery(
     role: args.role,
     deliveryKind: args.deliveryKind,
     ...(args.harnessSessionId !== undefined ? { harnessSessionId: args.harnessSessionId } : {}),
-    ...(args.jobId !== undefined ? { jobId: args.jobId } : {}),
     deliveredAt: now,
     ...(args.startedAt !== undefined ? { startedAt: args.startedAt } : {}),
   });

@@ -1,32 +1,62 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { deliverPendingHandoffFromJob } from './delivery';
-import { emitEnhancerEvent } from './internal';
-import { assertEnhancerJobOwner } from './jobHelpers';
 import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/enhancer/build-planning-review-outcome';
-import { mutation } from '../../_generated/server';
+import { mutation, query } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
+import { performHandoffFromEnhancer } from '../../messages';
 
+const ENHANCER_IN_FLIGHT_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
+
+/** Webapp WorkQueue: the in-flight enhancer task replaces the retired job row. */
+export const getActiveJob = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    for (const status of ENHANCER_IN_FLIGHT_STATUSES) {
+      const task = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status_assignedTo', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', status).eq('assignedTo', 'enhancer')
+        )
+        .first();
+      if (task) {
+        return { taskId: task._id, status: task.status, fromRole: 'planner', toRole: 'enhancer' };
+      }
+    }
+    return null;
+  },
+});
+
+/**
+ * Cancels in-flight enhancer work: delivers the planning-review-outcome
+ * (cancelled) handoff to the team entry point, which completes the enhancer
+ * task through the standard handoff flow.
+ */
 export const cancelActiveJob = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    jobId: v.id('chatroom_enhancerJobs'),
+    taskId: v.id('chatroom_tasks'),
   },
   handler: async (ctx, args) => {
-    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
-    if (!job || job.chatroomId !== args.chatroomId) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'Enhancer job not found' });
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task || task.chatroomId !== args.chatroomId || task.assignedTo !== 'enhancer') {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Enhancer task not found' });
     }
-    assertEnhancerJobOwner(job, session.userId);
-    if (job.status !== 'pending' && job.status !== 'running') {
-      throw new ConvexError({ code: 'INVALID_STATUS', message: 'Job is not active' });
+    if (!ENHANCER_IN_FLIGHT_STATUSES.includes(task.status as never)) {
+      throw new ConvexError({ code: 'INVALID_STATUS', message: 'Task is not active' });
     }
-    const handoffResult = await deliverPendingHandoffFromJob(ctx, {
+
+    const targetRole = task.createdBy.toLowerCase();
+    const handoffResult = await performHandoffFromEnhancer(ctx, {
       sessionId: args.sessionId,
-      job,
+      chatroomId: args.chatroomId,
+      targetRole,
       content: buildPlanningReviewOutcomeContent('cancelled', 'cancelled_by_user'),
     });
     if (!handoffResult.success) {
@@ -35,25 +65,6 @@ export const cancelActiveJob = mutation({
         message: handoffResult.error?.message ?? 'Failed to deliver planning review outcome',
       });
     }
-
-    const now = Date.now();
-    await ctx.db.patch('chatroom_enhancerJobs', args.jobId, {
-      status: 'cancelled',
-      lastError: 'cancelled_by_user',
-      completedAt: now,
-      runningSince: undefined,
-    });
-
-    await emitEnhancerEvent(
-      ctx,
-      {
-        type: 'enhancer.job.cancelled' as const,
-        chatroomId: args.chatroomId,
-        jobId: args.jobId,
-        attemptCount: job.attemptCount,
-      },
-      now
-    );
 
     return { success: true as const };
   },

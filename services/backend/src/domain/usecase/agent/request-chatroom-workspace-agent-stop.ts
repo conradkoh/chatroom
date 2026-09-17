@@ -26,7 +26,7 @@ export async function requestChatroomWorkspaceAgentStop(
       .collect()
   ).filter((workspace) => isActiveWorkspace(workspace.removedAt));
 
-  const [launchRequests, statusRows, participants, enhancerJobs] = await Promise.all([
+  const [launchRequests, statusRows, participants] = await Promise.all([
     listLastSentLaunchRequestsForChatroom(ctx, { chatroomId: args.chatroomId }),
     ctx.db
       .query('chatroom_agentRoleStatusReadModel')
@@ -36,19 +36,12 @@ export async function requestChatroomWorkspaceAgentStop(
       .query('chatroom_participants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect(),
-    ctx.db
-      .query('chatroom_enhancerJobs')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'running')
-      )
-      .collect(),
   ]);
   const machineIds = new Set<string>();
   for (const request of launchRequests) machineIds.add(request.machineId);
   for (const status of statusRows) if (status.machineId) machineIds.add(status.machineId);
   for (const participant of participants)
     if (participant.machineId) machineIds.add(participant.machineId);
-  for (const job of enhancerJobs) if (job.machineId) machineIds.add(job.machineId);
 
   if (machineIds.size === 0 && workspaces.length === 0) {
     return { commandIds: [], commands: [] };

@@ -182,18 +182,6 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
     taskMap.set(id, task);
   }
 
-  // Batch enhancer job lookups: fetch draftContent for messages linked to enhancer jobs
-  const uniqueJobIds = [
-    ...new Set(messages.flatMap((m) => (m.enhancerJobId != null ? [m.enhancerJobId] : []))),
-  ];
-  const jobDraftMap = new Map<string, string>();
-  await Promise.all(
-    uniqueJobIds.map(async (id) => {
-      const job = await ctx.db.get('chatroom_enhancerJobs', id);
-      if (job?.draftContent) jobDraftMap.set(id.toString(), job.draftContent);
-    })
-  );
-
   const enrichedMessages = await Promise.all(
     messages.map(async (message) => {
       // Use batched task lookup
@@ -206,10 +194,7 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
       // Resolve attachments (shared helper)
       const attachments = await enrichMessageAttachments(ctx, message);
 
-      const enhancerOriginalContent =
-        message.enhancerJobId != null
-          ? jobDraftMap.get(message.enhancerJobId.toString())
-          : undefined;
+      const enhancerOriginalContent = message.enhancerOriginalContent;
 
       return {
         ...message,
@@ -539,7 +524,6 @@ export async function runHandoffHandler(
     content: string;
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
-    enhancerJobId?: Id<'chatroom_enhancerJobs'> | undefined;
     visibleInAllTabOnly?: boolean | undefined;
   }
 ) {
@@ -767,6 +751,8 @@ export async function runHandoffHandler(
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
   const tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
+  /** The planner draft (enhancer task content) stamped on the outgoing message for the UI diff. */
+  let enhancerOriginalContent: string | undefined;
 
   if (isEnhancerDelivery) {
     const enhancerTasks = await ctx.db
@@ -778,12 +764,22 @@ export async function runHandoffHandler(
     tasksToComplete.push(...enhancerTasks);
   }
 
-  if (isEnhancerDelivery && args.enhancerJobId) {
-    const job = await ctx.db.get('chatroom_enhancerJobs', args.enhancerJobId);
-    if (job?.taskId) {
-      const enhancerTask = await ctx.db.get('chatroom_tasks', job.taskId);
-      if (enhancerTask && enhancerTask.status !== 'completed') {
-        tasksToComplete.push(enhancerTask);
+  if (isEnhancerDelivery) {
+    // The enhancer task may sit in acknowledged/in_progress (native delivery
+    // started it) — complete it alongside the pending one.
+    for (const status of ['acknowledged', 'in_progress'] as const) {
+      const enhancerTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status_assignedTo', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', status).eq('assignedTo', 'enhancer')
+        )
+        .collect();
+      tasksToComplete.push(...enhancerTasks);
+      // The planner's draft passed to the enhancer is the enhancer task's
+      // content — stamp it on the outgoing message so the UI diff survives
+      // without the retired job rows.
+      if (enhancerOriginalContent === undefined) {
+        enhancerOriginalContent = enhancerTasks[0]?.content;
       }
     }
   }
@@ -934,7 +930,6 @@ export async function runHandoffHandler(
     type: 'handoff',
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
-    ...(args.enhancerJobId && { enhancerJobId: args.enhancerJobId }),
     ...(isEnhancerDelivery ? { visibleInAllTabOnly: true } : {}),
     ...(args.visibleInAllTabOnly && { visibleInAllTabOnly: true }),
     ...(taskOriginMessageId && { taskOriginMessageId }),
@@ -1024,13 +1019,6 @@ export async function runHandoffHandler(
     });
   }
 
-  if (args.enhancerJobId) {
-    const enhancerJob = await ctx.db.get('chatroom_enhancerJobs', args.enhancerJobId);
-    if (enhancerJob) {
-      await transitionEnhancerEntryPointToWaiting(ctx, args.chatroomId, enhancerJob.fromRole);
-    }
-  }
-
   if (isEnhancerDelivery) {
     await transitionEnhancerEntryPointToWaiting(
       ctx,
@@ -1106,11 +1094,9 @@ export async function performHandoffFromEnhancer(
   args: {
     sessionId: string;
     chatroomId: Id<'chatroom_rooms'>;
-    senderRole: string;
     targetRole: string;
     content: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
-    jobId: Id<'chatroom_enhancerJobs'>;
   }
 ) {
   return runHandoffHandler(ctx, {
@@ -1120,7 +1106,6 @@ export async function performHandoffFromEnhancer(
     targetRole: args.targetRole,
     content: args.content,
     attachedArtifactIds: args.attachedArtifactIds,
-    enhancerJobId: args.jobId,
     visibleInAllTabOnly: true,
   });
 }

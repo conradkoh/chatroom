@@ -1,9 +1,5 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
-import {
-  findActiveEnhancerJob,
-  findActiveEnhancerJobForChatroom,
-} from '../../../../convex/web/enhancer/jobHelpers';
 
 const ACTIVE_TASK_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
 
@@ -49,20 +45,15 @@ export async function transitionEnhancerEntryPointToWaiting(
 
 export async function hasActiveEntryPointEnhancerJob(
   ctx: QueryCtx | MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  entryPointRole: string
+  chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
-  const active = await findActiveEnhancerJob(ctx, chatroomId, entryPointRole, 'enhancer');
-  return active !== null;
+  return hasActiveEnhancerTask(ctx, chatroomId);
 }
 
-/** True while an enhancer job or enhancer task row is in flight. */
+/** True while an enhancer task row is in flight. */
 export async function hasActiveEnhancerWork(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
-  if (await findActiveEnhancerJobForChatroom(ctx, chatroomId)) {
-    return true;
-  }
   return hasActiveEnhancerTask(ctx, chatroomId);
 }
