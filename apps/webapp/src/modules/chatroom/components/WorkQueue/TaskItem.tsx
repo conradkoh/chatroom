@@ -65,15 +65,6 @@ export function TaskItem({
           {task.assignedTo && (
             <span className="text-[9px] text-chatroom-text-muted">→ {task.assignedTo}</span>
           )}
-          {task.deliveryFailure && (
-            <span
-              className="inline-flex items-center gap-1 text-[9px] text-chatroom-status-warning"
-              title={`Delivery failed: ${task.deliveryFailure.reason}`}
-            >
-              <AlertCircle size={10} />
-              Delivery failed: {task.deliveryFailure.reason.replaceAll('_', ' ')}
-            </span>
-          )}
         </div>
 
         {/* Content - Plain text preview */}
@@ -95,6 +86,19 @@ export function TaskItem({
                 attachedSnippets: task.attachedSnippets,
               }}
             />
+          </div>
+        )}
+
+        {/* Delivery failure error — full-width line at the bottom of the task */}
+        {task.deliveryFailure && (
+          <div className="mt-2">
+            <span
+              className="inline-flex items-center gap-1 text-[9px] text-chatroom-status-warning"
+              title={`Delivery failed: ${task.deliveryFailure.reason}`}
+            >
+              <AlertCircle size={10} />
+              Delivery failed: {task.deliveryFailure.reason.replaceAll('_', ' ')}
+            </span>
           </div>
         )}
       </div>
