@@ -1,0 +1,70 @@
+---
+type: decision-log
+title: Task-state ownership moves from the Convex FSM to the daemon
+description: Backend claim-pending FSM gate removed; daemon owns task-state decisions; shutdown releases all machine non-pending tasks, restart delegates to the task service.
+tags: [tasks, daemon, migration, fsm]
+status: stable
+merged: 2026-09-17
+---
+
+# Task-state ownership moves from the Convex FSM to the daemon
+
+## Context
+
+The backend FSM (`convex/lib/taskStateMachine.ts`) enforced state-machine
+invariants while Convex held the consistent snapshot of task state. As state
+consistency migrates to the daemon's task service, backend validations that
+gate transitions on state have started fighting the daemon:
+
+- The enhancer delivery livelock: the enhancer job path claimed tasks straight
+  to `in_progress`, so every generic native-delivery `claimTask` attempt threw
+  "Task must be pending to claim (current status: in_progress)" forever, masked
+  in the UI as `injection_not_confirmed`.
+- On agent restart, the backend released all in-flight tasks to `pending`
+  indiscriminately (`requestAgentRestart` → `releaseTasksOnAgentExit`) before
+  the daemon got any say.
+
+## Decision (2026-09-17)
+
+1. **`claimTask` is no longer FSM-gated.** An `acknowledged` or `in_progress`
+   task assigned to the claiming role is an idempotent re-claim (returns the
+   task unchanged, no transition, no inbox events). Cross-role non-pending
+   claims are still rejected — that is role ownership, not FSM state. Pending
+   claims acknowledge as before; terminal states stay unclaimable.
+2. **Daemon shutdown releases machine-wide.** New
+   `releaseTasksOnDaemonShutdown` usecase + `daemon.taskStatus.releaseMachineTasks`
+   mutation: every `acknowledged`/`in_progress` task assigned to roles launched
+   on the machine (per `chatroom_agentLastSentLaunchRequests`) moves back to
+   `pending` (`releaseTasksOnDaemonShutdown` FSM trigger, agent-status update
+   skipped). `on-daemon-shutdown` calls it instead of the per-role local release
+   loop, so it also covers tasks the local read model lost. Once the daemon
+   exits, no agent can be processing anything.
+3. **Agent restart is a task-service decision, not a backend decision.**
+   `requestAgentRestart` no longer releases tasks. The restart orchestrator
+   notifies the agent process service (`AgentWorkManager.handleAgentRestart` —
+   resets delivery mutex + agent task state) which delegates to
+   `taskService.handleAgentRestart`: the task service decides — reset the V2
+   redelivery cap (user intervention) and release acknowledged/in_progress
+   tasks to `pending` via the authoritative per-task path
+   (`releaseTaskAfterTurnFailure`), so the fresh agent reprocesses them.
+
+## Shared release skeleton
+
+`transitionInFlightTasksToPending` (in `release-tasks-on-agent-exit.ts`) is the
+single in-flight-release loop: caller-owned FSM trigger, optional role filter,
+optional overrides. `releaseTasksOnAgentExit` (chatroom-stop enhancer
+interrupt), both team-switch reassignment flows, and the daemon-shutdown
+release all delegate to it. `listChatroomTasksByStatus` is the shared
+chatroom+status query.
+
+## Consequences
+
+- More backend FSM validations will be removed as the daemon's task service
+  grows; weigh each on whether the daemon has foundations to enforce the
+  invariant. The claim-pending invariant is NOT re-added on the daemon yet —
+  the daemon task service has no full task model; future work.
+- `releasedTaskCount` removed from `AgentRestartResult` (backend no longer
+  releases at restart-request time; `restart-agent.spec` now asserts the task
+  stays `acknowledged` until the machine acts).
+- `taskService.handleAgentRestart` is the only sanctioned path for
+  restart-time task decisions; do not add backend releases to restart flows.
