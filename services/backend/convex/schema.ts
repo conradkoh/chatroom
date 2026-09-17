@@ -484,6 +484,11 @@ export default defineSchema({
     // enhanced handoffs so the UI diff survives without job rows)
     enhancerOriginalContent: v.optional(v.string()),
 
+    // @deprecated Legacy enhancer job linkage (job pipeline retired — the
+    // table is deleted). Kept optional (as a plain string) so historical
+    // messages still validate; no code reads or writes it.
+    enhancerJobId: v.optional(v.string()),
+
     // When true, message appears only in the ALL timeline tab (not role-filtered views)
     visibleInAllTabOnly: v.optional(v.boolean()),
 
@@ -2779,7 +2784,15 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
     role: v.string(),
-    deliveryKind: v.union(v.literal('native_inject'), v.literal('cli_get_next_task')),
+    deliveryKind: v.union(
+      v.literal('native_inject'),
+      // @deprecated enhancer_claim rows predate the job-pipeline retirement
+      v.literal('enhancer_claim'),
+      v.literal('cli_get_next_task')
+    ),
+    // @deprecated Legacy enhancer job linkage (job table deleted); kept
+    // optional as a plain string so historical rows still validate.
+    jobId: v.optional(v.string()),
     harnessSessionId: v.optional(v.string()),
     deliveredAt: v.number(),
     startedAt: v.optional(v.number()),
