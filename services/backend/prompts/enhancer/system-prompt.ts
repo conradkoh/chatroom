@@ -2,7 +2,7 @@ import {
   ENHANCER_STDIN_DELIMITER,
   HANDOFF_MESSAGE_MARKER,
   formatStdinHeredocCommand,
-} from '../cli/stdin-heredoc.js';
+} from '../cli/stdin-heredoc';
 import { shouldIncludeGeneralKnowledge } from '../config/agent-general-knowledge';
 import { getGeneralKnowledgeSections } from '../sections/general-knowledge';
 import type { ActivatedSkillSnapshot } from '../types/init-prompt';
