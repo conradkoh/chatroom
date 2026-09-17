@@ -74,6 +74,23 @@ export interface NativeTaskDeliveryGateway {
     taskId: string;
     harnessSessionId: string;
   }): Promise<void>;
+  /**
+   * Applies the daemon's read intent for a task (pending/acknowledged →
+   * in_progress, idempotent). Ownership is verified server-side.
+   */
+  readTask(args: {
+    sessionId: string;
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<{ status: 'in_progress' }>;
+  /** Marks an open delivery receipt started; no-op when none is open. */
+  markReceiptStarted(args: {
+    sessionId: string;
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<{ marked: boolean }>;
   joinWaitingParticipant(args: {
     sessionId: string;
     chatroomId: string;

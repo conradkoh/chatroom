@@ -73,7 +73,8 @@ describe('releaseMachineTasks (daemon shutdown)', () => {
       role: 'builder',
       taskId: inProgressTaskId,
     });
-    await t.mutation(api.tasks.startTask, {
+    // Mark in_progress the same way the daemon applies a read intent.
+    await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
       role: 'builder',

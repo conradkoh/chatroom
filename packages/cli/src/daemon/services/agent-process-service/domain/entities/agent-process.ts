@@ -61,3 +61,11 @@ export interface AgentSessionLostEvent {
 }
 
 export type AgentSessionLostHandler = (event: AgentSessionLostEvent) => void;
+
+/** The agent process is producing output/progress while a slot is active. */
+export interface AgentTurnProgressEvent {
+  readonly chatroomId: string;
+  readonly role: string;
+}
+
+export type AgentTurnProgressHandler = (event: AgentTurnProgressEvent) => void;

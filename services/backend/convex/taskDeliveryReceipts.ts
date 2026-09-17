@@ -3,7 +3,11 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
-import { recordTaskDelivery } from '../src/domain/usecase/task/record-task-delivery';
+import {
+  findOpenDeliveryReceipt,
+  markDeliveryReceiptStarted,
+  recordTaskDelivery,
+} from '../src/domain/usecase/task/record-task-delivery';
 
 export const record = mutation({
   args: {
@@ -32,5 +36,26 @@ export const record = mutation({
       startedAt: args.startedAt,
     });
     return { receiptId };
+  },
+});
+
+/**
+ * Marks an open delivery receipt as started (the receiving agent began
+ * processing the delivered task). Idempotent no-op when no open receipt
+ * exists — the daemon's task service drives this after turn-start evidence.
+ */
+export const markStarted = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const receipt = await findOpenDeliveryReceipt(ctx, args.chatroomId, args.role, args.taskId);
+    if (!receipt) return { marked: false };
+    await markDeliveryReceiptStarted(ctx, receipt._id);
+    return { marked: true };
   },
 });

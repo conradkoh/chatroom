@@ -260,7 +260,8 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
       const sendOptions = sharedAgentSendFn.mock.calls[0][1] as {
-        onDelta?:( (args: { update: { type: string; text?: string | undefined } }) => void) | undefined;
+        onDelta?:
+          ((args: { update: { type: string; text?: string | undefined } }) => void) | undefined;
       };
       expect(typeof sendOptions.onDelta).toBe('function');
 
@@ -836,7 +837,7 @@ describe('CursorSdkAgentService', () => {
       const child = makeFakeChild(8802);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const service = new CursorSdkAgentService(deps);
-      const mutation = vi.fn().mockResolvedValue(undefined);
+      const onTurnProgress = vi.fn();
 
       const result = await service.spawn({
         workingDir: '/tmp/work',
@@ -855,18 +856,17 @@ describe('CursorSdkAgentService', () => {
       });
 
       wireTokenActivityReporting({
-        backend: { mutation } as any,
-        sessionId: 's',
         chatroomId: 'c',
         role: 'builder',
         spawnResult: { onOutput: result.onOutput },
         activityEmitter: result.activityEmitter,
+        onTurnProgress,
       });
 
       await vi.waitFor(() => expect(processStreamTransportCount).toBeGreaterThan(0));
-      expect(mutation).not.toHaveBeenCalled();
+      expect(onTurnProgress).not.toHaveBeenCalled();
 
-      await vi.waitFor(() => expect(mutation).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() => expect(onTurnProgress).toHaveBeenCalledTimes(1));
     });
   });
 

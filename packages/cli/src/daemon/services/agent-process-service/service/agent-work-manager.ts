@@ -83,6 +83,7 @@ export class AgentWorkManager {
   private readonly unsubscribeAgentTurnEnded: () => void;
   private readonly unsubscribeAgentStarted: () => void;
   private readonly unsubscribeAgentSessionLost: () => void;
+  private readonly unsubscribeAgentTurnProgress: () => void;
   private readonly reconcileStates = new Map<
     string,
     {
@@ -137,6 +138,17 @@ export class AgentWorkManager {
     this.unsubscribeAgentSessionLost = deps.agentMgr.subscribeAgentSessionLost((event) =>
       this.handleAgentSessionLost(event)
     );
+    this.unsubscribeAgentTurnProgress = deps.agentMgr.subscribeAgentTurnProgress((event) => {
+      const activeTask = this.deps.agentTaskState.get(event);
+      if (!activeTask) return;
+      void this.deps.taskService
+        .handleAgentTurnProgress({ ...event, taskId: activeTask.taskId })
+        .catch((error: unknown) => {
+          console.warn(
+            `[AgentProcessManager] turn-progress handling failed for ${event.role}@${event.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        });
+    });
     this.unsubscribeTaskService = deps.taskService.subscribe((notification) =>
       this.handleTaskServiceNotification(notification)
     );
@@ -331,6 +343,7 @@ export class AgentWorkManager {
     this.unsubscribeAgentTurnEnded();
     this.unsubscribeAgentStarted();
     this.unsubscribeAgentSessionLost();
+    this.unsubscribeAgentTurnProgress();
     this.unsubscribeTaskService?.();
     this.unsubscribeTaskService = undefined;
     this.nativeTaskDeliveryQueue.stop();

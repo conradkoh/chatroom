@@ -87,177 +87,163 @@ describe('emitNativeWaitingAfterSpawn', () => {
 });
 
 describe('wireTokenActivityReporting', () => {
-  it('fires recordHarnessActivity for team agent', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
-    const backend = { mutation };
+  it('notifies turn progress for team agent roles', async () => {
+    const onTurnProgress = vi.fn();
     const spawnResult = mockSpawnResult();
-    const ctx = {
-      backend: backend as any,
-      sessionId: 's',
+    wireTokenActivityReporting({
       chatroomId: 'c',
       role: 'builder',
       spawnResult,
       now: () => 1000,
-      throttleMs: 30_000,
-    };
-
-    wireTokenActivityReporting(ctx);
+      onTurnProgress,
+    });
     spawnResult._fireOutput();
 
-    expect(mutation).toHaveBeenCalledTimes(1);
-    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
-    expect(args.role).toBe('builder');
+    expect(onTurnProgress).toHaveBeenCalledTimes(1);
+    expect(onTurnProgress).toHaveBeenCalledWith({ chatroomId: 'c', role: 'builder' });
   });
 
-  it('fires recordHarnessActivity for enhancer team role', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
-    const backend = { mutation };
+  it('notifies turn progress for the enhancer team role', async () => {
+    const onTurnProgress = vi.fn();
     const spawnResult = mockSpawnResult();
-    const ctx = {
-      backend: backend as any,
-      sessionId: 's',
+    wireTokenActivityReporting({
       chatroomId: 'c',
       role: 'enhancer',
       spawnResult,
       now: () => 1000,
-      throttleMs: 30_000,
-    };
-
-    wireTokenActivityReporting(ctx);
+      onTurnProgress,
+    });
     spawnResult._fireOutput();
 
-    expect(mutation).toHaveBeenCalledTimes(1);
-    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
-    expect(args.role).toBe('enhancer');
+    expect(onTurnProgress).toHaveBeenCalledTimes(1);
+    expect(onTurnProgress).toHaveBeenCalledWith({ chatroomId: 'c', role: 'enhancer' });
   });
 
-  it('does not fire recordHarnessActivity again within throttle window', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
-    const backend = { mutation };
+  it('notifies turn progress on first output, throttled afterwards', async () => {
+    const onTurnProgress = vi.fn();
     const spawnResult = mockSpawnResult();
     let clock = 1000;
-    const ctx = {
-      backend: backend as any,
-      sessionId: 's',
+    wireTokenActivityReporting({
       chatroomId: 'c',
       role: 'builder',
       spawnResult,
       now: () => clock,
       throttleMs: 30_000,
-    };
-
-    wireTokenActivityReporting(ctx);
+      onTurnProgress,
+    });
     spawnResult._fireOutput(); // first — fires
     clock = 15000;
     spawnResult._fireOutput(); // within 30s — should not fire
     clock = 45000;
     spawnResult._fireOutput(); // after 30s from last — should fire again
 
-    expect(mutation).toHaveBeenCalledTimes(2);
+    expect(onTurnProgress).toHaveBeenCalledTimes(2);
+    expect(onTurnProgress).toHaveBeenCalledWith({ chatroomId: 'c', role: 'builder' });
   });
 
   it('handles gracefully when onOutput is not available', () => {
-    const mutation = vi.fn();
-    const backend = { mutation };
-    const spawnResult = {} as any; // no onOutput
-
     expect(() => {
       wireTokenActivityReporting({
-        backend: backend as any,
-        sessionId: 's',
         chatroomId: 'c',
         role: 'builder',
-        spawnResult,
+        spawnResult: {} as any, // no onOutput
+        onTurnProgress: vi.fn(),
       });
     }).not.toThrow();
   });
 
-  it('fires exactly one mutation for first progress in a turn', () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
+  it('notifies exactly once for first progress in a turn', () => {
+    const onTurnProgress = vi.fn();
     const emitter = createHarnessActivityEmitter();
     wireTokenActivityReporting({
-      backend: { mutation } as any,
-      sessionId: 's',
       chatroomId: 'c',
       role: 'builder',
       spawnResult: mockSpawnResult(),
       activityEmitter: emitter,
+      onTurnProgress,
     });
 
     emitter.emit({ kind: 'progress', source: 'test', at: 1000 });
 
-    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(onTurnProgress).toHaveBeenCalledTimes(1);
   });
 
-  it('does not fire mutation for transport, waiting, or failure signals', () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
+  it('does not notify for transport, waiting, or failure signals', () => {
+    const onTurnProgress = vi.fn();
     const emitter = createHarnessActivityEmitter();
     wireTokenActivityReporting({
-      backend: { mutation } as any,
-      sessionId: 's',
       chatroomId: 'c',
       role: 'builder',
       spawnResult: mockSpawnResult(),
       activityEmitter: emitter,
+      onTurnProgress,
     });
 
     emitter.emit({ kind: 'transport', source: 'test', at: 1000 });
     emitter.emit({ kind: 'waiting', source: 'test', at: 2000 });
     emitter.emit({ kind: 'failure', source: 'test', at: 3000 });
 
-    expect(mutation).not.toHaveBeenCalled();
+    expect(onTurnProgress).not.toHaveBeenCalled();
   });
 
-  it('fires only once for multiple progress signals in the same turn', () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
+  it('notifies only once for multiple progress signals in the same turn', () => {
+    const onTurnProgress = vi.fn();
     const emitter = createHarnessActivityEmitter();
     wireTokenActivityReporting({
-      backend: { mutation } as any,
-      sessionId: 's',
       chatroomId: 'c',
       role: 'builder',
       spawnResult: mockSpawnResult(),
       activityEmitter: emitter,
+      onTurnProgress,
     });
 
     emitter.emit({ kind: 'progress', source: 'test', at: 1000 });
     emitter.emit({ kind: 'progress', source: 'test', at: 2000 });
 
-    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(onTurnProgress).toHaveBeenCalledTimes(1);
   });
 
   it('beginTurn permits one new progress update', () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
+    const onTurnProgress = vi.fn();
     const emitter = createHarnessActivityEmitter();
     wireTokenActivityReporting({
-      backend: { mutation } as any,
-      sessionId: 's',
       chatroomId: 'c',
       role: 'builder',
       spawnResult: mockSpawnResult(),
       activityEmitter: emitter,
+      onTurnProgress,
     });
 
     emitter.emit({ kind: 'progress', source: 'test', at: 1000 });
     emitter.beginTurn();
     emitter.emit({ kind: 'progress', source: 'test', at: 2000 });
 
-    expect(mutation).toHaveBeenCalledTimes(2);
+    expect(onTurnProgress).toHaveBeenCalledTimes(2);
   });
 
   it('subscribes to the typed emitter only once', () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
+    const onTurnProgress = vi.fn();
     const emitter = createHarnessActivityEmitter();
     const onActivity = vi.spyOn(emitter, 'onActivity');
     wireTokenActivityReporting({
-      backend: { mutation } as any,
-      sessionId: 's',
       chatroomId: 'c',
       role: 'builder',
       spawnResult: mockSpawnResult(),
       activityEmitter: emitter,
+      onTurnProgress,
     });
 
     expect(onActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing without a turn-progress handler', () => {
+    const spawnResult = mockSpawnResult();
+    wireTokenActivityReporting({
+      chatroomId: 'c',
+      role: 'builder',
+      spawnResult,
+      now: () => 1000,
+    });
+    expect(() => spawnResult._fireOutput()).not.toThrow();
   });
 });

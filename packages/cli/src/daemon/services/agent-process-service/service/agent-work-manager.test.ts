@@ -14,6 +14,7 @@ function createService(
     readonly onTurnEnded?: (handler: (event: never) => Promise<unknown>) => void;
     readonly onAgentStarted?: (handler: (event: never) => Promise<unknown>) => void;
     readonly onSessionLost?: (handler: (event: never) => void) => void;
+    readonly onTurnProgress?: (handler: (event: never) => void) => void;
     readonly releaseTaskAfterTurnFailure?: (
       args: Record<string, string>
     ) => Promise<{ released: boolean; status: 'pending'; updatedAt: number }>;
@@ -41,6 +42,10 @@ function createService(
       },
       subscribeAgentSessionLost: (handler: (event: never) => void) => {
         options.onSessionLost?.(handler);
+        return () => undefined;
+      },
+      subscribeAgentTurnProgress: (handler: (event: never) => void) => {
+        options.onTurnProgress?.(handler);
         return () => undefined;
       },
       getSlot: options.getSlot ?? (() => undefined),
@@ -226,7 +231,11 @@ describe('AgentWorkManager', () => {
       },
       clearRedeliveryTracking,
     });
-    await startedHandler?.({ chatroomId: 'room-1', role: 'builder', reason: 'user.start' } as never);
+    await startedHandler?.({
+      chatroomId: 'room-1',
+      role: 'builder',
+      reason: 'user.start',
+    } as never);
     expect(clearRedeliveryTracking).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'builder',

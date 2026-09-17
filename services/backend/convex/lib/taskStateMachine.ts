@@ -96,18 +96,9 @@ const TRANSITIONS: TransitionRule[] = [
   {
     from: 'pending',
     to: 'in_progress',
-    trigger: 'resumeFromTokenActivity',
+    trigger: 'readTask',
     setFields: {
       acknowledgedAt: 'NOW',
-      startedAt: 'NOW',
-    },
-  },
-
-  {
-    from: 'acknowledged',
-    to: 'in_progress',
-    trigger: 'startTask',
-    setFields: {
       startedAt: 'NOW',
     },
   },

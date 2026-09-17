@@ -56,6 +56,7 @@ function createExecution(events: string[]): AgentProcessManagerExecutionPort {
     subscribeAgentTurnEnded: () => () => undefined,
     subscribeAgentStarted: () => () => undefined,
     subscribeAgentSessionLost: () => () => undefined,
+    subscribeAgentTurnProgress: () => () => undefined,
   };
 }
 

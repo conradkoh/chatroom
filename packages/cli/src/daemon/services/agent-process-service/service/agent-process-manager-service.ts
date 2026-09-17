@@ -24,6 +24,7 @@ import type {
   AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
+  AgentTurnProgressHandler,
 } from '../domain/entities/agent-process.js';
 
 export interface RestartAgentInput {
@@ -92,6 +93,7 @@ export interface AgentProcessManagerExecutionPort {
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
   subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
+  subscribeAgentTurnProgress(handler: AgentTurnProgressHandler): () => void;
 }
 
 export interface AgentProcessManagerService {
@@ -160,6 +162,7 @@ export interface AgentProcessManagerService {
   subscribeAgentTurnEnded(handler: AgentTurnEndedHandler): () => void;
   subscribeAgentStarted(handler: AgentStartedHandler): () => void;
   subscribeAgentSessionLost(handler: AgentSessionLostHandler): () => void;
+  subscribeAgentTurnProgress(handler: AgentTurnProgressHandler): () => void;
 }
 
 export interface AgentProcessManagerResetResult {
@@ -581,5 +584,6 @@ export function createAgentProcessManagerService(
     subscribeAgentTurnEnded: (handler) => deps.execution.subscribeAgentTurnEnded(handler),
     subscribeAgentStarted: (handler) => deps.execution.subscribeAgentStarted(handler),
     subscribeAgentSessionLost: (handler) => deps.execution.subscribeAgentSessionLost(handler),
+    subscribeAgentTurnProgress: (handler) => deps.execution.subscribeAgentTurnProgress(handler),
   };
 }

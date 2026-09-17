@@ -134,6 +134,18 @@ export interface TaskService extends TaskDeliveryOperations {
    * tasks back to `pending` so the fresh agent reprocesses them.
    */
   handleAgentRestart(args: { chatroomId: string; role: string }): Promise<void>;
+  /**
+   * Notifies the task service that a delivered task's agent turn is producing
+   * output (agent process service reports first turn progress). The task
+   * service decides what that means: apply the read intent (pending/
+   * acknowledged → in_progress, idempotent) and mark the open delivery
+   * receipt started, so the backend never infers state from raw signals.
+   */
+  handleAgentTurnProgress(args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<void>;
 }
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
@@ -626,6 +638,34 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         role,
       });
       return task?.chatroomId === chatroomId ? task : null;
+    },
+    handleAgentTurnProgress: async ({ chatroomId, role, taskId }) => {
+      const task = taskInboxState.getForRole(chatroomId, role, taskId);
+      if (!task) return;
+      if (task.status !== 'acknowledged' && task.status !== 'in_progress') return;
+
+      if (task.status === 'acknowledged') {
+        try {
+          await gateway.readTask({ sessionId: deps.sessionId, chatroomId, role, taskId });
+          taskInboxState.markStatus(chatroomId, role, taskId, 'in_progress', Date.now());
+        } catch (error) {
+          console.warn(
+            `[TaskService] turn-progress read failed chatroom=${chatroomId} role=${role} task=${taskId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+          return;
+        }
+      }
+
+      // The receipt may still be open (e.g. readTask succeeded but the receipt
+      // mark failed on an earlier progress signal) — markStarted is a no-op
+      // when nothing is open.
+      try {
+        await gateway.markReceiptStarted({ sessionId: deps.sessionId, chatroomId, role, taskId });
+      } catch (error) {
+        console.warn(
+          `[TaskService] turn-progress receipt mark failed chatroom=${chatroomId} role=${role} task=${taskId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     },
     recordDeliveryFailure: ({ taskId, reason }) =>
       gateway.recordDeliveryFailure({

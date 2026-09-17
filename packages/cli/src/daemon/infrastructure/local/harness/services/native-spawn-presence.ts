@@ -2,7 +2,6 @@ import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/h
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 
 import type { SpawnResult } from './remote-agent-service.js';
-import { api } from '../../../../../api.js';
 import type { BackendOps } from '../../../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../../../infrastructure/machine/types.js';
 import {
@@ -22,13 +21,20 @@ export interface NativeSpawnPresenceContext {
   lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> } | undefined;
 }
 
-export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceContext {
+export interface WireTokenActivityReportingOpts {
+  chatroomId: string;
+  role: string;
   spawnResult: Pick<SpawnResult, 'onOutput'>;
   /** Defaults to Date.now — APM passes clock.now for testability */
   now?: (() => number) | undefined;
   throttleMs?: number | undefined;
   /** Optional typed activity emitter. When present, uses one unthrottled subscription instead of raw onOutput. */
   activityEmitter?: HarnessActivityEmitter | undefined;
+  /**
+   * Daemon-local turn-progress notification (agent process service → task
+   * service). Without it, progress is observed but not reported.
+   */
+  onTurnProgress?: ((event: { chatroomId: string; role: string }) => void) | undefined;
 }
 
 /**
@@ -64,13 +70,14 @@ export async function emitNativeWaitingAfterSpawn(
 }
 
 /**
- * Wire spawnResult.onOutput to throttled participants.recordHarnessActivity.
- * First output fires immediately; subsequent calls throttled (default 30s).
- * When activityEmitter is present, reports first typed progress per turn only.
+ * Wire harness output to turn-progress notifications.
+ * When activityEmitter is present, reports first typed progress per turn only;
+ * otherwise reports raw output throttled (default 30s). The notification is a
+ * daemon-local callback — the task service decides what it means; the backend
+ * is never written from here.
  */
 function fireTokenActivity(
-  backend: BackendOps,
-  sessionId: string,
+  onTurnProgress: (event: { chatroomId: string; role: string }) => void,
   chatroomId: string,
   role: string,
   now: () => number,
@@ -80,29 +87,19 @@ function fireTokenActivity(
   const t = now();
   if (lastReportedTokenAt.value === 0 || t - lastReportedTokenAt.value >= throttleMs) {
     lastReportedTokenAt.value = t;
-    void backend
-      .mutation(api.participants.recordHarnessActivity, {
-        sessionId,
-        chatroomId,
-        role,
-      })
-      .catch(() => {});
+    onTurnProgress({ chatroomId, role });
   }
 }
 
 export function wireTokenActivityReporting(opts: WireTokenActivityReportingOpts): void {
   if (!isTeamAgentRole(opts.role)) return;
+  const onTurnProgress = opts.onTurnProgress;
+  if (!onTurnProgress) return;
 
   if (opts.activityEmitter) {
     opts.activityEmitter.onActivity((signal) => {
       if (signal.kind !== 'progress' || !signal.isFirstForTurn) return;
-      void opts.backend
-        .mutation(api.participants.recordHarnessActivity, {
-          sessionId: opts.sessionId,
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-        })
-        .catch(() => {});
+      onTurnProgress({ chatroomId: opts.chatroomId, role: opts.role });
     });
     return;
   }
@@ -115,8 +112,7 @@ export function wireTokenActivityReporting(opts: WireTokenActivityReportingOpts)
 
   register(() => {
     fireTokenActivity(
-      opts.backend,
-      opts.sessionId,
+      onTurnProgress,
       opts.chatroomId,
       opts.role,
       now,

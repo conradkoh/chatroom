@@ -29,6 +29,7 @@ import type {
   AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedHandler,
+  AgentTurnProgressHandler,
   EnsureRunningOpts,
   HandleExitOpts,
   OperationResult,
@@ -161,6 +162,7 @@ export interface DaemonAgentProcessManagerServiceShape {
   subscribeAgentTurnEnded: (handler: AgentTurnEndedHandler) => () => void;
   subscribeAgentStarted: (handler: AgentStartedHandler) => () => void;
   subscribeAgentSessionLost: (handler: AgentSessionLostHandler) => () => void;
+  subscribeAgentTurnProgress: (handler: AgentTurnProgressHandler) => () => void;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -188,6 +190,8 @@ export const DaemonAgentProcessManagerServiceLive = (
     subscribeAgentStarted: (handler) => processManagerService.subscribeAgentStarted(handler),
     subscribeAgentSessionLost: (handler) =>
       processManagerService.subscribeAgentSessionLost(handler),
+    subscribeAgentTurnProgress: (handler) =>
+      processManagerService.subscribeAgentTurnProgress(handler),
   });
 
 /**

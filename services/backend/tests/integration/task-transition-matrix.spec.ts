@@ -7,8 +7,7 @@
  *
  * | Role kind | Trigger | Expected result |
  * |-----------|---------|----------------|
- * | team_agent (planner) | native:task-injected + recordHarnessActivity | in_progress |
- * | team_agent (planner) | agent.waiting + recordHarnessActivity (activity resume) | in_progress |
+ * | team_agent (planner) | readTask intent (daemon-driven) | in_progress |
  * | ephemeral (enhancer) | claimForSpawn | in_progress + participant row |
  */
 
@@ -54,77 +53,43 @@ async function seedPendingTask(
 }
 
 describe('task transition matrix', () => {
-  test('team agent + native:task-injected + recordHarnessActivity -> in_progress', async () => {
-    const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
-      'ttm-injected',
-      'planner'
-    );
+  test('team agent + readTask intent (daemon-driven) -> in_progress', async () => {
+    const { sessionId, chatroomId } = await createSessionChatroomAndJoin('ttm-injected', 'planner');
     await assertDuoTeamOnly(chatroomId);
 
     const taskId = await seedPendingTask(chatroomId, 'planner');
 
-    // Manually acknowledge the pending task to simulate native injection
-    await t.run(async (ctx) => {
-      const task = await ctx.db.get('chatroom_tasks', taskId);
-      if (task && task.status === 'pending') {
-        await ctx.db.patch('chatroom_tasks', taskId, { status: 'acknowledged' });
-      }
+    // The daemon's delivery claims the pending task (pending → acknowledged)…
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
-    expect(await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status)).toBe(
-      'acknowledged'
-    );
 
-    // Simulate harness activity after native injection
-    const { startTaskFromTokenActivity } =
-      await import('../../src/domain/usecase/participant/start-task-from-token-activity');
-    await t.run(async (ctx) => {
-      await startTaskFromTokenActivity(
-        ctx,
-        { chatroomId, role: 'planner' },
-        {
-          lastSeenAction: 'native:task-injected',
-        }
-      );
+    // …and applies the read intent once the turn produces output.
+    await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
 
     const status = await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status);
     expect(status).toBe('in_progress');
   });
 
-  test('team agent + agent.waiting + recordHarnessActivity (activity resume) -> in_progress', async () => {
-    const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
-      'ttm-waiting',
-      'planner'
-    );
+  test('read intent on a pending task starts it without an acknowledged intermediate', async () => {
+    const { sessionId, chatroomId } = await createSessionChatroomAndJoin('ttm-waiting', 'planner');
     await assertDuoTeamOnly(chatroomId);
 
     const taskId = await seedPendingTask(chatroomId, 'planner');
 
-    // Manually acknowledge the pending task
-    await t.run(async (ctx) => {
-      const task = await ctx.db.get('chatroom_tasks', taskId);
-      if (task && task.status === 'pending') {
-        await ctx.db.patch('chatroom_tasks', taskId, { status: 'acknowledged' });
-      }
-      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
-        chatroomId,
-        role: 'planner',
-        roleKind: 'persistent',
-        status: 'waiting',
-        projectedAt: Date.now(),
-      });
-    });
-
-    const { startTaskFromTokenActivity } =
-      await import('../../src/domain/usecase/participant/start-task-from-token-activity');
-    await t.run(async (ctx) => {
-      await startTaskFromTokenActivity(
-        ctx,
-        { chatroomId, role: 'planner' },
-        {
-          lastSeenAction: 'native:waiting',
-        }
-      );
+    await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
 
     const status = await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status);

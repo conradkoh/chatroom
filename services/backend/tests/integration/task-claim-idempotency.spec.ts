@@ -66,7 +66,7 @@ describe('claimTask re-claims', () => {
       role: 'builder',
       taskId,
     });
-    await t.mutation(api.tasks.startTask, {
+    await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
       role: 'builder',
