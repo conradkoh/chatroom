@@ -54,14 +54,23 @@ export async function requestLocalDaemon<T>(
       .timeout(10_000)
       .emitWithAck(event, payload)) as SocketResponse<T>;
     if (!response.ok) {
-      throw new LocalDaemonServerError({
-        message: response.error?.message ?? `Daemon request failed: ${event}`,
-        code: response.error?.code,
-        details: response.error?.details,
-      });
+      throw toLocalDaemonServerError(response, event);
     }
     return response.data;
   } finally {
     socket.disconnect();
   }
+}
+
+/** Maps a failed socket ack to the typed local-daemon error. */
+function toLocalDaemonServerError(
+  response: { ok: false; error?: SocketError | undefined },
+  event: string
+): LocalDaemonServerError {
+  const error = response.error ?? {};
+  return new LocalDaemonServerError({
+    message: error.message ?? `Daemon request failed: ${event}`,
+    code: error.code,
+    details: error.details,
+  });
 }

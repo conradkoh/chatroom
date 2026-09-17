@@ -6,7 +6,7 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { NativeDeliverySessionHandles } from './native-task-injector.js';
-import type { TaskDeliveryFailureReason } from './ports/native-task-delivery.js';
+import type { TaskDeliveryOperations } from './ports/task-delivery-operations.js';
 import {
   buildTaskServiceDebugState,
   type TaskServiceDebugState,
@@ -97,7 +97,7 @@ export type TaskServiceListener = (
   notification: TaskServiceNotification
 ) => Promise<TaskServiceDeliveryConfirmation | void> | TaskServiceDeliveryConfirmation | void;
 
-export interface TaskService {
+export interface TaskService extends TaskDeliveryOperations {
   /** Loads the initial task inbox state. */
   startTaskInbox(wsClient?: ConvexClient): Promise<void>;
   subscribe(listener: TaskServiceListener): () => void;
@@ -127,45 +127,14 @@ export interface TaskService {
   getLatestHandoff(chatroomId: string, role: string): Promise<TaskHandoffRecord | null>;
   /** Releases rehydrated in-progress tasks whose latest handoff does not cover them. */
   sweepUncoveredInProgressTasks(): Promise<number>;
-  releaseTaskAfterTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<{
-    released: boolean;
-    status: AssignedTask['status'];
-    updatedAt: number;
-  }>;
-  loadAssignedTaskForAction(args: {
-    chatroomId: string;
-    role: string;
-    taskId: string;
-  }): Promise<AssignedTaskWithContent | null>;
-  recordDeliveryFailure(args: {
-    taskId: string;
-    reason:
-      | 'no_agent_config'
-      | 'unsupported_harness'
-      | 'injection_not_confirmed'
-      | 'task_not_deliverable'
-      | 'assigned_elsewhere'
-      | 'redelivery_exhausted';
-  }): Promise<boolean>;
-  clearDeliveryFailure(
-    taskId: string,
-    expectedReason?: TaskDeliveryFailureReason
-  ): Promise<boolean>;
-  /**
-   * Counts an agent turn end whose active task is not covered by the durable
-   * handoff (plan V2). When the consecutive-attempt cap is reached the task is
-   * marked exhausted: further redelivery is gated off and a single
-   * `redelivery_exhausted` delivery failure is recorded (user-visible).
-   */
-  recordUncoveredTurnEnd(args: {
-    chatroomId: string;
-    role: string;
-    taskId: string;
-  }): Promise<{ exceeded: boolean }>;
-  isRedeliveryExhausted(args: { chatroomId: string; role: string; taskId: string }): boolean;
-  /** Clears exhausted/redelivery tracking for a role (user-initiated agent restart). */
-  clearRedeliveryTracking(args: { chatroomId: string; role: string }): void;
 }
+
+/*
+ * Delivery-side operations (release-after-turn-failure, delivery failure
+ * records, uncovered-turn-end cap tracking, redelivery tracking, assigned-task
+ * loading) are inherited from `TaskDeliveryOperations` — the shared contract
+ * with the narrow `TaskDeliveryService` slice.
+ */
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
   convexUrl: string;
@@ -239,8 +208,13 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     chatroomId: string;
     role: string;
     taskId: string;
-  }): boolean => redeliveryExhaustedKeys.has(redeliveryKey(args.chatroomId, args.role, args.taskId));
-  const clearRedeliveryTrackingForTask = (chatroomId: string, role: string, taskId: string): void => {
+  }): boolean =>
+    redeliveryExhaustedKeys.has(redeliveryKey(args.chatroomId, args.role, args.taskId));
+  const clearRedeliveryTrackingForTask = (
+    chatroomId: string,
+    role: string,
+    taskId: string
+  ): void => {
     const key = redeliveryKey(chatroomId, role, taskId);
     turnEndAttemptCounts.delete(key);
     redeliveryExhaustedKeys.delete(key);

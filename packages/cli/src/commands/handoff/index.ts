@@ -23,9 +23,8 @@ import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex
 import {
   CliGatewayService,
   commandServicesLayerFromDeps,
-  requireSessionIdEffect,
+  requireSessionForChatroomEffect,
   SessionService,
-  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 import { formatAuthError, formatChatroomIdError } from '../../utils/error-formatting.js';
 
@@ -85,16 +84,7 @@ export const handoffEffect = (
     const gateway = yield* CliGatewayService;
     const { role, message, nextRole } = options;
 
-    const sessionId = yield* requireSessionIdEffect((a) => ({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl: a.convexUrl,
-      otherUrls: a.otherUrls,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireSessionForChatroomEffect({ chatroomId });
 
     const result = yield* Effect.tryPromise({
       try: () =>

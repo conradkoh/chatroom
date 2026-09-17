@@ -56,6 +56,44 @@ export function requireSessionIdEffect<E>(
   });
 }
 
+/**
+ * Shared preamble for chatroom-scoped commands: resolve the session and
+ * validate the chatroom id — the standard first steps of every CLI command
+ * effect. Commands that need the backend yield `BackendService` themselves.
+ */
+/**
+ * Shared session/chatroom-id failures for chatroom-scoped CLI commands.
+ * Every command's error union structurally includes both variants.
+ */
+export type CommandSessionFailure =
+  | { _tag: 'NotAuthenticated'; convexUrl: string; otherUrls: string[] }
+  | { _tag: 'InvalidChatroomId'; id: string };
+
+/**
+ * Shared preamble for chatroom-scoped commands: resolve the session and
+ * validate the chatroom id — the standard first steps of every CLI command
+ * effect. Commands that need the backend yield `BackendService` themselves.
+ */
+export function requireSessionForChatroomEffect(params: {
+  chatroomId: string;
+}): Effect.Effect<SessionId, CommandSessionFailure, SessionService> {
+  return Effect.gen(function* () {
+    const sessionId = yield* requireSessionIdEffect(
+      ({ convexUrl, otherUrls }) =>
+        ({
+          _tag: 'NotAuthenticated' as const,
+          convexUrl,
+          otherUrls,
+        }) satisfies CommandSessionFailure
+    );
+    yield* validateChatroomIdEffect(
+      params.chatroomId,
+      (id) => ({ _tag: 'InvalidChatroomId' as const, id }) satisfies CommandSessionFailure
+    );
+    return sessionId;
+  });
+}
+
 export function validateChatroomIdEffect<E>(
   chatroomId: string,
   fail: (id: string) => E
