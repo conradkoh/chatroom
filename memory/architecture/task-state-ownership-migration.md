@@ -75,3 +75,23 @@ chatroom+status query.
 - `taskService.handleAgentRestart` is the current path for restart-time task
   decisions; keep task decisions out of backend restart flows while the
   migration is in progress.
+
+## Follow-up: enhancer job pipeline retired (2026-09-17)
+
+`90fc541e0` (delivery switch) + `1e83f0830` (schema drop) removed the
+enhancer job pipeline entirely — `chatroom_enhancerJobs`, the daemon job
+subscriber/drain/spawn registries, claimForSpawn/getTaskDeliveryForJob,
+the reaper, and attempt bookkeeping. The enhancer is now delivered exactly
+like permanent agents: standard ingress → inbox event → idempotent claim →
+slot spawn with the standard delivery prompt → receipt lifecycle →
+handoff-only completion; retry/salvage via turn-failure release + the V2
+cap + bootstrap sweep.
+
+- The planner draft ("original") for the UI diff now travels on the
+  enhanced handoff message itself (`messages.enhancerOriginalContent`),
+  stamped at handoff from the completed enhancer task's content.
+- Historical enhancer diffs (old job draftContent) are not backfilled —
+  old timelines lose the original-vs-enhanced toggle.
+- The webapp hook is task-based (`getActiveJob`/`cancelActiveJob` read the
+  in-flight enhancer task; cancel delivers the planning-review-outcome
+  cancelled handoff).
