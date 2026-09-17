@@ -37,8 +37,7 @@ gate transitions on state have started fighting the daemon:
    on the machine (per `chatroom_agentLastSentLaunchRequests`) moves back to
    `pending` (`releaseTasksOnDaemonShutdown` FSM trigger, agent-status update
    skipped). `on-daemon-shutdown` calls it instead of the per-role local release
-   loop, so it also covers tasks the local read model lost. Once the daemon
-   exits, no agent can be processing anything.
+   loop, so it also covers tasks the local read model lost.
 3. **Agent restart is a task-service decision, not a backend decision.**
    `requestAgentRestart` no longer releases tasks. The restart orchestrator
    notifies the agent process service (`AgentWorkManager.handleAgentRestart` —
@@ -47,6 +46,13 @@ gate transitions on state have started fighting the daemon:
    redelivery cap (user intervention) and release acknowledged/in_progress
    tasks to `pending` via the authoritative per-task path
    (`releaseTaskAfterTurnFailure`), so the fresh agent reprocesses them.
+
+**These behaviors are provisional, not invariants.** They are reasonable
+defaults for the current migration state and may be wrong — particularly the
+blanket shutdown release (it discards agent work without asking whether the
+turn had actually progressed) and the restart release (it discards claimed-
+but-unstarted work). Revisit both once the daemon's task service has a real
+task model and can make per-task decisions instead of blanket ones.
 
 ## Shared release skeleton
 
@@ -61,10 +67,11 @@ chatroom+status query.
 
 - More backend FSM validations will be removed as the daemon's task service
   grows; weigh each on whether the daemon has foundations to enforce the
-  invariant. The claim-pending invariant is NOT re-added on the daemon yet —
+  invariant. The claim-pending check is NOT re-added on the daemon yet —
   the daemon task service has no full task model; future work.
 - `releasedTaskCount` removed from `AgentRestartResult` (backend no longer
   releases at restart-request time; `restart-agent.spec` now asserts the task
   stays `acknowledged` until the machine acts).
-- `taskService.handleAgentRestart` is the only sanctioned path for
-  restart-time task decisions; do not add backend releases to restart flows.
+- `taskService.handleAgentRestart` is the current path for restart-time task
+  decisions; keep task decisions out of backend restart flows while the
+  migration is in progress.
