@@ -1810,11 +1810,13 @@ export class AgentProcessManager {
     await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
     if (getHarnessCapabilities(opts.agentHarness).supportsNativeIntegration) {
       for (const handler of this.agentStartedHandlers) {
-        void handler({ chatroomId: opts.chatroomId, role: opts.role }).catch((error: unknown) => {
-          console.warn(
-            `[AgentProcessManager] native delivery after start failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
-          );
-        });
+        void handler({ chatroomId: opts.chatroomId, role: opts.role, reason: opts.reason }).catch(
+          (error: unknown) => {
+            console.warn(
+              `[AgentProcessManager] native delivery after start failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        );
       }
     }
   }

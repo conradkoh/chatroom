@@ -26,6 +26,14 @@ export interface TaskDeliveryService {
     taskId: string,
     expectedReason?: TaskDeliveryFailureReason
   ): Promise<boolean>;
+  /** Plan V2: counts an uncovered turn end; `exceeded` stops release/redelivery. */
+  recordUncoveredTurnEnd(args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<{ exceeded: boolean }>;
+  isRedeliveryExhausted(args: { chatroomId: string; role: string; taskId: string }): boolean;
+  clearRedeliveryTracking(args: { chatroomId: string; role: string }): void;
   loadAssignedTaskForAction(args: {
     chatroomId: string;
     role: string;

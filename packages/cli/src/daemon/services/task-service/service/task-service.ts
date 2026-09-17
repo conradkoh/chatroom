@@ -144,12 +144,27 @@ export interface TaskService {
       | 'unsupported_harness'
       | 'injection_not_confirmed'
       | 'task_not_deliverable'
-      | 'assigned_elsewhere';
+      | 'assigned_elsewhere'
+      | 'redelivery_exhausted';
   }): Promise<boolean>;
   clearDeliveryFailure(
     taskId: string,
     expectedReason?: TaskDeliveryFailureReason
   ): Promise<boolean>;
+  /**
+   * Counts an agent turn end whose active task is not covered by the durable
+   * handoff (plan V2). When the consecutive-attempt cap is reached the task is
+   * marked exhausted: further redelivery is gated off and a single
+   * `redelivery_exhausted` delivery failure is recorded (user-visible).
+   */
+  recordUncoveredTurnEnd(args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<{ exceeded: boolean }>;
+  isRedeliveryExhausted(args: { chatroomId: string; role: string; taskId: string }): boolean;
+  /** Clears exhausted/redelivery tracking for a role (user-initiated agent restart). */
+  clearRedeliveryTracking(args: { chatroomId: string; role: string }): void;
 }
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
@@ -180,6 +195,56 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   let bootstrapSweepFailures = 0;
   let bootstrapSweepInFlight = false;
   let bootstrapSweepPromise: Promise<void> | undefined;
+
+  // Plan V2: consecutive uncovered turn ends per (chatroom, role, taskId).
+  // In-memory on purpose — a daemon restart re-bounds the cycle (the bootstrap
+  // sweep re-delivers once and the counter rebuilds). Reset only on fresh task
+  // activity (task_assigned / completed / deleted) or a user-initiated agent
+  // restart (user.start); daemon-authored transitions (release, claim) emit
+  // task_updated events and deliberately do NOT reset the counter.
+  const REDIVERY_ATTEMPT_CAP = 3;
+  const turnEndAttemptCounts = new Map<string, number>();
+  const redeliveryExhaustedKeys = new Set<string>();
+  const redeliveryKey = (chatroomId: string, role: string, taskId: string): string =>
+    `${chatroomId}:${role.toLowerCase()}:${taskId}`;
+  const recordUncoveredTurnEnd = async (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<{ exceeded: boolean }> => {
+    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
+    if (redeliveryExhaustedKeys.has(key)) return { exceeded: true };
+    const attempts = (turnEndAttemptCounts.get(key) ?? 0) + 1;
+    turnEndAttemptCounts.set(key, attempts);
+    if (attempts < REDIVERY_ATTEMPT_CAP) return { exceeded: false };
+    redeliveryExhaustedKeys.add(key);
+    try {
+      await gateway.recordDeliveryFailure({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId: args.taskId,
+        reason: 'redelivery_exhausted',
+      });
+    } catch (error) {
+      console.warn(
+        `[TaskService] redelivery-exhausted failure record failed chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+    console.log(
+      `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} attempts=${attempts} — release/redelivery stopped; agent restart (user.start) resets`
+    );
+    return { exceeded: true };
+  };
+  const isRedeliveryExhausted = (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): boolean => redeliveryExhaustedKeys.has(redeliveryKey(args.chatroomId, args.role, args.taskId));
+  const clearRedeliveryTrackingForTask = (chatroomId: string, role: string, taskId: string): void => {
+    const key = redeliveryKey(chatroomId, role, taskId);
+    turnEndAttemptCounts.delete(key);
+    redeliveryExhaustedKeys.delete(key);
+  };
 
   const sweepUncoveredInProgressTasks = async (): Promise<number> => {
     let released = 0;
@@ -264,7 +329,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       (event.task.status as string) === 'completed'
     ) {
       taskInboxState.remove(event.chatroomId, event.role, event.taskId, event.task.updatedAt);
+      clearRedeliveryTrackingForTask(event.chatroomId, event.role, event.taskId);
       return 'handled';
+    }
+
+    // A fresh assignment (new task or reassignment to this role) starts a new
+    // redelivery cycle. TaskUpdated transitions emitted by the daemon itself
+    // (release/claim) must not reset the V2 counter.
+    if (event.eventType === WorkspaceTaskInboxEventType.TaskAssigned) {
+      clearRedeliveryTrackingForTask(event.chatroomId, event.role, event.taskId);
     }
 
     return taskInboxState.upsert([
@@ -559,6 +632,17 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         taskId,
         ...(expectedReason ? { expectedReason } : {}),
       }),
+    recordUncoveredTurnEnd,
+    isRedeliveryExhausted,
+    clearRedeliveryTracking: ({ chatroomId, role }) => {
+      const prefix = `${chatroomId}:${role.toLowerCase()}:`;
+      for (const key of [...turnEndAttemptCounts.keys()]) {
+        if (key.startsWith(prefix)) turnEndAttemptCounts.delete(key);
+      }
+      for (const key of [...redeliveryExhaustedKeys]) {
+        if (key.startsWith(prefix)) redeliveryExhaustedKeys.delete(key);
+      }
+    },
   };
   return service;
 }

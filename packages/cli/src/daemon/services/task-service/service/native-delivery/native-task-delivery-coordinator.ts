@@ -127,6 +127,8 @@ export class NativeTaskDeliveryCoordinator {
         configState,
         isNativeHarness: taskService.isNativeHarness,
         explainNativeDeliveryBlock: taskService.explainNativeDeliveryBlock,
+        isRedeliveryExhausted: (taskId) =>
+          taskService.isRedeliveryExhausted({ chatroomId: firstTask.chatroomId, role, taskId }),
       });
       const attemptId = `${Date.now()}-${firstTask.taskId}`;
       const decisionReason = 'reason' in decision ? decision.reason : undefined;

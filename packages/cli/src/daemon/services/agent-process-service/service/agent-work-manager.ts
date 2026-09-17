@@ -120,6 +120,9 @@ export class AgentWorkManager {
       releaseTaskAfterTurnFailure: deps.taskService.releaseTaskAfterTurnFailure,
       recordDeliveryFailure: deps.taskService.recordDeliveryFailure,
       clearDeliveryFailure: deps.taskService.clearDeliveryFailure,
+      recordUncoveredTurnEnd: deps.taskService.recordUncoveredTurnEnd,
+      isRedeliveryExhausted: deps.taskService.isRedeliveryExhausted,
+      clearRedeliveryTracking: deps.taskService.clearRedeliveryTracking,
       loadAssignedTaskForAction: deps.taskService.loadAssignedTaskForAction,
       deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
         this.nativeTaskDeliveryQueue.enqueue({ task, harnessSessionId, onTaskDelivered }),
@@ -143,6 +146,11 @@ export class AgentWorkManager {
     // by the previous process. Clear the local dedup marker before the first
     // post-start reconciliation so a stop/start cycle can recover delivery.
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+    // A user-initiated agent restart is an explicit intervention: reset the V2
+    // redelivery attempt cap so delivery can be retried (plan V2).
+    if (event.reason === 'user.start') {
+      this.deps.taskService.clearRedeliveryTracking({ chatroomId: event.chatroomId, role: event.role });
+    }
     await this.requestReconcile({
       chatroomId: event.chatroomId,
       role: event.role,
@@ -176,6 +184,18 @@ export class AgentWorkManager {
         `[NativeDelivery:turn-failed] chatroom=${event.chatroomId} role=${event.role} task=${activeTask?.taskId ?? 'none'} turn=${completion.turnId} status=${completion.status} source=${completion.source} error=${errorDetail ?? 'none'}`
       );
       if (activeTask) {
+        // Plan V2: a failed turn without a covering handoff counts toward the
+        // consecutive-attempt cap; at the cap the release is skipped and the
+        // task is parked with a user-visible delivery failure.
+        const { exceeded } = await this.deps.taskService.recordUncoveredTurnEnd({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          taskId: activeTask.taskId,
+        });
+        if (exceeded) {
+          this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+          return { kind: 'release-slot' };
+        }
         try {
           await this.deps.taskService.releaseTaskAfterTurnFailure({
             chatroomId: event.chatroomId,
@@ -227,17 +247,29 @@ export class AgentWorkManager {
     if (activeTask) {
       const handoff = await this.deps.taskService.getLatestHandoff(event.chatroomId, event.role);
       if (!handoff?.taskIds.includes(activeTask.taskId)) {
-        try {
-          await this.deps.taskService.releaseTaskAfterTurnFailure({
-            chatroomId: event.chatroomId,
-            role: event.role,
-            taskId: activeTask.taskId,
-          });
-        } catch (error) {
-          console.error(
-            `[NativeDelivery:turn-ended-recovery-error] chatroom=${event.chatroomId} role=${event.role} task=${activeTask.taskId} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
-          );
-          return { kind: 'hold-slot', reason: 'task-recovery-failed' };
+        // Plan V2: consecutive uncovered turn ends are capped. At the cap the
+        // task stays in its backend status (no release), a `redelivery_exhausted`
+        // delivery failure was recorded once by the task service, and the
+        // delivery decision skips the task until fresh task activity or a
+        // user-initiated agent restart resets the cycle.
+        const { exceeded } = await this.deps.taskService.recordUncoveredTurnEnd({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          taskId: activeTask.taskId,
+        });
+        if (!exceeded) {
+          try {
+            await this.deps.taskService.releaseTaskAfterTurnFailure({
+              chatroomId: event.chatroomId,
+              role: event.role,
+              taskId: activeTask.taskId,
+            });
+          } catch (error) {
+            console.error(
+              `[NativeDelivery:turn-ended-recovery-error] chatroom=${event.chatroomId} role=${event.role} task=${activeTask.taskId} turn=${completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+            );
+            return { kind: 'hold-slot', reason: 'task-recovery-failed' };
+          }
         }
       }
     }

@@ -28,6 +28,7 @@ function context(
     configState: 'ready',
     isNativeHarness: (harness) => harness.endsWith('-sdk'),
     explainNativeDeliveryBlock: vi.fn(() => null),
+    isRedeliveryExhausted: () => false,
     ...overrides,
   };
 }
@@ -74,6 +75,16 @@ describe('decideNextDelivery', () => {
       kind: 'deduplicated',
       taskId: 'task-1',
       reason: 'task_state_active',
+    });
+  });
+
+  test('skips a task whose redelivery attempt cap is exhausted', () => {
+    expect(
+      decideNextDelivery([task()], context({ isRedeliveryExhausted: () => true }))
+    ).toEqual({
+      kind: 'deduplicated',
+      taskId: 'task-1',
+      reason: 'redelivery_exhausted',
     });
   });
 });

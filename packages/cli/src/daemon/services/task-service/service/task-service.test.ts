@@ -354,3 +354,87 @@ describe('TaskService inbox consumption', () => {
     }
   });
 });
+
+describe('TaskService redelivery attempt cap (plan V2)', () => {
+  function trackerService(mutation: ReturnType<typeof vi.fn>, query?: ReturnType<typeof vi.fn>) {
+    return createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
+      backend: { mutation, query: query ?? vi.fn().mockResolvedValue([]) },
+    } as never);
+  }
+
+  test('caps consecutive uncovered turn ends and records the failure once', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: true });
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    // At the cap: failure recorded exactly once, further turns stay exhausted.
+    const recordCalls = mutation.mock.calls.filter(
+      ([, callArgs]) =>
+        (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+    );
+    expect(recordCalls).toHaveLength(1);
+    expect(recordCalls[0][1]).toMatchObject({ taskId: 'task-1', reason: 'redelivery_exhausted' });
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: true });
+    expect(
+      mutation.mock.calls.filter(
+        ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+      )
+    ).toHaveLength(1);
+  });
+
+  test('a user-initiated agent restart resets the exhausted cycle', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    service.clearRedeliveryTracking({ chatroomId: 'room-1', role: 'builder' });
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
+  });
+
+  test('a completed inbox event clears tracking for the task', async () => {
+    const task = backendRow();
+    const completed = { ...task, status: 'completed', updatedAt: 2_000 };
+    const event = {
+      _id: 'event-1',
+      machineId: 'machine-1',
+      chatroomId: 'room-1',
+      taskId: 'task-1',
+      role: 'builder',
+      eventType: WorkspaceTaskInboxEventType.TaskUpdated,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 2_000,
+      task: completed,
+    } as never;
+    const mutation = vi.fn(async () => ({ processed: true }));
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([]) // bootstrap status feed
+      .mockResolvedValueOnce([event]); // bootstrap pending events
+    const service = trackerService(mutation, query);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    await service.startTaskInbox();
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    service.stopTaskInbox();
+  });
+});

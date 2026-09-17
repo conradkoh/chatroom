@@ -41,6 +41,8 @@ export type AgentTurnEndedHandler = (
 export interface AgentStartedEvent {
   readonly chatroomId: string;
   readonly role: string;
+  /** Start reason from the spawn input (e.g. user.start, platform.pending_task_wake). */
+  readonly reason?: string | undefined;
 }
 
 export interface AgentStartResult {

@@ -17,6 +17,11 @@ function createService(
     readonly releaseTaskAfterTurnFailure?: (
       args: Record<string, string>
     ) => Promise<{ released: boolean; status: 'pending'; updatedAt: number }>;
+    readonly recordUncoveredTurnEnd?: (
+      args: Record<string, string>
+    ) => Promise<{ exceeded: boolean }>;
+    readonly isRedeliveryExhausted?: () => boolean;
+    readonly clearRedeliveryTracking?: () => void;
     readonly getLatestHandoff?: () => Promise<{ taskIds: readonly string[] } | null>;
     readonly enqueueFact?: (fact: Record<string, unknown>) => Promise<unknown>;
     readonly getSlot?: () => { state: 'running' | 'idle' | 'spawning' | 'stopping'; pid?: number };
@@ -63,6 +68,9 @@ function createService(
       getLatestHandoff: options.getLatestHandoff ?? (async () => null),
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
+      recordUncoveredTurnEnd: options.recordUncoveredTurnEnd ?? (async () => ({ exceeded: false })),
+      isRedeliveryExhausted: options.isRedeliveryExhausted ?? (() => false),
+      clearRedeliveryTracking: options.clearRedeliveryTracking ?? (() => undefined),
       explainNativeDeliveryBlock: () => null,
     } as never,
   });
@@ -156,6 +164,72 @@ describe('AgentWorkManager', () => {
       chatroomId: 'room-1',
       role: 'builder',
       taskId: 'task-1',
+    });
+    service.dispose();
+  });
+
+  test('stops releasing and parks the task once the redelivery cap is reached', async () => {
+    const releaseTaskAfterTurnFailure = vi.fn();
+    let attempts = 0;
+    const recordUncoveredTurnEnd = vi.fn(async () => {
+      attempts += 1;
+      return { exceeded: attempts >= 3 };
+    });
+    const service = createService({ releaseTaskAfterTurnFailure, recordUncoveredTurnEnd });
+    const turnEvent = {
+      chatroomId: 'room-1',
+      role: 'builder',
+      pid: 42,
+      harness: 'opencode-sdk',
+      slot: { state: 'running', nativeTurnPhase: 'turn_in_flight' },
+      eventId: 'turn-uncovered',
+      completion: { turnId: 'turn-uncovered', status: 'completed', source: 'provider.result' },
+    } as never;
+
+    // Each redelivery re-marks the active task (onTaskDelivered).
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await service.handleAgentTurnEnded(turnEvent);
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await service.handleAgentTurnEnded(turnEvent);
+    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
+
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await service.handleAgentTurnEnded(turnEvent);
+    // Cap reached: no further release; the delivery decision gate skips the task.
+    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
+    service.dispose();
+  });
+
+  test('applies the cap to failed turns without a covering handoff', async () => {
+    const releaseTaskAfterTurnFailure = vi.fn();
+    let attempts = 0;
+    const service = createService({
+      releaseTaskAfterTurnFailure,
+      recordUncoveredTurnEnd: async () => ({ exceeded: ++attempts >= 3 }),
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await service.handleAgentTurnEnded(failedTurnEvent() as never);
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await service.handleAgentTurnEnded(failedTurnEvent() as never);
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await service.handleAgentTurnEnded(failedTurnEvent() as never);
+    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
+    service.dispose();
+  });
+
+  test('a user.start agent restart clears redelivery tracking', async () => {
+    let startedHandler: ((event: never) => Promise<void>) | undefined;
+    const clearRedeliveryTracking = vi.fn();
+    const service = createService({
+      onAgentStarted: (handler) => {
+        startedHandler = handler as never;
+      },
+      clearRedeliveryTracking,
+    });
+    await startedHandler?.({ chatroomId: 'room-1', role: 'builder', reason: 'user.start' } as never);
+    expect(clearRedeliveryTracking).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
     });
     service.dispose();
   });

@@ -715,7 +715,8 @@ export default defineSchema({
           v.literal('unsupported_harness'),
           v.literal('injection_not_confirmed'),
           v.literal('task_not_deliverable'),
-          v.literal('assigned_elsewhere')
+          v.literal('assigned_elsewhere'),
+          v.literal('redelivery_exhausted')
         ),
         occurredAt: v.number(),
       })
