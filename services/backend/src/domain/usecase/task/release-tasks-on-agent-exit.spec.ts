@@ -1,12 +1,12 @@
 /**
- * Tests for releaseTasksOnAgentExit — tasks retain role assignment when released.
+ * Tests for in-flight task transitions — tasks retain role assignment when released.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import {
-  releaseTasksOnAgentExit,
+  transitionInFlightTasksToPending,
   reassignInFlightTasksOnTeamSwitch,
 } from './release-tasks-on-agent-exit';
 import { api } from '../../../../convex/_generated/api';
@@ -110,15 +110,19 @@ async function seedInProgressBuilderTask(
   });
 }
 
-describe('releaseTasksOnAgentExit', () => {
+describe('transitionInFlightTasksToPending', () => {
   test('retains assignedTo, sets pending, clears acknowledgedAt and startedAt', async () => {
     const { sessionId } = await createTestSession('release-exit-1');
     const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId);
     const taskId = await seedAcknowledgedBuilderTask(chatroomId);
 
-    const released = await t.run(async (ctx) => {
-      return await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
-    });
+    const released = await t.run(async (ctx) =>
+      transitionInFlightTasksToPending(ctx, {
+        chatroomId,
+        trigger: 'releaseTaskOnAgentExit',
+        assignedTo: 'builder',
+      })
+    );
 
     expect(released).toBe(1);
 
@@ -135,7 +139,11 @@ describe('releaseTasksOnAgentExit', () => {
     const taskId = await seedAcknowledgedBuilderTask(chatroomId);
 
     await t.run(async (ctx) => {
-      await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
+      await transitionInFlightTasksToPending(ctx, {
+        chatroomId,
+        trigger: 'releaseTaskOnAgentExit',
+        assignedTo: 'builder',
+      });
     });
 
     await expect(
@@ -156,7 +164,11 @@ describe('releaseTasksOnAgentExit', () => {
     await seedParticipantWithStatus(chatroomId, 'builder', 'task.inProgress');
 
     await t.run(async (ctx) => {
-      await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
+      await transitionInFlightTasksToPending(ctx, {
+        chatroomId,
+        trigger: 'releaseTaskOnAgentExit',
+        assignedTo: 'builder',
+      });
     });
 
     expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('task.inProgress');
@@ -170,7 +182,11 @@ describe('releaseTasksOnAgentExit', () => {
     await seedParticipantWithStatus(chatroomId, 'builder', 'agent.exited');
 
     await t.run(async (ctx) => {
-      await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
+      await transitionInFlightTasksToPending(ctx, {
+        chatroomId,
+        trigger: 'releaseTaskOnAgentExit',
+        assignedTo: 'builder',
+      });
     });
 
     expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('agent.exited');

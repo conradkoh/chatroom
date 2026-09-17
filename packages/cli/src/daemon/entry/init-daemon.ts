@@ -663,9 +663,6 @@ export type InitDaemonOptions = {
   logSink?: AgentLogSink | undefined;
   logEvent?: ((event: Record<string, unknown>) => Promise<void>) | undefined;
 };
-export function getActiveLogSink(): AgentLogSink | undefined {
-  return activeLogSink;
-}
 export async function initDaemon(options: InitDaemonOptions = {}): Promise<DaemonSessionInit> {
   activeLogSink = options.logSink;
   activeLogEvent = options.logEvent;

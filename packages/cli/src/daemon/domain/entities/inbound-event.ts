@@ -18,7 +18,6 @@ export type InboundEvent =
     }
   | { type: 'agentic-query.session-opened'; sessionId: string }
   | { type: 'agentic-query.prompt'; sessionId: string }
-  | { type: 'enhancer.job-assigned'; jobId: string }
   | { type: 'git.request'; requestId: string }
   | { type: 'file-tree.request'; requestId: string }
   | { type: 'file-tree.release'; requestId: string }

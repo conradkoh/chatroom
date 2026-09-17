@@ -10,11 +10,6 @@ import {
   type HandleCommandInboundDeps,
 } from '../domain/usecase/handle-command-inbound.js';
 import {
-  handleEnhancerInbound,
-  type EnhancerInboundEvent,
-  type HandleEnhancerInboundDeps,
-} from '../domain/usecase/handle-enhancer-inbound.js';
-import {
   handleFileInbound,
   type FileInboundEvent,
   type HandleFileInboundDeps,
@@ -30,7 +25,6 @@ export type EventRouterDeps = {
   workspaceGit: HandleWorkspaceGitInboundDeps;
   file: HandleFileInboundDeps;
   agenticQuery: HandleAgenticQueryInboundDeps;
-  enhancer: HandleEnhancerInboundDeps;
 };
 
 // fallow-ignore-next-line complexity
@@ -53,9 +47,6 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
     case 'agentic-query.session-opened':
     case 'agentic-query.prompt':
       await handleAgenticQueryInbound(deps.agenticQuery, event as AgenticQueryInboundEvent);
-      break;
-    case 'enhancer.job-assigned':
-      await handleEnhancerInbound(deps.enhancer, event as EnhancerInboundEvent);
       break;
     default:
       void event;

@@ -12,7 +12,6 @@ import { setupPlannerWorkspaceForSession, setupSoloWorkspaceForSession } from '.
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { insertEnhancerJob } from '../helpers/enhancer-job';
 import {
   enableEnhancerTeamAgent,
   addEnhancerToTeamRoles,
@@ -230,26 +229,22 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       return msgId;
     });
 
-    const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
-    const { jobId, taskId: enhancerTaskId } = await insertEnhancerJob({
-      chatroomId,
-      userId,
-      machineId,
-      originUserMessageId,
-      draftContent: 'Check-in draft',
-    });
-
-    // Legacy-explicit enhancer request: the enhancer task is the source for the
-    // handoff-derived envelope, so it must carry the scalar for the feedback
-    // task's envelope to stay code:enhanced under the envelope-authoritative reader.
-    await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_tasks', enhancerTaskId, { plannerEnhancerEnabled: true });
-    });
-
-    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
-      sessionId,
-      jobId,
-      machineId,
+    // Native delivery: the enhancer task is claimed and started by the daemon's
+    // read intent; seed the same end state directly (in_progress enhancer task).
+    const _enhancerTaskId = await t.run(async (ctx) => {
+      return ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'planner',
+        content: 'Check-in draft',
+        status: 'in_progress',
+        assignedTo: 'enhancer',
+        originUserMessageId,
+        sourceMessageId: originUserMessageId,
+        plannerEnhancerEnabled: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 1,
+      });
     });
 
     await t.mutation(api.messages.handoff, {

@@ -149,9 +149,6 @@ describe('startDaemon', () => {
           agenticQuery: expect.objectContaining({
             deliverInbound: expect.any(Function),
           }),
-          enhancer: expect.objectContaining({
-            deliverInbound: expect.any(Function),
-          }),
         }),
       })
     );

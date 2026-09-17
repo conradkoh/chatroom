@@ -25,7 +25,6 @@ import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
 import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
-import { findActiveEnhancerJobForChatroom } from './web/enhancer/jobHelpers';
 import { getConfig } from '../prompts/config/index';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../src/domain/entities/participant';
@@ -36,8 +35,6 @@ import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueu
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
-import { completeEnhancerJob } from '../src/domain/usecase/enhancer/complete-enhancer-job';
-import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
   transitionEnhancerEntryPointToEnhancing,
   transitionEnhancerEntryPointToWaiting,
@@ -872,7 +869,6 @@ export async function runHandoffHandler(
         completedTaskIds: [],
         newTaskId: null,
         promotedTaskId: null,
-        enhancerJobId: args.enhancerJobId ?? null,
         enhancerRequestQueued: false,
         supportsNativeIntegration,
       };
@@ -1002,34 +998,15 @@ export async function runHandoffHandler(
     await linkMessageToTask(ctx, messageId, newTaskId);
   }
 
-  let enhancerJobId: Id<'chatroom_enhancerJobs'> | null = null;
   if (isHandoffToEnhancer && newTaskId) {
+    // Enhancer delivery rides the standard native task pipeline (inbox event →
+    // daemon task service). No job rows: the backend records ingress only.
     if (!enhancerEntryPointRole) {
       throw new ConvexError({
         code: 'INVALID_ROLE',
         message: 'Enhancer handoff is missing a supported team entry point',
       });
     }
-    if (!enhancerConfig?.machineId || !enhancerConfig.agentHarness || !enhancerConfig.model) {
-      throw new ConvexError({
-        code: 'ENHANCER_CONFIG_INCOMPLETE',
-        message: 'Enhancer configuration is incomplete',
-      });
-    }
-    enhancerJobId = await createEnhancerJobFromHandoff(ctx, {
-      chatroomId: args.chatroomId,
-      userId: chatroom.ownerId,
-      chatroom,
-      entryPointRole: enhancerEntryPointRole,
-      content: handoffContent,
-      taskId: newTaskId,
-      messageId,
-      ...(taskOriginMessageId && { originUserMessageId: taskOriginMessageId }),
-      ...(args.attachedArtifactIds?.length && { attachedArtifactIds: args.attachedArtifactIds }),
-      machineId: enhancerConfig.machineId,
-      agentHarness: enhancerConfig.agentHarness,
-      model: enhancerConfig.model,
-    });
     await transitionEnhancerEntryPointToEnhancing(ctx, args.chatroomId, enhancerEntryPointRole);
   }
 
@@ -1060,12 +1037,6 @@ export async function runHandoffHandler(
       args.chatroomId,
       enhancerEntryPointRole ?? args.targetRole
     );
-    if (!args.enhancerJobId) {
-      const activeJob = await findActiveEnhancerJobForChatroom(ctx, args.chatroomId);
-      if (activeJob) {
-        await completeEnhancerJob(ctx, { jobId: activeJob._id, enhancedContent: args.content });
-      }
-    }
   }
 
   // Step 5: Attached backlog items remain in their current status on handoff.
@@ -1101,7 +1072,6 @@ export async function runHandoffHandler(
     completedTaskIds,
     newTaskId,
     promotedTaskId,
-    enhancerJobId,
     enhancerRequestQueued: isHandoffToEnhancer && newTaskId != null,
     supportsNativeIntegration,
   };

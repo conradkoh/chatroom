@@ -191,7 +191,6 @@ describe('file v2 subscribers', () => {
           },
         },
         agenticQuery: {},
-        enhancer: {},
       },
     });
 
@@ -217,7 +216,6 @@ describe('file v2 subscribers', () => {
           },
         },
         agenticQuery: {},
-        enhancer: {},
       },
       { type: 'file-write.request', requestId: FILE_WRITE_REQUEST_ID }
     );

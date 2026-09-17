@@ -5,7 +5,6 @@ import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-d
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
 import { startAgenticQuerySessionSubscriber } from '../infrastructure/convex/subscribers/agentic-query-session.js';
 import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/command-run.js';
-import { startEnhancerJobSubscriber } from '../infrastructure/convex/subscribers/enhancer-job.js';
 import { startFileContentRequestSubscriber } from '../infrastructure/convex/subscribers/file-content-request.js';
 import { startFileTreeReleaseRequestSubscriber } from '../infrastructure/convex/subscribers/file-tree-release-request.js';
 import { startFileTreeRequestSubscriber } from '../infrastructure/convex/subscribers/file-tree-request.js';
@@ -28,7 +27,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     void routeInboundEvent(deps.router, event);
   };
 
-  const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
 
   const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
@@ -62,7 +60,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
         fileWrite.stop(),
         agenticQuerySession.stop(),
         agenticQueryPrompt.stop(),
-        enhancerJob.stop(),
       ]);
     },
   };

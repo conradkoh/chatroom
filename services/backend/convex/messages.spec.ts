@@ -1794,7 +1794,7 @@ describe('enhancer handoff authorization — explicit envelope precedence', () =
     });
 
     expect(result.success).toBe(true);
-    expect(result.enhancerJobId).toBeDefined();
+    expect(result.enhancerRequestQueued).toBe(true);
   });
 
   test('legacy scalar-only rows retain current enhancer behavior', async () => {

@@ -1,7 +1,6 @@
 import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 // fallow-ignore-file complexity
-import { abortEnhancerSpawnsForChatroom } from './enhancer/enhancer-spawn-registry.js';
 import { runRoleScopedStop } from '../services/agent-process-service/index.js';
 import type {
   AgentProcessManager,
@@ -21,7 +20,6 @@ export async function executeChatroomStopCommand(args: {
     args.apm.markStopIntent(args.chatroomId, args.role, 'user.stop', undefined, args.workingDir);
   else if (!args.workingDir) {
     args.apm.markChatroomStopIntent(args.chatroomId, 'user.stop');
-    await abortEnhancerSpawnsForChatroom(args.chatroomId);
   }
 
   const confirmedDeps = args.apm.getConfirmedStopAdapterDeps();

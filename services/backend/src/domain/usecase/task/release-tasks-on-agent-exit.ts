@@ -3,9 +3,8 @@
  * so get-next-task can reclaim immediately (no RECOVERY_GRACE_PERIOD_MS block on
  * acknowledgedAt).
  *
- * Callers are explicit, user-initiated flows only (chatroom stop interrupts the
- * enhancer role; agent restart requests). The `agent.exited` lifecycle fact no
- * longer triggers this — see `onAgentExited` (plan R1/R2).
+ * Callers are team-switch flows (open question 2). The `agent.exited`
+ * lifecycle fact no longer triggers a release — see `onAgentExited` (R1/R2).
  */
 
 import { transitionTask } from './transition-task';
@@ -60,17 +59,6 @@ export async function transitionInFlightTasksToPending(
   }
 
   return released;
-}
-
-export async function releaseTasksOnAgentExit(
-  ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string }
-): Promise<number> {
-  return transitionInFlightTasksToPending(ctx, {
-    chatroomId: args.chatroomId,
-    trigger: 'releaseTaskOnAgentExit',
-    assignedTo: args.role,
-  });
 }
 
 /**
