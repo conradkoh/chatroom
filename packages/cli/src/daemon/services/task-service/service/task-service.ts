@@ -127,14 +127,14 @@ export interface TaskService extends TaskDeliveryOperations {
   getLatestHandoff(chatroomId: string, role: string): Promise<TaskHandoffRecord | null>;
   /** Releases rehydrated in-progress tasks whose latest handoff does not cover them. */
   sweepUncoveredInProgressTasks(): Promise<number>;
+  /**
+   * Notifies the task service that a user-initiated agent restart happened for
+   * the role. The task service decides what to do with the role's in-flight
+   * tasks: it resets the redelivery cap and hands acknowledged/in_progress
+   * tasks back to `pending` so the fresh agent reprocesses them.
+   */
+  handleAgentRestart(args: { chatroomId: string; role: string }): Promise<void>;
 }
-
-/*
- * Delivery-side operations (release-after-turn-failure, delivery failure
- * records, uncovered-turn-end cap tracking, redelivery tracking, assigned-task
- * loading) are inherited from `TaskDeliveryOperations` — the shared contract
- * with the narrow `TaskDeliveryService` slice.
- */
 
 export interface TaskServiceCompositionDependencies extends NativeDeliverySessionHandles {
   convexUrl: string;
@@ -251,6 +251,42 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     }
     if (failures > 0) throw new Error(`${failures} bootstrap task release(s) failed`);
     return released;
+  };
+
+  /** Releases a single task back to `pending` via the backend, then patches
+   *  the local read model from the authoritative result. */
+  const releaseTask = async (args: { chatroomId: string; role: string; taskId: string }) => {
+    const result = await gateway.releaseTaskAfterTurnFailure({
+      sessionId: deps.sessionId,
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: args.taskId,
+    });
+    taskInboxState.markStatus(
+      args.chatroomId,
+      args.role,
+      args.taskId,
+      result.status,
+      result.updatedAt
+    );
+    const currentTask = taskInboxState.getForRole(args.chatroomId, args.role, args.taskId);
+    if (currentTask?.status === 'pending') {
+      pendingTaskReconciliationWatcher.watch(currentTask);
+    } else {
+      pendingTaskReconciliationWatcher.clear(args.chatroomId, args.role, args.taskId);
+    }
+    return result;
+  };
+
+  /** Clears exhausted/redelivery tracking for a whole role (user-initiated agent restart). */
+  const clearRoleRedeliveryTracking = (chatroomId: string, role: string): void => {
+    const prefix = `${chatroomId}:${role.toLowerCase()}:`;
+    for (const key of [...turnEndAttemptCounts.keys()]) {
+      if (key.startsWith(prefix)) turnEndAttemptCounts.delete(key);
+    }
+    for (const key of [...redeliveryExhaustedKeys]) {
+      if (key.startsWith(prefix)) redeliveryExhaustedKeys.delete(key);
+    }
   };
 
   const runBootstrapSweep = (): Promise<void> => {
@@ -561,27 +597,26 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
     getLatestHandoff: (chatroomId, role) => handoffRepository.getLatest(chatroomId, role),
     sweepUncoveredInProgressTasks,
-    releaseTaskAfterTurnFailure: async (args) => {
-      const result = await gateway.releaseTaskAfterTurnFailure({
-        sessionId: deps.sessionId,
-        chatroomId: args.chatroomId,
-        role: args.role,
-        taskId: args.taskId,
-      });
-      taskInboxState.markStatus(
-        args.chatroomId,
-        args.role,
-        args.taskId,
-        result.status,
-        result.updatedAt
-      );
-      const currentTask = taskInboxState.getForRole(args.chatroomId, args.role, args.taskId);
-      if (currentTask?.status === 'pending') {
-        pendingTaskReconciliationWatcher.watch(currentTask);
-      } else {
-        pendingTaskReconciliationWatcher.clear(args.chatroomId, args.role, args.taskId);
+    releaseTaskAfterTurnFailure: (args) => releaseTask(args),
+    handleAgentRestart: async ({ chatroomId, role }) => {
+      // A user-initiated restart is an explicit intervention: the fresh agent
+      // session reprocesses the role's in-flight work. Reset the redelivery
+      // cap and hand every acknowledged/in_progress task back to `pending` —
+      // the per-task release keeps each task's own state authoritative
+      // (already-pending/completed tasks are no-ops).
+      clearRoleRedeliveryTracking(chatroomId, role);
+      const inFlightTasks = taskInboxState
+        .listForRole(chatroomId, role)
+        .filter((task) => task.status === 'acknowledged' || task.status === 'in_progress');
+      for (const task of inFlightTasks) {
+        try {
+          await releaseTask({ chatroomId, role, taskId: task.taskId });
+        } catch (error) {
+          console.warn(
+            `[TaskService] agent-restart release failed chatroom=${chatroomId} role=${role} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
       }
-      return result;
     },
     loadAssignedTaskForAction: async ({ chatroomId, role, taskId }) => {
       const task = await gateway.loadAssignedTaskForAction({
@@ -609,13 +644,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     recordUncoveredTurnEnd,
     isRedeliveryExhausted,
     clearRedeliveryTracking: ({ chatroomId, role }) => {
-      const prefix = `${chatroomId}:${role.toLowerCase()}:`;
-      for (const key of [...turnEndAttemptCounts.keys()]) {
-        if (key.startsWith(prefix)) turnEndAttemptCounts.delete(key);
-      }
-      for (const key of [...redeliveryExhaustedKeys]) {
-        if (key.startsWith(prefix)) redeliveryExhaustedKeys.delete(key);
-      }
+      clearRoleRedeliveryTracking(chatroomId, role);
     },
   };
   return service;

@@ -34,6 +34,7 @@ import type {
 } from '../../task-service/index.js';
 import { createConvexNativeTaskDeliveryGateway } from '../../task-service/infrastructure/adapters/convex-native-task-delivery-gateway.js';
 import { createDaemonAuditPort } from '../../task-service/infrastructure/adapters/daemon-audit-port.js';
+import { resetRoleDeliveryState } from '../../task-service/service/native-delivery/native-task-delivery-coordinator.js';
 import { getRoleDeliveryState } from '../../task-service/service/native-delivery/role-delivery-state.js';
 import { processTasksUpdate } from '../../task-service/service/native-delivery/task-delivery-processor.js';
 import type { TaskDeliveryService } from '../../task-service/service/native-delivery/task-delivery-service.js';
@@ -488,6 +489,14 @@ export class AgentWorkManager {
       },
     });
     return delivered;
+  }
+
+  // Dispatched via the restart orchestrator's Pick-typed port — not statically reachable.
+  // fallow-ignore-next-line unused-class-member
+  async handleAgentRestart(args: { chatroomId: string; role: string }): Promise<void> {
+    resetRoleDeliveryState(args.chatroomId, args.role);
+    this.deps.agentTaskState.clear(args);
+    await this.deps.taskService.handleAgentRestart(args);
   }
 
   private async requestReconcileForTasks(

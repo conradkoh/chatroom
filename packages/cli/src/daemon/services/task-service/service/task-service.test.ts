@@ -380,8 +380,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
 
     // At the cap: failure recorded exactly once, further turns stay exhausted.
     const recordCalls = mutation.mock.calls.filter(
-      ([, callArgs]) =>
-        (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+      ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
     );
     expect(recordCalls).toHaveLength(1);
     expect(recordCalls[0][1]).toMatchObject({ taskId: 'task-1', reason: 'redelivery_exhausted' });
@@ -435,6 +434,89 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
 
     await service.startTaskInbox();
     expect(service.isRedeliveryExhausted(args)).toBe(false);
+    service.stopTaskInbox();
+  });
+});
+
+describe('TaskService.handleAgentRestart', () => {
+  function inboxService(task: Record<string, unknown>, mutation: ReturnType<typeof vi.fn>) {
+    return createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
+      backend: {
+        mutation,
+        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+      },
+    } as never);
+  }
+
+  test('releases the role in-flight tasks to pending and resets the redelivery cap', async () => {
+    const task = {
+      taskId: 'task-in-flight',
+      chatroomId: 'room-1',
+      status: 'in_progress' as const,
+      assignedTo: 'builder',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    };
+    const mutation = vi.fn().mockResolvedValue({
+      released: true,
+      status: 'pending',
+      updatedAt: 3_000,
+    });
+    const service = inboxService(task, mutation);
+
+    await service.startTaskInbox();
+
+    // Exhaust the V2 attempt cap first: a user-initiated restart resets it.
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-in-flight' };
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    await service.handleAgentRestart({ chatroomId: 'room-1', role: 'builder' });
+
+    expect(mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ taskId: 'task-in-flight' })
+    );
+    expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
+      { taskId: 'task-in-flight', status: 'pending', updatedAt: 3_000 },
+    ]);
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    service.stopTaskInbox();
+  });
+
+  test('does not touch tasks of other roles', async () => {
+    const task = {
+      taskId: 'task-planner',
+      chatroomId: 'room-1',
+      status: 'acknowledged' as const,
+      assignedTo: 'planner',
+      updatedAt: 2_000,
+      createdAt: 1_000,
+      agentConfig: { role: 'planner', machineId: 'machine-1' },
+    };
+    const mutation = vi.fn().mockResolvedValue({
+      released: true,
+      status: 'pending',
+      updatedAt: 3_000,
+    });
+    const service = inboxService(task, mutation);
+
+    await service.startTaskInbox();
+
+    await service.handleAgentRestart({ chatroomId: 'room-1', role: 'builder' });
+
+    expect(mutation).not.toHaveBeenCalled();
+    expect(service.listTasksForRole('room-1', 'planner')).toMatchObject([
+      { taskId: 'task-planner', status: 'acknowledged' },
+    ]);
     service.stopTaskInbox();
   });
 });

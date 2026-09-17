@@ -4,6 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { clearTaskDeliveryFailure } from '../../src/domain/usecase/machine/clear-task-delivery-failure';
 import { listAssignedTaskStatusForMachine } from '../../src/domain/usecase/machine/list-assigned-task-status-for-machine';
 import { recordTaskDeliveryFailure } from '../../src/domain/usecase/machine/record-task-delivery-failure';
+import { releaseTasksOnDaemonShutdown } from '../../src/domain/usecase/task/release-tasks-on-daemon-shutdown';
 import { mutation, query } from '../_generated/server';
 import { requireMachineOwner } from '../auth/cli/machineAccess';
 
@@ -54,5 +55,18 @@ export const recordDeliveryFailure = mutation({
       occurredAt: Date.now(),
       machineId: args.machineId,
     });
+  },
+});
+
+/**
+ * Daemon shutdown: move every non-pending task the machine's roles hold back
+ * to `pending` so the next daemon boot re-delivers them. No agent on the
+ * machine can be processing tasks once the daemon has exited.
+ */
+export const releaseMachineTasks = mutation({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return releaseTasksOnDaemonShutdown(ctx, { machineId: args.machineId });
   },
 });

@@ -207,6 +207,24 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   // ==========================================================================
+  // DAEMON SHUTDOWN: machine-wide release for reprocessing on next boot
+  // ==========================================================================
+
+  {
+    from: 'acknowledged',
+    to: 'pending',
+    trigger: 'releaseTasksOnDaemonShutdown',
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
+
+  {
+    from: 'in_progress',
+    to: 'pending',
+    trigger: 'releaseTasksOnDaemonShutdown',
+    clearFields: ['acknowledgedAt', 'startedAt'],
+  },
+
+  // ==========================================================================
   // TEAM SWITCH: reassign in-flight tasks to new entry point
   // ==========================================================================
 

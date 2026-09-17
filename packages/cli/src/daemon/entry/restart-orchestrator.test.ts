@@ -74,6 +74,7 @@ function createMockDeps(overrides?: {
       ),
       nativeDelivery: {
         reconcileAfterAgentRestart: vi.fn(async () => []),
+        handleAgentRestart: vi.fn(async () => {}),
       },
     },
     auditLog,

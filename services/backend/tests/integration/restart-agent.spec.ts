@@ -58,7 +58,10 @@ describe('restart-agent use case', () => {
     });
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task?.status).toBe('pending');
+    // Task release is no longer decided by the backend at restart-request time:
+    // the owning machine's agent process service notifies its task service
+    // (handleAgentRestart), which decides what to do with in-flight tasks.
+    expect(task?.status).toBe('acknowledged');
 
     const restartRows = await getInboxCommandsForMachine(machineId, 'agent.restart');
     const restartRow = restartRows.at(-1);

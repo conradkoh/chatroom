@@ -192,7 +192,14 @@ export const redeliverTask = mutation({
   },
 });
 
-/** Claims a pending task for a role (pending → acknowledged). */
+/**
+ * Claims a task for a role (pending → acknowledged).
+ *
+ * Non-pending tasks assigned to the claiming role are idempotent re-claims:
+ * the daemon owns task-state consistency, so a re-delivery may find the task
+ * already acknowledged or in_progress (e.g. claimed by another local delivery
+ * path) and must not fail — it receives the task unchanged.
+ */
 export const claimTask = mutation({
   args: {
     ...SessionIdArg,
@@ -228,14 +235,16 @@ export const claimTask = mutation({
       if (pendingTask.chatroomId !== args.chatroomId) {
         throw new Error('Task does not belong to this chatroom');
       }
-      if (pendingTask.status === 'acknowledged') {
+      if (pendingTask.status === 'acknowledged' || pendingTask.status === 'in_progress') {
         if (pendingTask.assignedTo?.toLowerCase() === normalizedRole) {
           return {
             taskId: pendingTask._id,
             content: normalizeMarkdownContent(pendingTask.content),
           };
         }
-        throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
+        throw new Error(
+          `Task is not claimable by role ${args.role} (assigned to ${pendingTask.assignedTo ?? 'nobody'})`
+        );
       }
       if (pendingTask.status !== 'pending') {
         throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
