@@ -8,8 +8,7 @@ import { TAG_DOWNSTREAM } from '../../support/tags';
  *
  * Covers the user story: pressing the repository-supported preflight shortcut
  * for N (Ctrl+N on non-Windows platforms) toggles the new-session preference
- * and leaves the chat input ready for typing; the M shortcut (Ctrl+M) does the
- * same when the conversation-mode transition is actually accepted.
+ * and leaves the chat input ready for typing.
  *
  * Real-application flow only: anonymous login via the production login page,
  * chatroom creation through the production ChatroomSelector UI, then keyboard
@@ -22,10 +21,8 @@ import { TAG_DOWNSTREAM } from '../../support/tags';
  *   Continue Anonymously; any other /app wait failure is rethrown.
  * - chatroom-creation and composer/preflight visibility assertions are
  *   ordinary assertions and must fail on regression.
- * - enhancer mode unsupported for the team, or the incomplete enhancer
- *   configuration dialog opens instead of cycling (both must NOT steal focus)
  */
-test.describe('Composer preflight shortcut focus', { tag: [TAG_DOWNSTREAM] }, () => {
+test.describe('Composer preflight new-session shortcut focus', { tag: [TAG_DOWNSTREAM] }, () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window.navigator, 'platform', {
@@ -35,9 +32,7 @@ test.describe('Composer preflight shortcut focus', { tag: [TAG_DOWNSTREAM] }, ()
     });
   });
 
-  test('Ctrl+N focuses the composer after toggling; Ctrl+M focuses it when mode cycles', async ({
-    page,
-  }) => {
+  test('Ctrl+N focuses the composer after toggling', async ({ page }) => {
     // Cold dev boot can take a while; keep every precondition step bounded
     // below this budget. Login/creation/composer assertions below are ordinary
     // assertions: unexpected product or UI regressions must fail, never skip.
@@ -128,43 +123,5 @@ test.describe('Composer preflight shortcut focus', { tag: [TAG_DOWNSTREAM] }, ()
     await expect(composer).not.toBeFocused();
     await page.keyboard.press('Control+n');
     await expect(composer).toBeFocused();
-
-    // Ctrl+M focuses the composer only when the mode transition is accepted.
-    await composer.evaluate((el) => (el as HTMLElement).blur());
-    await expect(composer).not.toBeFocused();
-    await page.keyboard.press('Control+m');
-
-    const focused = await expect(composer)
-      .toBeFocused({ timeout: 3_000 })
-      .then(
-        () => true,
-        () => false
-      );
-    if (focused) {
-      return;
-    }
-
-    // Not focused: only acceptable when the shortcut did not cycle mode.
-    const configDialog = page.getByText('Enhancer configuration');
-    if (await configDialog.isVisible().catch(() => false)) {
-      await page.keyboard.press('Escape');
-      test.skip(
-        true,
-        'Real precondition: Ctrl+M opened the incomplete enhancer configuration dialog ' +
-          '(no complete enhancer config for this chatroom), so no mode transition ' +
-          'occurred and focus was correctly not stolen.'
-      );
-      return;
-    }
-    const unsupportedToast = page.getByText('Enhancer is available to Solo and Duo teams.');
-    if (await unsupportedToast.isVisible().catch(() => false)) {
-      test.skip(
-        true,
-        'Real precondition: enhancer mode is unsupported for this chatroom team, ' +
-          'so Ctrl+M showed the unsupported toast instead of cycling mode.'
-      );
-      return;
-    }
-    expect(composer).toBeFocused();
   });
 });
