@@ -23,7 +23,6 @@ const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = 
   'agent.stopTimeout': ['Agent Stop Timeout', 'warning'],
   'agent.harnessSessionIdUpdated': ['Harness Session ID Updated', 'info'],
   'agent.awaitingHandoff': ['Awaiting Handoff', 'warning'],
-  'agent.enhancing': ['Planning Review', 'info'],
   'agent.taskDelivered': ['Task Delivered', 'success'],
   'agent.taskDeliveryFailed': ['Task Delivery Failed', 'error'],
   'machine.switched': ['Machine Switched', 'info'],
