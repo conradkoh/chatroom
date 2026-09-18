@@ -2,18 +2,12 @@
  * Shared task-delivery prompt assembly.
  *
  * Single source of truth for the standard delivery prompt consumed by every
- * delivery path — the daemon native injector (`messages.getTaskDeliveryPrompt`),
- * the CLI get-next-task command, and the enhancer job payload
- * (`daemon/enhancer/taskDeliveryForJob`). Path-specific behaviour lives in the
- * callers (auth, role-specific fallbacks); the prompt body is composed here so
- * an ephemeral agent receives exactly the same delivery prompt as a permanent
- * agent.
+ * delivery paths. Path-specific behaviour lives in the callers (auth and
+ * harness integration); the prompt body is composed here so ephemeral agents
+ * receive exactly the same delivery prompt as permanent agents.
  */
 
-import {
-  legacyConversationMode,
-  plannerEnhancerEnabledForMode,
-} from '@workspace/shared/domain/conversation-mode';
+import { legacyConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 
 import { withActiveTeamStructure } from './chatroomTeam';
@@ -43,7 +37,8 @@ const config = getConfig();
 // =============================================================================
 
 interface SourceMessageAttachmentFields {
-  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+  attachedSnippets?:
+    { reference: string; fileSource: string; selectedContent: string }[] | undefined;
   attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
   attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
   attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
@@ -80,22 +75,34 @@ async function resolveSourceAttachmentsForDelivery(
   if (!message) return undefined;
 
   const [attachedTasksMap, attachedBacklogItemsMap, attachedMessagesMap] = await Promise.all([
-    collectAttachmentEntries(message.attachedTaskIds, (id) => ctx.db.get('chatroom_tasks', id), (t) => ({
-      id: t._id,
-      content: t.content,
-      status: t.status as TaskStatus,
-      createdBy: t.createdBy,
-    })),
-    collectAttachmentEntries(message.attachedBacklogItemIds, (id) => ctx.db.get('chatroom_backlog', id), (item) => ({
-      id: item._id,
-      content: item.content,
-      status: item.status,
-    })),
-    collectAttachmentEntries(message.attachedMessageIds, (id) => ctx.db.get('chatroom_messages', id), (m) => ({
-      id: m._id,
-      content: m.content,
-      senderRole: m.senderRole,
-    })),
+    collectAttachmentEntries(
+      message.attachedTaskIds,
+      (id) => ctx.db.get('chatroom_tasks', id),
+      (t) => ({
+        id: t._id,
+        content: t.content,
+        status: t.status as TaskStatus,
+        createdBy: t.createdBy,
+      })
+    ),
+    collectAttachmentEntries(
+      message.attachedBacklogItemIds,
+      (id) => ctx.db.get('chatroom_backlog', id),
+      (item) => ({
+        id: item._id,
+        content: item.content,
+        status: item.status,
+      })
+    ),
+    collectAttachmentEntries(
+      message.attachedMessageIds,
+      (id) => ctx.db.get('chatroom_messages', id),
+      (m) => ({
+        id: m._id,
+        content: m.content,
+        senderRole: m.senderRole,
+      })
+    ),
   ]);
 
   // resolvePrimaryDeliveryAssemblyInput re-derives per-kind emptiness itself.
@@ -120,16 +127,10 @@ export interface BuildTaskDeliveryPromptArgs {
   messageId?: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> | undefined;
   convexUrl?: string | undefined;
   /**
-   * Entry-point override for delivery paths whose caller owns the entry point
-   * (enhancer-job delivery passes the job's fromRole). Defaults to the
-   * chatroom's configured team entry point.
+   * Entry-point override for delivery paths whose caller owns the entry point.
+   * Defaults to the chatroom's configured team entry point.
    */
   entryPointRole?: string | undefined;
-  /**
-   * Fallback when the task row predates origin anchoring (legacy enhancer
-   * jobs). The task's own originUserMessageId always wins.
-   */
-  originUserMessageIdFallback?: Id<'chatroom_messages'> | undefined;
 }
 
 interface DeliveryMessage extends SourceMessageAttachmentFields {
@@ -140,7 +141,6 @@ interface DeliveryMessage extends SourceMessageAttachmentFields {
 
 interface DeliveryModePolicy {
   conversationMode: ReturnType<typeof legacyConversationMode>;
-  plannerEnhancerEnabled: boolean;
 }
 
 async function getChatroomMessageOrNull(
@@ -170,7 +170,10 @@ async function resolveDeliverySourceMessage(
   messageId: BuildTaskDeliveryPromptArgs['messageId']
 ): Promise<DeliveryMessage | null> {
   if (messageId) {
-    const regularMessage = await getChatroomMessageOrNull(ctx, messageId as Id<'chatroom_messages'>);
+    const regularMessage = await getChatroomMessageOrNull(
+      ctx,
+      messageId as Id<'chatroom_messages'>
+    );
     if (regularMessage) return regularMessage;
     return await getQueuedMessageOrNull(ctx, messageId as Id<'chatroom_messageQueue'>);
   }
@@ -188,13 +191,11 @@ function resolveDeliveryModePolicy(task: Doc<'chatroom_tasks'>): DeliveryModePol
   if (task.taskEnvelope === undefined) {
     return {
       conversationMode: legacyConversationMode(task.plannerEnhancerEnabled),
-      plannerEnhancerEnabled: task.plannerEnhancerEnabled === true,
     };
   }
   const envelope = normalizeTaskEnvelope(task);
   return {
     conversationMode: envelope.conversationMode,
-    plannerEnhancerEnabled: plannerEnhancerEnabledForMode(envelope.conversationMode),
   };
 }
 
@@ -206,9 +207,7 @@ function resolveDeliveryModePolicy(task: Doc<'chatroom_tasks'>): DeliveryModePol
 async function resolveAvailableHandoffRoles(
   ctx: QueryCtx,
   chatroom: Doc<'chatroom_rooms'>,
-  role: string,
-  message: DeliveryMessage | null,
-  plannerEnhancerEnabled: boolean
+  role: string
 ): Promise<string[]> {
   const participants = await ctx.db
     .query('chatroom_participants')
@@ -224,7 +223,6 @@ async function resolveAvailableHandoffRoles(
     teamRoles,
     currentRole: role,
     fallbackParticipantRoles: waitingParticipantRoles,
-    includeEnhancer: plannerEnhancerEnabled && message?.senderRole.toLowerCase() === 'user',
   });
 }
 
@@ -260,14 +258,6 @@ function toDeliveryMessageRef(message: DeliveryMessage | null) {
   return { _id: message._id, senderRole: message.senderRole, content: message.content };
 }
 
-/** The task's own origin anchoring wins; the fallback covers legacy rows. */
-function resolveDeliveryOriginMessageId(
-  task: Doc<'chatroom_tasks'>,
-  fallback?: Id<'chatroom_messages'> | undefined
-) {
-  return task.originUserMessageId ?? fallback;
-}
-
 function resolveDeliveryTeamId(chatroom: Doc<'chatroom_rooms'>) {
   return chatroom.teamId ?? 'duo';
 }
@@ -296,19 +286,9 @@ export async function buildTaskDeliveryPrompt(
   const chatroom = await withActiveTeamStructure(ctx, rawChatroom);
 
   const modePolicy = resolveDeliveryModePolicy(task);
-  const availableHandoffTargets = await resolveAvailableHandoffRoles(
-    ctx,
-    chatroom,
-    args.role,
-    message,
-    modePolicy.plannerEnhancerEnabled
-  );
+  const availableHandoffTargets = await resolveAvailableHandoffRoles(ctx, chatroom, args.role);
   const sourceAttachments = await resolveSourceAttachmentsForDelivery(ctx, message);
-  const { entryPointRole, isEntryPoint } = resolveEntryPointStatus(
-    chatroom,
-    args.role,
-    args.entryPointRole
-  );
+  const { isEntryPoint } = resolveEntryPointStatus(chatroom, args.role, args.entryPointRole);
   const nativeIntegration = await isNativeIntegrationDelivery(ctx, args.chatroomId, args.role);
   const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
 
@@ -325,10 +305,7 @@ export async function buildTaskDeliveryPrompt(
     nativeIntegration,
     sourceAttachments,
     standingInstructions: getActiveStandingInstructions(chatroom),
-    plannerEnhancerEnabled: modePolicy.plannerEnhancerEnabled,
     conversationMode: modePolicy.conversationMode,
-    entryPointRole,
-    originUserMessageId: resolveDeliveryOriginMessageId(task, args.originUserMessageIdFallback),
   });
   return { fullCliOutput };
 }

@@ -2,8 +2,8 @@
  * Shared Chat-mode task predicate.
  *
  * Reusable by CLI and native delivery paths to determine whether a task
- * should use the lean direct-conversational workflow (no context setup,
- * no enhancer/delegation ceremony, no alternate handoff targets).
+ * should use the lean direct-conversational workflow without alternate
+ * delegation or preflight ceremony.
  */
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';

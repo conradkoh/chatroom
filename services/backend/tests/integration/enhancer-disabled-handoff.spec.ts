@@ -1,9 +1,8 @@
 /**
- * Enhancer policy integration tests.
+ * Generic task-delivery compatibility integration tests.
  *
- * Conversation mode is the only input that controls enhancer routing and
- * guidance. The saved enhancer launch request is required only when an
- * enhanced handoff is actually executed.
+ * Historical conversation-mode and enhancer configuration fields no longer
+ * control task-delivery prompt ceremony.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -50,8 +49,8 @@ async function getPlannerDeliveryOutput(
   return fullCliOutput;
 }
 
-describe('enhancer policy at task delivery', () => {
-  test('enhanced send includes enhancer guidance without a saved enhancer config', async () => {
+describe('generic task delivery compatibility', () => {
+  test('enhanced send uses ordinary delivery without a saved ephemeral config', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('enhanced-no-config');
     await addEnhancerToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
@@ -69,11 +68,12 @@ describe('enhancer policy at task delivery', () => {
     const task = await getTaskForMessage(chatroomId, messageIdTyped);
     const output = await getPlannerDeliveryOutput(sessionId, chatroomId, task._id, messageIdTyped);
 
-    expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('--next-role="enhancer"');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<enhancer-input>');
+    expect(output).toContain('--next-role="user"');
   });
 
-  test('chat send omits enhancer guidance even when an enhancer config exists', async () => {
+  test('chat send stays direct even when an ephemeral config exists', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('chat-with-config');
     await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
@@ -93,7 +93,7 @@ describe('enhancer policy at task delivery', () => {
     const output = await getPlannerDeliveryOutput(sessionId, chatroomId, task._id, messageIdTyped);
 
     expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('--next-role="enhancer"');
+    expect(output).toContain('<chat-mode>');
     expect(output).toContain('--next-role="user"');
   });
 
