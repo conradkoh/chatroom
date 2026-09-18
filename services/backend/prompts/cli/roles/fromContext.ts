@@ -4,6 +4,7 @@
 
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
+import { getSpecialistGuidance } from './specialists';
 import { composeEnhancerSystemPrompt } from '../../enhancer/system-prompt';
 import { getSoloGuidanceFromContext } from '../../teams/solo/prompts/fromContext';
 import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../types/cli';
@@ -61,6 +62,10 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
   planner: getBasePlannerGuidanceFromContext,
   builder: getBaseBuilderGuidanceFromContext,
   solo: getSoloGuidanceFromContext,
+  architect: (ctx) =>
+    getSpecialistGuidance({ role: ctx.role, nativeIntegration: ctx.nativeIntegration }),
+  'uiux-engineer': (ctx) =>
+    getSpecialistGuidance({ role: ctx.role, nativeIntegration: ctx.nativeIntegration }),
   enhancer: getEnhancerGuidanceFromContext,
 };
 
