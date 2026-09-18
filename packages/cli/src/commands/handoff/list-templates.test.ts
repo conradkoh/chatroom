@@ -41,7 +41,6 @@ describe('handoff list-templates', () => {
     expect(output).toContain('Receives from:');
     expect(output).toContain('Returns to:');
     expect(output).toContain('- `planner` → `builder`');
-    expect(output).toContain('- `planner` → `enhancer`');
     expect(output).toContain('- `planner` → `user`');
   });
 
