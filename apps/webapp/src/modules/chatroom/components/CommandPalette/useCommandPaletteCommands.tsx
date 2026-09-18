@@ -92,7 +92,7 @@ interface UseCommandPaletteCommandsProps {
   onStopAllRemoteAgents?: (() => void) | null;
   /** Callback to restart all remote agents (starts if stopped, restarts if running) */
   onRestartAllRemoteAgents?: (() => void) | null;
-  /** Team roles eligible for per-role restart commands (caller excludes user/enhancer) */
+  /** Team roles eligible for per-role restart commands (permanent roles only) */
   restartableAgentRoles?: string[];
   /** Restart a single remote agent by role */
   onRestartRemoteAgent?: ((role: string) => void) | null;

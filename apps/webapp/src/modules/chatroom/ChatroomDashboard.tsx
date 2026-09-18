@@ -3,6 +3,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
@@ -1430,7 +1431,7 @@ function ChatroomDashboardContent({
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
-    () => teamRoles.filter((r) => r !== 'user' && r.toLowerCase() !== 'enhancer'),
+    () => teamRoles.filter((role) => role !== 'user' && !isEphemeralAgentRole(role)),
     [teamRoles]
   );
 

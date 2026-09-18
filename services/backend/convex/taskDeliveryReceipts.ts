@@ -15,12 +15,7 @@ export const record = mutation({
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
     role: v.string(),
-    deliveryKind: v.union(
-      v.literal('native_inject'),
-      // @deprecated enhancer_claim rows predate the job-pipeline retirement
-      v.literal('enhancer_claim'),
-      v.literal('cli_get_next_task')
-    ),
+    deliveryKind: v.union(v.literal('native_inject'), v.literal('cli_get_next_task')),
     harnessSessionId: v.optional(v.string()),
     // @deprecated Legacy enhancer job linkage (job table deleted); kept
     // optional as a plain string so historical rows still validate.
