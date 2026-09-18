@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { ROLE_TEMPLATES } from './templates';
+import { getRoleTemplate, ROLE_TEMPLATES } from './templates';
 
 describe('role templates', () => {
   test.each([
@@ -38,8 +38,14 @@ describe('role templates', () => {
     ]);
   });
 
-  test('preserves the enhancer template contract', () => {
-    expect(ROLE_TEMPLATES.enhancer.role).toBe('enhancer');
-    expect(ROLE_TEMPLATES.enhancer.defaultHandoffTarget).toBe('planner');
+  test('uses a lifecycle-neutral template for the legacy ephemeral role', () => {
+    const template = getRoleTemplate('enhancer');
+    const text = [template.description, ...template.responsibilities].join(' ');
+
+    expect(template.role).toBe('enhancer');
+    expect(template.title).toBe('Ephemeral Agent');
+    expect(text).not.toMatch(/enhancer/i);
+    expect(text).not.toMatch(/design advisor|single-turn|memoryless/i);
+    expect(template.defaultHandoffTarget).toBe('user');
   });
 });

@@ -33,4 +33,29 @@ describe('specialist role init prompts', () => {
       });
     }
   }
+
+  for (const [harness, agentHarness] of [
+    ['CLI', undefined],
+    ['native', 'cursor-sdk'],
+  ] as const) {
+    test(`uses lifecycle-neutral initialization for enhancer in ${harness} composition`, () => {
+      const prompt = composeSystemPrompt({
+        chatroomId: 'ephemeral-room',
+        role: 'enhancer',
+        teamId: 'configured-team',
+        teamName: 'Configured Team',
+        teamRoles: ['planner', 'enhancer', 'builder'],
+        teamEntryPoint: 'planner',
+        convexUrl: 'http://127.0.0.1:3210',
+        agentType: 'custom',
+        agentHarness,
+      });
+
+      expect(prompt).toContain('## Your Role: EPHEMERAL AGENT');
+      expect(prompt).toContain('configured team workflow');
+      expect(prompt).not.toContain('CHATROOM_ENHANCER_END');
+      expect(prompt).not.toMatch(/single-turn|memoryless|design advisor/i);
+      expect(prompt).not.toMatch(/--next-role[=\"]planner/);
+    });
+  }
 });

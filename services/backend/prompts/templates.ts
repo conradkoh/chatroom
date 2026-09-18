@@ -6,6 +6,8 @@
  * returned with each message to fight context rot.
  */
 
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+
 export interface RoleTemplate {
   role: string;
   title: string;
@@ -19,20 +21,6 @@ export interface RoleTemplate {
  * Add new roles here as needed.
  */
 export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
-  enhancer: {
-    role: 'enhancer',
-    title: 'Enhancer',
-    description:
-      'You are a single-turn, memoryless design advisor. Produce one complete recommended design for the user request; you are not an implementer.',
-    responsibilities: [
-      'Recover authoritative user request and history before analysis',
-      'Inspect the repository for patterns, constraints, and change surfaces',
-      'Return one complete recommended design — not multiple options',
-      'Complete frontend and data/query design at code granularity when applicable',
-      'Hand design input to the team entry point via chatroom handoff',
-    ],
-    defaultHandoffTarget: 'planner',
-  },
   builder: {
     role: 'builder',
     title: 'Builder',
@@ -125,6 +113,20 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
   },
 };
 
+const EPHEMERAL_ROLE_TEMPLATE: RoleTemplate = {
+  role: 'ephemeral',
+  title: 'Ephemeral Agent',
+  description:
+    'You are an ephemeral team agent. Complete the assigned task using the configured team workflow, then hand off when the task is complete.',
+  responsibilities: [
+    'Complete the assigned task within the user request and team scope',
+    'Use repository evidence and established team conventions',
+    'Follow the configured team handoff contract when work is complete',
+    'Report verification and unresolved issues clearly',
+  ],
+  defaultHandoffTarget: 'user',
+};
+
 /**
  * Get a role template, with fallback for unknown roles.
  */
@@ -134,6 +136,10 @@ export function getRoleTemplate(role: string): RoleTemplate {
 
   if (template) {
     return template;
+  }
+
+  if (isEphemeralAgentRole(normalizedRole)) {
+    return { ...EPHEMERAL_ROLE_TEMPLATE, role: normalizedRole };
   }
 
   // Generic fallback for unknown roles

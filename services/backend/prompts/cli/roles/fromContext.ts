@@ -5,11 +5,9 @@
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
 import { getSpecialistGuidance } from './specialists';
-import { composeEnhancerSystemPrompt } from '../../enhancer/system-prompt';
 import { getSoloGuidanceFromContext } from '../../teams/solo/prompts/fromContext';
 import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../types/cli';
 import type { SelectorContext } from '../../types/sections';
-import { getCliEnvPrefix } from '../../utils/index';
 
 export function toBuilderParams(ctx: SelectorContext): BuilderGuidanceParams {
   return {
@@ -41,20 +39,6 @@ export function getBasePlannerGuidanceFromContext(ctx: SelectorContext): string 
 }
 
 /**
- * The enhancer is memoryless and single-turn: its operating model IS the
- * role identity prompt, so the role-guidance surface returns the same
- * shared composition the init/spawn channels use.
- */
-function getEnhancerGuidanceFromContext(ctx: SelectorContext): string {
-  return composeEnhancerSystemPrompt({
-    chatroomId: ctx.chatroomId ?? '',
-    cliEnvPrefix: getCliEnvPrefix(ctx.convexUrl),
-    convexUrl: ctx.convexUrl,
-    entryPointRole: ctx.teamConfig?.entryPoint,
-  });
-}
-
-/**
  * Base role guidance dispatch, keyed by lowercase role. Roles without base
  * guidance (or handled by team-specific dispatchers) resolve to undefined.
  */
@@ -66,7 +50,6 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
     getSpecialistGuidance({ role: ctx.role, nativeIntegration: ctx.nativeIntegration }),
   'uiux-engineer': (ctx) =>
     getSpecialistGuidance({ role: ctx.role, nativeIntegration: ctx.nativeIntegration }),
-  enhancer: getEnhancerGuidanceFromContext,
 };
 
 export function getBaseRoleGuidanceFromContext(ctx: SelectorContext): string {
