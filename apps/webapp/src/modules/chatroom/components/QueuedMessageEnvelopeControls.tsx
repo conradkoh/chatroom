@@ -2,10 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import {
-  nextConversationMode,
-  type ConversationMode,
-} from '@workspace/shared/domain/conversation-mode';
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import {
   normalizeTaskEnvelope,
   withTaskEnvelopeConversationMode,
@@ -13,7 +10,7 @@ import {
   type TaskEnvelopeV1,
 } from '@workspace/shared/domain/task-envelope';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Code2, MessageCircle, RotateCcw, Sparkles } from 'lucide-react';
+import { Code2, MessageCircle, RotateCcw } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import type { Message } from '../types/message';
@@ -26,46 +23,41 @@ export interface QueuedMessageEnvelopeControlsProps {
   className?: string;
 }
 
-function modeIcon(mode: ConversationMode) {
+type VisibleConversationMode = 'chat' | 'code';
+
+function modeIcon(mode: VisibleConversationMode) {
   switch (mode) {
     case 'chat':
       return <MessageCircle size={14} />;
     case 'code':
       return <Code2 size={14} />;
-    case 'code:enhanced':
-      return <Sparkles size={14} />;
   }
 }
 
-function modeLabel(mode: ConversationMode): string {
+function modeLabel(mode: VisibleConversationMode): string {
   switch (mode) {
     case 'chat':
       return 'Chat';
     case 'code':
       return 'Code';
-    case 'code:enhanced':
-      return 'Enhanced';
   }
 }
 
-function modeTitle(mode: ConversationMode): string {
+function modeTitle(mode: VisibleConversationMode): string {
   switch (mode) {
     case 'chat':
       return 'Mode: Chat — click to switch to Code.';
     case 'code':
-      return 'Mode: Code — click to switch to Enhanced.';
-    case 'code:enhanced':
-      return 'Mode: Enhanced — click to switch to Chat.';
+      return 'Mode: Code — click to switch to Chat.';
   }
 }
 
-function modeButtonClass(mode: ConversationMode, compact: boolean): string {
+function modeButtonClass(mode: VisibleConversationMode, compact: boolean): string {
+  void mode;
   void compact;
   return cn(
     'p-1.5 rounded transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50',
-    mode === 'code:enhanced'
-      ? 'text-blue-500 dark:text-blue-400'
-      : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
+    'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
   );
 }
 
@@ -114,6 +106,8 @@ export function QueuedMessageEnvelopeControls({
     plannerEnhancerEnabled: message.plannerEnhancerEnabled,
     startInNewSession: message.startInNewSession,
   });
+  const visibleMode: VisibleConversationMode =
+    current.conversationMode === 'chat' ? 'chat' : 'code';
 
   const stopPropagation = useCallback((e: { stopPropagation: () => void }) => {
     e.stopPropagation();
@@ -150,9 +144,9 @@ export function QueuedMessageEnvelopeControls({
   const handleModeCycle = useCallback(() => {
     // withTaskEnvelopeConversationMode preserves session policy and resets the
     // workflow to the new mode's default preset + entry phase.
-    const next = nextConversationMode(current.conversationMode);
+    const next: ConversationMode = visibleMode === 'chat' ? 'code' : 'chat';
     void applyEnvelope(withTaskEnvelopeConversationMode(current, next));
-  }, [applyEnvelope, current]);
+  }, [applyEnvelope, current, visibleMode]);
 
   const handleSessionToggle = useCallback(() => {
     // withTaskEnvelopeSessionPolicy preserves mode and current workflow.
@@ -185,14 +179,14 @@ export function QueuedMessageEnvelopeControls({
       <button
         type="button"
         data-testid="queued-message-mode-toggle"
-        aria-label={`Mode: ${modeLabel(current.conversationMode)}`}
+        aria-label={`Mode: ${modeLabel(visibleMode)}`}
         aria-busy={isUpdating || undefined}
         disabled={isUpdating}
-        title={modeTitle(current.conversationMode)}
+        title={modeTitle(visibleMode)}
         onClick={handleModeCycle}
-        className={modeButtonClass(current.conversationMode, compact)}
+        className={modeButtonClass(visibleMode, compact)}
       >
-        {modeIcon(current.conversationMode)}
+        {modeIcon(visibleMode)}
       </button>
 
       {error && (

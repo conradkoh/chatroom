@@ -48,8 +48,6 @@ interface QueuedMessageDetailModalProps {
   /** Called when the user promotes the message. */
   /** Called when the user deletes the message. */
   onDelete: (queuedMessageId: string) => Promise<void>;
-  /** Kept for source compatibility; the shared envelope control exposes the complete mode contract regardless of team enhancer support. */
-  teamSupportsEnhancer?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

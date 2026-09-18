@@ -44,8 +44,6 @@ interface QueuedMessageItemProps {
   chatroomId: Id<'chatroom_rooms'>;
   message: Message;
   onDelete: (queuedMessageId: string) => Promise<void>;
-  /** Kept for source compatibility; the shared envelope control exposes the complete mode contract regardless of team enhancer support. */
-  teamSupportsEnhancer?: boolean;
 }
 
 /**

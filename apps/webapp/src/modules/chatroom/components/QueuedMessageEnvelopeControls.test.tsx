@@ -149,6 +149,32 @@ describe('QueuedMessageEnvelopeControls', () => {
     });
   });
 
+  it('renders legacy enhanced envelopes as Code and cycles them to Chat', async () => {
+    const envelope = createTaskEnvelope({
+      conversationMode: 'code:enhanced',
+      sessionPolicy: 'continue',
+    });
+    renderControls(makeMessage({ taskEnvelope: envelope }));
+
+    expect(modeToggle()).toHaveAttribute('aria-label', 'Mode: Code');
+    expect(modeToggle()).toHaveAttribute('title', 'Mode: Code — click to switch to Chat.');
+
+    fireEvent.click(modeToggle());
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+    });
+    expect(mockUpdate).toHaveBeenCalledWith({
+      queuedMessageId: 'msg-1' as Id<'chatroom_messageQueue'>,
+      taskEnvelope: {
+        version: 1,
+        conversationMode: 'chat',
+        sessionPolicy: 'continue',
+        handoffWorkflow: { preset: 'direct', phase: 'entry' },
+      },
+    });
+  });
+
   it('disables both toggles while the mutation is pending and ignores duplicate taps', async () => {
     let release!: () => void;
     mockUpdate.mockImplementation(

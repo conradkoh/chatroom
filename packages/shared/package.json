@@ -6,7 +6,6 @@
   "exports": {
     "./utilities/markdown": "./src/utilities/markdown/index.ts",
     "./domain/entities/markdown-content": "./src/domain/entities/markdown-content.ts",
-    "./domain/enhancer-team-capability": "./src/domain/enhancer-team-capability.ts",
     "./domain/agent-stop-command": "./src/domain/agent-stop-command.ts",
     "./domain/agent-role": "./src/domain/agent-role.ts",
     "./domain/chatroom-role": "./src/domain/chatroom-role.ts",
