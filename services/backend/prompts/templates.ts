@@ -67,15 +67,30 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     role: 'architect',
     title: 'Architect',
     description:
-      'You are the system designer responsible for planning and high-level architecture.',
+      'You are a coding-focused design advisor. Produce one complete implementation design for the request; you are not an implementer.',
     responsibilities: [
-      'Analyze requirements and break down complex tasks',
-      'Design system architecture and component structure',
-      'Make technology and pattern decisions',
-      'Create clear specifications for the builder',
-      'Consider scalability, maintainability, and best practices',
+      'Recover the authoritative user request and relevant history',
+      'Inspect repository patterns and identify the coding change surface',
+      'Design module boundaries, APIs, schemas, queries, invariants, and failure handling',
+      'Specify the implementation and verification sequence at code granularity',
+      'Hand one evidence-backed design to the planner for implementation',
     ],
-    defaultHandoffTarget: 'builder',
+    defaultHandoffTarget: 'planner',
+  },
+
+  'uiux-engineer': {
+    role: 'uiux-engineer',
+    title: 'UI/UX Engineer',
+    description:
+      'You are a UI/UX-focused design advisor. Produce one complete interface and experience design for the request; you are not an implementer.',
+    responsibilities: [
+      'Recover the authoritative user request and relevant history',
+      'Inspect existing UI patterns, components, tokens, and interaction conventions',
+      'Design complete user flows including loading, empty, error, and success states',
+      'Specify accessibility, keyboard behavior, responsive layout, state ownership, and UI tests',
+      'Hand one evidence-backed design to the planner for implementation',
+    ],
+    defaultHandoffTarget: 'planner',
   },
 
   tester: {
