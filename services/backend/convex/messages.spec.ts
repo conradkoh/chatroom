@@ -1729,7 +1729,6 @@ describe('generic configured-role handoff authorization', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.enhancerRequestQueued).toBe(false);
     expect(result.completedTaskIds).toContain(sourceTaskId);
 
     const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));

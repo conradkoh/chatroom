@@ -653,7 +653,6 @@ export async function runHandoffHandler(
         completedTaskIds: [],
         newTaskId: null,
         promotedTaskId: null,
-        enhancerRequestQueued: false,
         supportsNativeIntegration,
       };
     }
@@ -817,8 +816,6 @@ export async function runHandoffHandler(
     completedTaskIds,
     newTaskId,
     promotedTaskId,
-    // Temporary compatibility projection; generic handoffs never queue an enhancer workflow.
-    enhancerRequestQueued: false,
     supportsNativeIntegration,
   };
 }
@@ -845,28 +842,6 @@ export const handoff = mutation({
     return runHandoffHandler(ctx, args);
   },
 });
-
-/** Thin wrapper for enhancer handoff delivery. */
-export async function performHandoffFromEnhancer(
-  ctx: MutationCtx,
-  args: {
-    sessionId: string;
-    chatroomId: Id<'chatroom_rooms'>;
-    targetRole: string;
-    content: string;
-    attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
-  }
-) {
-  return runHandoffHandler(ctx, {
-    sessionId: args.sessionId,
-    chatroomId: args.chatroomId,
-    senderRole: 'enhancer',
-    targetRole: args.targetRole,
-    content: args.content,
-    attachedArtifactIds: args.attachedArtifactIds,
-    visibleInAllTabOnly: true,
-  });
-}
 
 /** Returns the allowed handoff roles for a given role based on the current message classification. */
 export const getAllowedHandoffRoles = query({

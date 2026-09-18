@@ -1,8 +1,8 @@
 /**
  * Generic task-delivery compatibility integration tests.
  *
- * Historical conversation-mode and enhancer configuration fields no longer
- * control task-delivery prompt ceremony.
+ * Historical conversation-mode and ephemeral-agent configuration fields no
+ * longer control task-delivery prompt ceremony.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -50,8 +50,9 @@ async function getPlannerDeliveryOutput(
 }
 
 describe('generic task delivery compatibility', () => {
-  test('enhanced send uses ordinary delivery without a saved ephemeral config', async () => {
-    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('enhanced-no-config');
+  test('compatibility mode uses ordinary delivery without a saved ephemeral config', async () => {
+    const { sessionId, chatroomId } =
+      await setupPlannerWorkspaceForSession('compatibility-no-config');
     await addEnhancerToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
@@ -59,7 +60,7 @@ describe('generic task delivery compatibility', () => {
       sessionId,
       chatroomId,
       senderRole: 'user',
-      content: 'Use enhanced planning',
+      content: 'Use compatibility planning',
       targetRole: 'planner',
       type: 'message',
       conversationMode: 'code:enhanced',
@@ -98,7 +99,7 @@ describe('generic task delivery compatibility', () => {
   });
 
   test('planner handoff to configured ephemeral role uses the generic path in code mode', async () => {
-    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('handoff-not-enhanced');
+    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('handoff-ephemeral');
     await addEnhancerToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -126,7 +127,6 @@ describe('generic task delivery compatibility', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.enhancerRequestQueued).toBe(false);
     const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
     expect(targetTask?.assignedTo).toBe('enhancer');
     expect(targetTask?.content).toBe('check-in');
