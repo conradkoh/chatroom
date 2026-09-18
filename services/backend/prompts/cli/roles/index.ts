@@ -4,6 +4,25 @@
 
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
+import { getSpecialistGuidance } from './specialists';
+
+type RoleSpecificGuidanceParams = {
+  role: string;
+  teamRoles: string[];
+  isEntryPoint: boolean;
+  convexUrl: string;
+  chatroomId?: string | undefined;
+  nativeIntegration?: boolean | undefined;
+  codeChangesTarget?: string | undefined;
+  questionTarget?: string | undefined;
+};
+
+const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams) => string> = {
+  planner: getPlannerGuidance,
+  builder: getBuilderGuidance,
+  architect: ({ role }) => getSpecialistGuidance({ role }),
+  'uiux-engineer': ({ role }) => getSpecialistGuidance({ role }),
+};
 
 /**
  * Generate role-specific guidance based on the role
@@ -15,16 +34,9 @@ export function getRoleSpecificGuidance(
   convexUrl: string
 ): string {
   const normalizedRole = role.toLowerCase();
-
-  if (normalizedRole === 'planner') {
-    return getPlannerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-  }
-
-  if (normalizedRole === 'builder') {
-    return getBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-  }
-
-  return '';
+  return (
+    ROLE_GUIDANCE_BY_ROLE[normalizedRole]?.({ role, teamRoles, isEntryPoint, convexUrl }) ?? ''
+  );
 }
 
 // Re-export individual role functions for direct access
