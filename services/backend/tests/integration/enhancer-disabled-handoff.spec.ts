@@ -97,7 +97,7 @@ describe('generic task delivery compatibility', () => {
     expect(output).toContain('--next-role="user"');
   });
 
-  test('planner handoff to enhancer is rejected when the send-time mode is not enhanced', async () => {
+  test('planner handoff to configured ephemeral role uses the generic path in code mode', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('handoff-not-enhanced');
     await addEnhancerToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
@@ -125,7 +125,10 @@ describe('generic task delivery compatibility', () => {
       content: 'check-in',
     });
 
-    expect(result.success).toBe(false);
-    expect(result.error?.code).toBe('ENHANCER_NOT_ENABLED');
+    expect(result.success).toBe(true);
+    expect(result.enhancerRequestQueued).toBe(false);
+    const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(targetTask?.assignedTo).toBe('enhancer');
+    expect(targetTask?.content).toBe('check-in');
   });
 });

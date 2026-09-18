@@ -27,12 +27,15 @@ async function createTestSession(id: string) {
   return { sessionId: id as SessionId, userId: login.userId as Id<'users'> };
 }
 
-async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createChatroom(
+  sessionId: SessionId,
+  teamRoles: string[] = ['planner', 'builder']
+): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
-    teamRoles: ['planner', 'builder'],
+    teamRoles,
     teamEntryPoint: 'planner',
   });
 }
@@ -1685,80 +1688,36 @@ describe('legacy queue-setting mutations edit the complete envelope', () => {
   });
 });
 
-describe('enhancer handoff authorization — explicit envelope precedence', () => {
-  async function seedPlannerOriginTask(
-    chatroomId: Id<'chatroom_rooms'>,
-    policy: {
-      taskEnvelope?: TaskEnvelopeV1 | undefined;
-      plannerEnhancerEnabled?: boolean | undefined;
-    }
-  ): Promise<Id<'chatroom_tasks'>> {
-    return (await t.run(async (ctx) => {
+describe('generic configured-role handoff authorization', () => {
+  test('configured ephemeral roles use ordinary handoff authorization and envelope propagation', async () => {
+    const { sessionId } = await createTestSession('generic-ephemeral-handoff');
+    const chatroomId = await createChatroom(sessionId, ['planner', 'builder', 'enhancer']);
+    const sourceEnvelope = createTaskEnvelope({
+      conversationMode: 'code:enhanced',
+      sessionPolicy: 'continue',
+    });
+    const sourceTaskId = await t.run(async (ctx) => {
       const now = Date.now();
-      const msgId = await ctx.db.insert('chatroom_messages', {
+      const sourceMessageId = await ctx.db.insert('chatroom_messages', {
         chatroomId,
         senderRole: 'user',
-        content: 'enhancer auth task',
+        content: 'ordinary ephemeral task',
         targetRole: 'planner',
         type: 'message',
       });
       return await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'user',
-        content: 'enhancer auth task',
+        content: 'ordinary ephemeral task',
         status: 'in_progress',
         assignedTo: 'planner',
-        sourceMessageId: msgId,
-        queuePosition: 1,
+        sourceMessageId,
+        queuePosition: 0,
         createdAt: now,
         updatedAt: now,
-        ...(policy.taskEnvelope !== undefined ? { taskEnvelope: policy.taskEnvelope } : {}),
-        ...(policy.plannerEnhancerEnabled !== undefined
-          ? { plannerEnhancerEnabled: policy.plannerEnhancerEnabled }
-          : {}),
+        taskEnvelope: sourceEnvelope,
+        plannerEnhancerEnabled: false,
       });
-    })) as Id<'chatroom_tasks'>;
-  }
-
-  async function seedEnhancerTeamConfig(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
-    await t.run(async (ctx) => {
-      const now = Date.now();
-      const room = await ctx.db.get(chatroomId);
-      const workspaceId = await ctx.db.insert('chatroom_workspaces', {
-        chatroomId,
-        machineId: 'enh-machine',
-        workingDir: '/tmp',
-        hostname: 'test-host',
-        registeredAt: now,
-        registeredBy: 'enhancer',
-      });
-      await ctx.db.insert('chatroom_agentLastSentLaunchRequests', {
-        requestKey: `${chatroomId}:duo@1:enhancer`,
-        requestId: `test-enhancer-${chatroomId}`,
-        commandId: `test-enhancer-${chatroomId}`,
-        chatroomId,
-        teamStructureId: 'duo@1',
-        role: 'enhancer',
-        agentType: 'remote',
-        machineId: 'enh-machine',
-        workspaceId,
-        agentHarness: 'opencode',
-        model: 'model',
-        workingDir: '/tmp',
-        reason: 'test',
-        wantResume: false,
-        requestedBy: room!.ownerId,
-        requestedAt: now,
-      });
-    });
-  }
-
-  test('explicit chat envelope + stale plannerEnhancerEnabled=true rejects enhancer handoff', async () => {
-    const { sessionId } = await createTestSession('enh-auth-chat');
-    const chatroomId = await createChatroom(sessionId);
-    await seedPlannerOriginTask(chatroomId, {
-      taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
-      plannerEnhancerEnabled: true,
     });
 
     const result = await t.mutation(api.messages.handoff, {
@@ -1766,65 +1725,21 @@ describe('enhancer handoff authorization — explicit envelope precedence', () =
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<request>Chat task</request>',
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.error?.code).toBe('ENHANCER_NOT_ENABLED');
-  });
-
-  test('explicit code:enhanced envelope + stale plannerEnhancerEnabled=false permits the configured enhancer path', async () => {
-    const { sessionId } = await createTestSession('enh-auth-codeenh');
-    const chatroomId = await createChatroom(sessionId);
-    await seedPlannerOriginTask(chatroomId, {
-      taskEnvelope: createTaskEnvelope({
-        conversationMode: 'code:enhanced',
-        sessionPolicy: 'continue',
-      }),
-      plannerEnhancerEnabled: false,
-    });
-    await seedEnhancerTeamConfig(chatroomId);
-
-    const result = await t.mutation(api.messages.handoff, {
-      sessionId,
-      chatroomId,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: '<request>Enhanced task</request>',
+      content: 'ordinary handoff content',
     });
 
     expect(result.success).toBe(true);
-    expect(result.enhancerRequestQueued).toBe(true);
-  });
+    expect(result.enhancerRequestQueued).toBe(false);
+    expect(result.completedTaskIds).toContain(sourceTaskId);
 
-  test('legacy scalar-only rows retain current enhancer behavior', async () => {
-    const { sessionId } = await createTestSession('enh-auth-legacy-true');
-    const chatroomId = await createChatroom(sessionId);
-    await seedPlannerOriginTask(chatroomId, { plannerEnhancerEnabled: true });
-    await seedEnhancerTeamConfig(chatroomId);
-
-    const enabled = await t.mutation(api.messages.handoff, {
-      sessionId,
-      chatroomId,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: '<request>Legacy true</request>',
+    const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(targetTask?.assignedTo).toBe('enhancer');
+    expect(targetTask?.content).toBe('ordinary handoff content');
+    expect(targetTask?.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code:enhanced',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'enhanced-team', phase: 'enhancement' },
     });
-    expect(enabled.success).toBe(true);
-
-    const { sessionId: sessionId2 } = await createTestSession('enh-auth-legacy-false');
-    const chatroomId2 = await createChatroom(sessionId2);
-    await seedPlannerOriginTask(chatroomId2, { plannerEnhancerEnabled: false });
-    await seedEnhancerTeamConfig(chatroomId2);
-
-    const disabled = await t.mutation(api.messages.handoff, {
-      sessionId: sessionId2,
-      chatroomId: chatroomId2,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: '<request>Legacy false</request>',
-    });
-    expect(disabled.success).toBe(false);
-    expect(disabled.error?.code).toBe('ENHANCER_NOT_ENABLED');
   });
 });
