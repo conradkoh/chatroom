@@ -18,6 +18,11 @@ export const AGENT_ROLE_DEFINITIONS = {
   planner: { role: 'planner', tags: [AgentRoleLifecycleTag.Permanent] },
   builder: { role: 'builder', tags: [AgentRoleLifecycleTag.Permanent] },
   solo: { role: 'solo', tags: [AgentRoleLifecycleTag.Permanent] },
+  architect: { role: 'architect', tags: [AgentRoleLifecycleTag.Permanent] },
+  'uiux-engineer': {
+    role: 'uiux-engineer',
+    tags: [AgentRoleLifecycleTag.Permanent],
+  },
   enhancer: { role: 'enhancer', tags: [AgentRoleLifecycleTag.Ephemeral] },
 } as const satisfies Record<string, AgentRoleDefinition>;
 

@@ -1,4 +1,4 @@
-import { AlertCircle, Sparkles, Trash2 } from 'lucide-react';
+import { AlertCircle, Trash2 } from 'lucide-react';
 
 import { TaskNewSessionToggle } from './TaskNewSessionToggle';
 import type { Task } from './types';
@@ -11,22 +11,10 @@ export interface TaskItemProps {
   isProtected?: boolean;
   onDelete?: () => void;
   onClick?: () => void;
-  /** Show the cancel-enhancer control for enhancer-assigned current tasks. */
-  showCancelEnhancer?: boolean;
-  onCancelEnhancer?: (taskId: string) => void;
-  isCancellingEnhancer?: boolean;
 }
 
 // fallow-ignore-next-line complexity
-export function TaskItem({
-  task,
-  isProtected = false,
-  onDelete,
-  onClick,
-  showCancelEnhancer = false,
-  onCancelEnhancer,
-  isCancellingEnhancer = false,
-}: TaskItemProps) {
+export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskItemProps) {
   const badge = getStatusBadge(task.status);
 
   const isClickable = !!onClick;
@@ -107,23 +95,6 @@ export function TaskItem({
             startInNewSession={task.startInNewSession ?? false}
           />
         )}
-        {/* Cancel enhancer — rendered outside the !isProtected gate so it works for current tasks */}
-        {showCancelEnhancer && onCancelEnhancer && (
-          <button
-            type="button"
-            data-testid="cancel-enhancer-task"
-            title="Cancel planning review"
-            disabled={isCancellingEnhancer}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCancelEnhancer(task._id);
-            }}
-            className="p-1.5 rounded transition-colors disabled:opacity-50 text-blue-500 dark:text-blue-400 hover:bg-blue-500/10"
-          >
-            <Sparkles size={14} className="fill-current" />
-          </button>
-        )}
-
         {/* Delete — editable tasks only */}
         {!isProtected && onDelete && (
           <button

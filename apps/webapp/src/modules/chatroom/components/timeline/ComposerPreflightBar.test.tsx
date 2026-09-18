@@ -3,31 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ComposerPreflightBar } from './ComposerPreflightBar';
 
-const { mockNewSessionToggle, mockModeToggle } = vi.hoisted(() => ({
+const { mockNewSessionToggle } = vi.hoisted(() => ({
   mockNewSessionToggle: vi.fn(),
-  mockModeToggle: vi.fn(),
 }));
 
-vi.mock('../../features/enhancers/components/PlannerNewSessionToggle', () => ({
+vi.mock('./PlannerNewSessionToggle', () => ({
   PlannerNewSessionToggle: (props: unknown) => {
     mockNewSessionToggle(props);
     return <div data-testid="planner-new-session-toggle" />;
   },
 }));
-vi.mock('../../features/enhancers/components/PlannerConversationModeToggle', () => ({
-  PlannerConversationModeToggle: (props: unknown) => {
-    mockModeToggle(props);
-    return <div data-testid="planner-conversation-mode-toggle" />;
-  },
-}));
 vi.mock('../StandingInstructionsBar', () => ({
   StandingInstructionsBar: () => <div data-testid="standing-instructions-bar" />,
-}));
-vi.mock('../../hooks/useAgentPanelData', () => ({
-  useAgentPanelData: () => ({ teamId: 'duo', teamRoles: ['planner', 'builder'], isLoading: false }),
-}));
-vi.mock('../../hooks/useChatroomLifecycle', () => ({
-  useChatroomLifecycle: () => ({ activeWorkspace: { machineId: 'm1' } }),
 }));
 
 describe('ComposerPreflightBar', () => {
@@ -40,7 +27,7 @@ describe('ComposerPreflightBar', () => {
     const bar = screen.getByTestId('composer-preflight-bar');
     const toggleColumns = bar.querySelectorAll(':scope > div:not(:first-child)');
 
-    expect(toggleColumns).toHaveLength(2);
+    expect(toggleColumns).toHaveLength(1);
     for (const column of toggleColumns) {
       expect(column.className).toContain('w-[3.75rem]');
       expect(column.className).toContain('sm:min-w-[7rem]');
@@ -55,12 +42,12 @@ describe('ComposerPreflightBar', () => {
     expect(siColumn?.className).toContain('min-w-0');
   });
 
-  it('renders the conversation mode toggle', () => {
+  it('does not render a conversation mode or enhancer control', () => {
     render(<ComposerPreflightBar chatroomId={'room1' as never} />);
-    expect(screen.getByTestId('planner-conversation-mode-toggle')).toBeInTheDocument();
+    expect(screen.queryByTestId('planner-conversation-mode-toggle')).not.toBeInTheDocument();
   });
 
-  it('forwards onRequestComposerFocus to both toggles', () => {
+  it('forwards onRequestComposerFocus to the new-session toggle', () => {
     const onRequestComposerFocus = vi.fn();
     render(
       <ComposerPreflightBar
@@ -70,9 +57,6 @@ describe('ComposerPreflightBar', () => {
     );
 
     expect(mockNewSessionToggle).toHaveBeenCalledWith(
-      expect.objectContaining({ onRequestComposerFocus })
-    );
-    expect(mockModeToggle).toHaveBeenCalledWith(
       expect.objectContaining({ onRequestComposerFocus })
     );
   });

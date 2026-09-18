@@ -60,7 +60,7 @@ export type AgentLifecycleFactInput =
       chatroomId: Id<'chatroom_rooms'>;
       role: string;
       status: 'offline' | 'starting' | 'waiting' | 'working' | 'stopping' | 'error';
-      errorSource?: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop' | undefined;
+      errorSource?: 'configuration' | 'runtime' | 'task' | 'stop' | undefined;
       errorCode?: string | undefined;
       errorMessage?: string | undefined;
       revisionKey: string;

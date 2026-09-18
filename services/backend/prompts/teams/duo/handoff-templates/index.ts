@@ -8,7 +8,6 @@
 // fallow-ignore-file unused-export unused-type
 
 import { duoBuilderHandoffContract } from './builder';
-import { duoEnhancerHandoffContract } from './enhancer';
 import { duoPlannerHandoffContract } from './planner';
 import { validateRoleHandoffContracts } from '../../../cli/handoff-templates/contracts';
 import type {
@@ -18,11 +17,10 @@ import type {
 
 export type { HandoffTemplateQuery as DuoHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned duo catalog (planner, builder, enhancer). */
+/** Role-owned duo catalog (planner, builder). */
 export const DUO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] = [
   duoPlannerHandoffContract,
   duoBuilderHandoffContract,
-  duoEnhancerHandoffContract,
 ];
 
 /** Validated once at module load so broken catalogs fail fast in tests/startup. */

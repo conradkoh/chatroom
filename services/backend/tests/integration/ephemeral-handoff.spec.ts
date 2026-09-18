@@ -1,9 +1,8 @@
 /**
- * Enhancer policy integration tests.
+ * Generic task-delivery compatibility integration tests.
  *
- * Conversation mode is the only input that controls enhancer routing and
- * guidance. The saved enhancer launch request is required only when an
- * enhanced handoff is actually executed.
+ * Historical conversation-mode and ephemeral-agent configuration fields no
+ * longer control task-delivery prompt ceremony.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -50,9 +49,10 @@ async function getPlannerDeliveryOutput(
   return fullCliOutput;
 }
 
-describe('enhancer policy at task delivery', () => {
-  test('enhanced send includes enhancer guidance without a saved enhancer config', async () => {
-    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('enhanced-no-config');
+describe('generic task delivery compatibility', () => {
+  test('compatibility mode uses ordinary delivery without a saved ephemeral config', async () => {
+    const { sessionId, chatroomId } =
+      await setupPlannerWorkspaceForSession('compatibility-no-config');
     await addEnhancerToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
@@ -60,7 +60,7 @@ describe('enhancer policy at task delivery', () => {
       sessionId,
       chatroomId,
       senderRole: 'user',
-      content: 'Use enhanced planning',
+      content: 'Use compatibility planning',
       targetRole: 'planner',
       type: 'message',
       conversationMode: 'code:enhanced',
@@ -69,11 +69,12 @@ describe('enhancer policy at task delivery', () => {
     const task = await getTaskForMessage(chatroomId, messageIdTyped);
     const output = await getPlannerDeliveryOutput(sessionId, chatroomId, task._id, messageIdTyped);
 
-    expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('--next-role="enhancer"');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<enhancer-input>');
+    expect(output).toContain('--next-role="user"');
   });
 
-  test('chat send omits enhancer guidance even when an enhancer config exists', async () => {
+  test('chat send stays direct even when an ephemeral config exists', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('chat-with-config');
     await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
@@ -93,12 +94,12 @@ describe('enhancer policy at task delivery', () => {
     const output = await getPlannerDeliveryOutput(sessionId, chatroomId, task._id, messageIdTyped);
 
     expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('--next-role="enhancer"');
+    expect(output).toContain('<chat-mode>');
     expect(output).toContain('--next-role="user"');
   });
 
-  test('planner handoff to enhancer is rejected when the send-time mode is not enhanced', async () => {
-    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('handoff-not-enhanced');
+  test('planner handoff to configured ephemeral role uses the generic path in code mode', async () => {
+    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('handoff-ephemeral');
     await addEnhancerToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -125,7 +126,9 @@ describe('enhancer policy at task delivery', () => {
       content: 'check-in',
     });
 
-    expect(result.success).toBe(false);
-    expect(result.error?.code).toBe('ENHANCER_NOT_ENABLED');
+    expect(result.success).toBe(true);
+    const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(targetTask?.assignedTo).toBe('enhancer');
+    expect(targetTask?.content).toBe('check-in');
   });
 });

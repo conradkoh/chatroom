@@ -464,7 +464,7 @@ export const getStatus = query({
       isRunning: row.status !== 'offline',
       lastSeenAt: row.lastSeenAt ?? null,
       lastSeenAction: row.lastSeenAction ?? null,
-      activeWork: row.activeWork ?? null,
+      activeWork: row.activeWork?.kind === 'task' ? row.activeWork : null,
       error: row.error ?? null,
       projectedAt: row.projectedAt,
       workingDir: row.workingDir ?? '',
@@ -510,7 +510,7 @@ export const listStatus = query({
         workingDir: row?.workingDir ?? null,
         lastSeenAt: row?.lastSeenAt ?? null,
         lastSeenAction: row?.lastSeenAction ?? null,
-        activeWork: row?.activeWork ?? null,
+        activeWork: row?.activeWork?.kind === 'task' ? row.activeWork : null,
         error: row?.error ?? null,
         projectedAt: row?.projectedAt ?? null,
       };

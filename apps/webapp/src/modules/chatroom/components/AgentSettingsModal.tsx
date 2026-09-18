@@ -920,6 +920,8 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
           Agents
         </h3>
         <p className="text-xs text-chatroom-text-muted">
+          This is the single configuration surface for all permanent and ephemeral agents. Ephemeral
+          agents start on demand.{' '}
           {isLoading
             ? 'Loading agents...'
             : `${agents.length} agents available for this workspace.`}

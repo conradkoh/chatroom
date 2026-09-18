@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PlannerNewSessionToggle } from './PlannerNewSessionToggle';
-import { StartInNewSessionPreferenceProvider } from '../../../hooks/useStartInNewSessionPreference';
+import { StartInNewSessionPreferenceProvider } from '../../hooks/useStartInNewSessionPreference';
 
 function mockPlatform(platform: string) {
   Object.defineProperty(navigator, 'platform', {

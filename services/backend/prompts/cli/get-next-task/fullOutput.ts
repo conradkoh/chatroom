@@ -56,14 +56,7 @@ export interface FullCliOutputParams {
   sourceAttachments?: PrimaryDeliveryAttachments | undefined;
   /** Standing instructions for this chatroom (null = none active). */
   standingInstructions?: string | null | undefined;
-  /** When true, entry-point task delivery includes handoff-enhancer guidance. */
-  plannerEnhancerEnabled?: boolean | undefined;
-  entryPointRole?: string | undefined;
-  originUserMessageId?: string | undefined;
-  /**
-   * Explicit conversation mode snapshot. When present, drives mode-specific
-   * prompt behaviour (e.g. Chat mode suppresses enhancer ceremony).
-   */
+  /** Explicit conversation mode snapshot for Chat-mode direct-answer behavior. */
   conversationMode?: ConversationMode | undefined;
 }
 
@@ -81,8 +74,6 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     isEntryPoint,
     sourceAttachments,
     standingInstructions,
-    plannerEnhancerEnabled,
-    entryPointRole,
     conversationMode,
   } = params;
 
@@ -97,9 +88,6 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     isEntryPoint,
     sourceAttachments,
     standingInstructions,
-    plannerEnhancerEnabled,
-    entryPointRole,
-    originUserMessageId: params.originUserMessageId,
     conversationMode,
   });
 }
@@ -116,9 +104,6 @@ function appendCliSharedHandoffSections(
     | 'message'
     | 'availableHandoffTargets'
     | 'isEntryPoint'
-    | 'plannerEnhancerEnabled'
-    | 'originUserMessageId'
-    | 'entryPointRole'
     | 'conversationMode'
   >
 ): void {
@@ -148,7 +133,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     nativeIntegration = false,
     sourceAttachments,
     standingInstructions,
-    plannerEnhancerEnabled,
     conversationMode,
   } = params;
 
@@ -177,9 +161,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     message,
     availableHandoffTargets,
     isEntryPoint,
-    plannerEnhancerEnabled,
-    entryPointRole: params.entryPointRole,
-    originUserMessageId: params.originUserMessageId,
     conversationMode,
   });
   appendCliTaskDeliveryFooter(lines, { chatroomId, role, cliEnvPrefix });

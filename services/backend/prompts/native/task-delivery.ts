@@ -6,7 +6,6 @@
  * delivers work; the agent completes it and hands off.
  */
 
-import { getNativeEnhancerInputTaskIntake } from './enhancer-input-intake';
 import {
   getNativeChatTaskStartedPrompt,
   getNativeTaskStartedPrompt,
@@ -21,6 +20,7 @@ import { renderTaskEnvelopeLines } from '../task-delivery/render-task-envelope.j
 
 export type NativeTaskDeliveryParams = TaskDeliveryParams;
 
+// fallow-ignore-next-line complexity
 function resolveNativeTaskIntakeContent(
   params: Pick<
     NativeTaskDeliveryParams,
@@ -40,9 +40,6 @@ function resolveNativeTaskIntakeContent(
     })
   ) {
     return getNativeChatTaskStartedPrompt();
-  }
-  if (message?.senderRole.toLowerCase() === 'enhancer') {
-    return getNativeEnhancerInputTaskIntake({ chatroomId, role, cliEnvPrefix });
   }
   return getNativeTaskStartedPrompt({
     chatroomId,
@@ -105,7 +102,6 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     isEntryPoint,
     sourceAttachments,
     standingInstructions,
-    plannerEnhancerEnabled,
     conversationMode,
   } = params;
 
@@ -134,11 +130,9 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     role,
     cliEnvPrefix,
     teamId,
-    task,
     message,
     availableHandoffTargets,
     isEntryPoint,
-    plannerEnhancerEnabled,
     conversationMode,
   });
 

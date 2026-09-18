@@ -1,10 +1,6 @@
-/**
- * TaskItem — cancel-enhancer control rendering and click behavior.
- */
-
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { TaskItem } from './TaskItem';
 import type { Task } from './types';
@@ -17,41 +13,12 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     queuePosition: 1,
-    assignedTo: 'enhancer',
+    assignedTo: 'builder',
     ...overrides,
   };
 }
 
-describe('TaskItem cancel enhancer', () => {
-  it('shows cancel button for enhancer-assigned task when showCancelEnhancer is set', () => {
-    render(
-      <TaskItem
-        task={makeTask({ assignedTo: 'enhancer' })}
-        isProtected
-        showCancelEnhancer
-        onCancelEnhancer={vi.fn()}
-      />
-    );
-
-    const button = screen.getByTestId('cancel-enhancer-task');
-    expect(button).toBeInTheDocument();
-    // Sparkles icon (not XCircle) renders inside the cancel control.
-    expect(button.querySelector('svg')).not.toBeNull();
-  });
-
-  it('hides cancel button when showCancelEnhancer is false', () => {
-    render(
-      <TaskItem
-        task={makeTask({ assignedTo: 'enhancer' })}
-        isProtected
-        showCancelEnhancer={false}
-        onCancelEnhancer={vi.fn()}
-      />
-    );
-
-    expect(screen.queryByTestId('cancel-enhancer-task')).not.toBeInTheDocument();
-  });
-
+describe('TaskItem', () => {
   it('shows the latest delivery failure reason', () => {
     render(
       <TaskItem
@@ -63,30 +30,5 @@ describe('TaskItem cancel enhancer', () => {
     );
 
     expect(screen.getByText('Delivery failed: no agent config')).toBeInTheDocument();
-  });
-
-  it('hides cancel button when no onCancelEnhancer provided', () => {
-    render(<TaskItem task={makeTask({ assignedTo: 'enhancer' })} isProtected showCancelEnhancer />);
-
-    expect(screen.queryByTestId('cancel-enhancer-task')).not.toBeInTheDocument();
-  });
-
-  it('calls onCancelEnhancer and stops propagation (row onClick not fired)', () => {
-    const onCancelEnhancer = vi.fn();
-    const onClick = vi.fn();
-    render(
-      <TaskItem
-        task={makeTask({ assignedTo: 'enhancer' })}
-        isProtected
-        showCancelEnhancer
-        onCancelEnhancer={onCancelEnhancer}
-        onClick={onClick}
-      />
-    );
-
-    fireEvent.click(screen.getByTestId('cancel-enhancer-task'));
-
-    expect(onCancelEnhancer).toHaveBeenCalledTimes(1);
-    expect(onClick).not.toHaveBeenCalled();
   });
 });

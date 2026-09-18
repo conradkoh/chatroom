@@ -1,21 +1,11 @@
 /**
- * Shared task delivery sections: next steps, handoff templates, handoff targets.
- *
- * Used by both native and CLI task delivery paths.
+ * Shared task-delivery prompt assembly: next steps, handoff templates, and
+ * advertised handoff targets for permanent and ephemeral team agents.
  */
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
-import { isSupportedEnhancerRole } from '@workspace/shared/domain/enhancer-team-capability';
 
 import { isChatModeEntryPointUserTask } from './chat-mode-policy.js';
-import {
-  appendPlanningReviewOutcomeGuidance,
-  appendTaskDeliveryEnhancerGuidance,
-  appendTaskDeliveryEnhancerDisabledGuidance,
-  appendTaskDeliveryEnhancerInputGuidance,
-  isPlanningReviewOutcomeContent,
-} from './enhancer-guidance.js';
-import { appendEnhancerRoleTaskDeliveryGuidance } from './enhancer-role-guidance';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
@@ -32,94 +22,7 @@ export interface TaskDeliveryParams {
   isEntryPoint?: boolean | undefined;
   sourceAttachments?: PrimaryDeliveryAttachments | undefined;
   standingInstructions?: string | null | undefined;
-  /** When true, entry-point task delivery includes handoff-enhancer guidance. */
-  plannerEnhancerEnabled?: boolean | undefined;
-  originUserMessageId?: string | undefined;
-  entryPointRole?: string | undefined;
-  /**
-   * Explicit conversation mode snapshot. When present, drives mode-specific
-   * prompt behaviour (e.g. Chat mode suppresses enhancer ceremony).
-   */
   conversationMode?: ConversationMode | undefined;
-}
-
-function appendPlannerEnhancerGuidanceForMessage(
-  lines: string[],
-  message: { senderRole: string; content?: string | undefined } | null | undefined,
-  ctx: Pick<TaskDeliveryParams, 'chatroomId' | 'role' | 'cliEnvPrefix'>,
-  taskContent?: string
-): void {
-  const senderRole = message?.senderRole.toLowerCase();
-  if (senderRole === 'enhancer') {
-    const body = taskContent ?? message?.content ?? '';
-    if (isPlanningReviewOutcomeContent(body)) {
-      appendPlanningReviewOutcomeGuidance(lines);
-    } else {
-      appendTaskDeliveryEnhancerInputGuidance(lines, ctx);
-    }
-    return;
-  }
-}
-
-function appendEnabledEnhancerGuidance(
-  lines: string[],
-  params: Pick<
-    TaskDeliveryParams,
-    | 'chatroomId'
-    | 'role'
-    | 'cliEnvPrefix'
-    | 'plannerEnhancerEnabled'
-    | 'originUserMessageId'
-    | 'teamId'
-    | 'entryPointRole'
-    | 'message'
-    | 'task'
-    | 'isEntryPoint'
-    | 'teamId'
-  >
-): void {
-  const senderRole = params.message?.senderRole.toLowerCase();
-  if (senderRole === 'user') {
-    appendTaskDeliveryEnhancerGuidance(lines, {
-      entryPointRole: params.role,
-      hasBuilder: params.teamId?.toLowerCase() === 'duo',
-    });
-    return;
-  }
-  appendPlannerEnhancerGuidanceForMessage(lines, params.message, params, params.task?.content);
-}
-
-function appendTaskDeliveryEnhancerGuidanceIfEnabled(
-  lines: string[],
-  params: Pick<
-    TaskDeliveryParams,
-    | 'chatroomId'
-    | 'role'
-    | 'cliEnvPrefix'
-    | 'plannerEnhancerEnabled'
-    | 'message'
-    | 'task'
-    | 'isEntryPoint'
-    | 'teamId'
-    | 'conversationMode'
-  >
-): void {
-  if (!params.isEntryPoint || !isSupportedEnhancerRole(params.teamId, params.role)) return;
-  // Chat mode: no enhancer ceremony for entry-point user tasks.
-  if (
-    isChatModeEntryPointUserTask({
-      conversationMode: params.conversationMode,
-      isEntryPoint: params.isEntryPoint,
-      senderRole: params.message?.senderRole,
-    })
-  )
-    return;
-  if (params.plannerEnhancerEnabled) return appendEnabledEnhancerGuidance(lines, params);
-
-  const senderRole = params.message?.senderRole?.toLowerCase();
-  if (senderRole === 'user' || senderRole === 'builder') {
-    appendTaskDeliveryEnhancerDisabledGuidance(lines);
-  }
 }
 
 function appendPrimaryHandoffInstructions(
@@ -130,14 +33,11 @@ function appendPrimaryHandoffInstructions(
     cliEnvPrefix: string;
     primaryTarget: string;
     senderRole?: string | undefined;
-    requestFirstEnhancerHandoff: boolean;
   }
 ): void {
   const senderNote = params.senderRole ? ` (task from \`${params.senderRole}\`)` : '';
   lines.push(
-    params.requestFirstEnhancerHandoff
-      ? `2. **Run this handoff command as your final action now** — this forwards the request to \`${params.primaryTarget}\`${senderNote}:`
-      : `2. **When complete, you MUST run the handoff command as your final action this turn** — this completes your work and delivers it to \`${params.primaryTarget}\`${senderNote}:`
+    `2. **When complete, you MUST run the handoff command as your final action this turn** — this completes your work and delivers it to \`${params.primaryTarget}\`${senderNote}:`
   );
   lines.push('', '```bash');
   lines.push(
@@ -154,77 +54,27 @@ function appendPrimaryHandoffInstructions(
   );
 }
 
-function isRequestFirstEnhancerHandoff(
-  primaryTarget: string | undefined,
-  senderRole: string | undefined
-): boolean {
-  return primaryTarget?.toLowerCase() === 'enhancer' && senderRole?.toLowerCase() === 'user';
-}
-
-function getFirstNextStep(requestFirstEnhancerHandoff: boolean): string {
-  return requestFirstEnhancerHandoff
-    ? '1. **Immediately hand off the user request to the enhancer before planning, researching, or drafting.** Use the stripped-down enhancer template below.'
-    : '1. Work on the task above.';
-}
-
 function getTaskSenderRole(message: { senderRole: string } | null | undefined): string | undefined {
-  return message ? message.senderRole : undefined;
+  return message?.senderRole;
 }
 
 function appendTaskDeliveryNextSteps(
   lines: string[],
   params: Pick<
     TaskDeliveryParams,
-    | 'chatroomId'
-    | 'role'
-    | 'cliEnvPrefix'
-    | 'message'
-    | 'availableHandoffTargets'
-    | 'isEntryPoint'
-    | 'plannerEnhancerEnabled'
-    | 'originUserMessageId'
-    | 'entryPointRole'
-    | 'teamId'
-    | 'conversationMode'
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'message' | 'availableHandoffTargets' | 'isEntryPoint'
   >
 ): void {
-  const {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    message,
-    availableHandoffTargets,
-    isEntryPoint,
-    plannerEnhancerEnabled,
-    teamId,
-    conversationMode,
-  } = params;
+  const { chatroomId, role, cliEnvPrefix, message, availableHandoffTargets, isEntryPoint } = params;
   const senderRole = getTaskSenderRole(message);
-  if (role.toLowerCase() === 'enhancer') {
-    appendEnhancerRoleTaskDeliveryGuidance(lines, {
-      chatroomId,
-      role,
-      cliEnvPrefix,
-      entryPointRole:
-        params.entryPointRole ?? (teamId?.toLowerCase() === 'solo' ? 'solo' : 'planner'),
-      originUserMessageId: params.originUserMessageId,
-    });
-    lines.push('', '</next-steps>');
-    return;
-  }
   const primaryTarget = inferPrimaryHandoffTarget({
     senderRole,
     role,
     availableHandoffTargets,
     isEntryPoint,
-    plannerEnhancerEnabled,
-    conversationMode,
   });
 
-  lines.push('');
-  lines.push('<next-steps>');
-  const requestFirstEnhancerHandoff = isRequestFirstEnhancerHandoff(primaryTarget, senderRole);
-  lines.push(getFirstNextStep(requestFirstEnhancerHandoff));
+  lines.push('', '<next-steps>', '1. Work on the task above.');
 
   if (primaryTarget) {
     appendPrimaryHandoffInstructions(lines, {
@@ -233,7 +83,6 @@ function appendTaskDeliveryNextSteps(
       cliEnvPrefix,
       primaryTarget,
       senderRole,
-      requestFirstEnhancerHandoff,
     });
     lines.push('', '</next-steps>');
     return;
@@ -254,11 +103,6 @@ function appendTaskDeliveryHandoffTargets(
   >
 ): void {
   const { chatroomId, role, cliEnvPrefix, availableHandoffTargets } = params;
-
-  // availableHandoffTargets is pure capability data: it is rendered for every
-  // mode and never filtered by conversationMode. Chat only changes the primary
-  // recommendation (step 2) and its enhancer ceremony, never the advertised
-  // team handoff capabilities.
   if (availableHandoffTargets.length === 0) return;
 
   lines.push('');
@@ -270,14 +114,13 @@ function appendTaskDeliveryHandoffTargets(
     lines.push(`**${target}**`);
     lines.push('```bash');
     lines.push(handoffCommand({ chatroomId, role, nextRole: target, cliEnvPrefix }));
-    lines.push('```');
-    lines.push('');
+    lines.push('```', '');
   }
 
   lines.push('</handoffs>');
 }
 
-/** Next steps, optional enhancer guidance, templates, and handoff targets. */
+/** Next steps, generic templates, and advertised handoff targets. */
 export function appendTaskDeliveryHandoffSections(
   lines: string[],
   params: Pick<
@@ -286,26 +129,12 @@ export function appendTaskDeliveryHandoffSections(
     | 'role'
     | 'cliEnvPrefix'
     | 'teamId'
-    | 'task'
     | 'message'
     | 'availableHandoffTargets'
     | 'isEntryPoint'
-    | 'plannerEnhancerEnabled'
-    | 'originUserMessageId'
-    | 'entryPointRole'
     | 'conversationMode'
   >
 ): void {
-  // Derive the effective enhancer flag: explicit mode takes precedence over legacy boolean.
-  // When an explicit mode is present, it is the source of truth; legacy callers without a
-  // mode retain the existing boolean behaviour.
-  const effectivePlannerEnhancerEnabled = params.conversationMode
-    ? params.conversationMode === 'code:enhanced'
-    : params.plannerEnhancerEnabled === true;
-
-  // Chat-mode direct-answer recommendation: concise by default, no enhancer
-  // ceremony. This changes the recommended workflow, not team capabilities or
-  // handoff authority — alternate team targets remain advertised below.
   if (
     isChatModeEntryPointUserTask({
       conversationMode: params.conversationMode,
@@ -318,7 +147,7 @@ export function appendTaskDeliveryHandoffSections(
     lines.push('## Conversational Mode (Chat)');
     lines.push('');
     lines.push(
-      '**Answer the user directly and concisely by default. Chat mode changes the recommended ceremony, not your team capabilities or handoff authority. If the request requires team work, you may hand off to any advertised team target (for example, builder). Do not invoke the enhancer as part of the default Chat flow.**'
+      '**Answer the user directly and concisely by default. Chat mode changes the recommended ceremony, not your team capabilities or handoff authority. If the request requires team work, you may hand off to any advertised team target (for example, builder).**'
     );
     lines.push(
       '**Do not run `chatroom context read` or `chatroom context new` for this Chat-mode task.**'
@@ -329,39 +158,13 @@ export function appendTaskDeliveryHandoffSections(
     lines.push('</chat-mode>');
   }
 
-  appendTaskDeliveryNextSteps(lines, {
-    ...params,
-    plannerEnhancerEnabled: effectivePlannerEnhancerEnabled,
-  });
-  appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, {
-    chatroomId: params.chatroomId,
-    role: params.role,
-    cliEnvPrefix: params.cliEnvPrefix,
-    plannerEnhancerEnabled: effectivePlannerEnhancerEnabled,
-    message: params.message,
-    task: params.task,
-    isEntryPoint: params.isEntryPoint,
-    teamId: params.teamId,
-    conversationMode: params.conversationMode,
-  });
+  appendTaskDeliveryNextSteps(lines, params);
   appendTaskDeliveryHandoffTemplates(lines, {
     teamId: params.teamId,
     role: params.role,
     chatroomId: params.chatroomId,
     cliEnvPrefix: params.cliEnvPrefix,
     conversationMode: params.conversationMode,
-    isEntryPoint: params.isEntryPoint,
-    senderRole: params.message?.senderRole,
-    includeEnhancerTemplate:
-      // Chat mode: never include enhancer-only template content.
-      !isChatModeEntryPointUserTask({
-        conversationMode: params.conversationMode,
-        isEntryPoint: params.isEntryPoint,
-        senderRole: params.message?.senderRole,
-      }) &&
-      effectivePlannerEnhancerEnabled &&
-      params.isEntryPoint === true &&
-      params.message?.senderRole.toLowerCase() === 'user',
   });
   appendTaskDeliveryHandoffTargets(lines, params);
 }

@@ -139,7 +139,7 @@ describe('Native task delivery — attached context', () => {
 });
 
 describe('Native task delivery — Chat mode eager template matrix', () => {
-  test('duo planner chat entry-point user keeps user + builder templates and omits enhancer', () => {
+  test('duo planner chat entry-point user keeps base templates without enhancer-specific injection', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,
       role: 'planner',
@@ -156,7 +156,7 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).toContain('<handoff-templates>');
     expect(output).toContain('Handoff to `user`');
     expect(output).toContain('Handoff to `builder`');
-    // No enhancer template for Chat
+    // No enhancer-specific template is injected in Chat or any other mode.
     expect(output).not.toContain('Handoff to `enhancer`');
     // Alternate handoff targets remain advertised
     expect(output).toContain('<handoffs>');
@@ -166,7 +166,7 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
   });
 
-  test('solo chat entry-point user keeps user template and no enhancer template', () => {
+  test('solo chat entry-point user keeps base template and advertises ephemeral capability', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,
       role: 'solo',
@@ -181,7 +181,7 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
 
     expect(output).toContain('<handoff-templates>');
     expect(output).toContain('Handoff to `user`');
-    // No enhancer template (includeEnhancerTemplate stays false for Chat)
+    // The base solo template remains unchanged; the capability is advertised separately.
     expect(output).not.toContain('Handoff to `enhancer`');
     // Supplied capability data still renders (user + enhancer were advertised)
     expect(output).toContain('<handoffs>');

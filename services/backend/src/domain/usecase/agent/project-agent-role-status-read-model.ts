@@ -11,7 +11,7 @@ export type AgentRoleStatusReadModelStatus = ChatroomAgentActivityStatusValue;
 
 export type StatusEvent = {
   status: AgentRoleStatusReadModelStatus;
-  errorSource?: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop' | undefined;
+  errorSource?: 'configuration' | 'runtime' | 'task' | 'stop' | undefined;
   errorCode?: string | undefined;
   errorMessage?: string | undefined;
 };
@@ -20,7 +20,6 @@ export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
   if (lastStatus === 'agent.waiting' || lastStatus === 'task.completed')
     return { status: 'waiting' };
   if (
-    lastStatus === 'agent.enhancing' ||
     lastStatus === 'agent.awaitingHandoff' ||
     lastStatus === 'task.inProgress' ||
     lastStatus === 'task.acknowledged'

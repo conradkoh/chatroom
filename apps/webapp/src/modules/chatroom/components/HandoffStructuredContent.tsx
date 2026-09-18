@@ -4,10 +4,8 @@ import type { ReactNode } from 'react';
 
 import { HandoffEnvelopeView } from './timeline/HandoffEnvelopeView';
 import { HandoffReportView } from './timeline/HandoffReportView';
-import { PlanningReviewOutcomeView } from './timeline/PlanningReviewOutcomeView';
 import { hasHandoffEnvelope } from '../utils/parseHandoffEnvelope';
 import { hasHandoffReport } from '../utils/parseHandoffReport';
-import { hasPlanningReviewOutcome } from '../utils/parsePlanningReviewOutcome';
 
 export type HandoffStructuredContentVariant = 'timeline' | 'detail';
 
@@ -23,9 +21,6 @@ export function HandoffStructuredContent({
   variant = 'detail',
   fallback = null,
 }: HandoffStructuredContentProps) {
-  if (hasPlanningReviewOutcome(content)) {
-    return <PlanningReviewOutcomeView content={content} variant={variant} />;
-  }
   if (hasHandoffEnvelope(content)) {
     return <HandoffEnvelopeView content={content} variant={variant} />;
   }

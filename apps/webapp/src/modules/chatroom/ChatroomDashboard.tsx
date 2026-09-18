@@ -3,6 +3,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
@@ -1430,7 +1431,7 @@ function ChatroomDashboardContent({
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
-    () => teamRoles.filter((r) => r !== 'user' && r.toLowerCase() !== 'enhancer'),
+    () => teamRoles.filter((role) => role !== 'user' && !isEphemeralAgentRole(role)),
     [teamRoles]
   );
 
@@ -1814,15 +1815,7 @@ function ChatroomDashboardContent({
                 <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
                   <div className="flex flex-1 overflow-hidden relative min-h-0">
                     {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
-                    <ActivityBar
-                      activeView={activeView}
-                      onViewChange={handleActivityViewChange}
-                      chatroomId={chatroomId}
-                      machineId={activeWorkspace?.machineId ?? null}
-                      workspaceId={activeWorkspace?.workspaceId ?? null}
-                      workingDir={activeWorkspace?.workingDir ?? null}
-                      teamId={agentPanelData.team.teamId ?? null}
-                    />
+                    <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
 
                     {/* File Explorer Left Sidebar — shown in explorer view */}
                     {activeView === 'explorer' && activeWorkspace && explorerSidebarVisible && (

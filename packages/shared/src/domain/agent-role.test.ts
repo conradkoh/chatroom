@@ -14,14 +14,16 @@ describe('agent-role lifecycle tags', () => {
     expect(getAgentRoleTags('planner')).toEqual([AgentRoleLifecycleTag.Permanent]);
     expect(getAgentRoleTags('builder')).toEqual([AgentRoleLifecycleTag.Permanent]);
     expect(getAgentRoleTags('solo')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getAgentRoleTags('architect')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getAgentRoleTags('uiux-engineer')).toEqual([AgentRoleLifecycleTag.Permanent]);
     expect(getAgentRoleTags('enhancer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
   });
 
   test('unknown roles default to permanent', () => {
-    expect(getAgentRoleTags('architect')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getAgentRoleTags('custom-role')).toEqual([AgentRoleLifecycleTag.Permanent]);
     expect(getAgentRoleTags(' custom-role ')).toEqual([AgentRoleLifecycleTag.Permanent]);
-    expect(hasAgentRoleTag('architect', AgentRoleLifecycleTag.Permanent)).toBe(true);
-    expect(hasAgentRoleTag('architect', AgentRoleLifecycleTag.Ephemeral)).toBe(false);
+    expect(hasAgentRoleTag('custom-role', AgentRoleLifecycleTag.Permanent)).toBe(true);
+    expect(hasAgentRoleTag('custom-role', AgentRoleLifecycleTag.Ephemeral)).toBe(false);
   });
 
   test('tag helpers are case-insensitive', () => {
@@ -36,5 +38,6 @@ describe('agent-role lifecycle tags', () => {
     ]);
     expect(getPermanentRoleNames(['solo', 'enhancer'])).toEqual(['solo']);
     expect(getPermanentRoleNames(['architect'])).toEqual(['architect']);
+    expect(getPermanentRoleNames(['uiux-engineer'])).toEqual(['uiux-engineer']);
   });
 });

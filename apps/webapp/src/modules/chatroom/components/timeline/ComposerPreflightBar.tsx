@@ -2,11 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { PlannerConversationModeToggle } from '../../features/enhancers/components/PlannerConversationModeToggle';
-import { PlannerNewSessionToggle } from '../../features/enhancers/components/PlannerNewSessionToggle';
-import { teamSupportsEnhancer } from '../../hooks/persistence/teamEnhancerSupport';
-import { useAgentPanelData } from '../../hooks/useAgentPanelData';
-import { useChatroomLifecycle } from '../../hooks/useChatroomLifecycle';
+import { PlannerNewSessionToggle } from './PlannerNewSessionToggle';
 import { StandingInstructionsBar } from '../StandingInstructionsBar';
 
 export function ComposerPreflightBar({
@@ -16,15 +12,6 @@ export function ComposerPreflightBar({
   chatroomId: Id<'chatroom_rooms'>;
   onRequestComposerFocus?: () => void;
 }) {
-  const { activeWorkspace } = useChatroomLifecycle(chatroomId);
-  const { teamId, teamRoles, isLoading } = useAgentPanelData();
-
-  const teamSupportState = isLoading
-    ? 'loading'
-    : teamSupportsEnhancer(teamId, teamRoles)
-      ? 'supported'
-      : 'unsupported';
-
   return (
     <div
       className="flex items-stretch w-full border-b border-chatroom-border"
@@ -35,17 +22,6 @@ export function ComposerPreflightBar({
       </div>
       <div className="shrink-0 border-l border-chatroom-border flex items-stretch w-[3.75rem] sm:w-auto sm:min-w-[7rem]">
         <PlannerNewSessionToggle onRequestComposerFocus={onRequestComposerFocus} />
-      </div>
-      <div className="shrink-0 border-l border-chatroom-border flex items-stretch w-[3.75rem] sm:w-auto sm:min-w-[7rem]">
-        <PlannerConversationModeToggle
-          chatroomId={chatroomId}
-          machineId={activeWorkspace?.machineId ?? null}
-          workspaceId={activeWorkspace?.workspaceId ?? null}
-          workingDir={activeWorkspace?.workingDir ?? null}
-          teamId={teamId}
-          teamSupportState={teamSupportState}
-          onRequestComposerFocus={onRequestComposerFocus}
-        />
       </div>
     </div>
   );

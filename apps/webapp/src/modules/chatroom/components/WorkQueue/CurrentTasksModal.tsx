@@ -1,6 +1,5 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
 import React from 'react';
 
 import type { Task } from './types';
@@ -20,18 +19,9 @@ export interface CurrentTasksModalProps {
   tasks: Task[];
   onClose: () => void;
   onTaskClick: (task: Task) => void;
-  /** Cancel the in-flight enhancer task. */
-  onCancelEnhancer?: (taskId: string) => void;
-  isCancellingEnhancer?: boolean;
 }
 
-export function CurrentTasksModal({
-  tasks,
-  onClose,
-  onTaskClick,
-  onCancelEnhancer,
-  isCancellingEnhancer = false,
-}: CurrentTasksModalProps) {
+export function CurrentTasksModal({ tasks, onClose, onTaskClick }: CurrentTasksModalProps) {
   return (
     <FixedModal isOpen onClose={onClose} maxWidth="max-w-xl" className="sm:max-h-[70vh]">
       <FixedModalContent>
@@ -46,13 +36,7 @@ export function CurrentTasksModal({
             <div className="p-8 text-center text-chatroom-text-muted text-sm">No current tasks</div>
           ) : (
             tasks.map((task) => (
-              <CurrentTasksModalItem
-                key={task._id}
-                task={task}
-                onClick={() => onTaskClick(task)}
-                onCancelEnhancer={onCancelEnhancer}
-                isCancellingEnhancer={isCancellingEnhancer}
-              />
+              <CurrentTasksModalItem key={task._id} task={task} onClick={() => onTaskClick(task)} />
             ))
           )}
         </FixedModalBody>
@@ -65,17 +49,10 @@ export function CurrentTasksModal({
 export interface CurrentTasksModalItemProps {
   task: Task;
   onClick: () => void;
-  onCancelEnhancer?: (taskId: string) => void;
-  isCancellingEnhancer?: boolean;
 }
 
 // fallow-ignore-next-line complexity
-export function CurrentTasksModalItem({
-  task,
-  onClick,
-  onCancelEnhancer,
-  isCancellingEnhancer = false,
-}: CurrentTasksModalItemProps) {
+export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemProps) {
   const badge = getStatusBadge(task.status);
   const relativeTime = task.updatedAt ? formatRelativeTime(task.updatedAt) : '';
 
@@ -136,25 +113,6 @@ export function CurrentTasksModalItem({
               }}
             />
           </div>
-        )}
-      </div>
-
-      {/* Cancel enhancer — trailing action, end-aligned */}
-      <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-        {task.assignedTo === 'enhancer' && onCancelEnhancer && (
-          <button
-            type="button"
-            data-testid="cancel-enhancer-modal-item"
-            title="Cancel planning review"
-            disabled={isCancellingEnhancer}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCancelEnhancer(task._id);
-            }}
-            className="p-1.5 rounded transition-colors disabled:opacity-50 text-blue-500 dark:text-blue-400 hover:bg-blue-500/10"
-          >
-            <Sparkles size={14} className="fill-current" />
-          </button>
         )}
       </div>
     </div>
