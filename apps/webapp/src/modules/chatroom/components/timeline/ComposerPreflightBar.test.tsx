@@ -7,7 +7,7 @@ const { mockNewSessionToggle } = vi.hoisted(() => ({
   mockNewSessionToggle: vi.fn(),
 }));
 
-vi.mock('../../features/enhancers/components/PlannerNewSessionToggle', () => ({
+vi.mock('./PlannerNewSessionToggle', () => ({
   PlannerNewSessionToggle: (props: unknown) => {
     mockNewSessionToggle(props);
     return <div data-testid="planner-new-session-toggle" />;

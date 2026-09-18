@@ -2,8 +2,8 @@
 import { useCallback } from 'react';
 
 import { PlannerNewSessionToggleButton } from './PlannerNewSessionToggleButton';
-import { useComposerPreflightShortcut } from '../../../hooks/useComposerPreflightShortcut';
-import { useStartInNewSessionPreference } from '../../../hooks/useStartInNewSessionPreference';
+import { useComposerPreflightShortcut } from '../../hooks/useComposerPreflightShortcut';
+import { useStartInNewSessionPreference } from '../../hooks/useStartInNewSessionPreference';
 
 interface PlannerNewSessionToggleProps {
   onRequestComposerFocus?: () => void;

@@ -1,7 +1,7 @@
 'use client';
 import { RotateCcw } from 'lucide-react';
 
-import { getComposerPreflightShortcutLabel } from '../../../hooks/useComposerPreflightShortcut';
+import { getComposerPreflightShortcutLabel } from '../../hooks/useComposerPreflightShortcut';
 
 import { cn } from '@/lib/utils';
 

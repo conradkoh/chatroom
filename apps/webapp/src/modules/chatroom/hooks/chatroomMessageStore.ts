@@ -31,7 +31,6 @@ export function toMessage(m: any): Message {
     attachedSnippets: m.attachedSnippets,
     isQueued: m.isQueued,
     contextCreatedBy: m.contextCreatedBy,
-    enhancerOriginalContent: m.enhancerOriginalContent,
     scheduledPromptId: m.scheduledPromptId,
   };
 }

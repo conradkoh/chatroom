@@ -2,7 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { PlannerNewSessionToggle } from '../../features/enhancers/components/PlannerNewSessionToggle';
+import { PlannerNewSessionToggle } from './PlannerNewSessionToggle';
 import { StandingInstructionsBar } from '../StandingInstructionsBar';
 
 export function ComposerPreflightBar({

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TimelineTeamMessage } from './TimelineTeamMessage';
@@ -25,27 +25,6 @@ vi.mock('./TimelineMarkdownBody', () => ({
   ),
 }));
 
-vi.mock('diff', () => ({ diffLines: () => [] }));
-
-vi.mock('../../features/enhancers/components/EnhancerDiffPanel', () => ({
-  EnhancerDiffPanel: ({
-    open,
-    onOpenChange,
-  }: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-  }) =>
-    open ? (
-      <div role="dialog">
-        <span>Enhancement diff</span>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Close
-        </button>
-        <div data-testid="enhancer-unified-diff-view" />
-      </div>
-    ) : null,
-}));
-
 vi.mock('../../attachments', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof AttachmentsModule;
   return {
@@ -61,7 +40,7 @@ vi.mock('./HandoffEnvelopeView', () => ({
   HandoffEnvelopeView: ({
     content,
     variant,
-    initiallyExpanded,
+    initiallyExpanded = false,
   }: {
     content: string;
     variant: string;
@@ -81,74 +60,38 @@ const BASE_MESSAGE: Message = {
   _id: 'msg-1',
   type: 'handoff',
   senderRole: 'planner',
-  content: 'Enhanced handoff content',
+  content: 'Handoff content',
   _creationTime: 1000,
 };
 
-describe('TimelineTeamMessage enhancer toggle', () => {
-  it('shows no toggle when message has no enhancerOriginalContent', () => {
+describe('TimelineTeamMessage', () => {
+  it('renders ordinary markdown and generic footer metadata', () => {
     render(
       <TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" handoffDurationMs={62_000} />
     );
 
-    expect(screen.queryByTestId('enhancer-content-toggle')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('timeline-enhanced-indicator')).not.toBeInTheDocument();
-    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
-      'Enhanced handoff content'
-    );
+    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent('Handoff content');
     expect(screen.getByTestId('timeline-handoff-duration')).toHaveTextContent('1m 2s');
+    expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
   });
 
-  it('does not show enhancer toggle in header when enhancerOriginalContent exists', () => {
-    render(
-      <TimelineTeamMessage
-        message={{ ...BASE_MESSAGE, enhancerOriginalContent: 'Original draft content' }}
-        chatroomId="room-1"
-      />
-    );
-    expect(screen.queryByTestId('enhancer-content-toggle')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Show original version/ })).not.toBeInTheDocument();
-    expect(screen.getByTestId('timeline-enhanced-indicator')).toBeInTheDocument();
-    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
-      'Enhanced handoff content'
-    );
-  });
-
-  it('clicking enhanced indicator opens diff panel', () => {
-    render(
-      <TimelineTeamMessage
-        message={{
-          ...BASE_MESSAGE,
-          enhancerOriginalContent: 'Original draft content',
-        }}
-        chatroomId="room-1"
-      />
-    );
-
-    fireEvent.click(screen.getByTestId('timeline-enhanced-indicator'));
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Enhancement diff')).toBeInTheDocument();
-    expect(screen.getByTestId('enhancer-unified-diff-view')).toBeInTheDocument();
-  });
-
-  it('renders HandoffEnvelopeView for planner check-in envelope', () => {
+  it('renders HandoffEnvelopeView with generic collapsed defaults', () => {
     const envelopeMessage: Message = {
       ...BASE_MESSAGE,
-      targetRole: 'enhancer',
+      targetRole: 'builder',
       content: '<user-message>hello</user-message><grounding>notes</grounding>',
     };
     render(<TimelineTeamMessage message={envelopeMessage} chatroomId="room-1" />);
     const envelopeView = screen.getByTestId('handoff-envelope-view');
     expect(envelopeView).toBeInTheDocument();
-    expect(envelopeView).toHaveAttribute('data-initially-expanded', 'true');
+    expect(envelopeView).toHaveAttribute('data-initially-expanded', 'false');
     expect(screen.queryByTestId('timeline-markdown-body')).not.toBeInTheDocument();
   });
 
-  it('renders HandoffEnvelopeView collapsed for a non-planner-to-enhancer envelope', () => {
+  it('renders HandoffEnvelopeView collapsed for any ordinary sender', () => {
     const envelopeMessage: Message = {
       ...BASE_MESSAGE,
-      senderRole: 'enhancer',
+      senderRole: 'builder',
       targetRole: 'planner',
       content: '<user-message>hi</user-message><grounding>notes</grounding>',
     };
@@ -159,10 +102,10 @@ describe('TimelineTeamMessage enhancer toggle', () => {
     expect(screen.queryByTestId('timeline-markdown-body')).not.toBeInTheDocument();
   });
 
-  it('renders HandoffReportView for enhancer feedback with XML sections', () => {
-    const enhancerFeedback: Message = {
+  it('renders HandoffReportView for structured handoff content', () => {
+    const reportMessage: Message = {
       ...BASE_MESSAGE,
-      senderRole: 'enhancer',
+      senderRole: 'builder',
       targetRole: 'planner',
       content: `<handoff-overview>
 ## Summary
@@ -174,42 +117,10 @@ Looks good overall
 Edge case X
 </handoff-action>`,
     };
-    render(<TimelineTeamMessage message={enhancerFeedback} chatroomId="room-1" />);
+    render(<TimelineTeamMessage message={reportMessage} chatroomId="room-1" />);
     expect(screen.getByTestId('handoff-report-view')).toBeInTheDocument();
     expect(screen.getByTestId('handoff-section-overview')).toBeInTheDocument();
     expect(screen.getByTestId('handoff-section-action')).toBeInTheDocument();
-  });
-
-  it('renders PlanningReviewOutcomeView for planning-review-outcome content', () => {
-    const msg: Message = {
-      ...BASE_MESSAGE,
-      type: 'handoff',
-      content:
-        '<planning-review-outcome status="cancelled">\n## Planning review cancelled\nBody\n</planning-review-outcome>',
-    };
-    render(<TimelineTeamMessage message={msg} chatroomId="room-1" />);
-    expect(screen.getByTestId('planning-review-outcome-view')).toBeInTheDocument();
-    expect(screen.queryByText(/<planning-review-outcome/)).not.toBeInTheDocument();
-  });
-
-  it('renders HandoffReportView when enhancer feedback mentions planning-review-outcome in prose', () => {
-    const msg: Message = {
-      ...BASE_MESSAGE,
-      type: 'handoff',
-      senderRole: 'enhancer',
-      targetRole: 'planner',
-      content: `<handoff-overview>
-## Summary
-Looks good
-</handoff-overview>
-<handoff-action>
-## Risks
-Prior round returned as \`<planning-review-outcome status="cancelled">\`
-</handoff-action>`,
-    };
-    render(<TimelineTeamMessage message={msg} chatroomId="room-1" />);
-    expect(screen.getByTestId('handoff-report-view')).toBeInTheDocument();
-    expect(screen.queryByTestId('planning-review-outcome-view')).not.toBeInTheDocument();
   });
 
   describe('presentation-fence unwrapping', () => {
@@ -231,7 +142,7 @@ Prior round returned as \`<planning-review-outcome status="cancelled">\`
     it('routes a fenced handoff report through HandoffReportView without the outer wrapper', () => {
       const wrappedReport: Message = {
         ...BASE_MESSAGE,
-        senderRole: 'enhancer',
+        senderRole: 'builder',
         targetRole: 'planner',
         content:
           '```markdown\n<handoff-overview>\n## Summary\nLooks good overall\n</handoff-overview>\n\n<handoff-action>\n## Risks & failure modes\nEdge case X\n</handoff-action>\n```',
