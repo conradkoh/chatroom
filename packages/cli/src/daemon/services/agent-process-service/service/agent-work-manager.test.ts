@@ -348,6 +348,62 @@ describe('AgentWorkManager', () => {
     });
   });
 
+  test('records task state before native delivery starts', () => {
+    const service = createService();
+
+    service.recordTaskDeliveryStarted({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-started',
+      harnessSessionId: 'session-1',
+    });
+
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toMatchObject({
+      taskId: 'task-started',
+    });
+    service.dispose();
+  });
+
+  test('clears the matching task after native delivery fails', () => {
+    const service = createService();
+    service.recordTaskDeliveryStarted({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-failed',
+      harnessSessionId: 'session-1',
+    });
+
+    service.recordTaskDeliveryFailed({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-failed',
+    });
+
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    service.dispose();
+  });
+
+  test('does not clear a newer task after an older delivery fails', () => {
+    const service = createService();
+    service.recordTaskDeliveryStarted({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-newer',
+      harnessSessionId: 'session-1',
+    });
+
+    service.recordTaskDeliveryFailed({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-older',
+    });
+
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toMatchObject({
+      taskId: 'task-newer',
+    });
+    service.dispose();
+  });
+
   test('schedules delivery after an agent-end event', async () => {
     let onTurnEnded: ((event: never) => Promise<unknown>) | undefined;
     const service = createService({
