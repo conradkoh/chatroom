@@ -191,6 +191,7 @@ export const AgentPanel = memo(function AgentPanel({
     () => [...permanentRoles, ...ephemeralRoles],
     [permanentRoles, ephemeralRoles]
   );
+  const hiddenPermanentRoleCount = Math.max(0, permanentRoles.length - SIDEBAR_PREVIEW_LIMIT);
 
   // Use hook to get derived agent statuses (lifecycle + event stream)
   const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
@@ -285,23 +286,18 @@ export const AgentPanel = memo(function AgentPanel({
         ) : (
           <>
             {renderAgentRows(permanentRoles.slice(0, SIDEBAR_PREVIEW_LIMIT))}
-            {ephemeralRoles.length > 0 && permanentRoles.length < SIDEBAR_PREVIEW_LIMIT && (
+            {ephemeralRoles.length > 0 && (
               <>
                 <SidebarSection.Subheader>
                   Ephemeral ({ephemeralRoles.length})
                 </SidebarSection.Subheader>
-                {renderAgentRows(
-                  ephemeralRoles.slice(0, SIDEBAR_PREVIEW_LIMIT - permanentRoles.length)
-                )}
+                {renderAgentRows(ephemeralRoles)}
               </>
             )}
           </>
         )}
       </div>
-      <SidebarSection.ViewMore
-        count={Math.max(0, rolesToShow.length - SIDEBAR_PREVIEW_LIMIT)}
-        onClick={openAgentListModal}
-      />
+      <SidebarSection.ViewMore count={hiddenPermanentRoleCount} onClick={openAgentListModal} />
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}
       <UnifiedAgentListModal
