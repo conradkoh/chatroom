@@ -58,14 +58,15 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
     expectNoEnhancerCeremony(output);
   });
 
-  test('ephemeral configured target is ordinary advertised capability data', () => {
+  test('configured specialist targets are ordinary advertised capability data', () => {
     const output = renderHandoffSections({
-      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      availableHandoffTargets: ['architect', 'uiux-engineer', 'builder', 'user'],
     });
 
     expect(output).toContain('<handoffs>');
-    expect(output).toContain('**enhancer**');
-    expect(output).toContain('--next-role="enhancer"');
+    expect(output).toContain('**architect**');
+    expect(output).toContain('--next-role="architect"');
+    expect(output).toContain('**uiux-engineer**');
     expectNoEnhancerCeremony(output);
   });
 
@@ -82,7 +83,7 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
 
   test('code:enhanced is ordinary code delivery', () => {
     const output = renderHandoffSections({
-      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      availableHandoffTargets: ['architect', 'builder', 'user'],
       conversationMode: 'code:enhanced',
     });
 
@@ -99,6 +100,19 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
 
     expect(output).toContain('--next-role="user"');
     expect(output).not.toContain('origin-user-message-id');
+    expectNoEnhancerCeremony(output);
+  });
+
+  test('stale enhancer targets are omitted from capabilities and primary recommendations', () => {
+    const output = renderHandoffSections({
+      message: { _id: 'stale-msg', senderRole: 'enhancer' },
+      availableHandoffTargets: ['enhancer', 'architect', 'user'],
+      isEntryPoint: false,
+    });
+
+    expect(output).not.toContain('**enhancer**');
+    expect(output).not.toContain('--next-role="enhancer"');
+    expect(output).toContain('--next-role="architect"');
     expectNoEnhancerCeremony(output);
   });
 });

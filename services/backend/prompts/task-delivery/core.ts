@@ -3,6 +3,7 @@
  * advertised handoff targets for permanent and ephemeral team agents.
  */
 
+import { isRetiredAgentRole } from '@workspace/shared/domain/agent-role';
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
 import { isChatModeEntryPointUserTask } from './chat-mode-policy.js';
@@ -55,7 +56,8 @@ function appendPrimaryHandoffInstructions(
 }
 
 function getTaskSenderRole(message: { senderRole: string } | null | undefined): string | undefined {
-  return message?.senderRole;
+  const senderRole = message?.senderRole;
+  return senderRole && !isRetiredAgentRole(senderRole) ? senderRole : undefined;
 }
 
 function appendTaskDeliveryNextSteps(
@@ -135,6 +137,11 @@ export function appendTaskDeliveryHandoffSections(
     | 'conversationMode'
   >
 ): void {
+  const activeHandoffTargets = params.availableHandoffTargets.filter(
+    (target) => !isRetiredAgentRole(target)
+  );
+  const activeParams = { ...params, availableHandoffTargets: activeHandoffTargets };
+
   if (
     isChatModeEntryPointUserTask({
       conversationMode: params.conversationMode,
@@ -158,7 +165,7 @@ export function appendTaskDeliveryHandoffSections(
     lines.push('</chat-mode>');
   }
 
-  appendTaskDeliveryNextSteps(lines, params);
+  appendTaskDeliveryNextSteps(lines, activeParams);
   appendTaskDeliveryHandoffTemplates(lines, {
     teamId: params.teamId,
     role: params.role,
@@ -166,5 +173,5 @@ export function appendTaskDeliveryHandoffSections(
     cliEnvPrefix: params.cliEnvPrefix,
     conversationMode: params.conversationMode,
   });
-  appendTaskDeliveryHandoffTargets(lines, params);
+  appendTaskDeliveryHandoffTargets(lines, activeParams);
 }

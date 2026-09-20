@@ -17,21 +17,21 @@ function requireListing(query: {
 }
 
 describe('listHandoffTemplates', () => {
-  test('duo planner lists receives/returns and builder/user templates', () => {
+  test('duo planner lists permanent and specialist templates', () => {
     const listing = requireListing({ teamId: 'duo', role: 'planner' });
 
     expect(listing.teamId).toBe('duo');
     expect(listing.role).toBe('planner');
     expect(listing.receivesFrom.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining(['user', 'builder'])
+      expect.arrayContaining(['user', 'builder', 'architect', 'uiux-engineer'])
     );
     expect(listing.returnsTo.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining(['builder', 'user'])
+      expect.arrayContaining(['builder', 'architect', 'uiux-engineer', 'user'])
     );
 
     const targets = listing.templates.map((t) => t.toRole.toLowerCase());
-    expect(targets).toEqual(['builder', 'user']);
-    for (const toRole of ['builder', 'user']) {
+    expect(targets).toEqual(['architect', 'builder', 'uiux-engineer', 'user']);
+    for (const toRole of ['builder', 'architect', 'uiux-engineer', 'user']) {
       expect(
         listing.templates.find((t) => t.toRole.toLowerCase() === toRole)?.template
       ).toBeTruthy();
@@ -47,14 +47,18 @@ describe('listHandoffTemplates', () => {
     expect(listing.templates[0]?.template).toContain('Handoff Template (Builder → Planner)');
   });
 
-  test('solo lists solo → user templates', () => {
+  test('solo lists solo → specialist and user templates', () => {
     const listing = requireListing({ teamId: 'solo', role: 'solo' });
 
     expect(listing.teamId).toBe('solo');
     expect(listing.receivesFrom.map((r) => r.toLowerCase())).toEqual(
       expect.arrayContaining(['user'])
     );
-    expect(listing.templates.map((t) => t.toRole.toLowerCase())).toEqual(['user']);
+    expect(listing.templates.map((t) => t.toRole.toLowerCase())).toEqual([
+      'architect',
+      'uiux-engineer',
+      'user',
+    ]);
     expect(listing.templates.find((t) => t.toRole === 'user')?.template).toContain(
       'Report Template (Solo → User)'
     );
@@ -66,7 +70,7 @@ describe('listHandoffTemplates', () => {
   });
 
   test('unknown role and unknown team return null (never throw)', () => {
-    expect(listHandoffTemplates({ role: 'architect', teamId: 'duo' })).toBeNull();
+    expect(listHandoffTemplates({ role: 'reviewer', teamId: 'duo' })).toBeNull();
     expect(listHandoffTemplates({ role: 'planner', teamId: 'tri' })).toBeNull();
     expect(listHandoffTemplates({ role: '', teamId: 'duo' })).toBeNull();
   });
@@ -95,13 +99,13 @@ describe('listHandoffTemplatesCommand / formatHandoffTemplateListing', () => {
 
   test('solo listing omits duplicate planner mappings and stays concise', () => {
     const output = formatHandoffTemplateListing(requireListing({ teamId: 'solo', role: 'solo' }));
-    const templates = output.match(/^- `\w+` → `\w+`$/gm) ?? [];
-    expect(templates).toHaveLength(1);
+    const templates = output.match(/^- `[^`]+` → `[^`]+`$/gm) ?? [];
+    expect(templates).toHaveLength(3);
   });
 
   test('unknown role/team throws a descriptive error', () => {
-    expect(() => listHandoffTemplatesCommand({ role: 'architect', teamId: 'duo' })).toThrow(
-      /No handoff contract for role "architect"/i
+    expect(() => listHandoffTemplatesCommand({ role: 'reviewer', teamId: 'duo' })).toThrow(
+      /No handoff contract for role "reviewer"/i
     );
     expect(() => listHandoffTemplatesCommand({ role: 'planner', teamId: 'tri' })).toThrow(
       /No handoff contract for role "planner"/i

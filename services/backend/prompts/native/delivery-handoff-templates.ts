@@ -12,9 +12,13 @@ import { getHandoffTemplate } from '../cli/handoff-templates';
 
 /** toRole targets to inline per team:role on native task delivery. */
 const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
-  'solo:solo': ['user'],
-  'duo:planner': ['user', 'builder'],
+  'solo:solo': ['user', 'architect', 'uiux-engineer'],
+  'solo:architect': ['solo'],
+  'solo:uiux-engineer': ['solo'],
+  'duo:planner': ['user', 'builder', 'architect', 'uiux-engineer'],
   'duo:builder': ['planner'],
+  'duo:architect': ['planner'],
+  'duo:uiux-engineer': ['planner'],
 };
 
 function getNativeDeliveryTemplateTargets(

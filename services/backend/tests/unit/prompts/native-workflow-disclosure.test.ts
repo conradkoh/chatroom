@@ -166,7 +166,7 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
   });
 
-  test('solo chat entry-point user keeps base template and advertises ephemeral capability', () => {
+  test('solo chat entry-point user keeps base templates and advertises specialists', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,
       role: 'solo',
@@ -174,19 +174,20 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
       cliEnvPrefix: CLI_ENV,
       task: { _id: 'task-id', content: 'Hello' },
       message: { _id: 'msg-id', senderRole: 'user' },
-      availableHandoffTargets: ['user', 'enhancer'],
+      availableHandoffTargets: ['user', 'architect', 'uiux-engineer'],
       isEntryPoint: true,
       conversationMode: 'chat',
     });
 
     expect(output).toContain('<handoff-templates>');
     expect(output).toContain('Handoff to `user`');
-    // The base solo template remains unchanged; the capability is advertised separately.
-    expect(output).not.toContain('Handoff to `enhancer`');
-    // Supplied capability data still renders (user + enhancer were advertised)
+    expect(output).toContain('Handoff to `architect`');
+    expect(output).toContain('Handoff to `uiux-engineer`');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
-    expect(output).toContain('**enhancer**');
+    expect(output).toContain('**architect**');
+    expect(output).toContain('**uiux-engineer**');
+    expect(output).not.toContain('enhancer');
     expect(output).toContain('<chat-mode>');
   });
 });

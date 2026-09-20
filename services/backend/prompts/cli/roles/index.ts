@@ -15,13 +15,14 @@ type RoleSpecificGuidanceParams = {
   nativeIntegration?: boolean | undefined;
   codeChangesTarget?: string | undefined;
   questionTarget?: string | undefined;
+  entryPointRole?: string | undefined;
 };
 
 const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams) => string> = {
   planner: getPlannerGuidance,
   builder: getBuilderGuidance,
-  architect: ({ role }) => getSpecialistGuidance({ role }),
-  'uiux-engineer': ({ role }) => getSpecialistGuidance({ role }),
+  architect: ({ role, entryPointRole }) => getSpecialistGuidance({ role, entryPointRole }),
+  'uiux-engineer': ({ role, entryPointRole }) => getSpecialistGuidance({ role, entryPointRole }),
 };
 
 /**
@@ -31,11 +32,18 @@ export function getRoleSpecificGuidance(
   role: string,
   teamRoles: string[],
   isEntryPoint: boolean,
-  convexUrl: string
+  convexUrl: string,
+  entryPointRole?: string
 ): string {
   const normalizedRole = role.toLowerCase();
   return (
-    ROLE_GUIDANCE_BY_ROLE[normalizedRole]?.({ role, teamRoles, isEntryPoint, convexUrl }) ?? ''
+    ROLE_GUIDANCE_BY_ROLE[normalizedRole]?.({
+      role,
+      teamRoles,
+      isEntryPoint,
+      convexUrl,
+      entryPointRole,
+    }) ?? ''
   );
 }
 

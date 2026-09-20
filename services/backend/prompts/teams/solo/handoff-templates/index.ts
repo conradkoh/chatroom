@@ -5,7 +5,9 @@
  */
 // fallow-ignore-file unused-export unused-type
 
+import { soloArchitectHandoffContract } from './architect';
 import { soloHandoffContract } from './solo';
+import { soloUiuxEngineerHandoffContract } from './uiux-engineer';
 import type {
   HandoffTemplateQuery,
   RoleHandoffContract,
@@ -14,8 +16,12 @@ import { validateRoleHandoffContracts } from '../../../cli/handoff-templates/con
 
 export type { HandoffTemplateQuery as SoloHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned solo catalog (solo). */
-export const SOLO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] = [soloHandoffContract];
+/** Role-owned solo catalog (solo and optional specialists). */
+export const SOLO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] = [
+  soloHandoffContract,
+  soloArchitectHandoffContract,
+  soloUiuxEngineerHandoffContract,
+];
 
 /** Validated once at module load so broken catalogs fail fast in tests/startup. */
 export const validatedSoloRoleHandoffContracts: readonly RoleHandoffContract[] = (() => {

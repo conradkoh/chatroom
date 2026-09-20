@@ -66,16 +66,17 @@ describe('generateFullCliOutput — delivery paths', () => {
     expectNoEnhancerCeremony(output);
   });
 
-  test('configured ephemeral role remains ordinary advertised capability data', () => {
+  test('configured specialist roles remain ordinary advertised capability data', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       teamId: 'duo',
-      availableHandoffTargets: ['enhancer', 'planner'],
+      availableHandoffTargets: ['architect', 'uiux-engineer', 'planner'],
     });
 
     expect(output).toContain('<handoffs>');
-    expect(output).toContain('**enhancer**');
-    expect(output).toContain('--next-role="enhancer"');
+    expect(output).toContain('**architect**');
+    expect(output).toContain('--next-role="architect"');
+    expect(output).toContain('**uiux-engineer**');
     expectNoEnhancerCeremony(output);
   });
 });
@@ -174,7 +175,7 @@ describe('generateFullCliOutput — conversation mode', () => {
     teamId: 'duo',
     role: 'planner',
     isEntryPoint: true,
-    availableHandoffTargets: ['enhancer', 'builder', 'user'],
+    availableHandoffTargets: ['architect', 'uiux-engineer', 'builder', 'user'],
     message: { _id: 'msg-id', senderRole: 'user', content: 'hello' },
   };
 
@@ -189,7 +190,8 @@ describe('generateFullCliOutput — conversation mode', () => {
       expect(output).toContain('<chat-mode>');
       expect(output).toContain('Answer the user directly and concisely');
       expect(output).toContain('--next-role="user"');
-      expect(output).toContain('**enhancer**');
+      expect(output).toContain('**architect**');
+      expect(output).toContain('**uiux-engineer**');
       expectNoEnhancerCeremony(output);
       if (nativeIntegration) expect(output).not.toContain('get-next-task');
       else expect(output).toContain('get-next-task');
@@ -205,7 +207,7 @@ describe('generateFullCliOutput — conversation mode', () => {
 
     expect(output).not.toContain('<chat-mode>');
     expect(output).toContain('--next-role="user"');
-    expect(output).toContain('**enhancer**');
+    expect(output).toContain('**architect**');
     expectNoEnhancerCeremony(output);
   });
 });

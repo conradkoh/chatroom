@@ -61,6 +61,15 @@ describe('specialist role guidance', () => {
     }
   });
 
+  test('specialist guidance targets the configured solo entry point', () => {
+    expect(getSpecialistGuidance({ role: 'architect', entryPointRole: 'solo' })).toContain(
+      '--next-role="solo"'
+    );
+    expect(getSpecialistGuidance({ role: 'uiux-engineer', entryPointRole: 'SOLO' })).toContain(
+      '--next-role="solo"'
+    );
+  });
+
   test('unknown roles return no specialist guidance', () => {
     expect(getSpecialistGuidance({ role: 'tester' })).toBe('');
   });

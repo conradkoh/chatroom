@@ -75,6 +75,16 @@ describe('Init — templates deferred to task delivery', () => {
   test('CLI init also defers templates to task delivery (no init preview)', () => {
     assertNativeInitTemplateDisclosure(cliInitPrompt('duo', 'planner'));
   });
+
+  test('specialist init preserves the role-specific disclosure contract', () => {
+    for (const role of ['architect', 'uiux-engineer']) {
+      const prompt = nativeInitPrompt('duo', role);
+      expect(prompt).toContain(
+        role === 'architect' ? '## Architect Operating Model' : '## UI/UX Engineer Operating Model'
+      );
+      expect(prompt).not.toContain('CHATROOM_ENHANCER_END');
+    }
+  });
 });
 
 describe('Native init — commands reference', () => {

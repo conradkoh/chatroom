@@ -8,12 +8,15 @@
 import { getSoloToUserReportTemplate } from './solo-to-user';
 import type { RoleHandoffContract } from '../../../cli/handoff-templates/contracts';
 import { getChatToUserHandoffTemplate } from '../../../utils/chat-handoff-template';
+import { getEntryPointToSpecialistHandoffTemplate } from '../../specialist-handoff-templates';
 
 export const soloHandoffContract: RoleHandoffContract = {
   role: 'solo',
-  receivesFrom: ['user'],
-  returnsTo: ['user'],
+  receivesFrom: ['user', 'architect', 'uiux-engineer'],
+  returnsTo: ['architect', 'uiux-engineer', 'user'],
   outboundTemplates: {
+    architect: () => getEntryPointToSpecialistHandoffTemplate('solo', 'architect'),
+    'uiux-engineer': () => getEntryPointToSpecialistHandoffTemplate('solo', 'uiux-engineer'),
     user: (query) =>
       query.conversationMode === 'chat'
         ? getChatToUserHandoffTemplate()

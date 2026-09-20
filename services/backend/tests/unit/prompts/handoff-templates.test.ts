@@ -62,6 +62,21 @@ describe('handoff-templates > resolver', () => {
     expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'enhancer' })).toBeNull();
     expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'enhancer', toRole: 'solo' })).toBeNull();
   });
+
+  test('specialist pairs resolve role-specific design templates', () => {
+    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'architect' })).toMatch(
+      /module boundaries|schemas/i
+    );
+    expect(getHandoffTemplate({ fromRole: 'architect', toRole: 'planner' })).toMatch(
+      /implementation sequence/i
+    );
+    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'uiux-engineer' })).toMatch(
+      /loading\/empty\/error\/success|accessibility/i
+    );
+    expect(getHandoffTemplate({ fromRole: 'uiux-engineer', toRole: 'planner' })).toMatch(
+      /UI\/UX Engineer/i
+    );
+  });
   test('delivery params match direct getter calls for duo planner → user', () => {
     const params = handoffTemplateDeliveryParams('planner');
     expect(

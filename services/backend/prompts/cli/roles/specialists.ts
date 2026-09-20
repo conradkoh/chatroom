@@ -12,13 +12,13 @@ ${'{SESSION_CONTINUITY}'}
 2. Produce exactly one recommended, evidence-backed design. Do not present alternatives or generic architecture advice.
 3. Specify the design at code granularity: module boundaries, API contracts, schemas and indexes, queries and data flow, invariants, failure and recovery handling, tests, and the ordered implementation and verification sequence.
 4. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, or implement the design yourself.
-5. Hand the single design to the planner with the normal command, then stop:
+5. Hand the single design to the configured entry point with the normal command, then stop:
 
 \`\`\`bash
-chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="planner"
+chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="{ENTRY_POINT_ROLE}"
 \`\`\`
 
-The handoff must contain the repository evidence, chosen design, risks, tests, and implementation sequence the planner needs to coordinate implementation.`;
+The handoff must contain the repository evidence, chosen design, risks, tests, and implementation sequence the configured entry point needs to coordinate implementation.`;
 
 const UIUX_ENGINEER_GUIDANCE = `## UI/UX Engineer Operating Model
 
@@ -31,22 +31,23 @@ ${'{SESSION_CONTINUITY}'}
 3. Specify complete user flows at code granularity, including loading, empty, error, and success states; interaction details; keyboard behavior; accessibility semantics; responsive layout; and theme-aware tokens.
 4. Assign component and state ownership explicitly, describe the data and event boundaries, and define the component, interaction, and state test plan.
 5. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, or implement the design yourself.
-6. Hand the single design to the planner with the normal command, then stop:
+6. Hand the single design to the configured entry point with the normal command, then stop:
 
 \`\`\`bash
-chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="planner"
+chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="{ENTRY_POINT_ROLE}"
 \`\`\`
 
-The handoff must contain the repository evidence, chosen flow, explicit states, accessibility details, ownership decisions, risks, tests, and implementation sequence the planner needs to coordinate implementation.`;
+The handoff must contain the repository evidence, chosen flow, explicit states, accessibility details, ownership decisions, risks, tests, and implementation sequence the configured entry point needs to coordinate implementation.`;
 
 /**
- * Return the discipline-specific operating model for permanent advisory roles.
+ * Return the discipline-specific operating model for configured advisory roles.
  * Unknown roles intentionally return no guidance so existing role fallback
  * behavior remains unchanged.
  */
 export function getSpecialistGuidance(params: {
   role: string;
   nativeIntegration?: boolean | undefined;
+  entryPointRole?: string | undefined;
 }): string {
   const normalizedRole = params.role.trim().toLowerCase();
   let guidance: string;
@@ -62,8 +63,7 @@ export function getSpecialistGuidance(params: {
       return '';
   }
 
-  return guidance.replace(
-    '{SESSION_CONTINUITY}',
-    getSessionContinuityLine(params.nativeIntegration)
-  );
+  return guidance
+    .replace('{ENTRY_POINT_ROLE}', params.entryPointRole?.trim().toLowerCase() || 'planner')
+    .replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

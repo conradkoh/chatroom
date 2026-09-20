@@ -47,9 +47,17 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
   builder: getBaseBuilderGuidanceFromContext,
   solo: getSoloGuidanceFromContext,
   architect: (ctx) =>
-    getSpecialistGuidance({ role: ctx.role, nativeIntegration: ctx.nativeIntegration }),
+    getSpecialistGuidance({
+      role: ctx.role,
+      nativeIntegration: ctx.nativeIntegration,
+      entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
+    }),
   'uiux-engineer': (ctx) =>
-    getSpecialistGuidance({ role: ctx.role, nativeIntegration: ctx.nativeIntegration }),
+    getSpecialistGuidance({
+      role: ctx.role,
+      nativeIntegration: ctx.nativeIntegration,
+      entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
+    }),
 };
 
 export function getBaseRoleGuidanceFromContext(ctx: SelectorContext): string {
