@@ -185,7 +185,7 @@ describe('QueuedMessageItem', () => {
     expect(screen.getByText('See this context')).toBeInTheDocument();
   });
 
-  it('renders the shared envelope controls (mode + session) in the row regardless of team enhancer support', () => {
+  it('renders shared envelope controls for optional ephemeral specialist support', () => {
     renderItem(makeMessage());
     expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
     expect(screen.getByTestId('queued-message-session-toggle')).toBeInTheDocument();

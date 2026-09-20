@@ -136,7 +136,7 @@ describe('AgentControls model picker', () => {
       const { result, rerender } = renderHook(
         ({ configurationLoading }) =>
           useAgentControls({
-            role: ephemeral ? 'enhancer' : 'builder',
+            role: ephemeral ? 'architect' : 'builder',
             chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
             workspaceId: 'workspace-1',
             isEphemeral: ephemeral,
@@ -145,7 +145,7 @@ describe('AgentControls model picker', () => {
               {
                 machineId: 'machine-a',
                 hostname: 'host-a',
-                role: ephemeral ? 'enhancer' : 'builder',
+                role: ephemeral ? 'architect' : 'builder',
                 agentType: 'cursor',
                 workingDir: '/workspace',
                 model: 'openai/gpt-4o',
