@@ -1691,7 +1691,12 @@ describe('legacy queue-setting mutations edit the complete envelope', () => {
 describe('generic configured-role handoff authorization', () => {
   test('configured ephemeral roles use ordinary handoff authorization and envelope propagation', async () => {
     const { sessionId } = await createTestSession('generic-ephemeral-handoff');
-    const chatroomId = await createChatroom(sessionId, ['planner', 'builder', 'enhancer']);
+    const chatroomId = await createChatroom(sessionId, [
+      'planner',
+      'architect',
+      'uiux-engineer',
+      'builder',
+    ]);
     const sourceEnvelope = createTaskEnvelope({
       conversationMode: 'code:enhanced',
       sessionPolicy: 'continue',
@@ -1724,7 +1729,7 @@ describe('generic configured-role handoff authorization', () => {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'enhancer',
+      targetRole: 'architect',
       content: 'ordinary handoff content',
     });
 
@@ -1732,7 +1737,7 @@ describe('generic configured-role handoff authorization', () => {
     expect(result.completedTaskIds).toContain(sourceTaskId);
 
     const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
-    expect(targetTask?.assignedTo).toBe('enhancer');
+    expect(targetTask?.assignedTo).toBe('architect');
     expect(targetTask?.content).toBe('ordinary handoff content');
     expect(targetTask?.taskEnvelope).toEqual({
       version: 1,

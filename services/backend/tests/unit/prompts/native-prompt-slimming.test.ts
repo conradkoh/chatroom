@@ -72,7 +72,7 @@ describe('native task-started content', () => {
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
       task: { _id: 'task-id', content: 'Implement feature' },
       message: { _id: 'enh-msg-id', senderRole: 'enhancer' },
-      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      availableHandoffTargets: ['architect', 'builder', 'user'],
       isEntryPoint: true,
     });
 
@@ -234,7 +234,7 @@ describe('native task delivery', () => {
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
       task: { _id: 'task-id', content: 'Hello there' },
       message: { _id: 'msg-id', senderRole: 'user' },
-      availableHandoffTargets: ['user', 'enhancer'],
+      availableHandoffTargets: ['user', 'architect', 'uiux-engineer'],
       isEntryPoint: true,
       conversationMode: 'chat',
     });
@@ -244,10 +244,10 @@ describe('native task delivery', () => {
     expect(output).not.toContain('context read --chatroom-id');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
-    expect(output).toContain('**enhancer**');
+    expect(output).toContain('**architect**');
     expect(output).not.toContain('<handoff-enhancer>');
     expect(output).toContain('--next-role="user"');
-    expect(output).toContain('--next-role="enhancer"');
+    expect(output).toContain('--next-role="architect"');
   });
 
   test('code mode native delivery retains context prompt and proof-rich report template', () => {

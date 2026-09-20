@@ -13,17 +13,17 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
-  enableEnhancerTeamAgent,
-  addEnhancerToTeamRoles,
+  enableArchitectTeamAgent,
+  addArchitectToTeamRoles,
   joinParticipant,
 } from '../helpers/integration';
 
-async function enableEnhancer(
+async function enableArchitect(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string
 ): Promise<void> {
-  await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
+  await enableArchitectTeamAgent(sessionId, chatroomId, machineId);
 }
 
 async function setPlannerAsEntryPoint(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
@@ -81,7 +81,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-delivery-enabled');
     await setPlannerAsEntryPoint(chatroomId);
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableArchitect(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
     const { messageId, taskId } = await createPlannerTaskFromUserMessage(
@@ -101,7 +101,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
   test('solo user task uses the ordinary user handoff and base templates', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupSoloWorkspaceForSession('enh-delivery-solo');
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableArchitect(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'solo');
 
     const messageId = await t.mutation(api.messages.sendMessage, {
@@ -192,8 +192,8 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-delivery-feedback');
     await setPlannerAsEntryPoint(chatroomId);
-    await enableEnhancer(sessionId, chatroomId, machineId);
-    await addEnhancerToTeamRoles(chatroomId);
+    await enableArchitect(sessionId, chatroomId, machineId);
+    await addArchitectToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
     const originUserMessageId = await t.run(async (ctx) => {
@@ -220,13 +220,13 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
     });
 
     // Seed the same end state directly for the compatibility role.
-    const _enhancerTaskId = await t.run(async (ctx) => {
+    const _architectTaskId = await t.run(async (ctx) => {
       return ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'planner',
         content: 'Check-in draft',
         status: 'in_progress',
-        assignedTo: 'enhancer',
+        assignedTo: 'architect',
         originUserMessageId,
         sourceMessageId: originUserMessageId,
         plannerEnhancerEnabled: true,
@@ -239,7 +239,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
     await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      senderRole: 'enhancer',
+      senderRole: 'architect',
       targetRole: 'planner',
       content: '## Summary\nPlanning feedback for planner',
     });
@@ -262,7 +262,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
         .filter((q) => q.eq(q.field('type'), 'handoff'))
         .collect()
     );
-    const feedbackMessage = handoffMessages.find((m) => m.senderRole === 'enhancer');
+    const feedbackMessage = handoffMessages.find((m) => m.senderRole === 'architect');
     expect(feedbackMessage).toBeDefined();
 
     const output = await getPlannerDeliveryPrompt(

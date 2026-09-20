@@ -51,17 +51,17 @@ describe('authorizeAgentStart', () => {
     ).toBe('not_configured');
   });
 
-  test('requires an active task for ephemeral enhancer starts', async () => {
+  test('requires an active task for ephemeral architect starts', async () => {
     const { chatroomId, machineId } = await setup('authorize-ephemeral');
     const room = await t.run((ctx) => ctx.db.get('chatroom_rooms', chatroomId));
-    const enhancerId = await t.run(async (ctx) =>
+    const architectId = await t.run(async (ctx) =>
       ctx.db.insert('chatroom_agentLastSentLaunchRequests', {
-        requestKey: `${chatroomId}:duo@1:enhancer`,
-        requestId: 'enhancer-request',
-        commandId: 'enhancer-command',
+        requestKey: `${chatroomId}:duo@1:architect`,
+        requestId: 'architect-request',
+        commandId: 'architect-command',
         teamStructureId: 'duo@1',
         chatroomId,
-        role: 'enhancer',
+        role: 'architect',
         agentType: 'remote',
         machineId,
         agentHarness: 'opencode',
@@ -73,9 +73,9 @@ describe('authorizeAgentStart', () => {
         requestedAt: Date.now(),
       })
     );
-    expect(enhancerId).toBeDefined();
+    expect(architectId).toBeDefined();
     expect(
-      await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'enhancer', machineId }))
+      await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'architect', machineId }))
     ).toEqual({ allowed: false, reason: 'no_active_task' });
     const taskId = await t.run((ctx) =>
       ctx.db.insert('chatroom_tasks', {
@@ -83,7 +83,7 @@ describe('authorizeAgentStart', () => {
         createdBy: 'user',
         content: 'Enhance',
         status: 'pending',
-        assignedTo: 'enhancer',
+        assignedTo: 'architect',
         createdAt: Date.now(),
         updatedAt: Date.now(),
         queuePosition: 1,
@@ -91,13 +91,13 @@ describe('authorizeAgentStart', () => {
     );
     expect(
       await t.run((ctx) =>
-        authorizeAgentStart(ctx, { chatroomId, role: 'enhancer', machineId, taskId })
+        authorizeAgentStart(ctx, { chatroomId, role: 'architect', machineId, taskId })
       )
     ).toEqual({ allowed: true });
     await t.run((ctx) => ctx.db.patch('chatroom_tasks', taskId, { status: 'completed' }));
     expect(
       await t.run((ctx) =>
-        authorizeAgentStart(ctx, { chatroomId, role: 'enhancer', machineId, taskId })
+        authorizeAgentStart(ctx, { chatroomId, role: 'architect', machineId, taskId })
       )
     ).toEqual({ allowed: false, reason: 'no_active_task' });
   });

@@ -23,7 +23,12 @@ describe('canonical agent reads', () => {
     });
 
     expect(requests).toEqual([]);
-    expect(statuses.map((status) => status.role)).toEqual(['planner', 'enhancer', 'builder']);
+    expect(statuses.map((status) => status.role)).toEqual([
+      'planner',
+      'architect',
+      'uiux-engineer',
+      'builder',
+    ]);
     expect(statuses.filter((status) => !status.optional).map((status) => status.role)).toEqual([
       'planner',
       'builder',

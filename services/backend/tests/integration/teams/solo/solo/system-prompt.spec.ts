@@ -86,7 +86,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
     // Solo can hand off to user
     expect(prompt).toContain('### Handoff Options');
-    expect(prompt).toContain('Available targets: enhancer, user');
+    expect(prompt).toContain('Available targets: architect, uiux-engineer, user');
 
     // Commands reference
     expect(prompt).toContain('### Commands');
@@ -309,7 +309,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       - There is no separate builder or planner — you fill all roles
       - You hand off directly to the user when work is complete
 
-      **Team composition:** Duo team — you coordinate with \`solo\`, \`enhancer\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`solo\`, \`architect\`, \`uiux-engineer\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -362,7 +362,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
 
       ### Handoff Options
-      Available targets: enhancer, user
+      Available targets: architect, uiux-engineer, user
 
       ### Commands
 

@@ -6,7 +6,7 @@
  * returned with each message to fight context rot.
  */
 
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+import { isEphemeralAgentRole, isRetiredAgentRole } from '@workspace/shared/domain/agent-role';
 
 export interface RoleTemplate {
   role: string;
@@ -138,7 +138,7 @@ export function getRoleTemplate(role: string): RoleTemplate {
     return template;
   }
 
-  if (isEphemeralAgentRole(normalizedRole)) {
+  if (isEphemeralAgentRole(normalizedRole) || isRetiredAgentRole(normalizedRole)) {
     return { ...EPHEMERAL_ROLE_TEMPLATE, role: normalizedRole };
   }
 

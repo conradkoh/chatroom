@@ -12,8 +12,8 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
-  addEnhancerToTeamRoles,
-  enableEnhancerTeamAgent,
+  addArchitectToTeamRoles,
+  enableArchitectTeamAgent,
   joinParticipant,
 } from '../helpers/integration';
 
@@ -53,7 +53,7 @@ describe('generic task delivery compatibility', () => {
   test('compatibility mode uses ordinary delivery without a saved ephemeral config', async () => {
     const { sessionId, chatroomId } =
       await setupPlannerWorkspaceForSession('compatibility-no-config');
-    await addEnhancerToTeamRoles(chatroomId);
+    await addArchitectToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
     const messageId = await t.mutation(api.messages.sendMessage, {
@@ -77,7 +77,7 @@ describe('generic task delivery compatibility', () => {
   test('chat send stays direct even when an ephemeral config exists', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('chat-with-config');
-    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
+    await enableArchitectTeamAgent(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
     const messageId = await t.mutation(api.messages.sendMessage, {
@@ -100,7 +100,7 @@ describe('generic task delivery compatibility', () => {
 
   test('planner handoff to configured ephemeral role uses the generic path in code mode', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('handoff-ephemeral');
-    await addEnhancerToTeamRoles(chatroomId);
+    await addArchitectToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -122,13 +122,13 @@ describe('generic task delivery compatibility', () => {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'enhancer',
+      targetRole: 'architect',
       content: 'check-in',
     });
 
     expect(result.success).toBe(true);
     const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
-    expect(targetTask?.assignedTo).toBe('enhancer');
+    expect(targetTask?.assignedTo).toBe('architect');
     expect(targetTask?.content).toBe('check-in');
   });
 });

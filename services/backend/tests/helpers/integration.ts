@@ -250,25 +250,26 @@ export async function seedRunningAgentPid(
 }
 
 /**
- * Patch chatroom teamRoles to include enhancer for enhancer integration tests.
+ * Patch chatroom teamRoles to include the architect specialist for generic
+ * ephemeral-agent integration tests.
  */
-export async function enableEnhancerTeamAgent(
+export async function enableArchitectTeamAgent(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string
 ): Promise<void> {
-  await addEnhancerToTeamRoles(chatroomId);
+  await addArchitectToTeamRoles(chatroomId);
   const workspaces = await t.query(api.workspaces.listWorkspacesForMachine, {
     sessionId,
     machineId,
   });
   const workspace = workspaces.find((candidate) => candidate.chatroomId === chatroomId);
-  if (!workspace) throw new Error('Workspace not found for enhancer configuration');
+  if (!workspace) throw new Error('Workspace not found for architect configuration');
   await t.mutation(api.agents.saveConfig, {
     sessionId,
     chatroomId,
     workspaceId: workspace._id,
-    role: 'enhancer',
+    role: 'architect',
     machineId,
     agentHarness: 'opencode',
     model: 'anthropic/claude-opus-4',
@@ -276,14 +277,14 @@ export async function enableEnhancerTeamAgent(
   });
 }
 
-export async function addEnhancerToTeamRoles(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+export async function addArchitectToTeamRoles(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
   await t.run(async (ctx) => {
     const room = await ctx.db.get('chatroom_rooms', chatroomId);
     if (!room) return;
     const roles = new Set(room.teamRoles ?? []);
     roles.add('planner');
     roles.add('builder');
-    roles.add('enhancer');
+    roles.add('architect');
     await ctx.db.patch(chatroomId, { teamRoles: [...roles] });
   });
 }
