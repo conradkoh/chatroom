@@ -54,6 +54,19 @@ describe('ComposerPreflightBar', () => {
     expect(screen.getByTestId('planner-conversation-mode-toggle')).toBeInTheDocument();
   });
 
+  it('renders New Session before the conversation mode control', () => {
+    render(<ComposerPreflightBar chatroomId={'room1' as never} />);
+    const controls = screen
+      .getByTestId('composer-preflight-bar')
+      .querySelectorAll(
+        '[data-testid="planner-new-session-toggle"], [data-testid="planner-conversation-mode-toggle"]'
+      );
+
+    expect(controls).toHaveLength(2);
+    expect(controls[0]).toHaveAttribute('data-testid', 'planner-new-session-toggle');
+    expect(controls[1]).toHaveAttribute('data-testid', 'planner-conversation-mode-toggle');
+  });
+
   it('forwards onRequestComposerFocus to the new-session toggle', () => {
     const onRequestComposerFocus = vi.fn();
     render(

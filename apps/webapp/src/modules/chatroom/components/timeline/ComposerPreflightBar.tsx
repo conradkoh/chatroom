@@ -23,10 +23,10 @@ export function ComposerPreflightBar({
       </div>
       <div className="shrink-0 border-l border-chatroom-border flex items-stretch">
         <div className="flex items-stretch w-[3.75rem] sm:w-auto sm:min-w-[7rem]">
-          <PlannerConversationModeToggle onRequestComposerFocus={onRequestComposerFocus} />
+          <PlannerNewSessionToggle onRequestComposerFocus={onRequestComposerFocus} />
         </div>
         <div className="border-l border-chatroom-border flex items-stretch w-[3.75rem] sm:w-auto sm:min-w-[7rem]">
-          <PlannerNewSessionToggle onRequestComposerFocus={onRequestComposerFocus} />
+          <PlannerConversationModeToggle onRequestComposerFocus={onRequestComposerFocus} />
         </div>
       </div>
     </div>
