@@ -7,6 +7,10 @@ import { isRetiredAgentRole } from '@workspace/shared/domain/agent-role';
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
 import { isChatModeEntryPointUserTask } from './chat-mode-policy.js';
+import {
+  appendEnhanceModeGuidance,
+  shouldIncludeEnhanceModeGuidance,
+} from './enhance-mode-guidance.js';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
@@ -163,6 +167,17 @@ export function appendTaskDeliveryHandoffSections(
       'When your response is ready, run the final handoff command below to deliver it to the user.'
     );
     lines.push('</chat-mode>');
+  }
+
+  if (
+    shouldIncludeEnhanceModeGuidance({
+      role: params.role,
+      isEntryPoint: params.isEntryPoint,
+      senderRole: params.message?.senderRole,
+      conversationMode: params.conversationMode,
+    })
+  ) {
+    appendEnhanceModeGuidance(lines);
   }
 
   appendTaskDeliveryNextSteps(lines, activeParams);

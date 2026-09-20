@@ -81,15 +81,45 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
     expectNoEnhancerCeremony(output);
   });
 
-  test('code:enhanced is ordinary code delivery', () => {
+  test('Enhance mode adds planner-owned design guidance for an entry-point user task', () => {
     const output = renderHandoffSections({
+      role: 'planner',
+      isEntryPoint: true,
+      message: { _id: 'user-msg', senderRole: 'user' },
       availableHandoffTargets: ['architect', 'builder', 'user'],
       conversationMode: 'code:enhanced',
     });
 
     expect(output).not.toContain('<chat-mode>');
+    expect(output).toContain('<enhance-mode>');
+    expect(output).toContain('exactly one recommended design');
+    expect(output).toContain('architect');
+    expect(output).toContain('uiux-engineer');
     expect(output).toContain('--next-role="user"');
-    expectNoEnhancerCeremony(output);
+    expect(output).not.toContain('<handoff-enhancer>');
+  });
+
+  test.each([
+    ['chat mode', { conversationMode: 'chat' as const }],
+    ['ordinary code', { conversationMode: 'code' as const }],
+    ['builder', { role: 'builder', conversationMode: 'code:enhanced' as const }],
+    ['non-entry-point', { isEntryPoint: false, conversationMode: 'code:enhanced' as const }],
+    [
+      'non-user sender',
+      {
+        message: { _id: 'builder-msg', senderRole: 'builder' },
+        conversationMode: 'code:enhanced' as const,
+      },
+    ],
+    ['solo', { role: 'solo', conversationMode: 'code:enhanced' as const }],
+  ])('does not add Enhance guidance for %s', (_label, overrides) => {
+    const output = renderHandoffSections({
+      role: 'planner',
+      isEntryPoint: true,
+      message: { _id: 'user-msg', senderRole: 'user' },
+      ...overrides,
+    });
+    expect(output).not.toContain('<enhance-mode>');
   });
 
   test('a task from the configured ephemeral role follows standard intake recommendations', () => {
