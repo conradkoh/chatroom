@@ -5,17 +5,17 @@ import { describe, expect, test } from 'vitest';
 import { buildAvailableHandoffRoles } from './handoffRoles';
 
 describe('buildAvailableHandoffRoles', () => {
-  test('includes configured ephemeral roles like any other configured role', () => {
+  test('includes configured specialist roles like any other configured role', () => {
     expect(
       buildAvailableHandoffRoles({
-        teamRoles: ['planner', 'enhancer', 'builder'],
+        teamRoles: ['planner', 'architect', 'uiux-engineer', 'builder'],
         currentRole: 'planner',
         fallbackParticipantRoles: [],
       })
-    ).toEqual(['enhancer', 'builder', 'user']);
+    ).toEqual(['architect', 'uiux-engineer', 'builder', 'user']);
   });
 
-  test('does not inject an ephemeral role when it is absent', () => {
+  test('does not inject a specialist role when it is absent', () => {
     expect(
       buildAvailableHandoffRoles({
         teamRoles: ['planner', 'builder'],
@@ -40,16 +40,34 @@ describe('buildAvailableHandoffRoles', () => {
       buildAvailableHandoffRoles({
         teamRoles: [],
         currentRole: 'planner',
-        fallbackParticipantRoles: ['builder', 'enhancer'],
+        fallbackParticipantRoles: ['builder', 'architect'],
       })
-    ).toEqual(['builder', 'enhancer', 'user']);
+    ).toEqual(['builder', 'architect', 'user']);
 
     expect(
       buildAvailableHandoffRoles({
         teamRoles: ['planner', 'builder'],
         currentRole: 'planner',
-        fallbackParticipantRoles: ['enhancer'],
+        fallbackParticipantRoles: ['architect'],
       })
     ).toEqual(['builder', 'user']);
+  });
+
+  test('omits retired enhancer roles from configured and fallback membership', () => {
+    expect(
+      buildAvailableHandoffRoles({
+        teamRoles: ['planner', 'Enhancer', 'architect', 'UIUX-Engineer'],
+        currentRole: 'planner',
+        fallbackParticipantRoles: [],
+      })
+    ).toEqual(['architect', 'UIUX-Engineer', 'user']);
+
+    expect(
+      buildAvailableHandoffRoles({
+        teamRoles: [],
+        currentRole: 'planner',
+        fallbackParticipantRoles: ['ENHANCER', 'architect'],
+      })
+    ).toEqual(['architect', 'user']);
   });
 });

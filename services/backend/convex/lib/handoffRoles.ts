@@ -8,6 +8,8 @@
  * spelling/order wins), and `user` is always available exactly once.
  */
 
+import { isRetiredAgentRole } from '@workspace/shared/domain/agent-role';
+
 export interface BuildAvailableHandoffRolesOptions {
   /** Persisted team membership; authoritative when non-empty. */
   teamRoles: string[];
@@ -29,7 +31,12 @@ export function buildAvailableHandoffRoles(options: BuildAvailableHandoffRolesOp
   // applying the required filter/dedupe/user invariants.
   for (const role of sourceRoles) {
     const normalizedRole = role.toLowerCase();
-    if (normalizedRole === 'user' || normalizedRole === currentRole || seen.has(normalizedRole)) {
+    if (
+      isRetiredAgentRole(role) ||
+      normalizedRole === 'user' ||
+      normalizedRole === currentRole ||
+      seen.has(normalizedRole)
+    ) {
       continue;
     }
     seen.add(normalizedRole);
