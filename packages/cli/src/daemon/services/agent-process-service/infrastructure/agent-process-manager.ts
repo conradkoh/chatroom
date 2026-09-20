@@ -1868,6 +1868,9 @@ export class AgentProcessManager {
     opts: EnsureRunningOpts
   ): Promise<OperationResult> {
     slot.state = AGENT_SLOT_STATE.SPAWNING;
+    const rateLimit = this.checkRateLimitGate(opts, slot);
+    if (rateLimit) return rateLimit;
+
     const authorization = await this.deps.backend.mutation(api.machines.authorizeAgentStart, {
       sessionId: this.deps.sessionId,
       machineId: this.deps.machineId,
@@ -1886,9 +1889,6 @@ export class AgentProcessManager {
     );
 
     try {
-      const rateLimit = this.checkRateLimitGate(opts, slot);
-      if (rateLimit) return rateLimit;
-
       const workingDir = await this.validateWorkingDirGate(opts, slot);
       if (workingDir) return workingDir;
 

@@ -690,6 +690,7 @@ describe('AgentProcessManager', () => {
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot!.state).toBe('idle');
+      expect(deps.backend.mutation).not.toHaveBeenCalled();
     });
 
     test('spawn fails: returns failure, slot transitions back to idle', async () => {
