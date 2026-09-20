@@ -56,7 +56,8 @@ interface Task {
       | 'unsupported_harness'
       | 'injection_not_confirmed'
       | 'task_not_deliverable'
-      | 'assigned_elsewhere';
+      | 'assigned_elsewhere'
+      | 'redelivery_exhausted';
     occurredAt: number;
   };
 }

@@ -31,4 +31,16 @@ describe('TaskItem', () => {
 
     expect(screen.getByText('Delivery failed: no agent config')).toBeInTheDocument();
   });
+
+  it('renders redelivery exhaustion as a delivery failure', () => {
+    render(
+      <TaskItem
+        task={makeTask({
+          deliveryFailure: { reason: 'redelivery_exhausted', occurredAt: Date.now() },
+        })}
+      />
+    );
+
+    expect(screen.getByText('Delivery failed: redelivery exhausted')).toBeInTheDocument();
+  });
 });
