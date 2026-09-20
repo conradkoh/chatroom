@@ -191,6 +191,17 @@ export const AgentPanel = memo(function AgentPanel({
     () => [...permanentRoles, ...ephemeralRoles],
     [permanentRoles, ephemeralRoles]
   );
+  const latestAgentConfigByRole = useMemo(() => {
+    const map = new Map<string, AgentConfig>();
+    for (const config of agentConfigs) {
+      const key = config.role.toLowerCase();
+      const existing = map.get(key);
+      if (!existing || config.updatedAt > existing.updatedAt) {
+        map.set(key, config);
+      }
+    }
+    return map;
+  }, [agentConfigs]);
   const hiddenPermanentRoleCount = Math.max(0, permanentRoles.length - SIDEBAR_PREVIEW_LIMIT);
 
   // Use hook to get derived agent statuses (lifecycle + event stream)
@@ -220,7 +231,7 @@ export const AgentPanel = memo(function AgentPanel({
         key={role}
         role={role}
         agentStatus={agentStatuses.find((a) => a.role === role)}
-        agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
+        agentConfig={latestAgentConfigByRole.get(role.toLowerCase())}
         isLoadingStatuses={isLoadingStatuses}
         onOpen={openAgentListModal}
       />

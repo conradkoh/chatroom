@@ -186,4 +186,33 @@ describe('AgentPanel', () => {
 
     expect(screen.getByText('gpt-5.6-terra [high]')).toBeInTheDocument();
   });
+
+  it('shows the newest configuration snapshot for each role', () => {
+    const baseConfig: AgentConfig = {
+      machineId: 'machine-1',
+      hostname: 'test-host',
+      role: 'planner',
+      agentType: 'cursor-sdk',
+      workingDir: '/Users/alice/chatroom',
+      model: 'opencode/big-pickle',
+      availableHarnesses: ['cursor-sdk'],
+      updatedAt: 100,
+    };
+    const newerConfig: AgentConfig = {
+      ...baseConfig,
+      model: 'openai/gpt-5.6-luna[reasoning=low]',
+      updatedAt: 200,
+    };
+
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        agentConfigs={[newerConfig, baseConfig]}
+      />
+    );
+
+    expect(screen.getByText('gpt-5.6-luna [low]')).toBeInTheDocument();
+    expect(screen.queryByText('big-pickle')).not.toBeInTheDocument();
+  });
 });
