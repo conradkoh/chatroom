@@ -81,28 +81,6 @@ export async function projectAgentRoleStatusReadModel(
       role,
       ...(args.workspaceId ? { workspaceId: args.workspaceId } : {}),
     }));
-  // Older callers persisted desired configuration without a launch snapshot.
-  // Use it only to hydrate the status row's identity/config metadata; the
-  // event below remains the sole source of runtime status.
-  const desiredConfig = launchRequest
-    ? null
-    : args.workspaceId
-      ? await ctx.db
-          .query('chatroom_agentDesiredConfigs')
-          .withIndex('by_chatroom_workspace_role', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('workspaceId', args.workspaceId).eq('role', role)
-          )
-          .first()
-      : await ctx.db
-          .query('chatroom_agentDesiredConfigs')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-          .collect()
-          .then(
-            (configs) =>
-              configs
-                .filter((config) => config.role.trim().toLowerCase() === role)
-                .sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null
-          );
   const event = args.event ?? { status: 'offline' as const };
   const now = Date.now();
   const workspaceId = launchRequest?.workspaceId ?? args.workspaceId;
@@ -150,15 +128,10 @@ export async function projectAgentRoleStatusReadModel(
     workspaceId,
     role,
     roleKind: isEphemeralAgentRole(role) ? ('ephemeral' as const) : ('persistent' as const),
-    agentType:
-      args.agentType ?? launchRequest?.agentType ?? desiredConfig?.type ?? existing?.agentType,
+    agentType: args.agentType ?? launchRequest?.agentType ?? existing?.agentType,
     status: event.status,
-    machineId:
-      args.sourceMachineId ??
-      launchRequest?.machineId ??
-      desiredConfig?.machineId ??
-      existing?.machineId,
-    workingDir: launchRequest?.workingDir ?? desiredConfig?.workingDir ?? existing?.workingDir,
+    machineId: args.sourceMachineId ?? launchRequest?.machineId ?? existing?.machineId,
+    workingDir: launchRequest?.workingDir ?? existing?.workingDir,
     ...(args.observedPid !== undefined ? { observedPid: args.observedPid } : {}),
     ...(args.observedAt !== undefined ? { observedAt: args.observedAt } : {}),
     ...(args.lastSeenAt !== undefined

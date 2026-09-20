@@ -71,34 +71,29 @@ export const debug = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const limit = Math.min(args.limit ?? DEFAULT_ROW_LIMIT, MAX_ROW_LIMIT);
 
-    const [activeTasksByStatus, recentCompletedTasks, launchRequests, desiredConfigs] =
-      await Promise.all([
-        Promise.all(
-          ACTIVE_TASK_STATUSES.map((status) =>
-            ctx.db
-              .query('chatroom_tasks')
-              .withIndex('by_chatroom_status', (q) =>
-                q.eq('chatroomId', args.chatroomId).eq('status', status)
-              )
-              .collect()
-          )
-        ),
-        ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('status', 'completed')
-          )
-          .order('desc')
-          .take(limit),
-        ctx.db
-          .query('chatroom_agentLastSentLaunchRequests')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-          .collect(),
-        ctx.db
-          .query('chatroom_agentDesiredConfigs')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-          .collect(),
-      ]);
+    const [activeTasksByStatus, recentCompletedTasks, launchRequests] = await Promise.all([
+      Promise.all(
+        ACTIVE_TASK_STATUSES.map((status) =>
+          ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', status)
+            )
+            .collect()
+        )
+      ),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'completed')
+        )
+        .order('desc')
+        .take(limit),
+      ctx.db
+        .query('chatroom_agentLastSentLaunchRequests')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect(),
+    ]);
 
     const activeTasks = activeTasksByStatus
       .flat()
@@ -171,11 +166,6 @@ export const debug = query({
         chatroom_agentLastSentLaunchRequests: bounded(
           launchRequests.length,
           [...launchRequests].sort((a, b) => b.requestedAt - a.requestedAt),
-          limit
-        ),
-        chatroom_agentDesiredConfigs: bounded(
-          desiredConfigs.length,
-          [...desiredConfigs].sort((a, b) => a.role.localeCompare(b.role)),
           limit
         ),
         chatroom_machineCommandInbox: bounded(machineCommands.length, machineCommands, limit),
