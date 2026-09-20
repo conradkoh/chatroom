@@ -13,15 +13,13 @@ function isUserMessageAnchor(msg: Doc<'chatroom_messages'>): boolean {
   return msg.senderRole.toLowerCase() === 'user' && msg.type === 'message';
 }
 
-async function getAnchorOrThrow(
+async function getAnchorOrNull(
   ctx: QueryCtx,
   chatroomId: Id<'chatroom_rooms'>,
   anchorMessageId: Id<'chatroom_messages'>
-): Promise<Doc<'chatroom_messages'>> {
+): Promise<Doc<'chatroom_messages'> | null> {
   const anchor = await ctx.db.get('chatroom_messages', anchorMessageId);
-  if (!anchor) {
-    throw new ConvexError({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' });
-  }
+  if (!anchor) return null;
   if (anchor.chatroomId !== chatroomId) {
     throw new ConvexError({
       code: 'INVALID_MESSAGE',
@@ -33,6 +31,8 @@ async function getAnchorOrThrow(
   }
   return anchor;
 }
+
+// Missing anchors are recoverable by callers; present anchors remain strictly validated.
 
 async function findLatestUserAnchor(
   ctx: QueryCtx,
@@ -99,7 +99,8 @@ export const getAllTabAnchorNavigation = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const anchor = args.anchorMessageId
-      ? await getAnchorOrThrow(ctx, args.chatroomId, args.anchorMessageId)
+      ? ((await getAnchorOrNull(ctx, args.chatroomId, args.anchorMessageId)) ??
+        (await findLatestUserAnchor(ctx, args.chatroomId)))
       : await findLatestUserAnchor(ctx, args.chatroomId);
 
     if (!anchor) {
@@ -138,9 +139,23 @@ export const listAllTabSlicePaginated = query({
     paginationOpts: paginationOptsValidator,
     sliceUpperBoundExclusive: v.optional(v.union(v.number(), v.null())),
   },
+  // The handler preserves pagination state while handling stale anchors without replacement cursors.
+  // fallow-ignore-next-line complexity
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const anchor = await getAnchorOrThrow(ctx, args.chatroomId, args.anchorMessageId);
+    const anchor = await getAnchorOrNull(ctx, args.chatroomId, args.anchorMessageId);
+    if (!anchor) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: null,
+        sliceMetadata: {
+          anchorMessageId: args.anchorMessageId,
+          nextUserMessageId: null,
+          upperBoundExclusive: args.sliceUpperBoundExclusive ?? null,
+        },
+      };
+    }
 
     const upperBoundExclusive = args.sliceUpperBoundExclusive ?? null;
 
