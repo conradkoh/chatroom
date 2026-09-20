@@ -46,8 +46,10 @@ versions, so deprecated fields on populated tables remain registered as
 optional validators until their data has been migrated or retired. Legacy
 tables that may still contain documents remain registered as compatibility-only
 schema definitions where deployment compatibility requires it. The desired and
-runtime compatibility tables remain registered while their remaining callers
-and historical data are migrated. The six retired machine/agent projection
+runtime compatibility tables remain registered as schema-only definitions. All
+active production and test callers now use the canonical launch-request and
+role-status read-model paths; historical rows remain pending an explicit data
+audit and purge. The six retired machine/agent projection
 tables (`chatroom_machineLastSeenAt`, `chatroom_machineModels`,
 `chatroom_agentOperationalSummary`, `chatroom_agentViewMetadata`,
 `chatroom_machineIdentity`, and `chatroom_machineRegistry`) have now been
@@ -115,9 +117,9 @@ not mean that an agent is running.
 ## Removed models and functions
 
 The following tables are retired from the application model and must not be
-used as active state. The desired/runtime tables remain as compatibility-only
-schema definitions until their remaining callers and historical data are
-migrated:
+used as active state. All active callers have migrated away from the
+desired/runtime tables, which remain as compatibility-only schema definitions
+pending a historical-data audit and purge:
 
 - `chatroom_agentDesiredConfigs`
 - `chatroom_agentRuntimeStates`
@@ -242,8 +244,9 @@ Mark each item done only after the corresponding validation is true.
 - [x] Legacy participant lifecycle fields are removed by migration.
 - [x] Old machine identity, model, registry, and registration-recency models
       have no active callers; their rows were purged and their schema
-      definitions were removed. Desired/runtime compatibility definitions remain
-      until their remaining callers and historical data are migrated.
+      definitions were removed. Desired/runtime callers have now migrated to
+      canonical launch/status models; their compatibility definitions remain
+      pending historical-data audit and purge.
 - [x] Generated Convex bindings are synchronized.
 - [x] Repository search confirms the removed models are absent from active
       production paths.

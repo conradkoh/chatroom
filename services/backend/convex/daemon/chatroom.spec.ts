@@ -115,6 +115,8 @@ describe('daemon.chatroom.debug', () => {
       deliveredAt: 700,
       deliveryKind: 'native_inject',
     });
+    expect(models.chatroom_agentLastSentLaunchRequests).toBeDefined();
+    expect('chatroom_agentDesiredConfigs' in models).toBe(false);
   });
 
   test('keeps every active task even when completions exceed the limit', async () => {

@@ -13,42 +13,9 @@ import { getInboxCommandsForMachine } from './machine-command-inbox';
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import type { MutationCtx } from '../../convex/_generated/server';
 import { projectAgentRoleStatusReadModel } from '../../src/domain/usecase/agent/project-agent-role-status-read-model';
 import { getActiveTeamStructure } from '../../src/domain/usecase/team/active-team-structure';
 import { t } from '../../test.setup';
-
-export async function setAgentRuntimeState(
-  configId: Id<'chatroom_agentDesiredConfigs'>,
-  patch: Record<string, unknown>
-): Promise<void> {
-  await t.run(async (ctx) => setAgentRuntimeStateInContext(ctx, configId, patch));
-}
-
-export async function setAgentRuntimeStateInContext(
-  ctx: MutationCtx,
-  configId: Id<'chatroom_agentDesiredConfigs'>,
-  patch: Record<string, unknown>
-): Promise<void> {
-  const config = await ctx.db.get('chatroom_agentDesiredConfigs', configId);
-  if (!config) return;
-  const existing = await ctx.db
-    .query('chatroom_agentRuntimeStates')
-    .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', configId))
-    .first();
-  if (existing) await ctx.db.patch('chatroom_agentRuntimeStates', existing._id, patch);
-  else {
-    await ctx.db.insert('chatroom_agentRuntimeStates', {
-      desiredConfigId: configId,
-      chatroomId: config.chatroomId,
-      role: config.role,
-      machineId: config.machineId,
-      status: 'offline',
-      updatedAt: Date.now(),
-      ...patch,
-    } as any);
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Session & Chatroom

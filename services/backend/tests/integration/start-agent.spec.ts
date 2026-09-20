@@ -373,7 +373,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
     await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
 
     // ===== ACTION =====
-    // Start a remote agent — this writes chatroom_agentDesiredConfigs with type='remote'
+    // Start a remote agent — this writes a canonical launch request snapshot.
     await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
       const machine = await ctx.db

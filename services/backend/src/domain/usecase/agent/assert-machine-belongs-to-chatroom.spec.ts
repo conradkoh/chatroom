@@ -9,7 +9,6 @@ import { assertMachineBelongsToChatroom } from './assert-machine-belongs-to-chat
 import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 
 async function createTestSession(id: string) {
@@ -79,22 +78,26 @@ describe('assertMachineBelongsToChatroom', () => {
   });
 
   test('throws when bound to a different machine and allowNewMachine is false', async () => {
-    const { sessionId } = await createTestSession('assert-m-2');
+    const { sessionId, userId } = await createTestSession('assert-m-2');
     const chatroomId = await createChatroom(sessionId);
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_agentDesiredConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
+      await recordLastSentLaunchRequest(ctx, {
+        requestId: 'assert-m-2-request',
+        commandId: 'assert-m-2-command',
         chatroomId,
+        teamStructureId: 'duo@1',
         role: 'builder',
-        type: 'remote',
+        agentType: 'remote',
         machineId: 'old-machine',
         agentHarness: 'opencode',
         model: 'm',
         workingDir: '/tmp',
-        createdAt: now,
-        updatedAt: now,
+        reason: 'user.start',
+        wantResume: false,
+        requestedBy: userId,
+        requestedAt: now,
       });
     });
 
@@ -111,22 +114,26 @@ describe('assertMachineBelongsToChatroom', () => {
   });
 
   test('allows when bound to a different machine and allowNewMachine is true', async () => {
-    const { sessionId } = await createTestSession('assert-m-3');
+    const { sessionId, userId } = await createTestSession('assert-m-3');
     const chatroomId = await createChatroom(sessionId);
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.insert('chatroom_agentDesiredConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
+      await recordLastSentLaunchRequest(ctx, {
+        requestId: 'assert-m-3-request',
+        commandId: 'assert-m-3-command',
         chatroomId,
+        teamStructureId: 'duo@1',
         role: 'builder',
-        type: 'remote',
+        agentType: 'remote',
         machineId: 'old-machine',
         agentHarness: 'opencode',
         model: 'm',
         workingDir: '/tmp',
-        createdAt: now,
-        updatedAt: now,
+        reason: 'user.start',
+        wantResume: false,
+        requestedBy: userId,
+        requestedAt: now,
       });
     });
 
