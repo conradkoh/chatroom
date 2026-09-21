@@ -6,7 +6,7 @@ describe('role templates', () => {
   test.each([
     ['architect', 'Architect'],
     ['uiux-engineer', 'UI/UX Engineer'],
-  ])('%s has specialist metadata', (role, title) => {
+  ])('%s has independent design-role metadata', (role, title) => {
     const template = ROLE_TEMPLATES[role];
 
     expect(template).toBeDefined();

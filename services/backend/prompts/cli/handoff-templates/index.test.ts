@@ -36,7 +36,7 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
     );
   });
 
-  test('resolves role-specific specialist pairs for duo and solo', () => {
+  test('resolves architect and UI/UX pairs for duo and solo', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'architect'))).toMatch(/module boundaries/i);
     expect(getHandoffTemplate(duoQuery('architect', 'planner'))).toMatch(/schemas/i);
     expect(getHandoffTemplate(duoQuery('planner', 'uiux-engineer'))).toMatch(/accessibility/i);

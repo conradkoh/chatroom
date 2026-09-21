@@ -58,7 +58,7 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
     expectNoEnhancerCeremony(output);
   });
 
-  test('configured specialist targets are ordinary advertised capability data', () => {
+  test('configured architect and UI/UX targets are ordinary advertised capability data', () => {
     const output = renderHandoffSections({
       availableHandoffTargets: ['architect', 'uiux-engineer', 'builder', 'user'],
     });

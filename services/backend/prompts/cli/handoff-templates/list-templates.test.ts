@@ -17,7 +17,7 @@ function requireListing(query: {
 }
 
 describe('listHandoffTemplates', () => {
-  test('duo planner lists permanent and specialist templates', () => {
+  test('duo planner lists permanent and design-role templates', () => {
     const listing = requireListing({ teamId: 'duo', role: 'planner' });
 
     expect(listing.teamId).toBe('duo');
@@ -47,7 +47,7 @@ describe('listHandoffTemplates', () => {
     expect(listing.templates[0]?.template).toContain('Handoff Template (Builder → Planner)');
   });
 
-  test('solo lists solo → specialist and user templates', () => {
+  test('solo lists solo → design-role and user templates', () => {
     const listing = requireListing({ teamId: 'solo', role: 'solo' });
 
     expect(listing.teamId).toBe('solo');

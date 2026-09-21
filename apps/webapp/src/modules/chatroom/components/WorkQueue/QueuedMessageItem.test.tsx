@@ -185,7 +185,7 @@ describe('QueuedMessageItem', () => {
     expect(screen.getByText('See this context')).toBeInTheDocument();
   });
 
-  it('renders shared envelope controls for optional ephemeral specialist support', () => {
+  it('renders shared envelope controls for optional ephemeral design-role support', () => {
     renderItem(makeMessage());
     expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
     expect(screen.getByTestId('queued-message-session-toggle')).toBeInTheDocument();

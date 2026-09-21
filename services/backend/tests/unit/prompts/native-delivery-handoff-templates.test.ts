@@ -13,24 +13,21 @@ describe('handoff view-template command (recovery / CLI)', () => {
   test.each([
     ['architect', /module boundaries|schemas/i],
     ['uiux-engineer', /loading\/empty\/error\/success|accessibility/i],
-  ] as const)(
-    'renders a generic %s specialist template without an entry-point role',
-    (role, focus) => {
-      const template = viewHandoffTemplate({ role });
+  ] as const)('renders a generic %s template without an entry-point role', (role, focus) => {
+    const template = viewHandoffTemplate({ role });
 
-      expect(template).toMatch(focus);
-      expect(template).toContain('<entry-point-role>');
-      expect(template).not.toContain('planner');
-      expect(template).not.toContain('solo');
-    }
-  );
+    expect(template).toMatch(focus);
+    expect(template).toContain('<entry-point-role>');
+    expect(template).not.toContain('planner');
+    expect(template).not.toContain('solo');
+  });
 
   test.each([
     ['duo', 'architect', 'planner'],
     ['duo', 'uiux-engineer', 'planner'],
     ['solo', 'architect', 'solo'],
     ['solo', 'uiux-engineer', 'solo'],
-  ] as const)('keeps concrete %s specialist handoff target for %s', (teamId, role, nextRole) => {
+  ] as const)('keeps concrete %s handoff target for %s', (teamId, role, nextRole) => {
     const template = viewHandoffTemplate({ role, nextRole, teamId });
 
     expect(template).toContain(`--next-role="${nextRole}"`);
@@ -54,7 +51,7 @@ describe('handoff view-template command (recovery / CLI)', () => {
     expect(template).toContain('Handoff Template (Builder → Planner)');
   });
 
-  test('rejects role-only viewing for non-specialist roles', () => {
+  test('rejects role-only viewing for non-design roles', () => {
     expect(() => viewHandoffTemplate({ role: 'builder' })).toThrow(
       /only for architect or uiux-engineer/i
     );

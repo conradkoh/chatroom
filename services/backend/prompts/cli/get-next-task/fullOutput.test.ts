@@ -66,7 +66,7 @@ describe('generateFullCliOutput — delivery paths', () => {
     expectNoEnhancerCeremony(output);
   });
 
-  test('configured specialist roles remain ordinary advertised capability data', () => {
+  test('configured architect and UI/UX roles remain ordinary advertised capability data', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       teamId: 'duo',

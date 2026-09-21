@@ -76,7 +76,7 @@ describe('Init — templates deferred to task delivery', () => {
     assertNativeInitTemplateDisclosure(cliInitPrompt('duo', 'planner'));
   });
 
-  test('specialist init preserves the role-specific disclosure contract', () => {
+  test('architect and UI/UX init preserve their disclosure contract', () => {
     for (const role of ['architect', 'uiux-engineer']) {
       const prompt = nativeInitPrompt('duo', role);
       expect(prompt).toContain(

@@ -217,7 +217,7 @@ export async function seedRunningAgentPid(
 }
 
 /**
- * Patch chatroom teamRoles to include the architect specialist for generic
+ * Patch chatroom teamRoles to include the architect role for generic
  * ephemeral-agent integration tests.
  */
 export async function enableArchitectTeamAgent(

@@ -102,7 +102,7 @@ describe('Native task delivery — eager handoff template matrix', () => {
   }
 });
 
-describe('Native task delivery — specialist design briefs', () => {
+describe('Native task delivery — architect and UI/UX design briefs', () => {
   for (const scenario of NATIVE_DELIVERY_SCENARIOS.filter((candidate) =>
     ['architect', 'uiux-engineer'].includes(candidate.role)
   )) {
@@ -225,7 +225,7 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).not.toContain('<chat-mode>');
   });
 
-  test('solo chat entry-point user keeps base templates and advertises specialists', () => {
+  test('solo chat entry-point user keeps base templates and advertises design roles', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,
       role: 'solo',

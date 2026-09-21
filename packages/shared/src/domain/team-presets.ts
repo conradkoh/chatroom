@@ -38,14 +38,15 @@ export const TEAM_PRESETS: Record<TeamPresetId, TeamPreset> = {
     structureId: TEAM_STRUCTURE_IDS.duo,
     name: 'Duo',
     description:
-      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral design specialists',
+      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect and UI/UX engineer advisors',
     roles: ['planner', 'architect', 'uiux-engineer', 'builder'],
     entryPoint: 'planner',
   },
   solo: {
     structureId: TEAM_STRUCTURE_IDS.solo,
     name: 'Solo',
-    description: 'A single agent working independently, with optional ephemeral design specialists',
+    description:
+      'A single agent working independently, with optional ephemeral architect and UI/UX engineer advisors',
     roles: ['solo', 'architect', 'uiux-engineer'],
     entryPoint: 'solo',
   },

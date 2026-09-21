@@ -326,7 +326,7 @@ teamCommand
 handoffCommandGroup
   .command('view-template')
   .description(
-    'Print a handoff message template; omit --next-role to inspect a generic architect or UI/UX specialist template'
+    'Print a handoff message template; omit --next-role to inspect a generic architect or UI/UX engineer template'
   )
   .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
   // --role / --next-role are declared on the handoff group so subcommand flag

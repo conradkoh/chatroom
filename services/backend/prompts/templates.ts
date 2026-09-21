@@ -84,7 +84,7 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
   tester: {
     role: 'tester',
     title: 'Tester',
-    description: 'You are the QA specialist responsible for testing and validation.',
+    description: 'You are the QA role responsible for testing and validation.',
     responsibilities: [
       'Write and execute test cases',
       'Verify functionality works as expected',

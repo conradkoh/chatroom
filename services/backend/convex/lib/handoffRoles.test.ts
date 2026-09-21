@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import { buildAvailableHandoffRoles } from './handoffRoles';
 
 describe('buildAvailableHandoffRoles', () => {
-  test('includes configured specialist roles like any other configured role', () => {
+  test('includes configured architect and UI/UX roles like any other configured role', () => {
     expect(
       buildAvailableHandoffRoles({
         teamRoles: ['planner', 'architect', 'uiux-engineer', 'builder'],
@@ -15,7 +15,7 @@ describe('buildAvailableHandoffRoles', () => {
     ).toEqual(['architect', 'uiux-engineer', 'builder', 'user']);
   });
 
-  test('does not inject a specialist role when it is absent', () => {
+  test('does not inject an architect or UI/UX role when absent', () => {
     expect(
       buildAvailableHandoffRoles({
         teamRoles: ['planner', 'builder'],

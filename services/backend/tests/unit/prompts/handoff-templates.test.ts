@@ -21,7 +21,7 @@ import {
 } from '../../helpers/handoff-template-fixtures';
 
 describe('handoff-templates > resolver', () => {
-  const rigidSpecialistHeadings = [
+  const rigidDesignBriefHeadings = [
     '## Summary',
     '## Goal',
     '## Key Knowledge for High Quality Bar',
@@ -39,16 +39,13 @@ describe('handoff-templates > resolver', () => {
     ['duo', 'uiux-engineer', 'planner'],
     ['solo', 'architect', 'solo'],
     ['solo', 'uiux-engineer', 'solo'],
-  ] as const)(
-    'specialist %s handback uses the rigid design brief for %s',
-    (teamId, role, target) => {
-      const template = getHandoffTemplate({ teamId, fromRole: role, toRole: target });
+  ] as const)('%s handback uses the rigid design brief for %s', (teamId, role, target) => {
+    const template = getHandoffTemplate({ teamId, fromRole: role, toRole: target });
 
-      expect(template).not.toBeNull();
-      for (const heading of rigidSpecialistHeadings) expect(template).toContain(heading);
-      expect(template).toContain(`--next-role="${target}"`);
-    }
-  );
+    expect(template).not.toBeNull();
+    for (const heading of rigidDesignBriefHeadings) expect(template).toContain(heading);
+    expect(template).toContain(`--next-role="${target}"`);
+  });
 
   test('architect design brief requires domain, concurrency, read-model, Convex, and migration detail', () => {
     const template = getHandoffTemplate({ fromRole: 'architect', toRole: 'planner' });
@@ -81,7 +78,7 @@ describe('handoff-templates > resolver', () => {
     (role) => {
       const template = viewHandoffTemplate({ role });
 
-      for (const heading of rigidSpecialistHeadings) expect(template).toContain(heading);
+      for (const heading of rigidDesignBriefHeadings) expect(template).toContain(heading);
       expect(template).toContain('<entry-point-role>');
       expect(template).not.toContain('planner');
       expect(template).not.toContain('solo');
@@ -131,7 +128,7 @@ describe('handoff-templates > resolver', () => {
     expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'enhancer', toRole: 'solo' })).toBeNull();
   });
 
-  test('specialist pairs resolve role-specific design templates', () => {
+  test('architect and UI/UX pairs resolve role-specific design templates', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'architect' })).toMatch(
       /module boundaries|schemas/i
     );

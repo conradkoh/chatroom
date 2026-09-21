@@ -10,7 +10,7 @@ describe('printHandoffViewTemplate', () => {
   test.each([
     ['architect', /module boundaries|schemas/i],
     ['uiux-engineer', /loading\/empty\/error\/success|accessibility/i],
-  ] as const)('prints the generic %s specialist template', (role, focus) => {
+  ] as const)('prints the generic %s template', (role, focus) => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     printHandoffViewTemplate({ role });
