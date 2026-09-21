@@ -187,13 +187,6 @@ export const DaemonStartReasonCode = {
 // fallow-ignore-next-line unused-type
 export type DaemonStartReason = (typeof DaemonStartReasonCode)[keyof typeof DaemonStartReasonCode];
 
-/** @deprecated Use AgentStartReasonCode instead. */
-export const AgentStartReasonEnum = Object.fromEntries(
-  AGENT_START_REASONS.map((reason) => [reason, reason])
-) as {
-  readonly [K in AgentStartReason]: K;
-};
-
 export const agentStartReasonValidator = v.union(...toLiteralValidators(AGENT_START_REASONS));
 
 export const isAgentStartReason = (value: unknown): value is AgentStartReason =>
