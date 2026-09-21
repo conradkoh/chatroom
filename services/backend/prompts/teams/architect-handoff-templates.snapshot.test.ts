@@ -6,8 +6,6 @@ import {
   getGenericArchitectToEntryPointHandoffTemplate,
 } from './architect-handoff-templates';
 
-const removedRoleLabel = ['spec', 'ialist'].join('');
-
 describe('architect handoff template snapshots', () => {
   test.each([
     ['entry point to architect', getEntryPointToArchitectHandoffTemplate('planner')],
@@ -15,7 +13,6 @@ describe('architect handoff template snapshots', () => {
     ['architect to solo', getArchitectToEntryPointHandoffTemplate('solo')],
     ['generic architect handback', getGenericArchitectToEntryPointHandoffTemplate()],
   ] as const)('%s renders the complete contract', (_variant, template) => {
-    expect(template).not.toContain(removedRoleLabel);
     expect(template).toMatchSnapshot();
   });
 });

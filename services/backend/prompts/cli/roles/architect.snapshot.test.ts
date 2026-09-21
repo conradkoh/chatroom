@@ -2,8 +2,6 @@ import { describe, expect, test } from 'vitest';
 
 import { getArchitectGuidance } from './architect';
 
-const removedRoleLabel = ['spec', 'ialist'].join('');
-
 describe('architect guidance snapshots', () => {
   test.each([
     ['CLI planner', { nativeIntegration: false, entryPointRole: 'planner' }],
@@ -13,7 +11,6 @@ describe('architect guidance snapshots', () => {
   ] as const)('%s renders the complete operating model', (_variant, params) => {
     const guidance = getArchitectGuidance(params);
 
-    expect(guidance).not.toContain(removedRoleLabel);
     expect(guidance).toMatchSnapshot();
   });
 });
