@@ -9,6 +9,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { viewHandoffTemplate } from '../../../prompts/cli/handoff/view-template';
 import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import { getBuilderToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
@@ -20,6 +21,73 @@ import {
 } from '../../helpers/handoff-template-fixtures';
 
 describe('handoff-templates > resolver', () => {
+  const rigidSpecialistHeadings = [
+    '## Summary',
+    '## Goal',
+    '## Key Knowledge for High Quality Bar',
+    '## Force Multipliers',
+    '## Files to implement (exhaustive, file-level)',
+    '## Shared contracts',
+    '## Requirements (acceptance criteria)',
+    '## What to avoid',
+    '## Skills to activate',
+    '## Out of scope',
+  ];
+
+  test.each([
+    ['duo', 'architect', 'planner'],
+    ['duo', 'uiux-engineer', 'planner'],
+    ['solo', 'architect', 'solo'],
+    ['solo', 'uiux-engineer', 'solo'],
+  ] as const)(
+    'specialist %s handback uses the rigid design brief for %s',
+    (teamId, role, target) => {
+      const template = getHandoffTemplate({ teamId, fromRole: role, toRole: target });
+
+      expect(template).not.toBeNull();
+      for (const heading of rigidSpecialistHeadings) expect(template).toContain(heading);
+      expect(template).toContain(`--next-role="${target}"`);
+    }
+  );
+
+  test('architect design brief requires domain, concurrency, read-model, Convex, and migration detail', () => {
+    const template = getHandoffTemplate({ fromRole: 'architect', toRole: 'planner' });
+
+    expect(template).toMatch(/domain model|entity ownership/i);
+    expect(template).toMatch(/service and module boundaries|public and internal APIs/i);
+    expect(template).toMatch(/concurrent writers|idempotency|ordering and monotonicity/i);
+    expect(template).toMatch(/primary read paths|indexes|projections\/read models/i);
+    expect(template).toMatch(/Convex reactivity|bandwidth|reactive fanout/i);
+    expect(template).toMatch(/high-frequency|low-frequency/i);
+    expect(template).toMatch(/migration\/backfill|schema.*query.*mutation/i);
+    expect(template).toMatch(/tests|verification order/i);
+  });
+
+  test('UI/UX design brief requires complete flows, interaction detail, concrete styling, and tests', () => {
+    const template = getHandoffTemplate({ fromRole: 'uiux-engineer', toRole: 'planner' });
+
+    expect(template).toMatch(/loading, empty, error, success/i);
+    expect(template).toMatch(/keyboard shortcuts|focus order|focus restoration/i);
+    expect(template).toMatch(/accessible semantics|labels/i);
+    expect(template).toMatch(/component hierarchy and ownership|props\/state\/events/i);
+    expect(template).toMatch(/ShadCN|Base UI/i);
+    expect(template).toMatch(/Tailwind|theme-token/i);
+    expect(template).toMatch(/responsive breakpoints|responsive behavior/i);
+    expect(template).toMatch(/UI\/integration\/accessibility test plan/i);
+  });
+
+  test.each(['architect', 'uiux-engineer'] as const)(
+    'generic %s design brief stays neutral while retaining the placeholder target',
+    (role) => {
+      const template = viewHandoffTemplate({ role });
+
+      for (const heading of rigidSpecialistHeadings) expect(template).toContain(heading);
+      expect(template).toContain('<entry-point-role>');
+      expect(template).not.toContain('planner');
+      expect(template).not.toContain('solo');
+    }
+  );
+
   test('resolves planner → builder to the delegation brief', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'builder' })).toBe(
       getPlannerToBuilderHandoffTemplate()

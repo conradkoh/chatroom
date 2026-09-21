@@ -150,6 +150,42 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
       'Not Applicable.',
     ].join('\n'),
   },
+  {
+    label: 'duo architect receives planner design task → return to planner',
+    teamId: 'duo',
+    role: 'architect',
+    senderRole: 'planner',
+    availableHandoffTargets: ['planner'],
+    primaryHandoffTarget: 'planner',
+    eagerTemplateHeadings: ['Handoff Template (Architect → Entry Point)'],
+  },
+  {
+    label: 'duo UI/UX engineer receives planner design task → return to planner',
+    teamId: 'duo',
+    role: 'uiux-engineer',
+    senderRole: 'planner',
+    availableHandoffTargets: ['planner'],
+    primaryHandoffTarget: 'planner',
+    eagerTemplateHeadings: ['Handoff Template (UI/UX Engineer → Entry Point)'],
+  },
+  {
+    label: 'solo architect receives solo design task → return to solo',
+    teamId: 'solo',
+    role: 'architect',
+    senderRole: 'solo',
+    availableHandoffTargets: ['solo'],
+    primaryHandoffTarget: 'solo',
+    eagerTemplateHeadings: ['Handoff Template (Architect → Entry Point)'],
+  },
+  {
+    label: 'solo UI/UX engineer receives solo design task → return to solo',
+    teamId: 'solo',
+    role: 'uiux-engineer',
+    senderRole: 'solo',
+    availableHandoffTargets: ['solo'],
+    primaryHandoffTarget: 'solo',
+    eagerTemplateHeadings: ['Handoff Template (UI/UX Engineer → Entry Point)'],
+  },
 ];
 
 export function getNativeDeliveryScenario(match: string): NativeDeliveryScenario {

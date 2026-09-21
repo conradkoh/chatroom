@@ -102,6 +102,44 @@ describe('Native task delivery — eager handoff template matrix', () => {
   }
 });
 
+describe('Native task delivery — specialist design briefs', () => {
+  for (const scenario of NATIVE_DELIVERY_SCENARIOS.filter((candidate) =>
+    ['architect', 'uiux-engineer'].includes(candidate.role)
+  )) {
+    test(`${scenario.teamId}:${scenario.role} injects the rigid role-specific brief`, () => {
+      const output = deliver(scenario);
+      const start = output.indexOf('<handoff-templates>');
+      const end = output.indexOf('</handoff-templates>');
+      const templates = output.slice(start, end);
+
+      for (const heading of [
+        '## Summary',
+        '## Goal',
+        '## Key Knowledge for High Quality Bar',
+        '## Force Multipliers',
+        '## Files to implement (exhaustive, file-level)',
+        '## Shared contracts',
+        '## Requirements (acceptance criteria)',
+        '## What to avoid',
+        '## Skills to activate',
+        '## Out of scope',
+      ]) {
+        expect(templates).toContain(heading);
+      }
+      expect(templates).toContain(`--next-role="${scenario.primaryHandoffTarget}"`);
+      if (scenario.role === 'architect') {
+        expect(templates).toMatch(
+          /domain model|concurrent writers|Convex reactivity|migration\/backfill/i
+        );
+      } else {
+        expect(templates).toMatch(
+          /loading, empty, error, success|keyboard shortcuts|Tailwind|UI\/integration/i
+        );
+      }
+    });
+  }
+});
+
 describe('Native task delivery — omitted CLI harness framing', () => {
   test('does not include listen-loop, classify, or task-read instructions', () => {
     const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);

@@ -29,6 +29,17 @@ describe('specialist role init prompts', () => {
             ? '## Architect Operating Model'
             : '## UI/UX Engineer Operating Model'
         );
+        expect(prompt).toContain('<handoff-templates>');
+        expect(prompt).toMatch(/complete every section in its exact order/i);
+        if (role === 'architect') {
+          expect(prompt).toMatch(/domain model|entity ownership/i);
+          expect(prompt).toMatch(/concurrent writers|idempotency|ordering/i);
+          expect(prompt).toMatch(/Convex reactivity|bandwidth|high-frequency/i);
+        } else {
+          expect(prompt).toMatch(/loading, empty, error, success/i);
+          expect(prompt).toMatch(/keyboard shortcuts|focus order|accessibility/i);
+          expect(prompt).toMatch(/Base UI|Tailwind|theme-token/i);
+        }
         expect(prompt).not.toContain('CHATROOM_ENHANCER_END');
       });
     }
