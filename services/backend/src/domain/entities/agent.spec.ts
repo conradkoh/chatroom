@@ -27,11 +27,13 @@ import {
   machineCommandStatusValidator,
   isMachineCommandStatus,
   AGENT_START_REASONS,
+  AgentStartReasonCode,
   AgentStartReasonEnum,
   agentStartReasonValidator,
   isAgentStartReason,
   isUserExplicitStart,
   isExplicitDaemonStart,
+  DaemonStartReasonCode,
   MODEL_SOURCES,
   ModelSourceEnum,
   modelSourceValidator,
@@ -39,6 +41,21 @@ import {
 } from './agent';
 
 describe('agent reason predicates', () => {
+  test('canonical start reason codes preserve wire values', () => {
+    expect(AgentStartReasonCode.USER_START).toBe('user.start');
+    expect(AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE).toBe('platform.pending_task_wake');
+    expect(AgentStartReasonCode.PLATFORM_AUTO_RESTART_ON_NEW_CONTEXT).toBe(
+      'platform.auto_restart_on_new_context'
+    );
+    expect(AgentStartReasonEnum['user.start']).toBe(AgentStartReasonCode.USER_START);
+  });
+
+  test('daemon-local start reason codes stay outside backend start vocabulary', () => {
+    expect(DaemonStartReasonCode.RESPAWN).toBe('daemon.respawn');
+    expect(isAgentStartReason(DaemonStartReasonCode.RESPAWN)).toBe(false);
+    expect(isExplicitDaemonStart(DaemonStartReasonCode.RESPAWN)).toBe(true);
+  });
+
   test('isUserExplicitStart accepts user.start and user.restart only', () => {
     expect(isUserExplicitStart('user.start')).toBe(true);
     expect(isUserExplicitStart('user.restart')).toBe(true);

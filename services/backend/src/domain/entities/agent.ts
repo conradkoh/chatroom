@@ -134,29 +134,63 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
 //   daemon    — machine daemon lifecycle (respawn)
 
 /**
- * Why an agent was started. Used in `agent.requestStart` events.
+ * Canonical wire-stable codes for why an agent starts.
  *
- * - `user.start`: User explicitly started the agent via UI or CLI
- * - `user.restart`: User restarted the agent via atomic restart-agent (releases in-flight tasks, resets delivery)
- * - `platform.auto_restart_on_new_context`: @deprecated — historical events only; no longer emitted
- * - `platform.team_switch`: Target-team agents started automatically after a chatroom team change
- * - `test`: Used in integration and unit tests only
+ * Values are serialized in agent.requestStart events and must not be renamed.
  */
+// fallow-ignore-next-line unused-export
+export const AgentStartReasonCode = {
+  /** User explicitly started the agent through the UI or CLI. */
+  USER_START: 'user.start',
+  /** User restarted the agent; in-flight task delivery is reset. */
+  USER_RESTART: 'user.restart',
+  /** User explicitly spawned an agent with a manual configuration. */
+  USER_MANUAL_SPAWN: 'user.manual_spawn',
+  /** Daemon nudged an agent while monitoring task/lifecycle state. */
+  PLATFORM_TASK_MONITOR_NUDGE: 'platform.task_monitor_nudge',
+  /** Starts a fresh agent/session before native task injection. */
+  PLATFORM_TASK_START_IN_NEW_SESSION: 'platform.task_start_in_new_session',
+  /** Wakes an agent to deliver an active pending task. */
+  PLATFORM_PENDING_TASK_WAKE: 'platform.pending_task_wake',
+  /** @deprecated Historical value only; no longer emitted. */
+  PLATFORM_AUTO_RESTART_ON_NEW_CONTEXT: 'platform.auto_restart_on_new_context',
+  /** Starts target-team agents after a chatroom team change. */
+  PLATFORM_TEAM_SWITCH: 'platform.team_switch',
+  /** Test-only start reason. */
+  TEST: 'test',
+} as const;
+
+export type AgentStartReason = (typeof AgentStartReasonCode)[keyof typeof AgentStartReasonCode];
+
 export const AGENT_START_REASONS = [
-  'user.start',
-  'user.restart',
-  'user.manual_spawn',
-  'platform.task_monitor_nudge',
-  'platform.task_start_in_new_session',
-  'platform.pending_task_wake',
-  'platform.auto_restart_on_new_context',
-  'platform.team_switch',
-  'test',
+  AgentStartReasonCode.USER_START,
+  AgentStartReasonCode.USER_RESTART,
+  AgentStartReasonCode.USER_MANUAL_SPAWN,
+  AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
+  AgentStartReasonCode.PLATFORM_TASK_START_IN_NEW_SESSION,
+  AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+  AgentStartReasonCode.PLATFORM_AUTO_RESTART_ON_NEW_CONTEXT,
+  AgentStartReasonCode.PLATFORM_TEAM_SWITCH,
+  AgentStartReasonCode.TEST,
 ] as const;
 
-export type AgentStartReason = (typeof AGENT_START_REASONS)[number];
+/**
+ * Reasons owned by the local daemon rather than backend agent-start events.
+ * These must not be added to the backend AgentStartReason validator.
+ */
+// fallow-ignore-next-line unused-export
+export const DaemonStartReasonCode = {
+  /** Respawn after the daemon replaces an agent process. */
+  RESPAWN: 'daemon.respawn',
+} as const;
 
-export const AgentStartReasonEnum = Object.fromEntries(AGENT_START_REASONS.map((r) => [r, r])) as {
+// fallow-ignore-next-line unused-type
+export type DaemonStartReason = (typeof DaemonStartReasonCode)[keyof typeof DaemonStartReasonCode];
+
+/** @deprecated Use AgentStartReasonCode instead. */
+export const AgentStartReasonEnum = Object.fromEntries(
+  AGENT_START_REASONS.map((reason) => [reason, reason])
+) as {
   readonly [K in AgentStartReason]: K;
 };
 
@@ -168,8 +202,8 @@ export const isAgentStartReason = (value: unknown): value is AgentStartReason =>
 /** User-initiated starts that supersede inflight stop commands (backend). */
 // fallow-ignore-next-line unused-export
 export const USER_EXPLICIT_START_REASONS = [
-  AgentStartReasonEnum['user.start'],
-  AgentStartReasonEnum['user.restart'],
+  AgentStartReasonCode.USER_START,
+  AgentStartReasonCode.USER_RESTART,
 ] as const;
 export type UserExplicitStartReason = (typeof USER_EXPLICIT_START_REASONS)[number];
 // fallow-ignore-next-line unused-export
@@ -180,11 +214,11 @@ export const isUserExplicitStart = (reason: string): reason is UserExplicitStart
 // fallow-ignore-next-line unused-export
 export const EXPLICIT_DAEMON_START_REASONS = [
   ...USER_EXPLICIT_START_REASONS,
-  AgentStartReasonEnum['user.manual_spawn'],
-  AgentStartReasonEnum['platform.task_monitor_nudge'],
-  AgentStartReasonEnum['platform.pending_task_wake'],
-  AgentStartReasonEnum['platform.task_start_in_new_session'],
-  'daemon.respawn',
+  AgentStartReasonCode.USER_MANUAL_SPAWN,
+  AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
+  AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+  AgentStartReasonCode.PLATFORM_TASK_START_IN_NEW_SESSION,
+  DaemonStartReasonCode.RESPAWN,
 ] as const;
 export type ExplicitDaemonStartReason = (typeof EXPLICIT_DAEMON_START_REASONS)[number];
 export const isExplicitDaemonStart = (reason: string): reason is ExplicitDaemonStartReason =>
