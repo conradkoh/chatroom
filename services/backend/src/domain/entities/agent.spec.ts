@@ -48,6 +48,7 @@ describe('agent reason predicates', () => {
   test('isExplicitDaemonStart accepts daemon nudge/wake reasons', () => {
     expect(isExplicitDaemonStart('user.start')).toBe(true);
     expect(isExplicitDaemonStart('platform.task_monitor_nudge')).toBe(true);
+    expect(isExplicitDaemonStart('platform.pending_task_wake')).toBe(true);
     expect(isExplicitDaemonStart('daemon.respawn')).toBe(true);
   });
 });

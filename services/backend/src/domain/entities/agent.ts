@@ -182,6 +182,7 @@ export const EXPLICIT_DAEMON_START_REASONS = [
   ...USER_EXPLICIT_START_REASONS,
   AgentStartReasonEnum['user.manual_spawn'],
   AgentStartReasonEnum['platform.task_monitor_nudge'],
+  AgentStartReasonEnum['platform.pending_task_wake'],
   AgentStartReasonEnum['platform.task_start_in_new_session'],
   'daemon.respawn',
 ] as const;

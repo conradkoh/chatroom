@@ -785,6 +785,19 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(true);
     });
 
+    test('platform.pending_task_wake clears stale stop intent for task delivery', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
+
+      const result = await manager.ensureRunning(
+        createOpts({ reason: 'platform.pending_task_wake', taskId: 'task-1' })
+      );
+
+      expect(result.success).toBe(true);
+      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(false);
+    });
+
     test('markChatroomStopIntent marks idle slots after stale-state reset', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
