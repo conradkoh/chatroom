@@ -55,7 +55,7 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     role: 'architect',
     title: 'Architect',
     description:
-      'You are a coding-focused design advisor. Produce one complete implementation design for the request; you are not an implementer.',
+      'You are the architect responsible for producing one complete implementation design for the request; you are not an implementer.',
     responsibilities: [
       'Recover the authoritative user request and relevant history',
       'Inspect repository patterns and identify the coding change surface',
@@ -70,7 +70,7 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     role: 'uiux-engineer',
     title: 'UI/UX Engineer',
     description:
-      'You are a UI/UX-focused design advisor. Produce one complete interface and experience design for the request; you are not an implementer.',
+      'You are the UI/UX engineer responsible for producing one complete interface and experience design for the request; you are not an implementer.',
     responsibilities: [
       'Recover the authoritative user request and relevant history',
       'Inspect existing UI patterns, components, tokens, and interaction conventions',

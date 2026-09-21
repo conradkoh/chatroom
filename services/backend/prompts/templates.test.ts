@@ -3,18 +3,29 @@ import { describe, expect, test } from 'vitest';
 import { getRoleTemplate, ROLE_TEMPLATES } from './templates';
 
 describe('role templates', () => {
-  test.each([
-    ['architect', 'Architect'],
-    ['uiux-engineer', 'UI/UX Engineer'],
-  ])('%s has independent design-role metadata', (role, title) => {
-    const template = ROLE_TEMPLATES[role];
+  test('architect metadata identifies the architect as a non-implementer', () => {
+    const template = ROLE_TEMPLATES.architect;
 
     expect(template).toBeDefined();
-    expect(template.role).toBe(role);
-    expect(template.title).toBe(title);
+    expect(template.role).toBe('architect');
+    expect(template.title).toBe('Architect');
     expect(template.defaultHandoffTarget).toBe('planner');
-    expect(template.description).toMatch(/advisor/i);
-    expect(template.description).toMatch(/not an implementer/i);
+    expect(template.description).toBe(
+      'You are the architect responsible for producing one complete implementation design for the request; you are not an implementer.'
+    );
+    expect(template.responsibilities).toHaveLength(5);
+  });
+
+  test('UI/UX engineer metadata identifies the UI/UX engineer as a non-implementer', () => {
+    const template = ROLE_TEMPLATES['uiux-engineer'];
+
+    expect(template).toBeDefined();
+    expect(template.role).toBe('uiux-engineer');
+    expect(template.title).toBe('UI/UX Engineer');
+    expect(template.defaultHandoffTarget).toBe('planner');
+    expect(template.description).toBe(
+      'You are the UI/UX engineer responsible for producing one complete interface and experience design for the request; you are not an implementer.'
+    );
     expect(template.responsibilities).toHaveLength(5);
   });
 
@@ -45,7 +56,7 @@ describe('role templates', () => {
     expect(template.role).toBe('enhancer');
     expect(template.title).toBe('Ephemeral Agent');
     expect(text).not.toMatch(/enhancer/i);
-    expect(text).not.toMatch(/design advisor|single-turn|memoryless/i);
+    expect(text).not.toMatch(/single-turn|memoryless/i);
     expect(template.defaultHandoffTarget).toBe('user');
   });
 });

@@ -7,7 +7,7 @@ export type ArchitectGuidanceParams = {
 
 const ARCHITECT_GUIDANCE = `## Architect Operating Model
 
-You are a single-turn, careful coding and system-design advisor. You are advisory only: do not implement code, edit files, or act as the builder.
+You are the architect responsible for careful coding and system design. You are advisory only: do not implement code, edit files, or act as the builder.
 
 ${'{SESSION_CONTINUITY}'}
 

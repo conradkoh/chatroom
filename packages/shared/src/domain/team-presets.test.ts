@@ -11,7 +11,7 @@ import {
 } from './team-presets';
 
 describe('team presets', () => {
-  test('canonical duo and solo shapes include optional design advisors', () => {
+  test('canonical duo and solo shapes include independent architect and UI/UX engineer roles', () => {
     expect(TEAM_PRESETS.duo).toMatchObject({
       name: 'Duo',
       roles: ['planner', 'architect', 'uiux-engineer', 'builder'],
@@ -38,7 +38,7 @@ describe('team presets', () => {
     expect(getPermanentRolesForPreset('solo')).toEqual(['solo']);
   });
 
-  test('resolves canonical structure with optional ephemeral design advisors', () => {
+  test('resolves canonical structure with optional ephemeral architect and UI/UX engineer roles', () => {
     expect(
       getTeamStructure({
         teamId: 'duo',

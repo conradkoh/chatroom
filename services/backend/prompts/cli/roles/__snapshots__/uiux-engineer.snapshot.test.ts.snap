@@ -3,7 +3,7 @@
 exports[`UI/UX engineer guidance snapshots > CLI planner renders the complete operating model 1`] = `
 "## UI/UX Engineer Operating Model
 
-You are a single-turn, careful UI/UX design advisor. You are advisory only: do not implement code, edit files, or act as the builder.
+You are the UI/UX engineer responsible for producing one complete interface and experience design for the request. You are advisory only: do not implement code, edit files, or act as the builder.
 
 Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
@@ -25,7 +25,7 @@ The handoff must contain every required brief section, repository evidence, chos
 exports[`UI/UX engineer guidance snapshots > CLI solo renders the complete operating model 1`] = `
 "## UI/UX Engineer Operating Model
 
-You are a single-turn, careful UI/UX design advisor. You are advisory only: do not implement code, edit files, or act as the builder.
+You are the UI/UX engineer responsible for producing one complete interface and experience design for the request. You are advisory only: do not implement code, edit files, or act as the builder.
 
 Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
@@ -47,7 +47,7 @@ The handoff must contain every required brief section, repository evidence, chos
 exports[`UI/UX engineer guidance snapshots > native planner renders the complete operating model 1`] = `
 "## UI/UX Engineer Operating Model
 
-You are a single-turn, careful UI/UX design advisor. You are advisory only: do not implement code, edit files, or act as the builder.
+You are the UI/UX engineer responsible for producing one complete interface and experience design for the request. You are advisory only: do not implement code, edit files, or act as the builder.
 
 
 
@@ -69,7 +69,7 @@ The handoff must contain every required brief section, repository evidence, chos
 exports[`UI/UX engineer guidance snapshots > native solo renders the complete operating model 1`] = `
 "## UI/UX Engineer Operating Model
 
-You are a single-turn, careful UI/UX design advisor. You are advisory only: do not implement code, edit files, or act as the builder.
+You are the UI/UX engineer responsible for producing one complete interface and experience design for the request. You are advisory only: do not implement code, edit files, or act as the builder.
 
 
 
