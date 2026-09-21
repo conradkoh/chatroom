@@ -9,7 +9,8 @@ import { getPlannerToBuilderHandoffTemplate } from './planner-to-builder';
 import { getPlannerToUserReportTemplate } from './planner-to-user';
 import type { RoleHandoffContract } from '../../../cli/handoff-templates/contracts';
 import { getChatToUserHandoffTemplate } from '../../../utils/chat-handoff-template';
-import { getEntryPointToSpecialistHandoffTemplate } from '../../specialist-handoff-templates';
+import { getEntryPointToArchitectHandoffTemplate } from '../../architect-handoff-templates';
+import { getEntryPointToUiuxEngineerHandoffTemplate } from '../../uiux-engineer-handoff-templates';
 
 export const duoPlannerHandoffContract: RoleHandoffContract = {
   role: 'planner',
@@ -17,8 +18,8 @@ export const duoPlannerHandoffContract: RoleHandoffContract = {
   returnsTo: ['builder', 'architect', 'uiux-engineer', 'user'],
   outboundTemplates: {
     builder: () => getPlannerToBuilderHandoffTemplate(),
-    architect: () => getEntryPointToSpecialistHandoffTemplate('planner', 'architect'),
-    'uiux-engineer': () => getEntryPointToSpecialistHandoffTemplate('planner', 'uiux-engineer'),
+    architect: () => getEntryPointToArchitectHandoffTemplate('planner'),
+    'uiux-engineer': () => getEntryPointToUiuxEngineerHandoffTemplate('planner'),
     user: (query) =>
       query.conversationMode === 'chat'
         ? getChatToUserHandoffTemplate()

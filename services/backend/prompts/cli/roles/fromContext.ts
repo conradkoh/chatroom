@@ -2,9 +2,10 @@
  * SelectorContext adapters for base role guidance functions.
  */
 
+import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
-import { getSpecialistGuidance } from './specialists';
+import { getUiuxEngineerGuidance } from './uiux-engineer';
 import { getSoloGuidanceFromContext } from '../../teams/solo/prompts/fromContext';
 import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../types/cli';
 import type { SelectorContext } from '../../types/sections';
@@ -47,14 +48,12 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
   builder: getBaseBuilderGuidanceFromContext,
   solo: getSoloGuidanceFromContext,
   architect: (ctx) =>
-    getSpecialistGuidance({
-      role: ctx.role,
+    getArchitectGuidance({
       nativeIntegration: ctx.nativeIntegration,
       entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
     }),
   'uiux-engineer': (ctx) =>
-    getSpecialistGuidance({
-      role: ctx.role,
+    getUiuxEngineerGuidance({
       nativeIntegration: ctx.nativeIntegration,
       entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
     }),

@@ -2,9 +2,10 @@
  * Role-specific guidance aggregator for agent initialization prompts.
  */
 
+import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
-import { getSpecialistGuidance } from './specialists';
+import { getUiuxEngineerGuidance } from './uiux-engineer';
 
 type RoleSpecificGuidanceParams = {
   role: string;
@@ -21,8 +22,10 @@ type RoleSpecificGuidanceParams = {
 const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams) => string> = {
   planner: getPlannerGuidance,
   builder: getBuilderGuidance,
-  architect: ({ role, entryPointRole }) => getSpecialistGuidance({ role, entryPointRole }),
-  'uiux-engineer': ({ role, entryPointRole }) => getSpecialistGuidance({ role, entryPointRole }),
+  architect: ({ entryPointRole, nativeIntegration }) =>
+    getArchitectGuidance({ entryPointRole, nativeIntegration }),
+  'uiux-engineer': ({ entryPointRole, nativeIntegration }) =>
+    getUiuxEngineerGuidance({ entryPointRole, nativeIntegration }),
 };
 
 /**

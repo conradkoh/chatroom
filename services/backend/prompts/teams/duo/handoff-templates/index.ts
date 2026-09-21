@@ -19,7 +19,7 @@ import type {
 
 export type { HandoffTemplateQuery as DuoHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned duo catalog (planner, builder, and optional specialists). */
+/** Role-owned duo catalog (planner, builder, architect, and UI/UX engineer). */
 export const DUO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] = [
   duoPlannerHandoffContract,
   duoBuilderHandoffContract,

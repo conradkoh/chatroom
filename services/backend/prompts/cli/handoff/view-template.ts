@@ -2,10 +2,8 @@
  * Handoff view-template command generator and template resolver.
  */
 
-import {
-  getGenericSpecialistToEntryPointHandoffTemplate,
-  type SpecialistHandoffRole,
-} from '../../teams/specialist-handoff-templates';
+import { getGenericArchitectToEntryPointHandoffTemplate } from '../../teams/architect-handoff-templates';
+import { getGenericUiuxEngineerToEntryPointHandoffTemplate } from '../../teams/uiux-engineer-handoff-templates';
 import { getHandoffTemplate } from '../handoff-templates';
 
 // fallow-ignore-next-line complexity
@@ -17,9 +15,8 @@ export function viewHandoffTemplate(params: {
 }): string {
   if (params.nextRole === undefined) {
     const role = params.role.trim().toLowerCase();
-    if (role === 'architect' || role === 'uiux-engineer') {
-      return getGenericSpecialistToEntryPointHandoffTemplate(role as SpecialistHandoffRole);
-    }
+    if (role === 'architect') return getGenericArchitectToEntryPointHandoffTemplate();
+    if (role === 'uiux-engineer') return getGenericUiuxEngineerToEntryPointHandoffTemplate();
     throw new Error(
       `Role-only handoff template viewing is supported only for architect or uiux-engineer, not ${params.role}`
     );

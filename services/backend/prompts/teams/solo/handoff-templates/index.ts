@@ -16,7 +16,7 @@ import { validateRoleHandoffContracts } from '../../../cli/handoff-templates/con
 
 export type { HandoffTemplateQuery as SoloHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned solo catalog (solo and optional specialists). */
+/** Role-owned solo catalog (solo, architect, and UI/UX engineer). */
 export const SOLO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] = [
   soloHandoffContract,
   soloArchitectHandoffContract,
