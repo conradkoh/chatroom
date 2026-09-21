@@ -1,3 +1,4 @@
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { Effect, Layer } from 'effect';
 import type { Exit } from 'effect';
 import { describe, expect, it } from 'vitest';
@@ -78,7 +79,7 @@ describe('AgentLifecycleService — ensureRunning', () => {
         role: 'builder',
         agentHarness: 'opencode',
         workingDir: '/tmp/work',
-        reason: 'user.manual_spawn',
+        reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
       });
     });
@@ -110,7 +111,7 @@ describe('AgentLifecycleService — ensureRunning', () => {
         role: 'builder',
         agentHarness: 'opencode',
         workingDir: '/tmp/work',
-        reason: 'platform.task_monitor_nudge',
+        reason: AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
         wantResume: false,
       });
     });
@@ -138,7 +139,7 @@ describe('AgentLifecycleService — ensureRunning', () => {
         role: 'builder',
         agentHarness: 'opencode' as const,
         workingDir: '/tmp/work',
-        reason: 'user.manual_spawn',
+        reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
       };
       yield* service.ensureRunning(input);
@@ -172,7 +173,7 @@ describe('AgentLifecycleService — handleExit', () => {
         role: 'builder',
         agentHarness: 'opencode',
         workingDir: '/tmp/work',
-        reason: 'user.manual_spawn',
+        reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
       });
       expect(spawnResult).toEqual({ success: true, pid: 100, disposition: 'started' });
@@ -206,7 +207,7 @@ describe('AgentLifecycleService — handleExit', () => {
         role: 'builder',
         agentHarness: 'opencode',
         workingDir: '/tmp/work',
-        reason: 'user.manual_spawn',
+        reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
       });
 
@@ -247,7 +248,7 @@ describe('AgentLifecycleService — stop', () => {
         role: 'builder',
         agentHarness: 'opencode',
         workingDir: '/tmp/work',
-        reason: 'user.manual_spawn',
+        reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
       });
 
