@@ -51,14 +51,35 @@ export function getSpecialistToEntryPointHandoffTemplate(
   specialistRole: SpecialistHandoffRole
 ): string {
   const entryPoint = normalizeEntryPointRole(entryPointRole);
+  return renderSpecialistToEntryPointHandoffTemplate(entryPoint, specialistRole);
+}
+
+/**
+ * Template for a specialist inspecting or recovering its outbound handback
+ * without knowing which configured entry point will receive it.
+ */
+export function getGenericSpecialistToEntryPointHandoffTemplate(
+  specialistRole: SpecialistHandoffRole
+): string {
+  return renderSpecialistToEntryPointHandoffTemplate('<entry-point-role>', specialistRole, true);
+}
+
+function renderSpecialistToEntryPointHandoffTemplate(
+  entryPoint: string,
+  specialistRole: SpecialistHandoffRole,
+  generic = false
+): string {
   const specialistLabel = getSpecialistLabel(specialistRole);
   const focus = getSpecialistFocus(specialistRole);
+  const placeholderInstruction = generic
+    ? ' Replace `<entry-point-role>` with the configured entry-point role before running it.'
+    : '';
 
   return `${getHandoffRecipientVisibilityCallout(entryPoint)}
 
-## Handoff Template (${specialistLabel} → ${entryPoint})
+## Handoff Template (${specialistLabel} → Entry Point)
 
-Return exactly one recommended, evidence-backed design for the authoritative user request. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope.
+Return exactly one recommended, evidence-backed design for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope.
 
 ## Evidence and recommendation
 - Summarize the repository patterns, components, modules, APIs, and tests inspected.
@@ -67,7 +88,7 @@ Return exactly one recommended, evidence-backed design for the authoritative use
 - Identify constraints, risks, verification steps, and the ordered implementation sequence for the team to execute.
 
 ## Handoff
-Run the normal handoff command to \`${entryPoint}\` with this complete design, then stop.
+Run the normal handoff command to the configured entry point with this complete design, then stop.${placeholderInstruction}
 
 \`\`\`bash
 ${handoffCommand({

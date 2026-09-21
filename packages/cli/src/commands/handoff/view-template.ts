@@ -2,7 +2,7 @@ import { viewHandoffTemplate } from '@workspace/backend/prompts/cli/handoff/view
 
 export interface HandoffViewTemplateOptions {
   role: string;
-  nextRole: string;
+  nextRole?: string | undefined;
   teamId?: string | undefined;
 }
 

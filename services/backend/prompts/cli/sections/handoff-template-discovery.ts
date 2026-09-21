@@ -21,5 +21,12 @@ export function getHandoffTemplateDiscoveryGuidance(
 \`\`\`bash
 chatroom handoff list-templates --role="${role}" --team-id="${teamId}"
 \`\`\`
-This lists who you receive work from, who you return to, and every outbound handoff template you can use.`;
+This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+
+For a static, no-network inspection of a specialist's generic outbound prompt, omit the target role:
+\`\`\`bash
+chatroom handoff view-template --role="architect"
+chatroom handoff view-template --role="uiux-engineer"
+\`\`\`
+These role-only commands print the generic specialist handback template with an \`<entry-point-role>\` placeholder; replace it before running the handoff command.`;
 }
