@@ -51,7 +51,7 @@ describe('handoff view-template command (recovery / CLI)', () => {
     expect(template).toContain('Handoff Template (Builder → Planner)');
   });
 
-  test('rejects role-only viewing for non-design roles', () => {
+  test('rejects role-only viewing for roles other than architect and uiux-engineer', () => {
     expect(() => viewHandoffTemplate({ role: 'builder' })).toThrow(
       /only for architect or uiux-engineer/i
     );

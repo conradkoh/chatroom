@@ -225,7 +225,7 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).not.toContain('<chat-mode>');
   });
 
-  test('solo chat entry-point user keeps base templates and advertises design roles', () => {
+  test('solo chat entry-point user keeps base templates and advertises architect and UI/UX engineer roles', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,
       role: 'solo',
