@@ -11,22 +11,28 @@ export interface HandoffTemplateDiscoveryGuidanceParams {
   rolePlaceholder?: string | undefined;
 }
 
+// fallow-ignore-next-line complexity
 export function getHandoffTemplateDiscoveryGuidance(
   params: HandoffTemplateDiscoveryGuidanceParams = {}
 ): string {
   const teamId = params.teamId ?? 'duo';
   const role = params.rolePlaceholder ?? 'planner';
-
-  return `**Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
-\`\`\`bash
-chatroom handoff list-templates --role="${role}" --team-id="${teamId}"
-\`\`\`
-This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+  const normalizedRole = role.trim().toLowerCase();
+  const specialistInspectionGuidance =
+    normalizedRole === 'architect' || normalizedRole === 'uiux-engineer'
+      ? `
 
 For a static, no-network inspection of a specialist's generic outbound prompt, omit the target role:
 \`\`\`bash
 chatroom handoff view-template --role="architect"
 chatroom handoff view-template --role="uiux-engineer"
 \`\`\`
-These role-only commands print the generic specialist handback template with an \`<entry-point-role>\` placeholder; replace it before running the handoff command.`;
+These role-only commands print the generic specialist handback template with an \`<entry-point-role>\` placeholder; replace it before running the handoff command.`
+      : '';
+
+  return `**Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+\`\`\`bash
+chatroom handoff list-templates --role="${role}" --team-id="${teamId}"
+\`\`\`
+This lists who you receive work from, who you return to, and every outbound handoff template you can use.${specialistInspectionGuidance}`;
 }
