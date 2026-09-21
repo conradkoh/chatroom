@@ -17,7 +17,7 @@ import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { agentHarnessValidator } from './schema';
 import { validateWorkingDir } from './workspacePathSecurity';
-import { AgentStartReasonEnum } from '../src/domain/entities/agent';
+import { AgentStartReasonCode } from '../src/domain/entities/agent';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
@@ -111,7 +111,7 @@ export const requestStart = mutation({
         model,
         agentHarness: args.agentHarness,
         workingDir,
-        reason: AgentStartReasonEnum['user.start'],
+        reason: AgentStartReasonCode.USER_START,
         wantResume: args.wantResume ?? false,
       },
       machine
@@ -265,7 +265,7 @@ export const requestRestart = mutation({
         role: args.role,
         requestedBy: session.userId,
         request: {
-          reason: AgentStartReasonEnum['user.restart'],
+          reason: AgentStartReasonCode.USER_RESTART,
           overrides: {
             machineId: args.machineId,
             model: args.model,

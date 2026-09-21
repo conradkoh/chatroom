@@ -6,6 +6,7 @@ import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
+import { AgentStartReasonCode } from '../../entities/agent';
 
 describe('requestChatroomWorkspaceAgentStop', () => {
   test('enqueues an explicit stop command without mutating daemon state', async () => {
@@ -32,7 +33,7 @@ describe('requestChatroomWorkspaceAgentStop', () => {
         agentHarness: 'opencode',
         model: 'test-model',
         workingDir: '/tmp/test',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
         wantResume: false,
         requestedBy: user!._id,
         requestedAt: Date.now(),

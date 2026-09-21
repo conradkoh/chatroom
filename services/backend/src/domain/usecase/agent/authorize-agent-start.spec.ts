@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { authorizeAgentStart } from './authorize-agent-start';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
+import { AgentStartReasonCode } from '../../entities/agent';
 
 async function setup(id: string) {
   await t.mutation(api.auth.loginAnon, { sessionId: id as any });
@@ -67,7 +68,7 @@ describe('authorizeAgentStart', () => {
         agentHarness: 'opencode',
         model: 'test',
         workingDir: '/workspace',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
         wantResume: false,
         requestedBy: room!.ownerId,
         requestedAt: Date.now(),

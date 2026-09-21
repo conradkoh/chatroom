@@ -8,6 +8,7 @@ import {
 import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
+import { AgentStartReasonCode } from '../../entities/agent';
 
 describe('statusEventForAgentEvent', () => {
   test('maps task.acknowledged to working so online agents show active work, not starting', () => {
@@ -45,7 +46,7 @@ describe('projectAgentRoleStatusReadModel', () => {
         agentHarness: 'opencode',
         model: 'test',
         workingDir: '/tmp',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
         wantResume: false,
         requestedBy: user!._id,
         requestedAt: Date.now(),

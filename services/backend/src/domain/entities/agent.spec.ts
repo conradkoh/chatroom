@@ -28,7 +28,6 @@ import {
   isMachineCommandStatus,
   AGENT_START_REASONS,
   AgentStartReasonCode,
-  AgentStartReasonEnum,
   agentStartReasonValidator,
   isAgentStartReason,
   isUserExplicitStart,
@@ -47,7 +46,6 @@ describe('agent reason predicates', () => {
     expect(AgentStartReasonCode.PLATFORM_AUTO_RESTART_ON_NEW_CONTEXT).toBe(
       'platform.auto_restart_on_new_context'
     );
-    expect(AgentStartReasonEnum['user.start']).toBe(AgentStartReasonCode.USER_START);
   });
 
   test('daemon-local start reason codes stay outside backend start vocabulary', () => {
@@ -119,7 +117,7 @@ const domains: DomainSpec[] = [
   {
     label: 'AgentStartReason',
     values: AGENT_START_REASONS,
-    enumObj: AgentStartReasonEnum,
+    enumObj: Object.fromEntries(AGENT_START_REASONS.map((reason) => [reason, reason])),
     validator: agentStartReasonValidator,
     guard: isAgentStartReason,
   },

@@ -10,6 +10,7 @@ import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
+import { AgentStartReasonCode } from '../../entities/agent';
 
 async function createTestSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
@@ -47,7 +48,7 @@ describe('assertMachineBelongsToChatroom', () => {
         agentHarness: 'opencode',
         model: 'm',
         workingDir: '/tmp',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
         wantResume: false,
         requestedBy: user!._id,
         requestedAt: now,
@@ -94,7 +95,7 @@ describe('assertMachineBelongsToChatroom', () => {
         agentHarness: 'opencode',
         model: 'm',
         workingDir: '/tmp',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
         wantResume: false,
         requestedBy: userId,
         requestedAt: now,
@@ -130,7 +131,7 @@ describe('assertMachineBelongsToChatroom', () => {
         agentHarness: 'opencode',
         model: 'm',
         workingDir: '/tmp',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
         wantResume: false,
         requestedBy: userId,
         requestedAt: now,

@@ -10,6 +10,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
 import { getInboxCommandsForMachine } from '../../../../tests/helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE } from '../../../../tests/helpers/test-models';
+import { AgentStartReasonCode } from '../../entities/agent';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -144,7 +145,7 @@ describe('startAgent use case — request snapshots', () => {
       agentHarness: 'opencode',
       model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/test',
-      reason: 'user.start',
+      reason: AgentStartReasonCode.USER_START,
       requestedBy: expect.any(String),
     });
     expect(commands).toHaveLength(1);
@@ -157,7 +158,7 @@ describe('startAgent use case — request snapshots', () => {
         agentHarness: 'opencode',
         model: TEST_MODEL_OPENCODE,
         workingDir: '/tmp/test',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
       });
     }
     const statusRow = await t.run((ctx) =>
