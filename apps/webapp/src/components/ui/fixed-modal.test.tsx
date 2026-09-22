@@ -11,8 +11,8 @@ import {
   FixedModalTitle,
 } from './fixed-modal';
 
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Popover, PopoverContent, PopoverTrigger } from '@/modules/chatroom/components/ui/popover';
 
 function queryModalOverlays(): NodeListOf<HTMLElement> {
   return document.body.querySelectorAll<HTMLElement>(

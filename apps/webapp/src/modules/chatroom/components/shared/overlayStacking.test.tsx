@@ -2,8 +2,8 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { OverlayPortalContainerProvider } from './overlayPortalContainer';
-import { Dialog, DialogContent } from '../ui/dialog';
 
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { FixedModal, FixedModalContent } from '@/components/ui/fixed-modal';
 
 describe('overlay stacking tiers', () => {

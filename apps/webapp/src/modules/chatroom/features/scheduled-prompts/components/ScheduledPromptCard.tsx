@@ -6,8 +6,6 @@ import React, { useCallback, useRef, useState } from 'react';
 
 import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
 import { useOverlayPortalContainer } from '../../../components/shared/overlayPortalContainer';
-import { ChatroomDestructiveTextButton } from '../../../components/ui/ChatroomDestructiveTextButton';
-import { Popover, PopoverContent } from '../../../components/ui/popover';
 import { useOverlayDismissStack } from '../../../hooks/useOverlayDismissStack';
 import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
 
@@ -20,6 +18,7 @@ import {
   DrawerFooter,
   DrawerClose,
 } from '@/components/ui/drawer';
+import { Popover, PopoverContent } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
@@ -76,14 +75,15 @@ export function ActionsMenuContent({
       </Button>
       {showDeleteConfirm ? (
         <div className="flex gap-2">
-          <ChatroomDestructiveTextButton
-            size="compact"
-            className="flex-1"
+          <Button
+            variant="destructive"
+            size="sm"
+            className="flex-1 px-4 py-2 text-[10px] font-bold uppercase tracking-wider"
             onClick={onDelete}
             disabled={isDeleting}
           >
             {isDeleting ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Delete'}
-          </ChatroomDestructiveTextButton>
+          </Button>
           <Button
             variant="ghost"
             size="sm"

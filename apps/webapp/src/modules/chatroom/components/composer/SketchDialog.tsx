@@ -2,8 +2,9 @@
 
 import { useCallback, useRef } from 'react';
 
-import { Dialog, DialogContent } from '../ui/dialog';
 import { SketchEditorSession } from './sketch/SketchEditorSession';
+
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 export type SketchDialogProps = {
   open: boolean;

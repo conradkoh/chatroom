@@ -8,6 +8,7 @@ import {
   popOverlayDismiss,
   pushOverlayDismiss,
 } from '../../../components/shared/overlayDismissStack';
+
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogScrollBody,
-} from '../../../components/ui/dialog';
+} from '@/components/ui/dialog';
 
 interface ScheduledPromptsDialogProps {
   open: boolean;

@@ -31,14 +31,20 @@ import { IntegrationsTab } from './IntegrationsTab';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
 import { SkillsTab } from './SkillsTab';
-import { ChatroomDestructiveTextButton } from './ui/ChatroomDestructiveTextButton';
+import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
 import { useClearWorkspaceFileTree } from '../workspace/hooks/useClearWorkspaceFileTree';
 
+import { Button } from '@/components/ui/button';
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   FixedModal,
   FixedModalContent,
@@ -148,9 +154,14 @@ const SetupContent = memo(function SetupContent({
         <p className="text-[10px] text-chatroom-text-muted">
           Archive this chat to mark it as complete. Archived chats appear in the Complete tab.
         </p>
-        <ChatroomDestructiveTextButton size="compact" onClick={handleArchive}>
+        <Button
+          variant="destructive"
+          size="sm"
+          className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider"
+          onClick={handleArchive}
+        >
           Archive Chat
-        </ChatroomDestructiveTextButton>
+        </Button>
       </div>
 
       <LifecycleConfirmDialog

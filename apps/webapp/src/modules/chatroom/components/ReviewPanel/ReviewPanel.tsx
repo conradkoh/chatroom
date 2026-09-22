@@ -21,15 +21,15 @@ import { type BacklogItem, getScoringBadge } from '../backlog';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { backlogReviewMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from '../picker';
+import { formatRelativeTime } from '../WorkQueue/utils';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
-import { formatRelativeTime } from '../WorkQueue/utils';
-
+} from '@/components/ui/dropdown-menu';
 import {
   FixedModal,
   FixedModalContent,

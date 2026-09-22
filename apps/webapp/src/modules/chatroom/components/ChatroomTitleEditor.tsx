@@ -15,13 +15,6 @@ import {
 import { memo } from 'react';
 
 import { ChatroomFocusModeToggle } from './ChatroomFocusModeToggle';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
 import { useChatroomTitleEditor } from './useChatroomTitleEditor';
 import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
 
@@ -30,6 +23,13 @@ import {
   inlineEditableTitleInputClassName,
 } from '@/components/inline-editable-title/inline-editable-title-styles';
 import { InlineEditableTitleEditing } from '@/components/inline-editable-title/InlineEditableTitleEditing';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { getLocalManagerUrl } from '@/lib/environment';
 import { openExternalUrl } from '@/lib/navigation';
 import { cn } from '@/lib/utils';

@@ -24,6 +24,8 @@ import {
 import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { modalMarkdownComponents } from './markdown-utils';
 import { useAttachments } from '../attachments';
+
+import { reserializeMarkdownBlankLines } from '@/components/markdown-editor/utils/reserializeMarkdownBlankLines';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,16 +35,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from './ui/alert-dialog';
+} from '@/components/ui/alert-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-
-import { reserializeMarkdownBlankLines } from '@/components/markdown-editor/utils/reserializeMarkdownBlankLines';
+} from '@/components/ui/dropdown-menu';
 import {
   FixedModal,
   FixedModalContent,
