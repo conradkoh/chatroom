@@ -89,7 +89,7 @@ describe('ModelSelect', () => {
     render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} />);
     openDropdown();
 
-    const content = document.querySelector('[data-slot="chatroom-popover-content"]');
+    const content = document.querySelector('[data-slot="popover-content"]');
     expect(content).not.toBeNull();
     expect(content?.className).toContain('bg-chatroom-bg-primary');
     expect(content?.className).not.toContain('bg-chatroom-bg-surface');
