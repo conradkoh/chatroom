@@ -25,6 +25,8 @@ describe('DropdownMenu', () => {
     );
     expect(screen.getByText('Item 1')).toBeInTheDocument();
     expect(screen.getByText('Item 2')).toBeInTheDocument();
+    expect(screen.getByText('Item 1')).toHaveClass('rounded-none', 'text-chatroom-text-primary');
+    expect(screen.getByRole('menu')).toHaveClass('bg-chatroom-bg-primary', 'rounded-none');
   });
 
   it('renders label inside group without MenuGroupContext error', () => {
