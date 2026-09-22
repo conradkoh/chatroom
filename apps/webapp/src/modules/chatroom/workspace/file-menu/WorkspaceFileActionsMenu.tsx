@@ -5,12 +5,12 @@ import { memo } from 'react';
 
 import type { WorkspaceFileMenuProps } from './types';
 import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
-
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 export interface WorkspaceFileActionsMenuProps extends WorkspaceFileMenuProps {

@@ -4,14 +4,6 @@ import { Loader2 } from 'lucide-react';
 import { useLayoutEffect, useState } from 'react';
 
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
-import {
   DEFAULT_NOTIFICATION_SOUND_SETTINGS,
   NOTIFICATION_SOUND_PROFILE_OPTIONS,
   type NotificationSoundProfile,
@@ -19,6 +11,15 @@ import {
   setNotificationSoundSettings,
 } from '../utils/notificationSoundSettings';
 import { playNotificationSound } from '../utils/playNotificationSound';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export interface NotificationSoundSettingsDialogProps {
   open: boolean;

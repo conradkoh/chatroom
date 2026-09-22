@@ -24,12 +24,6 @@ import { QueueFrontMessageModal } from './QueueFrontMessageModal';
 import { ReviewPanel } from './ReviewPanel';
 import { SIDEBAR_PREVIEW_LIMIT, SidebarSection } from './sidebar/SidebarSection';
 import { TaskDetailModal } from './TaskDetailModal';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
 import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
 import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
 import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
@@ -42,6 +36,13 @@ import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);

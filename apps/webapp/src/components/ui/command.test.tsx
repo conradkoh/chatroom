@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-import { Command, CommandInput, CommandItem, CommandList } from './command';
+import { Command, CommandDialog, CommandInput, CommandItem, CommandList } from './command';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import {
@@ -20,6 +20,30 @@ beforeEach(() => {
 });
 
 describe('CommandItem click after search', () => {
+  it('uses sharp industrial command surfaces and items', () => {
+    render(
+      <Command>
+        <CommandInput placeholder="Search" />
+        <CommandList>
+          <CommandItem value="item">Item</CommandItem>
+        </CommandList>
+      </Command>
+    );
+    expect(screen.getByRole('combobox')).toHaveClass('rounded-none');
+    expect(screen.getByRole('combobox').parentElement).toHaveClass('border-chatroom-border');
+    expect(screen.getByText('Item')).toHaveClass('rounded-none');
+    expect(screen.getByRole('listbox').parentElement).toHaveClass('rounded-none');
+  });
+
+  it('composes CommandDialog over the shared industrial Dialog', () => {
+    render(
+      <CommandDialog open>
+        <CommandInput placeholder="Dialog search" />
+      </CommandDialog>
+    );
+    expect(screen.getByRole('dialog')).toHaveClass('rounded-none', 'bg-chatroom-bg-primary');
+  });
+
   it('fires onSelect when clicking a filtered item without spurious dismiss', async () => {
     const user = userEvent.setup();
     const onSelectAlpha = vi.fn();

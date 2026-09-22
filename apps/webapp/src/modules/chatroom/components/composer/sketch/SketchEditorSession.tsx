@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { DialogHeader, DialogTitle } from '../../ui/dialog';
 import type { SketchSelectionRect } from '../sketchCanvasSelection';
 import {
   SKETCH_BRUSH_COLOR_DEFAULT,
@@ -26,6 +25,8 @@ import { SketchEditorCanvasPanel } from './SketchEditorCanvasPanel';
 import { SketchEditorFooter } from './SketchEditorFooter';
 import { SketchEditorProperties } from './SketchEditorProperties';
 import { isEditableSketchTarget, isSketchDeleteShortcut } from './sketchKeyboard';
+
+import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export type SketchEditorSessionProps = {
   onDismiss: () => void;

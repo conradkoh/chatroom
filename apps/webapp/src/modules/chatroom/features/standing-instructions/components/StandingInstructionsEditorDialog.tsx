@@ -7,14 +7,14 @@ import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '../../../components/shared/industrialDialogStyles';
+
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../../components/ui/dialog';
-
+} from '@/components/ui/dialog';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';

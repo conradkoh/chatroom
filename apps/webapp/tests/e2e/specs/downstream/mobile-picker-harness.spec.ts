@@ -46,7 +46,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test('flat picker opens drawer on mobile viewport', async ({ page }) => {
     await page.getByTestId('open-flat-picker').click();
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
-    await expect(page.locator('[data-slot="chatroom-popover-content"]')).toHaveCount(0);
+    await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0);
   });
 
   test('search input is focusable by click in drawer on mobile', async ({ page }) => {
@@ -151,7 +151,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test('standing instructions bar opens drawer on mobile', async ({ page }) => {
     await page.getByTestId('open-standing-instructions-bar').click();
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
-    await expect(page.locator('[data-slot="chatroom-popover-content"]')).toHaveCount(0);
+    await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0);
     await expect(page.getByRole('option', { name: 'Edit' })).toBeVisible();
   });
 

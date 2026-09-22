@@ -12,6 +12,7 @@ import {
   chatroomIndustrialButtonDestructiveClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '../shared/industrialDialogStyles';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +22,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../ui/alert-dialog';
+} from '@/components/ui/alert-dialog';
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   Dialog,
   DialogContent,
@@ -30,9 +32,7 @@ import {
   DialogHeader,
   DialogScrollBody,
   DialogTitle,
-} from '../ui/dialog';
-
-import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 type QueueCommand = Doc<'chatroom_machineCommandInbox'>;

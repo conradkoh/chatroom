@@ -4,8 +4,8 @@ import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '../../shared/industrialDialogStyles';
-import { DialogFooter } from '../../ui/dialog';
 
+import { DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 export type SketchEditorFooterProps = {

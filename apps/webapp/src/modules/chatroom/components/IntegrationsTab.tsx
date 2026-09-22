@@ -32,8 +32,6 @@ import {
 import React, { useState, useCallback, memo } from 'react';
 import { FaTelegram } from 'react-icons/fa';
 
-import { ChatroomDestructiveTextButton } from './ui/ChatroomDestructiveTextButton';
-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -266,14 +264,15 @@ const IntegrationCard = memo(function IntegrationCard({
           />
           {showDeleteConfirm ? (
             <div className="flex items-center gap-1">
-              <ChatroomDestructiveTextButton
-                size="compact"
-                className="text-xs h-7 px-2"
+              <Button
+                variant="destructive"
+                size="sm"
+                className="text-xs h-7 px-2 font-bold uppercase tracking-wider"
                 onClick={handleDelete}
                 disabled={isDeleting}
               >
                 {isDeleting ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
-              </ChatroomDestructiveTextButton>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

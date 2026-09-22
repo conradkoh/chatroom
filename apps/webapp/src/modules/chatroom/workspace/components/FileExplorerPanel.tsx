@@ -29,22 +29,6 @@ import { RenameDialog } from './RenameDialog';
 import { UploadFileDialog } from './UploadFileDialog';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
 import { WorkspaceUploadProgressList } from './WorkspaceUploadProgressList';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../../components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
 import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
 import type { WorkspaceFileMenuProps, WorkspaceFileMenuVisibility } from '../file-menu';
 import { useExplorerFileDrop } from '../hooks/useExplorerFileDrop';
@@ -54,6 +38,23 @@ import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 import { useWorkspaceUploadJobs } from '../hooks/useWorkspaceUploadJobs';
 import { basename } from '../utils/diff-parser';
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;

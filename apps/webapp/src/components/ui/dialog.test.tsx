@@ -1,7 +1,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from './dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  stripOverflowFromClassName,
+} from './dialog';
 
 const mockReleaseBodyPointerLock = vi.fn();
 
@@ -46,5 +52,39 @@ describe('Dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /close/i }));
 
     await waitFor(() => expect(mockReleaseBodyPointerLock).toHaveBeenCalled());
+  });
+
+  it('uses industrial modal tokens and strips content overflow utilities', () => {
+    expect(stripOverflowFromClassName('max-h-96 overflow-hidden overflow-y-auto')).toBe('max-h-96');
+    render(
+      <Dialog open>
+        <DialogContent className="overflow-hidden">
+          <DialogTitle>Styled dialog</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveClass(
+      'fixed',
+      'rounded-none',
+      'bg-chatroom-bg-primary',
+      'overflow-visible'
+    );
+    expect(dialog).not.toHaveClass('overflow-hidden');
+  });
+
+  it('supports escape and auto-focus compatibility callbacks', () => {
+    const onEscapeKeyDown = vi.fn();
+    const onOpenAutoFocus = vi.fn();
+    render(
+      <Dialog open>
+        <DialogContent onEscapeKeyDown={onEscapeKeyDown} onOpenAutoFocus={onOpenAutoFocus}>
+          <DialogTitle>Callbacks</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    );
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onEscapeKeyDown).toHaveBeenCalledTimes(1);
+    expect(onOpenAutoFocus).toHaveBeenCalledTimes(1);
   });
 });

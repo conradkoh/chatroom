@@ -175,8 +175,8 @@ const ProcessesPanel = dynamic(
 const REFRESH_COOLDOWN_MS = 5000;
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
-// NOTE: For chatroom-themed floating popups/dropdowns, use `modules/chatroom/components/ui/dropdown-menu`.
-// For modals and delete confirmations, use `modules/chatroom/components/ui/dialog` and `alert-dialog`.
+// NOTE: For chatroom-themed floating popups/dropdowns, use `@/components/ui/dropdown-menu`.
+// For modals and delete confirmations, use `@/components/ui/dialog` and `alert-dialog`.
 // Shared tokens: `modules/chatroom/components/shared/industrialDialogStyles.ts`.
 // Do NOT use `bg-chatroom-bg-surface` (glassmorphism/semi-transparent) on portaled menus.
 

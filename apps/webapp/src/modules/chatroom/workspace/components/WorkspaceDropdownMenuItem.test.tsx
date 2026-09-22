@@ -3,11 +3,12 @@ import { Copy } from 'lucide-react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WorkspaceDropdownMenuItem } from './WorkspaceDropdownMenuItem';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 
 describe('WorkspaceDropdownMenuItem', () => {
   it('renders icon and label with shared workspace menu spacing', () => {
@@ -22,7 +23,7 @@ describe('WorkspaceDropdownMenuItem', () => {
       </DropdownMenu>
     );
 
-    const content = document.querySelector('[data-slot="chatroom-dropdown-menu-content"]');
+    const content = document.querySelector('[data-slot="dropdown-menu-content"]');
     expect(content).not.toBeNull();
     expect(content?.className).toContain('bg-chatroom-bg-primary');
     expect(content?.className).not.toContain('bg-chatroom-bg-surface');

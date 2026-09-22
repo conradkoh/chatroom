@@ -1,12 +1,13 @@
 import { ExternalLink } from 'lucide-react';
 import { useCallback, useEffect, useState, type RefObject } from 'react';
 
+import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
-import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
+} from '@/components/ui/dropdown-menu';
 
 // fallow-ignore-next-line complexity
 function readSelectionInsideContainer(container: Node): string | null {

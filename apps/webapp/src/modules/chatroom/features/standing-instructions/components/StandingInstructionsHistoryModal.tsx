@@ -7,8 +7,9 @@ import {
   PickerScrollBody,
   usePickerSearchState,
 } from '../../../components/picker';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function StandingInstructionsHistoryModal({
   open,

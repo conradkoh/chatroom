@@ -17,15 +17,15 @@ import {
 import { RichTextEditor, isInteractiveClickTarget } from '../detail-modal-shared';
 import { modalMarkdownComponents } from '../markdown-utils';
 import { QueuedMessageEnvelopeControls } from '../QueuedMessageEnvelopeControls';
+
+import { reserializeMarkdownBlankLines } from '@/components/markdown-editor/utils/reserializeMarkdownBlankLines';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
-
-import { reserializeMarkdownBlankLines } from '@/components/markdown-editor/utils/reserializeMarkdownBlankLines';
+} from '@/components/ui/dropdown-menu';
 import {
   FixedModal,
   FixedModalBody,
