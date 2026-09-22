@@ -1,3 +1,4 @@
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import { untrackChildPid } from './adapters/orphan-process-tracker.js';
@@ -140,7 +141,7 @@ function createOpts(overrides?: Partial<EnsureRunningOpts>): EnsureRunningOpts {
     agentHarness: 'opencode',
     model: 'gpt-4',
     workingDir: '/tmp/test',
-    reason: 'user.start',
+    reason: AgentStartReasonCode.USER_START,
     wantResume: true,
     ...overrides,
   };
@@ -690,6 +691,7 @@ describe('AgentProcessManager', () => {
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot!.state).toBe('idle');
+      expect(deps.backend.mutation).not.toHaveBeenCalled();
     });
 
     test('spawn fails: returns failure, slot transitions back to idle', async () => {
@@ -779,9 +781,27 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(createOpts());
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);
 
-      const result = await manager.ensureRunning(createOpts({ reason: 'user.start' }));
+      const result = await manager.ensureRunning(
+        createOpts({ reason: AgentStartReasonCode.USER_START })
+      );
 
       expect(result.success).toBe(true);
+    });
+
+    test('platform.pending_task_wake clears stale stop intent for task delivery', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
+
+      const result = await manager.ensureRunning(
+        createOpts({
+          reason: AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+          taskId: 'task-1',
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(false);
     });
 
     test('markChatroomStopIntent marks idle slots after stale-state reset', async () => {
@@ -1049,7 +1069,7 @@ describe('AgentProcessManager', () => {
       expect(cleared).toBe(true);
       expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(false);
       const result = await manager.ensureRunning(
-        createOpts({ reason: 'platform.task_monitor_nudge' })
+        createOpts({ reason: AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE })
       );
       expect(result.success).toBe(true);
     });

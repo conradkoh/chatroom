@@ -1,7 +1,7 @@
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
-export type DeliveryKind = 'native_inject' | 'enhancer_claim' | 'cli_get_next_task';
+export type DeliveryKind = 'native_inject' | 'cli_get_next_task';
 
 export interface RecordTaskDeliveryArgs {
   chatroomId: Id<'chatroom_rooms'>;

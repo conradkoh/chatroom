@@ -470,6 +470,21 @@ describe('ChatroomSidebar', () => {
     expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
   });
 
+  it('shows the play button when the chatroom uses the active team structure', async () => {
+    const { teamId: _legacyTeamId, ...chatroomWithoutLegacyTeamId } = makeChatroom({
+      remoteAgentStatus: 'stopped',
+    });
+    renderSidebar([chatroomWithoutLegacyTeamId]);
+
+    const playButton = screen.getByTitle('Start with last configuration');
+    fireEvent.click(playButton);
+
+    await waitFor(() => {
+      expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1');
+    });
+    expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+  });
+
   it('shows stop for a projected active chatroom even when the daemon summary is stopped', () => {
     renderSidebar([
       makeChatroom({

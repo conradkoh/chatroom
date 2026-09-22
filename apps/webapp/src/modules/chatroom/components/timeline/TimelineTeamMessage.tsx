@@ -5,8 +5,8 @@ import { memo } from 'react';
 
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
 import { HandoffReportView } from './HandoffReportView';
-import { PlanningReviewOutcomeView } from './PlanningReviewOutcomeView';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
+import { TimelineMessageFooter } from './TimelineMessageFooter';
 import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import {
   BADGE_BASE,
@@ -21,7 +21,6 @@ import {
   type TimelineMessageHeaderNavigation,
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
-import { EnhancerMessageDiffSection } from '../../features/enhancers/components/EnhancerMessageDiffSection';
 import type { Message } from '../../types/message';
 import {
   normalizeChatroomMarkdownContent,
@@ -29,7 +28,6 @@ import {
 } from '../../utils/normalizeChatroomMarkdownContent';
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
-import { hasPlanningReviewOutcome } from '../../utils/parsePlanningReviewOutcome';
 
 import { cn } from '@/lib/utils';
 
@@ -65,11 +63,8 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   headerNavigation,
   handoffDurationMs,
 }: TimelineTeamMessageProps) {
-  const hasEnhancerOriginal =
-    typeof message.enhancerOriginalContent === 'string' &&
-    message.enhancerOriginalContent.length > 0;
-  // Original content stays lossless for enhancer/diff/metadata semantics; the
-  // visual render path additionally unwraps the handoff presentation fence.
+  // Keep the original content for generic copy/download behavior; the visual
+  // render path additionally unwraps the handoff presentation fence.
   const originalContent = message.content;
   const renderContent =
     message.type === 'handoff'
@@ -124,16 +119,8 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       </div>
 
       <div className={`px-4 py-3 ${TIMELINE_MESSAGE_BODY}`}>
-        {message.type === 'handoff' && hasPlanningReviewOutcome(renderContent) ? (
-          <PlanningReviewOutcomeView content={renderContent} variant="timeline" />
-        ) : message.type === 'handoff' && hasHandoffEnvelope(renderContent) ? (
-          <HandoffEnvelopeView
-            content={renderContent}
-            variant="timeline"
-            initiallyExpanded={
-              message.senderRole === 'planner' && message.targetRole === 'enhancer'
-            }
-          />
+        {message.type === 'handoff' && hasHandoffEnvelope(renderContent) ? (
+          <HandoffEnvelopeView content={renderContent} variant="timeline" />
         ) : message.type === 'handoff' && hasHandoffReport(renderContent) ? (
           <HandoffReportView
             content={renderContent}
@@ -146,10 +133,9 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
         <div className="mt-2 empty:hidden">
           <MessageAttachmentChips message={message} />
         </div>
-        <EnhancerMessageDiffSection
+        <TimelineMessageFooter
           message={message}
           displayContent={originalContent}
-          hasEnhancerOriginal={hasEnhancerOriginal}
           handoffDurationMs={handoffDurationMs}
         />
       </div>

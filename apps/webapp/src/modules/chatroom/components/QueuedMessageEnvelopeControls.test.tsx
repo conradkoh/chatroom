@@ -2,7 +2,7 @@
  * QueuedMessageEnvelopeControls — Unit Tests
  *
  * Verifies the shared stateless envelope editor: tap-to-cycle mode toggle,
- * binary session toggle, legacy-scalar fallback, pending guards,
+ * three-mode session toggle, legacy-scalar fallback, pending guards,
  * error mapping, and event isolation from an enclosing row.
  */
 
@@ -145,6 +145,52 @@ describe('QueuedMessageEnvelopeControls', () => {
         conversationMode: 'code',
         sessionPolicy: 'new',
         handoffWorkflow: { preset: 'team', phase: 'entry' },
+      },
+    });
+  });
+
+  it('renders legacy enhanced envelopes as Enhance and cycles them to Chat', async () => {
+    const envelope = createTaskEnvelope({
+      conversationMode: 'code:enhanced',
+      sessionPolicy: 'continue',
+    });
+    renderControls(makeMessage({ taskEnvelope: envelope }));
+
+    expect(modeToggle()).toHaveAttribute('aria-label', 'Mode: Enhance');
+    expect(modeToggle()).toHaveAttribute('title', 'Mode: Enhance — click to switch to Chat.');
+
+    fireEvent.click(modeToggle());
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+    });
+    expect(mockUpdate).toHaveBeenCalledWith({
+      queuedMessageId: 'msg-1' as Id<'chatroom_messageQueue'>,
+      taskEnvelope: {
+        version: 1,
+        conversationMode: 'chat',
+        sessionPolicy: 'continue',
+        handoffWorkflow: { preset: 'direct', phase: 'entry' },
+      },
+    });
+  });
+
+  it('cycles Code → Enhance and preserves the complete envelope', async () => {
+    const envelope = createTaskEnvelope({
+      conversationMode: 'code',
+      sessionPolicy: 'continue',
+    });
+    renderControls(makeMessage({ taskEnvelope: envelope }));
+
+    fireEvent.click(modeToggle());
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(mockUpdate).toHaveBeenCalledWith({
+      queuedMessageId: 'msg-1' as Id<'chatroom_messageQueue'>,
+      taskEnvelope: {
+        ...envelope,
+        conversationMode: 'code:enhanced',
+        handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
       },
     });
   });

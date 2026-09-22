@@ -18,11 +18,20 @@ export const AGENT_ROLE_DEFINITIONS = {
   planner: { role: 'planner', tags: [AgentRoleLifecycleTag.Permanent] },
   builder: { role: 'builder', tags: [AgentRoleLifecycleTag.Permanent] },
   solo: { role: 'solo', tags: [AgentRoleLifecycleTag.Permanent] },
-  enhancer: { role: 'enhancer', tags: [AgentRoleLifecycleTag.Ephemeral] },
+  architect: { role: 'architect', tags: [AgentRoleLifecycleTag.Ephemeral] },
+  'uiux-engineer': {
+    role: 'uiux-engineer',
+    tags: [AgentRoleLifecycleTag.Ephemeral],
+  },
 } as const satisfies Record<string, AgentRoleDefinition>;
 
 export function normalizeAgentRole(role: string): string {
   return role.trim().toLowerCase();
+}
+
+/** Exact legacy role name that is no longer available for new configuration. */
+export function isRetiredAgentRole(role: string): boolean {
+  return normalizeAgentRole(role) === 'enhancer';
 }
 
 export function getAgentRoleTags(role: string): readonly AgentRoleLifecycleTag[] {
@@ -38,7 +47,9 @@ export function hasAgentRoleTag(role: string, tag: AgentRoleLifecycleTag): boole
 }
 
 export function getPermanentRoleNames(roles: readonly string[]): string[] {
-  return roles.filter((role) => hasAgentRoleTag(role, AgentRoleLifecycleTag.Permanent));
+  return roles.filter(
+    (role) => !isRetiredAgentRole(role) && hasAgentRoleTag(role, AgentRoleLifecycleTag.Permanent)
+  );
 }
 
 export function isEphemeralAgentRole(role: string): boolean {

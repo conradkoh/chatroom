@@ -7,7 +7,7 @@
  * module only filters tasks and delegates ready work to native delivery.
  */
 
-import { AgentStartReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 
 import { logNativeDeliveryTrigger } from './native-delivery-log.js';
 import {
@@ -54,7 +54,7 @@ export async function processTasksUpdate(
         agentHarness: agentConfig.agentHarness as AgentHarness,
         model: agentConfig.model ?? '',
         workingDir: agentConfig.workingDir,
-        reason: AgentStartReasonEnum['platform.pending_task_wake'],
+        reason: AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
         wantResume: false,
         taskId: task.taskId,
       };

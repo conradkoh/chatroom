@@ -11,15 +11,15 @@ import {
 } from './team-presets';
 
 describe('team presets', () => {
-  test('canonical duo and solo shapes include enhancer', () => {
+  test('canonical duo and solo shapes include independent architect and UI/UX engineer roles', () => {
     expect(TEAM_PRESETS.duo).toMatchObject({
       name: 'Duo',
-      roles: ['planner', 'enhancer', 'builder'],
+      roles: ['planner', 'architect', 'uiux-engineer', 'builder'],
       entryPoint: 'planner',
     });
     expect(TEAM_PRESETS.solo).toMatchObject({
       name: 'Solo',
-      roles: ['solo', 'enhancer'],
+      roles: ['solo', 'architect', 'uiux-engineer'],
       entryPoint: 'solo',
     });
     expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');
@@ -33,12 +33,12 @@ describe('team presets', () => {
     expect(getTeamPreset('unknown')).toBeUndefined();
   });
 
-  test('permanent roles exclude enhancer', () => {
+  test('permanent roles include only the permanent entry-point roles', () => {
     expect(getPermanentRolesForPreset('duo')).toEqual(['planner', 'builder']);
     expect(getPermanentRolesForPreset('solo')).toEqual(['solo']);
   });
 
-  test('resolves canonical structure independently of persisted runtime roles', () => {
+  test('resolves canonical structure with optional ephemeral architect and UI/UX engineer roles', () => {
     expect(
       getTeamStructure({
         teamId: 'duo',
@@ -52,9 +52,13 @@ describe('team presets', () => {
       entryPoint: 'planner',
       roles: [
         { role: 'planner', lifecycle: 'permanent', optional: false },
-        { role: 'enhancer', lifecycle: 'ephemeral', optional: true },
+        { role: 'architect', lifecycle: 'ephemeral', optional: true },
+        { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
         { role: 'builder', lifecycle: 'permanent', optional: false },
       ],
     });
+    expect(getTeamStructure({ teamId: 'duo' }).roles.some(({ role }) => role === 'enhancer')).toBe(
+      false
+    );
   });
 });

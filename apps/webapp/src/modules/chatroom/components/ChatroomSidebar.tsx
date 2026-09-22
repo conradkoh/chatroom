@@ -180,7 +180,6 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 
   const showStartButton =
     chatroom.status !== 'completed' &&
-    chatroom.teamId &&
     chatroomStatus !== undefined &&
     (chatroomStatus.remoteAgentStatus === 'stopped' || chatroomStatus.remoteAgentStatus === 'none');
 

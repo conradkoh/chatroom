@@ -13,42 +13,9 @@ import { getInboxCommandsForMachine } from './machine-command-inbox';
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import type { MutationCtx } from '../../convex/_generated/server';
 import { projectAgentRoleStatusReadModel } from '../../src/domain/usecase/agent/project-agent-role-status-read-model';
 import { getActiveTeamStructure } from '../../src/domain/usecase/team/active-team-structure';
 import { t } from '../../test.setup';
-
-export async function setAgentRuntimeState(
-  configId: Id<'chatroom_agentDesiredConfigs'>,
-  patch: Record<string, unknown>
-): Promise<void> {
-  await t.run(async (ctx) => setAgentRuntimeStateInContext(ctx, configId, patch));
-}
-
-export async function setAgentRuntimeStateInContext(
-  ctx: MutationCtx,
-  configId: Id<'chatroom_agentDesiredConfigs'>,
-  patch: Record<string, unknown>
-): Promise<void> {
-  const config = await ctx.db.get('chatroom_agentDesiredConfigs', configId);
-  if (!config) return;
-  const existing = await ctx.db
-    .query('chatroom_agentRuntimeStates')
-    .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', configId))
-    .first();
-  if (existing) await ctx.db.patch('chatroom_agentRuntimeStates', existing._id, patch);
-  else {
-    await ctx.db.insert('chatroom_agentRuntimeStates', {
-      desiredConfigId: configId,
-      chatroomId: config.chatroomId,
-      role: config.role,
-      machineId: config.machineId,
-      status: 'offline',
-      updatedAt: Date.now(),
-      ...patch,
-    } as any);
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Session & Chatroom
@@ -250,25 +217,26 @@ export async function seedRunningAgentPid(
 }
 
 /**
- * Patch chatroom teamRoles to include enhancer for enhancer integration tests.
+ * Patch chatroom teamRoles to include the architect role for generic
+ * ephemeral-agent integration tests.
  */
-export async function enableEnhancerTeamAgent(
+export async function enableArchitectTeamAgent(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string
 ): Promise<void> {
-  await addEnhancerToTeamRoles(chatroomId);
+  await addArchitectToTeamRoles(chatroomId);
   const workspaces = await t.query(api.workspaces.listWorkspacesForMachine, {
     sessionId,
     machineId,
   });
   const workspace = workspaces.find((candidate) => candidate.chatroomId === chatroomId);
-  if (!workspace) throw new Error('Workspace not found for enhancer configuration');
+  if (!workspace) throw new Error('Workspace not found for architect configuration');
   await t.mutation(api.agents.saveConfig, {
     sessionId,
     chatroomId,
     workspaceId: workspace._id,
-    role: 'enhancer',
+    role: 'architect',
     machineId,
     agentHarness: 'opencode',
     model: 'anthropic/claude-opus-4',
@@ -276,14 +244,14 @@ export async function enableEnhancerTeamAgent(
   });
 }
 
-export async function addEnhancerToTeamRoles(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+export async function addArchitectToTeamRoles(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
   await t.run(async (ctx) => {
     const room = await ctx.db.get('chatroom_rooms', chatroomId);
     if (!room) return;
     const roles = new Set(room.teamRoles ?? []);
     roles.add('planner');
     roles.add('builder');
-    roles.add('enhancer');
+    roles.add('architect');
     await ctx.db.patch(chatroomId, { teamRoles: [...roles] });
   });
 }

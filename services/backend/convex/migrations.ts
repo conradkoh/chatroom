@@ -791,6 +791,72 @@ export const purgeMachineTaskStatusSignalHeads = migrations.define({
   },
 });
 
+/** Purge retired machine recency projection rows before schema removal. */
+export const purgeRetiredMachineLastSeenAt = migrations.define({
+  table: 'chatroom_machineLastSeenAt' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_machineLastSeenAt' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+/** Purge retired machine model projection rows before schema removal. */
+export const purgeRetiredMachineModels = migrations.define({
+  table: 'chatroom_machineModels' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_machineModels' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+/** Purge retired agent operational summary rows before schema removal. */
+export const purgeRetiredAgentOperationalSummary = migrations.define({
+  table: 'chatroom_agentOperationalSummary' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_agentOperationalSummary' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+/** Purge retired AgentPanel metadata projection rows before schema removal. */
+export const purgeRetiredAgentViewMetadata = migrations.define({
+  table: 'chatroom_agentViewMetadata' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_agentViewMetadata' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+/** Purge retired machine identity projection rows before schema removal. */
+export const purgeRetiredMachineIdentity = migrations.define({
+  table: 'chatroom_machineIdentity' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_machineIdentity' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
+/** Purge retired machine registry projection rows before schema removal. */
+export const purgeRetiredMachineRegistry = migrations.define({
+  table: 'chatroom_machineRegistry' as never,
+  migrateOne: async (ctx, row) => {
+    await ctx.db.delete(
+      'chatroom_machineRegistry' as never,
+      (row as unknown as { _id: string })._id as never
+    );
+  },
+});
+
 /**
  * Run all migrations in order.
  * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
@@ -849,6 +915,13 @@ const allMigrationReferences = [
   // both tables are independent, purged after all readers/writers are gone)
   internal.migrations.purgeMachineTaskStatusSignals,
   internal.migrations.purgeMachineTaskStatusSignalHeads,
+  // Retired agent projection data purge (before schema removal)
+  internal.migrations.purgeRetiredMachineLastSeenAt,
+  internal.migrations.purgeRetiredMachineModels,
+  internal.migrations.purgeRetiredAgentOperationalSummary,
+  internal.migrations.purgeRetiredAgentViewMetadata,
+  internal.migrations.purgeRetiredMachineIdentity,
+  internal.migrations.purgeRetiredMachineRegistry,
 ] as unknown as MigrationFunctionReference[];
 
 export const runAll = migrations.runner(allMigrationReferences);

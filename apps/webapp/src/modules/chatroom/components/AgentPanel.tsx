@@ -191,6 +191,18 @@ export const AgentPanel = memo(function AgentPanel({
     () => [...permanentRoles, ...ephemeralRoles],
     [permanentRoles, ephemeralRoles]
   );
+  const latestAgentConfigByRole = useMemo(() => {
+    const map = new Map<string, AgentConfig>();
+    for (const config of agentConfigs) {
+      const key = config.role.toLowerCase();
+      const existing = map.get(key);
+      if (!existing || config.updatedAt > existing.updatedAt) {
+        map.set(key, config);
+      }
+    }
+    return map;
+  }, [agentConfigs]);
+  const hiddenPermanentRoleCount = Math.max(0, permanentRoles.length - SIDEBAR_PREVIEW_LIMIT);
 
   // Use hook to get derived agent statuses (lifecycle + event stream)
   const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
@@ -219,7 +231,7 @@ export const AgentPanel = memo(function AgentPanel({
         key={role}
         role={role}
         agentStatus={agentStatuses.find((a) => a.role === role)}
-        agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
+        agentConfig={latestAgentConfigByRole.get(role.toLowerCase())}
         isLoadingStatuses={isLoadingStatuses}
         onOpen={openAgentListModal}
       />
@@ -285,23 +297,18 @@ export const AgentPanel = memo(function AgentPanel({
         ) : (
           <>
             {renderAgentRows(permanentRoles.slice(0, SIDEBAR_PREVIEW_LIMIT))}
-            {ephemeralRoles.length > 0 && permanentRoles.length < SIDEBAR_PREVIEW_LIMIT && (
+            {ephemeralRoles.length > 0 && (
               <>
                 <SidebarSection.Subheader>
                   Ephemeral ({ephemeralRoles.length})
                 </SidebarSection.Subheader>
-                {renderAgentRows(
-                  ephemeralRoles.slice(0, SIDEBAR_PREVIEW_LIMIT - permanentRoles.length)
-                )}
+                {renderAgentRows(ephemeralRoles)}
               </>
             )}
           </>
         )}
       </div>
-      <SidebarSection.ViewMore
-        count={Math.max(0, rolesToShow.length - SIDEBAR_PREVIEW_LIMIT)}
-        onClick={openAgentListModal}
-      />
+      <SidebarSection.ViewMore count={hiddenPermanentRoleCount} onClick={openAgentListModal} />
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}
       <UnifiedAgentListModal

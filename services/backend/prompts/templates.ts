@@ -6,6 +6,8 @@
  * returned with each message to fight context rot.
  */
 
+import { isEphemeralAgentRole, isRetiredAgentRole } from '@workspace/shared/domain/agent-role';
+
 export interface RoleTemplate {
   role: string;
   title: string;
@@ -19,20 +21,6 @@ export interface RoleTemplate {
  * Add new roles here as needed.
  */
 export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
-  enhancer: {
-    role: 'enhancer',
-    title: 'Enhancer',
-    description:
-      'You are a single-turn, memoryless design advisor. Produce one complete recommended design for the user request; you are not an implementer.',
-    responsibilities: [
-      'Recover authoritative user request and history before analysis',
-      'Inspect the repository for patterns, constraints, and change surfaces',
-      'Return one complete recommended design — not multiple options',
-      'Complete frontend and data/query design at code granularity when applicable',
-      'Hand design input to the team entry point via chatroom handoff',
-    ],
-    defaultHandoffTarget: 'planner',
-  },
   builder: {
     role: 'builder',
     title: 'Builder',
@@ -67,21 +55,36 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     role: 'architect',
     title: 'Architect',
     description:
-      'You are the system designer responsible for planning and high-level architecture.',
+      'You are the architect responsible for producing one complete implementation design for the request; you are not an implementer.',
     responsibilities: [
-      'Analyze requirements and break down complex tasks',
-      'Design system architecture and component structure',
-      'Make technology and pattern decisions',
-      'Create clear specifications for the builder',
-      'Consider scalability, maintainability, and best practices',
+      'Recover the authoritative user request and relevant history',
+      'Inspect repository patterns and identify the coding change surface',
+      'Design module boundaries, APIs, schemas, queries, invariants, and failure handling',
+      'Specify the implementation and verification sequence at code granularity',
+      'Hand one evidence-backed design to the planner for implementation',
     ],
-    defaultHandoffTarget: 'builder',
+    defaultHandoffTarget: 'planner',
+  },
+
+  'uiux-engineer': {
+    role: 'uiux-engineer',
+    title: 'UI/UX Engineer',
+    description:
+      'You are the UI/UX engineer responsible for producing one complete interface and experience design for the request; you are not an implementer.',
+    responsibilities: [
+      'Recover the authoritative user request and relevant history',
+      'Inspect existing UI patterns, components, tokens, and interaction conventions',
+      'Design complete user flows including loading, empty, error, and success states',
+      'Specify accessibility, keyboard behavior, responsive layout, state ownership, and UI tests',
+      'Hand one evidence-backed design to the planner for implementation',
+    ],
+    defaultHandoffTarget: 'planner',
   },
 
   tester: {
     role: 'tester',
     title: 'Tester',
-    description: 'You are the QA specialist responsible for testing and validation.',
+    description: 'You are the QA role responsible for testing and validation.',
     responsibilities: [
       'Write and execute test cases',
       'Verify functionality works as expected',
@@ -110,6 +113,20 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
   },
 };
 
+const EPHEMERAL_ROLE_TEMPLATE: RoleTemplate = {
+  role: 'ephemeral',
+  title: 'Ephemeral Agent',
+  description:
+    'You are an ephemeral team agent. Complete the assigned task using the configured team workflow, then hand off when the task is complete.',
+  responsibilities: [
+    'Complete the assigned task within the user request and team scope',
+    'Use repository evidence and established team conventions',
+    'Follow the configured team handoff contract when work is complete',
+    'Report verification and unresolved issues clearly',
+  ],
+  defaultHandoffTarget: 'user',
+};
+
 /**
  * Get a role template, with fallback for unknown roles.
  */
@@ -119,6 +136,10 @@ export function getRoleTemplate(role: string): RoleTemplate {
 
   if (template) {
     return template;
+  }
+
+  if (isEphemeralAgentRole(normalizedRole) || isRetiredAgentRole(normalizedRole)) {
+    return { ...EPHEMERAL_ROLE_TEMPLATE, role: normalizedRole };
   }
 
   // Generic fallback for unknown roles

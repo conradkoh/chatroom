@@ -1,110 +1,73 @@
-/**
- * Pure unit tests for buildAvailableHandoffRoles.
- *
- * Covers the configured-membership-authoritative contract: current-role
- * exclusion, enhancer gating, case-insensitive dedupe with first-spelling
- * preservation, legacy participant fallback, and single `user` append.
- */
+/** Pure unit tests for the generic configured handoff capability list. */
 
 import { describe, expect, test } from 'vitest';
 
 import { buildAvailableHandoffRoles } from './handoffRoles';
 
 describe('buildAvailableHandoffRoles', () => {
-  test('configured duo roles expose builder for planner even when only planner is present', () => {
+  test('includes configured architect and UI/UX roles like any other configured role', () => {
     expect(
       buildAvailableHandoffRoles({
-        teamRoles: ['planner', 'builder'],
+        teamRoles: ['planner', 'architect', 'uiux-engineer', 'builder'],
         currentRole: 'planner',
-        fallbackParticipantRoles: ['planner'],
+        fallbackParticipantRoles: [],
       })
-    ).toEqual(['builder', 'user']);
+    ).toEqual(['architect', 'uiux-engineer', 'builder', 'user']);
   });
 
-  test('excludes the current role case-insensitively', () => {
-    expect(
-      buildAvailableHandoffRoles({
-        teamRoles: ['PLANNER', 'builder'],
-        currentRole: 'planner',
-        fallbackParticipantRoles: [],
-      })
-    ).toEqual(['builder', 'user']);
-    expect(
-      buildAvailableHandoffRoles({
-        teamRoles: ['planner', 'BUILDER'],
-        currentRole: 'BUILDER',
-        fallbackParticipantRoles: [],
-      })
-    ).toEqual(['planner', 'user']);
-  });
-
-  test('enhancer is not exposed unless explicitly eligible', () => {
-    // Config includes enhancer but it is not eligible → omitted.
-    expect(
-      buildAvailableHandoffRoles({
-        teamRoles: ['planner', 'enhancer', 'builder'],
-        currentRole: 'planner',
-        fallbackParticipantRoles: [],
-      })
-    ).toEqual(['builder', 'user']);
-
-    // Eligible + configured enhancer present → included exactly once (configured position).
-    expect(
-      buildAvailableHandoffRoles({
-        teamRoles: ['planner', 'enhancer', 'builder'],
-        currentRole: 'planner',
-        fallbackParticipantRoles: [],
-        includeEnhancer: true,
-      })
-    ).toEqual(['enhancer', 'builder', 'user']);
-  });
-
-  test('eligible enhancer absent from membership is prepended exactly once', () => {
+  test('does not inject an architect or UI/UX role when absent', () => {
     expect(
       buildAvailableHandoffRoles({
         teamRoles: ['planner', 'builder'],
         currentRole: 'planner',
         fallbackParticipantRoles: [],
-        includeEnhancer: true,
       })
-    ).toEqual(['enhancer', 'builder', 'user']);
+    ).toEqual(['builder', 'user']);
   });
 
-  test('deduplicates case-insensitively and preserves the first configured spelling/order', () => {
+  test('excludes current role and user, deduplicating case-insensitively', () => {
     expect(
       buildAvailableHandoffRoles({
-        teamRoles: ['Planner', 'BUILDER', 'builder'],
+        teamRoles: ['Planner', 'BUILDER', 'builder', 'USER', 'user'],
         currentRole: 'planner',
         fallbackParticipantRoles: [],
       })
     ).toEqual(['BUILDER', 'user']);
   });
 
-  test('empty configured membership falls back to active participant roles', () => {
+  test('uses fallback participants only when configured membership is empty', () => {
     expect(
       buildAvailableHandoffRoles({
         teamRoles: [],
         currentRole: 'planner',
-        fallbackParticipantRoles: ['builder', 'enhancer'],
+        fallbackParticipantRoles: ['builder', 'architect'],
+      })
+    ).toEqual(['builder', 'architect', 'user']);
+
+    expect(
+      buildAvailableHandoffRoles({
+        teamRoles: ['planner', 'builder'],
+        currentRole: 'planner',
+        fallbackParticipantRoles: ['architect'],
       })
     ).toEqual(['builder', 'user']);
   });
 
-  test('appends user exactly once even when supplied in configuration or fallback', () => {
+  test('omits retired enhancer roles from configured and fallback membership', () => {
     expect(
       buildAvailableHandoffRoles({
-        teamRoles: ['planner', 'builder', 'user'],
+        teamRoles: ['planner', 'Enhancer', 'architect', 'UIUX-Engineer'],
         currentRole: 'planner',
         fallbackParticipantRoles: [],
       })
-    ).toEqual(['builder', 'user']);
+    ).toEqual(['architect', 'UIUX-Engineer', 'user']);
 
     expect(
       buildAvailableHandoffRoles({
         teamRoles: [],
         currentRole: 'planner',
-        fallbackParticipantRoles: ['builder', 'user', 'user'],
+        fallbackParticipantRoles: ['ENHANCER', 'architect'],
       })
-    ).toEqual(['builder', 'user']);
+    ).toEqual(['architect', 'user']);
   });
 });

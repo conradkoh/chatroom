@@ -1,14 +1,13 @@
 /**
  * Solo handoff template resolver — compatibility facade over role-owned contracts.
  *
- * The solo catalog declares the solo role (user + enhancer outbound) and the
- * shared enhancer role scoped to solo, so the solo → enhancer and
- * enhancer → solo pairs remain renderable with the shared enhancer prose.
+ * The solo catalog declares the solo role and its user handoff contract.
  */
 // fallow-ignore-file unused-export unused-type
 
-import { soloEnhancerHandoffContract } from './enhancer';
+import { soloArchitectHandoffContract } from './architect';
 import { soloHandoffContract } from './solo';
+import { soloUiuxEngineerHandoffContract } from './uiux-engineer';
 import type {
   HandoffTemplateQuery,
   RoleHandoffContract,
@@ -17,10 +16,11 @@ import { validateRoleHandoffContracts } from '../../../cli/handoff-templates/con
 
 export type { HandoffTemplateQuery as SoloHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned solo catalog (solo + shared enhancer scoped to solo). */
+/** Role-owned solo catalog (solo, architect, and UI/UX engineer). */
 export const SOLO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] = [
   soloHandoffContract,
-  soloEnhancerHandoffContract,
+  soloArchitectHandoffContract,
+  soloUiuxEngineerHandoffContract,
 ];
 
 /** Validated once at module load so broken catalogs fail fast in tests/startup. */

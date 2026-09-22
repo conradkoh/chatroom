@@ -9,6 +9,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import { AgentStartReasonCode } from '../../src/domain/entities/agent';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { t } from '../../test.setup';
 import {
@@ -47,7 +48,7 @@ describe('startAgent — config persistence', () => {
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
-          reason: 'user.manual_spawn',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
         machine!
       );
@@ -129,7 +130,7 @@ describe('startAgent — config persistence', () => {
           model: 'old-model',
           agentHarness: 'opencode',
           workingDir: '/old/path',
-          reason: 'user.manual_spawn',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
         machine!
       );
@@ -154,7 +155,7 @@ describe('startAgent — config persistence', () => {
           model: 'new-model',
           agentHarness: 'opencode',
           workingDir: '/new/path',
-          reason: 'user.manual_spawn',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
         machine!
       );
@@ -217,7 +218,7 @@ describe('startAgent — harness validation', () => {
             model: TEST_MODEL_OPENCODE_LEGACY,
             agentHarness: 'opencode',
             workingDir: '/test/workspace',
-            reason: 'user.manual_spawn',
+            reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
           },
           machine!
         );
@@ -260,7 +261,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: 'model-for-chatroom-1',
           agentHarness: 'opencode',
           workingDir: '/workspace/chatroom1',
-          reason: 'user.manual_spawn',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
         machine!
       );
@@ -275,7 +276,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: 'model-for-chatroom-2',
           agentHarness: 'opencode',
           workingDir: '/workspace/chatroom2',
-          reason: 'user.manual_spawn',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
         machine!
       );
@@ -329,7 +330,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
-          reason: 'user.manual_spawn',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
         machine!
       );
@@ -373,7 +374,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
     await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
 
     // ===== ACTION =====
-    // Start a remote agent — this writes chatroom_agentDesiredConfigs with type='remote'
+    // Start a remote agent — this writes a canonical launch request snapshot.
     await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
       const machine = await ctx.db
@@ -391,7 +392,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
           model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
-          reason: 'user.manual_spawn',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
         machine!
       );
@@ -463,7 +464,7 @@ describe('startAgent — command payload', () => {
           model: 'my-specific-model',
           agentHarness: 'opencode',
           workingDir: '/specific/path',
-          reason: 'user.manual_spawn',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
         machine!
       );

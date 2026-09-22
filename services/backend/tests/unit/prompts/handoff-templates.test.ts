@@ -9,11 +9,10 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { viewHandoffTemplate } from '../../../prompts/cli/handoff/view-template';
 import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import { getBuilderToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-to-planner';
-import { getEnhancerToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/enhancer-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
-import { getPlannerToEnhancerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-enhancer';
 import { getPlannerToUserReportTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-user';
 import { getSoloToUserReportTemplate } from '../../../prompts/teams/solo/handoff-templates/solo-to-user';
 import {
@@ -22,39 +21,74 @@ import {
 } from '../../helpers/handoff-template-fixtures';
 
 describe('handoff-templates > resolver', () => {
+  const rigidDesignBriefHeadings = [
+    '## Summary',
+    '## Goal',
+    '## Key Knowledge for High Quality Bar',
+    '## Force Multipliers',
+    '## Files to implement (exhaustive, file-level)',
+    '## Shared contracts',
+    '## Requirements (acceptance criteria)',
+    '## What to avoid',
+    '## Skills to activate',
+    '## Out of scope',
+  ];
+
+  test.each([
+    ['duo', 'architect', 'planner'],
+    ['duo', 'uiux-engineer', 'planner'],
+    ['solo', 'architect', 'solo'],
+    ['solo', 'uiux-engineer', 'solo'],
+  ] as const)('%s handback uses the rigid design brief for %s', (teamId, role, target) => {
+    const template = getHandoffTemplate({ teamId, fromRole: role, toRole: target });
+
+    expect(template).not.toBeNull();
+    for (const heading of rigidDesignBriefHeadings) expect(template).toContain(heading);
+    expect(template).toContain(`--next-role="${target}"`);
+  });
+
+  test('architect design brief requires domain, concurrency, read-model, Convex, and migration detail', () => {
+    const template = getHandoffTemplate({ fromRole: 'architect', toRole: 'planner' });
+
+    expect(template).toMatch(/domain model|entity ownership/i);
+    expect(template).toMatch(/service and module boundaries|public and internal APIs/i);
+    expect(template).toMatch(/concurrent writers|idempotency|ordering and monotonicity/i);
+    expect(template).toMatch(/primary read paths|indexes|projections\/read models/i);
+    expect(template).toMatch(/Convex reactivity|bandwidth|reactive fanout/i);
+    expect(template).toMatch(/high-frequency|low-frequency/i);
+    expect(template).toMatch(/migration\/backfill|schema.*query.*mutation/i);
+    expect(template).toMatch(/tests|verification order/i);
+  });
+
+  test('UI/UX design brief requires complete flows, interaction detail, concrete styling, and tests', () => {
+    const template = getHandoffTemplate({ fromRole: 'uiux-engineer', toRole: 'planner' });
+
+    expect(template).toMatch(/loading, empty, error, success/i);
+    expect(template).toMatch(/keyboard shortcuts|focus order|focus restoration/i);
+    expect(template).toMatch(/accessible semantics|labels/i);
+    expect(template).toMatch(/component hierarchy and ownership|props\/state\/events/i);
+    expect(template).toMatch(/ShadCN|Base UI/i);
+    expect(template).toMatch(/Tailwind|theme-token/i);
+    expect(template).toMatch(/responsive breakpoints|responsive behavior/i);
+    expect(template).toMatch(/UI\/integration\/accessibility test plan/i);
+  });
+
+  test.each(['architect', 'uiux-engineer'] as const)(
+    'generic %s design brief stays neutral while retaining the placeholder target',
+    (role) => {
+      const template = viewHandoffTemplate({ role });
+
+      for (const heading of rigidDesignBriefHeadings) expect(template).toContain(heading);
+      expect(template).toContain('<entry-point-role>');
+      expect(template).not.toContain('planner');
+      expect(template).not.toContain('solo');
+    }
+  );
+
   test('resolves planner → builder to the delegation brief', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'builder' })).toBe(
       getPlannerToBuilderHandoffTemplate()
     );
-  });
-
-  test('resolves planner → enhancer to the stripped request template', () => {
-    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'enhancer' })).toBe(
-      getPlannerToEnhancerHandoffTemplate()
-    );
-  });
-
-  test('resolves enhancer → planner to the planning input template', () => {
-    expect(getHandoffTemplate({ fromRole: 'enhancer', toRole: 'planner' })).toBe(
-      getEnhancerToPlannerHandoffTemplate()
-    );
-  });
-
-  test('enhancer → planner template uses design-first XML section wrappers', () => {
-    const template = getEnhancerToPlannerHandoffTemplate();
-    expect(template).toContain('<handoff-overview>');
-    expect(template).toContain('<handoff-action>');
-    expect(template).toContain('<handoff-frontend-design>');
-    expect(template).toContain('<handoff-data-design>');
-    expect(template).toContain('## Recommended design');
-    expect(template).toContain('## Proof of Principles');
-    expect(template).toContain('Design Input (Enhancer → Planner)');
-    expect(template).not.toContain('<handoff-ux>');
-    expect(template).not.toContain('## Recommended next steps');
-    expect(template).not.toContain('## Implementation notes');
-    expect(template).not.toContain('planner check-in');
-    expect(template).not.toContain('builder-handoff');
-    expect(template).not.toContain('Suggested edits');
   });
 
   test('resolves planner → user to the report template', () => {
@@ -87,25 +121,27 @@ describe('handoff-templates > resolver', () => {
     ).toBe(getSoloToUserReportTemplate(params));
   });
 
-  test('resolves the solo request-first enhancer handoff pair', () => {
-    const request = getHandoffTemplate({
-      teamId: 'solo',
-      fromRole: 'solo',
-      toRole: 'enhancer',
-    });
-    const input = getHandoffTemplate({
-      teamId: 'solo',
-      fromRole: 'enhancer',
-      toRole: 'solo',
-    });
-
-    expect(request).toContain('Planning Request (Solo → Enhancer)');
-    expect(request).toContain('<additional-context>');
-    expect(request).not.toContain('<grounding>');
-    expect(input).toContain('Design Input (Enhancer → Solo)');
-    expect(input).toContain('solo agent verifies your design and delegates implementation');
+  test('configured ephemeral role pairs use the generic fallback', () => {
+    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'enhancer' })).toBeNull();
+    expect(getHandoffTemplate({ fromRole: 'enhancer', toRole: 'planner' })).toBeNull();
+    expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'enhancer' })).toBeNull();
+    expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'enhancer', toRole: 'solo' })).toBeNull();
   });
 
+  test('architect and UI/UX pairs resolve role-specific design templates', () => {
+    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'architect' })).toMatch(
+      /module boundaries|schemas/i
+    );
+    expect(getHandoffTemplate({ fromRole: 'architect', toRole: 'planner' })).toMatch(
+      /implementation sequence/i
+    );
+    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'uiux-engineer' })).toMatch(
+      /loading\/empty\/error\/success|accessibility/i
+    );
+    expect(getHandoffTemplate({ fromRole: 'uiux-engineer', toRole: 'planner' })).toMatch(
+      /UI\/UX Engineer/i
+    );
+  });
   test('delivery params match direct getter calls for duo planner → user', () => {
     const params = handoffTemplateDeliveryParams('planner');
     expect(
@@ -351,170 +387,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <specific areas for planner to check>
       \`\`\`"
-    `);
-  });
-
-  test('duo enhancer → planner', () => {
-    const template = resolveDeliveredHandoffTemplate({
-      teamId: 'duo',
-      fromRole: 'enhancer',
-      toRole: 'planner',
-      role: 'enhancer',
-    });
-    expect(template).toMatchInlineSnapshot(`
-      "**Design Input (Enhancer → Planner)**
-
-      You are the design authority for this request. Recover conversation history, inspect the repository, and return **one** complete design — not options. The planner agent verifies your design and delegates implementation.
-
-      **Rules:**
-      - Design first — complete frontend and data/query sections before implementation sequencing.
-      - **No alternative approaches** — one \`Recommended design\` only.
-      - Frontend and data sections: code granularity (component names, props, classes, file paths, schema, indexes, queries).
-      - Complete per-flow **UX quality** checklist in frontend design — states, layout stability, patterns, safeguards.
-      - For large or multi-surface revisions, note in implementation sequence that the entry point should activate the \`defragmentation\` skill.
-      - In \`<handoff-proofs>\`, complete **Proof of Principles** for how this design satisfies each quality principle (or "Not Applicable.").
-      - Write "Not Applicable." only when a major design section truly does not apply.
-
-      \`\`\`markdown
-      <handoff-overview>
-      ## Summary
-      <one paragraph: what we're building and the single design direction>
-
-      ## User intent and constraints
-      <explicit requirements from user messages; hard constraints that must not be violated>
-      </handoff-overview>
-
-      <!-- UI collapses proofs, direction, frontend design, data design, and notes by default; overview and action required are expanded -->
-
-      <handoff-proofs>
-      ## Repository evidence
-      <files read, current behavior verified, patterns reused — cite repo-relative paths and short snippets only>
-
-      ## Proof of Principles
-      <!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
-      - **Semantic Consistency:** <how this design demonstrates semantic consistency, or exactly "Not Applicable.">
-      <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
-
-      - **Organization & Maintainability:** <how this design demonstrates organization & maintainability, or exactly "Not Applicable.">
-      <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
-
-      - **Reducing Optionality:** <how this design demonstrates reducing optionality, or exactly "Not Applicable.">
-      <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
-
-      - **Static Evaluability and Provability:** <how this design demonstrates static evaluability and provability, or exactly "Not Applicable.">
-      <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
-
-      - **No Revisit:** <how this design demonstrates no revisit, or exactly "Not Applicable.">
-      <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
-
-      - **Leave It Better:** <how this design demonstrates leave it better, or exactly "Not Applicable.">
-      <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
-
-      - **Documented Constraints:** <how this design demonstrates documented constraints, or exactly "Not Applicable.">
-      <!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
-      </handoff-proofs>
-
-      <handoff-direction>
-      ## Recommended design
-      <!-- ONE design only. No Option A/B/C. -->
-
-      <2–4 sentences: the chosen architecture and why it fits the request and existing system>
-      </handoff-direction>
-
-      <handoff-frontend-design>
-      ## Frontend / user-centric design
-
-      <!-- Ground every flow in user history and repository patterns. Recommend one existing pattern when multiple exist; do not prescribe style choices the project has not adopted. -->
-
-      ### Flow 1: <name>
-      **Entry:** User visits \`<route/page>\` from \`<source>\`.
-
-      | Step | User action | System response | UI state |
-      |------|-------------|-----------------|----------|
-      | 1 | User clicks \`<element label>\` | \`<navigation / modal / fetch>\` | \`<loading → success/error>\` |
-
-      **UX quality (complete for every interactive step in this flow):**
-      - **States:** loading | empty | error | success — no blank panels, silent failures, or missing retry affordances
-      - **Layout:** stable across async transitions — no layout shift when content arrives or state changes
-      - **Patterns:** consistent with existing project components — cite the chosen pattern and repo-relative file
-      - **Shortcuts:** aligned with project keyboard/shortcut conventions; document tab order and gaps
-      - **Feedback:** timely response for async user actions
-      - **Interaction affordance:** pointer cursor (or project equivalent) on clickable elements
-      - **Safeguards:** confirmation before destructive actions; bulk operations confirmed with scope summary
-
-      **Expected interactions per element:**
-      - \`<ElementName>\` (\`apps/webapp/src/...\`): click → \`<handler>\`; keyboard: \`<tab order>\`; disabled when \`<condition>\`
-
-      ### Element, style, and layout specification
-
-      #### \`<ComponentName>\` — \`apps/webapp/src/path/to/Component.tsx\`
-      **Change:** <create | modify>
-
-      **Layout:** \`<div className="...">\` — flex/grid, gaps, breakpoints
-
-      **States:** loading | empty | error | success
-
-      \`\`\`tsx
-      export function ComponentName({ ... }: Props) {
-        // target structure — props, classNames, branches
-      }
-      \`\`\`
-
-      <!-- Repeat per component; write exactly "Not Applicable." for the entire section if no UI -->
-      </handoff-frontend-design>
-
-      <handoff-data-design>
-      ## Persistent state and query pattern design
-
-      **Goal:** Small updates must not cause large cache invalidations. High-frequency writes use projections to smaller tables.
-
-      ### 1. Sources of concern
-      | Source | Write frequency | Read pattern | Risk |
-      |--------|---------------|--------------|------|
-      | \`<table/mutation>\` | \`<frequency>\` | \`<pattern>\` | \`<scan / hot partition>\` |
-
-      ### 2. Schema design
-      **Hot path:** \`<table>\` — fields, projection from \`<source>\`
-      **Cold path:** \`<table>\` — …
-
-      \`\`\`typescript
-      // target schema shape
-      \`\`\`
-
-      ### 3. Index design (within limits)
-      | Table | Index | Serves query | Budget |
-      |-------|-------|--------------|--------|
-
-      ### 4. Query design (within limits)
-      | Query | Index | Rows scanned | Timeout | Invalidation scope |
-      |-------|-------|--------------|---------|-------------------|
-
-      \`\`\`typescript
-      // target query signature
-      \`\`\`
-
-      <!-- Write exactly "Not Applicable." for the entire section if no persistence changes -->
-      </handoff-data-design>
-
-      <handoff-notes>
-      ## Open questions for user
-      <decisions only the user can make, or write "Not Applicable.">
-      </handoff-notes>
-
-      <handoff-action>
-      ## Recommended implementation sequence
-      <!-- Ordered slices for the planner — references files from design sections. For large or multi-surface revisions, activate the defragmentation skill before delegating. -->
-
-      1. …
-      2. …
-
-      ## Files touched (index)
-      - \`apps/webapp/src/...\` — …
-      - \`services/backend/convex/...\` — …
-      </handoff-action>
-      \`\`\`
-
-      Return only the design input markdown — no preamble. Follow this structure; use "Not Applicable." where a major section does not apply."
     `);
   });
 
@@ -914,14 +786,15 @@ describe('handoff-templates > conversation mode chat', () => {
     expect(template).toBe(getPlannerToBuilderHandoffTemplate());
   });
 
-  test('chat mode does not affect non-user targets: solo solo → enhancer', () => {
-    const template = getHandoffTemplate({
-      teamId: 'solo',
-      fromRole: 'solo',
-      toRole: 'enhancer',
-      conversationMode: 'chat',
-    });
-    expect(template).toContain('Planning Request (Solo → Enhancer)');
+  test('chat mode uses the generic fallback for configured ephemeral targets', () => {
+    expect(
+      getHandoffTemplate({
+        teamId: 'solo',
+        fromRole: 'solo',
+        toRole: 'enhancer',
+        conversationMode: 'chat',
+      })
+    ).toBeNull();
   });
 
   test('code mode user templates retain proof-rich historical output (duo)', () => {

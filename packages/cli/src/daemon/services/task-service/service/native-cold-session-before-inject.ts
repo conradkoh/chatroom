@@ -1,6 +1,6 @@
 import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 import {
-  AgentStartReasonEnum,
+  AgentStartReasonCode,
   AgentStopReasonEnum,
 } from '@workspace/backend/src/domain/entities/agent.js';
 import { taskRequestsNativeColdSession } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
@@ -93,7 +93,7 @@ export async function ensureColdSessionBeforeNativeInject(
             agentHarness: agentHarness as AgentHarness,
             model,
             workingDir,
-            reason: AgentStartReasonEnum['platform.task_start_in_new_session'],
+            reason: AgentStartReasonCode.PLATFORM_TASK_START_IN_NEW_SESSION,
             wantResume: false,
           },
           context.signal

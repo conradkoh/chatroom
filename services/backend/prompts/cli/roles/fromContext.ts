@@ -2,13 +2,13 @@
  * SelectorContext adapters for base role guidance functions.
  */
 
+import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
-import { composeEnhancerSystemPrompt } from '../../enhancer/system-prompt';
+import { getUiuxEngineerGuidance } from './uiux-engineer';
 import { getSoloGuidanceFromContext } from '../../teams/solo/prompts/fromContext';
 import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../types/cli';
 import type { SelectorContext } from '../../types/sections';
-import { getCliEnvPrefix } from '../../utils/index';
 
 export function toBuilderParams(ctx: SelectorContext): BuilderGuidanceParams {
   return {
@@ -40,20 +40,6 @@ export function getBasePlannerGuidanceFromContext(ctx: SelectorContext): string 
 }
 
 /**
- * The enhancer is memoryless and single-turn: its operating model IS the
- * role identity prompt, so the role-guidance surface returns the same
- * shared composition the init/spawn channels use.
- */
-function getEnhancerGuidanceFromContext(ctx: SelectorContext): string {
-  return composeEnhancerSystemPrompt({
-    chatroomId: ctx.chatroomId ?? '',
-    cliEnvPrefix: getCliEnvPrefix(ctx.convexUrl),
-    convexUrl: ctx.convexUrl,
-    entryPointRole: ctx.teamConfig?.entryPoint,
-  });
-}
-
-/**
  * Base role guidance dispatch, keyed by lowercase role. Roles without base
  * guidance (or handled by team-specific dispatchers) resolve to undefined.
  */
@@ -61,7 +47,16 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
   planner: getBasePlannerGuidanceFromContext,
   builder: getBaseBuilderGuidanceFromContext,
   solo: getSoloGuidanceFromContext,
-  enhancer: getEnhancerGuidanceFromContext,
+  architect: (ctx) =>
+    getArchitectGuidance({
+      nativeIntegration: ctx.nativeIntegration,
+      entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
+    }),
+  'uiux-engineer': (ctx) =>
+    getUiuxEngineerGuidance({
+      nativeIntegration: ctx.nativeIntegration,
+      entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
+    }),
 };
 
 export function getBaseRoleGuidanceFromContext(ctx: SelectorContext): string {

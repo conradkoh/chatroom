@@ -277,7 +277,7 @@ describe('role guidance — handoff template discovery instruction', () => {
     );
   });
 
-  test('enhancer role guidance returns the shared memoryless identity without weakening restrictions', () => {
+  test('ephemeral role guidance does not add a permanent-role operating model', () => {
     const guidance = getRoleGuidanceFromContext(
       buildSelectorContext({
         role: 'enhancer',
@@ -291,11 +291,6 @@ describe('role guidance — handoff template discovery instruction', () => {
       })
     );
 
-    expect(guidance).toContain('single-turn, memoryless **design advisor**');
-    expect(guidance).toContain('Do NOT implement changes, spawn subagents, or expand scope.');
-    expect(guidance).toContain('Do NOT propose multiple alternative approaches');
-    expect(guidance).toContain('chatroom handoff');
-    expect(guidance).toContain('--next-role=planner');
-    expect(guidance).not.toContain('enhancer complete');
+    expect(guidance).toBe('');
   });
 });

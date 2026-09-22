@@ -1,8 +1,8 @@
 /**
- * Enhancer task delivery — Integration Tests
+ * Ephemeral task delivery — Integration Tests
  *
- * End-to-end getTaskDeliveryPrompt with enhancer enabled vs disabled,
- * and enhancer planning-input delivery shape.
+ * End-to-end getTaskDeliveryPrompt coverage for generic delivery when the
+ * compatibility role name `enhancer` is configured or sends a task.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -13,17 +13,17 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
-  enableEnhancerTeamAgent,
-  addEnhancerToTeamRoles,
+  enableArchitectTeamAgent,
+  addArchitectToTeamRoles,
   joinParticipant,
 } from '../helpers/integration';
 
-async function enableEnhancer(
+async function enableArchitect(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string
 ): Promise<void> {
-  await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
+  await enableArchitectTeamAgent(sessionId, chatroomId, machineId);
 }
 
 async function setPlannerAsEntryPoint(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
@@ -76,12 +76,12 @@ async function getPlannerDeliveryPrompt(
   return fullCliOutput;
 }
 
-describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
-  test('planner user task includes enhancer guidance and enhancer as primary handoff', async () => {
+describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
+  test('planner user task uses ordinary user handoff despite enhanced compatibility mode', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-delivery-enabled');
     await setPlannerAsEntryPoint(chatroomId);
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableArchitect(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
     const { messageId, taskId } = await createPlannerTaskFromUserMessage(
@@ -93,20 +93,15 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
 
     const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
 
-    expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('Immediately hand off the user request');
-    expect(output).toContain('before planning, researching, or drafting');
-    expect(output).toContain('one-time per originating user message');
-    expect(output).toContain('--next-role="enhancer"');
-    expect(output).toContain('Handoff to `enhancer`');
-    expect(output).toContain('**enhancer**');
-    expect(output).toContain('user → enhancer → planner → [loop builder → planner] → user');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<enhancer-input>');
+    expect(output).toContain('--next-role="user"');
   });
 
-  test('solo user task uses enhancer first and exposes solo handoff templates', async () => {
+  test('solo user task uses the ordinary user handoff and base templates', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupSoloWorkspaceForSession('enh-delivery-solo');
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableArchitect(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'solo');
 
     const messageId = await t.mutation(api.messages.sendMessage, {
@@ -136,11 +131,9 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    expect(fullCliOutput).toContain('<handoff-enhancer>');
-    expect(fullCliOutput).toContain('--next-role="enhancer"');
-    expect(fullCliOutput).toContain('Planning Request (Solo → Enhancer)');
-    expect(fullCliOutput).toContain('user → enhancer → solo → user');
-    expect(fullCliOutput).not.toContain('Handoff to `builder`');
+    expect(fullCliOutput).not.toContain('<handoff-enhancer>');
+    expect(fullCliOutput).not.toContain('<enhancer-input>');
+    expect(fullCliOutput).toContain('--next-role="user"');
 
     const { prompt } = await t.query(api.messages.getRolePrompt, {
       sessionId,
@@ -154,7 +147,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     expect(prompt).not.toContain('forward the request before planning');
   });
 
-  test('planner user task omits enhancer when snapshot true but no config', async () => {
+  test('planner user task ignores a stale enhancer snapshot for prompt ceremony', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession(
       'enh-delivery-snapshot-noconfig'
     );
@@ -173,11 +166,11 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
 
     expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('Handoff to `enhancer`');
-    expect(output).not.toContain('--next-role="enhancer"');
+    expect(output).not.toContain('<enhancer-input>');
+    expect(output).toContain('--next-role="user"');
   });
 
-  test('planner user task omits enhancer guidance when config disabled', async () => {
+  test('planner user task uses generic delivery when no ephemeral role is configured', async () => {
     const { sessionId, chatroomId } =
       await setupPlannerWorkspaceForSession('enh-delivery-disabled');
     await joinParticipant(sessionId, chatroomId, 'planner');
@@ -191,17 +184,16 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
 
     expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('Handoff to `enhancer`');
-    expect(output).not.toContain('**enhancer**');
+    expect(output).not.toContain('<enhancer-input>');
     expect(output).toContain('--next-role="user"');
   });
 
-  test('planner enhancer input task uses planning guidance and builder as primary handoff', async () => {
+  test('planner task from the compatibility role uses standard task intake and user handoff', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-delivery-feedback');
     await setPlannerAsEntryPoint(chatroomId);
-    await enableEnhancer(sessionId, chatroomId, machineId);
-    await addEnhancerToTeamRoles(chatroomId);
+    await enableArchitect(sessionId, chatroomId, machineId);
+    await addArchitectToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
     const originUserMessageId = await t.run(async (ctx) => {
@@ -219,8 +211,6 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
         status: 'in_progress',
         assignedTo: 'planner',
         sourceMessageId: msgId,
-        // Legacy-explicit enhancer request: the envelope derived by handoff
-        // propagation stays code:enhanced so enhancer-input guidance remains.
         plannerEnhancerEnabled: true,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -229,15 +219,14 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       return msgId;
     });
 
-    // Native delivery: the enhancer task is claimed and started by the daemon's
-    // read intent; seed the same end state directly (in_progress enhancer task).
-    const _enhancerTaskId = await t.run(async (ctx) => {
+    // Seed the same end state directly for the compatibility role.
+    const _architectTaskId = await t.run(async (ctx) => {
       return ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'planner',
         content: 'Check-in draft',
         status: 'in_progress',
-        assignedTo: 'enhancer',
+        assignedTo: 'architect',
         originUserMessageId,
         sourceMessageId: originUserMessageId,
         plannerEnhancerEnabled: true,
@@ -250,7 +239,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      senderRole: 'enhancer',
+      senderRole: 'architect',
       targetRole: 'planner',
       content: '## Summary\nPlanning feedback for planner',
     });
@@ -273,7 +262,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
         .filter((q) => q.eq(q.field('type'), 'handoff'))
         .collect()
     );
-    const feedbackMessage = handoffMessages.find((m) => m.senderRole === 'enhancer');
+    const feedbackMessage = handoffMessages.find((m) => m.senderRole === 'architect');
     expect(feedbackMessage).toBeDefined();
 
     const output = await getPlannerDeliveryPrompt(
@@ -283,10 +272,9 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       feedbackMessage!._id
     );
 
-    expect(output).toContain('<enhancer-input>');
+    expect(output).not.toContain('<enhancer-input>');
     expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('Handoff to `enhancer`');
-    expect(output).toContain('--next-role="builder"');
+    expect(output).toContain('--next-role="user"');
     expect(output).toContain('Planning feedback for planner');
   });
 });

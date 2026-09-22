@@ -41,7 +41,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
     expect(mutation).not.toHaveBeenCalled();
   });
 
-  it('enqueues native:waiting activity for enhancer on native harness', async () => {
+  it('enqueues native:waiting activity for architect on native harness', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const enqueue = vi.fn().mockResolvedValue(undefined);
@@ -49,7 +49,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
       backend: backend as any,
       sessionId: 's',
       chatroomId: 'c',
-      role: 'enhancer',
+      role: 'architect',
       lifecycleOutbox: { enqueue },
     };
 
@@ -57,7 +57,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
 
     expect(result).toBe(true);
     expect(enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'activity', action: 'native:waiting', role: 'enhancer' })
+      expect.objectContaining({ kind: 'activity', action: 'native:waiting', role: 'architect' })
     );
     expect(mutation).not.toHaveBeenCalled();
   });
@@ -103,12 +103,12 @@ describe('wireTokenActivityReporting', () => {
     expect(onTurnProgress).toHaveBeenCalledWith({ chatroomId: 'c', role: 'builder' });
   });
 
-  it('notifies turn progress for the enhancer team role', async () => {
+  it('notifies turn progress for an architect team role', async () => {
     const onTurnProgress = vi.fn();
     const spawnResult = mockSpawnResult();
     wireTokenActivityReporting({
       chatroomId: 'c',
-      role: 'enhancer',
+      role: 'architect',
       spawnResult,
       now: () => 1000,
       onTurnProgress,
@@ -116,7 +116,7 @@ describe('wireTokenActivityReporting', () => {
     spawnResult._fireOutput();
 
     expect(onTurnProgress).toHaveBeenCalledTimes(1);
-    expect(onTurnProgress).toHaveBeenCalledWith({ chatroomId: 'c', role: 'enhancer' });
+    expect(onTurnProgress).toHaveBeenCalledWith({ chatroomId: 'c', role: 'architect' });
   });
 
   it('notifies turn progress on first output, throttled afterwards', async () => {

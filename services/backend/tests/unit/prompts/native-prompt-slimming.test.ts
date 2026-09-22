@@ -64,67 +64,23 @@ describe('native task-started content', () => {
     expect(prompt).not.toMatch(/task read/i);
   });
 
-  test('enhancer review intake omits context new', () => {
+  test('ephemeral sender receives standard task intake with source message ID', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
       teamId: 'duo',
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'task-id', content: '## Summary\nFeedback' },
+      task: { _id: 'task-id', content: 'Implement feature' },
       message: { _id: 'enh-msg-id', senderRole: 'enhancer' },
-      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      availableHandoffTargets: ['architect', 'builder', 'user'],
       isEntryPoint: true,
-      plannerEnhancerEnabled: true,
     });
 
-    expect(output).toContain(
-      'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="room-id" --role="planner"'
-    );
-    expect(output).not.toContain('--trigger-message-id="enh-msg-id"');
+    expect(output).toContain('--trigger-message-id="enh-msg-id"');
     expect(output).not.toContain('Handoff to `enhancer`');
-    expect(output).toContain('<enhancer-input>');
-    expect(output).toContain('Handoff to `builder`');
-  });
-
-  test('enhancer enabled user task includes delegation-loop workflow guidance', () => {
-    const output = generateNativeTaskDeliveryOutput({
-      chatroomId: 'room-id',
-      role: 'planner',
-      teamId: 'duo',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'task-id', content: 'Implement feature' },
-      message: { _id: 'user-msg-id', senderRole: 'user' },
-      availableHandoffTargets: ['enhancer', 'builder', 'user'],
-      isEntryPoint: true,
-      plannerEnhancerEnabled: true,
-    });
-
-    expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('Immediately hand off the user request');
-    expect(output).toContain('before planning, researching, or drafting');
-    expect(output).toContain('--next-role="enhancer"');
-    expect(output).toContain('Handoff to `enhancer`');
-    expect(output).toContain('--trigger-message-id="user-msg-id"');
     expect(output).not.toContain('<enhancer-input>');
-    expect(output).toContain('user → enhancer → planner → [loop builder → planner] → user');
-  });
-
-  test('enhancer disabled user task omits enhancer sections', () => {
-    const output = generateNativeTaskDeliveryOutput({
-      chatroomId: 'room-id',
-      role: 'planner',
-      teamId: 'duo',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'task-id', content: 'Implement feature' },
-      message: { _id: 'user-msg-id', senderRole: 'user' },
-      availableHandoffTargets: ['builder', 'user'],
-      isEntryPoint: true,
-      plannerEnhancerEnabled: false,
-    });
-
-    expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('Handoff to `enhancer`');
-    expect(output).toContain('--next-role="user"');
+    expect(output).not.toContain('origin-user-message-id');
+    expect(output).toContain('Handoff to `builder`');
   });
 });
 
@@ -233,7 +189,7 @@ describe('native task delivery', () => {
     expect(prompt).toContain('you may hand off to any advertised team target');
   });
 
-  test('native chat delivery keeps advertised handoffs and omits enhancer sections', () => {
+  test('native chat delivery keeps advertised handoffs without special ceremony', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
@@ -256,7 +212,7 @@ describe('native task delivery', () => {
     expect(output).toContain('**builder**');
     expect(output).toContain('Handoff to `builder`');
     expect(output).toContain('Delegation Brief');
-    // No enhancer
+    // Ephemeral capability remains ordinary advertised data when supplied.
     expect(output).not.toContain('Handoff to `enhancer`');
     expect(output).not.toContain('<handoff-enhancer>');
     // Direct primary user command
@@ -270,7 +226,7 @@ describe('native task delivery', () => {
     expect(output).not.toContain('<handoff-action>');
   });
 
-  test('solo native chat delivery keeps advertised targets and omits enhancer template', () => {
+  test('solo native chat delivery keeps advertised ephemeral targets', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'solo',
@@ -278,7 +234,7 @@ describe('native task delivery', () => {
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
       task: { _id: 'task-id', content: 'Hello there' },
       message: { _id: 'msg-id', senderRole: 'user' },
-      availableHandoffTargets: ['user', 'enhancer'],
+      availableHandoffTargets: ['user', 'architect', 'uiux-engineer'],
       isEntryPoint: true,
       conversationMode: 'chat',
     });
@@ -288,9 +244,10 @@ describe('native task delivery', () => {
     expect(output).not.toContain('context read --chatroom-id');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
-    expect(output).toContain('**enhancer**');
+    expect(output).toContain('**architect**');
     expect(output).not.toContain('<handoff-enhancer>');
     expect(output).toContain('--next-role="user"');
+    expect(output).toContain('--next-role="architect"');
   });
 
   test('code mode native delivery retains context prompt and proof-rich report template', () => {

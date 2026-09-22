@@ -128,7 +128,7 @@ describe('TaskDetailModal — structured handoff', () => {
     document.body.style.overflow = '';
   });
 
-  it('renders HandoffEnvelopeView for enhancer envelope task', () => {
+  it('renders HandoffEnvelopeView for structured envelope task', () => {
     render(<TaskDetailModal isOpen task={ENVELOPE_TASK} {...defaultProps} />);
     expect(screen.getByTestId('handoff-envelope-view')).toBeInTheDocument();
     expect(screen.getByTestId('handoff-section-user-message')).toBeInTheDocument();

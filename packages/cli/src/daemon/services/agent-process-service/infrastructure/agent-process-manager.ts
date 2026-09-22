@@ -21,7 +21,10 @@
  * Phase 1: standalone, no caller changes. Built and tested in isolation.
  */
 
-import { isExplicitDaemonStart } from '@workspace/backend/src/domain/entities/agent.js';
+import {
+  DaemonStartReasonCode,
+  isExplicitDaemonStart,
+} from '@workspace/backend/src/domain/entities/agent.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { Effect } from 'effect';
 
@@ -1271,7 +1274,7 @@ export class AgentProcessManager {
         key,
         slot,
         pid,
-        { chatroomId, role, reason: 'daemon.respawn', workingDir },
+        { chatroomId, role, reason: DaemonStartReasonCode.RESPAWN, workingDir },
         stopGeneration
       );
     }
@@ -1868,6 +1871,9 @@ export class AgentProcessManager {
     opts: EnsureRunningOpts
   ): Promise<OperationResult> {
     slot.state = AGENT_SLOT_STATE.SPAWNING;
+    const rateLimit = this.checkRateLimitGate(opts, slot);
+    if (rateLimit) return rateLimit;
+
     const authorization = await this.deps.backend.mutation(api.machines.authorizeAgentStart, {
       sessionId: this.deps.sessionId,
       machineId: this.deps.machineId,
@@ -1886,9 +1892,6 @@ export class AgentProcessManager {
     );
 
     try {
-      const rateLimit = this.checkRateLimitGate(opts, slot);
-      if (rateLimit) return rateLimit;
-
       const workingDir = await this.validateWorkingDirGate(opts, slot);
       if (workingDir) return workingDir;
 

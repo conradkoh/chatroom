@@ -23,7 +23,6 @@ const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = 
   'agent.stopTimeout': ['Agent Stop Timeout', 'warning'],
   'agent.harnessSessionIdUpdated': ['Harness Session ID Updated', 'info'],
   'agent.awaitingHandoff': ['Awaiting Handoff', 'warning'],
-  'agent.enhancing': ['Planning Review', 'info'],
   'agent.taskDelivered': ['Task Delivered', 'success'],
   'agent.taskDeliveryFailed': ['Task Delivery Failed', 'error'],
   'machine.switched': ['Machine Switched', 'info'],
@@ -49,11 +48,6 @@ const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = 
   'config.requestRemoval': ['Config Request Removal', 'warning'],
   'command.run': ['Command Run', 'warning'],
   'command.stop': ['Command Stop', 'error'],
-  'enhancer.job.created': ['Planning Review Started', 'info'],
-  'enhancer.attempt.failed': ['Planning Review Attempt Failed', 'warning'],
-  'enhancer.job.failed': ['Planning Review Failed', 'error'],
-  'enhancer.job.complete': ['Planning Review Complete', 'success'],
-  'enhancer.job.cancelled': ['Planning Review Cancelled', 'warning'],
 };
 export const EVENT_TYPE_CATALOG: Record<string, EventTypeMeta> = Object.fromEntries(
   Object.entries(EVENT_TYPE_ROWS).map(([type, [label, classification]]) => [
@@ -66,8 +60,7 @@ export function inferClassificationFromType(type: string): EventClassification {
   if (lower.includes('failed') || lower.includes('error') || lower.includes('timeout'))
     return 'error';
   if (type.startsWith('task.')) return 'success';
-  if (type.startsWith('agent.') || type.startsWith('workflow.') || type.startsWith('enhancer.'))
-    return 'info';
+  if (type.startsWith('agent.') || type.startsWith('workflow.')) return 'info';
   if (type.startsWith('daemon.')) return 'muted';
   if (type.startsWith('command.')) return 'warning';
   if (type.startsWith('skill.')) return 'purple';

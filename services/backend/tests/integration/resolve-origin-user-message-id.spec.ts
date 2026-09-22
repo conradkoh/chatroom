@@ -1,13 +1,13 @@
 /**
  * resolve-origin-user-message-id — Integration Tests
  *
- * Verifies walkToUserMessageId can resolve direct and follow-up user messages.
+ * Verifies generic message lineage can resolve direct and follow-up user messages.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { setupWorkspaceForSession } from './harness-fixtures';
-import { walkToUserMessageId } from '../../src/domain/usecase/enhancer/resolve-origin-user-message-id';
+import { walkToUserMessageId } from '../../src/domain/usecase/message/resolve-origin-user-message-id';
 import { t } from '../../test.setup';
 
 describe('resolve-origin-user-message-id', () => {

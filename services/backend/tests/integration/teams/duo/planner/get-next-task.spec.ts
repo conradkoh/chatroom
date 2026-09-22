@@ -58,32 +58,10 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('```mermaid');
   });
 
-  test('includes enhancer guidance when plannerEnhancerEnabled', () => {
+  test('treats configured ephemeral role as an ordinary handoff target', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
-      plannerEnhancerEnabled: true,
-      availableHandoffTargets: ['enhancer', 'builder', 'user'],
-      message: {
-        _id: 'test-message-id',
-        senderRole: 'user',
-        content: 'Please implement dark mode for the settings page',
-      },
-    });
-
-    expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('Immediately hand off the user request');
-    expect(output).toContain('before planning, researching, or drafting');
-    expect(output).toContain('one-time per originating user message');
-    expect(output).toContain('--next-role="enhancer"');
-    expect(output).toContain('get-next-task');
-    expect(output).toContain('End your turn immediately');
-    expect(output).toContain('user → enhancer → planner → [loop builder → planner] → user');
-  });
-
-  test('omits enhancer guidance when plannerEnhancerEnabled is false', () => {
-    const output = generateFullCliOutput({
-      ...BASE_PARAMS,
-      plannerEnhancerEnabled: false,
+      availableHandoffTargets: ['architect', 'uiux-engineer', 'builder', 'user'],
       message: {
         _id: 'test-message-id',
         senderRole: 'user',
@@ -92,12 +70,16 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<enhancer-input>');
+    expect(output).toContain('**architect**');
+    expect(output).toContain('**uiux-engineer**');
+    expect(output).toContain('--next-role="user"');
   });
 
-  test('enhancer disabled user task targets user and omits enhancer template', () => {
+  test('does not derive prompt ceremony from a disabled compatibility flag', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
-      plannerEnhancerEnabled: false,
+      availableHandoffTargets: ['architect', 'uiux-engineer', 'builder', 'user'],
       message: {
         _id: 'test-message-id',
         senderRole: 'user',
@@ -105,16 +87,35 @@ describe('Duo Team > Planner > Get Next Task', () => {
       },
     });
 
-    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<enhancer-input>');
+    expect(output).toContain('**architect**');
+    expect(output).toContain('**uiux-engineer**');
+  });
+
+  test('ordinary capability data does not add an enhancer-specific template', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      availableHandoffTargets: ['architect', 'uiux-engineer', 'builder', 'user'],
+      message: {
+        _id: 'test-message-id',
+        senderRole: 'user',
+        content: 'Please implement dark mode for the settings page',
+      },
+    });
+
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<enhancer-input>');
+    expect(output).toContain('**architect**');
+    expect(output).toContain('**uiux-engineer**');
     expect(output).toContain('--next-role="user"');
     expect(output).toContain('Handoff to `builder`');
   });
 
-  test('enhancer input task includes planning guidance and targets builder', () => {
+  test('task from the compatibility role uses the standard sender handoff recommendation', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
-      plannerEnhancerEnabled: true,
-      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      availableHandoffTargets: ['architect', 'uiux-engineer', 'builder', 'user'],
       message: {
         _id: 'enhancer-message-id',
         senderRole: 'enhancer',
@@ -122,10 +123,9 @@ describe('Duo Team > Planner > Get Next Task', () => {
       },
     });
 
-    expect(output).toContain('<enhancer-input>');
+    expect(output).not.toContain('<enhancer-input>');
     expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('Handoff to `enhancer`');
-    expect(output).toContain('--next-role="builder"');
+    expect(output).toContain('--next-role="user"');
   });
 
   test('task from team member', () => {

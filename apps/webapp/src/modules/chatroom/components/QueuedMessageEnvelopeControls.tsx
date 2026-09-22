@@ -2,10 +2,8 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import {
-  nextConversationMode,
-  type ConversationMode,
-} from '@workspace/shared/domain/conversation-mode';
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import { nextConversationMode } from '@workspace/shared/domain/conversation-mode';
 import {
   normalizeTaskEnvelope,
   withTaskEnvelopeConversationMode,
@@ -26,7 +24,9 @@ export interface QueuedMessageEnvelopeControlsProps {
   className?: string;
 }
 
-function modeIcon(mode: ConversationMode) {
+type VisibleConversationMode = ConversationMode;
+
+function modeIcon(mode: VisibleConversationMode) {
   switch (mode) {
     case 'chat':
       return <MessageCircle size={14} />;
@@ -37,34 +37,34 @@ function modeIcon(mode: ConversationMode) {
   }
 }
 
-function modeLabel(mode: ConversationMode): string {
+function modeLabel(mode: VisibleConversationMode): string {
   switch (mode) {
     case 'chat':
       return 'Chat';
     case 'code':
       return 'Code';
     case 'code:enhanced':
-      return 'Enhanced';
+      return 'Enhance';
   }
 }
 
-function modeTitle(mode: ConversationMode): string {
+function modeTitle(mode: VisibleConversationMode): string {
   switch (mode) {
     case 'chat':
       return 'Mode: Chat — click to switch to Code.';
     case 'code':
-      return 'Mode: Code — click to switch to Enhanced.';
+      return 'Mode: Code — click to switch to Enhance.';
     case 'code:enhanced':
-      return 'Mode: Enhanced — click to switch to Chat.';
+      return 'Mode: Enhance — click to switch to Chat.';
   }
 }
 
-function modeButtonClass(mode: ConversationMode, compact: boolean): string {
+function modeButtonClass(mode: VisibleConversationMode, compact: boolean): string {
   void compact;
   return cn(
     'p-1.5 rounded transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50',
     mode === 'code:enhanced'
-      ? 'text-blue-500 dark:text-blue-400'
+      ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
       : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
   );
 }
@@ -114,6 +114,7 @@ export function QueuedMessageEnvelopeControls({
     plannerEnhancerEnabled: message.plannerEnhancerEnabled,
     startInNewSession: message.startInNewSession,
   });
+  const visibleMode: VisibleConversationMode = current.conversationMode;
 
   const stopPropagation = useCallback((e: { stopPropagation: () => void }) => {
     e.stopPropagation();
@@ -185,14 +186,14 @@ export function QueuedMessageEnvelopeControls({
       <button
         type="button"
         data-testid="queued-message-mode-toggle"
-        aria-label={`Mode: ${modeLabel(current.conversationMode)}`}
+        aria-label={`Mode: ${modeLabel(visibleMode)}`}
         aria-busy={isUpdating || undefined}
         disabled={isUpdating}
-        title={modeTitle(current.conversationMode)}
+        title={modeTitle(visibleMode)}
         onClick={handleModeCycle}
-        className={modeButtonClass(current.conversationMode, compact)}
+        className={modeButtonClass(visibleMode, compact)}
       >
-        {modeIcon(current.conversationMode)}
+        {modeIcon(visibleMode)}
       </button>
 
       {error && (

@@ -24,21 +24,21 @@ describe('sendLifecycleHeartbeat', () => {
     expect(args.action).toBe('some-action');
   });
 
-  it('calls participants.join for ephemeral enhancer team role', async () => {
+  it('calls participants.join for ephemeral architect team role', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const client = { mutation };
 
     sendLifecycleHeartbeat(client, {
       sessionId: 's',
       chatroomId: 'c',
-      role: 'enhancer',
+      role: 'architect',
     });
 
     await vi.waitFor(() => {
       expect(mutation).toHaveBeenCalledTimes(1);
     });
     const args = mutation.mock.calls[0][1] as Record<string, unknown>;
-    expect(args.role).toBe('enhancer');
+    expect(args.role).toBe('architect');
   });
 
   it('omits action arg when not provided', async () => {

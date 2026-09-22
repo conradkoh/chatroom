@@ -1034,14 +1034,6 @@ export default defineSchema({
     .index('by_machineId', ['machineId'])
     .index('by_userId', ['userId']),
 
-  /** @deprecated Compatibility-only recency projection. */
-  chatroom_machineLastSeenAt: defineTable({
-    machineId: v.string(),
-    lastSeenAt: v.number(),
-  })
-    .index('by_machineId', ['machineId'])
-    .index('by_lastSeenAt', ['lastSeenAt']),
-
   /**
    * Machine liveness data - volatile fields separated from the main machine record
    * to prevent heartbeat-triggered cascading re-evaluations.
@@ -1069,13 +1061,6 @@ export default defineSchema({
   })
     .index('by_machineId', ['machineId'])
     .index('by_status', ['status']),
-
-  /** @deprecated Compatibility-only model catalog projection. */
-  chatroom_machineModels: defineTable({
-    machineId: v.string(),
-    availableModels: v.record(v.string(), v.array(v.string())),
-    updatedAt: v.number(),
-  }).index('by_machineId', ['machineId']),
 
   /**
    * Model visibility filters for a machine's harness.
@@ -1309,41 +1294,6 @@ export default defineSchema({
     .index('by_chatroom_role', ['chatroomId', 'role'])
     .index('by_chatroom_workspace_role', ['chatroomId', 'workspaceId', 'role'])
     .index('by_machineId', ['machineId']),
-
-  /** @deprecated Compatibility-only sidebar projection. */
-  chatroom_agentOperationalSummary: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    ownerId: v.optional(v.id('users')),
-    teamId: v.string(),
-    remoteConfigCount: v.number(),
-    agentStatus: v.union(v.literal('running'), v.literal('stopped'), v.literal('none')),
-    runningRoles: v.array(v.string()),
-    aliveRoles: v.array(v.string()),
-    runningAgents: v.array(v.object({ role: v.string(), machineId: v.string() })),
-    stoppingRoles: v.optional(v.array(v.string())),
-    projectedAt: v.number(),
-  })
-    .index('by_chatroom', ['chatroomId'])
-    .index('by_ownerId', ['ownerId']),
-
-  /** @deprecated Compatibility-only AgentPanel metadata projection. */
-  chatroom_agentViewMetadata: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    ownerId: v.id('users'),
-    teamId: v.string(),
-    teamName: v.string(),
-    teamRoles: v.array(v.string()),
-    hasHistory: v.boolean(),
-  }).index('by_chatroom', ['chatroomId']),
-
-  /** @deprecated Compatibility-only machine identity projection. */
-  chatroom_machineIdentity: defineTable({
-    machineId: v.string(),
-    userId: v.id('users'),
-    hostname: v.string(),
-  })
-    .index('by_machineId', ['machineId'])
-    .index('by_userId', ['userId']),
 
   /**
    * One row per user-initiated "refresh capabilities" wave from the webapp.
@@ -2799,52 +2749,6 @@ export default defineSchema({
   })
     .index('by_chatroom_role_task', ['chatroomId', 'role', 'taskId'])
     .index('by_taskId', ['taskId']),
-
-  /**
-   * @deprecated Compatibility-only capability projection. New daemon
-   * capability snapshots are stored in chatroom_machineCapabilities.
-   */
-  chatroom_machineRegistry: defineTable({
-    machineId: v.string(),
-    lastSeenAt: v.number(),
-    workspaces: v.array(
-      v.object({
-        workspaceId: v.string(),
-        cwd: v.string(),
-        name: v.string(),
-        agents: v.optional(v.array(v.any())),
-        harnesses: v.optional(
-          v.array(
-            v.object({
-              name: v.string(),
-              displayName: v.string(),
-              agents: v.array(
-                v.object({
-                  name: v.string(),
-                  mode: v.union(v.literal('subagent'), v.literal('primary'), v.literal('all')),
-                  model: v.optional(
-                    v.object({
-                      providerID: v.string(),
-                      modelID: v.string(),
-                    })
-                  ),
-                  description: v.optional(v.string()),
-                })
-              ),
-              providers: v.array(
-                v.object({
-                  providerID: v.string(),
-                  name: v.string(),
-                  models: v.array(v.object({ modelID: v.string(), name: v.string() })),
-                })
-              ),
-              configSchema: v.optional(v.any()),
-            })
-          )
-        ),
-      })
-    ),
-  }).index('by_machineId', ['machineId']),
 
   /**
    * Single daemon-fed capability snapshot for a machine. Stable identity stays

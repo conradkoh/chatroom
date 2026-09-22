@@ -12,7 +12,6 @@ import { describe, expect, test } from 'vitest';
 import { promoteQueuedMessage } from './promote-queued-message';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 import {
   createPlannerBuilderDuoChatroom,
@@ -74,34 +73,6 @@ describe('promoteQueuedMessage', () => {
     const machineId = 'machine-promote-no-restart';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
-
-    await t.run(async (ctx) => {
-      const config = await ctx.db
-        .query('chatroom_agentDesiredConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
-        .first();
-      expect(config).toBeDefined();
-
-      const participant = await ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
-        )
-        .first();
-      if (participant) {
-        await ctx.db.patch(participant._id, { lastStatus: 'agent.exited' });
-      } else {
-        await ctx.db.insert('chatroom_participants', {
-          chatroomId,
-          role: 'builder',
-          agentType: 'remote',
-          lastStatus: 'agent.exited',
-          lastDesiredState: 'running',
-        });
-      }
-    });
 
     const queuedMessageId = await createQueueRecord(chatroomId);
     const result = await t.run((ctx) => promoteQueuedMessage(ctx, queuedMessageId));

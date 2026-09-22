@@ -2,7 +2,6 @@ export * from './agent-slot.js';
 export * from './assigned-task.js';
 export * from './bound-harness.js';
 export * from './direct-harness-session.js';
-export * from './enhancer-job.js';
 export * from './execution-kind.js';
 export * from './file-content-request.js';
 export * from './file-tree-request.js';

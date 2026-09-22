@@ -135,7 +135,7 @@ describe('workspace removal cleanup', () => {
     await setupRemoteAgentConfig(sid, chatroomId, machineIdA, 'builder', {
       workingDir: '/workspace-a',
     });
-    await setupRemoteAgentConfig(sid, chatroomId, machineIdB, 'architect', {
+    await setupRemoteAgentConfig(sid, chatroomId, machineIdB, 'planner', {
       workingDir: '/workspace-b',
     });
 

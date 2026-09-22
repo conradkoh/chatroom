@@ -325,7 +325,9 @@ teamCommand
 
 handoffCommandGroup
   .command('view-template')
-  .description('Print the handoff message template for a role pair')
+  .description(
+    'Print a handoff message template; omit --next-role to inspect a generic architect or UI/UX engineer template'
+  )
   .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
   // --role / --next-role are declared on the handoff group so subcommand flag
   // names never collide with the parent options (commander v14 enforces parent
@@ -333,12 +335,8 @@ handoffCommandGroup
   // fallow-ignore-next-line complexity
   .action(async function (options: { teamId?: string | undefined }) {
     const parentOpts = (this.parent?.opts() ?? {}) as { role?: string; nextRole?: string };
-    if (!parentOpts.role || !parentOpts.nextRole) {
-      console.error(
-        parentOpts.role
-          ? `error: required option '--next-role <nextRole>' not specified`
-          : `error: required option '--role <role>' not specified`
-      );
+    if (!parentOpts.role) {
+      console.error(`error: required option '--role <role>' not specified`);
       process.exit(1);
     }
     const { printHandoffViewTemplate } = await import('./commands/handoff/view-template.js');
