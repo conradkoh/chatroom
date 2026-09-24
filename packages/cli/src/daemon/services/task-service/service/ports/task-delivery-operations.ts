@@ -31,6 +31,8 @@ export interface TaskDeliveryOperations {
   }): Promise<{ exceeded: boolean }>;
   isRedeliveryExhausted(args: { chatroomId: string; role: string; taskId: string }): boolean;
   clearRedeliveryTracking(args: { chatroomId: string; role: string }): void;
+  /** Evicts a task proven absent from the authoritative backend. */
+  forgetStaleTask(args: { chatroomId: string; role: string; taskId: string }): void;
   loadAssignedTaskForAction(args: {
     chatroomId: string;
     role: string;

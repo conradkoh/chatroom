@@ -231,6 +231,19 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     turnEndAttemptCounts.delete(key);
     redeliveryExhaustedKeys.delete(key);
   };
+  const forgetStaleTask = ({
+    chatroomId,
+    role,
+    taskId,
+  }: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): void => {
+    taskInboxState.remove(chatroomId, role, taskId, Date.now());
+    pendingTaskReconciliationWatcher.clear(chatroomId, role, taskId);
+    clearRedeliveryTrackingForTask(chatroomId, role, taskId);
+  };
 
   const sweepUncoveredInProgressTasks = async (): Promise<number> => {
     let released = 0;
@@ -686,6 +699,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     clearRedeliveryTracking: ({ chatroomId, role }) => {
       clearRoleRedeliveryTracking(chatroomId, role);
     },
+    forgetStaleTask,
   };
   return service;
 }
