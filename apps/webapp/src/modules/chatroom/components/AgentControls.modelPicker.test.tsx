@@ -77,11 +77,12 @@ function mkMachine(): MachineInfo {
 
 function ModelPickerHarness({ ephemeral = false }: { ephemeral?: boolean }) {
   const machines = [mkMachine()];
+  const role = ephemeral ? 'architect' : 'builder';
   // Seeding config matching the machine so initialization picks machine-a + cursor
   const seedingConfig: AgentConfig = {
     machineId: 'machine-a',
     hostname: 'host-a',
-    role: 'builder',
+    role,
     agentType: 'cursor',
     workingDir: '/workspace',
     availableHarnesses: ['cursor'],
@@ -91,7 +92,6 @@ function ModelPickerHarness({ ephemeral = false }: { ephemeral?: boolean }) {
     role: 'builder',
     chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
     workspaceId: 'workspace-1',
-    isEphemeral: ephemeral,
     connectedMachines: machines,
     agentConfigs: [seedingConfig],
     sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
@@ -139,7 +139,6 @@ describe('AgentControls model picker', () => {
             role: ephemeral ? 'architect' : 'builder',
             chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
             workspaceId: 'workspace-1',
-            isEphemeral: ephemeral,
             connectedMachines: [mkMachine()],
             agentConfigs: [
               {
@@ -174,7 +173,7 @@ describe('AgentControls model picker', () => {
     render(<ModelPickerHarness ephemeral />);
 
     expect(await screen.findByRole('button', { name: 'Save Configuration' })).toBeInTheDocument();
-    expect(screen.queryByTitle('Start Agent')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Start Agent')).toBeInTheDocument();
   });
 
   it('renders drawer on mobile when model trigger clicked', async () => {
