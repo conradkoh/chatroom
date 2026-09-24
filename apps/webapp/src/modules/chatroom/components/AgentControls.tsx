@@ -205,7 +205,6 @@ export function useAgentControls({
   teamConfigModel,
   teamConfigHarness,
   teamConfigMachineId,
-  isEphemeral = false,
   configurationLoading = false,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
@@ -227,8 +226,6 @@ export function useAgentControls({
   teamConfigHarness?: AgentHarness;
   /** Team-config machine binding for this role (from team agent config / agent status view). */
   teamConfigMachineId?: string | null;
-  /** Ephemeral roles run on demand and cannot be started directly. */
-  isEphemeral?: boolean;
   /** The selected workspace's last configuration is still loading. */
   configurationLoading?: boolean;
   /** Team ID for role/team-specific defaults. */
@@ -446,7 +443,6 @@ export function useAgentControls({
   const isBusy = isStarting || isSaving || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
-    !isEphemeral &&
     !!selectedMachineId &&
     !!selectedHarness &&
     (!hasModels || selectedModel) &&
@@ -475,7 +471,7 @@ export function useAgentControls({
     };
   }, [teamConfigMachineId, selectedMachineId, connectedMachines]);
   const canStop = isAgentRunning && !isStopping && !success;
-  const canRestart = !isEphemeral && isAgentRunning && !isStopping && !isStarting && !success;
+  const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
 
   const machineConfigScopeKeyForControls = useMemo(
     () =>
@@ -706,7 +702,6 @@ export function useAgentControls({
     canSave,
     canStop,
     canRestart,
-    isEphemeral,
     handleStartAgent,
     handleSaveConfig,
     handleStopAgent,
@@ -773,7 +768,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     canSave,
     canStop,
     canRestart,
-    isEphemeral,
     handleStartAgent,
     handleSaveConfig,
     handleStopAgent,
@@ -1266,6 +1260,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                         handleRestartAgent();
                       }}
                       disabled={!canRestart}
+                      aria-label="Restart Agent"
                       className={`w-7 h-7 flex items-center justify-center transition-all ${
                         canRestart
                           ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
@@ -1280,10 +1275,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       )}
                     </button>
                   </>
-                ) : isEphemeral ? (
-                  <span className="text-[10px] uppercase tracking-wide text-chatroom-text-muted">
-                    Runs on demand
-                  </span>
                 ) : (
                   <button
                     onClick={(e) => {
@@ -1291,6 +1282,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       handleStartAgent();
                     }}
                     disabled={!canStart}
+                    aria-label="Start Agent"
                     className={`w-7 h-7 flex items-center justify-center transition-all ${
                       canStart
                         ? 'text-chatroom-status-success hover:bg-chatroom-status-success/10'

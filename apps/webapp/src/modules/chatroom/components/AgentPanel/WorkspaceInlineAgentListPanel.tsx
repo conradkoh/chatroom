@@ -134,7 +134,6 @@ const WorkspaceInlineAgentCards = memo(function WorkspaceInlineAgentCards({
       <InlineAgentCard
         key={`${workspaceId}-${agent.role}`}
         role={agent.role}
-        lifecycle={agent.lifecycle}
         allRoles={roles}
         prompt={generatePrompt(agent.role)}
         chatroomId={chatroomId}
