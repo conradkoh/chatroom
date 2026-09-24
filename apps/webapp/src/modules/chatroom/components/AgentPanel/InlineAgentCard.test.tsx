@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AgentControlDataProvider } from './AgentControlDataContext';
@@ -64,7 +63,6 @@ vi.mock('./AgentControlsSection', () => ({
 
 const baseProps = {
   role: 'builder',
-  lifecycle: AgentRoleLifecycleTag.Permanent,
   allRoles: ['builder'],
   online: true,
   lastSeenAt: Date.now() - 120_000,

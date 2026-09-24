@@ -1204,7 +1204,6 @@ export const authorizeAgentStart = mutation({
     machineId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    taskId: v.optional(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);

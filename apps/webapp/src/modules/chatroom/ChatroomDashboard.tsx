@@ -3,7 +3,6 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
@@ -1389,7 +1388,7 @@ function ChatroomDashboardContent({
       } else if (result.requested.length > 0) {
         toast.success(`Start requested for ${result.requested.length} agent(s)`);
       } else if (result.skipped.length > 0) {
-        toast.error('No saved configuration is available for the permanent agents');
+        toast.error('No saved agent configuration is available.');
       }
     } finally {
       setIsStartingAllAgents(false);
@@ -1420,7 +1419,7 @@ function ChatroomDashboardContent({
       } else if (result.requested.length > 0) {
         toast.success(`Restart requested for ${result.requested.length} agent(s)`);
       } else {
-        toast.error('No saved configuration is available for the permanent agents');
+        toast.error('No saved agent configuration is available.');
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to restart agents');
@@ -1431,7 +1430,7 @@ function ChatroomDashboardContent({
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
-    () => teamRoles.filter((role) => role !== 'user' && !isEphemeralAgentRole(role)),
+    () => teamRoles.filter((role) => role !== 'user'),
     [teamRoles]
   );
 

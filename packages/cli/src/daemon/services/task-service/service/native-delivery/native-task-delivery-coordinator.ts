@@ -23,7 +23,7 @@ export type NativeDeliveryDelivered = {
 
 export type NativeDeliveryExecution =
   | { kind: 'delivered'; delivered: NativeDeliveryDelivered }
-  | { kind: 'task-unavailable' }
+  | { kind: 'task-unavailable'; stale?: boolean }
   | { kind: 'failed'; reason: 'injection_not_confirmed' };
 
 export type NativeDeliveryExecutors = {
@@ -172,7 +172,9 @@ export class NativeTaskDeliveryCoordinator {
           console.warn(
             `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
           );
-          await recordDeliveryFailure(taskService, row.taskId, 'injection_not_confirmed');
+          if (!result?.stale) {
+            await recordDeliveryFailure(taskService, row.taskId, 'injection_not_confirmed');
+          }
         } else if (result.kind === 'failed') {
           console.warn(
             `[NativeDelivery:failure] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject reason=${result.reason}`

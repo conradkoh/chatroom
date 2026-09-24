@@ -22,12 +22,15 @@ async function createTestSession(id: string) {
   return { sessionId: id as SessionId, userId: login.userId as Id<'users'> };
 }
 
-async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createChatroom(
+  sessionId: SessionId,
+  teamRoles = ['planner', 'builder']
+): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
-    teamRoles: ['planner', 'builder'],
+    teamRoles,
     teamEntryPoint: 'planner',
   });
 }
@@ -72,9 +75,9 @@ async function startAgent(
 // ---------------------------------------------------------------------------
 
 describe('startAgent use case — request snapshots', () => {
-  test('starts all permanent roles from their saved configurations', async () => {
+  test('starts all configured roles from their saved configurations', async () => {
     const { sessionId } = await createTestSession('start-agent-all-current-config');
-    const chatroomId = await createChatroom(sessionId);
+    const chatroomId = await createChatroom(sessionId, ['planner', 'builder', 'architect']);
     const machineId = 'start-machine-all-current-config';
 
     await registerMachine(sessionId, machineId);
@@ -91,7 +94,7 @@ describe('startAgent use case — request snapshots', () => {
       chatroomId,
       workspaceId,
     });
-    for (const role of ['planner', 'builder']) {
+    for (const role of ['planner', 'builder', 'architect', 'uiux-engineer']) {
       await t.mutation(api.agents.saveConfig, {
         sessionId,
         chatroomId,
@@ -119,7 +122,32 @@ describe('startAgent use case — request snapshots', () => {
       failed: [],
     });
     expect(second).toMatchObject(first);
-    expect((await getInboxCommandsForMachine(machineId, 'agent.requestStart')).length).toBe(2);
+    expect((await getInboxCommandsForMachine(machineId, 'agent.requestStart')).length).toBe(4);
+  });
+
+  test('starts an ephemeral-tagged role through the ordinary requestStart path', async () => {
+    const { sessionId } = await createTestSession('start-agent-ephemeral');
+    const chatroomId = await createChatroom(sessionId, ['planner', 'builder', 'architect']);
+    const machineId = 'start-machine-ephemeral';
+
+    await registerMachine(sessionId, machineId);
+    await startAgent(sessionId, machineId, chatroomId, 'architect');
+
+    const request = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_agentLastSentLaunchRequests')
+        .withIndex('by_requestKey', (q) => q.eq('requestKey', `${chatroomId}:duo@1:architect`))
+        .first()
+    );
+    const commands = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+    expect(commands).toHaveLength(1);
+    expect(request?.wantResume).toBe(false);
+    expect(commands[0]?.command).toMatchObject({
+      type: 'agent.requestStart',
+      chatroomId,
+      role: 'architect',
+      wantResume: false,
+    });
   });
 
   test('records a last-sent request without creating backend runtime state', async () => {

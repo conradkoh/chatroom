@@ -43,7 +43,7 @@ function reportAgentOperation(result: AgentOperationResult, operation: 'start' |
       `${operation[0].toUpperCase()}${operation.slice(1)} requested for ${result.requested.length} agent(s)`
     );
   } else {
-    toast.error('No saved configuration is available for the permanent agents');
+    toast.error('No saved agent configuration is available.');
   }
 }
 

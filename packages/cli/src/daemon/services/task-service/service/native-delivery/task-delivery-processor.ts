@@ -71,16 +71,32 @@ export async function processTasksUpdate(
         ...startInput,
         ...(ephemeralOverrides ? { overrides: ephemeralOverrides } : {}),
       };
+      const taskLookup = {
+        chatroomId: task.chatroomId,
+        role: task.agentConfig.role,
+        taskId: task.taskId,
+      };
+      const fullBeforeSlot = await taskService.loadAssignedTaskForAction(taskLookup);
+      if (!fullBeforeSlot) {
+        taskService.forgetStaleTask(taskLookup);
+        console.warn(
+          `[NativeDelivery:stale-task] chatroom=${task.chatroomId} role=${task.agentConfig.role} task=${task.taskId} reason=authoritative_task_missing`
+        );
+        return { kind: 'task-unavailable' as const, stale: true };
+      }
       const slot = await acquireNativeDeliverySlot({
         ...effectiveStartInput,
         timeoutMs: 30_000,
       });
-      const full = await taskService.loadAssignedTaskForAction({
-        chatroomId: task.chatroomId,
-        role: task.agentConfig.role,
-        taskId: task.taskId,
-      });
-      if (!full || !slot?.harnessSessionId) return { kind: 'task-unavailable' as const };
+      const full = await taskService.loadAssignedTaskForAction(taskLookup);
+      if (!full) {
+        taskService.forgetStaleTask(taskLookup);
+        console.warn(
+          `[NativeDelivery:stale-task] chatroom=${task.chatroomId} role=${task.agentConfig.role} task=${task.taskId} reason=authoritative_task_missing_after_slot`
+        );
+        return { kind: 'task-unavailable' as const, stale: true };
+      }
+      if (!slot?.harnessSessionId) return { kind: 'task-unavailable' as const };
       let delivered:
         | {
             chatroomId: string;

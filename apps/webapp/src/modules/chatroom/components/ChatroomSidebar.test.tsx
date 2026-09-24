@@ -457,7 +457,7 @@ describe('ChatroomSidebar', () => {
     });
   });
 
-  it('play button starts permanent agents from their saved configuration', async () => {
+  it('play button starts agents from their saved configuration', async () => {
     const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
     renderSidebar([chatroom]);
 
@@ -468,6 +468,27 @@ describe('ChatroomSidebar', () => {
       expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1');
     });
     expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+  });
+
+  it('reports a neutral message when no saved agent configuration exists', async () => {
+    mockRequestChatroomStart.mockResolvedValueOnce({ requested: [], skipped: [], failed: [] });
+    renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+
+    fireEvent.click(screen.getByTitle('Start with last configuration'));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith('No saved agent configuration is available.');
+    });
+  });
+
+  it('keeps restart available for a running chatroom', async () => {
+    renderSidebar([makeChatroom({ remoteAgentStatus: 'running' })]);
+
+    fireEvent.click(screen.getByTitle('Restart agents'));
+
+    await waitFor(() => {
+      expect(mockRequestChatroomRestart).toHaveBeenCalledWith('chr-1');
+    });
   });
 
   it('shows the play button when the chatroom uses the active team structure', async () => {
