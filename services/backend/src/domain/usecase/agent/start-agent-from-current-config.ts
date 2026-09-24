@@ -1,5 +1,3 @@
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
-
 import { assertMachineBelongsToChatroom } from './assert-machine-belongs-to-chatroom';
 import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import { startAgent } from './start-agent';
@@ -16,7 +14,7 @@ export type StartAgentFromCurrentConfigResult =
   | { status: 'skipped'; role: string; reason: string };
 
 /**
- * Start a permanent role from the last configuration recorded for the
+ * Start a configured role from the last configuration recorded for the
  * chatroom's active workspace. The caller may identify the workspace, while
  * machine identity and launch settings are always resolved from backend state.
  */
@@ -31,9 +29,6 @@ export async function startAgentFromCurrentWorkspaceConfig(
 ): Promise<StartAgentFromCurrentConfigResult> {
   const role = input.role.trim();
   if (!role) return { status: 'skipped', role, reason: 'Role is required' };
-  if (isEphemeralAgentRole(role)) {
-    return { status: 'skipped', role, reason: 'Role is ephemeral' };
-  }
 
   const activeTeam = await getActiveTeamStructure(ctx, input.chatroomId);
   if (!activeTeam) {
@@ -126,20 +121,20 @@ export async function startAgentFromCurrentWorkspaceConfig(
   return { status: 'started', role, machineId: request.machineId };
 }
 
-export type StartPermanentAgentsResult = {
+export type StartAgentsResult = {
   started: string[];
   skipped: { role: string; reason: string }[];
   failed: { role: string; error: string }[];
 };
 
-export async function startPermanentAgentsFromCurrentConfig(
+export async function startAgentsFromCurrentConfig(
   ctx: MutationCtx,
   input: {
     chatroomId: Id<'chatroom_rooms'>;
     roles: readonly string[];
     requestedBy: Id<'users'>;
   }
-): Promise<StartPermanentAgentsResult> {
+): Promise<StartAgentsResult> {
   const outcomes = await Promise.all(
     input.roles.map(
       async (
@@ -166,7 +161,7 @@ export async function startPermanentAgentsFromCurrentConfig(
     )
   );
 
-  const result: StartPermanentAgentsResult = { started: [], skipped: [], failed: [] };
+  const result: StartAgentsResult = { started: [], skipped: [], failed: [] };
   for (const outcome of outcomes) {
     if (outcome.kind === 'started') result.started.push(outcome.role);
     else if (outcome.kind === 'skipped') {

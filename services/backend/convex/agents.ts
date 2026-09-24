@@ -1,6 +1,5 @@
 /** Canonical web-facing agent configuration and status reads. */
 
-import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import {
   deriveChatroomActivityStatus,
   deriveChatroomState,
@@ -35,7 +34,7 @@ import {
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import {
   startAgentFromCurrentWorkspaceConfig,
-  startPermanentAgentsFromCurrentConfig,
+  startAgentsFromCurrentConfig,
 } from '../src/domain/usecase/agent/start-agent-from-current-config';
 import {
   normalizeWorkingDir,
@@ -119,7 +118,7 @@ export const requestStart = mutation({
   },
 });
 
-/** Start one permanent role using its last saved configuration. */
+/** Start one configured role using its last saved configuration. */
 export const startFromCurrentConfig = mutation({
   args: {
     ...SessionIdArg,
@@ -193,22 +192,17 @@ export const startOfflinePermanentAgentsForChatroom = internalMutation({
       persistedRoles: chatroom.teamRoles ?? null,
       persistedEntryPoint: chatroom.teamEntryPoint ?? null,
     });
-    const permanentRoles = getPermanentRoleNames(
-      team.roles.map(({ role }) => role).filter((role) => role !== 'user')
-    );
+    const configuredRoles = team.roles.map(({ role }) => role).filter((role) => role !== 'user');
     const offlineRows = await ctx.db
       .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
-    const offlineRoles = permanentRoles.filter((role) =>
+    const offlineRoles = configuredRoles.filter((role) =>
       offlineRows.some(
-        (row) =>
-          row.role.toLowerCase() === role.toLowerCase() &&
-          row.roleKind === 'persistent' &&
-          row.status === 'offline'
+        (row) => row.role.toLowerCase() === role.toLowerCase() && row.status === 'offline'
       )
     );
-    return startPermanentAgentsFromCurrentConfig(ctx, {
+    return startAgentsFromCurrentConfig(ctx, {
       chatroomId: args.chatroomId,
       roles: offlineRoles,
       requestedBy: chatroom.ownerId,

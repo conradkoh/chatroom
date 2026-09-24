@@ -1,5 +1,3 @@
-import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
-
 import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import { requestAgentRestart } from './request-agent-restart';
 import { requestChatroomWorkspaceAgentStop } from './request-chatroom-workspace-agent-stop';
@@ -53,11 +51,7 @@ export async function requestChatroomAgentOperation(
     persistedRoles: room.teamRoles ?? null,
     persistedEntryPoint: room.teamEntryPoint ?? null,
   });
-  const roles = getPermanentRoleNames(
-    team.roles
-      .map(({ role }) => role)
-      .filter((role) => !isEphemeralAgentRole(role) && role !== 'user')
-  );
+  const roles = team.roles.map(({ role }) => role).filter((role) => role !== 'user');
   const workspaces = (
     await ctx.db
       .query('chatroom_workspaces')

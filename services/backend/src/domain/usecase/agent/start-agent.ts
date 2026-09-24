@@ -15,8 +15,6 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
-
 import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
@@ -151,12 +149,6 @@ export async function startAgent(
 
   if (!model.trim() || !workingDir.trim()) {
     throw new Error('Agent model and working directory are required');
-  }
-
-  if (isEphemeralAgentRole(role)) {
-    throw new Error(
-      `Cannot start ephemeral role "${role}" directly. It runs on demand when work is assigned.`
-    );
   }
 
   if (workspaceId) {
