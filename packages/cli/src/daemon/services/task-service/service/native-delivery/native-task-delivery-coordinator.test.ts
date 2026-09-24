@@ -155,4 +155,27 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
     expect(deliverNativeTask).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('task_hydration_missing'));
   });
+
+  test('stale hydration does not record a retryable delivery failure', async () => {
+    const recordDeliveryFailure = vi.fn();
+    const coordinator = new NativeTaskDeliveryCoordinator();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await coordinator.reconcileRoleTasks(
+      baseParams({
+        taskService: {
+          recordDeliveryFailure,
+          isNativeHarness: () => true,
+          explainNativeDeliveryBlock: () => null,
+          isRedeliveryExhausted: () => false,
+        },
+        executors: {
+          deliverTask: async () => ({ kind: 'task-unavailable' as const, stale: true }),
+        },
+      })
+    );
+
+    expect(recordDeliveryFailure).not.toHaveBeenCalled();
+  });
 });
