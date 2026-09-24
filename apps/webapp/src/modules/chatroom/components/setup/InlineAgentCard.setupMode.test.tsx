@@ -1,5 +1,4 @@
 import { render, waitFor } from '@testing-library/react';
-import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import React, { useRef, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -120,7 +119,6 @@ function UnstableCallbackHarness({ onConfigChange }: { onConfigChange: (calls: n
     >
       <InlineAgentCard
         role="builder"
-        lifecycle={AgentRoleLifecycleTag.Permanent}
         allRoles={['builder']}
         statusLabel="OFFLINE"
         statusVariant="offline"
