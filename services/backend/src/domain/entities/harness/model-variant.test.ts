@@ -164,14 +164,17 @@ describe('HARNESS_MODEL_CATALOG', () => {
 
   test('codex catalog contains plain ids and every reasoning level per model', () => {
     const codex = HARNESS_MODEL_CATALOG['codex-sdk'];
-    for (const base of [
+    const expectedCodexBaseIds = [
       'gpt-6-astra',
+      'gpt-6-sol',
+      'gpt-6-luna',
       'gpt-5.6-terra',
       'gpt-5.6-luna',
       'gpt-5.6-sol',
       'gpt-5.5',
       'gpt-5.4-mini',
-    ]) {
+    ] as const;
+    for (const base of expectedCodexBaseIds) {
       expect(codex).toContain(`openai/${base}`);
       for (const level of ['none', 'low', 'medium', 'high', 'xhigh', 'max']) {
         expect(codex).toContain(`openai/${base}[reasoning=${level}]`);
@@ -226,11 +229,32 @@ describe('HARNESS_MODEL_CATALOG', () => {
   });
 
   test('claude catalog lists all base ids including unversioned aliases', () => {
+    const expectedClaudeBaseIds = [
+      'opus',
+      'sonnet',
+      'haiku',
+      'claude-opus-5',
+      'claude-sonnet-5',
+      'claude-fable-5-1',
+      'claude-fable-5',
+      'claude-opus-5-5',
+      'claude-opus-4-8',
+      'claude-opus-4-7',
+      'claude-opus-4-6',
+      'claude-opus-4-5-20251101',
+      'claude-sonnet-4-6',
+      'claude-sonnet-4-5-20250929',
+      'claude-haiku-4-5',
+      'claude-haiku-4-5-20251001',
+    ] as const;
     for (const harness of ['claude', 'claude-sdk'] as const) {
       const catalog = HARNESS_MODEL_CATALOG[harness];
       const baseIds = catalog.map((entry) => decodeModelVariant(entry).model);
-      // 3 unversioned aliases + 6 versioned ids = 9 unique base ids.
-      expect(new Set(baseIds).size).toBe(9);
+      // Three aliases plus thirteen provider-documented exact ids.
+      expect(new Set(baseIds).size).toBe(expectedClaudeBaseIds.length);
+      for (const base of expectedClaudeBaseIds) {
+        expect(baseIds).toContain(`anthropic/${base}`);
+      }
       // CLAUDE_SPAWN_ALIASES is now empty — all aliases are catalog-backed.
       for (const alias of CLAUDE_SPAWN_ALIASES) {
         expect(baseIds).not.toContain(alias);
