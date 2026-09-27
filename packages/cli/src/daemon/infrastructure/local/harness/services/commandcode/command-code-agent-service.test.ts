@@ -112,12 +112,32 @@ describe('CommandCodeAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('returns commandcode models including deepseek-v4-flash and claude-sonnet-4-6', async () => {
+    it('returns commandcode models with provider prefixes for current Claude and OpenAI ids', async () => {
       const service = new CommandCodeAgentService(createMockDeps());
       const models = await service.listModels();
       expect(models.length).toBeGreaterThan(2);
       expect(models).toContain('deepseek/deepseek-v4-flash');
       expect(models).toContain('anthropic/claude-sonnet-4-6');
+      for (const model of [
+        'claude-fable-5-1',
+        'claude-fable-5',
+        'claude-sonnet-5',
+        'claude-opus-4-8',
+        'claude-opus-5',
+        'claude-opus-5-5',
+      ]) {
+        expect(models).toContain(`anthropic/${model}`);
+      }
+      for (const model of [
+        'gpt-5.6-luna',
+        'gpt-5.6-sol',
+        'gpt-5.6-terra',
+        'gpt-6-astra',
+        'gpt-6-luna',
+        'gpt-6-sol',
+      ]) {
+        expect(models).toContain(`openai/${model}`);
+      }
     });
   });
 
