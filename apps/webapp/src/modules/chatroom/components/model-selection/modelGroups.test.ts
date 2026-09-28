@@ -117,6 +117,18 @@ describe('groupFlatModels', () => {
     expect(groups[0].options[0].label).toBe('Sonnet');
     expect(groups[0].options[1].label).toBe('Sonnet [effort=high]');
   });
+
+  it('keeps surviving model variant tags after blacklist filtering', () => {
+    const groups = groupFlatModels([
+      'openai/gpt-5.6-luna[thinking=high]',
+      'openai/gpt-5.5[thinking=high]',
+    ]);
+
+    const openai = groups.find((group) => group.providerKey === 'openai');
+    const luna = openai?.options.find((option) => option.value.includes('gpt-5.6-luna'));
+
+    expect(luna?.label).toContain('[thinking=high]');
+  });
 });
 
 describe('groupProviderOptions', () => {
