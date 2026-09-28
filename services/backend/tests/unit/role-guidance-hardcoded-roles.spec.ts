@@ -49,6 +49,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
       - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
+      - **To communicate with another team role** → Use the normal \`chatroom handoff\` command, even for a short test or status message. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation."
     `);
@@ -77,6 +78,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **For rework** → Revise your implementation directly and re-validate
+      - **To communicate with another team role** → Use the normal \`chatroom handoff\` command, even for a short test or status message. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation."
     `);
