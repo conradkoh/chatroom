@@ -36,6 +36,15 @@ describe('decodeClaudeVariant', () => {
       effort: 'high',
     });
   });
+  it('accepts current exact Claude catalog model ids with provider prefixes', () => {
+    expect(decodeClaudeVariant('claude-fable-5-1[effort=high]')).toEqual({
+      model: 'claude-fable-5-1',
+      effort: 'high',
+    });
+    expect(decodeClaudeVariant('anthropic/claude-haiku-4-5-20251001')).toEqual({
+      model: 'claude-haiku-4-5-20251001',
+    });
+  });
   it('omits none effort', () =>
     expect(decodeClaudeVariant('sonnet[effort=none]')).toEqual({ model: 'sonnet' }));
   it('rejects malformed and unknown variants', () => {

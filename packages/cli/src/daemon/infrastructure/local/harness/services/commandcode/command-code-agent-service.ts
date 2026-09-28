@@ -46,15 +46,27 @@ const COMMANDCODE_COMMAND = 'cmd';
  */
 const COMMANDCODE_MODELS: string[] = [
   // Anthropic Claude
+  'claude-fable-5-1',
+  'claude-fable-5',
   'claude-sonnet-4-6',
+  'claude-sonnet-5',
   'claude-opus-4-7',
+  'claude-opus-4-8',
   'claude-opus-4-6',
+  'claude-opus-5',
+  'claude-opus-5-5',
   'claude-haiku-4-5',
   // OpenAI
   'gpt-5.5',
   'gpt-5.4',
   'gpt-5.3-codex',
   'gpt-5.4-mini',
+  'gpt-5.6-luna',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-6-astra',
+  'gpt-6-luna',
+  'gpt-6-sol',
   // Google
   'google/gemini-3.5-flash',
   'google/gemini-3.1-flash-lite',
