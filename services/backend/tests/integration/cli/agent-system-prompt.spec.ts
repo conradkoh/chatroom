@@ -315,6 +315,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
+      - **To communicate with another team role** → Use \`chatroom handoff\` to that role, even for a short test or status message. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
 
       **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
       \`\`\`bash
