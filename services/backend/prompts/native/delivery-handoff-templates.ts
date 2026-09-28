@@ -12,27 +12,21 @@ import { getHandoffTemplate } from '../cli/handoff-templates';
 
 /** toRole targets to inline per team:role on native task delivery. */
 const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
-  'solo:solo': ['user'],
-  'duo:planner': ['user', 'builder'],
+  'solo:solo': ['user', 'architect', 'uiux-engineer'],
+  'solo:architect': ['solo'],
+  'solo:uiux-engineer': ['solo'],
+  'duo:planner': ['user', 'builder', 'architect', 'uiux-engineer'],
   'duo:builder': ['planner'],
+  'duo:architect': ['planner'],
+  'duo:uiux-engineer': ['planner'],
 };
 
-// fallow-ignore-next-line complexity
 function getNativeDeliveryTemplateTargets(
   teamId: string | undefined,
-  role: string,
-  includeEnhancerTemplate?: boolean
+  role: string
 ): readonly string[] {
-  // Mode-independent role/team base matrix: Chat-only callers pass
-  // includeEnhancerTemplate: false and keep the full team base (e.g. duo
-  // planner keeps user + builder). Conversation mode never removes an
-  // advertised team target.
   const key = `${(teamId ?? 'duo').toLowerCase()}:${role.toLowerCase()}`;
-  const base = NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
-  if (!includeEnhancerTemplate) {
-    return base;
-  }
-  return ['enhancer', ...base];
+  return NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
 }
 
 function renderNativeDeliveryTemplateBlock(
@@ -66,17 +60,12 @@ export function appendNativeDeliveryHandoffTemplates(
     role: string;
     chatroomId?: string | undefined;
     cliEnvPrefix?: string | undefined;
-    includeEnhancerTemplate?: boolean | undefined;
     conversationMode?: ConversationMode | undefined;
     isEntryPoint?: boolean | undefined;
     senderRole?: string | undefined;
   }
 ): void {
-  const targets = getNativeDeliveryTemplateTargets(
-    params.teamId,
-    params.role,
-    params.includeEnhancerTemplate
-  );
+  const targets = getNativeDeliveryTemplateTargets(params.teamId, params.role);
   const blocks = targets.flatMap(
     (toRole) =>
       renderNativeDeliveryTemplateBlock(

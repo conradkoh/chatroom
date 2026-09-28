@@ -102,6 +102,44 @@ describe('Native task delivery — eager handoff template matrix', () => {
   }
 });
 
+describe('Native task delivery — architect and UI/UX design briefs', () => {
+  for (const scenario of NATIVE_DELIVERY_SCENARIOS.filter((candidate) =>
+    ['architect', 'uiux-engineer'].includes(candidate.role)
+  )) {
+    test(`${scenario.teamId}:${scenario.role} injects the rigid role-specific brief`, () => {
+      const output = deliver(scenario);
+      const start = output.indexOf('<handoff-templates>');
+      const end = output.indexOf('</handoff-templates>');
+      const templates = output.slice(start, end);
+
+      for (const heading of [
+        '## Summary',
+        '## Goal',
+        '## Key Knowledge for High Quality Bar',
+        '## Force Multipliers',
+        '## Files to implement (exhaustive, file-level)',
+        '## Shared contracts',
+        '## Requirements (acceptance criteria)',
+        '## What to avoid',
+        '## Skills to activate',
+        '## Out of scope',
+      ]) {
+        expect(templates).toContain(heading);
+      }
+      expect(templates).toContain(`--next-role="${scenario.primaryHandoffTarget}"`);
+      if (scenario.role === 'architect') {
+        expect(templates).toMatch(
+          /domain model|concurrent writers|Convex reactivity|migration\/backfill/i
+        );
+      } else {
+        expect(templates).toMatch(
+          /loading, empty, error, success|keyboard shortcuts|Tailwind|UI\/integration/i
+        );
+      }
+    });
+  }
+});
+
 describe('Native task delivery — omitted CLI harness framing', () => {
   test('does not include listen-loop, classify, or task-read instructions', () => {
     const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);
@@ -139,7 +177,7 @@ describe('Native task delivery — attached context', () => {
 });
 
 describe('Native task delivery — Chat mode eager template matrix', () => {
-  test('duo planner chat entry-point user keeps user + builder templates and omits enhancer', () => {
+  test('duo planner chat entry-point user keeps base templates without enhancer-specific injection', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,
       role: 'planner',
@@ -156,7 +194,7 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).toContain('<handoff-templates>');
     expect(output).toContain('Handoff to `user`');
     expect(output).toContain('Handoff to `builder`');
-    // No enhancer template for Chat
+    // No enhancer-specific template is injected in Chat or any other mode.
     expect(output).not.toContain('Handoff to `enhancer`');
     // Alternate handoff targets remain advertised
     expect(output).toContain('<handoffs>');
@@ -166,7 +204,28 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
   });
 
-  test('solo chat entry-point user keeps user template and no enhancer template', () => {
+  test('duo planner Enhance entry-point user task includes planner-owned design guidance', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: CHATROOM_ID,
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: CLI_ENV,
+      task: { _id: 'task-id', content: 'Design the feature' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'architect', 'uiux-engineer', 'user'],
+      isEntryPoint: true,
+      conversationMode: 'code:enhanced',
+    });
+
+    expect(output).toContain('<enhance-mode>');
+    expect(output).toContain('exactly one recommended design');
+    expect(output).toContain('architect');
+    expect(output).toContain('uiux-engineer');
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('<chat-mode>');
+  });
+
+  test('solo chat entry-point user keeps base templates and advertises architect and UI/UX engineer roles', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,
       role: 'solo',
@@ -174,19 +233,20 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
       cliEnvPrefix: CLI_ENV,
       task: { _id: 'task-id', content: 'Hello' },
       message: { _id: 'msg-id', senderRole: 'user' },
-      availableHandoffTargets: ['user', 'enhancer'],
+      availableHandoffTargets: ['user', 'architect', 'uiux-engineer'],
       isEntryPoint: true,
       conversationMode: 'chat',
     });
 
     expect(output).toContain('<handoff-templates>');
     expect(output).toContain('Handoff to `user`');
-    // No enhancer template (includeEnhancerTemplate stays false for Chat)
-    expect(output).not.toContain('Handoff to `enhancer`');
-    // Supplied capability data still renders (user + enhancer were advertised)
+    expect(output).toContain('Handoff to `architect`');
+    expect(output).toContain('Handoff to `uiux-engineer`');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
-    expect(output).toContain('**enhancer**');
+    expect(output).toContain('**architect**');
+    expect(output).toContain('**uiux-engineer**');
+    expect(output).not.toContain('enhancer');
     expect(output).toContain('<chat-mode>');
   });
 });

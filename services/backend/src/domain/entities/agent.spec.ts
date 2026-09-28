@@ -27,11 +27,12 @@ import {
   machineCommandStatusValidator,
   isMachineCommandStatus,
   AGENT_START_REASONS,
-  AgentStartReasonEnum,
+  AgentStartReasonCode,
   agentStartReasonValidator,
   isAgentStartReason,
   isUserExplicitStart,
   isExplicitDaemonStart,
+  DaemonStartReasonCode,
   MODEL_SOURCES,
   ModelSourceEnum,
   modelSourceValidator,
@@ -39,6 +40,20 @@ import {
 } from './agent';
 
 describe('agent reason predicates', () => {
+  test('canonical start reason codes preserve wire values', () => {
+    expect(AgentStartReasonCode.USER_START).toBe('user.start');
+    expect(AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE).toBe('platform.pending_task_wake');
+    expect(AgentStartReasonCode.PLATFORM_AUTO_RESTART_ON_NEW_CONTEXT).toBe(
+      'platform.auto_restart_on_new_context'
+    );
+  });
+
+  test('daemon-local start reason codes stay outside backend start vocabulary', () => {
+    expect(DaemonStartReasonCode.RESPAWN).toBe('daemon.respawn');
+    expect(isAgentStartReason(DaemonStartReasonCode.RESPAWN)).toBe(false);
+    expect(isExplicitDaemonStart(DaemonStartReasonCode.RESPAWN)).toBe(true);
+  });
+
   test('isUserExplicitStart accepts user.start and user.restart only', () => {
     expect(isUserExplicitStart('user.start')).toBe(true);
     expect(isUserExplicitStart('user.restart')).toBe(true);
@@ -48,6 +63,7 @@ describe('agent reason predicates', () => {
   test('isExplicitDaemonStart accepts daemon nudge/wake reasons', () => {
     expect(isExplicitDaemonStart('user.start')).toBe(true);
     expect(isExplicitDaemonStart('platform.task_monitor_nudge')).toBe(true);
+    expect(isExplicitDaemonStart('platform.pending_task_wake')).toBe(true);
     expect(isExplicitDaemonStart('daemon.respawn')).toBe(true);
   });
 });
@@ -101,7 +117,7 @@ const domains: DomainSpec[] = [
   {
     label: 'AgentStartReason',
     values: AGENT_START_REASONS,
-    enumObj: AgentStartReasonEnum,
+    enumObj: Object.fromEntries(AGENT_START_REASONS.map((reason) => [reason, reason])),
     validator: agentStartReasonValidator,
     guard: isAgentStartReason,
   },

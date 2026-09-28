@@ -20,9 +20,9 @@ export interface WorkspaceAgentStatus {
   isRunning: boolean;
   lastSeenAt: number | null;
   lastSeenAction: string | null;
-  activeWork: { kind: 'task'; id: string } | { kind: 'enhancer_job'; id: string } | null;
+  activeWork: { kind: 'task'; id: string } | null;
   error: {
-    source: 'configuration' | 'runtime' | 'task' | 'enhancer' | 'stop';
+    source: 'configuration' | 'runtime' | 'task' | 'stop';
     code: string;
     message: string;
     occurredAt: number;

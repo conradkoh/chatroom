@@ -7,6 +7,7 @@ import { startAgentFromCurrentWorkspaceConfig } from './start-agent-from-current
 import { normalizeWorkingDir } from './workspace-match';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { AgentStartReasonCode } from '../../entities/agent';
 import { getTeamStructure } from '../../entities/team-presets';
 import { isActiveWorkspace } from '../../entities/workspace';
 import { getActiveTeamStructure } from '../team/active-team-structure';
@@ -132,7 +133,7 @@ export async function requestChatroomAgentOperation(
               role,
               requestedBy: input.requestedBy,
               request: {
-                reason: 'user.restart',
+                reason: AgentStartReasonCode.USER_RESTART,
                 overrides: {
                   machineId: launch.machineId,
                   model: launch.model ?? '',

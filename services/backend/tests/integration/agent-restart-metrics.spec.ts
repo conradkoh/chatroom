@@ -9,6 +9,7 @@ import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { AgentStartReasonCode } from '../../src/domain/entities/agent';
 import { recordAgentSpawnedState } from '../../src/domain/usecase/agent/record-agent-spawned-state';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { t } from '../../test.setup';
@@ -47,7 +48,7 @@ async function setupAgentAndSeedMetrics(opts: {
         model,
         agentHarness: 'opencode',
         workingDir,
-        reason: 'user.manual_spawn',
+        reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
       },
       machine!
     );
@@ -152,7 +153,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
         model: 'model-x',
         agentHarness: 'opencode',
         workingDir: '/test/ws',
-        reason: 'user.manual_spawn',
+        reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
       },
       machine!
     );
@@ -266,7 +267,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
         model: 'model-alpha',
         agentHarness: 'opencode',
         workingDir: '/test/ws',
-        reason: 'user.manual_spawn',
+        reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
       },
       machine!
     );

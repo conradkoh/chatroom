@@ -45,19 +45,24 @@ lifecycles. Existing deployments may still contain documents written by older
 versions, so deprecated fields on populated tables remain registered as
 optional validators until their data has been migrated or retired. Legacy
 tables that may still contain documents remain registered as compatibility-only
-schema definitions where deployment compatibility requires it. They have no
-active production callers, are not sources of truth, and must not receive new
-writes. The enhancer-specific configuration and favorites tables are fully
-retired rather than retained as compatibility tables; their data now uses the
-canonical launch-request and machine-favorites stores.
+schema definitions where deployment compatibility requires it. The desired and
+runtime compatibility tables remain registered as schema-only definitions. All
+active production and test callers now use the canonical launch-request and
+role-status read-model paths; historical rows remain pending an explicit data
+audit and purge. The six retired machine/agent projection
+tables (`chatroom_machineLastSeenAt`, `chatroom_machineModels`,
+`chatroom_agentOperationalSummary`, `chatroom_agentViewMetadata`,
+`chatroom_machineIdentity`, and `chatroom_machineRegistry`) have now been
+purged by migration and removed from the schema. The enhancer-specific
+configuration and favorites tables are fully retired rather than retained as
+compatibility tables; their data now uses the canonical launch-request and
+machine-favorites stores.
 
-This compatibility layer includes the old room/team fields, participant
-lifecycle mirrors, embedded machine capability fields, role-status aliases
-(`teamId`, `operationalState`, `viewState`, and `isAlive`), and the retired
-desired/runtime/summary/view/enhancer/machine projection tables. A later
-cleanup may remove those schema definitions only after an explicit deployment
-audit proves that the corresponding tables are empty or no longer exist in
-every environment.
+This remaining compatibility layer includes the old room/team fields,
+participant lifecycle mirrors, embedded machine capability fields, role-status
+aliases (`teamId`, `operationalState`, `viewState`, and `isAlive`), and the
+retained desired/runtime tables. The six removed projection tables no longer
+need deployment-compatibility definitions because their rows were purged first.
 
 ## Final table design
 
@@ -112,20 +117,29 @@ not mean that an agent is running.
 ## Removed models and functions
 
 The following tables are retired from the application model and must not be
-used as active state, although compatibility-only schema definitions remain
-temporarily so existing documents validate:
+used as active state. All active callers have migrated away from the
+desired/runtime tables, which remain as compatibility-only schema definitions
+pending a historical-data audit and purge:
 
 - `chatroom_agentDesiredConfigs`
 - `chatroom_agentRuntimeStates`
+
+The following six retired projection tables were purged by migration and
+removed from the schema:
+
 - `chatroom_agentOperationalSummary`
 - `chatroom_agentViewMetadata`
-- `chatroom_enhancerConfigs`
-- `chatroomWorkspaceAgentCommandsInbox`
-- `chatroom_agentLaunchPreferences`
+- `chatroom_machineLastSeenAt`
 - `chatroom_machineModels`
 - `chatroom_machineRegistry`
 - `chatroom_machineIdentity`
-- `chatroom_machineLastSeenAt`
+
+These other retired models were removed by earlier consolidation work and are
+listed here for historical completeness:
+
+- `chatroom_enhancerConfigs`
+- `chatroomWorkspaceAgentCommandsInbox`
+- `chatroom_agentLaunchPreferences`
 - `chatroom_enhancerConfigFavorites`
 
 The following duplicate paths were removed or retired:
@@ -229,8 +243,10 @@ Mark each item done only after the corresponding validation is true.
       legacy room fields are removed.
 - [x] Legacy participant lifecycle fields are removed by migration.
 - [x] Old machine identity, model, registry, and registration-recency models
-      have no active callers; their legacy schema definitions remain only for
-      deployment compatibility until data retirement is verified.
+      have no active callers; their rows were purged and their schema
+      definitions were removed. Desired/runtime callers have now migrated to
+      canonical launch/status models; their compatibility definitions remain
+      pending historical-data audit and purge.
 - [x] Generated Convex bindings are synchronized.
 - [x] Repository search confirms the removed models are absent from active
       production paths.

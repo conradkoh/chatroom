@@ -125,7 +125,6 @@ export const handoffEffect = (
           chatroomId,
           convexUrl,
           supportsNativeIntegration: result.supportsNativeIntegration,
-          enhancerRequestQueued: result.enhancerRequestQueued === true,
         })
       );
     });

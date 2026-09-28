@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { DaemonStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 
 import { assertStartSucceeded, assertStopSucceeded } from './operation-result-assertions.js';
@@ -452,7 +453,7 @@ export function createAgentProcessManagerService(
               deps.execution.stop({
                 chatroomId: input.chatroomId,
                 role: input.role,
-                reason: 'daemon.respawn',
+                reason: DaemonStartReasonCode.RESPAWN,
                 pid: slot.pid,
                 workingDir: input.workingDir,
               }),

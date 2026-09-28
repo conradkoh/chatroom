@@ -26,7 +26,12 @@ describe('getAgentViewStatus', () => {
     const { sessionId } = await createTestSession('view-fresh');
     const room = await createDuoTeamChatroom(sessionId as any);
     const result = await query(room);
-    expect(result?.agents.map((a) => a.state)).toEqual(['stopped', 'stopped', 'stopped']);
+    expect(result?.agents.map((a) => a.state)).toEqual([
+      'stopped',
+      'stopped',
+      'stopped',
+      'stopped',
+    ]);
   });
 
   test('returns running from the projection', async () => {
@@ -72,8 +77,8 @@ describe('getAgentViewStatus — fresh team', () => {
   test('returns all team roles stopped', async () => {
     const { sessionId } = await createTestSession('view-fresh-3role');
     const result = await query(await createDuoTeamChatroom(sessionId as any));
-    expect(result!.teamRoles).toEqual(['planner', 'enhancer', 'builder']);
-    expect(result!.agents).toHaveLength(3);
+    expect(result!.teamRoles).toEqual(['planner', 'architect', 'uiux-engineer', 'builder']);
+    expect(result!.agents).toHaveLength(4);
     expect(result!.agents.every((a) => a.state === 'stopped')).toBe(true);
   });
 });
@@ -188,8 +193,8 @@ describe('getAgentViewStatus — stale roles', () => {
       teamStructureId: 'solo@1',
     });
     const result = await query(room);
-    expect(result!.agents).toHaveLength(2);
-    expect(result!.agents.map((a) => a.role)).toEqual(['solo', 'enhancer']);
+    expect(result!.agents).toHaveLength(3);
+    expect(result!.agents.map((a) => a.role)).toEqual(['solo', 'architect', 'uiux-engineer']);
   });
 });
 

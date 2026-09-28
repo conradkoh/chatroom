@@ -70,13 +70,24 @@ describe('getWorkspaceAgentRoles', () => {
       entryPoint: 'planner',
       roles: [
         { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-        { role: 'enhancer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+        { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+        { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
         { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
       ],
     });
 
-    expect(agents.map((agent) => agent.role)).toEqual(['planner', 'enhancer', 'builder']);
+    expect(agents.map((agent) => agent.role)).toEqual([
+      'planner',
+      'architect',
+      'uiux-engineer',
+      'builder',
+    ]);
     expect(agents[1]).toMatchObject({
+      lifecycle: AgentRoleLifecycleTag.Ephemeral,
+      optional: true,
+      teamId: 'duo',
+    });
+    expect(agents[2]).toMatchObject({
       lifecycle: AgentRoleLifecycleTag.Ephemeral,
       optional: true,
       teamId: 'duo',

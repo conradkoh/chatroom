@@ -35,6 +35,31 @@ async function createAssignedTask(
 }
 
 describe('releaseMachineTasks (daemon shutdown)', () => {
+  test('records redelivery exhausted delivery failures', async () => {
+    const { sessionId } = await createTestSession('record-delivery-failure-redelivery');
+    const machineId = 'machine-delivery-failure-redelivery';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    const taskId = await createAssignedTask(
+      sessionId,
+      chatroomId,
+      'Redelivery exhausted task',
+      'builder'
+    );
+
+    const result = await t.mutation(api.daemon.taskStatus.recordDeliveryFailure, {
+      sessionId,
+      machineId,
+      taskId,
+      reason: 'redelivery_exhausted',
+    });
+
+    expect(result.recorded).toBe(true);
+    const task = await t.run((ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.deliveryFailure?.reason).toBe('redelivery_exhausted');
+  });
+
   test('releases acknowledged and in_progress tasks to pending, leaves pending untouched', async () => {
     const { sessionId } = await createTestSession('release-shutdown-1');
     const machineId = 'machine-release-1';

@@ -520,7 +520,7 @@ export default function Home() {
                 />
                 <RoleCard
                   role="Custom"
-                  description="Name any role you need — solo agents, specialists, or multi-step pipelines."
+                  description="Name any role you need — solo agents, architect roles, UI/UX engineer roles, or multi-step pipelines."
                   color="bg-blue-400"
                   delay={4800}
                 />

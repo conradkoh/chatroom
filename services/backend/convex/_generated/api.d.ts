@@ -131,9 +131,6 @@ import type * as web_agenticQuery_mutations from "../web/agenticQuery/mutations.
 import type * as web_agenticQuery_queries from "../web/agenticQuery/queries.js";
 import type * as web_agenticQuery_runTurns from "../web/agenticQuery/runTurns.js";
 import type * as web_conversationModePreferences from "../web/conversationModePreferences.js";
-import type * as web_enhancer_index from "../web/enhancer/index.js";
-import type * as web_enhancer_internal from "../web/enhancer/internal.js";
-import type * as web_enhancer_mutations from "../web/enhancer/mutations.js";
 import type * as web_harnessCapabilities_capabilities from "../web/harnessCapabilities/capabilities.js";
 import type * as web_harnessCapabilities_commands from "../web/harnessCapabilities/commands.js";
 import type * as workspaceFileTree_access from "../workspaceFileTree/access.js";
@@ -283,9 +280,6 @@ declare const fullApi: ApiFromModules<{
   "web/agenticQuery/queries": typeof web_agenticQuery_queries;
   "web/agenticQuery/runTurns": typeof web_agenticQuery_runTurns;
   "web/conversationModePreferences": typeof web_conversationModePreferences;
-  "web/enhancer/index": typeof web_enhancer_index;
-  "web/enhancer/internal": typeof web_enhancer_internal;
-  "web/enhancer/mutations": typeof web_enhancer_mutations;
   "web/harnessCapabilities/capabilities": typeof web_harnessCapabilities_capabilities;
   "web/harnessCapabilities/commands": typeof web_harnessCapabilities_commands;
   "workspaceFileTree/access": typeof workspaceFileTree_access;

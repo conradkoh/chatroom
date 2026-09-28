@@ -45,7 +45,7 @@ export const agentLifecycleFactSchema = z.discriminatedUnion('kind', [
     ...agent,
     kind: z.literal('status'),
     status: z.enum(['offline', 'starting', 'waiting', 'working', 'stopping', 'error']),
-    errorSource: z.enum(['configuration', 'runtime', 'task', 'enhancer', 'stop']).optional(),
+    errorSource: z.enum(['configuration', 'runtime', 'task', 'stop']).optional(),
     errorCode: z.string().optional(),
     errorMessage: z.string().optional(),
   }),

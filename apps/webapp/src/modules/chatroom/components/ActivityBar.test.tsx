@@ -11,6 +11,10 @@ vi.mock('../context/CommandDialogContext', () => ({
   }),
 }));
 
+vi.mock('../context/ChatroomWorkspaceContext', () => ({
+  useChatroomWorkspace: () => ({ chatroomId: 'room-1' }),
+}));
+
 vi.mock('../context/commandPaletteController', () => ({
   subscribeCommandPaletteOpen: () => () => {},
   getCommandPaletteOpen: () => false,

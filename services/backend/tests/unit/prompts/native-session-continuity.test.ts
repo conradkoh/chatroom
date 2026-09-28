@@ -6,7 +6,6 @@ import { getDelegationGuidelinesSection } from '../../../prompts/cli/sections/de
 import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
-  getNativeEnhancerRequestTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
   getNativePlannerDelegationWaitNote,
   getSessionContinuityLine,
@@ -148,13 +147,6 @@ describe('native session continuity', () => {
   test('getNativeHandoffTurnEndGuidance for user handoff', () => {
     expect(getNativeHandoffTurnEndGuidance('user')).toContain('End your turn now');
     expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages download');
-  });
-
-  test('getNativeEnhancerRequestTurnEndGuidance', () => {
-    const guidance = getNativeEnhancerRequestTurnEndGuidance();
-    expect(guidance).toContain('End your turn now');
-    expect(guidance).toContain('monitor the enhancer');
-    expect(guidance).not.toContain('messages download');
   });
 
   test('getNativePlannerDelegationWaitNote', () => {

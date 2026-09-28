@@ -114,9 +114,47 @@ describe('getAllTabAnchorNavigation', () => {
       })
     ).rejects.toThrow();
   });
+
+  test('falls back to the latest user message when the explicit anchor was deleted', async () => {
+    const { sessionId } = await createTestSession('alltab-nav-deleted-anchor');
+    const chatroomId = await createChatroom(sessionId);
+    const deletedAnchor = await insertTimelineMessage(chatroomId, 'user', 'deleted anchor');
+    const latestAnchor = await insertTimelineMessage(chatroomId, 'user', 'latest anchor');
+
+    await t.run((ctx) => ctx.db.delete('chatroom_messages', deletedAnchor));
+
+    const result = await t.query(api.allTabConversation.getAllTabAnchorNavigation, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: deletedAnchor,
+    });
+
+    expect(result.anchor?._id).toBe(latestAnchor);
+    expect(result.anchor?.contentPreview).toBe('latest anchor');
+  });
 });
 
 describe('listAllTabSlicePaginated', () => {
+  test('returns an empty completed page when the requested anchor was deleted', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-deleted-anchor');
+    const chatroomId = await createChatroom(sessionId);
+    const deletedAnchor = await insertTimelineMessage(chatroomId, 'user', 'deleted anchor');
+
+    await t.run((ctx) => ctx.db.delete('chatroom_messages', deletedAnchor));
+
+    const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: deletedAnchor,
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(result.page).toEqual([]);
+    expect(result.isDone).toBe(true);
+    expect(result.continueCursor).toBeNull();
+    expect(result.sliceMetadata.anchorMessageId).toBe(deletedAnchor);
+  });
+
   test('defaults sliceUpperBoundExclusive to null when field is omitted', async () => {
     const { sessionId } = await createTestSession('alltab-slice-omit-bound');
     const chatroomId = await createChatroom(sessionId);

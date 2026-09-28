@@ -26,7 +26,7 @@ vi.mock('./UnifiedAgentListModal', () => ({
 const lifecycle = {
   teamId: 'duo',
   teamName: 'Duo',
-  expectedRoles: ['planner', 'enhancer', 'builder'],
+  expectedRoles: ['planner', 'architect', 'uiux-engineer', 'builder'],
   participants: [],
   hasHistory: false,
 };
@@ -38,7 +38,8 @@ const duoStructure = {
   entryPoint: 'planner',
   roles: [
     { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-    { role: 'enhancer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+    { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+    { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
     { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
   ],
 };
@@ -66,7 +67,7 @@ const panelProps = {
 
 beforeEach(() => {
   mockUseAgentStatuses.mockReturnValue({
-    agents: ['planner', 'enhancer', 'builder'].map((role) => ({
+    agents: ['planner', 'architect', 'uiux-engineer', 'builder'].map((role) => ({
       role,
       online: false,
       statusLabel: 'OFFLINE',
@@ -106,17 +107,48 @@ describe('AgentPanel', () => {
   it('renders permanent agents before the ephemeral section', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} />);
 
-    expect(screen.getByText('Ephemeral (1)')).toBeInTheDocument();
-    expect(screen.getByText('Agents (3)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (2)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (4)')).toBeInTheDocument();
+    expect(screen.queryByText(/View More/)).not.toBeInTheDocument();
     const planner = screen.getByLabelText(/planner:/i);
     const builder = screen.getByLabelText(/builder:/i);
-    const enhancer = screen.getByLabelText(/enhancer:/i);
+    const architect = screen.getByLabelText(/architect:/i);
+    const uiuxEngineer = screen.getByLabelText(/uiux-engineer:/i);
     expect(
       planner.compareDocumentPosition(builder) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(
-      builder.compareDocumentPosition(enhancer) & Node.DOCUMENT_POSITION_FOLLOWING
+      builder.compareDocumentPosition(architect) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+    expect(
+      architect.compareDocumentPosition(uiuxEngineer) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('keeps all ephemeral agents visible when permanent agents exceed the preview limit', () => {
+    const expandedStructure = {
+      ...duoStructure,
+      roles: [
+        { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+        { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+        { role: 'reviewer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+        { role: 'tester', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+        { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+        { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+      ],
+    };
+
+    render(<AgentPanel {...panelProps} teamStructure={expandedStructure} />);
+
+    expect(screen.getByText('Agents (6)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (2)')).toBeInTheDocument();
+    expect(screen.getByLabelText(/planner:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/builder:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/reviewer:/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/tester:/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/uiux-engineer:/i)).toBeInTheDocument();
+    expect(screen.getByText('View More (1 more items)')).toBeInTheDocument();
   });
 
   it('omits the ephemeral section when no ephemeral roles exist', () => {
@@ -126,7 +158,9 @@ describe('AgentPanel', () => {
         lifecycle={{ ...lifecycle, expectedRoles: ['planner', 'builder'] }}
         teamStructure={{
           ...duoStructure,
-          roles: duoStructure.roles.filter(({ role }) => role !== 'enhancer'),
+          roles: duoStructure.roles.filter(
+            ({ role }) => role !== 'architect' && role !== 'uiux-engineer'
+          ),
         }}
       />
     );
@@ -151,5 +185,34 @@ describe('AgentPanel', () => {
     );
 
     expect(screen.getByText('gpt-5.6-terra [high]')).toBeInTheDocument();
+  });
+
+  it('shows the newest configuration snapshot for each role', () => {
+    const baseConfig: AgentConfig = {
+      machineId: 'machine-1',
+      hostname: 'test-host',
+      role: 'planner',
+      agentType: 'cursor-sdk',
+      workingDir: '/Users/alice/chatroom',
+      model: 'opencode/big-pickle',
+      availableHarnesses: ['cursor-sdk'],
+      updatedAt: 100,
+    };
+    const newerConfig: AgentConfig = {
+      ...baseConfig,
+      model: 'openai/gpt-5.6-luna[reasoning=low]',
+      updatedAt: 200,
+    };
+
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        agentConfigs={[newerConfig, baseConfig]}
+      />
+    );
+
+    expect(screen.getByText('gpt-5.6-luna [low]')).toBeInTheDocument();
+    expect(screen.queryByText('big-pickle')).not.toBeInTheDocument();
   });
 });

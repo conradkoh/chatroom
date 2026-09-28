@@ -9,9 +9,7 @@ import { validateRoleHandoffContracts } from './contracts';
 import type { RoleHandoffContract } from './contracts';
 import { getHandoffTemplate, type HandoffTemplateQuery } from './index';
 import { getBuilderToPlannerHandoffTemplate } from '../../teams/duo/handoff-templates/builder-to-planner';
-import { getEnhancerToPlannerHandoffTemplate } from '../../teams/duo/handoff-templates/enhancer-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../teams/duo/handoff-templates/planner-to-builder';
-import { getPlannerToEnhancerHandoffTemplate } from '../../teams/duo/handoff-templates/planner-to-enhancer';
 import { getPlannerToUserReportTemplate } from '../../teams/duo/handoff-templates/planner-to-user';
 import { getSoloToUserReportTemplate } from '../../teams/solo/handoff-templates/solo-to-user';
 
@@ -21,16 +19,10 @@ const duoQuery = (fromRole: string, toRole: string): HandoffTemplateQuery => ({
   toRole,
 });
 
-describe('getHandoffTemplate — historic pair compatibility', () => {
-  test('resolves every historical renderable duo pair to its exact prose', () => {
+describe('getHandoffTemplate — role-owned catalog compatibility', () => {
+  test('resolves every renderable permanent duo pair to its exact prose', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'builder'))).toBe(
       getPlannerToBuilderHandoffTemplate()
-    );
-    expect(getHandoffTemplate(duoQuery('planner', 'enhancer'))).toBe(
-      getPlannerToEnhancerHandoffTemplate()
-    );
-    expect(getHandoffTemplate(duoQuery('enhancer', 'planner'))).toBe(
-      getEnhancerToPlannerHandoffTemplate()
     );
     expect(getHandoffTemplate(duoQuery('builder', 'planner'))).toBe(
       getBuilderToPlannerHandoffTemplate()
@@ -38,16 +30,36 @@ describe('getHandoffTemplate — historic pair compatibility', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'user'))).toBe(getPlannerToUserReportTemplate());
   });
 
-  test('resolves every historical renderable solo pair', () => {
+  test('resolves the permanent solo pair', () => {
     expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'user' })).toBe(
       getSoloToUserReportTemplate()
     );
-    expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'enhancer' })).toContain(
-      'Planning Request (Solo → Enhancer)'
+  });
+
+  test('resolves architect and UI/UX pairs for duo and solo', () => {
+    expect(getHandoffTemplate(duoQuery('planner', 'architect'))).toMatch(/module boundaries/i);
+    expect(getHandoffTemplate(duoQuery('architect', 'planner'))).toMatch(/schemas/i);
+    expect(getHandoffTemplate(duoQuery('planner', 'uiux-engineer'))).toMatch(/accessibility/i);
+    expect(getHandoffTemplate(duoQuery('uiux-engineer', 'planner'))).toMatch(/UI\/UX/i);
+    expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'architect' })).toMatch(
+      /module boundaries/i
     );
-    expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'enhancer', toRole: 'solo' })).toContain(
-      'Design Input (Enhancer → Solo)'
+    expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'architect', toRole: 'solo' })).toMatch(
+      /schemas/i
     );
+    expect(
+      getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'uiux-engineer' })
+    ).toMatch(/accessibility/i);
+    expect(
+      getHandoffTemplate({ teamId: 'solo', fromRole: 'uiux-engineer', toRole: 'solo' })
+    ).toMatch(/UI\/UX/i);
+  });
+
+  test('configured ephemeral role pairs use the generic fallback', () => {
+    expect(getHandoffTemplate(duoQuery('enhancer', 'planner'))).toBeNull();
+    expect(getHandoffTemplate(duoQuery('planner', 'enhancer'))).toBeNull();
+    expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'enhancer' })).toBeNull();
+    expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'enhancer', toRole: 'solo' })).toBeNull();
   });
 
   test('role names are case-insensitive for fromRole and toRole', () => {

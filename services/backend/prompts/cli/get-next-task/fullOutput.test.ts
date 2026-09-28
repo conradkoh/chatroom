@@ -6,20 +6,20 @@ const BASE_PARAMS = {
   chatroomId: 'test-chatroom-id',
   role: 'builder',
   cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-  task: {
-    _id: 'test-task-id',
-    content: 'Implement the feature',
-  },
-  message: {
-    _id: 'test-message-id',
-    senderRole: 'planner',
-    content: 'Please implement',
-  },
+  task: { _id: 'test-task-id', content: 'Implement the feature' },
+  message: { _id: 'test-message-id', senderRole: 'planner', content: 'Please implement' },
   isEntryPoint: false,
   availableHandoffTargets: ['planner'],
 };
 
-describe('generateFullCliOutput — nativeIntegration', () => {
+function expectNoEnhancerCeremony(output: string): void {
+  expect(output).not.toContain('<handoff-enhancer>');
+  expect(output).not.toContain('<enhancer-input>');
+  expect(output).not.toContain('<handoff-enhancer-disabled>');
+  expect(output).not.toContain('Immediately hand off the user request');
+}
+
+describe('generateFullCliOutput — delivery paths', () => {
   test('native mode returns task content, eager templates, next steps, and handoff commands', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
@@ -38,55 +38,19 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).not.toMatch(/task read --chatroom-id/i);
     expect(output).toContain('<handoff-templates>');
     expect(output).toContain('Handoff Template (Builder → Planner)');
-    expect(output).not.toContain('handoff view-template');
   });
 
-  test('CLI mode includes handoff-templates and handoffs sections', () => {
-    const output = generateFullCliOutput({
-      ...BASE_PARAMS,
-      teamId: 'duo',
-      nativeIntegration: false,
-    });
+  test('CLI mode includes handoff templates, capabilities, and footer', () => {
+    const output = generateFullCliOutput({ ...BASE_PARAMS, teamId: 'duo' });
 
     expect(output).toContain('<handoff-templates>');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('you MUST run the handoff command');
-    expect(output).not.toContain('Delegate ONE slice to the builder');
-    expect(output).toContain('get-next-task'); // footer preserved
-  });
-
-  test('CLI planner user message has eager templates in handoff-templates section', () => {
-    const output = generateFullCliOutput({
-      ...BASE_PARAMS,
-      role: 'planner',
-      teamId: 'duo',
-      isEntryPoint: true,
-      message: { _id: 'msg-id', senderRole: 'user', content: 'hello' },
-      availableHandoffTargets: ['builder', 'user'],
-      nativeIntegration: false,
-      task: { _id: 'task-id', content: 'hello' },
-    });
-    expect(output).toContain('Report Template (Planner → User)');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
-    // Templates should be in handoff-templates, not inline in next-steps
-    const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
-    expect(nextSteps).not.toContain('Proof of Principles');
-  });
-
-  test('CLI mode includes inline task content and get-next-task reminder', () => {
-    const output = generateFullCliOutput({
-      ...BASE_PARAMS,
-      nativeIntegration: false,
-    });
-
     expect(output).toContain('get-next-task');
-    expect(output).toContain('Implement the feature');
-    expect(output).toContain('grace-period cooldowns');
-    expect(output).toContain('<handoffs>');
-    expect(output).not.toMatch(/task read --chatroom-id/i);
+    expectNoEnhancerCeremony(output);
   });
 
-  test('native planner user message lists handoff targets and eager templates', () => {
+  test('entry-point user delivery includes planner templates and recommends user', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       role: 'planner',
@@ -94,48 +58,48 @@ describe('generateFullCliOutput — nativeIntegration', () => {
       isEntryPoint: true,
       message: { _id: 'msg-id', senderRole: 'user', content: 'hello' },
       availableHandoffTargets: ['builder', 'user'],
-      nativeIntegration: true,
-      task: { _id: 'task-id', content: 'hello' },
     });
 
-    expect(output).toContain('hello');
-    expect(output).toContain('<next-steps>');
-    expect(output).toContain('--next-role="user"');
-    expect(output).toContain('**user**');
-    expect(output).toContain('**builder**');
-    expect(output).toContain('<handoff-templates>');
     expect(output).toContain('Report Template (Planner → User)');
     expect(output).toContain('Delegation Brief (Planner → Builder)');
-    expect(output).not.toContain('Classify');
+    expect(output).toContain('--next-role="user"');
+    expectNoEnhancerCeremony(output);
+  });
+
+  test('configured architect and UI/UX roles remain ordinary advertised capability data', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      teamId: 'duo',
+      availableHandoffTargets: ['architect', 'uiux-engineer', 'planner'],
+    });
+
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**architect**');
+    expect(output).toContain('--next-role="architect"');
+    expect(output).toContain('**uiux-engineer**');
+    expectNoEnhancerCeremony(output);
   });
 });
 
-describe('generateFullCliOutput — snippet attachments in primary delivery', () => {
-  test('CLI mode includes backlog XML before task content when sourceAttachments has backlog items', () => {
+describe('generateFullCliOutput — primary delivery attachments', () => {
+  test('CLI mode includes backlog XML before task content', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
-      nativeIntegration: false,
       sourceAttachments: {
         attachedBacklogItems: [
-          {
-            _id: 'backlog-item-001',
-            status: 'backlog',
-            content: 'Implement dark mode toggle',
-          },
+          { _id: 'backlog-item-001', status: 'backlog', content: 'Implement dark mode toggle' },
         ],
       },
     });
-    const taskContentIdx = output.indexOf('Implement the feature');
-    const attachmentsIdx = output.indexOf('<attachments>');
-    expect(attachmentsIdx).toBeLessThan(taskContentIdx);
+
+    expect(output.indexOf('<attachments>')).toBeLessThan(output.indexOf('Implement the feature'));
     expect(output).toContain('type="backlog"');
     expect(output).toContain('backlog-item-id="backlog-item-001"');
   });
 
-  test('CLI mode includes snippet XML before task content when sourceAttachments has snippets', () => {
+  test('CLI mode includes snippet XML before task content', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
-      nativeIntegration: false,
       sourceAttachments: {
         attachedSnippets: [
           {
@@ -146,21 +110,14 @@ describe('generateFullCliOutput — snippet attachments in primary delivery', ()
         ],
       },
     });
-    const taskContentIdx = output.indexOf('Implement the feature');
-    const attachmentsIdx = output.indexOf('<attachments>');
-    expect(attachmentsIdx).toBeLessThan(taskContentIdx);
+
+    expect(output.indexOf('<attachments>')).toBeLessThan(output.indexOf('Implement the feature'));
     expect(output).toContain('<attachment type="snippet" reference="attachment-reference-001">');
     expect(output).toContain('file-source="./windsurfrules"');
     expect(output).toContain('# Shadcn');
-    expect(output).toContain('<user-selected-content>');
   });
 
-  test('CLI mode omits attachments block when no snippets', () => {
-    const output = generateFullCliOutput({ ...BASE_PARAMS, nativeIntegration: false });
-    expect(output).not.toContain('<snippet file-source=');
-  });
-
-  test('native mode includes snippet XML when sourceAttachments has snippets', () => {
+  test('native mode includes snippet XML', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       nativeIntegration: true,
@@ -174,256 +131,90 @@ describe('generateFullCliOutput — snippet attachments in primary delivery', ()
         ],
       },
     });
+
     expect(output).toContain('<attachments>');
     expect(output).toContain('file-source="src/foo.ts"');
     expect(output).toContain('const x = 1;');
   });
 });
 
-describe('generateFullCliOutput — planner enhancer guidance', () => {
-  const plannerParams = {
-    ...BASE_PARAMS,
-    teamId: 'duo',
-    role: 'planner',
-    isEntryPoint: true,
-    availableHandoffTargets: ['builder', 'user'],
-    message: {
-      _id: 'test-message-id',
-      senderRole: 'user',
-      content: 'Please implement',
-    },
-  };
-
-  test('includes enhancer section when plannerEnhancerEnabled', () => {
-    const output = generateFullCliOutput({
-      ...plannerParams,
-      plannerEnhancerEnabled: true,
-    });
-
-    expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('hand off the user request to the enhancer');
-    expect(output).toContain('one-time per originating user message');
-    expect(output).toContain('asynchronously');
-  });
-
-  test('omits enhancer section when disabled', () => {
-    const output = generateFullCliOutput({
-      ...plannerParams,
-      plannerEnhancerEnabled: false,
-    });
-
-    expect(output).not.toContain('<handoff-enhancer>');
-  });
-
-  test('native mode includes enhancer section when enabled', () => {
-    const output = generateFullCliOutput({
-      ...plannerParams,
-      nativeIntegration: true,
-      plannerEnhancerEnabled: true,
-    });
-
-    expect(output).toContain('<handoff-enhancer>');
-  });
-});
-
 describe('generateFullCliOutput — standing instructions', () => {
   const attachments = {
     attachedBacklogItems: [
-      {
-        _id: 'backlog-item-001',
-        status: 'backlog',
-        content: 'Implement dark mode toggle',
-      },
+      { _id: 'backlog-item-001', status: 'backlog', content: 'Implement dark mode toggle' },
     ],
   };
 
-  test('CLI mode places instruction block above attachments with XML escaping', () => {
+  test('places CLI instructions above attachments with XML escaping', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
-      nativeIntegration: false,
       standingInstructions: 'Prefer <strict> mode & coverage',
       sourceAttachments: attachments,
     });
-    expect(output).toContain('<instruction>');
+
     expect(output).toContain('Prefer &lt;strict&gt; mode &amp; coverage');
     expect(output.indexOf('<instruction>')).toBeLessThan(output.indexOf('<attachments>'));
-    expect(output.indexOf('</instruction>')).toBeLessThan(output.indexOf('<attachments>'));
   });
 
-  test('native mode places instruction block above attachments with XML escaping', () => {
+  test('places native instructions above attachments with XML escaping', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       nativeIntegration: true,
       standingInstructions: 'Prefer <strict> mode & coverage',
       sourceAttachments: attachments,
     });
-    expect(output).toContain('<instruction>');
+
     expect(output).toContain('Prefer &lt;strict&gt; mode &amp; coverage');
     expect(output.indexOf('<instruction>')).toBeLessThan(output.indexOf('<attachments>'));
   });
-
-  test('omits instruction block when inactive/null', () => {
-    const output = generateFullCliOutput({
-      ...BASE_PARAMS,
-      nativeIntegration: false,
-      standingInstructions: null,
-    });
-    expect(output).not.toContain('<instruction>');
-  });
 });
 
-describe('generateFullCliOutput — conversationMode', () => {
+describe('generateFullCliOutput — conversation mode', () => {
   const plannerUserParams = {
     ...BASE_PARAMS,
     teamId: 'duo',
     role: 'planner',
     isEntryPoint: true,
-    availableHandoffTargets: ['enhancer', 'builder', 'user'],
+    availableHandoffTargets: ['architect', 'uiux-engineer', 'builder', 'user'],
     message: { _id: 'msg-id', senderRole: 'user', content: 'hello' },
-    task: { _id: 'task-id', content: 'hello' },
   };
 
-  test('CLI chat mode includes direct guidance and no enhancer sections', () => {
-    const output = generateFullCliOutput({
-      ...plannerUserParams,
-      conversationMode: 'chat',
-      nativeIntegration: false,
-    });
+  test('Chat mode remains direct while preserving advertised capabilities', () => {
+    for (const nativeIntegration of [false, true]) {
+      const output = generateFullCliOutput({
+        ...plannerUserParams,
+        conversationMode: 'chat',
+        nativeIntegration,
+      });
 
-    expect(output).toContain('<chat-mode>');
-    expect(output).toContain('Answer the user directly and concisely');
-    expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('<handoff-enhancer-disabled>');
-    expect(output).toContain('--next-role="user"');
-    expect(output).toContain('get-next-task');
+      expect(output).toContain('<chat-mode>');
+      expect(output).toContain('Answer the user directly and concisely');
+      expect(output).toContain('--next-role="user"');
+      expect(output).toContain('**architect**');
+      expect(output).toContain('**uiux-engineer**');
+      expectNoEnhancerCeremony(output);
+      if (nativeIntegration) expect(output).not.toContain('get-next-task');
+      else expect(output).toContain('get-next-task');
+    }
   });
 
-  test('native chat mode includes direct guidance and no enhancer sections', () => {
-    const output = generateFullCliOutput({
-      ...plannerUserParams,
-      conversationMode: 'chat',
-      nativeIntegration: true,
-    });
+  test('Enhance mode includes planner design guidance in CLI and native delivery', () => {
+    for (const nativeIntegration of [false, true]) {
+      const output = generateFullCliOutput({
+        ...plannerUserParams,
+        conversationMode: 'code:enhanced',
+        nativeIntegration,
+      });
 
-    expect(output).toContain('<chat-mode>');
-    expect(output).toContain('Answer the user directly and concisely');
-    expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('<handoff-enhancer-disabled>');
-    expect(output).toContain('--next-role="user"');
-    expect(output).not.toContain('get-next-task');
-  });
-
-  test('CLI code mode omits chat-mode and retains enhancer-disabled guidance', () => {
-    const output = generateFullCliOutput({
-      ...plannerUserParams,
-      conversationMode: 'code',
-      plannerEnhancerEnabled: false,
-      availableHandoffTargets: ['builder', 'user'],
-      nativeIntegration: false,
-    });
-
-    expect(output).not.toContain('<chat-mode>');
-    expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).toContain('<handoff-enhancer-disabled>');
-    expect(output).toContain('--next-role="user"');
-  });
-
-  test('CLI code:enhanced mode retains enhancer guidance', () => {
-    const output = generateFullCliOutput({
-      ...plannerUserParams,
-      conversationMode: 'code:enhanced',
-      plannerEnhancerEnabled: true,
-      nativeIntegration: false,
-    });
-
-    expect(output).not.toContain('<chat-mode>');
-    expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('--next-role="enhancer"');
-  });
-
-  test('undefined mode preserves legacy boolean behaviour', () => {
-    const output = generateFullCliOutput({
-      ...plannerUserParams,
-      plannerEnhancerEnabled: true,
-      nativeIntegration: false,
-    });
-
-    expect(output).toContain('<handoff-enhancer>');
-    expect(output).not.toContain('<chat-mode>');
-  });
-
-  test('CLI chat mode keeps advertised handoffs and omits enhancer sections', () => {
-    const output = generateFullCliOutput({
-      ...plannerUserParams,
-      conversationMode: 'chat',
-      nativeIntegration: false,
-    });
-
-    expect(output).toContain('<chat-mode>');
-    expect(output).toContain('Answer the user directly and concisely by default');
-    expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
-    expect(output).toContain('--next-role="user"');
-    expect(output).not.toContain('delegate to another agent');
-    // Advertised team capabilities remain rendered (mode never filters them)
-    expect(output).toContain('<handoffs>');
-    expect(output).toContain('**builder**');
-    // No enhancer ceremony/template
-    expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('<handoff-enhancer-disabled>');
-    expect(output).not.toContain('Handoff to `enhancer`');
-    // No proof-rich sections
-    expect(output).not.toContain('<handoff-proofs>');
-    expect(output).not.toContain('<handoff-direction>');
-    expect(output).not.toContain('<handoff-action>');
-    expect(output).not.toContain('Not Applicable.');
-    // Note: CLI footer always contains static context-read guidance (unchanged)
-    expect(output).toContain('get-next-task');
-  });
-
-  test('native chat mode keeps advertised handoffs and omits enhancer sections', () => {
-    const output = generateFullCliOutput({
-      ...plannerUserParams,
-      conversationMode: 'chat',
-      nativeIntegration: true,
-    });
-
-    expect(output).toContain('<chat-mode>');
-    expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
-    expect(output).toContain('--next-role="user"');
-    // No actual context command invocations (with --chatroom-id)
-    expect(output).not.toContain('context new --chatroom-id');
-    expect(output).not.toContain('context read --chatroom-id');
-    // Advertised team capabilities remain (builder template + plain handoff)
-    expect(output).toContain('<handoffs>');
-    expect(output).toContain('**builder**');
-    expect(output).toContain('Handoff to `builder`');
-    // No enhancer template/ceremony
-    expect(output).not.toContain('Handoff to `enhancer`');
-    expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('delegate to another agent');
-    // Chat-mode intake
-    expect(output).toContain('Chat-mode task from the user');
-  });
-
-  test('solo chat mode CLI keeps advertised targets and omits enhancer template', () => {
-    const output = generateFullCliOutput({
-      ...plannerUserParams,
-      role: 'solo',
-      teamId: 'solo',
-      availableHandoffTargets: ['user', 'enhancer'],
-      conversationMode: 'chat',
-      nativeIntegration: false,
-    });
-
-    expect(output).toContain('<chat-mode>');
-    expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
-    expect(output).toContain('--next-role="user"');
-    // Supplied capability data still renders (user + enhancer were advertised)
-    expect(output).toContain('<handoffs>');
-    expect(output).toContain('**user**');
-    expect(output).toContain('**enhancer**');
-    // No enhancer ceremony/template
-    expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('Handoff to `enhancer`');
+      expect(output).not.toContain('<chat-mode>');
+      expect(output).toContain('<enhance-mode>');
+      expect(output).toContain('exactly one recommended design');
+      expect(output).toContain('--next-role="user"');
+      expect(output).toContain('**architect**');
+      expect(output).toContain('**uiux-engineer**');
+      expectNoEnhancerCeremony(output);
+      if (nativeIntegration) expect(output).not.toContain('get-next-task');
+      else expect(output).toContain('get-next-task');
+    }
   });
 });

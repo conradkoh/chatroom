@@ -19,7 +19,7 @@ import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import {
-  AgentStartReasonEnum,
+  AgentStartReasonCode,
   machineCommandTypeValidator,
   type AgentHarness,
 } from '../src/domain/entities/agent';
@@ -1129,7 +1129,7 @@ export const sendCommand = mutation({
           model: resolvedModel,
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
-          reason: AgentStartReasonEnum['user.start'],
+          reason: AgentStartReasonCode.USER_START,
           wantResume: args.payload.wantResume ?? false,
         },
         machine
@@ -1169,7 +1169,7 @@ export const sendCommand = mutation({
           role: args.payload.role,
           requestedBy: userId,
           request: {
-            reason: AgentStartReasonEnum['user.restart'],
+            reason: AgentStartReasonCode.USER_RESTART,
             overrides: {
               machineId: args.machineId,
               model,

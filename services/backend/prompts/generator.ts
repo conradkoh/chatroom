@@ -24,9 +24,7 @@
 
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
-import { composeEnhancerSystemPrompt } from './enhancer/system-prompt';
 import {
-  getNativeEnhancerRequestTurnEndGuidance,
   getHandoffTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
 } from './native/session-continuity';
@@ -220,23 +218,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     return composeNativeSystemPrompt(input);
   }
 
-  const { chatroomId, role, teamEntryPoint, convexUrl } = input;
-
-  // Ephemeral enhancer identity is harness-agnostic: CLI-mode spawns compose
-  // the same role prompt as native spawns, with CLI-mode general knowledge
-  // (non-native glossary + activated skills) instead of the native variant.
-  if (role.toLowerCase() === 'enhancer') {
-    return composeEnhancerSystemPrompt({
-      chatroomId,
-      cliEnvPrefix: getCliEnvPrefix(convexUrl),
-      convexUrl,
-      entryPointRole: teamEntryPoint,
-      nativeIntegration: false,
-      activatedSkills: input.activatedSkills,
-    });
-  }
-
-  const { teamId, teamName, teamRoles } = input;
+  const { chatroomId, role, teamEntryPoint, convexUrl, teamId, teamName, teamRoles } = input;
 
   const selectorCtx = buildSelectorContext({
     role,
@@ -253,26 +235,6 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   return composeSections(buildInitPromptSections(input, selectorCtx));
 }
 
-function isEnhancerRequestQueuedHandoff(params: {
-  nextRole: string;
-  enhancerRequestQueued?: boolean | undefined;
-}): boolean {
-  return params.enhancerRequestQueued === true && params.nextRole.toLowerCase() === 'enhancer';
-}
-
-function getEnhancerRequestQueuedConfirmationLines(nativeIntegration?: boolean): string[] {
-  const turnEndRule = nativeIntegration
-    ? '**Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.** Do **not** wait for enhancer input, poll, monitor the enhancer, or re-submit the handoff. The system delivers independent planning input as your next task when analysis completes.'
-    : '**Run get-next-task now and end your turn — stop tool calls. The system will send you a message when further action is required.** Do **not** wait for enhancer input, poll, monitor the enhancer, or re-submit the handoff.';
-
-  return [
-    '✅ User request queued for handoff enhancer',
-    '',
-    'The user request was sent to the handoff enhancer (async). You will receive independent planning input as your next task when analysis completes.',
-    turnEndRule,
-  ];
-}
-
 /**
  * Generate the output shown after a successful handoff command.
  *
@@ -286,36 +248,14 @@ export function generateHandoffOutput(params: {
   chatroomId: string;
   convexUrl?: string | undefined;
   supportsNativeIntegration?: boolean | undefined;
-  /** When true, the entry point queued request-first enhancer analysis. */
-  enhancerRequestQueued?: boolean | undefined;
 }): string {
-  const {
-    role,
-    nextRole,
-    chatroomId,
-    convexUrl,
-    supportsNativeIntegration,
-    enhancerRequestQueued,
-  } = params;
+  const { role, nextRole, chatroomId, convexUrl, supportsNativeIntegration } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  const enhancerRequest = isEnhancerRequestQueuedHandoff({
-    nextRole,
-    enhancerRequestQueued,
-  });
-  const lines: string[] = [];
-  if (enhancerRequest) {
-    lines.push(...getEnhancerRequestQueuedConfirmationLines(supportsNativeIntegration));
-  } else {
-    lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
-  }
+  const lines: string[] = [`✅ Chatroom task completed and handed off to ${nextRole}`];
 
   if (supportsNativeIntegration) {
-    lines.push(
-      enhancerRequest
-        ? getNativeEnhancerRequestTurnEndGuidance()
-        : getNativeHandoffTurnEndGuidance(nextRole)
-    );
+    lines.push(getNativeHandoffTurnEndGuidance(nextRole));
   } else {
     lines.push('');
     lines.push('✅ Level B complete (chatroom task handed off).');

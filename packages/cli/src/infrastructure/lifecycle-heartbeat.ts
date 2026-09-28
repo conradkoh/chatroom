@@ -19,8 +19,8 @@ export function sendLifecycleHeartbeat(
   client: Pick<ConvexHttpClient, 'mutation'>,
   opts: { sessionId: string; chatroomId: string; role: string; action?: string | undefined }
 ): void {
-  // Enhancer presence is registered by the backend when its job is claimed;
-  // it does not use the long-lived CLI heartbeat path.
+  // Daemon-worker roles publish lifecycle facts through their daemon heartbeat;
+  // they do not use this long-lived CLI heartbeat path.
   if (isDaemonWorkerRole(opts.role)) return;
   // Update lastSeenAt (and optionally lastSeenAction) on the participant row.
   withRetry(() =>

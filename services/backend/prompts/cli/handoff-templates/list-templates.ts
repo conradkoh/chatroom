@@ -48,7 +48,7 @@ export function listHandoffTemplatesCommand(params: {
   if (!listing) {
     const teamId = params.teamId ?? 'duo';
     throw new Error(
-      `No handoff contract for role "${params.role}" in team "${teamId}". Known roles: planner, builder, enhancer (duo) or solo, enhancer (solo).`
+      `No handoff contract for role "${params.role}" in team "${teamId}". Known roles: planner, builder (duo) or solo.`
     );
   }
   return formatHandoffTemplateListing(listing);

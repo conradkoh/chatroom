@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CommandQueuePanel } from './CommandQueuePanel';
@@ -91,7 +92,7 @@ describe('CommandQueuePanel', () => {
         agentHarness: 'codex-sdk',
         model: 'gpt-5',
         workingDir: '/workspace',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
         wantResume: false,
       }),
       makeCommand('cmd-2', { type: 'daemon.ping' }, 'processing'),

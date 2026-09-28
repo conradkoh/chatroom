@@ -41,7 +41,6 @@ describe('handoff list-templates', () => {
     expect(output).toContain('Receives from:');
     expect(output).toContain('Returns to:');
     expect(output).toContain('- `planner` → `builder`');
-    expect(output).toContain('- `planner` → `enhancer`');
     expect(output).toContain('- `planner` → `user`');
   });
 
@@ -53,10 +52,10 @@ describe('handoff list-templates', () => {
   });
 
   it('errors with nonzero exit for an unknown role', () => {
-    printHandoffListTemplates({ role: 'architect', teamId: 'duo' });
+    printHandoffListTemplates({ role: 'reviewer', teamId: 'duo' });
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getAllErrorOutput()).toContain('architect');
+    expect(getAllErrorOutput()).toContain('reviewer');
   });
 
   it('errors with nonzero exit for an unknown team', () => {

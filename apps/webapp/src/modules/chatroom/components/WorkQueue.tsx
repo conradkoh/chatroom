@@ -33,15 +33,13 @@ import {
 import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
 import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
 import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
-import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
-import { useActiveEnhancerJob } from '../features/enhancers/hooks/useActiveEnhancerJob';
 import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 import type { Message } from '../types/message';
+import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
 import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
 import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
-import { teamSupportsEnhancer } from '../hooks/persistence/teamEnhancerSupport';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 
@@ -85,10 +83,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
     chatroomId,
   }) as TaskCounts | undefined;
 
-  // Active entry-point→enhancer job (job-only hook; disabling enhancement is separate)
-  const { isEnhancing, cancelJob, isCancelling } = useActiveEnhancerJob(chatroomId as string);
-
-  const { teamId, teamRoles, statusReadModel, isLoading: teamRolesLoading } = useAgentPanelData();
+  const { teamRoles, statusReadModel } = useAgentPanelData();
   const nonUserRoles = useMemo(
     () => (teamRoles ?? []).filter((role) => role.toLowerCase() !== 'user'),
     [teamRoles]
@@ -173,8 +168,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
     chatroomId,
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
-
-  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamId, teamRoles);
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
@@ -369,9 +362,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
               task={task}
               isProtected
               onClick={() => handleOpenTaskDetail(task)}
-              showCancelEnhancer={task.assignedTo === 'enhancer' && isEnhancing}
-              onCancelEnhancer={cancelJob}
-              isCancellingEnhancer={isCancelling}
             />
           ))}
         </SidebarSection.Root>
@@ -402,7 +392,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
               key={message._id}
               chatroomId={chatroomId}
               message={message}
-              teamSupportsEnhancer={teamSupportsEnhancerFlag}
               onDelete={handleQueuedDelete}
             />
           ))}
@@ -493,8 +482,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
           onTaskClick={(task) => {
             handleOpenTaskDetail(task);
           }}
-          onCancelEnhancer={cancelJob}
-          isCancellingEnhancer={isCancelling}
         />
       )}
 
@@ -534,7 +521,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
         <QueuedMessagesModal
           chatroomId={chatroomId}
           messages={queuedMessages}
-          teamSupportsEnhancer={teamSupportsEnhancerFlag}
           onClose={() => setIsQueuedMessagesModalOpen(false)}
           onDelete={handleQueuedDelete}
         />

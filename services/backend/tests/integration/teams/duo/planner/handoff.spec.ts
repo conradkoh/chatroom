@@ -42,32 +42,6 @@ describe('Duo Team > Planner > Handoff Output', () => {
     `);
   });
 
-  test('handoff to enhancer uses async check-in output when job queued', () => {
-    const output = generateHandoffOutput({
-      ...BASE_PARAMS,
-      nextRole: 'enhancer',
-      enhancerRequestQueued: true,
-    });
-
-    expect(output).toContain('queued for handoff enhancer');
-    expect(output).toContain('get-next-task');
-    expect(output).toContain('monitor the enhancer');
-    expect(output).toContain('stop tool calls');
-    expect(output).toContain('system will send you a message when further action is required');
-    expect(output).not.toContain('handed off to enhancer');
-  });
-
-  test('handoff to enhancer without queued job uses standard handoff output', () => {
-    const output = generateHandoffOutput({
-      ...BASE_PARAMS,
-      nextRole: 'enhancer',
-    });
-
-    expect(output).toContain('handed off to enhancer');
-    expect(output).toContain('get-next-task');
-    expect(output).not.toContain('queued for handoff enhancer');
-  });
-
   test('handoff to user', () => {
     const output = generateHandoffOutput({
       ...BASE_PARAMS,

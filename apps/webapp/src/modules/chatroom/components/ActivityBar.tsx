@@ -5,12 +5,12 @@ import { memo, useSyncExternalStore } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
 
+import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
 import { useCommandDialogActions } from '../context/CommandDialogContext';
 import {
   getCommandPaletteOpen,
   subscribeCommandPaletteOpen,
 } from '../context/commandPaletteController';
-import { EnhancerActivityBarItem } from '../features/enhancers/components/EnhancerActivityBarItem';
 import { ScheduledPromptsActivityBarItem } from '../features/scheduled-prompts/components/ScheduledPromptsActivityBarItem';
 
 import { cn } from '@/lib/utils';
@@ -25,14 +25,6 @@ interface ActivityBarProps {
   activeView: ActivityView;
   /** Called when a view icon is clicked */
   onViewChange: (view: ActivityView) => void;
-  /** Chatroom ID for enhancer config */
-  chatroomId?: string;
-  /** Machine ID for enhancer config dialog */
-  machineId?: string | null;
-  /** Active workspace identity for the shared enhancer agent snapshot. */
-  workspaceId?: string | null;
-  workingDir?: string | null;
-  teamId?: string | null;
 }
 
 interface ActivityBarItemProps {
@@ -79,10 +71,9 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * 1. Explorer   — file browser
  * 2. Messages   — chatroom messages
  * 3. Scheduled Prompts — scheduled prompts (Clock)
- * 4. Enhancer   — enhancer configuration (Sparkles)
- * 5. Source Control — git diff + history
- * 6. Pull Requests  — GitHub PR list
- * 7. Processes  — command launcher / process manager
+ * 4. Source Control — git diff + history
+ * 5. Pull Requests  — GitHub PR list
+ * 6. Processes  — command launcher / process manager
  *
  * On mobile (hidden via CSS):
  * - Shows a command palette trigger at the bottom (Cmd+Shift+P equivalent)
@@ -91,12 +82,8 @@ const ActivityBarItem = memo(function ActivityBarItem({
 export const ActivityBar = memo(function ActivityBar({
   activeView,
   onViewChange,
-  chatroomId,
-  machineId,
-  workspaceId,
-  workingDir,
-  teamId,
 }: ActivityBarProps) {
+  const { chatroomId } = useChatroomWorkspace();
   const { toggleCommandPalette } = useCommandDialogActions();
   const paletteOpen = useSyncExternalStore(
     subscribeCommandPaletteOpen,
@@ -118,16 +105,7 @@ export const ActivityBar = memo(function ActivityBar({
         isActive={activeView === 'messages'}
         onClick={() => onViewChange('messages')}
       />
-      {chatroomId && <ScheduledPromptsActivityBarItem chatroomId={chatroomId} />}
-      {chatroomId && (
-        <EnhancerActivityBarItem
-          chatroomId={chatroomId}
-          machineId={machineId ?? null}
-          workspaceId={workspaceId}
-          workingDir={workingDir}
-          teamId={teamId}
-        />
-      )}
+      <ScheduledPromptsActivityBarItem chatroomId={chatroomId} />
       <ActivityBarItem
         icon={<VscSourceControl size={20} />}
         label="Source Control"

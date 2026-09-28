@@ -64,13 +64,7 @@ const statusFact = v.object({
     v.literal('error')
   ),
   errorSource: v.optional(
-    v.union(
-      v.literal('configuration'),
-      v.literal('runtime'),
-      v.literal('task'),
-      v.literal('enhancer'),
-      v.literal('stop')
-    )
+    v.union(v.literal('configuration'), v.literal('runtime'), v.literal('task'), v.literal('stop'))
   ),
   errorCode: v.optional(v.string()),
   errorMessage: v.optional(v.string()),

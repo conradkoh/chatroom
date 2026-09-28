@@ -6,8 +6,6 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Timer } from 'lucide-react';
 import React, { memo, useState } from 'react';
 
-import { teamSupportsEnhancer } from '../hooks/persistence/teamEnhancerSupport';
-import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 import type { Message } from '../types/message';
 import { QueuedMessageDetailModal } from './WorkQueue/QueuedMessageDetailModal';
@@ -41,9 +39,6 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
     chatroomId,
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
-
-  const { teamId, teamRoles, isLoading: teamRolesLoading } = useAgentPanelData();
-  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamId, teamRoles);
 
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isListModalOpen, setIsListModalOpen] = useState(false);
@@ -106,7 +101,6 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
         <QueuedMessagesModal
           chatroomId={chatroomId}
           messages={queuedMessages}
-          teamSupportsEnhancer={teamSupportsEnhancerFlag}
           onClose={() => setIsListModalOpen(false)}
           onDelete={handleDelete}
         />
@@ -117,7 +111,6 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
         chatroomId={chatroomId}
         message={lastMessage}
         isOpen={isDetailModalOpen}
-        teamSupportsEnhancer={teamSupportsEnhancerFlag}
         onClose={() => setIsDetailModalOpen(false)}
         onDelete={handleDelete}
       />

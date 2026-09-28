@@ -1,3 +1,4 @@
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { describe, expect, test, vi } from 'vitest';
 
 import { AgentWorkManager } from './agent-work-manager.js';
@@ -234,7 +235,7 @@ describe('AgentWorkManager', () => {
     await startedHandler?.({
       chatroomId: 'room-1',
       role: 'builder',
-      reason: 'user.start',
+      reason: AgentStartReasonCode.USER_START,
     } as never);
     expect(clearRedeliveryTracking).toHaveBeenCalledWith({
       chatroomId: 'room-1',

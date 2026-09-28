@@ -5,14 +5,14 @@ import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
 
 describe('requestEphemeralAgentRelease', () => {
-  test('creates a running-capacity release for an enhancer task', async () => {
+  test('creates a running-capacity release for an architect task', async () => {
     const sessionId = 'ephemeral-release' as any;
     await t.mutation(api.auth.loginAnon, { sessionId });
     const chatroomId = await t.mutation(api.chatrooms.create, {
       sessionId,
       teamId: 'duo',
       teamName: 'Duo',
-      teamRoles: ['planner', 'enhancer', 'builder'],
+      teamRoles: ['planner', 'architect', 'uiux-engineer', 'builder'],
       teamEntryPoint: 'planner',
     });
     const machineId = 'ephemeral-machine';
@@ -26,14 +26,14 @@ describe('requestEphemeralAgentRelease', () => {
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
-      role: 'enhancer',
+      role: 'architect',
     });
     await t.run(async (ctx) => {
       const taskId = await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'planner',
         content: 'enhance',
-        assignedTo: 'enhancer',
+        assignedTo: 'architect',
         status: 'completed',
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -45,7 +45,7 @@ describe('requestEphemeralAgentRelease', () => {
       ctx.db
         .query('chatroom_participants')
         .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'enhancer')
+          q.eq('chatroomId', chatroomId).eq('role', 'architect')
         )
         .first()
     );

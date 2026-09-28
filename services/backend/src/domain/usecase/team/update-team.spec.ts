@@ -42,10 +42,6 @@ describe('updateTeam use case', () => {
     const room = await t.run((ctx) => ctx.db.get('chatroom_rooms', chatroomId));
     expect(room?.teamId).toBeUndefined();
     expect(room?.teamRoles).toBeUndefined();
-    expect(await t.run((ctx) => ctx.db.query('chatroom_agentDesiredConfigs').collect())).toEqual(
-      []
-    );
-    expect(await t.run((ctx) => ctx.db.query('chatroom_agentRuntimeStates').collect())).toEqual([]);
     expect(await t.run((ctx) => ctx.db.query('chatroom_machineCommandInbox').collect())).toEqual(
       []
     );

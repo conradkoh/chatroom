@@ -3,7 +3,7 @@
  */
 
 // matchMedia polyfill needed by useIsDesktop (used by MessageDownloadMenu)
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { TimelineMessageFooter } from './TimelineMessageFooter';
@@ -43,8 +43,6 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
 function renderFooter(
   message: Message,
   props: {
-    isEnhanced?: boolean;
-    onEnhancedIconClick?: () => void;
     handoffDurationMs?: number;
   } = {}
 ) {
@@ -65,17 +63,6 @@ describe('TimelineMessageFooter', () => {
     expect(screen.getByText('TS:1700000000000')).toBeInTheDocument();
   });
 
-  it('shows blue enhanced indicator before timestamp when isEnhanced', () => {
-    renderFooter(makeMessage(), { isEnhanced: true });
-
-    const indicator = screen.getByTestId('timeline-enhanced-indicator');
-    expect(indicator).toBeInTheDocument();
-    expect(indicator).toHaveClass('text-blue-500');
-    expect(indicator.compareDocumentPosition(screen.getByText('TS:1700000000000'))).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
-  });
-
   it('shows handoff duration before the existing timestamp', () => {
     renderFooter(makeMessage(), { handoffDurationMs: 62_000 });
 
@@ -90,20 +77,5 @@ describe('TimelineMessageFooter', () => {
   it('hides handoff duration when no timing is supplied', () => {
     renderFooter(makeMessage());
     expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
-  });
-
-  it('calls onEnhancedIconClick when enhanced indicator is clicked', () => {
-    const onEnhancedIconClick = vi.fn();
-    renderFooter(makeMessage(), { isEnhanced: true, onEnhancedIconClick });
-
-    fireEvent.click(screen.getByTestId('timeline-enhanced-indicator'));
-
-    expect(onEnhancedIconClick).toHaveBeenCalledTimes(1);
-  });
-
-  it('hides enhanced indicator when not enhanced', () => {
-    renderFooter(makeMessage(), { isEnhanced: false });
-
-    expect(screen.queryByTestId('timeline-enhanced-indicator')).not.toBeInTheDocument();
   });
 });

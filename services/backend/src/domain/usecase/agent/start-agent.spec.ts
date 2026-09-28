@@ -1,5 +1,5 @@
 /**
- * Tests for start-agent use case — verifies that desiredState is set correctly.
+ * Tests for start-agent use case — verifies launch request snapshots and commands.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -7,10 +7,10 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 import { getInboxCommandsForMachine } from '../../../../tests/helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE } from '../../../../tests/helpers/test-models';
+import { AgentStartReasonCode } from '../../entities/agent';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -145,7 +145,7 @@ describe('startAgent use case — request snapshots', () => {
       agentHarness: 'opencode',
       model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/test',
-      reason: 'user.start',
+      reason: AgentStartReasonCode.USER_START,
       requestedBy: expect.any(String),
     });
     expect(commands).toHaveLength(1);
@@ -158,71 +158,16 @@ describe('startAgent use case — request snapshots', () => {
         agentHarness: 'opencode',
         model: TEST_MODEL_OPENCODE,
         workingDir: '/tmp/test',
-        reason: 'user.start',
+        reason: AgentStartReasonCode.USER_START,
       });
     }
-    const runtimeRows = await t.run((ctx) => ctx.db.query('chatroom_agentRuntimeStates').collect());
-    expect(runtimeRows).toEqual([]);
-  });
-
-  test('does not reset a daemon-owned circuit breaker when manually starting an agent', async () => {
-    const { sessionId } = await createTestSession('start-agent-3');
-    const chatroomId = await createChatroom(sessionId);
-    const machineId = 'start-machine-3';
-
-    await registerMachine(sessionId, machineId);
-
-    // Seed a team config with circuit breaker OPEN
-    await t.run(async (ctx) => {
-      const now = Date.now();
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
-      const configId = await ctx.db.insert('chatroom_agentDesiredConfigs', {
-        teamRoleKey,
-        chatroomId,
-        role: 'builder',
-        type: 'remote',
-        machineId,
-        agentHarness: 'opencode',
-        model: TEST_MODEL_OPENCODE,
-        workingDir: '/tmp/test',
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert('chatroom_agentRuntimeStates', {
-        desiredConfigId: configId,
-        chatroomId,
-        role: 'builder',
-        machineId,
-        status: 'offline',
-        desiredState: 'stopped',
-        circuitState: 'open',
-        circuitOpenedAt: now - 30_000,
-        updatedAt: now,
-      });
-    });
-
-    // Manually start the agent (should reset circuit)
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
-
-    // The daemon owns the circuit breaker; the webapp start command only sends
-    // a self-contained request.
-    const config = await t.run(async (ctx) => {
-      const desired = await ctx.db
-        .query('chatroom_agentDesiredConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
-        .first();
-      return desired
-        ? await ctx.db
-            .query('chatroom_agentRuntimeStates')
-            .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', desired._id))
-            .first()
-        : null;
-    });
-
-    expect(config?.circuitState).toBe('open');
-    expect(config?.desiredState).toBe('stopped');
+    const statusRow = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .first()
+    );
+    expect(statusRow).toBeNull();
   });
 
   test('emits machine.switched when starting on a different machine with allowNewMachine: true', async () => {
@@ -298,15 +243,13 @@ describe('startAgent use case — wantResume runtime behavior', () => {
   async function readTeamConfig(chatroomId: Id<'chatroom_rooms'>, role: string) {
     return await t.run(async (ctx) => {
       return await ctx.db
-        .query('chatroom_agentDesiredConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', role))
-        )
+        .query('chatroom_agentLastSentLaunchRequests')
+        .withIndex('by_requestKey', (q) => q.eq('requestKey', `${chatroomId}:duo@1:${role}`))
         .first();
     });
   }
 
-  test('does not persist wantResume on user start and emits the false default', async () => {
+  test('persists the false default in the launch snapshot and emits it', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-false');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-false';
@@ -315,7 +258,7 @@ describe('startAgent use case — wantResume runtime behavior', () => {
     await startAgent(sessionId, machineId, chatroomId, 'builder');
 
     const config = await readTeamConfig(chatroomId, 'builder');
-    expect(config?.wantResume).toBeUndefined();
+    expect(config?.wantResume).toBe(false);
 
     const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
     const start = starts.at(-1);
@@ -325,7 +268,7 @@ describe('startAgent use case — wantResume runtime behavior', () => {
     }
   });
 
-  test('keeps an explicit wantResume value runtime-only on user start', async () => {
+  test('persists an explicit wantResume value in the launch snapshot', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-true');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-true';
@@ -334,7 +277,7 @@ describe('startAgent use case — wantResume runtime behavior', () => {
     await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: true });
 
     const config = await readTeamConfig(chatroomId, 'builder');
-    expect(config?.wantResume).toBeUndefined();
+    expect(config?.wantResume).toBe(true);
 
     const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
     const start = starts.at(-1);

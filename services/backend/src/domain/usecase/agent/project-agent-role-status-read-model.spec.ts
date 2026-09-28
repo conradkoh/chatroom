@@ -5,9 +5,10 @@ import {
   statusEventForAgentEvent,
   touchAgentRoleStatusLastSeen,
 } from './project-agent-role-status-read-model';
+import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { api } from '../../../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
+import { AgentStartReasonCode } from '../../entities/agent';
 
 describe('statusEventForAgentEvent', () => {
   test('maps task.acknowledged to working so online agents show active work, not starting', () => {
@@ -33,18 +34,22 @@ describe('projectAgentRoleStatusReadModel', () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_agentDesiredConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
+      const user = await ctx.db.query('users').first();
+      await recordLastSentLaunchRequest(ctx, {
+        requestId: 'role-status-request',
+        commandId: 'role-status-command',
         chatroomId,
+        teamStructureId: 'duo@1',
         role: 'enhancer',
-        type: 'remote',
+        agentType: 'remote',
         machineId: 'configured-machine',
         agentHarness: 'opencode',
         model: 'test',
         workingDir: '/tmp',
-        enabled: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        reason: AgentStartReasonCode.USER_START,
+        wantResume: false,
+        requestedBy: user!._id,
+        requestedAt: Date.now(),
       });
       await ctx.db.insert('chatroom_tasks', {
         chatroomId,

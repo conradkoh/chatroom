@@ -1,3 +1,4 @@
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { startAgent, type StartAgentDeps, type StartAgentInput } from './start-agent.js';
@@ -9,7 +10,7 @@ const baseInput: StartAgentInput = {
   agentHarness: 'cursor',
   model: 'gpt-4',
   workingDir: '/workspace',
-  reason: 'user.start',
+  reason: AgentStartReasonCode.USER_START,
   deadline: Date.now() + 60_000,
   wantResume: true,
 };

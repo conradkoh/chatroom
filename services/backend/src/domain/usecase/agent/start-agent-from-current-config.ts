@@ -6,7 +6,7 @@ import { startAgent } from './start-agent';
 import { normalizeWorkingDir } from './workspace-match';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { AgentStartReasonEnum } from '../../entities/agent';
+import { AgentStartReasonCode } from '../../entities/agent';
 import { getTeamStructure } from '../../entities/team-presets';
 import { getActiveTeamStructure } from '../team/active-team-structure';
 import { getPrimaryWorkspaceForChatroom } from '../workspace/get-primary-workspace-for-chatroom';
@@ -117,7 +117,7 @@ export async function startAgentFromCurrentWorkspaceConfig(
       model: request.model,
       agentHarness: request.agentHarness,
       workingDir: request.workingDir,
-      reason: AgentStartReasonEnum['user.start'],
+      reason: AgentStartReasonCode.USER_START,
       wantResume: request.wantResume,
     },
     machine

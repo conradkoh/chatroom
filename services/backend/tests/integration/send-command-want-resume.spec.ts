@@ -8,7 +8,6 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -80,7 +79,7 @@ describe('sendCommand start-agent wantResume', () => {
     const machineId = 'machine-cmd-want-resume-3';
     await registerMachineWithDaemon(sessionId, machineId);
 
-    // Seed a legacy persisted preference from before this deprecation.
+    // Seed a prior launch snapshot with wantResume=true.
     await t.mutation(api.machines.sendCommand, {
       sessionId,
       machineId,
@@ -95,24 +94,8 @@ describe('sendCommand start-agent wantResume', () => {
       },
     });
 
-    await t.run(async (ctx) => {
-      const config = await ctx.db
-        .query('chatroom_agentDesiredConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
-        .first();
-      if (config) {
-        const runtime = await ctx.db
-          .query('chatroom_agentRuntimeStates')
-          .withIndex('by_desiredConfig', (q) => q.eq('desiredConfigId', config._id))
-          .first();
-        if (runtime) await ctx.db.patch(runtime._id, { wantResume: true });
-      }
-    });
-
     // Second start omits wantResume. It must use the cold-start default instead
-    // of reading the stale persisted true value.
+    // of reusing the prior launch snapshot's true value.
     await t.mutation(api.machines.sendCommand, {
       sessionId,
       machineId,

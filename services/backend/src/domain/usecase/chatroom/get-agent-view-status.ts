@@ -2,7 +2,6 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentType } from '../../entities/agent';
 import { getTeamStructure } from '../../entities/team-presets';
-import { hasActiveEnhancerWork } from '../enhancer/enhancer-entry-point-status';
 import { getActiveTeamStructure } from '../team/active-team-structure';
 
 type OperationalState = 'starting' | 'running' | 'stopped' | 'circuit_open';
@@ -23,7 +22,6 @@ export interface AgentViewStatus {
   teamRoles: string[];
   agents: AgentViewRole[];
   hasHistory: boolean;
-  hasActiveEnhancerWork: boolean;
 }
 
 function toViewState(status: string | undefined): OperationalState {
@@ -98,6 +96,5 @@ export async function getAgentViewStatus(
     teamRoles: structure.roles.map(({ role }) => role),
     agents,
     hasHistory,
-    hasActiveEnhancerWork: await hasActiveEnhancerWork(ctx, input.chatroomId),
   };
 }

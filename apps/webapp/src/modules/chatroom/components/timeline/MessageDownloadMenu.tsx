@@ -15,7 +15,7 @@ import type { Message } from '../../types/message';
 
 interface MessageDownloadMenuProps {
   message: Message;
-  /** When set, export uses this content instead of message.content (e.g. enhancer toggle). */
+  /** When set, export uses this content instead of message.content. */
   contentOverride?: string;
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Check, Copy, Paperclip, Sparkles } from 'lucide-react';
+import { Check, Copy, Paperclip } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
@@ -51,12 +51,8 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
 
 export interface TimelineMessageFooterProps {
   message: Message;
-  /** When set, copy/download use this instead of message.content (e.g. enhancer toggle). */
+  /** When set, copy/download use this instead of message.content. */
   displayContent?: string;
-  /** When true, shows a blue enhancer icon before the timestamp. */
-  isEnhanced?: boolean;
-  /** Called when the user clicks the enhanced indicator. */
-  onEnhancedIconClick?: () => void;
   /** Historical duration from the origin task start through this handoff. */
   handoffDurationMs?: number;
 }
@@ -69,8 +65,6 @@ export interface TimelineMessageFooterProps {
 export const TimelineMessageFooter = memo(function TimelineMessageFooter({
   message,
   displayContent,
-  isEnhanced = false,
-  onEnhancedIconClick,
   handoffDurationMs,
 }: TimelineMessageFooterProps) {
   const markdownContent = displayContent ?? message.content;
@@ -108,21 +102,6 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
         <MessageDownloadMenu message={message} contentOverride={displayContent} />
       </div>
       <div className="flex items-center gap-1.5">
-        {isEnhanced && (
-          <button
-            type="button"
-            className="flex items-center text-blue-500 dark:text-blue-400 hover:bg-blue-500/10 transition-colors"
-            title="View enhancement diff"
-            aria-label="View enhancement diff"
-            data-testid="timeline-enhanced-indicator"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEnhancedIconClick?.();
-            }}
-          >
-            <Sparkles size={12} />
-          </button>
-        )}
         {handoffDurationMs !== undefined && (
           <span
             data-testid="timeline-handoff-duration"

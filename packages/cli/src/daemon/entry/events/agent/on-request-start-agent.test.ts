@@ -1,3 +1,4 @@
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { Effect, Layer } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
@@ -24,7 +25,7 @@ function createEvent(
     agentHarness: 'opencode',
     model: 'gpt-4',
     workingDir: '/tmp/test',
-    reason: 'user.start',
+    reason: AgentStartReasonCode.USER_START,
     deadline: Date.now() + 60_000,
     wantResume: true,
     ...overrides,

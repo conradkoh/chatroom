@@ -3,6 +3,7 @@
  */
 
 import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import {
   buildAgentRestartCompletedEvent,
@@ -145,7 +146,7 @@ export async function runRestartOrchestrator(
             agentHarness: event.agentHarness as AgentHarness,
             model: event.model,
             workingDir: event.workingDir,
-            reason: 'user.restart',
+            reason: AgentStartReasonCode.USER_RESTART,
             wantResume: event.wantResume,
           },
           context.signal
@@ -169,7 +170,7 @@ export async function runRestartOrchestrator(
             {
               chatroomId,
               role,
-              reason: 'user.restart',
+              reason: AgentStartReasonCode.USER_RESTART,
               pid: spawnResult.pid,
               workingDir: event.workingDir,
             },

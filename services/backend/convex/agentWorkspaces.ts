@@ -171,7 +171,7 @@ export const getAgentStatusForWorkspaceRole = query({
       workingDir: row.workingDir,
       lastSeenAt: row.lastSeenAt ?? null,
       lastSeenAction: row.lastSeenAction ?? null,
-      activeWork: row.activeWork ?? null,
+      activeWork: row.activeWork?.kind === 'task' ? row.activeWork : null,
       error: row.error ?? null,
       projectedAt: row.projectedAt,
     };
