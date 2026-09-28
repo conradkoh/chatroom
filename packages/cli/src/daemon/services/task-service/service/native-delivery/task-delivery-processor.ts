@@ -24,14 +24,20 @@ import type {
 } from '../../../chatroom-workspace-configuration-service/index.js';
 import type { AgentProcessManagerService } from '../../../service-interfaces.js';
 
+export type TaskDeliveryLifecycleArgs = {
+  chatroomId: string;
+  role: string;
+  taskId: string;
+  harnessSessionId: string;
+};
+
 export type ProcessTasksUpdateOptions = {
   tasks: readonly AssignedTask[];
-  onTaskDelivered?: (args: {
-    chatroomId: string;
-    role: string;
-    taskId: string;
-    harnessSessionId: string;
-  }) => void;
+  onTaskDeliveryStarted?: (args: TaskDeliveryLifecycleArgs) => void;
+  onTaskDeliveryFailed?: (
+    args: TaskDeliveryLifecycleArgs & { reason: 'injection_not_confirmed' }
+  ) => void;
+  onTaskDelivered?: (args: TaskDeliveryLifecycleArgs) => void;
 };
 
 export async function processTasksUpdate(
@@ -81,19 +87,33 @@ export async function processTasksUpdate(
         taskId: task.taskId,
       });
       if (!full || !slot?.harnessSessionId) return { kind: 'task-unavailable' as const };
-      let delivered:
-        | {
-            chatroomId: string;
-            role: string;
-            taskId: string;
-            harnessSessionId: string;
-          }
-        | undefined;
-      await taskService.deliverNativeTask(full, slot.harnessSessionId, (result) => {
-        delivered = result;
-      });
-      if (!delivered)
+      const delivery: TaskDeliveryLifecycleArgs = {
+        chatroomId: task.chatroomId,
+        role: task.agentConfig.role,
+        taskId: task.taskId,
+        harnessSessionId: slot.harnessSessionId,
+      };
+      options.onTaskDeliveryStarted?.(delivery);
+
+      let delivered: TaskDeliveryLifecycleArgs | undefined;
+      try {
+        await taskService.deliverNativeTask(full, slot.harnessSessionId, (result) => {
+          delivered = result;
+        });
+      } catch (error) {
+        options.onTaskDeliveryFailed?.({
+          ...delivery,
+          reason: 'injection_not_confirmed',
+        });
+        throw error;
+      }
+      if (!delivered) {
+        options.onTaskDeliveryFailed?.({
+          ...delivery,
+          reason: 'injection_not_confirmed',
+        });
         return { kind: 'failed' as const, reason: 'injection_not_confirmed' as const };
+      }
       return { kind: 'delivered' as const, delivered };
     },
   };

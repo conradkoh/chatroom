@@ -36,7 +36,10 @@ import { createConvexNativeTaskDeliveryGateway } from '../../task-service/infras
 import { createDaemonAuditPort } from '../../task-service/infrastructure/adapters/daemon-audit-port.js';
 import { resetRoleDeliveryState } from '../../task-service/service/native-delivery/native-task-delivery-coordinator.js';
 import { getRoleDeliveryState } from '../../task-service/service/native-delivery/role-delivery-state.js';
-import { processTasksUpdate } from '../../task-service/service/native-delivery/task-delivery-processor.js';
+import {
+  processTasksUpdate,
+  type TaskDeliveryLifecycleArgs,
+} from '../../task-service/service/native-delivery/task-delivery-processor.js';
 import type { TaskDeliveryService } from '../../task-service/service/native-delivery/task-delivery-service.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from '../../task-service/service/native-task-injector.js';
@@ -50,12 +53,7 @@ export type AgentWorkPass =
   | 'turn-ended'
   | 'restart-completed';
 
-export type AgentTaskDeliveredHandler = (args: {
-  chatroomId: string;
-  role: string;
-  taskId: string;
-  harnessSessionId: string;
-}) => void;
+export type AgentTaskDeliveredHandler = (args: TaskDeliveryLifecycleArgs) => void;
 
 export interface AgentWorkManagerDependencies {
   /** Workspace configuration source for delivery-time agent runtime config. */
@@ -545,6 +543,8 @@ export class AgentWorkManager {
         this.deps.agentTaskState.get({ chatroomId, role })?.taskId === taskId,
       {
         tasks,
+        onTaskDeliveryStarted: (args) => this.recordTaskDeliveryStarted(args),
+        onTaskDeliveryFailed: (args) => this.recordTaskDeliveryFailed(args),
         onTaskDelivered: (args) => {
           this.recordTaskDelivered(args);
           onTaskDelivered?.(args);
@@ -552,6 +552,17 @@ export class AgentWorkManager {
       },
       this.deps.acquireNativeDeliverySlot
     );
+  }
+
+  recordTaskDeliveryStarted(args: TaskDeliveryLifecycleArgs): void {
+    this.deps.agentTaskState.start(args);
+  }
+
+  recordTaskDeliveryFailed(args: { chatroomId: string; role: string; taskId: string }): void {
+    const key = { chatroomId: args.chatroomId, role: args.role };
+    if (this.deps.agentTaskState.get(key)?.taskId === args.taskId) {
+      this.deps.agentTaskState.clear(key);
+    }
   }
 
   recordTaskDelivered(args: { chatroomId: string; role: string; taskId: string }): void {
