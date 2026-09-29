@@ -12,7 +12,6 @@ import {
   AlertCircle,
   ChevronDown,
   FileText,
-  Plus,
   Star,
   Save,
 } from 'lucide-react';
@@ -44,7 +43,6 @@ import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachi
 import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
 import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
 import { useAgentStop } from '../hooks/useAgentStop';
-import { en } from '../lang/en';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -1199,6 +1197,41 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               <div className="flex-1" />
             )}
 
+            {displayMachineId && currentMachineConfigEntry && (
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (currentMachineConfigIsFavorite) {
+                    void removeFavorite(currentMachineConfigEntry);
+                  } else {
+                    void addFavorite(currentMachineConfigEntry);
+                  }
+                }}
+                aria-label={
+                  currentMachineConfigIsFavorite
+                    ? 'Remove current config from favorites'
+                    : 'Add current config to favorites'
+                }
+                title={
+                  currentMachineConfigIsFavorite
+                    ? 'Remove current config from favorites'
+                    : 'Add current config to favorites'
+                }
+                className="shrink-0 h-7 w-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-status-warning focus-visible:outline focus-visible:outline-2 focus-visible:outline-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Star
+                  size={14}
+                  className={
+                    currentMachineConfigIsFavorite
+                      ? 'fill-chatroom-status-warning text-chatroom-status-warning'
+                      : ''
+                  }
+                />
+              </button>
+            )}
+
             {displayMachineId && displayHarness && isAgentRunning && (
               <ModelFilterButton
                 filter={modelFilter}
@@ -1316,24 +1349,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               </p>
             ) : null}
           </div>
-
-          {displayMachineId && currentMachineConfigEntry && !currentMachineConfigIsFavorite && (
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => void addFavorite(currentMachineConfigEntry)}
-              className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-warning disabled:opacity-50"
-            >
-              <Plus size={12} />
-              {en.configFavorites.addCurrentConfig}
-            </button>
-          )}
-          {displayMachineId && currentMachineConfigEntry && currentMachineConfigIsFavorite && (
-            <div className="flex items-center gap-1 text-xs text-chatroom-text-muted">
-              <Star size={12} className="text-chatroom-status-warning" />
-              {en.configFavorites.currentConfigFavorited}
-            </div>
-          )}
 
           {displayMachineId && (
             <MachineConfigQuickPick
