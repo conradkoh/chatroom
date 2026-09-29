@@ -251,7 +251,7 @@ export function getCompactModelId(modelId: string): string {
 
 /**
  * Compact sidebar label with one normalized effort-like model level.
- * Harnesses currently call this parameter effort, reasoning, or thinking;
+ * Harnesses currently call this parameter effort, reasoning, thinking, or variant;
  * the sidebar treats those values as equivalent at this density. Prefer an
  * explicit effort/reasoning level over Cursor's boolean thinking marker.
  */
@@ -261,7 +261,7 @@ export function getCompactModelLabel(modelId: string): string {
 
   try {
     const { params } = decodeModelVariant(modelId);
-    const level = params.effort ?? params.reasoning ?? params.thinking;
+    const level = params.effort ?? params.reasoning ?? params.thinking ?? params.variant;
     return level
       ? `${compactModelId} [${level === 'enabled' ? 'thinking' : level}]`
       : compactModelId;
