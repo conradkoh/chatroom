@@ -28,7 +28,7 @@ export function getIndicatorClass(variant: ChatroomAgentActivityVariant): string
     case 'ready':
       return 'bg-chatroom-status-success';
     case 'working':
-      return 'bg-chatroom-status-info animate-pulse';
+      return 'bg-chatroom-status-info animate-chatroom-status-pulse';
   }
 }
 
