@@ -5,8 +5,8 @@ import {
   chatroomIndustrialButtonSecondaryClassName,
   chatroomIndustrialDialogFooterClassName,
 } from '../../../components/shared/industrialDialogStyles';
-import { ChatroomDestructiveTextButton } from '../../../components/ui/ChatroomDestructiveTextButton';
 
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 // fallow-ignore-next-line complexity
@@ -39,9 +39,9 @@ export function StandingInstructionsPickerFooter({
     <div className={cn(chatroomIndustrialDialogFooterClassName, 'sm:justify-between shrink-0')}>
       <div className="flex gap-2">
         {showDisable ? (
-          <ChatroomDestructiveTextButton size="industrial" onClick={onDisable}>
+          <Button variant="destructive" size="default" onClick={onDisable}>
             Disable
-          </ChatroomDestructiveTextButton>
+          </Button>
         ) : null}
         {showEnable ? (
           <button

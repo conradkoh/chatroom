@@ -66,7 +66,7 @@ vi.mock('../../attachments', () => ({
   }),
 }));
 
-vi.mock('../ui/dropdown-menu', () => ({
+vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode; asChild?: boolean }) => (
     <div>{children}</div>

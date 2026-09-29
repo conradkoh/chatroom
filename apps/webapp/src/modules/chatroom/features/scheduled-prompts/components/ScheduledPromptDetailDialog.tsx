@@ -7,9 +7,9 @@ import { Clock, Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
-import { ChatroomDestructiveTextButton } from '../../../components/ui/ChatroomDestructiveTextButton';
 import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
 
+import { Button } from '@/components/ui/button';
 import {
   FixedModal,
   FixedModalBody,
@@ -141,13 +141,14 @@ export function ScheduledPromptDetailDialog({
         </FixedModalBody>
         {canDisable && (
           <div className="p-4 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex flex-col items-stretch gap-1 flex-shrink-0">
-            <ChatroomDestructiveTextButton
-              size="industrial"
+            <Button
+              variant="destructive"
+              size="default"
               onClick={handleDisable}
               disabled={disabling}
             >
               {disabling ? <Loader2 size={12} className="animate-spin" /> : 'Disable schedule'}
-            </ChatroomDestructiveTextButton>
+            </Button>
             <p className="text-[10px] text-chatroom-text-muted text-center">
               Stops future runs. Existing messages are kept. Re-enable from the Scheduled prompts
               panel.

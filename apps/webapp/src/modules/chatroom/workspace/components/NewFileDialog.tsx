@@ -8,6 +8,9 @@ import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '../../components/shared/industrialDialogStyles';
+import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
+import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
+
 import {
   Dialog,
   DialogContent,
@@ -15,9 +18,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../components/ui/dialog';
-import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
-import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
+} from '@/components/ui/dialog';
 
 interface NewFileDialogProps {
   open: boolean;

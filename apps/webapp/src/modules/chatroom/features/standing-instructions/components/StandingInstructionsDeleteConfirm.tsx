@@ -9,7 +9,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../../../components/ui/alert-dialog';
+} from '@/components/ui/alert-dialog';
 
 export function StandingInstructionsDeleteConfirm({
   open,

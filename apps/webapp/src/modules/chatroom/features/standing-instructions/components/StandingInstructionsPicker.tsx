@@ -17,9 +17,9 @@ import {
 } from './standingInstructionsPickerUtils';
 import { MobileKeyboardDrawer } from '../../../components/picker';
 import { chatroomIndustrialDialogTitleClassName } from '../../../components/shared/industrialDialogStyles';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { cn } from '@/lib/utils';

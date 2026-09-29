@@ -23,16 +23,16 @@ import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared'
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import { modalMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
+import { getStatusBadge } from './WorkQueue/utils';
+import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-import { getStatusBadge } from './WorkQueue/utils';
-import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
-
+} from '@/components/ui/dropdown-menu';
 import {
   FixedModal,
   FixedModalBody,

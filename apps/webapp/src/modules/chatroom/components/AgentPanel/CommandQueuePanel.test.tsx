@@ -34,7 +34,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
   },
 }));
 
-vi.mock('../ui/dialog', () => ({
+vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div data-testid="queue-dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -45,7 +45,7 @@ vi.mock('../ui/dialog', () => ({
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
 }));
 
-vi.mock('../ui/alert-dialog', () => ({
+vi.mock('@/components/ui/alert-dialog', () => ({
   AlertDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div data-testid="flush-dialog">{children}</div> : null,
   AlertDialogAction: ({

@@ -73,10 +73,6 @@ vi.mock('./picker', () => ({
   PickerScrollBody: () => null,
   PickerOptionRow: () => null,
 }));
-vi.mock('./ui/ChatroomDestructiveTextButton', () => ({
-  ChatroomDestructiveTextButton: () => null,
-}));
-
 vi.mock('@/components/ui/fixed-modal', () => ({
   FixedModal: ({ children, isOpen }: { children: React.ReactNode; isOpen: boolean }) =>
     isOpen ? <div data-testid="fixed-modal">{children}</div> : null,

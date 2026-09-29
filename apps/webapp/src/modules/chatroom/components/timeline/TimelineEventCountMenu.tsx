@@ -3,14 +3,14 @@
 import { useState } from 'react';
 
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from '../../components/picker';
+import { MESSAGE_STORE_LIMIT } from '../../hooks/chatroomMessageStore';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
-import { MESSAGE_STORE_LIMIT } from '../../hooks/chatroomMessageStore';
-
+} from '@/components/ui/dropdown-menu';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface TimelineEventCountMenuProps {

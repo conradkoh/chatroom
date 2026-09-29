@@ -37,16 +37,6 @@ import {
   usePickerSearchState,
   filterPickerItems,
 } from './picker';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './ui/alert-dialog';
 import type { MachineConnectivity } from '../../../hooks/useDaemonConnectivity';
 import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useMachineConfigFavorites } from '../features/machine-config/hooks/useMachineConfigFavorites';
@@ -69,6 +59,16 @@ import { isModelHidden, selectModel } from '../utils/modelSelection';
 import { pickSetupWorkspace } from '../utils/pickSetupWorkspace';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────

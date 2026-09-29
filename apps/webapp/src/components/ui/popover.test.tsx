@@ -13,5 +13,9 @@ describe('Popover', () => {
       </Popover>
     );
     expect(screen.getByText('Popover body')).toBeInTheDocument();
+    expect(screen.getByText('Popover body').closest('[data-slot="popover-content"]')).toHaveClass(
+      'bg-chatroom-bg-primary',
+      'rounded-none'
+    );
   });
 });

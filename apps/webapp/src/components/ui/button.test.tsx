@@ -9,12 +9,14 @@ describe('Button', () => {
     render(<Button>Click me</Button>);
     const button = screen.getByRole('button', { name: /click me/i });
     expect(button).toBeInTheDocument();
+    expect(button).toHaveClass('rounded-none');
   });
 
   it('renders with different variants', () => {
     const { rerender } = render(<Button variant="destructive">Delete</Button>);
     let button = screen.getByRole('button', { name: /delete/i });
     expect(button).toBeInTheDocument();
+    expect(button).toHaveClass('border-chatroom-status-error', 'bg-chatroom-status-error/10');
 
     rerender(<Button variant="outline">Cancel</Button>);
     button = screen.getByRole('button', { name: /cancel/i });
@@ -22,9 +24,13 @@ describe('Button', () => {
   });
 
   it('renders with different sizes', () => {
-    render(<Button size="lg">Large Button</Button>);
+    const { rerender } = render(<Button size="lg">Large Button</Button>);
     const button = screen.getByRole('button', { name: /large button/i });
     expect(button).toBeInTheDocument();
+    rerender(<Button size="sm">Small Button</Button>);
+    expect(screen.getByRole('button', { name: /small button/i })).toHaveClass('h-8');
+    rerender(<Button size="default">Default Button</Button>);
+    expect(screen.getByRole('button', { name: /default button/i })).toHaveClass('h-9');
   });
 
   it('handles disabled state', () => {

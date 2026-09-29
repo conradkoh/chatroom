@@ -65,7 +65,7 @@ vi.mock('../attachments', () => ({
   useAttachments: () => ({ add: vi.fn(), isAttached: () => false }),
 }));
 
-vi.mock('./ui/dropdown-menu', () => ({
+vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode; asChild?: boolean }) => (
     <div>{children}</div>
@@ -81,7 +81,7 @@ vi.mock('./ui/dropdown-menu', () => ({
   DropdownMenuSeparator: () => <hr />,
 }));
 
-vi.mock('./ui/alert-dialog', () => ({
+vi.mock('@/components/ui/alert-dialog', () => ({
   AlertDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div data-testid="delete-confirm-dialog">{children}</div> : null,
   AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

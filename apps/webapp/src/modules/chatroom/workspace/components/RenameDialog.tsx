@@ -9,6 +9,9 @@ import {
   chatroomIndustrialInputClassName,
   chatroomIndustrialInputErrorClassName,
 } from '../../components/shared/industrialDialogStyles';
+import { useWorkspaceFileRename } from '../hooks/useWorkspaceFileRename';
+import { validateRelativeFilePath } from '../utils/gzipContent';
+
 import {
   Dialog,
   DialogContent,
@@ -16,10 +19,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../components/ui/dialog';
-import { useWorkspaceFileRename } from '../hooks/useWorkspaceFileRename';
-import { validateRelativeFilePath } from '../utils/gzipContent';
-
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 interface RenameDialogProps {

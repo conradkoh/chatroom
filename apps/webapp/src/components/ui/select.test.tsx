@@ -19,6 +19,7 @@ describe('Select', () => {
     expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.getByText('Apple')).toBeInTheDocument();
     expect(screen.queryByText('apple')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveClass('rounded-none', 'border-chatroom-border');
   });
 
   it('renders placeholder when no value selected', () => {
@@ -33,5 +34,27 @@ describe('Select', () => {
       </Select>
     );
     expect(screen.getByText('Pick a fruit')).toBeInTheDocument();
+  });
+
+  it('uses industrial styling for the open content and item', () => {
+    render(
+      <Select open value="apple" onValueChange={() => {}}>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="apple">Apple</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+    expect(screen.getByRole('combobox')).toHaveClass('rounded-none');
+    expect(screen.getAllByText('Apple')[1]?.closest('[data-slot="select-item"]')).toHaveClass(
+      'rounded-none',
+      'focus:bg-chatroom-bg-hover'
+    );
+    expect(screen.getByRole('listbox').closest('[data-slot="select-content"]')).toHaveClass(
+      'bg-chatroom-bg-primary',
+      'rounded-none'
+    );
   });
 });

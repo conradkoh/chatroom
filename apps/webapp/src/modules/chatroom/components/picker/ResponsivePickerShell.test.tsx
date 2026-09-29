@@ -51,7 +51,7 @@ describe('ResponsivePickerShell', () => {
     mockUseIsDesktop.mockReturnValue(true);
     renderShell();
 
-    const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+    const popoverContent = document.querySelector('[data-slot="popover-content"]');
     expect(popoverContent).not.toBeNull();
     expect(popoverContent).toHaveTextContent('Picker content');
   });
@@ -86,7 +86,7 @@ describe('ResponsivePickerShell', () => {
     renderShell({ disabled: true });
 
     expect(screen.getByRole('button', { name: 'Open picker' })).toBeInTheDocument();
-    expect(document.querySelector('[data-slot="chatroom-popover-content"]')).toBeNull();
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
     expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
   });
 
@@ -95,7 +95,7 @@ describe('ResponsivePickerShell', () => {
     renderShell({ disabled: true });
 
     expect(screen.getByRole('button', { name: 'Open picker' })).toBeInTheDocument();
-    expect(document.querySelector('[data-slot="chatroom-popover-content"]')).toBeNull();
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
     expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
   });
 
@@ -145,7 +145,7 @@ describe('ResponsivePickerShell', () => {
         const anchor = document.querySelector('[data-testid="picker-pointer-anchor"]');
         expect(anchor).not.toBeNull();
       });
-      const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+      const popoverContent = document.querySelector('[data-slot="popover-content"]');
       expect(popoverContent).toHaveAttribute('data-align', 'center');
     });
 
@@ -170,7 +170,7 @@ describe('ResponsivePickerShell', () => {
     mockUseIsDesktop.mockReturnValue(true);
     renderShell({ contentClassName: 'w-72' });
 
-    const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+    const popoverContent = document.querySelector('[data-slot="popover-content"]');
     expect(popoverContent?.className).toContain('w-72');
   });
 
@@ -220,9 +220,7 @@ describe('ResponsivePickerShell', () => {
     mockUseKeyboardInset.mockReturnValue(120);
     renderShell();
 
-    const popoverContent = document.querySelector(
-      '[data-slot="chatroom-popover-content"]'
-    ) as HTMLElement;
+    const popoverContent = document.querySelector('[data-slot="popover-content"]') as HTMLElement;
     expect(popoverContent?.style.paddingBottom).toBe('');
   });
 
@@ -298,7 +296,7 @@ describe('ResponsivePickerShell', () => {
         </ResponsivePickerShell>
       </OverlayPortalContainerProvider>
     );
-    const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+    const popoverContent = document.querySelector('[data-slot="popover-content"]');
     expect(popoverContent).not.toBeNull();
     expect(container.contains(popoverContent)).toBe(true);
     document.body.removeChild(container);
@@ -347,7 +345,7 @@ describe('ResponsivePickerShell', () => {
     expect(scrollBody).not.toBeNull();
     expect(scrollBody?.className).toContain('min-h-0');
     expect(scrollBody?.className).toContain('max-h-60');
-    const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+    const popoverContent = document.querySelector('[data-slot="popover-content"]');
     expect(popoverContent?.className).toContain('overflow-hidden');
     const wrapper = scrollBody?.parentElement;
     expect(wrapper?.className).toContain('flex-col');

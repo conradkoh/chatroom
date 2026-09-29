@@ -3,8 +3,7 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
 
-import { DropdownMenuItem } from '../../components/ui/dropdown-menu';
-
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 interface WorkspaceDropdownMenuItemProps extends ComponentProps<typeof DropdownMenuItem> {

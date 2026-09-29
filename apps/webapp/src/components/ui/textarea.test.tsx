@@ -16,4 +16,14 @@ describe('Textarea', () => {
     render(<Textarea disabled aria-label="Disabled" />);
     expect(screen.getByLabelText('Disabled')).toBeDisabled();
   });
+
+  it('uses sharp canonical chatroom field styling', () => {
+    render(<Textarea aria-label="Styled" />);
+    expect(screen.getByLabelText('Styled')).toHaveClass(
+      'rounded-none',
+      'bg-chatroom-bg-secondary',
+      'border-chatroom-border',
+      'text-chatroom-text-primary'
+    );
+  });
 });

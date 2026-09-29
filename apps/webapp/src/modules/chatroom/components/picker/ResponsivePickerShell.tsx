@@ -10,7 +10,6 @@ import {
   MOBILE_DRAWER_POPUP_CLASSNAME,
 } from './mobileDrawerLayout';
 import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 import {
   Drawer,
@@ -19,6 +18,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
   useVisualViewportKeyboardInset,

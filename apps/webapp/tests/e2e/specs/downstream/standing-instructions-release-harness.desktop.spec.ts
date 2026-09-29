@@ -30,7 +30,7 @@ test.describe('Standing instructions release harness (desktop)', { tag: [TAG_DOW
     await bar.click({
       position: { x: box!.width * 0.9, y: box!.height / 2 },
     });
-    await expect(page.locator('[data-slot="chatroom-popover-content"]')).toBeVisible();
+    await expect(page.locator('[data-slot="popover-content"]')).toBeVisible();
     const anchor = page.getByTestId('picker-pointer-anchor');
     await expect(anchor).toBeVisible();
     await expect.poll(async () => (await anchor.boundingBox())?.x ?? -1).toBeGreaterThan(0);

@@ -4,14 +4,9 @@ import { Star, Plus } from 'lucide-react';
 
 import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ModelFilterButton } from '@/modules/chatroom/components/model-selection';
 import type { UseMachineModelFilterResult } from '@/modules/chatroom/components/model-selection';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/modules/chatroom/components/ui/dialog';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import { WorkspaceCapabilitiesRefreshButton } from '@/modules/chatroom/direct-harness/components/WorkspaceCapabilitiesRefreshButton';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';

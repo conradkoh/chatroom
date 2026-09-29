@@ -13,7 +13,6 @@ import {
 import { memo, type ReactNode } from 'react';
 
 import type { WorkspaceFileMenuProps } from './types';
-import { DropdownMenuLabel, DropdownMenuSeparator } from '../../components/ui/dropdown-menu';
 import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
 import {
   copyFileContentToClipboard,
@@ -21,6 +20,8 @@ import {
   copyFullPathToClipboard,
   copyRelativePathToClipboard,
 } from '../utils/clipboard';
+
+import { DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 interface Section {
   label?: string;

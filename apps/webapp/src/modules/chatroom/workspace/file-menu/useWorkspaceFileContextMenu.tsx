@@ -10,11 +10,12 @@ import type {
   WorkspaceFileMenuContentState,
 } from './types';
 import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 
 type MenuFrame = {
   relativePath: string;

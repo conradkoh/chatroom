@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkspaceFileMenuProps } from './types';
 import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },

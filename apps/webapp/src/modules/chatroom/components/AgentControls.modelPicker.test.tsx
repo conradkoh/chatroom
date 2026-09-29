@@ -125,7 +125,7 @@ describe('AgentControls model picker', () => {
     await act(async () => {});
     fireEvent.click(screen.getByTitle('Select model'));
     await waitFor(() => {
-      expect(document.querySelector('[data-slot="chatroom-popover-content"]')).not.toBeNull();
+      expect(document.querySelector('[data-slot="popover-content"]')).not.toBeNull();
     });
     expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
   });

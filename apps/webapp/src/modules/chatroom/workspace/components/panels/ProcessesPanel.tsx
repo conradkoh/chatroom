@@ -20,7 +20,6 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 import { EmptyOutputState } from './EmptyOutputState';
-import { ChatroomDestructiveTextButton } from '../../../components/ui/ChatroomDestructiveTextButton';
 import { CommandDetailPanel } from '../../../features/run-command/components/CommandDetailPanel';
 import { OutputPanel } from '../../../features/run-command/components/OutputPanel';
 import { ProcessList } from '../../../features/run-command/components/ProcessList';
@@ -43,6 +42,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
@@ -381,14 +381,15 @@ export function ProcessesPanel({
             Processes
           </h2>
           {machineId && workingDir && (
-            <ChatroomDestructiveTextButton
-              size="compact"
-              className="px-2 py-1"
+            <Button
+              variant="destructive"
+              size="sm"
+              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider"
               disabled={pendingOrRunningCount === 0}
               onClick={() => setClearStuckOpen(true)}
             >
               Clear stuck
-            </ChatroomDestructiveTextButton>
+            </Button>
           )}
         </div>
 

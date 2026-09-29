@@ -34,6 +34,13 @@ import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 import { CommitStatusIndicator } from './CommitStatusIndicator';
 import { GitDiffStatClickable, InlineDiffStat } from './shared';
 import { getChatroomMobileFooterSafeAreaStyle } from '../../components/shared/chatroomMobileSafeArea';
+import { useChatroomWorkspace } from '../../context/ChatroomWorkspaceContext';
+import type { Workspace } from '../../types/workspace';
+import { getWorkspaceDisplayHostname } from '../../types/workspace';
+import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
+import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
+import { copyWorkspacePathToClipboard } from '../utils/clipboard';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,15 +50,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from '../../components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
-import { useChatroomWorkspace } from '../../context/ChatroomWorkspaceContext';
-import type { Workspace } from '../../types/workspace';
-import { getWorkspaceDisplayHostname } from '../../types/workspace';
-import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
-import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
-import { copyWorkspacePathToClipboard } from '../utils/clipboard';
-
+} from '@/components/ui/dropdown-menu';
 import {
   FixedModal,
   FixedModalContent,
@@ -59,6 +58,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';

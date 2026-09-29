@@ -10,6 +10,8 @@ import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '../../components/shared/industrialDialogStyles';
+import { validateRelativeFilePath } from '../utils/gzipContent';
+
 import {
   Dialog,
   DialogContent,
@@ -17,8 +19,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../components/ui/dialog';
-import { validateRelativeFilePath } from '../utils/gzipContent';
+} from '@/components/ui/dialog';
 
 interface UploadFileDialogProps {
   open: boolean;
