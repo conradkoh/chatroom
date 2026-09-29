@@ -81,8 +81,8 @@ const GPT_6_1_SOL_VARIANTS = CODEX_MODEL_VARIANT_COMBINATIONS.filter(
 );
 
 /**
- * Plain id (harness default) + one entry per reasoning level, including
- * `reasoning=none` for explicitly opting out of a reasoning level.
+ * Plain id (harness default) plus each model's supported reasoning levels.
+ * GPT-6.1 Sol omits `reasoning=none`.
  */
 function codexModelVariants(): CodexModelVariantString[] {
   return prefixCatalogModels(
