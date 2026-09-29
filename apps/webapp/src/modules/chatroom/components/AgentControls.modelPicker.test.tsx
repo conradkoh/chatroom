@@ -182,8 +182,7 @@ describe('AgentControls model picker', () => {
     const start = screen.getByRole('button', { name: 'Start Agent' });
     const model = await screen.findByTitle('Select model');
     const favorite = await screen.findByRole('button', { name: 'Add current config to favorites' });
-    const filters = screen.getAllByRole('button', { name: 'Configure visible models' });
-    const filter = filters[filters.length - 1];
+    const filter = screen.getByRole('button', { name: 'Configure visible models' });
 
     expect(save).toBeDisabled();
     expect(save.textContent).toBe('');
@@ -191,6 +190,7 @@ describe('AgentControls model picker', () => {
     expect(
       favorite.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+    expect(filter.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(save.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     fireEvent.click(filter);
