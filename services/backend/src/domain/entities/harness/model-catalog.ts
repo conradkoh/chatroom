@@ -50,6 +50,7 @@ const claudeModelVariants = () =>
  */
 export type CodexModelId =
   | 'gpt-6-astra'
+  | 'gpt-6.1-sol'
   | 'gpt-6-sol'
   | 'gpt-6-luna'
   | 'gpt-5.6-terra'
@@ -64,6 +65,7 @@ export type CodexModelVariantString =
 
 const CODEX_MODEL_IDS: readonly CodexModelId[] = [
   'gpt-6-astra',
+  'gpt-6.1-sol',
   'gpt-6-sol',
   'gpt-6-luna',
   'gpt-5.6-terra',
@@ -73,6 +75,11 @@ const CODEX_MODEL_IDS: readonly CodexModelId[] = [
   'gpt-5.4-mini',
 ];
 
+// GPT-6.1 Sol does not support reasoning=none: https://developers.openai.com/api/docs/models/gpt-6.1-sol
+const GPT_6_1_SOL_VARIANTS = CODEX_MODEL_VARIANT_COMBINATIONS.filter(
+  (combination) => !('reasoning' in combination && combination.reasoning === 'none')
+);
+
 /**
  * Plain id (harness default) + one entry per reasoning level, including
  * `reasoning=none` for explicitly opting out of a reasoning level.
@@ -80,7 +87,12 @@ const CODEX_MODEL_IDS: readonly CodexModelId[] = [
 function codexModelVariants(): CodexModelVariantString[] {
   return prefixCatalogModels(
     'openai',
-    expandModelVariantCatalog(CODEX_MODEL_IDS, CODEX_MODEL_VARIANT_COMBINATIONS)
+    CODEX_MODEL_IDS.flatMap((id) =>
+      expandModelVariantCatalog(
+        [id],
+        id === 'gpt-6.1-sol' ? GPT_6_1_SOL_VARIANTS : CODEX_MODEL_VARIANT_COMBINATIONS
+      )
+    )
   ) as CodexModelVariantString[];
 }
 

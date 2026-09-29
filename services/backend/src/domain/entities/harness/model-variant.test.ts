@@ -180,6 +180,16 @@ describe('HARNESS_MODEL_CATALOG', () => {
         expect(codex).toContain(`openai/${base}[reasoning=${level}]`);
       }
     }
+
+    expect(codex.filter((entry) => entry.startsWith('openai/gpt-6.1-sol'))).toEqual([
+      'openai/gpt-6.1-sol',
+      'openai/gpt-6.1-sol[reasoning=low]',
+      'openai/gpt-6.1-sol[reasoning=medium]',
+      'openai/gpt-6.1-sol[reasoning=high]',
+      'openai/gpt-6.1-sol[reasoning=xhigh]',
+      'openai/gpt-6.1-sol[reasoning=max]',
+    ]);
+    expect(codex).not.toContain('openai/gpt-6.1-sol[reasoning=none]');
   });
 
   test('copilot entries are plain ids (no variants)', () => {
