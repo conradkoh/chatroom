@@ -166,6 +166,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
     const codex = HARNESS_MODEL_CATALOG['codex-sdk'];
     const expectedCodexBaseIds = [
       'gpt-6-astra',
+      'gpt-6.1-sol',
       'gpt-6-sol',
       'gpt-6-luna',
       'gpt-5.6-terra',
@@ -174,22 +175,28 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'gpt-5.5',
       'gpt-5.4-mini',
     ] as const;
-    for (const base of expectedCodexBaseIds) {
-      expect(codex).toContain(`openai/${base}`);
-      for (const level of ['none', 'low', 'medium', 'high', 'xhigh', 'max']) {
-        expect(codex).toContain(`openai/${base}[reasoning=${level}]`);
-      }
-    }
+    const modelsWithoutNone = ['gpt-6-astra', 'gpt-6.1-sol'] as const;
+    const levelsWithoutNone = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+    const levelsWithNone = ['none', ...levelsWithoutNone] as const;
+    const entriesFor = (base: string, levels: readonly string[]) => [
+      `openai/${base}`,
+      ...levels.map((level) => `openai/${base}[reasoning=${level}]`),
+    ];
 
-    expect(codex.filter((entry) => entry.startsWith('openai/gpt-6.1-sol'))).toEqual([
-      'openai/gpt-6.1-sol',
-      'openai/gpt-6.1-sol[reasoning=low]',
-      'openai/gpt-6.1-sol[reasoning=medium]',
-      'openai/gpt-6.1-sol[reasoning=high]',
-      'openai/gpt-6.1-sol[reasoning=xhigh]',
-      'openai/gpt-6.1-sol[reasoning=max]',
-    ]);
-    expect(codex).not.toContain('openai/gpt-6.1-sol[reasoning=none]');
+    const expectedCodexEntries = expectedCodexBaseIds.flatMap((base) =>
+      entriesFor(
+        base,
+        modelsWithoutNone.some((model) => model === base) ? levelsWithoutNone : levelsWithNone
+      )
+    );
+    expect(codex).toEqual(expectedCodexEntries);
+
+    for (const base of modelsWithoutNone) {
+      expect(codex.filter((entry) => entry.startsWith(`openai/${base}`))).toEqual(
+        entriesFor(base, levelsWithoutNone)
+      );
+      expect(codex).not.toContain(`openai/${base}[reasoning=none]`);
+    }
   });
 
   test('copilot entries are plain ids (no variants)', () => {
