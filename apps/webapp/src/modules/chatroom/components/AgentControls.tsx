@@ -1334,7 +1334,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             )}
           </div>
 
-          <div className="min-h-4 text-[10px]" aria-live="polite">
+          <div className="text-[10px]" aria-live="polite">
             {controls.error ? (
               <p role="alert" className="text-chatroom-status-error">
                 {controls.error}
