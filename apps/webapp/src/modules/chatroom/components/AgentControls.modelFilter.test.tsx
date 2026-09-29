@@ -123,7 +123,13 @@ describe('ModelFilter visibility while agent is running', () => {
     );
 
     const filterBtn = await waitFor(() => screen.getByTitle('Configure visible models'));
+    const stop = screen.getByRole('button', { name: 'Stop Agent' });
+    const restart = screen.getByRole('button', { name: 'Restart Agent' });
+
     expect(filterBtn).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save Configuration' })).not.toBeInTheDocument();
+    expect(filterBtn.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(stop.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('the filter button is clickable when agent is running', async () => {

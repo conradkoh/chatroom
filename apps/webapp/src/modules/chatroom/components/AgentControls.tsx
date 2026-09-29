@@ -745,7 +745,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   setupMode = false,
 }: RemoteTabContentProps) {
   const {
-    workspaceId,
     selectedMachineId,
     selectedHarness,
     selectedModel,
@@ -1232,7 +1231,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               </button>
             )}
 
-            {displayMachineId && displayHarness && isAgentRunning && (
+            {displayMachineId && displayHarness && (
               <ModelFilterButton
                 filter={modelFilter}
                 availableModels={availableModelsForHarness}
@@ -1244,7 +1243,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             {/* Action Buttons */}
             {!setupMode && (
               <div className="flex items-center gap-1 flex-shrink-0">
-                {!isAgentRunning && workspaceId && (
+                {!isAgentRunning && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1253,15 +1252,14 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                     }}
                     disabled={!canSave}
                     aria-label="Save Configuration"
-                    className={`h-7 px-2 flex items-center gap-1 text-[10px] uppercase tracking-wide transition-all ${
+                    className={`w-7 h-7 flex items-center justify-center transition-all ${
                       canSave
                         ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
                         : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
                     }`}
                     title="Save configuration"
                   >
-                    {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                    <span>Save</span>
+                    {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   </button>
                 )}
                 {isAgentRunning ? (
