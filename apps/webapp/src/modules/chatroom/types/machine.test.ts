@@ -160,6 +160,16 @@ describe('getCompactModelLabel', () => {
     expect(getCompactModelLabel('claude-opus-4-8[effort=high]')).toBe('claude-opus-4-8 [high]');
   });
 
+  it('appends a variant level', () => {
+    expect(getCompactModelLabel('openai/gpt-6-luna[variant=high]')).toBe('gpt-6-luna [high]');
+  });
+
+  it('prefers effort over variant when both are present', () => {
+    expect(getCompactModelLabel('openai/gpt-6-luna[effort=medium,variant=high]')).toBe(
+      'gpt-6-luna [medium]'
+    );
+  });
+
   it('prefers effort over thinking when both are present', () => {
     expect(getCompactModelLabel('claude-opus-4-8[effort=high,thinking=enabled]')).toBe(
       'claude-opus-4-8 [high]'
