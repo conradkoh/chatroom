@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { AgentWorkManager } from './agent-work-manager.js';
 import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
+import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
 import { TaskInboxState } from '../../../infrastructure/inbox/task-inbox-state.js';
 import {
   createAgentLifecycleOutboxRegistry,
@@ -24,12 +25,17 @@ function createService(
     ) => Promise<{ exceeded: boolean }>;
     readonly isRedeliveryExhausted?: () => boolean;
     readonly clearRedeliveryTracking?: () => void;
+    readonly forgetStaleTask?: ReturnType<typeof vi.fn>;
+    readonly loadAssignedTaskForAction?: (args: Record<string, string>) => Promise<unknown>;
+    readonly initialTasks?: readonly AssignedTask[];
     readonly getLatestHandoff?: () => Promise<{ taskIds: readonly string[] } | null>;
     readonly enqueueFact?: (fact: Record<string, unknown>) => Promise<unknown>;
     readonly getSlot?: () => { state: 'running' | 'idle' | 'spawning' | 'stopping'; pid?: number };
     readonly stopAgent?: ReturnType<typeof vi.fn>;
   } = {}
 ): AgentWorkManager {
+  const taskInboxState = new TaskInboxState();
+  taskInboxState.upsert(options.initialTasks ?? []);
   return new AgentWorkManager({
     configurationService: { get: () => undefined } as never,
     agentMgr: {
@@ -59,7 +65,7 @@ function createService(
     acquireNativeDeliverySlot: vi.fn().mockResolvedValue({ state: 'running' }),
     sessionDeps: {} as never,
     machineId: 'machine-1',
-    taskInboxState: new TaskInboxState(),
+    taskInboxState,
     agentTaskState: createAgentTaskStateService(),
     lifecycleOutbox: { enqueue: (options.enqueueFact ?? (async () => undefined)) as never },
     taskService: {
@@ -68,9 +74,12 @@ function createService(
       stopTaskInbox: () => undefined,
       listTasksForRole: () => [],
       listAllTasks: () => [],
-      taskInboxState: new TaskInboxState(),
+      taskInboxState,
       isNativeHarness: () => true,
-      loadAssignedTaskForAction: async () => null,
+      loadAssignedTaskForAction:
+        options.loadAssignedTaskForAction ??
+        (async ({ taskId }: { taskId: string }) => ({ taskId })),
+      forgetStaleTask: options.forgetStaleTask ?? vi.fn(),
       getLatestHandoff: options.getLatestHandoff ?? (async () => null),
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
@@ -282,6 +291,7 @@ describe('AgentWorkManager', () => {
       kind: 'inbox-event',
       event: {
         eventType: 'task_deleted',
+        eventId: 'event-task-deleted',
         chatroomId: 'room-1',
         role: 'builder',
         taskId: 'task-1',
@@ -298,6 +308,71 @@ describe('AgentWorkManager', () => {
       expect.any(AbortSignal)
     );
     expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    service.dispose();
+  });
+
+  test('acknowledges an inbox event when the authoritative task was removed', async () => {
+    const forgetStaleTask = vi.fn();
+    const task = {
+      taskId: 'task-stale-event',
+      chatroomId: 'room-1',
+      status: 'pending',
+      assignedTo: 'builder',
+      updatedAt: 1,
+      createdAt: 1,
+      agentConfig: { role: 'builder', machineId: 'machine-1' },
+    } as AssignedTask;
+    const service = createService({
+      initialTasks: [task],
+      loadAssignedTaskForAction: async () => null,
+      forgetStaleTask,
+    });
+    const requestReconcile = vi.spyOn(service, 'requestReconcile');
+
+    const confirmation = await service.handleTaskServiceNotification({
+      kind: 'inbox-event',
+      event: {
+        eventId: 'event-stale',
+        eventType: 'task_updated',
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-stale-event',
+      } as never,
+    });
+
+    expect(confirmation).toEqual({ handledEventIds: ['event-stale'] });
+    expect(forgetStaleTask).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-stale-event',
+    });
+    expect(requestReconcile).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('evicts a removed task during periodic reconciliation without waking an agent', async () => {
+    const forgetStaleTask = vi.fn();
+    const service = createService({
+      loadAssignedTaskForAction: async () => null,
+      forgetStaleTask,
+    });
+    const requestReconcile = vi.spyOn(service, 'requestReconcile');
+
+    await service.handleTaskServiceNotification({
+      kind: 'periodic-reconcile',
+      task: {
+        taskId: 'task-stale-periodic',
+        chatroomId: 'room-1',
+        agentConfig: { role: 'builder' },
+      } as never,
+    });
+
+    expect(forgetStaleTask).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-stale-periodic',
+    });
+    expect(requestReconcile).not.toHaveBeenCalled();
     service.dispose();
   });
 

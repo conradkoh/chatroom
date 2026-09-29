@@ -75,6 +75,36 @@ describe('TaskService.loadAssignedTaskForAction', () => {
 });
 
 describe('TaskService inbox consumption', () => {
+  test('forgetStaleTask evicts local state and is idempotent', async () => {
+    const task = backendRow();
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
+      backend: {
+        mutation: vi.fn().mockResolvedValue({ processed: true }),
+        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+      },
+    });
+
+    await service.startTaskInbox();
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    await service.recordUncoveredTurnEnd(args);
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    service.forgetStaleTask(args);
+    service.forgetStaleTask(args);
+
+    expect(service.listTasksForRole('room-1', 'builder')).toEqual([]);
+    expect(service.debugState('room-1').tasks).toEqual([]);
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    service.stopTaskInbox();
+  });
+
   test('bootstrap sweep releases uncovered in-progress tasks', async () => {
     const task = {
       taskId: 'task-in-progress',

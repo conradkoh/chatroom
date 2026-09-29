@@ -125,6 +125,8 @@ describe('task-delivery-processor exact-task hydration', () => {
     const onTaskDeliveryFailed = vi.fn();
     const loadAssignedTaskForAction = vi.fn(async () => null);
     const deliverNativeTask = vi.fn(async () => undefined);
+    const forgetStaleTask = vi.fn();
+    const acquireNativeDeliverySlot = vi.fn(async () => ({ harnessSessionId: 'harness-1' }));
     let capturedDeliver: ((task: never, agentConfig: never) => Promise<unknown>) | undefined;
     const reconcileSpy = vi
       .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
@@ -138,6 +140,7 @@ describe('task-delivery-processor exact-task hydration', () => {
         {
           deliverNativeTask,
           loadAssignedTaskForAction,
+          forgetStaleTask,
           isNativeHarness: () => true,
           explainNativeDeliveryBlock: () => null,
           releaseTaskAfterTurnFailure: async () => ({
@@ -150,11 +153,17 @@ describe('task-delivery-processor exact-task hydration', () => {
         'bootstrap',
         () => false,
         { tasks: [row], onTaskDeliveryStarted, onTaskDeliveryFailed },
-        vi.fn(async () => ({ harnessSessionId: 'harness-1' })) as never
+        acquireNativeDeliverySlot as never
       );
 
       const result = await capturedDeliver?.(row, config as never);
-      expect(result).toEqual({ kind: 'task-unavailable' });
+      expect(result).toEqual({ kind: 'task-unavailable', stale: true });
+      expect(forgetStaleTask).toHaveBeenCalledWith({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        taskId: TASK_ID,
+      });
+      expect(acquireNativeDeliverySlot).not.toHaveBeenCalled();
       expect(deliverNativeTask).not.toHaveBeenCalled();
       expect(onTaskDeliveryStarted).not.toHaveBeenCalled();
       expect(onTaskDeliveryFailed).not.toHaveBeenCalled();
@@ -263,6 +272,49 @@ describe('task-delivery-processor exact-task hydration', () => {
       expect(onTaskDeliveryFailed).toHaveBeenCalledWith(
         expect.objectContaining({ reason: 'injection_not_confirmed', taskId: TASK_ID })
       );
+    } finally {
+      reconcileSpy.mockRestore();
+    }
+  });
+
+  test('keeps a live task retryable when native slot acquisition is unavailable', async () => {
+    const row = snapshotRow();
+    const full = fullTask();
+    const loadAssignedTaskForAction = vi.fn(async () => full);
+    const forgetStaleTask = vi.fn();
+    let capturedDeliver: ((task: never, agentConfig: never) => Promise<unknown>) | undefined;
+    const reconcileSpy = vi
+      .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
+      .mockImplementation(async (params) => {
+        capturedDeliver = params.executors.deliverTask as never;
+        return [];
+      });
+
+    try {
+      await processTasksUpdate(
+        {
+          deliverNativeTask: vi.fn(),
+          loadAssignedTaskForAction,
+          forgetStaleTask,
+          isNativeHarness: () => true,
+          explainNativeDeliveryBlock: () => null,
+          releaseTaskAfterTurnFailure: async () => ({
+            released: false,
+            status: 'pending',
+            updatedAt: 0,
+          }),
+        } as never,
+        { get: () => config } as never,
+        'bootstrap',
+        () => false,
+        { tasks: [row] },
+        vi.fn(async () => null) as never
+      );
+
+      const result = await capturedDeliver?.(row, config as never);
+      expect(result).toEqual({ kind: 'task-unavailable' });
+      expect(loadAssignedTaskForAction).toHaveBeenCalledTimes(2);
+      expect(forgetStaleTask).not.toHaveBeenCalled();
     } finally {
       reconcileSpy.mockRestore();
     }

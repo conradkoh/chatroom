@@ -123,6 +123,7 @@ export class AgentWorkManager {
       recordUncoveredTurnEnd: deps.taskService.recordUncoveredTurnEnd,
       isRedeliveryExhausted: deps.taskService.isRedeliveryExhausted,
       clearRedeliveryTracking: deps.taskService.clearRedeliveryTracking,
+      forgetStaleTask: deps.taskService.forgetStaleTask,
       loadAssignedTaskForAction: deps.taskService.loadAssignedTaskForAction,
       deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
         this.nativeTaskDeliveryQueue.enqueue({ task, harnessSessionId, onTaskDelivered }),
@@ -359,6 +360,19 @@ export class AgentWorkManager {
       return;
     }
     if (notification.kind === 'periodic-reconcile') {
+      const taskLookup = {
+        chatroomId: notification.task.chatroomId,
+        role: notification.task.agentConfig.role,
+        taskId: notification.task.taskId,
+      };
+      const currentTask = await this.deliveryTaskService.loadAssignedTaskForAction(taskLookup);
+      if (!currentTask) {
+        this.deliveryTaskService.forgetStaleTask(taskLookup);
+        console.warn(
+          `[NativeDelivery:stale-task] chatroom=${taskLookup.chatroomId} role=${taskLookup.role} task=${taskLookup.taskId} reason=periodic_authoritative_task_missing`
+        );
+        return;
+      }
       await this.requestReconcile({
         chatroomId: notification.task.chatroomId,
         role: notification.task.agentConfig.role,
@@ -396,6 +410,19 @@ export class AgentWorkManager {
         role: notification.event.role,
       })?.taskId === notification.event.taskId
     ) {
+      return { handledEventIds: [notification.event.eventId] };
+    }
+    const taskLookup = {
+      chatroomId: notification.event.chatroomId,
+      role: notification.event.role,
+      taskId: notification.event.taskId,
+    };
+    const authoritativeTask = await this.deliveryTaskService.loadAssignedTaskForAction(taskLookup);
+    if (!authoritativeTask) {
+      this.deliveryTaskService.forgetStaleTask(taskLookup);
+      console.warn(
+        `[NativeDelivery:stale-task] chatroom=${taskLookup.chatroomId} role=${taskLookup.role} task=${taskLookup.taskId} reason=inbox_authoritative_task_missing`
+      );
       return { handledEventIds: [notification.event.eventId] };
     }
     const deliveredTaskIds = await this.requestReconcile({

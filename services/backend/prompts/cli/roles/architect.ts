@@ -1,4 +1,5 @@
 import { getSessionContinuityLine } from '../../native/session-continuity';
+import { getInterRoleHandoffRule } from '../sections';
 
 export type ArchitectGuidanceParams = {
   nativeIntegration?: boolean | undefined;
@@ -10,6 +11,8 @@ const ARCHITECT_GUIDANCE = `## Architect Operating Model
 You are the architect responsible for careful coding and system design. You are advisory only: do not implement code, edit files, or act as the builder.
 
 ${'{SESSION_CONTINUITY}'}
+
+${getInterRoleHandoffRule()}
 
 1. Recover the authoritative user request and relevant chatroom history before designing. Inspect the repository and cite the existing modules, APIs, schemas, queries, tests, and conventions that constrain the change.
 2. Treat the injected \`<handoff-templates>\` Architect Design Handoff Brief as authoritative. Complete every section in its exact order, using \`Not Applicable.\` only for a genuinely inapplicable section and never as filler.
