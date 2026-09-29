@@ -40,7 +40,9 @@ export function ModelPickerField({
   });
 
   const resolvedPlaceholder =
-    placeholder ?? (!harness ? 'Select a harness first' : 'Select a model');
+    !machineId || !harness || modelGroups.length === 0
+      ? 'No models available'
+      : (placeholder ?? 'Select a model');
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
@@ -50,7 +52,7 @@ export function ModelPickerField({
           value={value}
           onValueChange={onValueChange}
           isHidden={modelFilter.isHidden}
-          disabled={disabled || !harness}
+          disabled={disabled || !machineId || !harness}
           triggerVariant={triggerVariant}
           contentClassName={MODEL_PICKER_PANEL_WIDTH}
           selectedHidden={isSelectedModelHidden}

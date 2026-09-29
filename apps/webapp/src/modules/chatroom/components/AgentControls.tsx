@@ -927,6 +927,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     availableModels: availableModelsForHarness,
     selectedModel: displayModel,
   });
+  const modelUnavailable = !displayMachineId || !displayHarness || !hasModels;
 
   return (
     <div className="space-y-2">
@@ -1156,45 +1157,47 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
           {/* Row 3: Model + Start/Stop */}
           <div className="flex items-center gap-2">
-            {hasModels ? (
-              <div className="flex items-center gap-1 flex-1 min-w-0">
-                {isAgentRunning ? (
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className={cn(
-                        'w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 flex items-center justify-between',
-                        isSelectedModelHidden && 'text-chatroom-status-warning'
-                      )}
-                    >
-                      <span className="truncate">
-                        {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
-                      </span>
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              {isAgentRunning ? (
+                <div className="flex-1 min-w-0">
+                  <div
+                    className={cn(
+                      'w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 flex items-center justify-between',
+                      !modelUnavailable && isSelectedModelHidden && 'text-chatroom-status-warning'
+                    )}
+                  >
+                    <span className="truncate">
+                      {modelUnavailable
+                        ? 'No models available'
+                        : displayModel
+                          ? getModelDisplayLabel(displayModel)
+                          : 'Model...'}
+                    </span>
+                    {!modelUnavailable && (
                       <ModelPickerMeta
                         isSelectedModelHidden={isSelectedModelHidden}
                         filter={modelFilter.filter}
                       />
-                    </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex-1 min-w-0">
-                    <ModelPickerField
-                      machineId={displayMachineId}
-                      harness={displayHarness}
-                      availableModels={availableModelsForHarness}
-                      value={displayModel ?? ''}
-                      onValueChange={(m) => handleModelChange(m || null)}
-                      disabled={isBusy || !displayHarness}
-                      triggerVariant="chatroom"
-                      allowDeselect={false}
-                      placeholder="Model..."
-                      className="gap-1"
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex-1" />
-            )}
+                </div>
+              ) : (
+                <div className="flex-1 min-w-0">
+                  <ModelPickerField
+                    machineId={displayMachineId}
+                    harness={displayHarness}
+                    availableModels={availableModelsForHarness}
+                    value={modelUnavailable ? '' : (displayModel ?? '')}
+                    onValueChange={(m) => handleModelChange(m || null)}
+                    disabled={isBusy || modelUnavailable}
+                    triggerVariant="chatroom"
+                    allowDeselect={false}
+                    placeholder="Model..."
+                    className="gap-1"
+                  />
+                </div>
+              )}
+            </div>
 
             {displayMachineId && currentMachineConfigEntry && (
               <button
