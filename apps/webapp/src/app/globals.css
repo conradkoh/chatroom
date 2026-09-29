@@ -67,6 +67,24 @@
   --color-chatroom-text-on-accent: var(--chatroom-text-on-accent);
 }
 
+@keyframes chatroom-status-pulse {
+  50% {
+    filter: brightness(0.5);
+  }
+}
+
+@layer utilities {
+  .animate-chatroom-status-pulse {
+    animation: chatroom-status-pulse 2s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-chatroom-status-pulse {
+    animation: none;
+  }
+}
+
 /* Mobile-responsive spacing and sizing variables */
 :root {
   /* Base spacing (desktop) */
