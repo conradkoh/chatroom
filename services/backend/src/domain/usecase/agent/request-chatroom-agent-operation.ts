@@ -6,6 +6,7 @@ import { normalizeWorkingDir } from './workspace-match';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { AgentStartReasonCode } from '../../entities/agent';
+import { USER_ROLE } from '../../entities/team';
 import { getTeamStructure } from '../../entities/team-presets';
 import { isActiveWorkspace } from '../../entities/workspace';
 import { getActiveTeamStructure } from '../team/active-team-structure';
@@ -51,7 +52,7 @@ export async function requestChatroomAgentOperation(
     persistedRoles: room.teamRoles ?? null,
     persistedEntryPoint: room.teamEntryPoint ?? null,
   });
-  const roles = team.roles.map(({ role }) => role).filter((role) => role !== 'user');
+  const roles = team.roles.map(({ role }) => role).filter((role) => role !== USER_ROLE);
   const workspaces = (
     await ctx.db
       .query('chatroom_workspaces')

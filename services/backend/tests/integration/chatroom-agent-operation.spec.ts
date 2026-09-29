@@ -12,6 +12,53 @@ import {
 } from '../helpers/integration';
 
 describe('agents.requestChatroomAgentOperation', () => {
+  test('does not start or restart the reserved user role', async () => {
+    const { sessionId } = await createTestSession('chatroom-agent-operation-user-role');
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamStructureId: 'custom-user-role-test',
+    });
+    await t.run((ctx) =>
+      ctx.db.patch('chatroom_rooms', chatroomId, {
+        teamRoles: ['user'],
+        teamEntryPoint: 'user',
+      })
+    );
+    const machineId = 'machine-chatroom-agent-operation-user-role';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/workspace/user-role',
+      hostname: 'test-host',
+      registeredBy: 'user',
+    });
+    await t.mutation(api.agents.saveConfig, {
+      sessionId,
+      chatroomId,
+      workspaceId,
+      role: 'user',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'test-model',
+      workingDir: '/workspace/user-role',
+    });
+
+    for (const operation of ['start', 'restart'] as const) {
+      const result = await t.mutation(api.agents.requestChatroomAgentOperation, {
+        sessionId,
+        chatroomId,
+        operation,
+      });
+
+      expect(result.requested).toEqual([]);
+      expect(result.failed).toEqual([]);
+      expect(result.skipped).toEqual([]);
+    }
+    expect(await getCommandEvents(sessionId, machineId)).toEqual([]);
+  });
+
   test('starts and restarts a configured ephemeral-tagged role through the generic path', async () => {
     const { sessionId } = await createTestSession('chatroom-agent-operation-ephemeral');
     const chatroomId = await t.mutation(api.chatrooms.create, {
