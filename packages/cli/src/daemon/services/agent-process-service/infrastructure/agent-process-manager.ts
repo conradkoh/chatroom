@@ -1879,7 +1879,6 @@ export class AgentProcessManager {
       machineId: this.deps.machineId,
       chatroomId: opts.chatroomId,
       role: opts.role,
-      taskId: opts.taskId as any,
     });
     if (!authorization.allowed) {
       this.resetSlotIdle(slot);

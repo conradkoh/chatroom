@@ -12,6 +12,7 @@ export { getHandoffTemplateDiscoveryGuidance } from './handoff-template-discover
 export { getDelegationAndDecompositionSection } from './delegation-and-decomposition';
 export { getDelegationGuidelinesSection } from './delegation-guidelines';
 export { getHandoffRulesSection } from './handoff-rules';
+export { getInterRoleHandoffRule } from './inter-role-handoff-rule';
 export { getWhenWorkComesBackSection } from './when-work-comes-back';
 export { getTeamCompositionSection } from './team-composition';
 export { getProofOfVerificationSection } from './proof-of-verification';

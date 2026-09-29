@@ -24,14 +24,20 @@ import type {
 } from '../../../chatroom-workspace-configuration-service/index.js';
 import type { AgentProcessManagerService } from '../../../service-interfaces.js';
 
+export type TaskDeliveryLifecycleArgs = {
+  chatroomId: string;
+  role: string;
+  taskId: string;
+  harnessSessionId: string;
+};
+
 export type ProcessTasksUpdateOptions = {
   tasks: readonly AssignedTask[];
-  onTaskDelivered?: (args: {
-    chatroomId: string;
-    role: string;
-    taskId: string;
-    harnessSessionId: string;
-  }) => void;
+  onTaskDeliveryStarted?: (args: TaskDeliveryLifecycleArgs) => void;
+  onTaskDeliveryFailed?: (
+    args: TaskDeliveryLifecycleArgs & { reason: 'injection_not_confirmed' }
+  ) => void;
+  onTaskDelivered?: (args: TaskDeliveryLifecycleArgs) => void;
 };
 
 export async function processTasksUpdate(
@@ -71,29 +77,59 @@ export async function processTasksUpdate(
         ...startInput,
         ...(ephemeralOverrides ? { overrides: ephemeralOverrides } : {}),
       };
+      const taskLookup = {
+        chatroomId: task.chatroomId,
+        role: task.agentConfig.role,
+        taskId: task.taskId,
+      };
+      const fullBeforeSlot = await taskService.loadAssignedTaskForAction(taskLookup);
+      if (!fullBeforeSlot) {
+        taskService.forgetStaleTask(taskLookup);
+        console.warn(
+          `[NativeDelivery:stale-task] chatroom=${task.chatroomId} role=${task.agentConfig.role} task=${task.taskId} reason=authoritative_task_missing`
+        );
+        return { kind: 'task-unavailable' as const, stale: true };
+      }
       const slot = await acquireNativeDeliverySlot({
         ...effectiveStartInput,
         timeoutMs: 30_000,
       });
-      const full = await taskService.loadAssignedTaskForAction({
+      const full = await taskService.loadAssignedTaskForAction(taskLookup);
+      if (!full) {
+        taskService.forgetStaleTask(taskLookup);
+        console.warn(
+          `[NativeDelivery:stale-task] chatroom=${task.chatroomId} role=${task.agentConfig.role} task=${task.taskId} reason=authoritative_task_missing_after_slot`
+        );
+        return { kind: 'task-unavailable' as const, stale: true };
+      }
+      if (!slot?.harnessSessionId) return { kind: 'task-unavailable' as const };
+      const delivery: TaskDeliveryLifecycleArgs = {
         chatroomId: task.chatroomId,
         role: task.agentConfig.role,
         taskId: task.taskId,
-      });
-      if (!full || !slot?.harnessSessionId) return { kind: 'task-unavailable' as const };
-      let delivered:
-        | {
-            chatroomId: string;
-            role: string;
-            taskId: string;
-            harnessSessionId: string;
-          }
-        | undefined;
-      await taskService.deliverNativeTask(full, slot.harnessSessionId, (result) => {
-        delivered = result;
-      });
-      if (!delivered)
+        harnessSessionId: slot.harnessSessionId,
+      };
+      options.onTaskDeliveryStarted?.(delivery);
+
+      let delivered: TaskDeliveryLifecycleArgs | undefined;
+      try {
+        await taskService.deliverNativeTask(full, slot.harnessSessionId, (result) => {
+          delivered = result;
+        });
+      } catch (error) {
+        options.onTaskDeliveryFailed?.({
+          ...delivery,
+          reason: 'injection_not_confirmed',
+        });
+        throw error;
+      }
+      if (!delivered) {
+        options.onTaskDeliveryFailed?.({
+          ...delivery,
+          reason: 'injection_not_confirmed',
+        });
         return { kind: 'failed' as const, reason: 'injection_not_confirmed' as const };
+      }
       return { kind: 'delivered' as const, delivered };
     },
   };

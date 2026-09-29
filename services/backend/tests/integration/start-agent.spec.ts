@@ -23,6 +23,38 @@ import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 // ─── Config persistence ──────────────────────────────────────────────────────
 
 describe('startAgent — config persistence', () => {
+  test('requestStart accepts a configured ephemeral-tagged role', async () => {
+    const { sessionId } = await createTestSession('test-sa-ephemeral-request');
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'duo',
+      teamName: 'Duo Team',
+      teamRoles: ['planner', 'builder', 'architect'],
+      teamEntryPoint: 'planner',
+    });
+    const machineId = 'machine-sa-ephemeral-request';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.mutation(api.agents.requestStart, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'architect',
+      agentHarness: 'opencode',
+      model: TEST_MODEL_OPENCODE_LEGACY,
+      workingDir: '/tmp/test',
+    });
+
+    const events = await getCommandEvents(sessionId, machineId);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'agent.requestStart',
+      chatroomId,
+      role: 'architect',
+      wantResume: false,
+    });
+  });
+
   test('creates team config on first start', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-sa-persist-1');

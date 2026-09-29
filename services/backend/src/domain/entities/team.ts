@@ -7,6 +7,9 @@
 
 // ─── Entity ───────────────────────────────────────────────────────────────────
 
+/** Reserved role used for user-authored chatroom messages, never an agent. */
+export const USER_ROLE = 'user' as const;
+
 /**
  * Team domain entity.
  *

@@ -98,7 +98,7 @@ describe('groupFlatModels', () => {
     expect(groupFlatModels([])).toEqual([]);
   });
 
-  it('drops variant params uniform across all models in a provider group', () => {
+  it('keeps variant params uniform across a provider group', () => {
     const sharedParams = 'cyber=false,thinking=false,context=300k,effort=low,fast=false';
     const models = [
       `cursor/claude-opus-5[${sharedParams}]`,
@@ -107,8 +107,8 @@ describe('groupFlatModels', () => {
     const groups = groupFlatModels(models);
     const cursor = groups.find((g) => g.providerKey === 'cursor');
     expect(cursor?.options).toHaveLength(2);
-    expect(cursor?.options[0].label).toBe('Cursor / Claude Opus 5');
-    expect(cursor?.options[1].label).toBe('Cursor / Claude Sonnet 4');
+    expect(cursor?.options[0].label).toContain(`[${sharedParams}]`);
+    expect(cursor?.options[1].label).toContain(`[${sharedParams}]`);
   });
 
   it('keeps variant params that differ within a provider group', () => {
@@ -116,6 +116,18 @@ describe('groupFlatModels', () => {
     const groups = groupFlatModels(models);
     expect(groups[0].options[0].label).toBe('Sonnet');
     expect(groups[0].options[1].label).toBe('Sonnet [effort=high]');
+  });
+
+  it('keeps surviving model variant tags after blacklist filtering', () => {
+    const groups = groupFlatModels([
+      'openai/gpt-5.6-luna[thinking=high]',
+      'openai/gpt-5.5[thinking=high]',
+    ]);
+
+    const openai = groups.find((group) => group.providerKey === 'openai');
+    const luna = openai?.options.find((option) => option.value.includes('gpt-5.6-luna'));
+
+    expect(luna?.label).toContain('[thinking=high]');
   });
 });
 
