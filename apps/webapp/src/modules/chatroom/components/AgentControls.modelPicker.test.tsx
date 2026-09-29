@@ -77,10 +77,10 @@ function mkMachine(): MachineInfo {
 
 function ModelPickerHarness({
   ephemeral = false,
-  workspaceId = 'workspace-1',
+  withoutWorkspace = false,
 }: {
   ephemeral?: boolean;
-  workspaceId?: string;
+  withoutWorkspace?: boolean;
 }) {
   const machines = [mkMachine()];
   const role = ephemeral ? 'architect' : 'builder';
@@ -97,7 +97,7 @@ function ModelPickerHarness({
   const controls = useAgentControls({
     role: 'builder',
     chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
-    workspaceId,
+    workspaceId: withoutWorkspace ? undefined : 'workspace-1',
     connectedMachines: machines,
     agentConfigs: [seedingConfig],
     sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
@@ -176,7 +176,7 @@ describe('AgentControls model picker', () => {
   );
 
   it('shows the stopped control row and opens model visibility from its filter button', async () => {
-    render(<ModelPickerHarness ephemeral workspaceId={undefined} />);
+    render(<ModelPickerHarness ephemeral withoutWorkspace />);
 
     const save = await screen.findByRole('button', { name: 'Save Configuration' });
     const start = screen.getByRole('button', { name: 'Start Agent' });
