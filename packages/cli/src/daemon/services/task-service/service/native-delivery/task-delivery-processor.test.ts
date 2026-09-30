@@ -100,7 +100,12 @@ describe('task-delivery-processor exact-task hydration', () => {
       });
       expect(order).toEqual(['started', 'deliver']);
       expect(onTaskDeliveryFailed).not.toHaveBeenCalled();
-      expect(deliverNativeTask).toHaveBeenCalledWith(full, 'harness-1', expect.any(Function));
+      expect(deliverNativeTask).toHaveBeenCalledWith(
+        full,
+        'harness-1',
+        expect.any(Function),
+        expect.any(Function)
+      );
       expect(result).toMatchObject({ kind: 'delivered' });
       capturedOnTaskDelivered?.({
         chatroomId: CHATROOM_ID,
@@ -167,6 +172,47 @@ describe('task-delivery-processor exact-task hydration', () => {
       expect(deliverNativeTask).not.toHaveBeenCalled();
       expect(onTaskDeliveryStarted).not.toHaveBeenCalled();
       expect(onTaskDeliveryFailed).not.toHaveBeenCalled();
+    } finally {
+      reconcileSpy.mockRestore();
+    }
+  });
+
+  test('invalidation during slot acquisition prevents marker start and queue enqueue', async () => {
+    let current = true;
+    let resolveSlot!: (slot: { harnessSessionId: string }) => void;
+    const slotReady = new Promise<{ harnessSessionId: string }>((resolve) => {
+      resolveSlot = resolve;
+    });
+    const onTaskDeliveryStarted = vi.fn();
+    const deliverNativeTask = vi.fn();
+    let capturedDeliver: ((task: never, agentConfig: never) => Promise<unknown>) | undefined;
+    const reconcileSpy = vi
+      .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
+      .mockImplementation(async (params) => {
+        capturedDeliver = params.executors.deliverTask as never;
+        return [];
+      });
+    try {
+      await processTasksUpdate(
+        {
+          deliverNativeTask,
+          loadAssignedTaskForAction: vi.fn(async () => fullTask()),
+          isNativeHarness: () => true,
+          explainNativeDeliveryBlock: () => null,
+        } as never,
+        { get: () => config } as never,
+        'bootstrap',
+        () => false,
+        { tasks: [snapshotRow()], isCurrent: () => current, onTaskDeliveryStarted },
+        vi.fn(() => slotReady) as never
+      );
+      const delivery = capturedDeliver?.(snapshotRow(), config as never);
+      await Promise.resolve();
+      current = false;
+      resolveSlot({ harnessSessionId: 'harness-1' });
+      expect(await delivery).toEqual({ kind: 'cancelled' });
+      expect(onTaskDeliveryStarted).not.toHaveBeenCalled();
+      expect(deliverNativeTask).not.toHaveBeenCalled();
     } finally {
       reconcileSpy.mockRestore();
     }

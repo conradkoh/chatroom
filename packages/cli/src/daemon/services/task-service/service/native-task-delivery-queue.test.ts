@@ -151,6 +151,36 @@ describe('NativeTaskDeliveryQueue', () => {
     expect(sender).toHaveBeenCalledTimes(1);
   });
 
+  test('skips a queued entry whose captured attempt becomes stale', async () => {
+    const running = deferred();
+    const started = deferred();
+    const calls: string[] = [];
+    let current = true;
+    const queue = new NativeTaskDeliveryQueue(async ({ task: item }) => {
+      calls.push(item.taskId);
+      if (item.taskId === 'running') {
+        started.resolve();
+        await running.promise;
+      }
+    });
+    const first = queue.enqueue({
+      task: task('builder', 'running'),
+      harnessSessionId: undefined,
+      onTaskDelivered: undefined,
+    });
+    await started.promise;
+    const queued = queue.enqueue({
+      task: task('builder', 'stale-callback'),
+      harnessSessionId: undefined,
+      onTaskDelivered: undefined,
+      isCurrent: () => current,
+    });
+    current = false;
+    running.resolve();
+    await Promise.all([first, queued]);
+    expect(calls).toEqual(['running']);
+  });
+
   test('stop cancels queued work and observes detached tail failures', async () => {
     const running = deferred();
     const started = deferred();

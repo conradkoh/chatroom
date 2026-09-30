@@ -11,11 +11,20 @@ export type NativeTaskDeliveryQueueEntry = {
         harnessSessionId: string;
       }) => void)
     | undefined;
+  readonly isCurrent?: (() => boolean) | undefined;
 };
 
 type Sender = (entry: NativeTaskDeliveryQueueEntry) => Promise<void>;
 
 const roleKey = (chatroomId: string, role: string): string => `${chatroomId}:${role.toLowerCase()}`;
+
+function deliveryAttemptIsCurrent(entry: NativeTaskDeliveryQueueEntry): boolean {
+  return entry.isCurrent ? entry.isCurrent() : true;
+}
+
+function queueEpochIsCurrent(stopped: boolean, epoch: number, currentEpoch: number): boolean {
+  return !stopped && epoch === currentEpoch;
+}
 
 /**
  * Internal native-agent delivery scheduler. It serializes delivery per
@@ -37,7 +46,11 @@ export class NativeTaskDeliveryQueue {
     const next = previous
       .catch(() => undefined)
       .then(async () => {
-        if (this.stopped || epoch !== (this.epochs.get(key) ?? 0)) return;
+        if (
+          !queueEpochIsCurrent(this.stopped, epoch, this.epochs.get(key) ?? 0) ||
+          !deliveryAttemptIsCurrent(entry)
+        )
+          return;
         await this.sender(entry);
       });
     this.tails.set(key, next);
@@ -54,7 +67,6 @@ export class NativeTaskDeliveryQueue {
 
   // This role-scoped contract is consumed by the lifecycle gate in the next slice.
   /** Invalidates queued work immediately, then drains the previous role tail. */
-  // fallow-ignore-next-line unused-class-member
   invalidateRole(chatroomId: string, role: string): Promise<void> {
     const key = roleKey(chatroomId, role);
     this.epochs.set(key, (this.epochs.get(key) ?? 0) + 1);

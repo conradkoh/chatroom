@@ -38,6 +38,7 @@ export type ProcessTasksUpdateOptions = {
     args: TaskDeliveryLifecycleArgs & { reason: 'injection_not_confirmed' }
   ) => void;
   onTaskDelivered?: (args: TaskDeliveryLifecycleArgs) => void;
+  isCurrent?: () => boolean;
 };
 
 export async function processTasksUpdate(
@@ -50,9 +51,11 @@ export async function processTasksUpdate(
 ): Promise<readonly string[]> {
   const first = options.tasks[0];
   if (!first) return [];
+  const isCurrent = options.isCurrent ?? (() => true);
   logNativeDeliveryTrigger(pass, first.agentConfig.role, first.chatroomId, first.taskId);
   const executors = {
     deliverTask: async (task: AssignedTask, agentConfig: AgentConfigEntry | undefined) => {
+      if (!isCurrent()) return { kind: 'cancelled' as const };
       if (!agentConfig) return { kind: 'task-unavailable' as const };
       const startInput = {
         chatroomId: task.chatroomId,
@@ -83,6 +86,7 @@ export async function processTasksUpdate(
         taskId: task.taskId,
       };
       const fullBeforeSlot = await taskService.loadAssignedTaskForAction(taskLookup);
+      if (!isCurrent()) return { kind: 'cancelled' as const };
       if (!fullBeforeSlot) {
         taskService.forgetStaleTask(taskLookup);
         console.warn(
@@ -94,7 +98,9 @@ export async function processTasksUpdate(
         ...effectiveStartInput,
         timeoutMs: 30_000,
       });
+      if (!isCurrent()) return { kind: 'cancelled' as const };
       const full = await taskService.loadAssignedTaskForAction(taskLookup);
+      if (!isCurrent()) return { kind: 'cancelled' as const };
       if (!full) {
         taskService.forgetStaleTask(taskLookup);
         console.warn(
@@ -109,20 +115,29 @@ export async function processTasksUpdate(
         taskId: task.taskId,
         harnessSessionId: slot.harnessSessionId,
       };
+      if (!isCurrent()) return { kind: 'cancelled' as const };
       options.onTaskDeliveryStarted?.(delivery);
 
       let delivered: TaskDeliveryLifecycleArgs | undefined;
       try {
-        await taskService.deliverNativeTask(full, slot.harnessSessionId, (result) => {
-          delivered = result;
-        });
+        if (!isCurrent()) return { kind: 'cancelled' as const };
+        await taskService.deliverNativeTask(
+          full,
+          slot.harnessSessionId,
+          (result) => {
+            delivered = result;
+          },
+          isCurrent
+        );
       } catch (error) {
+        if (!isCurrent()) return { kind: 'cancelled' as const };
         options.onTaskDeliveryFailed?.({
           ...delivery,
           reason: 'injection_not_confirmed',
         });
         throw error;
       }
+      if (!isCurrent()) return { kind: 'cancelled' as const };
       if (!delivered) {
         options.onTaskDeliveryFailed?.({
           ...delivery,
@@ -141,5 +156,6 @@ export async function processTasksUpdate(
     isTaskActive,
     onTaskDelivered: options.onTaskDelivered,
     executors,
+    isCurrent,
   });
 }

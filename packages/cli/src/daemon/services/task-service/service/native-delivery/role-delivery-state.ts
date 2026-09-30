@@ -28,8 +28,10 @@ class RoleDeliveryState {
     return true;
   }
 
-  releaseDelivery(chatroomId: string, role: string): void {
-    this.inFlight.delete(roleKey(chatroomId, role));
+  releaseDelivery(chatroomId: string, role: string, generation?: number): void {
+    const key = roleKey(chatroomId, role);
+    if (generation !== undefined && this.getGeneration(chatroomId, role) !== generation) return;
+    this.inFlight.delete(key);
   }
 }
 

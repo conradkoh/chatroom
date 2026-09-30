@@ -5,6 +5,7 @@ import {
   NativeTaskDeliveryCoordinator,
   resetRoleDeliveryState,
 } from './native-task-delivery-coordinator.js';
+import { getRoleDeliveryState } from './role-delivery-state.js';
 import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
 
 const CHATROOM_ID = 'room_coordinator_facade';
@@ -126,6 +127,62 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
       taskId: TASK_ID,
       harnessSessionId: HARNESS_SESSION_ID,
     });
+  });
+
+  test('an invalidated completed pass neither reports success nor releases the new generation lock', async () => {
+    let resolveDelivery!: (value: any) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const delivered = vi.fn();
+    const recordDeliveryFailure = vi.fn();
+    const clearDeliveryFailure = vi.fn();
+    const coordinator = new NativeTaskDeliveryCoordinator();
+    const deliveryState = getRoleDeliveryState();
+    const isCurrent = vi.fn(() => true);
+    const taskService = {
+      isNativeHarness: () => true,
+      explainNativeDeliveryBlock: () => null,
+      isRedeliveryExhausted: () => false,
+      loadAssignedTaskForAction: async () => acknowledgedRow(),
+      recordDeliveryFailure,
+      clearDeliveryFailure,
+    };
+    const pass = coordinator.reconcileRoleTasks(
+      baseParams({
+        taskService,
+        configurationService: { get: () => ({ agentHarness: 'cursor-sdk' }), state: () => 'ready' },
+        isCurrent,
+        onTaskDelivered: delivered,
+        executors: {
+          deliverTask: () => {
+            markStarted();
+            return new Promise((resolve) => {
+              resolveDelivery = resolve;
+            });
+          },
+        },
+      })
+    );
+    await started;
+    isCurrent.mockReturnValue(false);
+    resetRoleDeliveryState(CHATROOM_ID, ROLE);
+    expect(deliveryState.tryAcquireDelivery(CHATROOM_ID, ROLE)).toBe(true);
+    resolveDelivery({
+      kind: 'delivered',
+      delivered: {
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        taskId: TASK_ID,
+        harnessSessionId: HARNESS_SESSION_ID,
+      },
+    });
+    await pass;
+    expect(delivered).not.toHaveBeenCalled();
+    expect(clearDeliveryFailure).not.toHaveBeenCalled();
+    expect(recordDeliveryFailure).not.toHaveBeenCalled();
+    expect(deliveryState.tryAcquireDelivery(CHATROOM_ID, ROLE)).toBe(false);
   });
 
   test('missing hydration skips delivery and preserves the task_hydration_missing warning', async () => {
