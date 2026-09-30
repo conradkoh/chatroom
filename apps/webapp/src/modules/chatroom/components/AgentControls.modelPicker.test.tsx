@@ -75,7 +75,13 @@ function mkMachine(): MachineInfo {
   };
 }
 
-function ModelPickerHarness({ ephemeral = false }: { ephemeral?: boolean }) {
+function ModelPickerHarness({
+  ephemeral = false,
+  withoutWorkspace = false,
+}: {
+  ephemeral?: boolean;
+  withoutWorkspace?: boolean;
+}) {
   const machines = [mkMachine()];
   const role = ephemeral ? 'architect' : 'builder';
   // Seeding config matching the machine so initialization picks machine-a + cursor
@@ -91,7 +97,7 @@ function ModelPickerHarness({ ephemeral = false }: { ephemeral?: boolean }) {
   const controls = useAgentControls({
     role: 'builder',
     chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
-    workspaceId: 'workspace-1',
+    workspaceId: withoutWorkspace ? undefined : 'workspace-1',
     connectedMachines: machines,
     agentConfigs: [seedingConfig],
     sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
@@ -169,11 +175,26 @@ describe('AgentControls model picker', () => {
     }
   );
 
-  it('shows a save action for an offline ephemeral role', async () => {
-    render(<ModelPickerHarness ephemeral />);
+  it('shows the stopped control row and opens model visibility from its filter button', async () => {
+    render(<ModelPickerHarness ephemeral withoutWorkspace />);
 
-    expect(await screen.findByRole('button', { name: 'Save Configuration' })).toBeInTheDocument();
-    expect(screen.getByTitle('Start Agent')).toBeInTheDocument();
+    const save = await screen.findByRole('button', { name: 'Save Configuration' });
+    const start = screen.getByRole('button', { name: 'Start Agent' });
+    const model = await screen.findByTitle('Select model');
+    const favorite = await screen.findByRole('button', { name: 'Add current config to favorites' });
+    const filter = screen.getByRole('button', { name: 'Configure visible models' });
+
+    expect(save).toBeDisabled();
+    expect(save.textContent).toBe('');
+    expect(model.compareDocumentPosition(favorite) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      favorite.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(filter.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(save.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(filter);
+    expect(await screen.findByText('Model Visibility')).toBeInTheDocument();
   });
 
   it('renders drawer on mobile when model trigger clicked', async () => {

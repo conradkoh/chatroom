@@ -123,7 +123,13 @@ describe('ModelFilter visibility while agent is running', () => {
     );
 
     const filterBtn = await waitFor(() => screen.getByTitle('Configure visible models'));
+    const stop = screen.getByRole('button', { name: 'Stop Agent' });
+    const restart = screen.getByRole('button', { name: 'Restart Agent' });
+
     expect(filterBtn).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save Configuration' })).not.toBeInTheDocument();
+    expect(filterBtn.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(stop.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('the filter button is clickable when agent is running', async () => {
@@ -167,5 +173,44 @@ describe('ModelFilter visibility while agent is running', () => {
     );
 
     expect(await waitFor(() => screen.getByTitle('Stop Agent'))).toBeInTheDocument();
+  });
+
+  it('keeps an unavailable model selector visible and disabled while stopped', async () => {
+    const user = userEvent.setup();
+    render(<RunningModelFilterHarness />);
+
+    const modelLabel = await screen.findByText('No models available', { exact: true });
+    const selector = modelLabel.closest('button');
+    const start = screen.getByRole('button', { name: 'Start Agent' });
+
+    expect(selector).not.toBeNull();
+    expect(selector).toBeDisabled();
+    expect(
+      selector!.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    await user.click(selector!);
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
+  });
+
+  it('keeps an unavailable model slot visible while running', async () => {
+    render(
+      <RunningModelFilterHarness
+        runtimeIsRunning
+        runningAgentConfig={{
+          machineId: 'a',
+          hostname: 'host-a',
+          role: 'builder',
+          agentType: 'cursor',
+          workingDir: '/workspace',
+          model: 'openai/gpt-4o',
+          availableHarnesses: ['cursor'],
+          updatedAt: Date.now(),
+        }}
+      />
+    );
+
+    expect(await screen.findByText('No models available', { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stop Agent' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restart Agent' })).toBeInTheDocument();
   });
 });

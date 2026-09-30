@@ -745,7 +745,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   setupMode = false,
 }: RemoteTabContentProps) {
   const {
-    workspaceId,
     selectedMachineId,
     selectedHarness,
     selectedModel,
@@ -928,6 +927,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     availableModels: availableModelsForHarness,
     selectedModel: displayModel,
   });
+  const modelUnavailable = !displayMachineId || !displayHarness || !hasModels;
 
   return (
     <div className="space-y-2">
@@ -1157,45 +1157,47 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
           {/* Row 3: Model + Start/Stop */}
           <div className="flex items-center gap-2">
-            {hasModels ? (
-              <div className="flex items-center gap-1 flex-1 min-w-0">
-                {isAgentRunning ? (
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className={cn(
-                        'w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 flex items-center justify-between',
-                        isSelectedModelHidden && 'text-chatroom-status-warning'
-                      )}
-                    >
-                      <span className="truncate">
-                        {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
-                      </span>
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              {isAgentRunning ? (
+                <div className="flex-1 min-w-0">
+                  <div
+                    className={cn(
+                      'w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 flex items-center justify-between',
+                      !modelUnavailable && isSelectedModelHidden && 'text-chatroom-status-warning'
+                    )}
+                  >
+                    <span className="truncate">
+                      {modelUnavailable
+                        ? 'No models available'
+                        : displayModel
+                          ? getModelDisplayLabel(displayModel)
+                          : 'Model...'}
+                    </span>
+                    {!modelUnavailable && (
                       <ModelPickerMeta
                         isSelectedModelHidden={isSelectedModelHidden}
                         filter={modelFilter.filter}
                       />
-                    </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex-1 min-w-0">
-                    <ModelPickerField
-                      machineId={displayMachineId}
-                      harness={displayHarness}
-                      availableModels={availableModelsForHarness}
-                      value={displayModel ?? ''}
-                      onValueChange={(m) => handleModelChange(m || null)}
-                      disabled={isBusy || !displayHarness}
-                      triggerVariant="chatroom"
-                      allowDeselect={false}
-                      placeholder="Model..."
-                      className="gap-1"
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex-1" />
-            )}
+                </div>
+              ) : (
+                <div className="flex-1 min-w-0">
+                  <ModelPickerField
+                    machineId={displayMachineId}
+                    harness={displayHarness}
+                    availableModels={availableModelsForHarness}
+                    value={modelUnavailable ? '' : (displayModel ?? '')}
+                    onValueChange={(m) => handleModelChange(m || null)}
+                    disabled={isBusy || modelUnavailable}
+                    triggerVariant="chatroom"
+                    allowDeselect={false}
+                    placeholder="Model..."
+                    className="gap-1"
+                  />
+                </div>
+              )}
+            </div>
 
             {displayMachineId && currentMachineConfigEntry && (
               <button
@@ -1232,7 +1234,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               </button>
             )}
 
-            {displayMachineId && displayHarness && isAgentRunning && (
+            {displayMachineId && displayHarness && (
               <ModelFilterButton
                 filter={modelFilter}
                 availableModels={availableModelsForHarness}
@@ -1244,7 +1246,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             {/* Action Buttons */}
             {!setupMode && (
               <div className="flex items-center gap-1 flex-shrink-0">
-                {!isAgentRunning && workspaceId && (
+                {!isAgentRunning && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1253,15 +1255,14 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                     }}
                     disabled={!canSave}
                     aria-label="Save Configuration"
-                    className={`h-7 px-2 flex items-center gap-1 text-[10px] uppercase tracking-wide transition-all ${
+                    className={`w-7 h-7 flex items-center justify-center transition-all ${
                       canSave
                         ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
                         : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
                     }`}
                     title="Save configuration"
                   >
-                    {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                    <span>Save</span>
+                    {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   </button>
                 )}
                 {isAgentRunning ? (

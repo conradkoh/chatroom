@@ -1,7 +1,6 @@
 'use client';
 
 import { MODEL_PICKER_PANEL_WIDTH } from './constants';
-import { ModelFilterButton } from './ModelFilterButton';
 import { ModelSelect } from './ModelSelect';
 import type { ModelSelectTriggerVariant } from './types';
 import { useHarnessModelPicker } from './useHarnessModelPicker';
@@ -18,7 +17,6 @@ export interface ModelPickerFieldProps {
   triggerVariant?: ModelSelectTriggerVariant;
   allowDeselect?: boolean;
   placeholder?: string;
-  filterButtonVariant?: 'harness' | 'chatroom';
   className?: string;
 }
 
@@ -32,7 +30,6 @@ export function ModelPickerField({
   triggerVariant = 'chatroom',
   allowDeselect = false,
   placeholder,
-  filterButtonVariant,
   className,
 }: ModelPickerFieldProps) {
   const { modelFilter, modelGroups, isSelectedModelHidden } = useHarnessModelPicker({
@@ -43,10 +40,9 @@ export function ModelPickerField({
   });
 
   const resolvedPlaceholder =
-    placeholder ?? (!harness ? 'Select a harness first' : 'Select a model');
-
-  const resolvedFilterVariant =
-    filterButtonVariant ?? (triggerVariant === 'chatroom' ? 'chatroom' : 'harness');
+    !machineId || !harness || modelGroups.length === 0
+      ? 'No models available'
+      : (placeholder ?? 'Select a model');
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
@@ -56,7 +52,7 @@ export function ModelPickerField({
           value={value}
           onValueChange={onValueChange}
           isHidden={modelFilter.isHidden}
-          disabled={disabled || !harness}
+          disabled={disabled || !machineId || !harness}
           triggerVariant={triggerVariant}
           contentClassName={MODEL_PICKER_PANEL_WIDTH}
           selectedHidden={isSelectedModelHidden}
@@ -65,14 +61,6 @@ export function ModelPickerField({
           placeholder={resolvedPlaceholder}
         />
       </div>
-      {harness && (
-        <ModelFilterButton
-          filter={modelFilter}
-          availableModels={availableModels}
-          disabled={disabled}
-          variant={resolvedFilterVariant}
-        />
-      )}
     </div>
   );
 }
