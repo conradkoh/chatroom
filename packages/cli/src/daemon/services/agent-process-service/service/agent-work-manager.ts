@@ -70,6 +70,20 @@ export interface AgentWorkManagerDependencies {
   readonly taskService: TaskService;
 }
 
+type RoleRecoveryGate = {
+  readonly drainPromise: Promise<void>;
+  readonly completion: Promise<void>;
+  readonly resolveCompletion: () => void;
+  readonly pid?: number;
+  readonly harnessSessionId?: string;
+  retryTimer: ReturnType<typeof setTimeout> | undefined;
+  retryAttempts: number;
+  recoveryPromise: Promise<{ released: number }> | undefined;
+};
+
+const recoveryKey = (chatroomId: string, role: string): string =>
+  `${chatroomId}:${role.toLowerCase()}`;
+
 /**
  * Per-daemon native delivery application service.
  *
@@ -92,6 +106,8 @@ export class AgentWorkManager {
   private unsubscribeTaskService: (() => void) | undefined;
   private readonly nativeTaskDeliveryQueue: NativeTaskDeliveryQueue;
   private readonly deliveryTaskService: TaskDeliveryService;
+  private readonly recoveryGates = new Map<string, RoleRecoveryGate>();
+  private disposed = false;
 
   constructor(private readonly deps: AgentWorkManagerDependencies) {
     const gateway = createConvexNativeTaskDeliveryGateway(deps.sessionDeps.backend);
@@ -111,6 +127,7 @@ export class AgentWorkManager {
           runSerializedForAgent: deps.runSerializedForAgent,
           lifecycleOutbox: deps.lifecycleOutbox,
           onTaskDelivered: entry.onTaskDelivered,
+          ...(entry.isCurrent ? { isCurrent: entry.isCurrent } : {}),
         })
       );
     });
@@ -125,8 +142,13 @@ export class AgentWorkManager {
       clearRedeliveryTracking: deps.taskService.clearRedeliveryTracking,
       forgetStaleTask: deps.taskService.forgetStaleTask,
       loadAssignedTaskForAction: deps.taskService.loadAssignedTaskForAction,
-      deliverNativeTask: (task, harnessSessionId, onTaskDelivered) =>
-        this.nativeTaskDeliveryQueue.enqueue({ task, harnessSessionId, onTaskDelivered }),
+      deliverNativeTask: (task, harnessSessionId, onTaskDelivered, isCurrent) =>
+        this.nativeTaskDeliveryQueue.enqueue({
+          task,
+          harnessSessionId,
+          onTaskDelivered,
+          isCurrent,
+        }),
     };
     this.unsubscribeAgentTurnEnded = deps.agentMgr.subscribeAgentTurnEnded((event) =>
       this.handleAgentTurnEnded(event)
@@ -154,6 +176,7 @@ export class AgentWorkManager {
   }
 
   async handleAgentStarted(event: AgentStartedEvent): Promise<void> {
+    await this.waitForRoleRecovery(event.chatroomId, event.role);
     // A new agent process/session cannot still be executing the task recorded
     // by the previous process. Clear the local dedup marker before the first
     // post-start reconciliation so a stop/start cycle can recover delivery.
@@ -174,17 +197,124 @@ export class AgentWorkManager {
   }
 
   handleAgentSessionLost(event: AgentSessionLostEvent): void {
-    getRoleDeliveryState().resetDeliveryState(event.chatroomId, event.role);
-    this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
-    void this.requestReconcile({
-      chatroomId: event.chatroomId,
-      role: event.role,
-      source: 'agent-session-lost',
-    }).catch((error: unknown) => {
-      console.warn(
-        `[NativeDelivery:failure] role=${event.role} chatroom=${event.chatroomId} operation=session-loss-reconcile error=${error instanceof Error ? error.message : String(error)}`
-      );
+    if (event.cause !== 'unexpected_exit' || this.disposed) return;
+    const slot = this.deps.agentMgr.getSlot(event.chatroomId, event.role);
+    if (
+      (event.pid !== undefined && slot?.pid !== event.pid) ||
+      (event.harnessSessionId !== undefined && slot?.harnessSessionId !== event.harnessSessionId)
+    )
+      return;
+    const key = recoveryKey(event.chatroomId, event.role);
+    if (this.recoveryGates.has(key)) return;
+    void this.prepareRoleRecovery(event)
+      .then(() =>
+        this.recoverStoppedRole({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          mode: 'automatic',
+        })
+      )
+      .catch((error: unknown) => {
+        console.warn(
+          `[AgentWorkManager] recovery failed room=${event.chatroomId} role=${event.role} phase=automatic error=${error instanceof Error ? error.message : String(error)}`
+        );
+        this.scheduleRecoveryRetry(event.chatroomId, event.role);
+      });
+  }
+
+  async prepareRoleRecovery(args: {
+    chatroomId: string;
+    role: string;
+    pid?: number | undefined;
+    harnessSessionId?: string | undefined;
+  }): Promise<void> {
+    const key = recoveryKey(args.chatroomId, args.role);
+    const existing = this.recoveryGates.get(key);
+    if (existing) return existing.drainPromise;
+    let resolveCompletion!: () => void;
+    const completion = new Promise<void>((resolve) => {
+      resolveCompletion = resolve;
     });
+    getRoleDeliveryState().resetDeliveryState(args.chatroomId, args.role);
+    const drainPromise = this.nativeTaskDeliveryQueue.invalidateRole(args.chatroomId, args.role);
+    const gate: RoleRecoveryGate = {
+      drainPromise,
+      completion,
+      resolveCompletion,
+      ...(args.pid === undefined ? {} : { pid: args.pid }),
+      ...(args.harnessSessionId ? { harnessSessionId: args.harnessSessionId } : {}),
+      retryAttempts: 0,
+      retryTimer: undefined,
+      recoveryPromise: undefined,
+    };
+    this.recoveryGates.set(key, gate);
+    await drainPromise;
+    if (this.recoveryGates.get(key) === gate) {
+      this.deps.agentTaskState.clear(args);
+    }
+  }
+
+  async recoverStoppedRole(args: {
+    chatroomId: string;
+    role: string;
+    mode: 'automatic' | 'explicit';
+  }): Promise<{ released: number }> {
+    const key = recoveryKey(args.chatroomId, args.role);
+    const gate = this.recoveryGates.get(key);
+    if (!gate)
+      throw new Error(`role recovery gate not prepared for ${args.role}@${args.chatroomId}`);
+    if (gate.recoveryPromise) return gate.recoveryPromise;
+    gate.recoveryPromise = (async () => {
+      await gate.drainPromise;
+      const result = await this.deps.taskService.recoverInFlightTasks(args);
+      if (this.recoveryGates.get(key) === gate) {
+        if (gate.retryTimer) clearTimeout(gate.retryTimer);
+        this.recoveryGates.delete(key);
+        gate.resolveCompletion();
+        if (!this.disposed) {
+          void this.requestReconcile({
+            chatroomId: args.chatroomId,
+            role: args.role,
+            source: 'agent-session-lost',
+          }).catch((error: unknown) => {
+            console.warn(
+              `[AgentWorkManager] post-recovery reconcile failed room=${args.chatroomId} role=${args.role}: ${error instanceof Error ? error.message : String(error)}`
+            );
+          });
+        }
+      }
+      return { released: result.released };
+    })();
+    try {
+      return await gate.recoveryPromise;
+    } finally {
+      gate.recoveryPromise = undefined;
+    }
+  }
+
+  private async waitForRoleRecovery(chatroomId: string, role: string): Promise<void> {
+    while (true) {
+      const gate = this.recoveryGates.get(recoveryKey(chatroomId, role));
+      if (!gate) return;
+      await gate.completion;
+    }
+  }
+
+  private scheduleRecoveryRetry(chatroomId: string, role: string): void {
+    const gate = this.recoveryGates.get(recoveryKey(chatroomId, role));
+    if (!gate || gate.retryTimer || this.disposed) return;
+    const delay = Math.min(30_000, 1_000 * 2 ** gate.retryAttempts++);
+    gate.retryTimer = setTimeout(() => {
+      gate.retryTimer = undefined;
+      void this.recoverStoppedRole({ chatroomId, role, mode: 'automatic' }).catch(
+        (error: unknown) => {
+          console.warn(
+            `[AgentWorkManager] recovery retry failed room=${chatroomId} role=${role} phase=automatic error=${error instanceof Error ? error.message : String(error)}`
+          );
+          this.scheduleRecoveryRetry(chatroomId, role);
+        }
+      );
+    }, delay);
   }
 
   /**
@@ -339,6 +469,15 @@ export class AgentWorkManager {
   }
 
   dispose(): void {
+    this.disposed = true;
+    for (const gate of this.recoveryGates.values()) {
+      if (gate.retryTimer) clearTimeout(gate.retryTimer);
+      gate.retryTimer = undefined;
+      void gate.drainPromise.catch(() => undefined);
+      void gate.recoveryPromise?.catch(() => undefined);
+      gate.resolveCompletion();
+    }
+    this.recoveryGates.clear();
     this.unsubscribeAgentTurnEnded();
     this.unsubscribeAgentStarted();
     this.unsubscribeAgentSessionLost();
@@ -482,6 +621,7 @@ export class AgentWorkManager {
     source: AgentWorkPass;
     onTaskDelivered?: AgentTaskDeliveredHandler;
   }): Promise<readonly string[]> {
+    if (this.disposed) return [];
     const key = `${params.chatroomId}:${params.role.toLowerCase()}`;
     const existing = this.reconcileStates.get(key);
     if (existing) {
@@ -503,8 +643,16 @@ export class AgentWorkManager {
         do {
           const source = state.pendingSource ?? params.source;
           state.pendingSource = undefined;
+          await this.waitForRoleRecovery(params.chatroomId, params.role);
+          if (this.disposed) return delivered;
+          const generation = getRoleDeliveryState().getGeneration(params.chatroomId, params.role);
+          const isCurrent = () =>
+            !this.recoveryGates.has(key) &&
+            getRoleDeliveryState().getGeneration(params.chatroomId, params.role) === generation;
           const tasks = this.deps.taskInboxState.listForRole(params.chatroomId, params.role);
-          delivered.push(...(await this.reconcileRole(source, tasks, params.onTaskDelivered)));
+          delivered.push(
+            ...(await this.reconcileRole(source, tasks, params.onTaskDelivered, isCurrent))
+          );
         } while (state.pendingSource !== undefined);
       } finally {
         if (this.reconcileStates.get(key) === state) this.reconcileStates.delete(key);
@@ -559,7 +707,8 @@ export class AgentWorkManager {
   private async reconcileRole(
     pass: AgentWorkPass,
     tasks: readonly AssignedTask[],
-    onTaskDelivered?: AgentTaskDeliveredHandler
+    onTaskDelivered?: AgentTaskDeliveredHandler,
+    isCurrent: () => boolean = () => true
   ): Promise<readonly string[]> {
     if (tasks.length === 0) return [];
     return processTasksUpdate(
@@ -570,6 +719,7 @@ export class AgentWorkManager {
         this.deps.agentTaskState.get({ chatroomId, role })?.taskId === taskId,
       {
         tasks,
+        isCurrent,
         onTaskDeliveryStarted: (args) => this.recordTaskDeliveryStarted(args),
         onTaskDeliveryFailed: (args) => this.recordTaskDeliveryFailed(args),
         onTaskDelivered: (args) => {

@@ -199,6 +199,7 @@ describe('AgentProcessManager', () => {
   test('scoped stop cleanup emits session loss even when the process is already stopped', async () => {
     const onSessionLost = vi.fn();
     manager.subscribeAgentSessionLost(onSessionLost);
+    await manager.ensureRunning(createOpts());
 
     await manager.syncSlotsAfterScopedStop({
       targets: [
@@ -207,6 +208,7 @@ describe('AgentProcessManager', () => {
             chatroomId: CHATROOM_ID,
             role: ROLE,
             pid: PID,
+            workingDir: '/tmp/test',
           },
         },
       ],
@@ -215,7 +217,22 @@ describe('AgentProcessManager', () => {
     expect(onSessionLost).toHaveBeenCalledWith({
       chatroomId: CHATROOM_ID,
       role: ROLE,
+      cause: 'confirmed_user_stop',
+      pid: PID,
     });
+  });
+
+  test('stale scoped stop target does not notify or clear a replacement slot', async () => {
+    const onSessionLost = vi.fn();
+    manager.subscribeAgentSessionLost(onSessionLost);
+    await manager.ensureRunning(createOpts());
+    await manager.syncSlotsAfterScopedStop({
+      targets: [
+        { target: { chatroomId: CHATROOM_ID, role: ROLE, pid: PID + 1, workingDir: '/tmp/test' } },
+      ],
+    });
+    expect(onSessionLost).not.toHaveBeenCalled();
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBe(PID);
   });
 
   // ── ensureRunning ─────────────────────────────────────────────────────
@@ -1498,6 +1515,58 @@ describe('AgentProcessManager', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).not.toBe('turn_in_flight');
       expect(turnEnded).not.toHaveBeenCalled();
+    });
+
+    test('unexpected native exit reports cause and old process identity after exit guards', async () => {
+      type SpawnExitCallback = Parameters<NonNullable<SpawnResult['onExit']>>[0];
+      let onExit: SpawnExitCallback | undefined;
+      const service = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-loss-1',
+          onExit: (cb: SpawnExitCallback) => {
+            onExit = cb;
+          },
+          onOutput: vi.fn(),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+      const onSessionLost = vi.fn();
+      manager.subscribeAgentSessionLost(onSessionLost);
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      onExit?.({
+        code: 1,
+        signal: null,
+        context: { machineId: 'test-machine', chatroomId: CHATROOM_ID, role: ROLE },
+      });
+      expect(onSessionLost).toHaveBeenCalledWith({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        cause: 'unexpected_exit',
+        pid: PID,
+        harnessSessionId: 'sess-loss-1',
+      });
+    });
+
+    test('stale exit callback for an old PID does not notify or reset the replacement slot', async () => {
+      await manager.ensureRunning(createOpts());
+      const onSessionLost = vi.fn();
+      manager.subscribeAgentSessionLost(onSessionLost);
+      await manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        workingDir: '/tmp/test',
+        pid: PID + 1,
+        code: 1,
+        signal: null,
+      } as never);
+      expect(onSessionLost).not.toHaveBeenCalled();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBe(PID);
     });
 
     test('native turn-end waits for an async handler disposition before resetting nativeTurnPhase', async () => {
