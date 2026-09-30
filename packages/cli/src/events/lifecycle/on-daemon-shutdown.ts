@@ -1,5 +1,5 @@
 import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
-import { Effect } from 'effect';
+import { Cause, Effect } from 'effect';
 
 import { api } from '../../api.js';
 import {
@@ -19,7 +19,6 @@ const stopAgentFromSnapshot = (
   agentPm: DaemonAgentProcessManagerServiceShape,
   { chatroomId, role, slot }: ActiveAgent
 ): Effect.Effect<boolean> => {
-  let stopThrew = false;
   return Effect.try({
     try: () =>
       agentPm.stop({
@@ -33,19 +32,18 @@ const stopAgentFromSnapshot = (
   }).pipe(
     Effect.flatMap((stopEffect) => stopEffect),
     Effect.map(({ success }) => success),
-    Effect.catchAll((error) =>
-      Effect.sync(() => {
-        stopThrew = true;
-        console.warn(`   ⚠️  Failed to stop ${role}@${chatroomId}: ${errorMessage(error)}`);
-        return false;
-      })
-    ),
     Effect.tap((success) =>
-      !success && !stopThrew
+      !success
         ? Effect.sync(() =>
             console.warn(`   ⚠️  Failed to stop ${role}@${chatroomId}: stop was not confirmed`)
           )
         : Effect.void
+    ),
+    Effect.catchAllCause((cause) =>
+      Effect.sync(() => {
+        console.warn(`   ⚠️  Failed to stop ${role}@${chatroomId}: ${Cause.pretty(cause)}`);
+        return false;
+      })
     )
   );
 };

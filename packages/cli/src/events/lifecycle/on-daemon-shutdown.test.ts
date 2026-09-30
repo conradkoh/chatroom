@@ -110,6 +110,32 @@ describe('onDaemonShutdownEffect', () => {
     );
   });
 
+  test('continues stopping agents after a rejected stop promise', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const stop = vi
+      .fn()
+      .mockReturnValueOnce(Effect.promise(() => Promise.reject(new Error('process unavailable'))))
+      .mockReturnValueOnce(Effect.succeed({ success: true }));
+    const recover = vi.fn();
+    const { effect, session } = runShutdown({
+      activeAgents: [
+        { chatroomId: 'room-a', role: 'planner', slot: { pid: 101, workingDir: '/a' } },
+        { chatroomId: 'room-b', role: 'builder', slot: { pid: 202, workingDir: '/b' } },
+      ],
+      stop,
+      recover,
+    });
+
+    await expect(effect).resolves.toBeUndefined();
+
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(stop.mock.invocationCallOrder[0]).toBeLessThan(stop.mock.invocationCallOrder[1]);
+    expect(recover).not.toHaveBeenCalled();
+    expect(warn.mock.calls.flat().join(' ')).toContain('planner@room-a');
+    expect(warn.mock.calls.flat().join(' ')).toContain('process unavailable');
+    expect(session.backend.mutation).toHaveBeenCalledTimes(1);
+  });
+
   test('skips all recovery when a stop returns success false', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const stop = vi.fn().mockReturnValue(Effect.succeed({ success: false }));
