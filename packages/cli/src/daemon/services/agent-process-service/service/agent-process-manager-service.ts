@@ -451,6 +451,11 @@ export function createAgentProcessManagerService(
 
     while (true) {
       assertNotAborted(input.signal);
+      if (
+        deps.execution.isStopRequested(input.chatroomId, input.role, undefined, input.workingDir)
+      ) {
+        return null;
+      }
       const slot = deps.execution.getSlot(input.chatroomId, input.role, input.workingDir);
       if (!slot || slot.state === 'idle' || (isSlotRunning(slot.state) && slot.pid === undefined)) {
         return null;

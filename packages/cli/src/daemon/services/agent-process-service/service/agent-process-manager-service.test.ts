@@ -436,6 +436,38 @@ describe('AgentProcessManagerService', () => {
     );
   });
 
+  it('returns waiting for a ready slot when stop intent is already marked', async () => {
+    const slot = {
+      state: 'running',
+      pid: 55,
+      harness: 'cursor-sdk',
+      model: 'gpt-4',
+      workingDir: '/tmp/workspace',
+      harnessSessionId: 'session-55',
+      nativeTurnPhase: 'idle',
+    };
+    const execution = {
+      ...createExecution([]),
+      getSlot: vi.fn(() => slot as never),
+      isStopRequested: vi.fn(() => true),
+      stop: vi.fn(async () => ({ success: true })),
+      ensureRunning: vi.fn(async () => ({ success: true })),
+    };
+    const service = createAgentProcessManagerService({
+      execution,
+      notifier: new InMemoryCommandNotifier(),
+    });
+
+    await expect(
+      service.acquireNativeDeliverySlot({
+        ...startInput('room-1', 'builder'),
+        agentHarness: 'cursor-sdk',
+      })
+    ).resolves.toBeNull();
+    expect(execution.stop).not.toHaveBeenCalled();
+    expect(execution.ensureRunning).not.toHaveBeenCalled();
+  });
+
   it('does not replace a live slot when stop intent appears before the lock', async () => {
     let stopRequested = false;
     const slot = {

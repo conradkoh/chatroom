@@ -67,6 +67,7 @@ export async function ensureColdSessionBeforeNativeInject(
   const { chatroomId, agentConfig: taskAgentConfig, taskId } = task;
   const { role } = taskAgentConfig;
 
+  if (deps.agentMgr.isStopRequested(chatroomId, role)) return null;
   const slot = deps.agentMgr.getSlot(chatroomId, role);
   const agentConfig =
     deps.configurationService?.get(chatroomId, role) ??
@@ -85,7 +86,12 @@ export async function ensureColdSessionBeforeNativeInject(
       { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
       async (ops, context) => {
         const current = deps.agentMgr.getSlot(chatroomId, role);
-        if (!isSameRunningProcess(current, expectedPid)) return null;
+        if (
+          deps.agentMgr.isStopRequested(chatroomId, role) ||
+          !isSameRunningProcess(current, expectedPid)
+        ) {
+          return null;
+        }
 
         await ops.stopAgent(
           {

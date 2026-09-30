@@ -122,4 +122,5 @@ export interface NativeTaskDeliveryAuditPort {
 export interface NativeTaskDeliveryAgentPort {
   resumeTurnForSlot(args: { chatroomId: string; role: string; prompt: string }): Promise<void>;
   getSlot(chatroomId: string, role: string): AgentProcessSlotView | undefined;
+  isStopRequested(chatroomId: string, role: string): boolean;
 }

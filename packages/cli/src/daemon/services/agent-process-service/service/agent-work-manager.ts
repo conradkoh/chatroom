@@ -120,6 +120,7 @@ export class AgentWorkManager {
           agentMgr: {
             resumeTurnForSlot: (args) => Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args)),
             getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
+            isStopRequested: (chatroomId, role) => deps.agentMgr.isStopRequested(chatroomId, role),
           },
           taskGateway: gateway,
           audit,

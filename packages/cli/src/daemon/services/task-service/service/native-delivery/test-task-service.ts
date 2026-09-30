@@ -28,6 +28,7 @@ type ReconcileLike = {
   };
   agentMgr: {
     getSlot: (chatroomId: string, role: string) => unknown;
+    isStopRequested?: (chatroomId: string, role: string) => boolean;
     resumeTurnForSlot: (args: { chatroomId: string; role: string; prompt: string }) => unknown;
   };
   runSerializedForAgent: unknown;
@@ -64,6 +65,7 @@ export function withTestTaskService<T extends ReconcileLike>(
                 : Effect.runPromise(result);
             },
             getSlot: params.agentMgr.getSlot as never,
+            isStopRequested: params.agentMgr.isStopRequested ?? (() => false),
           },
           runSerializedForAgent: params.runSerializedForAgent as never,
           taskGateway,

@@ -58,6 +58,7 @@ function createService(
         return () => undefined;
       },
       getSlot: options.getSlot ?? (() => undefined),
+      isStopRequested: () => false,
     } as never,
     runSerializedForAgent: (async (_key: never, _options: never, operation: any) =>
       operation(

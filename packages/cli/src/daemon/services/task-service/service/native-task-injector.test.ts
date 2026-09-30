@@ -46,6 +46,7 @@ function createAgentMgrMocks(
 ): NativeInjectorDeps['agentMgr'] {
   return {
     resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
+    isStopRequested: vi.fn(() => false),
     // Existing running session with old context: cold path must stop it first.
     getSlot: vi.fn().mockReturnValue({
       state: 'running',

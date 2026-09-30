@@ -39,6 +39,7 @@ function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTas
 function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps {
   const agentMgr: NativeInjectorDeps['agentMgr'] = {
     resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
+    isStopRequested: vi.fn(() => false),
     getSlot: vi
       .fn()
       .mockReturnValue({ state: 'running', pid: 42, harnessSessionId: 'sess_after_cold' }),
@@ -174,6 +175,49 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     ).resolves.toBeNull();
     expect(serializedStop).not.toHaveBeenCalled();
     expect(serializedStart).not.toHaveBeenCalled();
+  });
+
+  test('does not serialize a cold replacement when stop intent already exists', async () => {
+    const stopAgent = vi.fn().mockResolvedValue(undefined);
+    const startAgent = vi.fn().mockResolvedValue(undefined);
+    const deps = createDeps({
+      agentMgr: {
+        ...createDeps().agentMgr,
+        isStopRequested: vi.fn(() => true),
+      },
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation({ startAgent, stopAgent }, { signal: new AbortController().signal })
+      ),
+    });
+
+    await expect(
+      ensureColdSessionBeforeNativeInject(makeTask({ startInNewSession: true }), deps)
+    ).resolves.toBeNull();
+    expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
+    expect(stopAgent).not.toHaveBeenCalled();
+    expect(startAgent).not.toHaveBeenCalled();
+  });
+
+  test('does not replace a process when stop intent appears before the callback', async () => {
+    let stopRequested = false;
+    const stopAgent = vi.fn().mockResolvedValue(undefined);
+    const startAgent = vi.fn().mockResolvedValue(undefined);
+    const deps = createDeps({
+      agentMgr: {
+        ...createDeps().agentMgr,
+        isStopRequested: vi.fn(() => stopRequested),
+      },
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) => {
+        stopRequested = true;
+        return operation({ startAgent, stopAgent }, { signal: new AbortController().signal });
+      }),
+    });
+
+    await expect(
+      ensureColdSessionBeforeNativeInject(makeTask({ startInNewSession: true }), deps)
+    ).resolves.toBeNull();
+    expect(stopAgent).not.toHaveBeenCalled();
+    expect(startAgent).not.toHaveBeenCalled();
   });
 
   test('returns null when cold spawn fails', async () => {
