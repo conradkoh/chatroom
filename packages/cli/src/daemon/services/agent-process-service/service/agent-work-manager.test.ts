@@ -629,6 +629,7 @@ describe('AgentWorkManager', () => {
       recoverInFlightTasks,
     });
     onSessionLost?.({ chatroomId: 'room-1', role: 'Builder', cause: 'unexpected_exit' } as never);
+    onSessionLost?.({ chatroomId: 'room-1', role: 'builder', cause: 'unexpected_exit' } as never);
     expect((service as any).recoveryGates.has('room-1:builder')).toBe(true);
     await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledOnce());
     expect(recoverInFlightTasks).toHaveBeenCalledWith({
@@ -637,6 +638,27 @@ describe('AgentWorkManager', () => {
       mode: 'automatic',
     });
     expect((service as any).recoveryGates.has('room-1:builder')).toBe(false);
+    service.dispose();
+  });
+
+  test('ignores an exit callback whose PID belongs to a replaced slot', () => {
+    let onSessionLost: ((event: never) => void) | undefined;
+    const recoverInFlightTasks = vi.fn();
+    const service = createService({
+      onSessionLost: (handler) => {
+        onSessionLost = handler;
+      },
+      getSlot: () => ({ state: 'running', pid: 99 }),
+      recoverInFlightTasks,
+    });
+    onSessionLost?.({
+      chatroomId: 'room-1',
+      role: 'builder',
+      cause: 'unexpected_exit',
+      pid: 41,
+    } as never);
+    expect((service as any).recoveryGates.size).toBe(0);
+    expect(recoverInFlightTasks).not.toHaveBeenCalled();
     service.dispose();
   });
 
@@ -698,6 +720,31 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(1_000);
       await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledTimes(2));
       expect((service as any).recoveryGates.has('room-1:builder')).toBe(false);
+    } finally {
+      service.dispose();
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('dispose cancels scheduled automatic recovery retries', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let onSessionLost: ((event: never) => void) | undefined;
+    const recoverInFlightTasks = vi.fn().mockRejectedValue(new Error('backend unavailable'));
+    const service = createService({
+      onSessionLost: (handler) => {
+        onSessionLost = handler;
+      },
+      recoverInFlightTasks,
+    });
+    try {
+      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', cause: 'unexpected_exit' } as never);
+      await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledTimes(1));
+      expect((service as any).recoveryGates.get('room-1:builder')?.retryTimer).toBeDefined();
+      service.dispose();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(recoverInFlightTasks).toHaveBeenCalledTimes(1);
     } finally {
       service.dispose();
       warn.mockRestore();
