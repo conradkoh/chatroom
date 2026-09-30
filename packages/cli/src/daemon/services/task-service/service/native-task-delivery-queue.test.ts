@@ -77,6 +77,7 @@ describe('NativeTaskDeliveryQueue', () => {
       'enqueue',
       'invalidateRole',
       'stop',
+      'stopAndDrain',
     ]);
     const source = readFileSync(
       new URL('./native-task-delivery-queue.ts', import.meta.url),
@@ -214,6 +215,42 @@ describe('NativeTaskDeliveryQueue', () => {
     running.resolve();
     await expect(first).rejects.toThrow('sender failed');
     await expect(queued).resolves.toBeUndefined();
+    expect(calls).toEqual(['running']);
+  });
+
+  test('stopAndDrain waits for a running sender and cancels queued senders', async () => {
+    const running = deferred();
+    const started = deferred();
+    const calls: string[] = [];
+    const queue = new NativeTaskDeliveryQueue(async ({ task: item }) => {
+      calls.push(item.taskId);
+      if (item.taskId === 'running') {
+        started.resolve();
+        await running.promise;
+      }
+    });
+    const active = queue.enqueue({
+      task: task('builder', 'running'),
+      harnessSessionId: undefined,
+      onTaskDelivered: undefined,
+    });
+    await started.promise;
+    const queued = queue.enqueue({
+      task: task('builder', 'queued'),
+      harnessSessionId: undefined,
+      onTaskDelivered: undefined,
+    });
+
+    let drained = false;
+    const drain = queue.stopAndDrain().then(() => {
+      drained = true;
+    });
+    await Promise.resolve();
+    expect(drained).toBe(false);
+    running.resolve();
+    await Promise.all([active, queued, drain]);
+
+    expect(drained).toBe(true);
     expect(calls).toEqual(['running']);
   });
 });

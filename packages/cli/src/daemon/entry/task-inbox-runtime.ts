@@ -18,7 +18,7 @@ import { createAgentTaskStateService } from '../services/service-interfaces.js';
 export const startTaskInboxEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<
-  { stop: () => void; nativeDelivery: AgentWorkManager },
+  { stop: () => Promise<void>; nativeDelivery: AgentWorkManager },
   never,
   | DaemonSessionService
   | DaemonAgentProcessManagerService
@@ -66,9 +66,9 @@ export const startTaskInboxEffect = (
 
     return {
       nativeDelivery,
-      stop() {
+      async stop() {
         session.taskService.stopTaskInbox();
-        nativeDelivery.dispose();
+        await nativeDelivery.disposeAndDrain();
         nativeDelivery.agentTaskState.clearAll();
       },
     };

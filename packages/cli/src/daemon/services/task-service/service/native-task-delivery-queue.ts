@@ -34,6 +34,7 @@ export class NativeTaskDeliveryQueue {
   private readonly tails = new Map<string, Promise<void>>();
   private readonly epochs = new Map<string, number>();
   private stopped = false;
+  private stopDrainPromise: Promise<void> = Promise.resolve();
 
   constructor(private readonly sender: Sender) {}
 
@@ -80,7 +81,13 @@ export class NativeTaskDeliveryQueue {
     for (const [key, epoch] of this.epochs) this.epochs.set(key, epoch + 1);
     const tails = [...this.tails.values()];
     this.tails.clear();
-    // stop remains synchronous for existing owners; observe detached failures.
-    void Promise.allSettled(tails);
+    // Keep synchronous stop callers compatible while allowing shutdown to
+    // await every sender that was already running when the queue was fenced.
+    this.stopDrainPromise = Promise.allSettled(tails).then(() => undefined);
+  }
+
+  stopAndDrain(): Promise<void> {
+    this.stop();
+    return this.stopDrainPromise;
   }
 }

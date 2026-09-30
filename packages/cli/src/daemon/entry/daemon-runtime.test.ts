@@ -8,6 +8,7 @@ const registerWorkspaceGitInboundHandler = vi.fn();
 const unregisterWorkspaceGitInboundHandler = vi.fn();
 const drainPendingFileTreeReleaseRequests = vi.fn().mockResolvedValue(undefined);
 const taskInboxStop = vi.fn();
+const shutdownEffectStarted = vi.fn();
 const nativeDelivery = {
   dispose: vi.fn(),
   agentTaskState: { clearAll: vi.fn() },
@@ -65,7 +66,7 @@ vi.mock('../../commands/machine/pid.js', () => ({
 }));
 vi.mock('../../events/lifecycle/on-daemon-shutdown.js', async () => {
   const { Effect } = await import('effect');
-  return { onDaemonShutdownEffect: Effect.void };
+  return { onDaemonShutdownEffect: Effect.sync(shutdownEffectStarted) };
 });
 
 describe('createDaemonRuntime', () => {
@@ -130,12 +131,22 @@ describe('createDaemonRuntime', () => {
     expect(registerFileInboundHandler).toHaveBeenCalledBefore(drainPendingFileTreeReleaseRequests);
     expect(drainPendingFileTreeReleaseRequests).toHaveBeenCalledTimes(1);
 
-    await runtime.shutdown();
+    let resolveTaskInboxStop!: () => void;
+    taskInboxStop.mockImplementation(
+      () => new Promise<void>((resolve) => (resolveTaskInboxStop = resolve))
+    );
+    const shutdownPromise = runtime.shutdown();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(taskInboxStop).toHaveBeenCalledOnce();
+    expect(shutdownEffectStarted).not.toHaveBeenCalled();
+    resolveTaskInboxStop();
+    await shutdownPromise;
     await runPromise;
 
     expect(unregisterCommandInboundHandler).toHaveBeenCalled();
     expect(unregisterFileInboundHandler).toHaveBeenCalled();
     expect(unregisterWorkspaceGitInboundHandler).toHaveBeenCalled();
     expect(onNativeDeliveryReady).toHaveBeenLastCalledWith(null);
+    expect(shutdownEffectStarted).toHaveBeenCalledOnce();
   });
 });

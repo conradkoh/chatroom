@@ -89,7 +89,8 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
-  let taskInboxHandle: { stop: () => void; nativeDelivery: AgentWorkManager } | null = null;
+  let taskInboxHandle: { stop: () => Promise<void>; nativeDelivery: AgentWorkManager } | null =
+    null;
   let agentConfigRegistryHandle: { stop: () => void } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
@@ -128,7 +129,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     ]);
   };
 
-  const stopWorkers = (): void => {
+  const stopWorkers = async (): Promise<void> => {
     unregisterCommandInboundHandler();
     unregisterFileInboundHandler();
     unregisterWorkspaceGitInboundHandler();
@@ -136,10 +137,10 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
     agentConfigRegistryHandle?.stop();
-    deps.onNativeDeliveryReady?.(null);
-    taskInboxHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     agenticQueryWorkerHandle?.stop();
+    deps.onNativeDeliveryReady?.(null);
+    await taskInboxHandle?.stop();
   };
 
   // fallow-ignore-next-line complexity
@@ -157,7 +158,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     await deps.agentProcessManagerService.stopProcessing();
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
-    stopWorkers();
+    await stopWorkers();
 
     await withTimeout(
       Effect.runPromise(

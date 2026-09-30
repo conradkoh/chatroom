@@ -486,6 +486,11 @@ export class AgentWorkManager {
     this.nativeTaskDeliveryQueue.stop();
   }
 
+  async disposeAndDrain(): Promise<void> {
+    this.dispose();
+    await this.nativeTaskDeliveryQueue.stopAndDrain();
+  }
+
   get agentTaskState(): AgentTaskStateService {
     return this.deps.agentTaskState;
   }
