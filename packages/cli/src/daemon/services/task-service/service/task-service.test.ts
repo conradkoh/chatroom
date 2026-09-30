@@ -275,6 +275,68 @@ describe('TaskService.recoverInFlightTasks', () => {
   });
 });
 
+describe('TaskService.listMachineTaskRolesForChatroom', () => {
+  test('queries once and returns normalized distinct roles for assigned tasks on this machine and room', async () => {
+    const { service, query, mutation } = recoveryService({
+      statuses: [
+        activeTask({
+          agentConfig: { role: 'Builder', machineId: 'MACHINE-1' },
+          assignedTo: 'builder',
+        }),
+        activeTask({
+          taskId: 'duplicate',
+          agentConfig: { role: 'BUILDER', machineId: 'machine-1' },
+          assignedTo: 'BUILDER',
+        }),
+        activeTask({
+          taskId: 'review',
+          agentConfig: { role: 'Reviewer', machineId: 'machine-1' },
+          assignedTo: 'REVIEWER',
+        }),
+        activeTask({
+          taskId: 'other-room',
+          chatroomId: 'room-2',
+          agentConfig: { role: 'other', machineId: 'machine-1' },
+          assignedTo: 'other',
+        }),
+        activeTask({
+          taskId: 'other-machine',
+          agentConfig: { role: 'remote', machineId: 'machine-2' },
+          assignedTo: 'remote',
+        }),
+        activeTask({
+          taskId: 'wrong-assignee',
+          agentConfig: { role: 'builder', machineId: 'machine-1' },
+          assignedTo: 'reviewer',
+        }),
+      ],
+    });
+
+    await expect(service.listMachineTaskRolesForChatroom('ROOM-1')).resolves.toEqual([
+      'builder',
+      'reviewer',
+    ]);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith(api.daemon.taskStatus.listActive, {
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+    });
+    expect(mutation).not.toHaveBeenCalled();
+    service.stopTaskInbox();
+  });
+
+  test('propagates backend query failures', async () => {
+    const query = vi.fn().mockRejectedValue(new Error('status query failed'));
+    const { service, mutation } = recoveryService({ statuses: [], query });
+    await expect(service.listMachineTaskRolesForChatroom('room-1')).rejects.toThrow(
+      'status query failed'
+    );
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(mutation).not.toHaveBeenCalled();
+    service.stopTaskInbox();
+  });
+});
+
 describe('TaskService.loadAssignedTaskForAction', () => {
   test('returns null for a wrong-room row and the mapped task for the requested room', async () => {
     const query = vi.fn(async () => backendRow());
