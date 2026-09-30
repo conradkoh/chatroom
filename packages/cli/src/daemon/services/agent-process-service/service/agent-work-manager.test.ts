@@ -29,14 +29,19 @@ function createService(
     readonly forgetStaleTask?: ReturnType<typeof vi.fn>;
     readonly loadAssignedTaskForAction?: (args: Record<string, string>) => Promise<unknown>;
     readonly initialTasks?: readonly AssignedTask[];
+    readonly taskInboxState?: TaskInboxState;
     readonly getLatestHandoff?: () => Promise<{ taskIds: readonly string[] } | null>;
     readonly enqueueFact?: (fact: Record<string, unknown>) => Promise<unknown>;
-    readonly getSlot?: () => { state: 'running' | 'idle' | 'spawning' | 'stopping'; pid?: number };
+    readonly getSlot?: () =>
+      { state: 'running' | 'idle' | 'spawning' | 'stopping'; pid?: number } | undefined;
+    readonly isStopRequested?: () => boolean;
+    readonly acquireNativeDeliverySlot?: ReturnType<typeof vi.fn>;
+    readonly recordDeliveryFailure?: ReturnType<typeof vi.fn>;
     readonly stopAgent?: ReturnType<typeof vi.fn>;
     readonly recoverInFlightTasks?: ReturnType<typeof vi.fn>;
   } = {}
 ): AgentWorkManager {
-  const taskInboxState = new TaskInboxState();
+  const taskInboxState = options.taskInboxState ?? new TaskInboxState();
   taskInboxState.upsert(options.initialTasks ?? []);
   return new AgentWorkManager({
     configurationService: { get: () => undefined } as never,
@@ -58,14 +63,15 @@ function createService(
         return () => undefined;
       },
       getSlot: options.getSlot ?? (() => undefined),
-      isStopRequested: () => false,
+      isStopRequested: options.isStopRequested ?? (() => false),
     } as never,
     runSerializedForAgent: (async (_key: never, _options: never, operation: any) =>
       operation(
         { startAgent: vi.fn(), stopAgent: options.stopAgent ?? vi.fn() },
         { signal: new AbortController().signal }
       )) as never,
-    acquireNativeDeliverySlot: vi.fn().mockResolvedValue({ state: 'running' }),
+    acquireNativeDeliverySlot: (options.acquireNativeDeliverySlot ??
+      vi.fn().mockResolvedValue({ state: 'running' })) as never,
     sessionDeps: {} as never,
     machineId: 'machine-1',
     taskInboxState,
@@ -83,6 +89,7 @@ function createService(
         options.loadAssignedTaskForAction ??
         (async ({ taskId }: { taskId: string }) => ({ taskId })),
       forgetStaleTask: options.forgetStaleTask ?? vi.fn(),
+      recordDeliveryFailure: options.recordDeliveryFailure ?? vi.fn(),
       getLatestHandoff: options.getLatestHandoff ?? (async () => null),
       recoverInFlightTasks:
         options.recoverInFlightTasks ?? (async () => ({ released: 0, skipped: 0 })),
@@ -94,6 +101,18 @@ function createService(
       explainNativeDeliveryBlock: () => null,
     } as never,
   });
+}
+
+function pendingTask(taskId: string, role = 'builder'): AssignedTask {
+  return {
+    taskId,
+    chatroomId: 'room-1',
+    status: 'pending',
+    assignedTo: role,
+    updatedAt: 1,
+    createdAt: 1,
+    agentConfig: { role, machineId: 'machine-1' },
+  } as AssignedTask;
 }
 
 function failedTurnEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -329,6 +348,7 @@ describe('AgentWorkManager', () => {
     } as AssignedTask;
     const service = createService({
       initialTasks: [task],
+      getSlot: () => ({ state: 'running', pid: 42 }),
       loadAssignedTaskForAction: async () => null,
       forgetStaleTask,
     });
@@ -358,6 +378,7 @@ describe('AgentWorkManager', () => {
   test('evicts a removed task during periodic reconciliation without waking an agent', async () => {
     const forgetStaleTask = vi.fn();
     const service = createService({
+      getSlot: () => ({ state: 'running', pid: 42 }),
       loadAssignedTaskForAction: async () => null,
       forgetStaleTask,
     });
@@ -378,6 +399,102 @@ describe('AgentWorkManager', () => {
       taskId: 'task-stale-periodic',
     });
     expect(requestReconcile).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test.each([
+    ['absent', undefined, false],
+    ['idle', { state: 'idle' }, false],
+    ['stopping', { state: 'stopping', pid: 42 }, false],
+    ['running without a PID', { state: 'running' }, false],
+    ['stopped by intent', { state: 'running', pid: 42 }, true],
+  ])(
+    'acknowledges a pending inbox event for a %s role without evicting its snapshot',
+    async (_label, slot, stopRequested) => {
+      const task = pendingTask('task-stopped-event');
+      const inbox = new TaskInboxState();
+      inbox.upsert([task]);
+      const loadAssignedTaskForAction = vi.fn(async () => task);
+      const acquireNativeDeliverySlot = vi.fn();
+      const recordDeliveryFailure = vi.fn();
+      const service = createService({
+        taskInboxState: inbox,
+        initialTasks: [task],
+        getSlot: () => slot as never,
+        isStopRequested: () => stopRequested,
+        loadAssignedTaskForAction,
+        acquireNativeDeliverySlot,
+        recordDeliveryFailure,
+      });
+
+      const confirmation = await service.handleTaskServiceNotification({
+        kind: 'inbox-event',
+        event: {
+          eventId: 'event-stopped-role',
+          eventType: 'task_updated',
+          chatroomId: 'room-1',
+          role: 'builder',
+          taskId: task.taskId,
+        } as never,
+      });
+
+      expect(confirmation).toEqual({ handledEventIds: ['event-stopped-role'] });
+      expect(loadAssignedTaskForAction).not.toHaveBeenCalled();
+      expect(acquireNativeDeliverySlot).not.toHaveBeenCalled();
+      expect(recordDeliveryFailure).not.toHaveBeenCalled();
+      expect(inbox.getForRole('room-1', 'builder', task.taskId)?.status).toBe('pending');
+      service.dispose();
+    }
+  );
+
+  test('periodic reconcile skips authoritative hydration for a stopped role', async () => {
+    const task = pendingTask('task-stopped-periodic');
+    const inbox = new TaskInboxState();
+    inbox.upsert([task]);
+    const loadAssignedTaskForAction = vi.fn(async () => task);
+    const acquireNativeDeliverySlot = vi.fn();
+    const service = createService({
+      taskInboxState: inbox,
+      initialTasks: [task],
+      getSlot: () => ({ state: 'idle' }),
+      loadAssignedTaskForAction,
+      acquireNativeDeliverySlot,
+    });
+    const requestReconcile = vi.spyOn(service, 'requestReconcile');
+
+    await service.handleTaskServiceNotification({
+      kind: 'periodic-reconcile',
+      task,
+    });
+
+    expect(loadAssignedTaskForAction).not.toHaveBeenCalled();
+    expect(requestReconcile).not.toHaveBeenCalled();
+    expect(acquireNativeDeliverySlot).not.toHaveBeenCalled();
+    expect(inbox.getForRole('room-1', 'builder', task.taskId)?.status).toBe('pending');
+    service.dispose();
+  });
+
+  test('reconcile after recovery leaves a stopped role pending', async () => {
+    const task = pendingTask('task-recovered-pending');
+    const inbox = new TaskInboxState();
+    inbox.upsert([task]);
+    const acquireNativeDeliverySlot = vi.fn();
+    const service = createService({
+      taskInboxState: inbox,
+      initialTasks: [task],
+      getSlot: () => ({ state: 'idle' }),
+      acquireNativeDeliverySlot,
+    });
+
+    await expect(
+      service.requestReconcile({
+        chatroomId: 'room-1',
+        role: 'builder',
+        source: 'periodic-reconcile',
+      })
+    ).resolves.toEqual([]);
+    expect(acquireNativeDeliverySlot).not.toHaveBeenCalled();
+    expect(inbox.getForRole('room-1', 'builder', task.taskId)?.status).toBe('pending');
     service.dispose();
   });
 
@@ -772,7 +889,7 @@ describe('AgentWorkManager', () => {
   });
 
   test('coalesces duplicate role reconciliations and runs a fresh pass afterward', async () => {
-    const service = createService();
+    const service = createService({ getSlot: () => ({ state: 'running', pid: 42 }) });
     let release!: () => void;
     const gate = new Promise<readonly string[]>((resolve) => {
       release = () => resolve([]);

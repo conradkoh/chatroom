@@ -196,6 +196,15 @@ export class AgentWorkManager {
     });
   }
 
+  private canReconcileRole(chatroomId: string, role: string): boolean {
+    if (this.deps.agentMgr.isStopRequested(chatroomId, role)) return false;
+    const slot = this.deps.agentMgr.getSlot(chatroomId, role);
+    return (
+      slot?.state === AGENT_SLOT_STATE.SPAWNING ||
+      (slot?.state === AGENT_SLOT_STATE.RUNNING && slot.pid !== undefined)
+    );
+  }
+
   handleAgentSessionLost(event: AgentSessionLostEvent): void {
     if (event.cause !== 'unexpected_exit' || this.disposed) return;
     const slot = this.deps.agentMgr.getSlot(event.chatroomId, event.role);
@@ -504,6 +513,11 @@ export class AgentWorkManager {
       return;
     }
     if (notification.kind === 'periodic-reconcile') {
+      if (
+        !this.canReconcileRole(notification.task.chatroomId, notification.task.agentConfig.role)
+      ) {
+        return;
+      }
       const taskLookup = {
         chatroomId: notification.task.chatroomId,
         role: notification.task.agentConfig.role,
@@ -546,6 +560,9 @@ export class AgentWorkManager {
       if (currentTask) {
         await this.clearExpectedTaskDeliveryFailure(currentTask.taskId);
       }
+      return { handledEventIds: [notification.event.eventId] };
+    }
+    if (!this.canReconcileRole(notification.event.chatroomId, notification.event.role)) {
       return { handledEventIds: [notification.event.eventId] };
     }
     if (
@@ -626,7 +643,7 @@ export class AgentWorkManager {
     source: AgentWorkPass;
     onTaskDelivered?: AgentTaskDeliveredHandler;
   }): Promise<readonly string[]> {
-    if (this.disposed) return [];
+    if (this.disposed || !this.canReconcileRole(params.chatroomId, params.role)) return [];
     const key = `${params.chatroomId}:${params.role.toLowerCase()}`;
     const existing = this.reconcileStates.get(key);
     if (existing) {
@@ -646,12 +663,18 @@ export class AgentWorkManager {
       const delivered: string[] = [];
       try {
         do {
+          if (this.disposed || !this.canReconcileRole(params.chatroomId, params.role)) {
+            return delivered;
+          }
           const source = state.pendingSource ?? params.source;
           state.pendingSource = undefined;
           await this.waitForRoleRecovery(params.chatroomId, params.role);
-          if (this.disposed) return delivered;
+          if (this.disposed || !this.canReconcileRole(params.chatroomId, params.role)) {
+            return delivered;
+          }
           const generation = getRoleDeliveryState().getGeneration(params.chatroomId, params.role);
           const isCurrent = () =>
+            this.canReconcileRole(params.chatroomId, params.role) &&
             !this.recoveryGates.has(key) &&
             getRoleDeliveryState().getGeneration(params.chatroomId, params.role) === generation;
           const tasks = this.deps.taskInboxState.listForRole(params.chatroomId, params.role);

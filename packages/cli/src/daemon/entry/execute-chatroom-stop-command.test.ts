@@ -17,6 +17,9 @@ function setup(
   } = {}
 ) {
   const events: string[] = [];
+  const roleOperations: string[] = [];
+  const startAgent = vi.fn();
+  const stopAgent = vi.fn();
   const outboxEnqueue = vi.fn(async () => {
     events.push('ack');
   });
@@ -31,22 +34,26 @@ function setup(
     prepareRoleRecovery: vi.fn(async () => {
       events.push('prepare');
     }),
-    recoverStoppedRole: vi.fn(async () => {
+    recoverStoppedRole: vi.fn(async ({ role }: { role: string }) => {
       events.push('recover');
+      roleOperations.push(`recover:${role}`);
     }),
   };
   const taskService = {
     listMachineTaskRolesForChatroom: vi.fn(async () => options.feedRoles ?? []),
   };
   const runSerializedForAgent = vi.fn(async (_key, _options, operation) =>
-    operation({}, { signal: new AbortController().signal })
+    operation({ startAgent, stopAgent }, { signal: new AbortController().signal })
   );
-  runRoleScopedStop.mockImplementation(async () => {
+  runRoleScopedStop.mockImplementation(async ({ role }: { role: string }) => {
     events.push('stop');
+    roleOperations.push(`stop:${role}`);
     return options.stopResult ?? { targets: [], failures: [] };
   });
   return {
     events,
+    roleOperations,
+    startAgent,
     outboxEnqueue,
     discoverStopTargets,
     apm,
@@ -80,6 +87,8 @@ describe('executeChatroomStopCommand', () => {
       role: 'builder',
       mode: 'explicit',
     });
+    expect(state.roleOperations).toEqual(['stop:builder', 'recover:builder']);
+    expect(state.startAgent).not.toHaveBeenCalled();
   });
 
   it('recovers an explicitly requested role even when there is no local PID', async () => {
@@ -90,6 +99,8 @@ describe('executeChatroomStopCommand', () => {
       role: 'nopid',
     });
     expect(state.nativeDelivery.recoverStoppedRole).toHaveBeenCalledTimes(1);
+    expect(state.roleOperations).toEqual(['stop:nopid', 'recover:nopid']);
+    expect(state.startAgent).not.toHaveBeenCalled();
     expect(state.taskService.listMachineTaskRolesForChatroom).not.toHaveBeenCalled();
     expect(state.outboxEnqueue).toHaveBeenCalledTimes(1);
   });
@@ -101,6 +112,12 @@ describe('executeChatroomStopCommand', () => {
     });
     await state.run();
     expect(state.nativeDelivery.recoverStoppedRole).toHaveBeenCalledTimes(3);
+    for (const role of ['builder', 'reviewer', 'tester']) {
+      expect(state.roleOperations.indexOf(`stop:${role}`)).toBeLessThan(
+        state.roleOperations.indexOf(`recover:${role}`)
+      );
+    }
+    expect(state.startAgent).not.toHaveBeenCalled();
     for (const role of ['builder', 'reviewer', 'tester'])
       expect(state.nativeDelivery.recoverStoppedRole).toHaveBeenCalledWith({
         chatroomId: 'room-1',
@@ -132,6 +149,8 @@ describe('executeChatroomStopCommand', () => {
       'chatroom stop failed'
     );
     expect(state.nativeDelivery.recoverStoppedRole).not.toHaveBeenCalled();
+    expect(state.roleOperations).toEqual(['stop:builder']);
+    expect(state.startAgent).not.toHaveBeenCalled();
     expect(runRoleScopedStop).toHaveBeenCalledWith(
       expect.objectContaining({ role: 'builder', workingDir: '/selected' })
     );
