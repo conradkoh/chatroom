@@ -7,6 +7,7 @@
  */
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel.js';
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { WorkspaceTaskInboxEventType } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
@@ -22,11 +23,16 @@ import {
 import { withTestTaskService } from './test-task-service.js';
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../../entry/daemon-services.js';
+import { runRestartOrchestrator } from '../../../../entry/restart-orchestrator.js';
 import { TaskInboxState } from '../../../../infrastructure/inbox/task-inbox-state.js';
 import {
   AgentWorkManager,
   createAgentProcessManagerService,
   createAgentTaskStateService,
+  type AgentKey,
+  type SerializedAgentOperationContext,
+  type SerializedAgentOperationOptions,
+  type SerializedAgentOperations,
 } from '../../../agent-process-service/index.js';
 import type { NativeDeliverySessionHandles } from '../../../service-interfaces.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
@@ -328,6 +334,245 @@ describe('native queued delivery after agent_end', () => {
     expect(startCalls).toBe(0);
     expect(taskService).toBeDefined();
     await bootManager.disposeAndDrain();
+  });
+
+  test('explicit user.restart delivers one pending task after the process is ready', async () => {
+    const chatroomId = 'room_1';
+    const role = 'builder';
+    const taskSnapshot = createTaskState();
+    taskSnapshot.replaceAll([]);
+    const task = taskSnapshot.mergeSignal(
+      taskDocToSignal(
+        makePostAgentEndSnapshotDoc({
+          taskId: 'task_restart_pending' as Id<'chatroom_tasks'>,
+          taskStatus: 'pending',
+        })
+      )
+    )!;
+    const taskWithContent = makeFullTaskFromSnapshot(task);
+    const inbox = new TaskInboxState();
+    inbox.replace([task]);
+    const backendStatuses = new Map<string, string>([[task.taskId, 'pending']]);
+    const claims = vi.fn(async (args: Record<string, unknown>) => {
+      expect(backendStatuses.get(String(args.taskId))).toBe('pending');
+      backendStatuses.set(task.taskId, 'in_progress');
+    });
+    const resumeTurnForSlot = vi.fn(async (_args: Record<string, unknown>) => undefined);
+    const slot = { current: makeNativeSlot('idle') };
+    const stopIntent = new Set([role]);
+    let acquiredSlots = 0;
+    let taskListener:
+      | ((notification: {
+          kind: 'inbox-event' | 'periodic-reconcile';
+          event?: never;
+          task?: never;
+        }) => Promise<unknown>)
+      | undefined;
+    const logEvents: Record<string, unknown>[] = [];
+    const backend = {
+      mutation: vi.fn(async (_fn: unknown, args: Record<string, unknown>) => {
+        if (typeof args.taskId === 'string' && backendStatuses.get(args.taskId) === 'pending') {
+          await claims(args);
+        }
+        return { cleared: true, recorded: true, processed: true, marked: true };
+      }),
+      query: vi.fn(async (_fn: unknown, args: Record<string, unknown>) => {
+        if ('machineId' in args && 'taskId' in args && !('chatroomId' in args)) {
+          return taskWithContent;
+        }
+        if ('chatroomId' in args && 'taskId' in args) return { fullCliOutput: 'RESTART OUTPUT' };
+        throw new Error(`Unexpected query with keys: ${Object.keys(args).join(',')}`);
+      }),
+    };
+    const execution = {
+      runSerializedForAgent: async (_key: unknown, operation: () => Promise<unknown>) =>
+        operation(),
+      ensureRunning: async () => {
+        throw new Error('delivery acquisition must not autonomously start a process');
+      },
+      stop: async () => ({ success: true }),
+      handleExit: async () => undefined,
+      reset: async () => undefined,
+      getSlot: () => slot.current,
+      isStopRequested: () => stopIntent.has(role),
+      listActive: () =>
+        slot.current.state === 'running' ? [{ chatroomId, role, slot: slot.current }] : [],
+      clearStuckStoppingSlot: async () => false,
+      whenTurnEndsIdle: async () => undefined,
+      resumeTurnForSlot,
+      subscribeAgentTurnEnded: () => () => undefined,
+      subscribeAgentStarted: () => () => undefined,
+      subscribeAgentSessionLost: () => () => undefined,
+      subscribeAgentTurnProgress: () => () => undefined,
+    };
+    const managerService = createAgentProcessManagerService({
+      execution: execution as never,
+      commandBus: { send: vi.fn() } as never,
+      notifier: { subscribe: () => () => undefined } as never,
+    });
+    const taskService = {
+      subscribe: (listener: (notification: never) => Promise<unknown>) => {
+        taskListener = listener as typeof taskListener;
+        return () => {
+          taskListener = undefined;
+        };
+      },
+      startTaskInbox: async () => undefined,
+      stopTaskInbox: () => undefined,
+      listTasksForRole: (room: string, taskRole: string) =>
+        inbox.listForRole(room, taskRole as never),
+      listAllTasks: () => inbox.listAll(),
+      taskInboxState: inbox,
+      recoverInFlightTasks: vi.fn(
+        async (args: { chatroomId: string; role: string; mode: string }) => {
+          expect(args).toEqual({ chatroomId, role, mode: 'explicit' });
+          expect(slot.current.state).toBe('idle');
+          expect(inbox.getForRole(chatroomId, role, task.taskId)?.status).toBe('pending');
+          return { released: 0, skipped: 0 };
+        }
+      ),
+      loadAssignedTaskForAction: vi.fn(async () => taskWithContent),
+      recordDeliveryFailure: vi.fn(),
+      clearDeliveryFailure: vi.fn(),
+      recordUncoveredTurnEnd: vi.fn(async () => ({ exceeded: false })),
+      releaseTaskAfterTurnFailure: vi.fn(),
+      getLatestHandoff: vi.fn(async () => null),
+      isRedeliveryExhausted: vi.fn(() => false),
+      clearRedeliveryTracking: vi.fn(),
+      forgetStaleTask: vi.fn(),
+      handleAgentTurnProgress: vi.fn(),
+      explainNativeDeliveryBlock: () => null,
+    };
+    const workManager = new AgentWorkManager({
+      configurationService: {
+        get: () => ({
+          agentHarness: 'cursor-sdk',
+          model: 'test-model',
+          workingDir: '/test/workspace',
+        }),
+      } as never,
+      agentMgr: {
+        getSlot: () => slot.current,
+        isStopRequested: () => stopIntent.has(role),
+        resumeTurnForSlot: (args: never) => Effect.promise(() => resumeTurnForSlot(args)),
+        subscribeAgentStarted: () => () => undefined,
+        subscribeAgentTurnEnded: () => () => undefined,
+        subscribeAgentSessionLost: () => () => undefined,
+        subscribeAgentTurnProgress: () => () => undefined,
+      } as never,
+      runSerializedForAgent: managerService.runSerializedForAgent.bind(managerService),
+      acquireNativeDeliverySlot: async (input) => {
+        acquiredSlots += 1;
+        return managerService.acquireNativeDeliverySlot(input);
+      },
+      sessionDeps: {
+        sessionId: SESSION_ID,
+        convexUrl: 'http://test:3210',
+        machineId: MACHINE_ID,
+        backend,
+      } as never,
+      machineId: MACHINE_ID,
+      taskInboxState: inbox,
+      agentTaskState: createAgentTaskStateService(),
+      lifecycleOutbox: { enqueue: async (fact) => logEvents.push(fact as Record<string, unknown>) },
+      taskService: taskService as never,
+    });
+    const inboxEvent = {
+      kind: 'inbox-event' as const,
+      event: {
+        eventId: 'restart-pending-inbox',
+        machineId: MACHINE_ID,
+        chatroomId,
+        taskId: task.taskId,
+        role,
+        eventType: WorkspaceTaskInboxEventType.TaskUpdated,
+        status: 'pending',
+        createdAt: Date.now(),
+        task: {},
+      },
+    };
+    const session = {
+      sessionId: SESSION_ID,
+      machineId: MACHINE_ID,
+      convexUrl: 'http://test:3210',
+      backend,
+      logEvent: async (event: Record<string, unknown>) => {
+        logEvents.push(event);
+      },
+    };
+
+    const confirmation = await taskListener!(inboxEvent as never);
+    await taskListener!({ kind: 'periodic-reconcile', task } as never);
+    expect(confirmation).toEqual({ handledEventIds: ['restart-pending-inbox'] });
+    expect(inbox.getForRole(chatroomId, role, task.taskId)?.status).toBe('pending');
+    expect(backendStatuses.get(task.taskId)).toBe('pending');
+    expect(acquiredSlots).toBe(0);
+    expect(claims).not.toHaveBeenCalled();
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+
+    const lifecycleCalls: string[] = [];
+    await runRestartOrchestrator(
+      {
+        session,
+        agentMgr: { getSlot: () => slot.current } as never,
+        runSerializedForAgent: async (
+          _key: AgentKey,
+          _options: SerializedAgentOperationOptions,
+          operation: (
+            ops: SerializedAgentOperations,
+            context: SerializedAgentOperationContext
+          ) => Promise<unknown>
+        ) =>
+          operation(
+            {
+              stopAgent: async () => {
+                lifecycleCalls.push('stop');
+                slot.current = makeNativeSlot('idle');
+                return { success: true };
+              },
+              startAgent: async (input) => {
+                lifecycleCalls.push('start');
+                expect(input.reason).toBe(AgentStartReasonCode.USER_RESTART);
+                stopIntent.delete(role);
+                slot.current = makeNativeSlot('running', 301);
+                return { success: true, pid: 301 };
+              },
+            },
+            { signal: new AbortController().signal }
+          ),
+        nativeDelivery: workManager,
+      } as never,
+      {
+        chatroomId,
+        role,
+        agentHarness: 'cursor-sdk',
+        model: 'test-model',
+        workingDir: '/test/workspace',
+        correlationId: 'restart-pending-task',
+        wantResume: false,
+      }
+    );
+
+    expect(lifecycleCalls).toEqual(['stop', 'start']);
+    expect(taskService.recoverInFlightTasks).toHaveBeenCalledWith({
+      chatroomId,
+      role,
+      mode: 'explicit',
+    });
+    expect(acquiredSlots).toBe(1);
+    expect(claims).toHaveBeenCalledTimes(1);
+    expect(resumeTurnForSlot).toHaveBeenCalledTimes(1);
+    expect(backendStatuses.get(task.taskId)).toBe('in_progress');
+    const restartCompleted = logEvents.find((event) => event.type === 'agent.restartCompleted');
+    expect(restartCompleted).toEqual(expect.objectContaining({ deliveredTaskIds: [task.taskId] }));
+
+    const laterConfirmation = await taskListener!(inboxEvent as never);
+    await taskListener!({ kind: 'periodic-reconcile', task } as never);
+    expect(laterConfirmation).toEqual({ handledEventIds: ['restart-pending-inbox'] });
+    expect(acquiredSlots).toBe(1);
+    expect(claims).toHaveBeenCalledTimes(1);
+    expect(resumeTurnForSlot).toHaveBeenCalledTimes(1);
+    await workManager.disposeAndDrain();
   });
 
   test('coordinator injects promoted pending task when participant is idle-after-complete', async () => {
