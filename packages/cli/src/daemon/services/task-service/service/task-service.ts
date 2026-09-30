@@ -133,8 +133,6 @@ export interface TaskService extends TaskDeliveryOperations {
     role?: string;
     mode: 'automatic' | 'explicit';
   }): Promise<{ released: number; skipped: number }>;
-  /** Releases rehydrated in-progress tasks whose latest handoff does not cover them. */
-  sweepUncoveredInProgressTasks(): Promise<number>;
   /**
    * Notifies the task service that a delivered task's agent turn is producing
    * output (agent process service reports first turn progress). The task
@@ -172,11 +170,10 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const scheduledEventIds = new Set<string>();
   const deliveredEventIds = new Set<string>();
   const taskChains = new Map<string, Promise<void>>();
-  const maxBootstrapSweepFailures = 3;
-  let bootstrapSweepPending = true;
-  let bootstrapSweepFailures = 0;
-  let bootstrapSweepInFlight = false;
-  let bootstrapSweepPromise: Promise<void> | undefined;
+  let bootstrapRecoveryPending = true;
+  let bootstrapRecoveryAttempts = 0;
+  let bootstrapRecoveryTimer: ReturnType<typeof setTimeout> | undefined;
+  let bootstrapRecoveryPromise: Promise<void> | undefined;
 
   // Plan V2: consecutive uncovered turn ends per (chatroom, role, taskId).
   // In-memory on purpose — a daemon restart re-bounds the cycle (the bootstrap
@@ -246,39 +243,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     clearRedeliveryTrackingForTask(chatroomId, role, taskId);
   };
 
-  const sweepUncoveredInProgressTasks = async (): Promise<number> => {
-    let released = 0;
-    let failures = 0;
-    for (const task of taskInboxState.listAll()) {
-      if (task.status !== 'in_progress') continue;
-      try {
-        const handoff = await handoffRepository.getLatest(task.chatroomId, task.agentConfig.role);
-        if (handoff?.taskIds.includes(task.taskId)) continue;
-        const result = await gateway.releaseTaskAfterTurnFailure({
-          sessionId: deps.sessionId,
-          chatroomId: task.chatroomId,
-          role: task.agentConfig.role,
-          taskId: task.taskId,
-        });
-        taskInboxState.markStatus(
-          task.chatroomId,
-          task.agentConfig.role,
-          task.taskId,
-          result.status,
-          result.updatedAt
-        );
-        released += 1;
-      } catch (error) {
-        failures += 1;
-        console.warn(
-          `[TaskService] bootstrap task release failed chatroom=${task.chatroomId} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    }
-    if (failures > 0) throw new Error(`${failures} bootstrap task release(s) failed`);
-    return released;
-  };
-
   /** Releases a single task back to `pending` via the backend, then patches
    *  the local read model from the authoritative result. */
   const releaseTask = async (args: { chatroomId: string; role: string; taskId: string }) => {
@@ -315,31 +279,34 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     }
   };
 
-  const runBootstrapSweep = (): Promise<void> => {
-    if (!bootstrapSweepPending) return Promise.resolve();
-    if (bootstrapSweepInFlight) return bootstrapSweepPromise ?? Promise.resolve();
-    bootstrapSweepInFlight = true;
-    bootstrapSweepPromise = sweepUncoveredInProgressTasks()
+  const scheduleBootstrapRecovery = (): void => {
+    if (inboxStopped || bootstrapRecoveryTimer || !bootstrapRecoveryPending) return;
+    const delay = Math.min(30_000, 1_000 * 2 ** bootstrapRecoveryAttempts++);
+    bootstrapRecoveryTimer = setTimeout(() => {
+      bootstrapRecoveryTimer = undefined;
+      if (!inboxStopped) void runBootstrapRecovery();
+    }, delay);
+  };
+
+  // Keep startup on the shared automatic selector so handoff coverage and the
+  // V2 exhausted-task cap apply to boot recovery as well as agent-loss recovery.
+  const runBootstrapRecovery = (): Promise<void> => {
+    if (inboxStopped || !bootstrapRecoveryPending) return Promise.resolve();
+    if (bootstrapRecoveryPromise) return bootstrapRecoveryPromise;
+    bootstrapRecoveryPromise = service
+      .recoverInFlightTasks({ mode: 'automatic' })
       .then(() => {
-        bootstrapSweepPending = false;
-        bootstrapSweepFailures = 0;
+        bootstrapRecoveryPending = false;
+        bootstrapRecoveryAttempts = 0;
       })
       .catch((error) => {
-        bootstrapSweepFailures += 1;
-        if (bootstrapSweepFailures >= maxBootstrapSweepFailures) {
-          bootstrapSweepPending = false;
-          console.warn('[TaskService] bootstrap sweep giving up after 3 failed attempts');
-        } else {
-          console.warn(
-            `[TaskService] bootstrap sweep failed (attempt ${bootstrapSweepFailures}/3): ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
+        console.warn('[TaskService] bootstrap recovery failed:', error);
+        scheduleBootstrapRecovery();
       })
       .finally(() => {
-        bootstrapSweepInFlight = false;
-        bootstrapSweepPromise = undefined;
+        bootstrapRecoveryPromise = undefined;
       });
-    return bootstrapSweepPromise;
+    return bootstrapRecoveryPromise;
   };
 
   const notifyForDelivery = async (
@@ -499,7 +466,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const reconcileTaskStatuses = (tasks: readonly AssignedTask[]): void => {
     taskInboxState.reconcileStatuses(tasks);
-    runBootstrapSweep();
+    void runBootstrapRecovery();
     for (const task of tasks) {
       if (task.status === 'pending' || task.status === 'acknowledged') {
         pendingTaskReconciliationWatcher.watch(task);
@@ -543,10 +510,11 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           machineId: deps.machineId,
         });
         reconcileTaskStatuses(statusTasks);
-        await runBootstrapSweep();
+        await runBootstrapRecovery();
       } catch (error) {
-        bootstrapSweepPending = true;
         console.warn('[TaskService] task-status bootstrap failed:', error);
+        bootstrapRecoveryPending = true;
+        await runBootstrapRecovery();
       }
       if (wsClient && !stopInboxWatch) {
         stopInboxWatch = wsClient.onUpdate(
@@ -579,6 +547,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
     stopTaskInbox: () => {
       inboxStopped = true;
+      if (bootstrapRecoveryTimer) clearTimeout(bootstrapRecoveryTimer);
+      bootstrapRecoveryTimer = undefined;
       stopInboxWatch?.();
       stopInboxWatch = undefined;
       stopTaskStatusWatch?.();
@@ -735,7 +705,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       );
       return { released, skipped };
     },
-    sweepUncoveredInProgressTasks,
     releaseTaskAfterTurnFailure: (args) => releaseTask(args),
     loadAssignedTaskForAction: async ({ chatroomId, role, taskId }) => {
       const task = await gateway.loadAssignedTaskForAction({

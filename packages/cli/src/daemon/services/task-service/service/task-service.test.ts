@@ -214,11 +214,12 @@ describe('TaskService.recoverInFlightTasks', () => {
         .fn()
         .mockResolvedValueOnce([taskAtNewerTime])
         .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([activeTask({ updatedAt: 2_000 })]),
     });
     await service.startTaskInbox();
     await service.recoverInFlightTasks({ chatroomId: 'room-1', role: 'builder', mode: 'explicit' });
-    expect(query).toHaveBeenCalledTimes(3);
+    expect(query).toHaveBeenCalledTimes(4);
     expect(mutation).toHaveBeenCalledTimes(1);
     expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
       { taskId: 'task-1', status: 'pending', updatedAt: 4_000 },
@@ -394,7 +395,11 @@ describe('TaskService inbox consumption', () => {
       handoffRepository: createInMemoryTaskHandoffRepository(),
       backend: {
         mutation: vi.fn().mockResolvedValue({ processed: true }),
-        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+        query: vi
+          .fn()
+          .mockResolvedValueOnce([task])
+          .mockResolvedValueOnce([])
+          .mockResolvedValue([]),
       },
     });
 
@@ -414,15 +419,29 @@ describe('TaskService inbox consumption', () => {
     service.stopTaskInbox();
   });
 
-  test('bootstrap sweep releases uncovered in-progress tasks', async () => {
-    const task = {
-      taskId: 'task-in-progress',
+  test('bootstrap recovery releases authoritative acknowledged and in-progress tasks', async () => {
+    const tasks = [
+      activeTask({ taskId: 'task-acknowledged', status: 'acknowledged' }),
+      activeTask({ taskId: 'task-in-progress', status: 'in_progress' }),
+    ];
+    const pendingEvent = {
+      _id: 'event-after-recovery',
+      machineId: 'machine-1',
       chatroomId: 'room-1',
-      status: 'in_progress' as const,
-      assignedTo: 'builder',
-      updatedAt: 2_000,
-      createdAt: 1_000,
-      agentConfig: { role: 'builder', machineId: 'machine-1' },
+      taskId: 'task-acknowledged',
+      role: 'builder',
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 3_000,
+      task: {
+        taskId: 'task-acknowledged',
+        chatroomId: 'room-1',
+        status: 'pending',
+        assignedTo: 'builder',
+        updatedAt: 3_000,
+        createdAt: 1_000,
+        startInNewSession: false,
+      },
     };
     const mutation = vi.fn().mockResolvedValue({
       released: true,
@@ -442,23 +461,37 @@ describe('TaskService inbox consumption', () => {
       handoffRepository: repository,
       backend: {
         mutation,
-        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+        // Startup's first snapshot is empty; automatic recovery must find the
+        // backend-only in-flight rows through its authoritative read.
+        query: vi
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce(tasks)
+          .mockResolvedValueOnce([pendingEvent]),
       },
+    });
+    const deliveredTaskIds: string[] = [];
+    service.subscribe((notification) => {
+      if (notification.kind !== 'inbox-event') return;
+      deliveredTaskIds.push(notification.event.taskId);
+      return { handledEventIds: [notification.event.eventId] };
     });
 
     await service.startTaskInbox();
 
     expect(repository.getLatest).toHaveBeenCalledWith('room-1', 'builder');
-    expect(mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ taskId: 'task-in-progress' })
-    );
+    expect(
+      mutation.mock.calls
+        .filter(([, args]) => typeof args === 'object' && args !== null && 'role' in args)
+        .map(([, args]) => (args as { taskId: string }).taskId)
+    ).toEqual(['task-acknowledged', 'task-in-progress']);
+    expect(deliveredTaskIds).toEqual(['task-acknowledged']);
     expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
-      { taskId: 'task-in-progress', status: 'pending', updatedAt: 3_000 },
+      { taskId: 'task-acknowledged', status: 'pending' },
     ]);
   });
 
-  test('bootstrap sweep leaves a handoff-covered in-progress task untouched', async () => {
+  test('bootstrap recovery leaves a handoff-covered in-progress task untouched', async () => {
     const task = {
       taskId: 'task-covered',
       chatroomId: 'room-1',
@@ -468,7 +501,7 @@ describe('TaskService inbox consumption', () => {
       createdAt: 1_000,
       agentConfig: { role: 'builder', machineId: 'machine-1' },
     };
-    const mutation = vi.fn();
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
     const repository = {
       record: vi.fn(),
       getLatest: vi.fn().mockResolvedValue({ taskIds: ['task-covered'] }),
@@ -482,13 +515,21 @@ describe('TaskService inbox consumption', () => {
       handoffRepository: repository,
       backend: {
         mutation,
-        query: vi.fn().mockResolvedValueOnce([task]).mockResolvedValueOnce([]),
+        query: vi
+          .fn()
+          .mockResolvedValueOnce([task])
+          .mockResolvedValueOnce([task])
+          .mockResolvedValue([]),
       },
     });
 
     await service.startTaskInbox();
 
-    expect(mutation).not.toHaveBeenCalled();
+    expect(
+      mutation.mock.calls.filter(
+        ([, args]) => typeof args === 'object' && args !== null && 'role' in args
+      )
+    ).toHaveLength(0);
     expect(service.listTasksForRole('room-1', 'builder')).toMatchObject([
       { taskId: 'task-covered', status: 'in_progress' },
     ]);
@@ -504,7 +545,11 @@ describe('TaskService inbox consumption', () => {
       createdAt: 1_000,
       agentConfig: { role: 'builder', machineId: 'machine-1' },
     };
-    const query = vi.fn().mockResolvedValueOnce([statusTask]).mockResolvedValueOnce([]);
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([statusTask])
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([]);
     const service = createTaskService({
       sessionId: 'session-1',
       machineId: 'machine-1',
@@ -520,6 +565,145 @@ describe('TaskService inbox consumption', () => {
       { taskId: 'task-rehydrated', status: 'pending', updatedAt: 2_000 },
     ]);
     service.stopTaskInbox();
+  });
+
+  test('bootstrap recovery keeps handoff-covered and V2 exhausted tasks parked', async () => {
+    const tasks = [activeTask({ taskId: 'covered' }), activeTask({ taskId: 'exhausted' })];
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const repository = {
+      record: vi.fn(),
+      getLatest: vi.fn().mockResolvedValue({ taskIds: ['covered'] }),
+      close: vi.fn(),
+    };
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: repository,
+      backend: {
+        mutation,
+        query: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(tasks).mockResolvedValue([]),
+      },
+    });
+    const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'exhausted' };
+    await service.recordUncoveredTurnEnd(exhaustedArgs);
+    await service.recordUncoveredTurnEnd(exhaustedArgs);
+    await service.recordUncoveredTurnEnd(exhaustedArgs);
+
+    await service.startTaskInbox();
+
+    expect(repository.getLatest).toHaveBeenCalledWith('room-1', 'builder');
+    expect(
+      mutation.mock.calls.filter(
+        ([, args]) => typeof args === 'object' && args !== null && 'role' in args
+      )
+    ).toHaveLength(0);
+    service.stopTaskInbox();
+  });
+
+  test('bootstrap recovery retries a transient status read failure with backoff', async () => {
+    vi.useFakeTimers();
+    try {
+      const task = activeTask({ taskId: 'backend-only' });
+      const query = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('initial status read failure'))
+        .mockRejectedValueOnce(new Error('temporary recovery read failure'))
+        .mockResolvedValueOnce([]) // pending inbox events
+        .mockResolvedValueOnce([task])
+        .mockResolvedValue([]);
+      const mutation = vi
+        .fn()
+        .mockResolvedValue({ released: true, status: 'pending', updatedAt: 3_000 });
+      const { service } = recoveryService({ statuses: [], query, mutation });
+
+      await service.startTaskInbox();
+      expect(query).toHaveBeenCalledTimes(3);
+      expect(mutation).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(query).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(query).toHaveBeenCalledTimes(4);
+      expect(mutation).toHaveBeenCalledWith(
+        api.tasks.releaseTaskAfterTurnFailure,
+        expect.objectContaining({ taskId: 'backend-only' })
+      );
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('bootstrap recovery retries a transient release failure and cancels retry on stop', async () => {
+    vi.useFakeTimers();
+    try {
+      const task = activeTask({ taskId: 'release-retry' });
+      const query = vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([task])
+        .mockResolvedValue([]);
+      const mutation = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('temporary release failure'))
+        .mockResolvedValue({ released: true, status: 'pending', updatedAt: 3_000 });
+      const { service } = recoveryService({ statuses: [], query, mutation });
+
+      await service.startTaskInbox();
+      expect(mutation).toHaveBeenCalledTimes(1);
+      expect(query).toHaveBeenCalledTimes(3);
+      service.stopTaskInbox();
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(query).toHaveBeenCalledTimes(3);
+      expect(mutation).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('status reconciliation joins an in-flight bootstrap retry', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveRetry: ((tasks: readonly ReturnType<typeof activeTask>[]) => void) | undefined;
+      const query = vi
+        .fn()
+        .mockResolvedValueOnce([]) // initial status snapshot
+        .mockRejectedValueOnce(new Error('temporary read failure'))
+        .mockResolvedValueOnce([]) // pending inbox events
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveRetry = resolve;
+            })
+        );
+      let onStatusUpdate: ((tasks: readonly ReturnType<typeof activeTask>[]) => void) | undefined;
+      const wsClient = {
+        onUpdate: vi.fn((queryRef, _args, callback) => {
+          if (queryRef === api.daemon.taskStatus.listActive) {
+            onStatusUpdate = callback as typeof onStatusUpdate;
+          }
+          return vi.fn();
+        }),
+      } as never;
+      const { service } = recoveryService({ statuses: [], query });
+
+      await service.startTaskInbox(wsClient);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(query).toHaveBeenCalledTimes(3);
+
+      onStatusUpdate?.([activeTask()]);
+      expect(query).toHaveBeenCalledTimes(3);
+
+      resolveRetry?.([]);
+      await Promise.resolve();
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('keeps a permanent assignment visible when no agent slot exists yet', async () => {
@@ -543,7 +727,11 @@ describe('TaskService inbox consumption', () => {
         startInNewSession: false,
       },
     } as never;
-    const query = vi.fn(async () => [event]);
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([event]);
     const mutation = vi.fn(async () => ({ processed: true }));
     const service = createTaskService({
       sessionId: 'session-1',
@@ -597,7 +785,11 @@ describe('TaskService inbox consumption', () => {
         startInNewSession: false,
       },
     } as never;
-    const query = vi.fn(async () => [event]);
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([event]);
     const mutation = vi.fn(async () => ({ processed: true }));
     const service = createTaskService({
       sessionId: 'session-1',
@@ -661,7 +853,11 @@ describe('TaskService inbox consumption', () => {
           startInNewSession: false,
         },
       } as never;
-      const query = vi.fn(async () => [event]);
+      const query = vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValue([event]);
       const mutation = vi
         .fn()
         .mockRejectedValueOnce(new Error('transient acknowledgement failure'))
@@ -763,6 +959,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce([]) // bootstrap status feed
+      .mockResolvedValueOnce([]) // automatic recovery status feed
       .mockResolvedValueOnce([event]); // bootstrap pending events
     const service = trackerService(mutation, query);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
