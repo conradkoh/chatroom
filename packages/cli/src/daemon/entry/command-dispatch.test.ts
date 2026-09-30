@@ -199,7 +199,8 @@ vi.mock('./events/agent/on-request-stop-agent.js', async () => {
 
 const nativeDelivery = {
   reconcileAfterAgentRestart: vi.fn(async () => []),
-  handleAgentRestart: vi.fn(async () => {}),
+  prepareRoleRecovery: vi.fn(async () => {}),
+  recoverStoppedRole: vi.fn(async () => ({ released: 0 })),
 };
 
 /** Combined DaemonSessionService + DaemonAgentProcessManagerService + DaemonMutableStateService layers — used by dispatchCommandEventEffect and createDaemonRuntime. */

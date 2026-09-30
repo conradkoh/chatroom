@@ -1,10 +1,7 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import {
-  NativeTaskDeliveryCoordinator,
-  resetRoleDeliveryState,
-} from './native-task-delivery-coordinator.js';
+import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import { TaskAssigneeType } from '../../../../domain/entities/assigned-task.js';
 
@@ -76,7 +73,7 @@ function baseParams(overrides: Record<string, any> = {}) {
 
 describe('native-task-delivery-coordinator exact-task hydration', () => {
   afterEach(() => {
-    resetRoleDeliveryState(CHATROOM_ID, ROLE);
+    getRoleDeliveryState().resetDeliveryState(CHATROOM_ID, ROLE);
     vi.restoreAllMocks();
   });
 
@@ -167,7 +164,7 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
     );
     await started;
     isCurrent.mockReturnValue(false);
-    resetRoleDeliveryState(CHATROOM_ID, ROLE);
+    getRoleDeliveryState().resetDeliveryState(CHATROOM_ID, ROLE);
     expect(deliveryState.tryAcquireDelivery(CHATROOM_ID, ROLE)).toBe(true);
     resolveDelivery({
       kind: 'delivered',
@@ -233,7 +230,7 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
 
     await clearStarted;
     isCurrent.mockReturnValue(false);
-    resetRoleDeliveryState(CHATROOM_ID, ROLE);
+    getRoleDeliveryState().resetDeliveryState(CHATROOM_ID, ROLE);
     expect(deliveryState.tryAcquireDelivery(CHATROOM_ID, ROLE)).toBe(true);
     resolveClear();
 

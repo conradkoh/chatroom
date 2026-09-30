@@ -36,7 +36,6 @@ export {
 } from './infrastructure/repository/task-handoff-repository.js';
 export { createDaemonAuditPort } from './infrastructure/adapters/daemon-audit-port.js';
 export {
-  resetRoleDeliveryState,
   type NativeDeliveryDelivered,
   type NativeDeliveryExecution,
   type NativeDeliveryExecutors,

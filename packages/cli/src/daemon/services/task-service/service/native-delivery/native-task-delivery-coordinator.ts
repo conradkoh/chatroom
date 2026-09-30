@@ -237,7 +237,4 @@ export function getNativeTaskDeliveryCoordinator(): NativeTaskDeliveryCoordinato
   return coordinator;
 }
 
-export function resetRoleDeliveryState(chatroomId: string, role: string): void {
-  getRoleDeliveryState().resetDeliveryState(chatroomId, role);
-}
 // fallow-ignore-file complexity

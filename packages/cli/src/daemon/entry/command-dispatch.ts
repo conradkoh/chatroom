@@ -103,7 +103,10 @@ function handleRequestStartEffect(
 function handleRequestRestartEffect(
   event: CommandEvent,
   tracker: DedupTracker,
-  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart' | 'handleAgentRestart'>
+  nativeDelivery: Pick<
+    AgentWorkManager,
+    'prepareRoleRecovery' | 'recoverStoppedRole' | 'reconcileAfterAgentRestart'
+  >
 ): Effect.Effect<void, never, CommandDispatchDeps> {
   return Effect.gen(function* () {
     const eventId = event._id.toString();
@@ -270,7 +273,10 @@ const commandEventHandlers: {
   [K in DaemonCommandEventType]?: (
     event: CommandEvent,
     tracker: DedupTracker,
-    nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart' | 'handleAgentRestart'>
+    nativeDelivery: Pick<
+      AgentWorkManager,
+      'prepareRoleRecovery' | 'recoverStoppedRole' | 'reconcileAfterAgentRestart'
+    >
   ) => Effect.Effect<void, never, CommandDispatchDeps>;
 } = {
   'agent.requestStart': handleRequestStartEffect,
@@ -285,7 +291,10 @@ const commandEventHandlers: {
 export const dispatchCommandEventEffect = (
   event: CommandEvent,
   tracker: DedupTracker,
-  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart' | 'handleAgentRestart'>
+  nativeDelivery: Pick<
+    AgentWorkManager,
+    'prepareRoleRecovery' | 'recoverStoppedRole' | 'reconcileAfterAgentRestart'
+  >
 ): Effect.Effect<void, never, CommandDispatchDeps> => {
   if (!isDaemonCommandEventType(event.type)) return Effect.void;
   const factory = commandEventHandlers[event.type];
@@ -297,7 +306,10 @@ export async function handleInboundCommandEvent(
   tracker: DedupTracker,
   effectContext: Context.Context<CommandDispatchDeps>,
   claimedCommand: ClaimedMachineCommand,
-  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart' | 'handleAgentRestart'>
+  nativeDelivery: Pick<
+    AgentWorkManager,
+    'prepareRoleRecovery' | 'recoverStoppedRole' | 'reconcileAfterAgentRestart'
+  >
 ): Promise<void> {
   if (claimedCommand.commandId !== commandId) return;
   const { commandId: _id, machineId, deadline, timestamp, ...rest } = claimedCommand;

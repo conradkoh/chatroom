@@ -134,13 +134,6 @@ export interface TaskService extends TaskDeliveryOperations {
   /** Releases rehydrated in-progress tasks whose latest handoff does not cover them. */
   sweepUncoveredInProgressTasks(): Promise<number>;
   /**
-   * Notifies the task service that a user-initiated agent restart happened for
-   * the role. The task service decides what to do with the role's in-flight
-   * tasks: it resets the redelivery cap and hands acknowledged/in_progress
-   * tasks back to `pending` so the fresh agent reprocesses them.
-   */
-  handleAgentRestart(args: { chatroomId: string; role: string }): Promise<void>;
-  /**
    * Notifies the task service that a delivered task's agent turn is producing
    * output (agent process service reports first turn progress). The task
    * service decides what that means: apply the read intent (pending/
@@ -724,26 +717,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
     sweepUncoveredInProgressTasks,
     releaseTaskAfterTurnFailure: (args) => releaseTask(args),
-    handleAgentRestart: async ({ chatroomId, role }) => {
-      // A user-initiated restart is an explicit intervention: the fresh agent
-      // session reprocesses the role's in-flight work. Reset the redelivery
-      // cap and hand every acknowledged/in_progress task back to `pending` —
-      // the per-task release keeps each task's own state authoritative
-      // (already-pending/completed tasks are no-ops).
-      clearRoleRedeliveryTracking(chatroomId, role);
-      const inFlightTasks = taskInboxState
-        .listForRole(chatroomId, role)
-        .filter((task) => task.status === 'acknowledged' || task.status === 'in_progress');
-      for (const task of inFlightTasks) {
-        try {
-          await releaseTask({ chatroomId, role, taskId: task.taskId });
-        } catch (error) {
-          console.warn(
-            `[TaskService] agent-restart release failed chatroom=${chatroomId} role=${role} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-      }
-    },
     loadAssignedTaskForAction: async ({ chatroomId, role, taskId }) => {
       const task = await gateway.loadAssignedTaskForAction({
         sessionId: deps.sessionId,
