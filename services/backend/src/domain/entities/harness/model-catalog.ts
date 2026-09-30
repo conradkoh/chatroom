@@ -50,6 +50,7 @@ const claudeModelVariants = () =>
  */
 export type CodexModelId =
   | 'gpt-6-astra'
+  | 'gpt-6.1-sol'
   | 'gpt-6-sol'
   | 'gpt-6-luna'
   | 'gpt-5.6-terra'
@@ -64,6 +65,7 @@ export type CodexModelVariantString =
 
 const CODEX_MODEL_IDS: readonly CodexModelId[] = [
   'gpt-6-astra',
+  'gpt-6.1-sol',
   'gpt-6-sol',
   'gpt-6-luna',
   'gpt-5.6-terra',
@@ -74,13 +76,33 @@ const CODEX_MODEL_IDS: readonly CodexModelId[] = [
 ];
 
 /**
- * Plain id (harness default) + one entry per reasoning level, including
- * `reasoning=none` for explicitly opting out of a reasoning level.
+ * Codex models that do not support `reasoning=none`:
+ * - GPT-6 Astra: https://developers.openai.com/api/docs/models/gpt-6-astra
+ * - GPT-6.1 Sol: https://developers.openai.com/api/docs/models/gpt-6.1-sol
+ */
+const CODEX_MODELS_WITHOUT_NONE: ReadonlySet<CodexModelId> = new Set([
+  'gpt-6-astra',
+  'gpt-6.1-sol',
+]);
+const CODEX_MODEL_VARIANTS_WITHOUT_NONE = CODEX_MODEL_VARIANT_COMBINATIONS.filter(
+  (combination) => !('reasoning' in combination && combination.reasoning === 'none')
+);
+
+/**
+ * Plain id (harness default) plus each model's supported reasoning levels.
+ * Models in `CODEX_MODELS_WITHOUT_NONE` omit `reasoning=none`.
  */
 function codexModelVariants(): CodexModelVariantString[] {
   return prefixCatalogModels(
     'openai',
-    expandModelVariantCatalog(CODEX_MODEL_IDS, CODEX_MODEL_VARIANT_COMBINATIONS)
+    CODEX_MODEL_IDS.flatMap((id) =>
+      expandModelVariantCatalog(
+        [id],
+        CODEX_MODELS_WITHOUT_NONE.has(id)
+          ? CODEX_MODEL_VARIANTS_WITHOUT_NONE
+          : CODEX_MODEL_VARIANT_COMBINATIONS
+      )
+    )
   ) as CodexModelVariantString[];
 }
 
