@@ -78,6 +78,12 @@ export interface AgentProcessManagerExecutionPort {
   reset(input: AgentProcessManagerResetInput): Promise<void>;
 
   getSlot(chatroomId: string, role: string, workingDir?: string): AgentProcessSlotView | undefined;
+  isStopRequested(
+    chatroomId: string,
+    role: string,
+    generation?: number,
+    workingDir?: string
+  ): boolean;
   listActive(): { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot(
     chatroomId: string,
@@ -146,7 +152,9 @@ export interface AgentProcessManagerService {
   /** Non-lifecycle manager operations exposed through the same boundary. */
   handleExit(opts: HandleAgentProcessExitInput): Promise<void>;
   getSlot(chatroomId: string, role: string, workingDir?: string): AgentProcessSlotView | undefined;
-  acquireNativeDeliverySlot(input: AcquireNativeDeliverySlotInput): Promise<AgentProcessSlotView>;
+  acquireNativeDeliverySlot(
+    input: AcquireNativeDeliverySlotInput
+  ): Promise<AgentProcessSlotView | null>;
   listActive(): { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot(
     chatroomId: string,
@@ -194,6 +202,20 @@ function isNativeDeliveryReady(slot: DeliverySlotCandidate): boolean {
   );
 }
 
+function isReplaceableLiveSlot(
+  execution: AgentProcessManagerExecutionPort,
+  input: AcquireNativeDeliverySlotInput,
+  slot: AgentProcessSlotView | undefined,
+  expectedPid: number
+): slot is AgentProcessSlotView {
+  return (
+    slot !== undefined &&
+    isSlotRunning(slot.state) &&
+    slot.pid === expectedPid &&
+    !execution.isStopRequested(input.chatroomId, input.role, undefined, input.workingDir)
+  );
+}
+
 /** True when the live slot's runtime identity conflicts with the requested config. */
 // fallow-ignore-next-line complexity
 function hasDeliveryConfigMismatch(
@@ -206,12 +228,6 @@ function hasDeliveryConfigMismatch(
       normalizeWorkingDir(slot.workingDir) !== normalizeWorkingDir(input.workingDir)) ||
     (slot.model !== undefined && input.model !== undefined && slot.model !== input.model)
   );
-}
-
-/** Slots in these states cannot make progress without a (re)start request. */
-function needsStartRequest(slot: DeliverySlotCandidate | undefined): boolean {
-  if (!slot) return true;
-  return slot.state === 'idle' || (slot.state === 'running' && slot.pid === undefined);
 }
 
 function normalizeWorkingDir(workingDir: string): string {
@@ -423,7 +439,7 @@ export function createAgentProcessManagerService(
   // fallow-ignore-next-line complexity
   const acquireNativeDeliverySlot = async (
     input: AcquireNativeDeliverySlotInput
-  ): Promise<AgentProcessSlotView> => {
+  ): Promise<AgentProcessSlotView | null> => {
     assertNotAborted(input.signal);
     const effectiveInput = applyAgentConfigOverrides(input);
     if (!getHarnessCapabilities(effectiveInput.agentHarness).supportsNativeIntegration) {
@@ -436,44 +452,65 @@ export function createAgentProcessManagerService(
     while (true) {
       assertNotAborted(input.signal);
       const slot = deps.execution.getSlot(input.chatroomId, input.role, input.workingDir);
-      if (slot) {
-        if (hasDeliveryConfigMismatch(slot, effectiveInput)) {
-          // A live slot running a different harness/model cannot serve this
-          // delivery — restart it with the requested config instead of failing.
-          if (isSlotRunning(slot.state) && slot.pid !== undefined && slot.pid !== lastRestartPid) {
-            if (!warnedConfigMismatch) {
-              console.warn(
-                `[AgentProcessManager] delivery slot config mismatch for ${input.role}@${input.chatroomId}; restarting with requested config (harness=${effectiveInput.agentHarness})`
-              );
-              warnedConfigMismatch = true;
-            }
-            lastRestartPid = slot.pid;
-            const remaining = deadline - Date.now();
-            await awaitWithinDeadline(
-              deps.execution.stop({
-                chatroomId: input.chatroomId,
-                role: input.role,
-                reason: DaemonStartReasonCode.RESPAWN,
-                pid: slot.pid,
-                workingDir: input.workingDir,
-              }),
-              remaining,
-              input.signal
-            );
-          }
-          // Idle/stopping/spawning slots settle through the loop; the next
-          // start request carries the effective config.
-        } else if (isNativeDeliveryReady(slot)) {
+      if (!slot || slot.state === 'idle' || (isSlotRunning(slot.state) && slot.pid === undefined)) {
+        return null;
+      }
+
+      if (isSlotRunning(slot.state) && slot.pid !== undefined) {
+        if (!hasDeliveryConfigMismatch(slot, effectiveInput) && isNativeDeliveryReady(slot)) {
           return slot;
+        }
+
+        if (hasDeliveryConfigMismatch(slot, effectiveInput) && slot.pid !== lastRestartPid) {
+          if (!warnedConfigMismatch) {
+            console.warn(
+              `[AgentProcessManager] delivery slot config mismatch for ${input.role}@${input.chatroomId}; restarting with requested config (harness=${effectiveInput.agentHarness})`
+            );
+            warnedConfigMismatch = true;
+          }
+          const remainingMs = deadline - Date.now();
+          if (remainingMs <= 0) throw new Error('native_delivery_slot_timeout');
+          const expectedPid = slot.pid;
+          const replacement = await awaitWithinDeadline(
+            runSerializedForAgent(
+              { chatroomId: input.chatroomId, role: input.role, workingDir: input.workingDir },
+              { timeoutMs: remainingMs },
+              async (ops, context) => {
+                const current = deps.execution.getSlot(
+                  input.chatroomId,
+                  input.role,
+                  input.workingDir
+                );
+                if (!isReplaceableLiveSlot(deps.execution, input, current, expectedPid)) {
+                  return false;
+                }
+                await ops.stopAgent(
+                  {
+                    chatroomId: input.chatroomId,
+                    role: input.role,
+                    reason: DaemonStartReasonCode.RESPAWN,
+                    pid: expectedPid,
+                    workingDir: input.workingDir,
+                  },
+                  context.signal
+                );
+                await ops.startAgent(
+                  { ...effectiveInput, reason: DaemonStartReasonCode.RESPAWN },
+                  context.signal
+                );
+                return true;
+              }
+            ),
+            remainingMs,
+            input.signal
+          );
+          if (!replacement) return null;
+          lastRestartPid = expectedPid;
         }
       }
 
       const remainingMs = deadline - Date.now();
       if (remainingMs <= 0) throw new Error('native_delivery_slot_timeout');
-
-      if (needsStartRequest(slot)) {
-        await awaitWithinDeadline(startAgent(effectiveInput), remainingMs, input.signal);
-      }
       await waitForSlotChange(deps.execution, input, remainingMs);
     }
   };

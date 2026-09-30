@@ -99,6 +99,7 @@ export async function processTasksUpdate(
         timeoutMs: 30_000,
       });
       if (!isCurrent()) return { kind: 'cancelled' as const };
+      if (!slot) return { kind: 'agent-not-running' as const };
       const full = await taskService.loadAssignedTaskForAction(taskLookup);
       if (!isCurrent()) return { kind: 'cancelled' as const };
       if (!full) {

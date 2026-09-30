@@ -60,10 +60,13 @@ describe('agent reason predicates', () => {
     expect(isUserExplicitStart('user.manual_spawn')).toBe(false);
   });
 
-  test('isExplicitDaemonStart accepts daemon nudge/wake reasons', () => {
+  test('isExplicitDaemonStart accepts user starts and controlled replacements only', () => {
     expect(isExplicitDaemonStart('user.start')).toBe(true);
-    expect(isExplicitDaemonStart('platform.task_monitor_nudge')).toBe(true);
-    expect(isExplicitDaemonStart('platform.pending_task_wake')).toBe(true);
+    expect(isExplicitDaemonStart('user.restart')).toBe(true);
+    expect(isExplicitDaemonStart('user.manual_spawn')).toBe(true);
+    expect(isExplicitDaemonStart('platform.task_monitor_nudge')).toBe(false);
+    expect(isExplicitDaemonStart('platform.pending_task_wake')).toBe(false);
+    expect(isExplicitDaemonStart('platform.task_start_in_new_session')).toBe(true);
     expect(isExplicitDaemonStart('daemon.respawn')).toBe(true);
   });
 });

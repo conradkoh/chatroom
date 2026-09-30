@@ -805,20 +805,52 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(true);
     });
 
-    test('platform.pending_task_wake clears stale stop intent for task delivery', async () => {
+    test.each([
+      AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+      AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
+    ])('%s cannot clear user stop intent', async (reason) => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
 
       const result = await manager.ensureRunning(
         createOpts({
-          reason: AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+          reason,
           taskId: 'task-1',
         })
       );
 
-      expect(result.success).toBe(true);
-      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(false);
+      expect(result).toMatchObject({ success: false, error: 'stop_requested' });
+      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(true);
+    });
+
+    test.each([
+      AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+      AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
+    ])('rejects autonomous %s starts without a live slot', async (reason) => {
+      const service = deps.agentServices.get('opencode')!;
+      const result = await manager.ensureRunning(createOpts({ reason }));
+
+      expect(result).toMatchObject({ success: false, error: 'agent_not_running' });
+      expect(service.spawn).not.toHaveBeenCalled();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)).toBeUndefined();
+    });
+
+    test('rejects pending task wake for an idle slot without spawning', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'idle';
+      slot.pid = undefined;
+      const service = deps.agentServices.get('opencode')!;
+      const spawn = service.spawn as ReturnType<typeof vi.fn>;
+      const spawnCount = spawn.mock.calls.length;
+
+      const result = await manager.ensureRunning(
+        createOpts({ reason: AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE })
+      );
+
+      expect(result).toMatchObject({ success: false, error: 'agent_not_running' });
+      expect(spawn).toHaveBeenCalledTimes(spawnCount);
     });
 
     test('markChatroomStopIntent marks idle slots after stale-state reset', async () => {
@@ -1072,7 +1104,7 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('can clear stale stop intent before task delivery', async () => {
+    test('clearing stale stop intent does not let a task nudge respawn the agent', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
@@ -1088,7 +1120,7 @@ describe('AgentProcessManager', () => {
       const result = await manager.ensureRunning(
         createOpts({ reason: AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE })
       );
-      expect(result.success).toBe(true);
+      expect(result).toMatchObject({ success: false, error: 'agent_not_running' });
     });
 
     test('preserves a new stop intent requested during force-clear cleanup', async () => {

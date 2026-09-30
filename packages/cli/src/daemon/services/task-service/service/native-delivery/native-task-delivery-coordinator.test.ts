@@ -126,6 +126,56 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
     });
   });
 
+  test('keeps a task pending while no agent runs, then delivers the same task when one runs', async () => {
+    const onTaskDelivered = vi.fn();
+    const recordDeliveryFailure = vi.fn();
+    const clearDeliveryFailure = vi.fn().mockResolvedValue(undefined);
+    const taskService = {
+      deliverNativeTask: vi.fn(),
+      loadAssignedTaskForAction: vi.fn(),
+      recordDeliveryFailure,
+      clearDeliveryFailure,
+      isNativeHarness: () => true,
+      explainNativeDeliveryBlock: () => null,
+      isRedeliveryExhausted: () => false,
+    };
+    const coordinator = new NativeTaskDeliveryCoordinator();
+    const params = baseParams({
+      taskService,
+      onTaskDelivered,
+      executors: {
+        deliverTask: vi
+          .fn()
+          .mockResolvedValueOnce({ kind: 'agent-not-running' as const })
+          .mockResolvedValueOnce({
+            kind: 'delivered' as const,
+            delivered: {
+              chatroomId: CHATROOM_ID,
+              role: ROLE,
+              taskId: TASK_ID,
+              harnessSessionId: HARNESS_SESSION_ID,
+            },
+          }),
+      },
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(coordinator.reconcileRoleTasks(params)).resolves.toEqual([]);
+    expect(recordDeliveryFailure).not.toHaveBeenCalled();
+    expect(clearDeliveryFailure).not.toHaveBeenCalled();
+    expect(onTaskDelivered).not.toHaveBeenCalled();
+
+    await expect(coordinator.reconcileRoleTasks(params)).resolves.toEqual([TASK_ID]);
+    expect(recordDeliveryFailure).not.toHaveBeenCalled();
+    expect(onTaskDelivered).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      role: ROLE,
+      taskId: TASK_ID,
+      harnessSessionId: HARNESS_SESSION_ID,
+    });
+  });
+
   test('an invalidated completed pass neither reports success nor releases the new generation lock', async () => {
     let resolveDelivery!: (value: any) => void;
     let markStarted!: () => void;

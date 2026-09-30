@@ -138,7 +138,6 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
  *
  * Values are serialized in agent.requestStart events and must not be renamed.
  */
-// fallow-ignore-next-line unused-export
 export const AgentStartReasonCode = {
   /** User explicitly started the agent through the UI or CLI. */
   USER_START: 'user.start',
@@ -178,7 +177,6 @@ export const AGENT_START_REASONS = [
  * Reasons owned by the local daemon rather than backend agent-start events.
  * These must not be added to the backend AgentStartReason validator.
  */
-// fallow-ignore-next-line unused-export
 export const DaemonStartReasonCode = {
   /** Respawn after the daemon replaces an agent process. */
   RESPAWN: 'daemon.respawn',
@@ -208,8 +206,6 @@ export const isUserExplicitStart = (reason: string): reason is UserExplicitStart
 export const EXPLICIT_DAEMON_START_REASONS = [
   ...USER_EXPLICIT_START_REASONS,
   AgentStartReasonCode.USER_MANUAL_SPAWN,
-  AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
-  AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
   AgentStartReasonCode.PLATFORM_TASK_START_IN_NEW_SESSION,
   DaemonStartReasonCode.RESPAWN,
 ] as const;

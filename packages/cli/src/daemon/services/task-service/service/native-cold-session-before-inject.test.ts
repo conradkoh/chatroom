@@ -39,7 +39,9 @@ function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTas
 function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps {
   const agentMgr: NativeInjectorDeps['agentMgr'] = {
     resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
-    getSlot: vi.fn().mockReturnValue({ state: 'running', harnessSessionId: 'sess_after_cold' }),
+    getSlot: vi
+      .fn()
+      .mockReturnValue({ state: 'running', pid: 42, harnessSessionId: 'sess_after_cold' }),
   };
   const runSerializedForAgent: NativeInjectorDeps['runSerializedForAgent'] = vi.fn(
     async (_key, _options, operation) =>
@@ -75,6 +77,23 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     expect(result).toBeNull();
     expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
     expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['absent', undefined],
+    ['idle', { state: 'idle' }],
+  ])('does not cold-start when the slot is %s', async (_label, slot) => {
+    const deps = createDeps({
+      agentMgr: {
+        ...createDeps().agentMgr,
+        getSlot: vi.fn().mockReturnValue(slot),
+      },
+    });
+
+    await expect(
+      ensureColdSessionBeforeNativeInject(makeTask({ startInNewSession: true }), deps)
+    ).resolves.toBeNull();
+    expect(deps.runSerializedForAgent).not.toHaveBeenCalled();
   });
 
   test('cold-restarts planner harness and emits sessionAugmented before returning session id', async () => {
@@ -135,6 +154,28 @@ describe('ensureColdSessionBeforeNativeInject', () => {
     expect(serializedStart).toHaveBeenCalledOnce();
   });
 
+  test('does not replace a process stopped before the serialized callback', async () => {
+    const slot = { state: 'running', pid: 42, harnessSessionId: 'old-session' };
+    const serializedStop = vi.fn().mockResolvedValue(undefined);
+    const serializedStart = vi.fn().mockResolvedValue(undefined);
+    const deps = createDeps({
+      agentMgr: { ...createDeps().agentMgr, getSlot: vi.fn(() => slot as never) },
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) => {
+        slot.state = 'stopping';
+        return operation(
+          { startAgent: serializedStart, stopAgent: serializedStop },
+          { signal: new AbortController().signal }
+        );
+      }),
+    });
+
+    await expect(
+      ensureColdSessionBeforeNativeInject(makeTask({ startInNewSession: true }), deps)
+    ).resolves.toBeNull();
+    expect(serializedStop).not.toHaveBeenCalled();
+    expect(serializedStart).not.toHaveBeenCalled();
+  });
+
   test('returns null when cold spawn fails', async () => {
     const deps = createDeps({
       agentMgr: {
@@ -160,6 +201,28 @@ describe('ensureColdSessionBeforeNativeInject', () => {
 
     expect(result).toBeNull();
     expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  test('does not start a replacement when stopping the live process fails', async () => {
+    const serializedStart = vi.fn().mockResolvedValue(undefined);
+    const deps = createDeps({
+      runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
+        operation(
+          {
+            startAgent: serializedStart,
+            stopAgent: async () => {
+              throw new Error('stop failed');
+            },
+          },
+          { signal: new AbortController().signal }
+        )
+      ),
+    });
+
+    await expect(
+      ensureColdSessionBeforeNativeInject(makeTask({ startInNewSession: true }), deps)
+    ).resolves.toBeNull();
+    expect(serializedStart).not.toHaveBeenCalled();
   });
 
   test('explicit envelope new plus stale scalar false cold-restarts', async () => {

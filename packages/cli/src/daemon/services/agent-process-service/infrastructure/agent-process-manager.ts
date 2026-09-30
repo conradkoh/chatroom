@@ -22,6 +22,7 @@
  */
 
 import {
+  AgentStartReasonCode,
   DaemonStartReasonCode,
   isExplicitDaemonStart,
 } from '@workspace/backend/src/domain/entities/agent.js';
@@ -478,6 +479,19 @@ export class AgentProcessManager {
   async ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult> {
     if (isChatroomStopScopeActive(opts.chatroomId)) {
       return { success: false, error: 'stop_in_progress' };
+    }
+    const isAutonomousWake =
+      opts.reason === AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE ||
+      opts.reason === AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE;
+    const existingSlot = this.getSlotFromMirror(opts.chatroomId, opts.role, opts.workingDir);
+    if (
+      isAutonomousWake &&
+      (!existingSlot ||
+        !isAgentSlotStarted(existingSlot) ||
+        existingSlot.pid === undefined ||
+        !isProcessAlive(this.deps.processes.kill, existingSlot.pid))
+    ) {
+      return { success: false, error: 'agent_not_running' };
     }
     const key = agentKey(opts.chatroomId, opts.role, opts.workingDir);
     const slot = this.getOrCreateSlot(key);

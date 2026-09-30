@@ -177,6 +177,55 @@ describe('task-delivery-processor exact-task hydration', () => {
     }
   });
 
+  test('returns waiting when slot acquisition reports no running agent', async () => {
+    const row = snapshotRow();
+    const onTaskDeliveryStarted = vi.fn();
+    const onTaskDeliveryFailed = vi.fn();
+    const onTaskDelivered = vi.fn();
+    const loadAssignedTaskForAction = vi.fn(async () => fullTask());
+    const deliverNativeTask = vi.fn();
+    const acquireNativeDeliverySlot = vi.fn(async () => null);
+    const forgetStaleTask = vi.fn();
+    let capturedDeliver: ((task: never, agentConfig: never) => Promise<unknown>) | undefined;
+    const reconcileSpy = vi
+      .spyOn(NativeTaskDeliveryCoordinator.prototype, 'reconcileRoleTasks')
+      .mockImplementation(async (params) => {
+        capturedDeliver = params.executors.deliverTask as never;
+        return [];
+      });
+
+    try {
+      await processTasksUpdate(
+        {
+          deliverNativeTask,
+          loadAssignedTaskForAction,
+          forgetStaleTask,
+          isNativeHarness: () => true,
+          explainNativeDeliveryBlock: () => null,
+          recordDeliveryFailure: vi.fn(),
+        } as never,
+        { get: () => config } as never,
+        'bootstrap',
+        () => false,
+        { tasks: [row], onTaskDeliveryStarted, onTaskDeliveryFailed, onTaskDelivered },
+        acquireNativeDeliverySlot as never
+      );
+
+      await expect(capturedDeliver?.(row, config as never)).resolves.toEqual({
+        kind: 'agent-not-running',
+      });
+      expect(loadAssignedTaskForAction).toHaveBeenCalledTimes(1);
+      expect(acquireNativeDeliverySlot).toHaveBeenCalledOnce();
+      expect(forgetStaleTask).not.toHaveBeenCalled();
+      expect(deliverNativeTask).not.toHaveBeenCalled();
+      expect(onTaskDeliveryStarted).not.toHaveBeenCalled();
+      expect(onTaskDeliveryFailed).not.toHaveBeenCalled();
+      expect(onTaskDelivered).not.toHaveBeenCalled();
+    } finally {
+      reconcileSpy.mockRestore();
+    }
+  });
+
   test('invalidation during slot acquisition prevents marker start and queue enqueue', async () => {
     let current = true;
     let resolveSlot!: (slot: { harnessSessionId: string }) => void;
@@ -323,7 +372,7 @@ describe('task-delivery-processor exact-task hydration', () => {
     }
   });
 
-  test('keeps a live task retryable when native slot acquisition is unavailable', async () => {
+  test('returns waiting when native slot acquisition is unavailable', async () => {
     const row = snapshotRow();
     const full = fullTask();
     const loadAssignedTaskForAction = vi.fn(async () => full);
@@ -358,8 +407,8 @@ describe('task-delivery-processor exact-task hydration', () => {
       );
 
       const result = await capturedDeliver?.(row, config as never);
-      expect(result).toEqual({ kind: 'task-unavailable' });
-      expect(loadAssignedTaskForAction).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ kind: 'agent-not-running' });
+      expect(loadAssignedTaskForAction).toHaveBeenCalledTimes(1);
       expect(forgetStaleTask).not.toHaveBeenCalled();
     } finally {
       reconcileSpy.mockRestore();

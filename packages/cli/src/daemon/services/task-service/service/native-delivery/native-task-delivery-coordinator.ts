@@ -23,6 +23,7 @@ export type NativeDeliveryDelivered = {
 
 export type NativeDeliveryExecution =
   | { kind: 'delivered'; delivered: NativeDeliveryDelivered }
+  | { kind: 'agent-not-running' }
   | { kind: 'task-unavailable'; stale?: boolean }
   | { kind: 'cancelled' }
   | { kind: 'failed'; reason: 'injection_not_confirmed' };
@@ -185,6 +186,7 @@ export class NativeTaskDeliveryCoordinator {
         ) {
           continue;
         }
+        if (result?.kind === 'agent-not-running') continue;
         if (!result || result.kind === 'task-unavailable') {
           console.warn(
             `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`

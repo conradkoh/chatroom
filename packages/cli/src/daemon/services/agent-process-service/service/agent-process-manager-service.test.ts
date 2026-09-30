@@ -49,6 +49,7 @@ function createExecution(events: string[]): AgentProcessManagerExecutionPort {
     handleExit: vi.fn(async () => undefined),
     reset: vi.fn(async () => undefined),
     getSlot: vi.fn(() => undefined),
+    isStopRequested: vi.fn(() => false),
     listActive: vi.fn(() => []),
     clearStuckStoppingSlot: vi.fn(async () => false),
     whenTurnEndsIdle: vi.fn(async () => undefined),
@@ -285,5 +286,191 @@ describe('AgentProcessManagerService', () => {
     expect(events).toEqual(
       expect.arrayContaining(['start:room-1:builder', 'start:room-2:builder'])
     );
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['idle', { state: 'idle' }],
+    ['running without a PID', { state: 'running' }],
+  ])('does not start native delivery for a %s slot', async (_label, slot) => {
+    const events: string[] = [];
+    const execution = {
+      ...createExecution(events),
+      getSlot: vi.fn(() => slot as never),
+    };
+    const service = createAgentProcessManagerService({
+      execution,
+      notifier: new InMemoryCommandNotifier(),
+    });
+
+    await expect(
+      service.acquireNativeDeliverySlot({
+        ...startInput('room-1', 'builder'),
+        agentHarness: 'cursor-sdk',
+      })
+    ).resolves.toBeNull();
+    expect(execution.ensureRunning).not.toHaveBeenCalled();
+    expect(execution.stop).not.toHaveBeenCalled();
+  });
+
+  it('waits for an explicitly spawning native slot to become ready', async () => {
+    let slot: Record<string, unknown> = { state: 'spawning' };
+    let startedListener:
+      ((event: { chatroomId: string; role: string }) => void | Promise<void>) | undefined;
+    const execution = {
+      ...createExecution([]),
+      getSlot: vi.fn(() => slot as never),
+      subscribeAgentStarted: vi.fn((listener) => {
+        startedListener = listener;
+        return () => undefined;
+      }),
+    };
+    const service = createAgentProcessManagerService({
+      execution,
+      notifier: new InMemoryCommandNotifier(),
+    });
+    const acquiring = service.acquireNativeDeliverySlot({
+      ...startInput('room-1', 'builder'),
+      agentHarness: 'cursor-sdk',
+      timeoutMs: 1_000,
+    });
+    setTimeout(() => {
+      slot = {
+        state: 'running',
+        pid: 91,
+        harness: 'cursor-sdk',
+        model: 'gpt-4',
+        workingDir: '/tmp/workspace',
+        harnessSessionId: 'session-91',
+        nativeTurnPhase: 'idle',
+      };
+      void startedListener?.({ chatroomId: 'room-1', role: 'builder' });
+    }, 5);
+
+    await expect(acquiring).resolves.toMatchObject({ pid: 91, harnessSessionId: 'session-91' });
+    expect(execution.ensureRunning).not.toHaveBeenCalled();
+  });
+
+  it('returns null when an explicitly spawning slot is stopped while waiting', async () => {
+    let slot: Record<string, unknown> = { state: 'spawning' };
+    let startedListener:
+      ((event: { chatroomId: string; role: string }) => void | Promise<void>) | undefined;
+    const execution = {
+      ...createExecution([]),
+      getSlot: vi.fn(() => slot as never),
+      subscribeAgentStarted: vi.fn((listener) => {
+        startedListener = listener;
+        return () => undefined;
+      }),
+    };
+    const service = createAgentProcessManagerService({
+      execution,
+      notifier: new InMemoryCommandNotifier(),
+    });
+    const acquiring = service.acquireNativeDeliverySlot({
+      ...startInput('room-1', 'builder'),
+      agentHarness: 'cursor-sdk',
+      timeoutMs: 1_000,
+    });
+    setTimeout(() => {
+      slot = { state: 'idle' };
+      void startedListener?.({ chatroomId: 'room-1', role: 'builder' });
+    }, 5);
+
+    await expect(acquiring).resolves.toBeNull();
+  });
+
+  it('serializes a live config replacement against the same PID', async () => {
+    let slot: Record<string, unknown> = {
+      state: 'running',
+      pid: 55,
+      harness: 'claude-sdk',
+      model: 'old-model',
+      workingDir: '/tmp/workspace',
+      harnessSessionId: 'old-session',
+      nativeTurnPhase: 'idle',
+    };
+    const execution = {
+      ...createExecution([]),
+      getSlot: vi.fn(() => slot as never),
+      stop: vi.fn(async () => ({ success: true })),
+      ensureRunning: vi.fn(async (input) => {
+        slot = {
+          state: 'running',
+          pid: 56,
+          harness: input.agentHarness,
+          model: input.model,
+          workingDir: input.workingDir,
+          harnessSessionId: 'new-session',
+          nativeTurnPhase: 'idle',
+        };
+        return { success: true, pid: 56 };
+      }),
+    };
+    const service = createAgentProcessManagerService({
+      execution,
+      notifier: new InMemoryCommandNotifier(),
+    });
+
+    await expect(
+      service.acquireNativeDeliverySlot({
+        ...startInput('room-1', 'builder'),
+        agentHarness: 'cursor-sdk',
+        model: 'new-model',
+      })
+    ).resolves.toMatchObject({ pid: 56, harnessSessionId: 'new-session' });
+
+    expect(execution.stop).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      reason: 'daemon.respawn',
+      pid: 55,
+      workingDir: '/tmp/workspace',
+    });
+    expect(execution.ensureRunning).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentHarness: 'cursor-sdk',
+        model: 'new-model',
+        reason: 'daemon.respawn',
+      })
+    );
+  });
+
+  it('does not replace a live slot when stop intent appears before the lock', async () => {
+    let stopRequested = false;
+    const slot = {
+      state: 'running',
+      pid: 55,
+      harness: 'claude-sdk',
+      model: 'old-model',
+      workingDir: '/tmp/workspace',
+      harnessSessionId: 'old-session',
+      nativeTurnPhase: 'idle',
+    };
+    const execution = {
+      ...createExecution([]),
+      getSlot: vi.fn(() => slot as never),
+      isStopRequested: vi.fn(() => stopRequested),
+      runSerializedForAgent: vi.fn(async (_key, operation) => {
+        stopRequested = true;
+        return operation();
+      }),
+      stop: vi.fn(async () => ({ success: true })),
+      ensureRunning: vi.fn(async () => ({ success: true })),
+    };
+    const service = createAgentProcessManagerService({
+      execution,
+      notifier: new InMemoryCommandNotifier(),
+    });
+
+    await expect(
+      service.acquireNativeDeliverySlot({
+        ...startInput('room-1', 'builder'),
+        agentHarness: 'cursor-sdk',
+        model: 'new-model',
+      })
+    ).resolves.toBeNull();
+    expect(execution.stop).not.toHaveBeenCalled();
+    expect(execution.ensureRunning).not.toHaveBeenCalled();
   });
 });

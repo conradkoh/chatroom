@@ -31,11 +31,19 @@ async function waitForHarnessSessionId(
   return null;
 }
 
+function isSameRunningProcess(
+  slot: ReturnType<NativeInjectorDeps['agentMgr']['getSlot']>,
+  expectedPid: number
+): slot is NonNullable<typeof slot> {
+  return slot?.state === 'running' && slot.pid !== undefined && slot.pid === expectedPid;
+}
+
 /**
  * Cold-restart native harness when the task requests a new session.
  *
  * Constraints:
- * - Missing/idle slots start directly with `wantResume: false` (no stop).
+ * - Only an existing running process with a PID can be replaced; absent, idle,
+ *   spawning, and stopping slots never trigger a start.
  * - A running old session must stop successfully before starting; a failed
  *   stop never proceeds to start/inject.
  * - Spawning or stopping slots are transitions: wait for reconciliation
@@ -66,25 +74,29 @@ export async function ensureColdSessionBeforeNativeInject(
   if (!agentConfig?.model) return null;
   const { agentHarness, model, workingDir } = agentConfig;
   const slotState = slot?.state;
-  if (slotState === 'spawning' || slotState === 'stopping') {
+  if (slotState !== 'running' || slot?.pid === undefined) {
     return null;
   }
+  const expectedPid = slot.pid;
   let harnessSessionId: string | null;
   try {
     harnessSessionId = await deps.runSerializedForAgent(
       { chatroomId, role },
       { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
       async (ops, context) => {
-        if (slotState === 'running') {
-          await ops.stopAgent(
-            {
-              chatroomId,
-              role,
-              reason: AgentStopReasonEnum['platform.task_start_in_new_session'],
-            },
-            context.signal
-          );
-        }
+        const current = deps.agentMgr.getSlot(chatroomId, role);
+        if (!isSameRunningProcess(current, expectedPid)) return null;
+
+        await ops.stopAgent(
+          {
+            chatroomId,
+            role,
+            reason: AgentStopReasonEnum['platform.task_start_in_new_session'],
+            pid: expectedPid,
+            workingDir,
+          },
+          context.signal
+        );
 
         await ops.startAgent(
           {
