@@ -79,6 +79,7 @@ export type DaemonRuntimeDeps = {
     | DaemonAgentProcessManagerCommandService
     | DaemonMutableStateService
   >;
+  onNativeDeliveryReady?: (nativeDelivery: AgentWorkManager | null) => void;
 };
 
 export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandle {
@@ -135,6 +136,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
     agentConfigRegistryHandle?.stop();
+    deps.onNativeDeliveryReady?.(null);
     taskInboxHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     agenticQueryWorkerHandle?.stop();
@@ -274,6 +276,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     });
 
     taskInboxHandle = yield* startTaskInboxEffect(deps.wsClient);
+    deps.onNativeDeliveryReady?.(taskInboxHandle.nativeDelivery);
 
     agentConfigRegistryHandle = session.agentConfigRegistry;
     yield* Effect.tryPromise({

@@ -107,6 +107,7 @@ describe('createDaemonRuntime', () => {
       })
     );
 
+    const onNativeDeliveryReady = vi.fn();
     const runtime = createDaemonRuntime({
       wsClient: { onUpdate: vi.fn() } as never,
       agentLifecycleOutbox: {
@@ -116,6 +117,7 @@ describe('createDaemonRuntime', () => {
         stopProcessing: vi.fn().mockResolvedValue(undefined),
       } as never,
       layers,
+      onNativeDeliveryReady,
     });
 
     const runPromise = runtime.run();
@@ -124,6 +126,7 @@ describe('createDaemonRuntime', () => {
     expect(registerCommandInboundHandler).toHaveBeenCalled();
     expect(registerFileInboundHandler).toHaveBeenCalled();
     expect(registerWorkspaceGitInboundHandler).toHaveBeenCalled();
+    expect(onNativeDeliveryReady).toHaveBeenCalledWith(nativeDelivery);
     expect(registerFileInboundHandler).toHaveBeenCalledBefore(drainPendingFileTreeReleaseRequests);
     expect(drainPendingFileTreeReleaseRequests).toHaveBeenCalledTimes(1);
 
@@ -133,5 +136,6 @@ describe('createDaemonRuntime', () => {
     expect(unregisterCommandInboundHandler).toHaveBeenCalled();
     expect(unregisterFileInboundHandler).toHaveBeenCalled();
     expect(unregisterWorkspaceGitInboundHandler).toHaveBeenCalled();
+    expect(onNativeDeliveryReady).toHaveBeenLastCalledWith(null);
   });
 });
