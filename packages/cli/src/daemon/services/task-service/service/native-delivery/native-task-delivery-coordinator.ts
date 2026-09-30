@@ -205,6 +205,9 @@ export class NativeTaskDeliveryCoordinator {
               `[NativeDelivery:failure] task=${row.taskId} operation=clear-failure error=${getErrorMessage(error)}`
             );
           }
+          if (!isCurrent() || deliveryState.getGeneration(row.chatroomId, role) !== generation) {
+            continue;
+          }
           onTaskDelivered?.(result.delivered);
           deliveredTaskIds.push(row.taskId);
           console.log(

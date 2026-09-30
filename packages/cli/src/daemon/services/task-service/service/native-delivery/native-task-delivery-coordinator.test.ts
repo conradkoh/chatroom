@@ -185,6 +185,66 @@ describe('native-task-delivery-coordinator exact-task hydration', () => {
     expect(deliveryState.tryAcquireDelivery(CHATROOM_ID, ROLE)).toBe(false);
   });
 
+  test('an invalidation during failure clearing neither reports success nor releases the new generation lock', async () => {
+    let resolveClear!: () => void;
+    let markClearStarted!: () => void;
+    const clearStarted = new Promise<void>((resolve) => {
+      markClearStarted = resolve;
+    });
+    const delivered = vi.fn();
+    const clearDeliveryFailure = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveClear = resolve;
+          markClearStarted();
+        })
+    );
+    const coordinator = new NativeTaskDeliveryCoordinator();
+    const deliveryState = getRoleDeliveryState();
+    const isCurrent = vi.fn(() => true);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const taskService = {
+      isNativeHarness: () => true,
+      explainNativeDeliveryBlock: () => null,
+      isRedeliveryExhausted: () => false,
+      loadAssignedTaskForAction: async () => acknowledgedRow(),
+      recordDeliveryFailure: vi.fn(),
+      clearDeliveryFailure,
+    };
+    const pass = coordinator.reconcileRoleTasks(
+      baseParams({
+        taskService,
+        configurationService: { get: () => ({ agentHarness: 'cursor-sdk' }), state: () => 'ready' },
+        isCurrent,
+        onTaskDelivered: delivered,
+        executors: {
+          deliverTask: async () => ({
+            kind: 'delivered' as const,
+            delivered: {
+              chatroomId: CHATROOM_ID,
+              role: ROLE,
+              taskId: TASK_ID,
+              harnessSessionId: HARNESS_SESSION_ID,
+            },
+          }),
+        },
+      })
+    );
+
+    await clearStarted;
+    isCurrent.mockReturnValue(false);
+    resetRoleDeliveryState(CHATROOM_ID, ROLE);
+    expect(deliveryState.tryAcquireDelivery(CHATROOM_ID, ROLE)).toBe(true);
+    resolveClear();
+
+    await expect(pass).resolves.toEqual([]);
+    expect(delivered).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining('operation=inject result=success')
+    );
+    expect(deliveryState.tryAcquireDelivery(CHATROOM_ID, ROLE)).toBe(false);
+  });
+
   test('missing hydration skips delivery and preserves the task_hydration_missing warning', async () => {
     const loadAssignedTaskForAction = vi.fn(async () => null);
     const deliverNativeTask = vi.fn(async () => undefined);
