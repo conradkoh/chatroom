@@ -9,9 +9,10 @@ import { TAG_DOWNSTREAM } from '../../support/tags';
 test.describe('Manual queue recovery', { tag: [TAG_DOWNSTREAM] }, () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
 
-  test('starts the queued message after force completing the last agent task', async ({ page }) => {
+  test('starts the queued message after force completing the last agent task', async ({
+    authenticatedPage: page,
+  }) => {
     await test.step('create an isolated chatroom with an agent task and queued message', async () => {
-      await page.goto('/');
       const rawSessionId = await page.evaluate(() => localStorage.getItem('sessionId'));
       expect(rawSessionId, 'anonymous login should persist a session').toBeTruthy();
       const sessionId = rawSessionId as SessionId;
@@ -55,7 +56,7 @@ test.describe('Manual queue recovery', { tag: [TAG_DOWNSTREAM] }, () => {
         statusFilter: 'active',
         limit: 100,
       });
-      const original = await client.query(api.tasks.getTask, { sessionId, taskId });
+      const original = await client.query(api.tasks.getTask, { sessionId, chatroomId, taskId });
       const queue = await client.query(api.messages.listQueued, { sessionId, chatroomId });
       expect(
         activeTasks.filter((task) => task.content === 'Queued message to recover')
