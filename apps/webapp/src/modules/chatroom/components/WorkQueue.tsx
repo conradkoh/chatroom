@@ -93,25 +93,28 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
 
   // Debounce needsPromotion to prevent flashing during normal task transitions.
   // The notice only appears after staying true for 2 seconds.
-  const [needsPromotion, setNeedsPromotion] = useState(false);
-  const needsPromotionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [promotionDelayChatroomId, setPromotionDelayChatroomId] = useState<string | null>(null);
-  useEffect(() => {
-    if (needsPromotionTimerRef.current) clearTimeout(needsPromotionTimerRef.current);
-    setPromotionDelayChatroomId(null);
-    setNeedsPromotion(false);
-    if (needsPromotionRaw) {
-      needsPromotionTimerRef.current = setTimeout(() => {
-        setNeedsPromotion(true);
-        setPromotionDelayChatroomId(chatroomId);
-      }, 2000);
-    }
-    return () => {
-      if (needsPromotionTimerRef.current) clearTimeout(needsPromotionTimerRef.current);
+  const promotionWindowRef = useRef({ chatroomId, eligible: needsPromotionRaw, token: 0 });
+  if (
+    promotionWindowRef.current.chatroomId !== chatroomId ||
+    promotionWindowRef.current.eligible !== needsPromotionRaw
+  ) {
+    promotionWindowRef.current = {
+      chatroomId,
+      eligible: needsPromotionRaw,
+      token: promotionWindowRef.current.token + 1,
     };
-  }, [needsPromotionRaw, chatroomId]);
+  }
+  const promotionWindowToken = promotionWindowRef.current.token;
+  const [delayedPromotionToken, setDelayedPromotionToken] = useState<number | null>(null);
+  useEffect(() => {
+    if (!needsPromotionRaw) return;
+    const timer = setTimeout(() => setDelayedPromotionToken(promotionWindowToken), 2000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [needsPromotionRaw, chatroomId, promotionWindowToken]);
   const effectiveNeedsPromotion =
-    needsPromotionRaw && needsPromotion && promotionDelayChatroomId === chatroomId;
+    needsPromotionRaw && delayedPromotionToken === promotionWindowToken;
 
   // Query pending review backlog items from the dedicated chatroom_backlog table
   const pendingReviewBacklogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
