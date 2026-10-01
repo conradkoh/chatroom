@@ -2,6 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import {
+  hasActiveWorkQueueTask,
+  needsManualQueuePromotion,
+} from '@workspace/shared/domain/entities/work-queue';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   Plus,
@@ -82,14 +86,17 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
     chatroomId,
   }) as TaskCounts | undefined;
 
-  // Explicit recovery follows task occupancy only. Agent process/status data can lag
-  // or be unavailable and is not authoritative for whether promotion is safe.
+  // Adapt the task-count query's wire fields into the shared occupancy policy.
   const needsPromotionRaw =
-    !!counts &&
-    counts.pending === 0 &&
-    counts.acknowledged === 0 &&
-    counts.in_progress === 0 &&
-    counts.queued > 0;
+    counts !== undefined &&
+    needsManualQueuePromotion({
+      hasActiveTask: hasActiveWorkQueueTask({
+        pending: counts.pending,
+        acknowledged: counts.acknowledged,
+        in_progress: counts.in_progress,
+      }),
+      hasQueuedMessages: counts.queued > 0,
+    });
 
   // Debounce needsPromotion to prevent flashing during normal task transitions.
   // The notice only appears after staying true for 2 seconds.
