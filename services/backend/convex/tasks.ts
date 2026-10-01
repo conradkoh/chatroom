@@ -651,22 +651,27 @@ export const checkQueueHealth = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Check for pending or in_progress tasks using the by_chatroom_status index
-    const [pendingTasksForHealth, inProgressTasksForHealth] = await Promise.all([
+    // Match the manual promotion guard: every active task status blocks recovery.
+    const [pendingTask, acknowledgedTask, inProgressTask] = await Promise.all([
       ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
           q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
         )
-        .collect(),
+        .first(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .first(),
       ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
           q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
         )
-        .collect(),
+        .first(),
     ]);
-    const activeTasks = [...pendingTasksForHealth, ...inProgressTasksForHealth];
 
     // Check for queued messages (from chatroom_messageQueue, not tasks)
     // Only need to know if any exist, so use .first() instead of .collect()
@@ -678,13 +683,13 @@ export const checkQueueHealth = query({
     // Check if all agents are waiting for a task
     const allAgentsWaiting = await areAllAgentsWaiting(ctx, args.chatroomId);
 
-    const hasActiveTask = activeTasks.length > 0;
+    const hasActiveTask = !!pendingTask || !!acknowledgedTask || !!inProgressTask;
     const hasQueuedTasks = firstQueuedMessage !== null;
     // needsPromotion is a UI hint for the manual promote button only.
     // Do not wire daemon idle detection to auto-call promoteNextTask — duplicate
     // promotion paths cause race conditions with handoff-to-user.
-    // Promotion is possible only if no active tasks, there are queued messages, AND all agents are waiting
-    const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsWaiting;
+    // Agent readiness remains diagnostic; explicit manual recovery is gated by task occupancy.
+    const needsPromotion = !hasActiveTask && hasQueuedTasks;
 
     return {
       hasActiveTask,
