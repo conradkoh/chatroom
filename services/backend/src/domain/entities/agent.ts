@@ -213,6 +213,11 @@ export type ExplicitDaemonStartReason = (typeof EXPLICIT_DAEMON_START_REASONS)[n
 export const isExplicitDaemonStart = (reason: string): reason is ExplicitDaemonStartReason =>
   (EXPLICIT_DAEMON_START_REASONS as readonly string[]).includes(reason);
 
+/** Autonomous daemon wakes may use a live slot but cannot create an agent process. */
+export const isAutonomousDaemonWake = (reason: string): boolean =>
+  reason === AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE ||
+  reason === AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE;
+
 /**
  * Why an agent was stopped. Used by daemon stop intents and the
  * `agent.exited` stopReason field.

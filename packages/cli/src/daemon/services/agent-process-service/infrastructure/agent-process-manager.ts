@@ -22,8 +22,8 @@
  */
 
 import {
-  AgentStartReasonCode,
   DaemonStartReasonCode,
+  isAutonomousDaemonWake,
   isExplicitDaemonStart,
 } from '@workspace/backend/src/domain/entities/agent.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
@@ -480,12 +480,9 @@ export class AgentProcessManager {
     if (isChatroomStopScopeActive(opts.chatroomId)) {
       return { success: false, error: 'stop_in_progress' };
     }
-    const isAutonomousWake =
-      opts.reason === AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE ||
-      opts.reason === AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE;
     const existingSlot = this.getSlotFromMirror(opts.chatroomId, opts.role, opts.workingDir);
     if (
-      isAutonomousWake &&
+      isAutonomousDaemonWake(opts.reason) &&
       (!existingSlot ||
         !isAgentSlotStarted(existingSlot) ||
         existingSlot.pid === undefined ||

@@ -32,6 +32,7 @@ import {
   isAgentStartReason,
   isUserExplicitStart,
   isExplicitDaemonStart,
+  isAutonomousDaemonWake,
   DaemonStartReasonCode,
   MODEL_SOURCES,
   ModelSourceEnum,
@@ -68,6 +69,19 @@ describe('agent reason predicates', () => {
     expect(isExplicitDaemonStart('platform.pending_task_wake')).toBe(false);
     expect(isExplicitDaemonStart('platform.task_start_in_new_session')).toBe(true);
     expect(isExplicitDaemonStart('daemon.respawn')).toBe(true);
+  });
+
+  test.each([
+    [AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE, true],
+    [AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE, true],
+    [AgentStartReasonCode.USER_START, false],
+    [AgentStartReasonCode.USER_RESTART, false],
+    [AgentStartReasonCode.USER_MANUAL_SPAWN, false],
+    [AgentStartReasonCode.PLATFORM_TASK_START_IN_NEW_SESSION, false],
+    [DaemonStartReasonCode.RESPAWN, false],
+    ['unknown.reason', false],
+  ])('isAutonomousDaemonWake classifies %s as %s', (reason, expected) => {
+    expect(isAutonomousDaemonWake(reason)).toBe(expected);
   });
 });
 
