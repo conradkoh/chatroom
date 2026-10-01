@@ -8,6 +8,7 @@
 
 import type { PromoteNextTaskDeps } from '../../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../../src/domain/usecase/task/promote-queued-message';
+import { hasActiveTaskFromSource } from '../../src/domain/usecase/task/task-counts';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -19,14 +20,7 @@ export async function canPromote(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
-  for (const status of ['pending', 'acknowledged', 'in_progress'] as const) {
-    const task = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', status))
-      .first();
-    if (task) return false;
-  }
-  return true;
+  return !(await hasActiveTaskFromSource(ctx, chatroomId));
 }
 
 /**

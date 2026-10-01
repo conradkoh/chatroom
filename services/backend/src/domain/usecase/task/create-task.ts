@@ -19,6 +19,7 @@
  */
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import { hasActiveWorkQueueTask } from '@workspace/shared/domain/entities/work-queue';
 import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
 import {
@@ -41,7 +42,11 @@ type MaterializedTaskCounts = {
 
 /** Shared with getTaskCounts — any active-slot task means user messages should queue. */
 export function hasActiveTaskFromMaterializedCounts(counts: MaterializedTaskCounts): boolean {
-  return counts.pending > 0 || counts.acknowledged > 0 || counts.inProgress > 0;
+  return hasActiveWorkQueueTask({
+    pending: counts.pending,
+    acknowledged: counts.acknowledged,
+    in_progress: counts.inProgress,
+  });
 }
 
 export interface CreateTaskArgs {

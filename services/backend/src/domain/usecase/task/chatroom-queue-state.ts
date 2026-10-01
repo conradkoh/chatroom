@@ -1,5 +1,5 @@
 import { hasActiveTaskFromMaterializedCounts } from './create-task';
-import { countActiveTasksFromSource, type ActiveTaskCounts } from './task-counts';
+import { countActiveTasksFromSource } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 
@@ -11,10 +11,6 @@ export type ChatroomQueueState = {
   /** True when no active tasks and no queued messages remain. */
   isWorkQueueEmpty: boolean;
 };
-
-function hasActiveTaskFromCounts(counts: ActiveTaskCounts): boolean {
-  return counts.pending > 0 || counts.acknowledged > 0 || counts.inProgress > 0;
-}
 
 /**
  * Single source of truth for chatroom work-queue occupancy.
@@ -49,7 +45,7 @@ export async function getChatroomQueueState(
 
   // Fallback when materialized counts doc missing (migration safety)
   const activeCounts = await countActiveTasksFromSource(ctx, chatroomId);
-  const hasActiveTask = hasActiveTaskFromCounts(activeCounts);
+  const hasActiveTask = hasActiveTaskFromMaterializedCounts(activeCounts);
 
   const firstQueuedMessage = await ctx.db
     .query('chatroom_messageQueue')

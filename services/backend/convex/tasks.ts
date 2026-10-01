@@ -1,3 +1,4 @@
+import { needsManualQueuePromotion } from '@workspace/shared/domain/entities/work-queue';
 import {
   normalizeTaskEnvelope,
   withTaskEnvelopeSessionPolicy,
@@ -36,6 +37,7 @@ import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-tas
 import { releaseTaskAfterTurnFailure as releaseTaskAfterTurnFailureUsecase } from '../src/domain/usecase/task/release-task-after-turn-failure';
 import {
   countActiveTasksFromSource,
+  hasActiveTaskFromSource,
   resolveActiveCountsForRead,
 } from '../src/domain/usecase/task/task-counts';
 import {
@@ -651,40 +653,27 @@ export const checkQueueHealth = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Check for pending or in_progress tasks using the by_chatroom_status index
-    const [pendingTasksForHealth, inProgressTasksForHealth] = await Promise.all([
+    // Match the manual promotion guard: every active task status blocks recovery.
+    const [hasActiveTask, firstQueuedMessage, allAgentsWaiting] = await Promise.all([
+      hasActiveTaskFromSource(ctx, args.chatroomId),
       ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-        )
-        .collect(),
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-        )
-        .collect(),
+        .query('chatroom_messageQueue')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .first(),
+      areAllAgentsWaiting(ctx, args.chatroomId),
     ]);
-    const activeTasks = [...pendingTasksForHealth, ...inProgressTasksForHealth];
 
-    // Check for queued messages (from chatroom_messageQueue, not tasks)
-    // Only need to know if any exist, so use .first() instead of .collect()
-    const firstQueuedMessage = await ctx.db
-      .query('chatroom_messageQueue')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .first();
-
-    // Check if all agents are waiting for a task
-    const allAgentsWaiting = await areAllAgentsWaiting(ctx, args.chatroomId);
-
-    const hasActiveTask = activeTasks.length > 0;
+    // Check for queued messages (from chatroom_messageQueue, not tasks).
+    // Only existence is needed, so the indexed lookup uses .first().
     const hasQueuedTasks = firstQueuedMessage !== null;
     // needsPromotion is a UI hint for the manual promote button only.
     // Do not wire daemon idle detection to auto-call promoteNextTask — duplicate
     // promotion paths cause race conditions with handoff-to-user.
-    // Promotion is possible only if no active tasks, there are queued messages, AND all agents are waiting
-    const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsWaiting;
+    // Agent readiness remains diagnostic; explicit manual recovery uses occupancy only.
+    const needsPromotion = needsManualQueuePromotion({
+      hasActiveTask,
+      hasQueuedMessages: hasQueuedTasks,
+    });
 
     return {
       hasActiveTask,

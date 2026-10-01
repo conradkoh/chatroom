@@ -2,6 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import {
+  hasActiveWorkQueueTask,
+  needsManualQueuePromotion,
+} from '@workspace/shared/domain/entities/work-queue';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   Plus,
@@ -34,8 +38,6 @@ import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
 import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
-import { useAgentPanelData } from '../hooks/useAgentPanelData';
-import { useAgentStatuses } from '../hooks/useAgentStatuses';
 
 import {
   DropdownMenu,
@@ -84,41 +86,47 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
     chatroomId,
   }) as TaskCounts | undefined;
 
-  const { teamRoles, statusReadModel } = useAgentPanelData();
-  const nonUserRoles = useMemo(
-    () => (teamRoles ?? []).filter((role) => role.toLowerCase() !== 'user'),
-    [teamRoles]
-  );
-  const { aggregateStatus } = useAgentStatuses(nonUserRoles, statusReadModel);
-
-  // UI-only idle hint for the manual promote button — not an auto-promoter.
-  // A promotion is needed when: no active task, queued messages exist, and all agents are waiting.
-  const needsPromotionRaw = useMemo(() => {
-    if (!counts) return false;
-    const hasActiveTask = counts.pending > 0 || counts.acknowledged > 0 || counts.in_progress > 0;
-    const hasQueuedTasks = counts.queued > 0;
-    if (!hasActiveTask && hasQueuedTasks) {
-      if (nonUserRoles.length === 0) return true;
-      return aggregateStatus === 'ready';
-    }
-    return false;
-  }, [counts, nonUserRoles, aggregateStatus]);
+  // Adapt the task-count query's wire fields into the shared occupancy policy.
+  const needsPromotionRaw =
+    counts !== undefined &&
+    needsManualQueuePromotion({
+      hasActiveTask: hasActiveWorkQueueTask({
+        pending: counts.pending,
+        acknowledged: counts.acknowledged,
+        in_progress: counts.in_progress,
+      }),
+      hasQueuedMessages: counts.queued > 0,
+    });
 
   // Debounce needsPromotion to prevent flashing during normal task transitions.
   // The notice only appears after staying true for 2 seconds.
-  const [needsPromotion, setNeedsPromotion] = useState(false);
-  const needsPromotionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [promotionWindow, setPromotionWindow] = useState({
+    chatroomId,
+    eligible: needsPromotionRaw,
+    token: 0,
+  });
+  const promotionWindowMatchesInput =
+    promotionWindow.chatroomId === chatroomId && promotionWindow.eligible === needsPromotionRaw;
+  if (!promotionWindowMatchesInput) {
+    setPromotionWindow({
+      chatroomId,
+      eligible: needsPromotionRaw,
+      token: promotionWindow.token + 1,
+    });
+  }
+  const promotionWindowToken = promotionWindow.token;
+  const [delayedPromotionToken, setDelayedPromotionToken] = useState<number | null>(null);
   useEffect(() => {
-    if (needsPromotionRaw) {
-      needsPromotionTimerRef.current = setTimeout(() => setNeedsPromotion(true), 2000);
-    } else {
-      if (needsPromotionTimerRef.current) clearTimeout(needsPromotionTimerRef.current);
-    }
+    if (!needsPromotionRaw) return;
+    const timer = setTimeout(() => setDelayedPromotionToken(promotionWindowToken), 2000);
     return () => {
-      if (needsPromotionTimerRef.current) clearTimeout(needsPromotionTimerRef.current);
+      clearTimeout(timer);
     };
-  }, [needsPromotionRaw]);
-  const effectiveNeedsPromotion = needsPromotionRaw && needsPromotion;
+  }, [needsPromotionRaw, chatroomId, promotionWindowToken]);
+  const effectiveNeedsPromotion =
+    needsPromotionRaw &&
+    promotionWindowMatchesInput &&
+    delayedPromotionToken === promotionWindowToken;
 
   // Query pending review backlog items from the dedicated chatroom_backlog table
   const pendingReviewBacklogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
@@ -156,6 +164,8 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
     api.backlog.completeAllPendingReviewBacklogItems
   );
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
+  const [isPromoting, setIsPromoting] = useState(false);
+  const isPromotingRef = useRef(false);
   const updateUserMessageOrTask = useSessionMutation(api.messages.updateUserMessageOrTask);
   const completeTaskById = useSessionMutation(api.tasks.completeTaskById);
   const deleteUserMessageOrTask = useSessionMutation(api.messages.deleteUserMessageOrTask);
@@ -195,12 +205,25 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   );
 
   const handlePromoteNext = useCallback(async () => {
+    if (isPromotingRef.current) return;
+    isPromotingRef.current = true;
+    setIsPromoting(true);
     try {
-      await promoteNextTask({
+      const result = await promoteNextTask({
         chatroomId,
       });
+      if (result.reason === 'success') {
+        toast.success('Started next queued task');
+      } else if (result.reason === 'active_task_exists') {
+        toast.info('A task is already active');
+      } else {
+        toast.info('No queued tasks remain');
+      }
     } catch (error) {
-      console.error('Failed to promote next task:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to start next queued task');
+    } finally {
+      isPromotingRef.current = false;
+      setIsPromoting(false);
     }
   }, [promoteNextTask, chatroomId]);
 
@@ -315,12 +338,15 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
                 Queue has tasks but none active
               </span>
               <button
+                type="button"
                 onClick={handlePromoteNext}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-status-warning text-chatroom-bg-primary hover:opacity-80 transition-colors"
+                disabled={isPromoting}
+                aria-busy={isPromoting}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-status-warning text-chatroom-bg-primary hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chatroom-status-warning disabled:cursor-wait disabled:opacity-60 transition-colors"
                 title="Promote next queued task to pending"
               >
-                <Play size={10} />
-                Start Next
+                {!isPromoting && <Play size={10} />}
+                {isPromoting ? 'Starting…' : 'Start Next'}
               </button>
             </div>
           </div>
