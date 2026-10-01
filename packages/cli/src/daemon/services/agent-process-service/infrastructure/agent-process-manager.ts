@@ -23,6 +23,7 @@
 
 import {
   DaemonStartReasonCode,
+  isAutonomousDaemonWake,
   isExplicitDaemonStart,
 } from '@workspace/backend/src/domain/entities/agent.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
@@ -88,6 +89,7 @@ import type { TurnCompletionResult } from '../../../infrastructure/local/harness
 import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type {
   AgentProcessSlotState,
+  AgentSessionLostEvent,
   AgentSessionLostHandler,
   AgentStartedHandler,
   AgentTurnEndedEvent,
@@ -477,6 +479,16 @@ export class AgentProcessManager {
   async ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult> {
     if (isChatroomStopScopeActive(opts.chatroomId)) {
       return { success: false, error: 'stop_in_progress' };
+    }
+    const existingSlot = this.getSlotFromMirror(opts.chatroomId, opts.role, opts.workingDir);
+    if (
+      isAutonomousDaemonWake(opts.reason) &&
+      (!existingSlot ||
+        !isAgentSlotStarted(existingSlot) ||
+        existingSlot.pid === undefined ||
+        !isProcessAlive(this.deps.processes.kill, existingSlot.pid))
+    ) {
+      return { success: false, error: 'agent_not_running' };
     }
     const key = agentKey(opts.chatroomId, opts.role, opts.workingDir);
     const slot = this.getOrCreateSlot(key);
@@ -880,7 +892,12 @@ export class AgentProcessManager {
     }
     this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
     if (slot.harness && getHarnessCapabilities(slot.harness).supportsNativeIntegration) {
-      this.notifyAgentSessionLost(opts.chatroomId, opts.role, ctx.harnessSessionId);
+      this.notifyAgentSessionLost({
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+        pid: opts.pid,
+        ...(ctx.harnessSessionId ? { harnessSessionId: ctx.harnessSessionId } : {}),
+      });
     }
 
     const lifecyclePromise = this.lifecycle.runPromise(
@@ -1393,31 +1410,22 @@ export class AgentProcessManager {
   }): Promise<void> {
     for (const { target } of result.targets) {
       const slot = this.slots.get(agentKey(target.chatroomId, target.role, target.workingDir));
-      // A successful scoped stop can report `already_stopped` without a live
-      // process-exit callback. Still invalidate native delivery state so a
-      // stale task marker cannot suppress recovery after the stop.
-      this.notifyAgentSessionLost(
-        target.chatroomId,
-        target.role,
-        slot?.pid === target.pid ? slot.harnessSessionId : undefined
-      );
-      if (!slot || slot.pid !== target.pid) continue;
+      // A stop result may arrive after the old slot was already removed. If a
+      // slot is present, it must still identify the stopped PID.
+      if (slot && slot.pid !== target.pid) continue;
+      if (!slot) continue;
       this.resetSlotAfterStop(slot);
       await this.clearAgentPidQuietly(target.chatroomId, target.role, target.workingDir);
     }
   }
 
-  private notifyAgentSessionLost(
-    chatroomId: string,
-    role: string,
-    harnessSessionId?: string | undefined
-  ): void {
+  private notifyAgentSessionLost(event: AgentSessionLostEvent): void {
     for (const handler of this.agentSessionLostHandlers) {
       try {
-        handler({ chatroomId, role, ...(harnessSessionId ? { harnessSessionId } : {}) });
+        handler(event);
       } catch (error) {
         console.warn(
-          `[AgentProcessManager] native session-loss cleanup failed for ${role}@${chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+          `[AgentProcessManager] native session-loss cleanup failed for ${event.role}@${event.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }

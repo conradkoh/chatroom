@@ -2,7 +2,10 @@
  * Orchestrates atomic user restart: reset → spawn → await session → ready → deliver pending.
  */
 
-import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
+import {
+  AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS,
+  HARNESS_SESSION_READY_TIMEOUT_MS,
+} from '@workspace/backend/config/reliability.js';
 import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import {
@@ -51,7 +54,10 @@ interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   runSerializedForAgent: AgentProcessManagerService['runSerializedForAgent'];
-  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart' | 'handleAgentRestart'>;
+  nativeDelivery: Pick<
+    AgentWorkManager,
+    'prepareRoleRecovery' | 'recoverStoppedRole' | 'reconcileAfterAgentRestart'
+  >;
 }
 
 async function emitPhase(
@@ -123,22 +129,18 @@ export async function runRestartOrchestrator(
 
   markRestartOrchestratorInFlight(chatroomId, role, event.correlationId);
   try {
-    // The agent process service owns agent/session state; the task service
-    // decides what happens to the role's in-flight tasks (reset cap, release
-    // acknowledged/in_progress tasks to pending).
-    await deps.nativeDelivery.handleAgentRestart({ chatroomId, role });
-
-    await emitPhase(deps, event, 'reset');
-
-    await emitPhase(deps, event, 'spawn');
     const spawnResult = await deps.runSerializedForAgent(
       { chatroomId, role, workingDir: event.workingDir },
-      { timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS },
+      { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
       async (ops, context) => {
+        await deps.nativeDelivery.prepareRoleRecovery({ chatroomId, role });
         await ops.stopAgent(
           { chatroomId, role, reason: 'user.restart', workingDir: event.workingDir },
           context.signal
         );
+        await deps.nativeDelivery.recoverStoppedRole({ chatroomId, role, mode: 'explicit' });
+        await emitPhase(deps, event, 'reset');
+        await emitPhase(deps, event, 'spawn');
         return ops.startAgent(
           {
             chatroomId,

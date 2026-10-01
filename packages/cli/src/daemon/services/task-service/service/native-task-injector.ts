@@ -38,6 +38,7 @@ export interface NativeDeliverySessionHandles {
 }
 
 export interface NativeInjectorDeps extends NativeDeliverySessionHandles {
+  isCurrent?: (() => boolean) | undefined;
   /** Daemon-local source of agent harness/model/workingDir configuration. */
   configurationService: AgentConfigRegistry;
   agentMgr: NativeInjectorAgentMgr;
@@ -61,6 +62,17 @@ export interface NativeInjectorDeps extends NativeDeliverySessionHandles {
     | undefined;
 }
 
+class NativeDeliveryCancelledError extends Error {
+  constructor() {
+    super('native delivery attempt was cancelled');
+    this.name = 'NativeDeliveryCancelledError';
+  }
+}
+
+function ensureCurrent(deps: NativeInjectorDeps): void {
+  if (deps.isCurrent?.() === false) throw new NativeDeliveryCancelledError();
+}
+
 async function emitTaskDeliveryFailed(
   deps: NativeInjectorDeps,
   args: {
@@ -70,6 +82,7 @@ async function emitTaskDeliveryFailed(
     error: string;
   }
 ): Promise<void> {
+  if (deps.isCurrent?.() === false) return;
   try {
     await deps.audit.emit({
       type: 'agent.taskDeliveryFailed',
@@ -102,10 +115,12 @@ function applyColdSessionIfRequested(
   taskId: AssignedTaskWithContent['taskId']
 ): Effect.Effect<{ harnessSessionId: string } | { failed: true; error: string }, never, never> {
   return Effect.gen(function* () {
+    ensureCurrent(deps);
     const coldSessionResult = yield* Effect.tryPromise({
       try: () => ensureColdSessionBeforeNativeInject(task, deps),
       catch: (err) => err,
     }).pipe(Effect.either);
+    ensureCurrent(deps);
 
     if (coldSessionResult._tag === 'Left' || !coldSessionResult.right) {
       const error =
@@ -130,6 +145,7 @@ function claimTaskForDelivery(
   deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
+    ensureCurrent(deps);
     const { chatroomId, taskId, agentConfig } = task;
     const { role } = agentConfig;
     const claimResult = yield* Effect.tryPromise({
@@ -142,6 +158,7 @@ function claimTaskForDelivery(
         }),
       catch: (err) => err,
     }).pipe(Effect.either);
+    ensureCurrent(deps);
 
     if (claimResult._tag === 'Left') {
       yield* reportDeliveryFailureEffect(deps, {
@@ -192,6 +209,7 @@ function resolveHarnessSessionForInject(
   never
 > {
   return Effect.gen(function* () {
+    ensureCurrent(deps);
     const { chatroomId, taskId, agentConfig } = task;
     const { role } = agentConfig;
 
@@ -222,6 +240,7 @@ function emitSessionAugmentationIfNeeded(
   sessionAugmentationEmitted: boolean,
   augmentationMode: ReturnType<typeof resolveSessionAugmentationForTask>
 ): Effect.Effect<void, never, never> {
+  const isCurrent = deps.isCurrent ?? (() => true);
   const { chatroomId, taskId, agentConfig } = task;
   const { role } = agentConfig;
   if (!shouldEmitSessionAugmentation(role, augmentationMode) || sessionAugmentationEmitted) {
@@ -230,6 +249,7 @@ function emitSessionAugmentationIfNeeded(
 
   return Effect.tryPromise({
     try: async () => {
+      if (!isCurrent()) return;
       await deps.audit.emit({
         type: 'agent.sessionAugmented',
         chatroomId,
@@ -240,6 +260,7 @@ function emitSessionAugmentationIfNeeded(
         newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
         harnessSessionId,
       });
+      if (!isCurrent()) return;
       await deps.taskGateway.recordSessionAugmentation({
         sessionId: deps.sessionId,
         machineId: deps.machineId,
@@ -262,6 +283,7 @@ function resumeHarnessWithPrompt(
   harnessSessionId: string
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
+    ensureCurrent(deps);
     const { chatroomId, taskId, agentConfig } = task;
     const { role } = agentConfig;
 
@@ -269,6 +291,7 @@ function resumeHarnessWithPrompt(
       try: () => deps.agentMgr.resumeTurnForSlot({ chatroomId, role, prompt }),
       catch: (err) => err,
     }).pipe(Effect.either);
+    ensureCurrent(deps);
 
     if (resumeResult._tag === 'Left') {
       const error = getErrorMessage(resumeResult.left);
@@ -294,6 +317,7 @@ function resumeHarnessWithPrompt(
       catch: (err) => err,
     }).pipe(Effect.catchAll(() => Effect.void));
 
+    ensureCurrent(deps);
     deps.onTaskDelivered?.({
       chatroomId,
       role,
@@ -312,6 +336,7 @@ function loadNativeInjectionPrompt(
   never
 > {
   return Effect.gen(function* () {
+    ensureCurrent(deps);
     const { chatroomId, taskId, taskContent, agentConfig } = task;
     const { role } = agentConfig;
 
@@ -326,6 +351,7 @@ function loadNativeInjectionPrompt(
         }) as Promise<{ fullCliOutput: string }>,
       catch: (err) => err,
     }).pipe(Effect.either);
+    ensureCurrent(deps);
 
     if (deliveryResult._tag === 'Left') {
       yield* reportDeliveryFailureEffect(deps, {
@@ -363,6 +389,7 @@ function injectNativeTaskPrompt(
   sessionAugmentationEmitted: boolean
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
+    ensureCurrent(deps);
     const { chatroomId, taskId, agentConfig } = task;
     const { role } = agentConfig;
     const { prompt, augmentationMode } = yield* loadNativeInjectionPrompt(task, deps);
@@ -382,6 +409,7 @@ function injectNativeTaskPrompt(
       catch: (err) => err,
     });
 
+    ensureCurrent(deps);
     yield* Effect.tryPromise({
       try: () =>
         deps.taskGateway.recordReceipt({
@@ -394,6 +422,7 @@ function injectNativeTaskPrompt(
       catch: (err) => err,
     });
 
+    ensureCurrent(deps);
     yield* emitSessionAugmentationIfNeeded(
       task,
       deps,
@@ -402,6 +431,7 @@ function injectNativeTaskPrompt(
       augmentationMode
     );
 
+    ensureCurrent(deps);
     yield* resumeHarnessWithPrompt(task, deps, prompt, harnessSessionId);
   });
 }
@@ -412,7 +442,9 @@ export function runNativeInjectionEffect(
   deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {
   return Effect.gen(function* () {
+    ensureCurrent(deps);
     yield* claimTaskForDelivery(task, deps);
+    ensureCurrent(deps);
     const session = yield* resolveHarnessSessionForInject(task, deps, initialHarnessSessionId);
     yield* injectNativeTaskPrompt(
       task,

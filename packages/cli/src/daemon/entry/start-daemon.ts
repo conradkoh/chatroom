@@ -22,6 +22,7 @@ import { startLocalWebServer } from '../local-web/server/create-local-web-server
 import { createEventStreamHub } from '../local-web/server/event-stream-hub.js';
 import { createLogStreamHub } from '../local-web/server/log-stream-hub.js';
 import { createCliGatewayService } from '../services/cli-gateway-service/index.js';
+import type { AgentWorkManager } from '../services/service-interfaces.js';
 
 export async function startDaemon(): Promise<void> {
   let resolveBoundPort!: (port: number) => void;
@@ -47,6 +48,7 @@ export async function startDaemon(): Promise<void> {
     throw error;
   }
   const wsClient = await getConvexWsClient();
+  let nativeDelivery: AgentWorkManager | null = null;
 
   const persistence = createPersistenceStore(resolvePersistenceDbPath(init.machineId));
   const daemonDeps = createDaemonDeps({
@@ -162,6 +164,8 @@ export async function startDaemon(): Promise<void> {
         workingDir?: string;
         finalizeChatroom?: boolean;
       };
+      if (!nativeDelivery)
+        throw new Error('native task delivery is not ready; retrying agent.stop command');
       return executeChatroomStopCommand({
         apm: init.agentProcessManager,
         chatroomId: stopCommand.chatroomId,
@@ -170,6 +174,8 @@ export async function startDaemon(): Promise<void> {
         workingDir: stopCommand.workingDir,
         finalizeChatroom: stopCommand.finalizeChatroom,
         runSerializedForAgent: init.agentProcessManagerService.runSerializedForAgent,
+        nativeDelivery,
+        taskService: init.taskService,
       });
     },
   });
@@ -187,6 +193,9 @@ export async function startDaemon(): Promise<void> {
     layers,
     agentLifecycleOutbox: init.agentLifecycleOutbox,
     agentProcessManagerService: init.agentProcessManagerService,
+    onNativeDeliveryReady: (manager) => {
+      nativeDelivery = manager;
+    },
   });
 
   try {

@@ -21,7 +21,10 @@ vi.mock('../../api.js', () => ({
 function createMockDeps(overrides?: {
   spawnSuccess?: boolean | undefined;
   harnessSessionId?: string | null | undefined;
+  stopFailure?: boolean | undefined;
+  releaseFailureCount?: number | undefined;
 }) {
+  const calls: string[] = [];
   const auditLog: Record<string, unknown>[] = [];
   const logEvent = vi.fn(async (event: Record<string, unknown>) => {
     auditLog.push(event);
@@ -31,7 +34,10 @@ function createMockDeps(overrides?: {
     query: vi.fn(async () => ({ tasks: [] })),
   };
   const agentMgr = {
-    stop: vi.fn().mockResolvedValue({ success: true }),
+    stop: vi.fn().mockImplementation(async () => {
+      calls.push('stop');
+      return { success: !overrides?.stopFailure };
+    }),
     ensureRunning: vi.fn().mockReturnValue(
       Effect.succeed({
         success: overrides?.spawnSuccess ?? true,
@@ -64,19 +70,36 @@ function createMockDeps(overrides?: {
           {
             stopAgent: async (input: StopOpts) => {
               const result = await agentMgr.stop(input);
+              if (!result?.success) throw new Error('stop failed');
               return result ?? { success: true };
             },
-            startAgent: async (input: EnsureRunningOpts) =>
-              Effect.runPromise(agentMgr.ensureRunning(input)),
+            startAgent: async (input: EnsureRunningOpts) => {
+              calls.push('start');
+              return Effect.runPromise(agentMgr.ensureRunning(input));
+            },
           },
           { signal: new AbortController().signal }
         )
       ),
       nativeDelivery: {
-        reconcileAfterAgentRestart: vi.fn(async () => []),
-        handleAgentRestart: vi.fn(async () => {}),
+        prepareRoleRecovery: vi.fn(async () => {
+          calls.push('prepare');
+        }),
+        recoverStoppedRole: vi.fn(async () => {
+          calls.push('recover');
+          if (overrides?.releaseFailureCount && overrides.releaseFailureCount > 0) {
+            overrides.releaseFailureCount -= 1;
+            throw new Error('release failed');
+          }
+          return { released: 1 };
+        }),
+        reconcileAfterAgentRestart: vi.fn(async () => {
+          calls.push('reconcile');
+          return [];
+        }),
       },
     },
+    calls,
     auditLog,
     agentMgrMock: agentMgr,
     backendMock: backend,
@@ -85,7 +108,7 @@ function createMockDeps(overrides?: {
 
 describe('runRestartOrchestrator', () => {
   test('success path emits ordered phases and completes once', async () => {
-    const { deps, auditLog } = createMockDeps();
+    const { deps, auditLog, calls } = createMockDeps();
 
     await runRestartOrchestrator(deps as any, {
       chatroomId: 'test-chatroom',
@@ -101,6 +124,7 @@ describe('runRestartOrchestrator', () => {
     expect(restartCompleted).toHaveLength(1);
 
     expect(deps.nativeDelivery.reconcileAfterAgentRestart).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual(['prepare', 'stop', 'recover', 'start', 'reconcile']);
 
     const phaseEvents = auditLog.filter((event) => event.type === 'agent.restartPhase');
     expect(phaseEvents.map((event) => event.phase)).toEqual([
@@ -112,6 +136,61 @@ describe('runRestartOrchestrator', () => {
       'completed',
     ]);
     expect(phaseEvents.every((event) => event.correlationId === 'test-correlation')).toBe(true);
+  });
+
+  test('stop failure retains the gate and never releases or starts', async () => {
+    const { deps, auditLog, calls } = createMockDeps({ stopFailure: true });
+
+    await runRestartOrchestrator(deps as any, {
+      chatroomId: 'test-chatroom',
+      role: 'builder',
+      agentHarness: 'opencode',
+      model: 'gpt-4',
+      workingDir: '/tmp/test',
+      correlationId: 'stop-failure',
+      wantResume: false,
+    });
+
+    expect(calls).toEqual(['prepare', 'stop']);
+    expect(deps.nativeDelivery.recoverStoppedRole).not.toHaveBeenCalled();
+    expect(deps.nativeDelivery.reconcileAfterAgentRestart).not.toHaveBeenCalled();
+    expect(deps.agentMgr.ensureRunning).not.toHaveBeenCalled();
+    expect(auditLog.filter((event) => event.phase === 'failed')).toHaveLength(1);
+    expect(auditLog.some((event) => event.type === 'agent.restartCompleted')).toBe(false);
+  });
+
+  test('release failure prevents start and a retry with the held gate succeeds', async () => {
+    const { deps, auditLog, calls } = createMockDeps({ releaseFailureCount: 1 });
+    const event = {
+      chatroomId: 'test-chatroom',
+      role: 'builder',
+      agentHarness: 'opencode',
+      model: 'gpt-4',
+      workingDir: '/tmp/test',
+      correlationId: 'release-retry',
+      wantResume: false,
+    };
+
+    await runRestartOrchestrator(deps as any, event);
+    expect(calls).toEqual(['prepare', 'stop', 'recover']);
+    expect(deps.agentMgr.ensureRunning).not.toHaveBeenCalled();
+    expect(deps.nativeDelivery.reconcileAfterAgentRestart).not.toHaveBeenCalled();
+    expect(auditLog.filter((entry) => entry.phase === 'failed')).toHaveLength(1);
+    expect(auditLog.some((entry) => entry.type === 'agent.restartCompleted')).toBe(false);
+
+    await runRestartOrchestrator(deps as any, { ...event, correlationId: 'release-retry-2' });
+    expect(calls).toEqual([
+      'prepare',
+      'stop',
+      'recover',
+      'prepare',
+      'stop',
+      'recover',
+      'start',
+      'reconcile',
+    ]);
+    expect(deps.agentMgr.ensureRunning).toHaveBeenCalledTimes(1);
+    expect(deps.nativeDelivery.reconcileAfterAgentRestart).toHaveBeenCalledTimes(1);
   });
 
   test('failure path logs restartPhase failed exactly once', async () => {

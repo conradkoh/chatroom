@@ -60,6 +60,8 @@ function registerListeners(
         ensureRunning: (opts) => Effect.promise(() => init.agentProcessManager.ensureRunning(opts)),
         stop: (opts) => Effect.promise(() => init.agentProcessManager.stop(opts)),
         getSlot: (chatroomId, role) => init.agentProcessManager.getSlot(chatroomId, role),
+        isStopRequested: (chatroomId, role) =>
+          init.agentProcessManager.isStopRequested(chatroomId, role),
         listActive: () => init.agentProcessManager.listActive(),
         clearStuckStoppingSlot: (chatroomId, role) =>
           Effect.promise(

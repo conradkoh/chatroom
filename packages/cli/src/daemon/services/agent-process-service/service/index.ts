@@ -15,6 +15,7 @@ export {
   type AgentProcessManagerExecutionPort,
   type RestartAgentInput,
 } from './agent-process-manager-service.js';
+export { AgentWorkManager } from './agent-work-manager.js';
 export type {
   AgentProcessCommandBus,
   AgentProcessCommandMessage,

@@ -32,12 +32,25 @@ import {
   isAgentStartReason,
   isUserExplicitStart,
   isExplicitDaemonStart,
+  isAutonomousDaemonWake,
   DaemonStartReasonCode,
   MODEL_SOURCES,
   ModelSourceEnum,
   modelSourceValidator,
   isModelSource,
 } from './agent';
+import type { AgentProcessStartReason } from './agent';
+
+const autonomousDaemonWakeCases = [
+  [AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE, true],
+  [AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE, true],
+  [AgentStartReasonCode.USER_START, false],
+  [AgentStartReasonCode.USER_RESTART, false],
+  [AgentStartReasonCode.USER_MANUAL_SPAWN, false],
+  [AgentStartReasonCode.PLATFORM_TASK_START_IN_NEW_SESSION, false],
+  [AgentStartReasonCode.PLATFORM_TEAM_SWITCH, false],
+  [DaemonStartReasonCode.RESPAWN, false],
+] as const satisfies readonly (readonly [AgentProcessStartReason, boolean])[];
 
 describe('agent reason predicates', () => {
   test('canonical start reason codes preserve wire values', () => {
@@ -60,11 +73,26 @@ describe('agent reason predicates', () => {
     expect(isUserExplicitStart('user.manual_spawn')).toBe(false);
   });
 
-  test('isExplicitDaemonStart accepts daemon nudge/wake reasons', () => {
+  test('isExplicitDaemonStart accepts user starts and controlled replacements only', () => {
     expect(isExplicitDaemonStart('user.start')).toBe(true);
-    expect(isExplicitDaemonStart('platform.task_monitor_nudge')).toBe(true);
-    expect(isExplicitDaemonStart('platform.pending_task_wake')).toBe(true);
+    expect(isExplicitDaemonStart('user.restart')).toBe(true);
+    expect(isExplicitDaemonStart('user.manual_spawn')).toBe(true);
+    expect(isExplicitDaemonStart('platform.task_monitor_nudge')).toBe(false);
+    expect(isExplicitDaemonStart('platform.pending_task_wake')).toBe(false);
+    expect(isExplicitDaemonStart('platform.task_start_in_new_session')).toBe(true);
     expect(isExplicitDaemonStart('daemon.respawn')).toBe(true);
+  });
+
+  test.each(autonomousDaemonWakeCases)(
+    'isAutonomousDaemonWake classifies %s as %s',
+    (reason, expected) => {
+      expect(isAutonomousDaemonWake(reason)).toBe(expected);
+    }
+  );
+
+  test('autonomous wake reason requires a known start code', () => {
+    // @ts-expect-error unknown.reason is not an AgentProcessStartReason
+    expect(isAutonomousDaemonWake('unknown.reason')).toBe(false);
   });
 });
 

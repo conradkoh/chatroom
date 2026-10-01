@@ -196,9 +196,10 @@ describe('AgentProcessManager', () => {
     manager = new AgentProcessManager(deps);
   });
 
-  test('scoped stop cleanup emits session loss even when the process is already stopped', async () => {
+  test('scoped stop cleanup resets the slot without emitting session loss', async () => {
     const onSessionLost = vi.fn();
     manager.subscribeAgentSessionLost(onSessionLost);
+    await manager.ensureRunning(createOpts());
 
     await manager.syncSlotsAfterScopedStop({
       targets: [
@@ -207,15 +208,29 @@ describe('AgentProcessManager', () => {
             chatroomId: CHATROOM_ID,
             role: ROLE,
             pid: PID,
+            workingDir: '/tmp/test',
           },
         },
       ],
     });
 
-    expect(onSessionLost).toHaveBeenCalledWith({
-      chatroomId: CHATROOM_ID,
-      role: ROLE,
+    expect(onSessionLost).not.toHaveBeenCalled();
+    expect(manager.getSlot(CHATROOM_ID, ROLE)).toEqual(
+      expect.objectContaining({ state: 'idle', pid: undefined })
+    );
+  });
+
+  test('stale scoped stop target does not notify or clear a replacement slot', async () => {
+    const onSessionLost = vi.fn();
+    manager.subscribeAgentSessionLost(onSessionLost);
+    await manager.ensureRunning(createOpts());
+    await manager.syncSlotsAfterScopedStop({
+      targets: [
+        { target: { chatroomId: CHATROOM_ID, role: ROLE, pid: PID + 1, workingDir: '/tmp/test' } },
+      ],
     });
+    expect(onSessionLost).not.toHaveBeenCalled();
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBe(PID);
   });
 
   // ── ensureRunning ─────────────────────────────────────────────────────
@@ -788,20 +803,52 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(true);
     });
 
-    test('platform.pending_task_wake clears stale stop intent for task delivery', async () => {
+    test.each([
+      AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+      AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
+    ])('%s cannot clear user stop intent', async (reason) => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
 
       const result = await manager.ensureRunning(
         createOpts({
-          reason: AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+          reason,
           taskId: 'task-1',
         })
       );
 
-      expect(result.success).toBe(true);
-      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(false);
+      expect(result).toMatchObject({ success: false, error: 'stop_requested' });
+      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(true);
+    });
+
+    test.each([
+      AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
+      AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
+    ])('rejects autonomous %s starts without a live slot', async (reason) => {
+      const service = deps.agentServices.get('opencode')!;
+      const result = await manager.ensureRunning(createOpts({ reason }));
+
+      expect(result).toMatchObject({ success: false, error: 'agent_not_running' });
+      expect(service.spawn).not.toHaveBeenCalled();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)).toBeUndefined();
+    });
+
+    test('rejects pending task wake for an idle slot without spawning', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'idle';
+      slot.pid = undefined;
+      const service = deps.agentServices.get('opencode')!;
+      const spawn = service.spawn as ReturnType<typeof vi.fn>;
+      const spawnCount = spawn.mock.calls.length;
+
+      const result = await manager.ensureRunning(
+        createOpts({ reason: AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE })
+      );
+
+      expect(result).toMatchObject({ success: false, error: 'agent_not_running' });
+      expect(spawn).toHaveBeenCalledTimes(spawnCount);
     });
 
     test('markChatroomStopIntent marks idle slots after stale-state reset', async () => {
@@ -1055,7 +1102,7 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('can clear stale stop intent before task delivery', async () => {
+    test('clearing stale stop intent does not let a task nudge respawn the agent', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', slot.pid);
@@ -1071,7 +1118,7 @@ describe('AgentProcessManager', () => {
       const result = await manager.ensureRunning(
         createOpts({ reason: AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE })
       );
-      expect(result.success).toBe(true);
+      expect(result).toMatchObject({ success: false, error: 'agent_not_running' });
     });
 
     test('preserves a new stop intent requested during force-clear cleanup', async () => {
@@ -1498,6 +1545,57 @@ describe('AgentProcessManager', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).not.toBe('turn_in_flight');
       expect(turnEnded).not.toHaveBeenCalled();
+    });
+
+    test('unexpected native exit reports PID and session identity after exit guards', async () => {
+      type SpawnExitCallback = Parameters<NonNullable<SpawnResult['onExit']>>[0];
+      let onExit: SpawnExitCallback | undefined;
+      const service = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-loss-1',
+          onExit: (cb: SpawnExitCallback) => {
+            onExit = cb;
+          },
+          onOutput: vi.fn(),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+      const onSessionLost = vi.fn();
+      manager.subscribeAgentSessionLost(onSessionLost);
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      onExit?.({
+        code: 1,
+        signal: null,
+        context: { machineId: 'test-machine', chatroomId: CHATROOM_ID, role: ROLE },
+      });
+      expect(onSessionLost).toHaveBeenCalledWith({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        harnessSessionId: 'sess-loss-1',
+      });
+    });
+
+    test('stale exit callback for an old PID does not notify or reset the replacement slot', async () => {
+      await manager.ensureRunning(createOpts());
+      const onSessionLost = vi.fn();
+      manager.subscribeAgentSessionLost(onSessionLost);
+      await manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        workingDir: '/tmp/test',
+        pid: PID + 1,
+        code: 1,
+        signal: null,
+      } as never);
+      expect(onSessionLost).not.toHaveBeenCalled();
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBe(PID);
     });
 
     test('native turn-end waits for an async handler disposition before resetting nativeTurnPhase', async () => {

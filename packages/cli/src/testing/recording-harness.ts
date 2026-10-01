@@ -56,8 +56,11 @@ export class RecordingHarness implements NativeInjectorAgentMgr {
 
   getSlot = (_chatroomId: string, _role: string): AgentSlot | undefined => ({
     state: 'running',
+    pid: 12345,
     harnessSessionId: this.harnessSessionId,
   });
+
+  isStopRequested = (_chatroomId: string, _role: string): boolean => false;
 
   lastInjection(): RecordedInjection | undefined {
     return this.injections.at(-1);

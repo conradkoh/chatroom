@@ -1,12 +1,10 @@
-import type {
-  AgentSlotState,
-  AgentStartDisposition,
-} from '../../../../domain/entities/agent-slot.js';
+import type { AgentProcessStartReason } from '@workspace/backend/src/domain/entities/agent.js';
+
+import type { AgentSlotState } from '../../../../domain/entities/agent-slot.js';
 import type { NativeTurnPhase } from '../../../../domain/entities/native-turn-phase.js';
 import type { TurnCompletionResult } from '../../../../infrastructure/local/harness/services/turn-completion.js';
 
 export type AgentProcessSlotState = AgentSlotState;
-export type { AgentStartDisposition } from '../../../../domain/entities/agent-slot.js';
 
 /** Stable read model exposed to application and task services. */
 export interface AgentProcessSlotView {
@@ -42,14 +40,7 @@ export interface AgentStartedEvent {
   readonly chatroomId: string;
   readonly role: string;
   /** Start reason from the spawn input (e.g. user.start, platform.pending_task_wake). */
-  readonly reason?: string | undefined;
-}
-
-export interface AgentStartResult {
-  readonly success: boolean;
-  readonly pid?: number | undefined;
-  readonly disposition?: AgentStartDisposition | undefined;
-  readonly error?: string | undefined;
+  readonly reason?: AgentProcessStartReason | undefined;
 }
 
 export type AgentStartedHandler = (event: AgentStartedEvent) => Promise<void>;
@@ -57,6 +48,8 @@ export type AgentStartedHandler = (event: AgentStartedEvent) => Promise<void>;
 export interface AgentSessionLostEvent {
   readonly chatroomId: string;
   readonly role: string;
+  /** PID of the daemon-managed process slot (keeper/server for SDK harnesses). */
+  readonly pid: number;
   readonly harnessSessionId?: string | undefined;
 }
 

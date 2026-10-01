@@ -3,6 +3,7 @@
  * Delegates to v2 startAgent use case via agent-control bridge.
  */
 
+import { isAgentStartReason } from '@workspace/backend/src/domain/entities/agent.js';
 import { Effect } from 'effect';
 
 import type { Id } from '../../../../api.js';
@@ -34,14 +35,24 @@ export const onRequestStartAgentEffect = (
     const session = yield* DaemonSessionService;
 
     yield* Effect.promise(async () => {
-      await startAgent(createStartAgentDeps(session, processManagerService), {
+      const reason = event.reason;
+      const deps = createStartAgentDeps(session, processManagerService);
+      if (!isAgentStartReason(reason)) {
+        await deps.session.emitAgentStartFailed({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          error: `Invalid agent start reason: ${reason}`,
+        });
+        return;
+      }
+      await startAgent(deps, {
         commandId: event._id.toString(),
         chatroomId: event.chatroomId as string,
         role: event.role,
         agentHarness: event.agentHarness,
         model: event.model,
         workingDir: event.workingDir,
-        reason: event.reason,
+        reason,
         deadline: event.deadline,
         wantResume: event.wantResume,
       });

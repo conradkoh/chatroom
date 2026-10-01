@@ -61,8 +61,9 @@ export const recordDeliveryFailure = mutation({
 
 /**
  * Daemon shutdown: move every non-pending task the machine's roles hold back
- * to `pending` so the next daemon boot re-delivers them. No agent on the
- * machine can be processing tasks once the daemon has exited.
+ * to `pending`. A later explicit agent start can deliver the task; boot alone
+ * does not start an agent from a recovered task. No agent on the machine can
+ * be processing tasks once the daemon has exited.
  */
 export const releaseMachineTasks = mutation({
   args: { ...SessionIdArg, machineId: v.string() },

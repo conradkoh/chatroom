@@ -145,6 +145,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     role: string,
     workingDir?: string
   ) => AgentProcessSlotView | undefined;
+  isStopRequested: (chatroomId: string, role: string) => boolean;
   listActive: () => { chatroomId: string; role: string; slot: AgentProcessSlotView }[];
   clearStuckStoppingSlot: (
     chatroomId: string,
@@ -181,6 +182,7 @@ export const DaemonAgentProcessManagerServiceLive = (
       workingDir === undefined
         ? mgr.getSlot(chatroomId, role)
         : mgr.getSlot(chatroomId, role, workingDir),
+    isStopRequested: (chatroomId, role) => mgr.isStopRequested(chatroomId, role),
     listActive: () => mgr.listActive(),
     clearStuckStoppingSlot: (chatroomId, role, options) =>
       Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role, options)),

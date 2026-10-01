@@ -104,6 +104,8 @@ export interface TaskService extends TaskDeliveryOperations {
   stopTaskInbox(): void;
   listTasksForRole(chatroomId: string, role: string): readonly AssignedTask[];
   listAllTasks(): readonly AssignedTask[];
+  /** Current backend task roles assigned to this machine within one chatroom. */
+  listMachineTaskRolesForChatroom(chatroomId: string): Promise<readonly string[]>;
   /**
    * Daemon-local diagnostic snapshot for one chatroom: the in-memory read model
    * that delivery reads. Server-side models are queried separately by
@@ -125,15 +127,12 @@ export interface TaskService extends TaskDeliveryOperations {
     taskIds?: readonly string[] | undefined;
   }): Promise<void>;
   getLatestHandoff(chatroomId: string, role: string): Promise<TaskHandoffRecord | null>;
-  /** Releases rehydrated in-progress tasks whose latest handoff does not cover them. */
-  sweepUncoveredInProgressTasks(): Promise<number>;
-  /**
-   * Notifies the task service that a user-initiated agent restart happened for
-   * the role. The task service decides what to do with the role's in-flight
-   * tasks: it resets the redelivery cap and hands acknowledged/in_progress
-   * tasks back to `pending` so the fresh agent reprocesses them.
-   */
-  handleAgentRestart(args: { chatroomId: string; role: string }): Promise<void>;
+  /** Releases authoritative machine-owned in-flight tasks after agent loss. */
+  recoverInFlightTasks(args: {
+    chatroomId?: string;
+    role?: string;
+    mode: 'automatic' | 'explicit';
+  }): Promise<{ released: number; skipped: number }>;
   /**
    * Notifies the task service that a delivered task's agent turn is producing
    * output (agent process service reports first turn progress). The task
@@ -171,11 +170,10 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const scheduledEventIds = new Set<string>();
   const deliveredEventIds = new Set<string>();
   const taskChains = new Map<string, Promise<void>>();
-  const maxBootstrapSweepFailures = 3;
-  let bootstrapSweepPending = true;
-  let bootstrapSweepFailures = 0;
-  let bootstrapSweepInFlight = false;
-  let bootstrapSweepPromise: Promise<void> | undefined;
+  let bootstrapRecoveryPending = true;
+  let bootstrapRecoveryAttempts = 0;
+  let bootstrapRecoveryTimer: ReturnType<typeof setTimeout> | undefined;
+  let bootstrapRecoveryPromise: Promise<void> | undefined;
 
   // Plan V2: consecutive uncovered turn ends per (chatroom, role, taskId).
   // In-memory on purpose — a daemon restart re-bounds the cycle (the bootstrap
@@ -245,39 +243,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     clearRedeliveryTrackingForTask(chatroomId, role, taskId);
   };
 
-  const sweepUncoveredInProgressTasks = async (): Promise<number> => {
-    let released = 0;
-    let failures = 0;
-    for (const task of taskInboxState.listAll()) {
-      if (task.status !== 'in_progress') continue;
-      try {
-        const handoff = await handoffRepository.getLatest(task.chatroomId, task.agentConfig.role);
-        if (handoff?.taskIds.includes(task.taskId)) continue;
-        const result = await gateway.releaseTaskAfterTurnFailure({
-          sessionId: deps.sessionId,
-          chatroomId: task.chatroomId,
-          role: task.agentConfig.role,
-          taskId: task.taskId,
-        });
-        taskInboxState.markStatus(
-          task.chatroomId,
-          task.agentConfig.role,
-          task.taskId,
-          result.status,
-          result.updatedAt
-        );
-        released += 1;
-      } catch (error) {
-        failures += 1;
-        console.warn(
-          `[TaskService] bootstrap task release failed chatroom=${task.chatroomId} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    }
-    if (failures > 0) throw new Error(`${failures} bootstrap task release(s) failed`);
-    return released;
-  };
-
   /** Releases a single task back to `pending` via the backend, then patches
    *  the local read model from the authoritative result. */
   const releaseTask = async (args: { chatroomId: string; role: string; taskId: string }) => {
@@ -314,31 +279,34 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     }
   };
 
-  const runBootstrapSweep = (): Promise<void> => {
-    if (!bootstrapSweepPending) return Promise.resolve();
-    if (bootstrapSweepInFlight) return bootstrapSweepPromise ?? Promise.resolve();
-    bootstrapSweepInFlight = true;
-    bootstrapSweepPromise = sweepUncoveredInProgressTasks()
+  const scheduleBootstrapRecovery = (): void => {
+    if (inboxStopped || bootstrapRecoveryTimer || !bootstrapRecoveryPending) return;
+    const delay = Math.min(30_000, 1_000 * 2 ** bootstrapRecoveryAttempts++);
+    bootstrapRecoveryTimer = setTimeout(() => {
+      bootstrapRecoveryTimer = undefined;
+      if (!inboxStopped) void runBootstrapRecovery();
+    }, delay);
+  };
+
+  // Keep startup on the shared automatic selector so handoff coverage and the
+  // V2 exhausted-task cap apply to boot recovery as well as agent-loss recovery.
+  const runBootstrapRecovery = (): Promise<void> => {
+    if (inboxStopped || !bootstrapRecoveryPending) return Promise.resolve();
+    if (bootstrapRecoveryPromise) return bootstrapRecoveryPromise;
+    bootstrapRecoveryPromise = service
+      .recoverInFlightTasks({ mode: 'automatic' })
       .then(() => {
-        bootstrapSweepPending = false;
-        bootstrapSweepFailures = 0;
+        bootstrapRecoveryPending = false;
+        bootstrapRecoveryAttempts = 0;
       })
       .catch((error) => {
-        bootstrapSweepFailures += 1;
-        if (bootstrapSweepFailures >= maxBootstrapSweepFailures) {
-          bootstrapSweepPending = false;
-          console.warn('[TaskService] bootstrap sweep giving up after 3 failed attempts');
-        } else {
-          console.warn(
-            `[TaskService] bootstrap sweep failed (attempt ${bootstrapSweepFailures}/3): ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
+        console.warn('[TaskService] bootstrap recovery failed:', error);
+        scheduleBootstrapRecovery();
       })
       .finally(() => {
-        bootstrapSweepInFlight = false;
-        bootstrapSweepPromise = undefined;
+        bootstrapRecoveryPromise = undefined;
       });
-    return bootstrapSweepPromise;
+    return bootstrapRecoveryPromise;
   };
 
   const notifyForDelivery = async (
@@ -498,7 +466,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const reconcileTaskStatuses = (tasks: readonly AssignedTask[]): void => {
     taskInboxState.reconcileStatuses(tasks);
-    runBootstrapSweep();
+    void runBootstrapRecovery();
     for (const task of tasks) {
       if (task.status === 'pending' || task.status === 'acknowledged') {
         pendingTaskReconciliationWatcher.watch(task);
@@ -542,10 +510,11 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           machineId: deps.machineId,
         });
         reconcileTaskStatuses(statusTasks);
-        await runBootstrapSweep();
+        await runBootstrapRecovery();
       } catch (error) {
-        bootstrapSweepPending = true;
         console.warn('[TaskService] task-status bootstrap failed:', error);
+        bootstrapRecoveryPending = true;
+        await runBootstrapRecovery();
       }
       if (wsClient && !stopInboxWatch) {
         stopInboxWatch = wsClient.onUpdate(
@@ -578,6 +547,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
     stopTaskInbox: () => {
       inboxStopped = true;
+      if (bootstrapRecoveryTimer) clearTimeout(bootstrapRecoveryTimer);
+      bootstrapRecoveryTimer = undefined;
       stopInboxWatch?.();
       stopInboxWatch = undefined;
       stopTaskStatusWatch?.();
@@ -593,6 +564,24 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
     listTasksForRole: (chatroomId, role) => taskInboxState.listForRole(chatroomId, role),
     listAllTasks: () => taskInboxState.listAll(),
+    listMachineTaskRolesForChatroom: async (chatroomId) => {
+      const statuses = await gateway.listActiveTaskStatuses({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+      });
+      return [
+        ...new Set(
+          statuses
+            .filter(
+              (task) =>
+                task.chatroomId.toLowerCase() === chatroomId.toLowerCase() &&
+                task.agentConfig.machineId.toLowerCase() === deps.machineId.toLowerCase() &&
+                task.assignedTo?.toLowerCase() === task.agentConfig.role.toLowerCase()
+            )
+            .map((task) => task.agentConfig.role.toLowerCase())
+        ),
+      ];
+    },
     debugState: (chatroomId) => buildTaskServiceDebugState({ taskInboxState, chatroomId }),
     taskInboxState,
     recordHandoffOutcome: async ({
@@ -621,28 +610,102 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       if (nextTask) taskInboxState.upsert([nextTask]);
     },
     getLatestHandoff: (chatroomId, role) => handoffRepository.getLatest(chatroomId, role),
-    sweepUncoveredInProgressTasks,
-    releaseTaskAfterTurnFailure: (args) => releaseTask(args),
-    handleAgentRestart: async ({ chatroomId, role }) => {
-      // A user-initiated restart is an explicit intervention: the fresh agent
-      // session reprocesses the role's in-flight work. Reset the redelivery
-      // cap and hand every acknowledged/in_progress task back to `pending` —
-      // the per-task release keeps each task's own state authoritative
-      // (already-pending/completed tasks are no-ops).
-      clearRoleRedeliveryTracking(chatroomId, role);
-      const inFlightTasks = taskInboxState
-        .listForRole(chatroomId, role)
-        .filter((task) => task.status === 'acknowledged' || task.status === 'in_progress');
-      for (const task of inFlightTasks) {
-        try {
-          await releaseTask({ chatroomId, role, taskId: task.taskId });
-        } catch (error) {
-          console.warn(
-            `[TaskService] agent-restart release failed chatroom=${chatroomId} role=${role} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
+    recoverInFlightTasks: async ({ chatroomId, role, mode }) => {
+      if ((chatroomId === undefined) !== (role === undefined)) {
+        throw new Error('chatroomId and role must be provided together');
       }
+      if (mode === 'explicit' && (chatroomId === undefined || role === undefined)) {
+        throw new Error('explicit task recovery requires chatroomId and role');
+      }
+
+      const selectedRole = role?.toLowerCase();
+      if (mode === 'explicit' && chatroomId !== undefined && role !== undefined) {
+        clearRoleRedeliveryTracking(chatroomId, role);
+      }
+
+      let statuses: readonly AssignedTask[];
+      try {
+        statuses = await gateway.listActiveTaskStatuses({
+          sessionId: deps.sessionId,
+          machineId: deps.machineId,
+        });
+      } catch (error) {
+        console.warn(
+          `[TaskService] in-flight recovery failed phase=read chatroom=${chatroomId ?? '*'} role=${role ?? '*'}: ${error instanceof Error ? error.message : String(error)}`
+        );
+        throw error;
+      }
+
+      let released = 0;
+      let skipped = 0;
+      const latestHandoffs = new Map<string, Promise<TaskHandoffRecord | null>>();
+      const candidates: AssignedTask[] = [];
+      let selectingTask: AssignedTask | undefined;
+      try {
+        for (const task of statuses) {
+          selectingTask = task;
+          const taskRole = task.agentConfig.role;
+          const normalizedTaskRole = taskRole.toLowerCase();
+          const matches =
+            task.agentConfig.machineId === deps.machineId &&
+            (task.status === 'acknowledged' || task.status === 'in_progress') &&
+            (chatroomId === undefined || task.chatroomId === chatroomId) &&
+            (selectedRole === undefined || normalizedTaskRole === selectedRole) &&
+            task.assignedTo?.toLowerCase() === normalizedTaskRole;
+          if (!matches) {
+            skipped += 1;
+            continue;
+          }
+          if (mode === 'automatic') {
+            const tracking = { chatroomId: task.chatroomId, role: taskRole, taskId: task.taskId };
+            if (isRedeliveryExhausted(tracking)) {
+              skipped += 1;
+              continue;
+            }
+            const handoffKey = `${task.chatroomId}:${normalizedTaskRole}`;
+            let latest = latestHandoffs.get(handoffKey);
+            if (!latest) {
+              latest = handoffRepository.getLatest(task.chatroomId, taskRole);
+              latestHandoffs.set(handoffKey, latest);
+            }
+            if ((await latest)?.taskIds.includes(task.taskId)) {
+              skipped += 1;
+              continue;
+            }
+          }
+          candidates.push(task);
+        }
+      } catch (error) {
+        console.warn(
+          `[TaskService] in-flight recovery failed phase=select chatroom=${selectingTask?.chatroomId ?? chatroomId ?? '*'} role=${selectingTask?.agentConfig.role ?? role ?? '*'} task=${selectingTask?.taskId ?? '*'} released=${released} skipped=${skipped}: ${error instanceof Error ? error.message : String(error)}`
+        );
+        throw error;
+      }
+
+      let currentTask: AssignedTask | undefined;
+      try {
+        for (const task of candidates) {
+          currentTask = task;
+          const result = await releaseTask({
+            chatroomId: task.chatroomId,
+            role: task.agentConfig.role,
+            taskId: task.taskId,
+          });
+          if (result.released) released += 1;
+          else skipped += 1;
+        }
+      } catch (error) {
+        console.warn(
+          `[TaskService] in-flight recovery failed phase=release chatroom=${currentTask?.chatroomId ?? chatroomId ?? '*'} role=${currentTask?.agentConfig.role ?? role ?? '*'} task=${currentTask?.taskId ?? '*'} released=${released} skipped=${skipped}: ${error instanceof Error ? error.message : String(error)}`
+        );
+        throw error;
+      }
+      console.log(
+        `[TaskService] in-flight recovery complete mode=${mode} chatroom=${chatroomId ?? '*'} role=${role ?? '*'} released=${released} skipped=${skipped}`
+      );
+      return { released, skipped };
     },
+    releaseTaskAfterTurnFailure: (args) => releaseTask(args),
     loadAssignedTaskForAction: async ({ chatroomId, role, taskId }) => {
       const task = await gateway.loadAssignedTaskForAction({
         sessionId: deps.sessionId,

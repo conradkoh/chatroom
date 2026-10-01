@@ -9,6 +9,7 @@ import {
   createAgentLifecycleOutboxRegistry,
   agentLifecycleKey,
 } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
+import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { createAgentTaskStateService } from '../index.js';
 
 function createService(
@@ -28,13 +29,24 @@ function createService(
     readonly forgetStaleTask?: ReturnType<typeof vi.fn>;
     readonly loadAssignedTaskForAction?: (args: Record<string, string>) => Promise<unknown>;
     readonly initialTasks?: readonly AssignedTask[];
+    readonly taskInboxState?: TaskInboxState;
     readonly getLatestHandoff?: () => Promise<{ taskIds: readonly string[] } | null>;
     readonly enqueueFact?: (fact: Record<string, unknown>) => Promise<unknown>;
-    readonly getSlot?: () => { state: 'running' | 'idle' | 'spawning' | 'stopping'; pid?: number };
+    readonly getSlot?: () =>
+      | {
+          state: 'running' | 'idle' | 'spawning' | 'stopping';
+          pid?: number;
+          harnessSessionId?: string;
+        }
+      | undefined;
+    readonly isStopRequested?: () => boolean;
+    readonly acquireNativeDeliverySlot?: ReturnType<typeof vi.fn>;
+    readonly recordDeliveryFailure?: ReturnType<typeof vi.fn>;
     readonly stopAgent?: ReturnType<typeof vi.fn>;
+    readonly recoverInFlightTasks?: ReturnType<typeof vi.fn>;
   } = {}
 ): AgentWorkManager {
-  const taskInboxState = new TaskInboxState();
+  const taskInboxState = options.taskInboxState ?? new TaskInboxState();
   taskInboxState.upsert(options.initialTasks ?? []);
   return new AgentWorkManager({
     configurationService: { get: () => undefined } as never,
@@ -56,13 +68,15 @@ function createService(
         return () => undefined;
       },
       getSlot: options.getSlot ?? (() => undefined),
+      isStopRequested: options.isStopRequested ?? (() => false),
     } as never,
     runSerializedForAgent: (async (_key: never, _options: never, operation: any) =>
       operation(
         { startAgent: vi.fn(), stopAgent: options.stopAgent ?? vi.fn() },
         { signal: new AbortController().signal }
       )) as never,
-    acquireNativeDeliverySlot: vi.fn().mockResolvedValue({ state: 'running' }),
+    acquireNativeDeliverySlot: (options.acquireNativeDeliverySlot ??
+      vi.fn().mockResolvedValue({ state: 'running' })) as never,
     sessionDeps: {} as never,
     machineId: 'machine-1',
     taskInboxState,
@@ -80,7 +94,10 @@ function createService(
         options.loadAssignedTaskForAction ??
         (async ({ taskId }: { taskId: string }) => ({ taskId })),
       forgetStaleTask: options.forgetStaleTask ?? vi.fn(),
+      recordDeliveryFailure: options.recordDeliveryFailure ?? vi.fn(),
       getLatestHandoff: options.getLatestHandoff ?? (async () => null),
+      recoverInFlightTasks:
+        options.recoverInFlightTasks ?? (async () => ({ released: 0, skipped: 0 })),
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
       recordUncoveredTurnEnd: options.recordUncoveredTurnEnd ?? (async () => ({ exceeded: false })),
@@ -89,6 +106,18 @@ function createService(
       explainNativeDeliveryBlock: () => null,
     } as never,
   });
+}
+
+function pendingTask(taskId: string, role = 'builder'): AssignedTask {
+  return {
+    taskId,
+    chatroomId: 'room-1',
+    status: 'pending',
+    assignedTo: role,
+    updatedAt: 1,
+    createdAt: 1,
+    agentConfig: { role, machineId: 'machine-1' },
+  } as AssignedTask;
 }
 
 function failedTurnEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -324,6 +353,7 @@ describe('AgentWorkManager', () => {
     } as AssignedTask;
     const service = createService({
       initialTasks: [task],
+      getSlot: () => ({ state: 'running', pid: 42 }),
       loadAssignedTaskForAction: async () => null,
       forgetStaleTask,
     });
@@ -353,6 +383,7 @@ describe('AgentWorkManager', () => {
   test('evicts a removed task during periodic reconciliation without waking an agent', async () => {
     const forgetStaleTask = vi.fn();
     const service = createService({
+      getSlot: () => ({ state: 'running', pid: 42 }),
       loadAssignedTaskForAction: async () => null,
       forgetStaleTask,
     });
@@ -373,6 +404,102 @@ describe('AgentWorkManager', () => {
       taskId: 'task-stale-periodic',
     });
     expect(requestReconcile).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test.each([
+    ['absent', undefined, false],
+    ['idle', { state: 'idle' }, false],
+    ['stopping', { state: 'stopping', pid: 42 }, false],
+    ['running without a PID', { state: 'running' }, false],
+    ['stopped by intent', { state: 'running', pid: 42 }, true],
+  ])(
+    'acknowledges a pending inbox event for a %s role without evicting its snapshot',
+    async (_label, slot, stopRequested) => {
+      const task = pendingTask('task-stopped-event');
+      const inbox = new TaskInboxState();
+      inbox.upsert([task]);
+      const loadAssignedTaskForAction = vi.fn(async () => task);
+      const acquireNativeDeliverySlot = vi.fn();
+      const recordDeliveryFailure = vi.fn();
+      const service = createService({
+        taskInboxState: inbox,
+        initialTasks: [task],
+        getSlot: () => slot as never,
+        isStopRequested: () => stopRequested,
+        loadAssignedTaskForAction,
+        acquireNativeDeliverySlot,
+        recordDeliveryFailure,
+      });
+
+      const confirmation = await service.handleTaskServiceNotification({
+        kind: 'inbox-event',
+        event: {
+          eventId: 'event-stopped-role',
+          eventType: 'task_updated',
+          chatroomId: 'room-1',
+          role: 'builder',
+          taskId: task.taskId,
+        } as never,
+      });
+
+      expect(confirmation).toEqual({ handledEventIds: ['event-stopped-role'] });
+      expect(loadAssignedTaskForAction).not.toHaveBeenCalled();
+      expect(acquireNativeDeliverySlot).not.toHaveBeenCalled();
+      expect(recordDeliveryFailure).not.toHaveBeenCalled();
+      expect(inbox.getForRole('room-1', 'builder', task.taskId)?.status).toBe('pending');
+      service.dispose();
+    }
+  );
+
+  test('periodic reconcile skips authoritative hydration for a stopped role', async () => {
+    const task = pendingTask('task-stopped-periodic');
+    const inbox = new TaskInboxState();
+    inbox.upsert([task]);
+    const loadAssignedTaskForAction = vi.fn(async () => task);
+    const acquireNativeDeliverySlot = vi.fn();
+    const service = createService({
+      taskInboxState: inbox,
+      initialTasks: [task],
+      getSlot: () => ({ state: 'idle' }),
+      loadAssignedTaskForAction,
+      acquireNativeDeliverySlot,
+    });
+    const requestReconcile = vi.spyOn(service, 'requestReconcile');
+
+    await service.handleTaskServiceNotification({
+      kind: 'periodic-reconcile',
+      task,
+    });
+
+    expect(loadAssignedTaskForAction).not.toHaveBeenCalled();
+    expect(requestReconcile).not.toHaveBeenCalled();
+    expect(acquireNativeDeliverySlot).not.toHaveBeenCalled();
+    expect(inbox.getForRole('room-1', 'builder', task.taskId)?.status).toBe('pending');
+    service.dispose();
+  });
+
+  test('reconcile after recovery leaves a stopped role pending', async () => {
+    const task = pendingTask('task-recovered-pending');
+    const inbox = new TaskInboxState();
+    inbox.upsert([task]);
+    const acquireNativeDeliverySlot = vi.fn();
+    const service = createService({
+      taskInboxState: inbox,
+      initialTasks: [task],
+      getSlot: () => ({ state: 'idle' }),
+      acquireNativeDeliverySlot,
+    });
+
+    await expect(
+      service.requestReconcile({
+        chatroomId: 'room-1',
+        role: 'builder',
+        source: 'periodic-reconcile',
+      })
+    ).resolves.toEqual([]);
+    expect(acquireNativeDeliverySlot).not.toHaveBeenCalled();
+    expect(inbox.getForRole('room-1', 'builder', task.taskId)?.status).toBe('pending');
     service.dispose();
   });
 
@@ -592,25 +719,160 @@ describe('AgentWorkManager', () => {
     service.dispose();
   });
 
-  test('clears stale active-task state when the agent session is lost', () => {
+  test('unexpected exit installs a gate synchronously and recovers once', async () => {
     let onSessionLost: ((event: never) => void) | undefined;
+    const recoverInFlightTasks = vi.fn(async () => ({ released: 1, skipped: 0 }));
     const service = createService({
       onSessionLost: (handler) => {
         onSessionLost = handler;
       },
+      getSlot: () => ({ state: 'running', pid: 41 }),
+      recoverInFlightTasks,
     });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    onSessionLost?.({ chatroomId: 'room-1', role: 'Builder', pid: 41 } as never);
+    onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
+    expect((service as any).recoveryGates.has('room-1:builder')).toBe(true);
+    await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledOnce());
+    expect(recoverInFlightTasks).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'Builder',
+      mode: 'automatic',
+    });
+    expect((service as any).recoveryGates.has('room-1:builder')).toBe(false);
+    service.dispose();
+  });
 
-    onSessionLost?.({ chatroomId: 'room-1', role: 'builder' } as never);
-
-    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
-    expect(requestReconcile).toHaveBeenCalledWith({
+  test('ignores an exit callback whose PID belongs to a replaced slot', () => {
+    let onSessionLost: ((event: never) => void) | undefined;
+    const recoverInFlightTasks = vi.fn();
+    const service = createService({
+      onSessionLost: (handler) => {
+        onSessionLost = handler;
+      },
+      getSlot: () => ({ state: 'running', pid: 99 }),
+      recoverInFlightTasks,
+    });
+    onSessionLost?.({
       chatroomId: 'room-1',
       role: 'builder',
-      source: 'agent-session-lost',
-    });
+      pid: 41,
+    } as never);
+    expect((service as any).recoveryGates.size).toBe(0);
+    expect(recoverInFlightTasks).not.toHaveBeenCalled();
     service.dispose();
+  });
+
+  test('ignores an exit callback with a matching PID but stale harness session', () => {
+    let onSessionLost: ((event: never) => void) | undefined;
+    const recoverInFlightTasks = vi.fn();
+    const service = createService({
+      onSessionLost: (handler) => {
+        onSessionLost = handler;
+      },
+      getSlot: () => ({ state: 'running', pid: 41, harnessSessionId: 'replacement-session' }),
+      recoverInFlightTasks,
+    });
+    onSessionLost?.({
+      chatroomId: 'room-1',
+      role: 'builder',
+      pid: 41,
+      harnessSessionId: 'old-session',
+    } as never);
+    expect((service as any).recoveryGates.size).toBe(0);
+    expect(recoverInFlightTasks).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('role recovery waits for an already running native sender to drain', async () => {
+    let finishSender!: () => void;
+    let senderStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      senderStarted = resolve;
+    });
+    const senderTail = new Promise<void>((resolve) => {
+      finishSender = resolve;
+    });
+    const recoverInFlightTasks = vi.fn(async () => ({ released: 1, skipped: 0 }));
+    const service = createService({ recoverInFlightTasks });
+    const queue = new NativeTaskDeliveryQueue(async () => {
+      senderStarted();
+      await senderTail;
+    });
+    (service as any).nativeTaskDeliveryQueue = queue;
+    const sending = queue.enqueue({
+      task: { chatroomId: 'room-1', agentConfig: { role: 'builder' } } as never,
+      harnessSessionId: 'old-session',
+      onTaskDelivered: undefined,
+    });
+    await started;
+    const prepare = service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
+    const recovery = service.recoverStoppedRole({
+      chatroomId: 'room-1',
+      role: 'builder',
+      mode: 'automatic',
+    });
+    await Promise.resolve();
+    expect(recoverInFlightTasks).not.toHaveBeenCalled();
+    finishSender();
+    await Promise.all([sending, prepare]);
+    await expect(recovery).resolves.toEqual({ released: 1 });
+    expect(recoverInFlightTasks).toHaveBeenCalledOnce();
+    service.dispose();
+  });
+
+  test('failed automatic recovery retains the gate, retries, then reopens it', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let onSessionLost: ((event: never) => void) | undefined;
+    const recoverInFlightTasks = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('backend unavailable'))
+      .mockResolvedValue({ released: 0, skipped: 0 });
+    const service = createService({
+      onSessionLost: (handler) => {
+        onSessionLost = handler;
+      },
+      getSlot: () => ({ state: 'running', pid: 41 }),
+      recoverInFlightTasks,
+    });
+    try {
+      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
+      await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledTimes(1));
+      expect((service as any).recoveryGates.has('room-1:builder')).toBe(true);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledTimes(2));
+      expect((service as any).recoveryGates.has('room-1:builder')).toBe(false);
+    } finally {
+      service.dispose();
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('dispose cancels scheduled automatic recovery retries', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let onSessionLost: ((event: never) => void) | undefined;
+    const recoverInFlightTasks = vi.fn().mockRejectedValue(new Error('backend unavailable'));
+    const service = createService({
+      onSessionLost: (handler) => {
+        onSessionLost = handler;
+      },
+      getSlot: () => ({ state: 'running', pid: 41 }),
+      recoverInFlightTasks,
+    });
+    try {
+      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
+      await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledTimes(1));
+      expect((service as any).recoveryGates.get('room-1:builder')?.retryTimer).toBeDefined();
+      service.dispose();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(recoverInFlightTasks).toHaveBeenCalledTimes(1);
+    } finally {
+      service.dispose();
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   test('routes bootstrap notifications by affected role', async () => {
@@ -632,7 +894,7 @@ describe('AgentWorkManager', () => {
   });
 
   test('coalesces duplicate role reconciliations and runs a fresh pass afterward', async () => {
-    const service = createService();
+    const service = createService({ getSlot: () => ({ state: 'running', pid: 42 }) });
     let release!: () => void;
     const gate = new Promise<readonly string[]>((resolve) => {
       release = () => resolve([]);
@@ -661,7 +923,8 @@ describe('AgentWorkManager', () => {
       2,
       'agent-session-lost',
       expect.any(Array),
-      undefined
+      undefined,
+      expect.any(Function)
     );
   });
 

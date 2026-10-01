@@ -46,6 +46,7 @@ function createAgentMgrMocks(
 ): NativeInjectorDeps['agentMgr'] {
   return {
     resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
+    isStopRequested: vi.fn(() => false),
     // Existing running session with old context: cold path must stop it first.
     getSlot: vi.fn().mockReturnValue({
       state: 'running',
@@ -159,6 +160,35 @@ describe('runNativeInjectionEffect', () => {
         taskId: 'task_1',
       })
     );
+  });
+
+  test('cancellation before claim makes no backend call', async () => {
+    const deps = createDeps({ isCurrent: () => false });
+    await expect(
+      Effect.runPromise(runNativeInjectionEffect(makeTask(), HARNESS_SESSION_ID, deps))
+    ).rejects.toThrow('cancelled');
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+    expect(deps.agentMgr.resumeTurnForSlot).not.toHaveBeenCalled();
+  });
+
+  test('cancellation after prompt work prevents receipt and resume', async () => {
+    let current = true;
+    const deps = createDeps({
+      isCurrent: () => current,
+      lifecycleOutbox: {
+        enqueue: vi.fn(async () => {
+          current = false;
+        }),
+      },
+    });
+    await expect(
+      Effect.runPromise(runNativeInjectionEffect(makeTask(), HARNESS_SESSION_ID, deps))
+    ).rejects.toThrow('cancelled');
+    const receiptCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call) => typeof call[1] === 'object' && call[1] !== null && 'deliveryKind' in call[1]
+    );
+    expect(receiptCalls).toHaveLength(0);
+    expect(deps.agentMgr.resumeTurnForSlot).not.toHaveBeenCalled();
   });
 
   test('skips claim when task is already acknowledged', async () => {

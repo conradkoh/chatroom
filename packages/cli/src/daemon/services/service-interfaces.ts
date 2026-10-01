@@ -17,7 +17,6 @@ export {
   explainNativeDeliveryBlock,
   isNativeHarness,
   shouldDeliverNativeTask,
-  resetRoleDeliveryState,
   createConvexNativeTaskDeliveryGateway,
   createDaemonAuditPort,
   runNativeInjectionEffect,

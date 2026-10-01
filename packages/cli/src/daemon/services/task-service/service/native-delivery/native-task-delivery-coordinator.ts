@@ -23,7 +23,9 @@ export type NativeDeliveryDelivered = {
 
 export type NativeDeliveryExecution =
   | { kind: 'delivered'; delivered: NativeDeliveryDelivered }
+  | { kind: 'agent-not-running' }
   | { kind: 'task-unavailable'; stale?: boolean }
+  | { kind: 'cancelled' }
   | { kind: 'failed'; reason: 'injection_not_confirmed' };
 
 export type NativeDeliveryExecutors = {
@@ -83,6 +85,7 @@ export class NativeTaskDeliveryCoordinator {
         }) => void)
       | undefined;
     executors: NativeDeliveryExecutors;
+    isCurrent?: () => boolean;
   }): Promise<readonly string[]> {
     const tasks = params.tasks;
     if (tasks.length === 0) return [];
@@ -90,6 +93,7 @@ export class NativeTaskDeliveryCoordinator {
     const { isTaskActive, onTaskDelivered, executors } = params;
     const deliveryState = getRoleDeliveryState();
     const taskService = params.taskService;
+    const isCurrent = params.isCurrent ?? (() => true);
 
     const groups = new Map<string, AssignedTask[]>();
     for (const task of tasks) {
@@ -100,6 +104,7 @@ export class NativeTaskDeliveryCoordinator {
     }
 
     for (const roleTasks of groups.values()) {
+      if (!isCurrent()) break;
       const sortedTasks = [...roleTasks].sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
         if (b.status === 'pending' && a.status !== 'pending') return 1;
@@ -152,6 +157,7 @@ export class NativeTaskDeliveryCoordinator {
         continue;
       }
       if (decision.kind === 'failed') {
+        if (!isCurrent()) break;
         logNativeDeliverySkip(role, row.chatroomId, decision.taskId, decision.reason);
         await recordDeliveryFailure(taskService, decision.taskId, decision.reason);
         continue;
@@ -160,6 +166,8 @@ export class NativeTaskDeliveryCoordinator {
         logNativeDeliverySkip(role, row.chatroomId, decision.taskId, decision.reason);
         continue;
       }
+      const generation = deliveryState.getGeneration(row.chatroomId, role);
+      if (!isCurrent()) break;
       if (!deliveryState.tryAcquireDelivery(row.chatroomId, role)) {
         logNativeDeliveryMutexSkip(role, row.chatroomId, row.taskId);
         continue;
@@ -167,7 +175,18 @@ export class NativeTaskDeliveryCoordinator {
 
       logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
       try {
+        if (!isCurrent() || deliveryState.getGeneration(row.chatroomId, role) !== generation) {
+          continue;
+        }
         const result = await executors.deliverTask(row, agentConfig);
+        if (
+          !isCurrent() ||
+          deliveryState.getGeneration(row.chatroomId, role) !== generation ||
+          result?.kind === 'cancelled'
+        ) {
+          continue;
+        }
+        if (result?.kind === 'agent-not-running') continue;
         if (!result || result.kind === 'task-unavailable') {
           console.warn(
             `[NativeDelivery:execution] attempt=${attemptId} role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject result=task_hydration_missing`
@@ -188,6 +207,9 @@ export class NativeTaskDeliveryCoordinator {
               `[NativeDelivery:failure] task=${row.taskId} operation=clear-failure error=${getErrorMessage(error)}`
             );
           }
+          if (!isCurrent() || deliveryState.getGeneration(row.chatroomId, role) !== generation) {
+            continue;
+          }
           onTaskDelivered?.(result.delivered);
           deliveredTaskIds.push(row.taskId);
           console.log(
@@ -195,12 +217,15 @@ export class NativeTaskDeliveryCoordinator {
           );
         }
       } catch (error) {
+        if (!isCurrent() || deliveryState.getGeneration(row.chatroomId, role) !== generation) {
+          continue;
+        }
         console.warn(
           `[NativeDelivery:failure] role=${role} chatroom=${row.chatroomId} task=${row.taskId} operation=inject error=${getErrorMessage(error)}`
         );
         await recordDeliveryFailure(taskService, row.taskId, 'injection_not_confirmed');
       } finally {
-        deliveryState.releaseDelivery(row.chatroomId, role);
+        deliveryState.releaseDelivery(row.chatroomId, role, generation);
       }
     }
     return deliveredTaskIds;
@@ -214,7 +239,4 @@ export function getNativeTaskDeliveryCoordinator(): NativeTaskDeliveryCoordinato
   return coordinator;
 }
 
-export function resetRoleDeliveryState(chatroomId: string, role: string): void {
-  getRoleDeliveryState().resetDeliveryState(chatroomId, role);
-}
 // fallow-ignore-file complexity

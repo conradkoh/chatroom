@@ -1,3 +1,5 @@
+import type { AgentStartReason } from '@workspace/backend/src/domain/entities/agent.js';
+
 import type { AgentHarness } from '../entities/harness-shared-types.js';
 
 export interface StartAgentInput {
@@ -7,7 +9,7 @@ export interface StartAgentInput {
   agentHarness: AgentHarness;
   model: string;
   workingDir: string;
-  reason: string;
+  reason: AgentStartReason;
   deadline: number;
   wantResume: boolean;
 }
@@ -19,7 +21,7 @@ export interface AgentProcessManagerPort {
     agentHarness: AgentHarness;
     model: string;
     workingDir: string;
-    reason: string;
+    reason: AgentStartReason;
     wantResume: boolean;
   }): Promise<void>;
 }

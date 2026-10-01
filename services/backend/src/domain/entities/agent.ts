@@ -138,7 +138,6 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
  *
  * Values are serialized in agent.requestStart events and must not be renamed.
  */
-// fallow-ignore-next-line unused-export
 export const AgentStartReasonCode = {
   /** User explicitly started the agent through the UI or CLI. */
   USER_START: 'user.start',
@@ -178,14 +177,16 @@ export const AGENT_START_REASONS = [
  * Reasons owned by the local daemon rather than backend agent-start events.
  * These must not be added to the backend AgentStartReason validator.
  */
-// fallow-ignore-next-line unused-export
 export const DaemonStartReasonCode = {
   /** Respawn after the daemon replaces an agent process. */
   RESPAWN: 'daemon.respawn',
 } as const;
 
-// fallow-ignore-next-line unused-type
 export type DaemonStartReason = (typeof DaemonStartReasonCode)[keyof typeof DaemonStartReasonCode];
+export type AgentProcessStartReason = AgentStartReason | DaemonStartReason;
+export type AutonomousDaemonWakeReason =
+  | typeof AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE
+  | typeof AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE;
 
 export const agentStartReasonValidator = v.union(...toLiteralValidators(AGENT_START_REASONS));
 
@@ -200,7 +201,7 @@ export const USER_EXPLICIT_START_REASONS = [
 ] as const;
 export type UserExplicitStartReason = (typeof USER_EXPLICIT_START_REASONS)[number];
 // fallow-ignore-next-line unused-export
-export const isUserExplicitStart = (reason: string): reason is UserExplicitStartReason =>
+export const isUserExplicitStart = (reason: AgentStartReason): reason is UserExplicitStartReason =>
   (USER_EXPLICIT_START_REASONS as readonly string[]).includes(reason);
 
 /** Daemon start reasons that clear local stop intent before spawning. */
@@ -208,14 +209,21 @@ export const isUserExplicitStart = (reason: string): reason is UserExplicitStart
 export const EXPLICIT_DAEMON_START_REASONS = [
   ...USER_EXPLICIT_START_REASONS,
   AgentStartReasonCode.USER_MANUAL_SPAWN,
-  AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
-  AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
   AgentStartReasonCode.PLATFORM_TASK_START_IN_NEW_SESSION,
   DaemonStartReasonCode.RESPAWN,
 ] as const;
 export type ExplicitDaemonStartReason = (typeof EXPLICIT_DAEMON_START_REASONS)[number];
-export const isExplicitDaemonStart = (reason: string): reason is ExplicitDaemonStartReason =>
+export const isExplicitDaemonStart = (
+  reason: AgentProcessStartReason
+): reason is ExplicitDaemonStartReason =>
   (EXPLICIT_DAEMON_START_REASONS as readonly string[]).includes(reason);
+
+/** Autonomous daemon wakes may use a live slot but cannot create an agent process. */
+export const isAutonomousDaemonWake = (
+  reason: AgentProcessStartReason
+): reason is AutonomousDaemonWakeReason =>
+  reason === AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE ||
+  reason === AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE;
 
 /**
  * Why an agent was stopped. Used by daemon stop intents and the

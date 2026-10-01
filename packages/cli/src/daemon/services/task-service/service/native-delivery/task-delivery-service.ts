@@ -16,6 +16,7 @@ export interface TaskDeliveryService extends TaskDeliveryOperations {
       role: string;
       taskId: string;
       harnessSessionId: string;
-    }) => void
+    }) => void,
+    isCurrent?: () => boolean
   ): Promise<void>;
 }

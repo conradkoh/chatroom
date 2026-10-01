@@ -12,7 +12,7 @@ import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonSessionServiceShape,
 } from '../daemon-services.js';
-import type { AgentHarness, StartAgentReason } from '../daemon-types.js';
+import type { AgentHarness } from '../daemon-types.js';
 import { runRestartOrchestrator } from '../restart-orchestrator.js';
 
 export function createStartAgentDeps(
@@ -28,7 +28,7 @@ export function createStartAgentDeps(
           agentHarness: args.agentHarness as AgentHarness,
           model: args.model,
           workingDir: args.workingDir,
-          reason: args.reason as StartAgentReason,
+          reason: args.reason,
           wantResume: args.wantResume,
         });
       },
@@ -84,7 +84,10 @@ export function createRestartAgentDeps(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   session: DaemonSessionServiceShape,
   processManagerService: AgentProcessManagerService,
-  nativeDelivery: Pick<AgentWorkManager, 'reconcileAfterAgentRestart' | 'handleAgentRestart'>
+  nativeDelivery: Pick<
+    AgentWorkManager,
+    'prepareRoleRecovery' | 'recoverStoppedRole' | 'reconcileAfterAgentRestart'
+  >
 ): RestartAgentDeps {
   return {
     restartOrchestrator: {
