@@ -1,4 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { getFunctionName } from 'convex/server';
+import type { FunctionReference } from 'convex/server';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,22 +12,27 @@ const mocks = vi.hoisted(() => ({
   counts: undefined as
     { pending: number; acknowledged: number; in_progress: number; queued: number } | undefined,
   tasks: undefined as { _id: string; status: string; content: string }[] | undefined,
-  queryIndex: 0,
   promote: vi.fn(),
+  otherMutation: vi.fn(),
   toastSuccess: vi.fn(),
   toastInfo: vi.fn(),
   toastError: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: () => {
-    const index = mocks.queryIndex++;
-    if (index === 4) mocks.queryIndex = 0;
-    if (index === 0) return mocks.tasks;
-    if (index === 2) return mocks.counts;
-    return [];
+  useSessionQuery: (query: unknown) => {
+    const functionName = getFunctionName(query as FunctionReference<'query'>);
+    if (functionName === getFunctionName(api.tasks.listTasks)) return mocks.tasks;
+    if (functionName === getFunctionName(api.tasks.getTaskCounts)) return mocks.counts;
+    if (functionName === getFunctionName(api.messages.listQueued)) return [];
+    if (functionName === getFunctionName(api.backlog.listBacklogItems)) return [];
+    throw new Error(`Unexpected WorkQueue query: ${functionName}`);
   },
-  useSessionMutation: () => mocks.promote,
+  useSessionMutation: (mutation: unknown) =>
+    getFunctionName(mutation as FunctionReference<'mutation'>) ===
+    getFunctionName(api.tasks.promoteNextTask)
+      ? mocks.promote
+      : mocks.otherMutation,
 }));
 
 vi.mock('sonner', () => ({
@@ -80,8 +88,8 @@ describe('WorkQueue manual queue recovery', () => {
     vi.useFakeTimers();
     mocks.counts = eligibleCounts;
     mocks.tasks = [];
-    mocks.queryIndex = 0;
     mocks.promote = vi.fn().mockResolvedValue({ reason: 'success' });
+    mocks.otherMutation = vi.fn().mockResolvedValue(undefined);
     mocks.toastSuccess.mockReset();
     mocks.toastInfo.mockReset();
     mocks.toastError.mockReset();
@@ -129,17 +137,25 @@ describe('WorkQueue manual queue recovery', () => {
     expect(screen.queryByRole('button', { name: 'Start Next' })).not.toBeInTheDocument();
   });
 
-  it('restarts the delay when occupancy changes and when the room changes', async () => {
+  it('restarts the full delay after a visible notice becomes busy and when switching rooms', async () => {
     const { rerender } = render(<WorkQueue chatroomId={chatroomId} />);
-    await elapse(1500);
+    await elapse(2000);
+    expect(screen.getByRole('button', { name: 'Start Next' })).toBeInTheDocument();
+
     mocks.counts = { ...eligibleCounts, pending: 1 };
     rerender(<WorkQueue chatroomId={chatroomId} />);
-    await elapse(500);
+    expect(screen.queryByRole('button', { name: 'Start Next' })).not.toBeInTheDocument();
+    await elapse(2500);
+
     mocks.counts = eligibleCounts;
     rerender(<WorkQueue chatroomId={chatroomId} />);
-    await elapse(1500);
+    await elapse(1999);
     expect(screen.queryByRole('button', { name: 'Start Next' })).not.toBeInTheDocument();
+    await elapse(1);
+    expect(screen.getByRole('button', { name: 'Start Next' })).toBeInTheDocument();
+
     rerender(<WorkQueue chatroomId={'chatroom-two' as WorkQueueProps['chatroomId']} />);
+    expect(screen.queryByRole('button', { name: 'Start Next' })).not.toBeInTheDocument();
     await elapse(1999);
     expect(screen.queryByRole('button', { name: 'Start Next' })).not.toBeInTheDocument();
     await elapse(1);

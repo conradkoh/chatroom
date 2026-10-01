@@ -93,18 +93,21 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
 
   // Debounce needsPromotion to prevent flashing during normal task transitions.
   // The notice only appears after staying true for 2 seconds.
-  const promotionWindowRef = useRef({ chatroomId, eligible: needsPromotionRaw, token: 0 });
-  if (
-    promotionWindowRef.current.chatroomId !== chatroomId ||
-    promotionWindowRef.current.eligible !== needsPromotionRaw
-  ) {
-    promotionWindowRef.current = {
+  const [promotionWindow, setPromotionWindow] = useState({
+    chatroomId,
+    eligible: needsPromotionRaw,
+    token: 0,
+  });
+  const promotionWindowMatchesInput =
+    promotionWindow.chatroomId === chatroomId && promotionWindow.eligible === needsPromotionRaw;
+  if (!promotionWindowMatchesInput) {
+    setPromotionWindow({
       chatroomId,
       eligible: needsPromotionRaw,
-      token: promotionWindowRef.current.token + 1,
-    };
+      token: promotionWindow.token + 1,
+    });
   }
-  const promotionWindowToken = promotionWindowRef.current.token;
+  const promotionWindowToken = promotionWindow.token;
   const [delayedPromotionToken, setDelayedPromotionToken] = useState<number | null>(null);
   useEffect(() => {
     if (!needsPromotionRaw) return;
@@ -114,7 +117,9 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
     };
   }, [needsPromotionRaw, chatroomId, promotionWindowToken]);
   const effectiveNeedsPromotion =
-    needsPromotionRaw && delayedPromotionToken === promotionWindowToken;
+    needsPromotionRaw &&
+    promotionWindowMatchesInput &&
+    delayedPromotionToken === promotionWindowToken;
 
   // Query pending review backlog items from the dedicated chatroom_backlog table
   const pendingReviewBacklogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {

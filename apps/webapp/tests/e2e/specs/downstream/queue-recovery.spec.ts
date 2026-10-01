@@ -1,10 +1,30 @@
+import type { Page } from '@playwright/test';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { ConvexHttpClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { test, expect } from '../../fixtures/auth.fixture';
+import { test as authenticatedTest, expect } from '../../fixtures/auth.fixture';
 import { getConvexUrl } from '../../support/env';
 import { TAG_DOWNSTREAM } from '../../support/tags';
+
+const test = authenticatedTest.extend({
+  // The shared fixture's dashboard heading is stale; retain its authenticatedPage
+  // contract while checking the actual current dashboard heading here.
+  authenticatedPage: async ({ page }, use) => {
+    await page.goto('/login');
+    await page.getByRole('button', { name: /continue anonymously/i }).click();
+    await page.waitForURL('**/app');
+    await expect(page.getByRole('heading', { name: 'Welcome' })).toBeVisible();
+    // Playwright fixture `use` is not a React hook.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    await use(page);
+  },
+});
+
+function sidebarSection(page: Page, title: 'Current' | 'Queued') {
+  const heading = page.getByText(new RegExp(`^${title} \\(\\d+\\)$`));
+  return heading.locator('xpath=ancestor::section[1]');
+}
 
 test.describe('Manual queue recovery', { tag: [TAG_DOWNSTREAM] }, () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
@@ -34,21 +54,40 @@ test.describe('Manual queue recovery', { tag: [TAG_DOWNSTREAM] }, () => {
       });
 
       await page.goto(`/app/chatroom?id=${chatroomId}`);
+      const setupWorkspaceDialog = page.getByRole('dialog');
+      await expect(
+        setupWorkspaceDialog.getByRole('heading', { name: 'Setup Workspace' })
+      ).toBeVisible();
+      await setupWorkspaceDialog.getByRole('button', { name: 'Close' }).click();
+      await expect(setupWorkspaceDialog).toHaveCount(0);
+      const currentSection = sidebarSection(page, 'Current');
+      const queuedSection = sidebarSection(page, 'Queued');
       await expect(page.getByRole('button', { name: 'Start Next' })).toHaveCount(0);
-      await expect(page.getByText('Agent task to force complete')).toBeVisible();
+      await expect(
+        currentSection.getByText('Agent task to force complete', { exact: true })
+      ).toBeVisible();
+      await expect(
+        queuedSection.getByText('Queued message to recover', { exact: true })
+      ).toBeVisible();
 
-      await page.getByText('Agent task to force complete').click();
-      await page.getByRole('button', { name: 'Force Complete' }).click();
-      await expect(page.getByText('No current tasks')).toBeVisible();
-      await expect(page.getByText('Queued message to recover')).toBeVisible();
+      await currentSection.getByText('Agent task to force complete', { exact: true }).click();
+      const forceComplete = page.getByRole('button', { name: 'Force Complete', exact: true });
+      await expect(forceComplete).toBeVisible();
+      await forceComplete.click();
+      await expect(forceComplete).toHaveCount(0);
+      await expect(currentSection.getByText('No current tasks', { exact: true })).toBeVisible();
+      await expect(
+        queuedSection.getByText('Queued message to recover', { exact: true })
+      ).toBeVisible();
 
       const startNext = page.getByRole('button', { name: 'Start Next' });
       await expect(startNext).toBeVisible({ timeout: 8_000 });
       await startNext.click();
-      await expect(page.getByText('No current tasks')).toHaveCount(0);
-      await expect(page.getByText('Queued (0)')).toBeVisible();
+      await expect(
+        currentSection.getByText('Queued message to recover', { exact: true })
+      ).toBeVisible();
+      await expect(queuedSection.getByText('No queued messages', { exact: true })).toBeVisible();
       await expect(startNext).toHaveCount(0);
-      await expect(page.getByText('Queued message to recover').first()).toBeVisible();
 
       const activeTasks = await client.query(api.tasks.listTasks, {
         sessionId,
@@ -58,9 +97,11 @@ test.describe('Manual queue recovery', { tag: [TAG_DOWNSTREAM] }, () => {
       });
       const original = await client.query(api.tasks.getTask, { sessionId, chatroomId, taskId });
       const queue = await client.query(api.messages.listQueued, { sessionId, chatroomId });
-      expect(
-        activeTasks.filter((task) => task.content === 'Queued message to recover')
-      ).toHaveLength(1);
+      expect(activeTasks).toHaveLength(1);
+      expect(activeTasks[0]).toMatchObject({
+        content: 'Queued message to recover',
+        status: 'pending',
+      });
       expect(original?.status).toBe('completed');
       expect(queue).toHaveLength(0);
     });
