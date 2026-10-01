@@ -281,7 +281,7 @@ describe('native queued delivery after agent_end', () => {
     const builderPending = () => inbox.getForRole(chatroomId, 'builder', builderTask.taskId);
 
     const manager = createWorkManager(inbox, processManager);
-    await manager.prepareRoleRecovery({ chatroomId, role: 'builder', pid: 201 });
+    await manager.prepareRoleRecovery({ chatroomId, role: 'builder' });
     await manager.recoverStoppedRole({ chatroomId, role: 'builder', mode: 'explicit' });
     expect(backendStatuses.get(builderTask.taskId)).toBe('pending');
     expect(builderPending()?.status).toBe('pending');

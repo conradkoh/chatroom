@@ -898,7 +898,6 @@ export class AgentProcessManager {
       this.notifyAgentSessionLost({
         chatroomId: opts.chatroomId,
         role: opts.role,
-        cause: 'unexpected_exit',
         pid: opts.pid,
         ...(ctx.harnessSessionId ? { harnessSessionId: ctx.harnessSessionId } : {}),
       });
@@ -1417,16 +1416,6 @@ export class AgentProcessManager {
       // A stop result may arrive after the old slot was already removed. If a
       // slot is present, it must still identify the stopped PID.
       if (slot && slot.pid !== target.pid) continue;
-      // A successful scoped stop can report `already_stopped` without a live
-      // process-exit callback. Still invalidate native delivery state so a
-      // stale task marker cannot suppress recovery after the stop.
-      this.notifyAgentSessionLost({
-        chatroomId: target.chatroomId,
-        role: target.role,
-        cause: 'confirmed_user_stop',
-        pid: target.pid,
-        ...(slot?.harnessSessionId ? { harnessSessionId: slot.harnessSessionId } : {}),
-      });
       if (!slot) continue;
       this.resetSlotAfterStop(slot);
       await this.clearAgentPidQuietly(target.chatroomId, target.role, target.workingDir);

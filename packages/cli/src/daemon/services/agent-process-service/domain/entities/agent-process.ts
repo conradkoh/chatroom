@@ -46,8 +46,8 @@ export type AgentStartedHandler = (event: AgentStartedEvent) => Promise<void>;
 export interface AgentSessionLostEvent {
   readonly chatroomId: string;
   readonly role: string;
-  readonly cause: 'unexpected_exit' | 'confirmed_user_stop';
-  readonly pid?: number | undefined;
+  /** PID of the daemon-managed process slot (keeper/server for SDK harnesses). */
+  readonly pid: number;
   readonly harnessSessionId?: string | undefined;
 }
 

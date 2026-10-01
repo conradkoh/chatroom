@@ -73,8 +73,6 @@ type RoleRecoveryGate = {
   readonly drainPromise: Promise<void>;
   readonly completion: Promise<void>;
   readonly resolveCompletion: () => void;
-  readonly pid?: number;
-  readonly harnessSessionId?: string;
   retryTimer: ReturnType<typeof setTimeout> | undefined;
   retryAttempts: number;
   recoveryPromise: Promise<{ released: number }> | undefined;
@@ -206,16 +204,16 @@ export class AgentWorkManager {
   }
 
   handleAgentSessionLost(event: AgentSessionLostEvent): void {
-    if (event.cause !== 'unexpected_exit' || this.disposed) return;
+    if (this.disposed) return;
     const slot = this.deps.agentMgr.getSlot(event.chatroomId, event.role);
     if (
-      (event.pid !== undefined && slot?.pid !== event.pid) ||
+      slot?.pid !== event.pid ||
       (event.harnessSessionId !== undefined && slot?.harnessSessionId !== event.harnessSessionId)
     )
       return;
     const key = recoveryKey(event.chatroomId, event.role);
     if (this.recoveryGates.has(key)) return;
-    void this.prepareRoleRecovery(event)
+    void this.prepareRoleRecovery({ chatroomId: event.chatroomId, role: event.role })
       .then(() =>
         this.recoverStoppedRole({
           chatroomId: event.chatroomId,
@@ -231,12 +229,7 @@ export class AgentWorkManager {
       });
   }
 
-  async prepareRoleRecovery(args: {
-    chatroomId: string;
-    role: string;
-    pid?: number | undefined;
-    harnessSessionId?: string | undefined;
-  }): Promise<void> {
+  async prepareRoleRecovery(args: { chatroomId: string; role: string }): Promise<void> {
     const key = recoveryKey(args.chatroomId, args.role);
     const existing = this.recoveryGates.get(key);
     if (existing) return existing.drainPromise;
@@ -250,8 +243,6 @@ export class AgentWorkManager {
       drainPromise,
       completion,
       resolveCompletion,
-      ...(args.pid === undefined ? {} : { pid: args.pid }),
-      ...(args.harnessSessionId ? { harnessSessionId: args.harnessSessionId } : {}),
       retryAttempts: 0,
       retryTimer: undefined,
       recoveryPromise: undefined,

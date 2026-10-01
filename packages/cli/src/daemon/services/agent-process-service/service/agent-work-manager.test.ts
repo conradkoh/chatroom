@@ -33,7 +33,12 @@ function createService(
     readonly getLatestHandoff?: () => Promise<{ taskIds: readonly string[] } | null>;
     readonly enqueueFact?: (fact: Record<string, unknown>) => Promise<unknown>;
     readonly getSlot?: () =>
-      { state: 'running' | 'idle' | 'spawning' | 'stopping'; pid?: number } | undefined;
+      | {
+          state: 'running' | 'idle' | 'spawning' | 'stopping';
+          pid?: number;
+          harnessSessionId?: string;
+        }
+      | undefined;
     readonly isStopRequested?: () => boolean;
     readonly acquireNativeDeliverySlot?: ReturnType<typeof vi.fn>;
     readonly recordDeliveryFailure?: ReturnType<typeof vi.fn>;
@@ -714,29 +719,6 @@ describe('AgentWorkManager', () => {
     service.dispose();
   });
 
-  test('confirmed user stop does not start automatic session-loss recovery', () => {
-    let onSessionLost: ((event: never) => void) | undefined;
-    const service = createService({
-      onSessionLost: (handler) => {
-        onSessionLost = handler;
-      },
-    });
-    const requestReconcile = vi.spyOn(service, 'requestReconcile').mockResolvedValue([]);
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-
-    onSessionLost?.({
-      chatroomId: 'room-1',
-      role: 'builder',
-      cause: 'confirmed_user_stop',
-    } as never);
-
-    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })?.taskId).toBe(
-      'task-1'
-    );
-    expect(requestReconcile).not.toHaveBeenCalled();
-    service.dispose();
-  });
-
   test('unexpected exit installs a gate synchronously and recovers once', async () => {
     let onSessionLost: ((event: never) => void) | undefined;
     const recoverInFlightTasks = vi.fn(async () => ({ released: 1, skipped: 0 }));
@@ -744,10 +726,11 @@ describe('AgentWorkManager', () => {
       onSessionLost: (handler) => {
         onSessionLost = handler;
       },
+      getSlot: () => ({ state: 'running', pid: 41 }),
       recoverInFlightTasks,
     });
-    onSessionLost?.({ chatroomId: 'room-1', role: 'Builder', cause: 'unexpected_exit' } as never);
-    onSessionLost?.({ chatroomId: 'room-1', role: 'builder', cause: 'unexpected_exit' } as never);
+    onSessionLost?.({ chatroomId: 'room-1', role: 'Builder', pid: 41 } as never);
+    onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
     expect((service as any).recoveryGates.has('room-1:builder')).toBe(true);
     await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledOnce());
     expect(recoverInFlightTasks).toHaveBeenCalledWith({
@@ -772,8 +755,28 @@ describe('AgentWorkManager', () => {
     onSessionLost?.({
       chatroomId: 'room-1',
       role: 'builder',
-      cause: 'unexpected_exit',
       pid: 41,
+    } as never);
+    expect((service as any).recoveryGates.size).toBe(0);
+    expect(recoverInFlightTasks).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('ignores an exit callback with a matching PID but stale harness session', () => {
+    let onSessionLost: ((event: never) => void) | undefined;
+    const recoverInFlightTasks = vi.fn();
+    const service = createService({
+      onSessionLost: (handler) => {
+        onSessionLost = handler;
+      },
+      getSlot: () => ({ state: 'running', pid: 41, harnessSessionId: 'replacement-session' }),
+      recoverInFlightTasks,
+    });
+    onSessionLost?.({
+      chatroomId: 'room-1',
+      role: 'builder',
+      pid: 41,
+      harnessSessionId: 'old-session',
     } as never);
     expect((service as any).recoveryGates.size).toBe(0);
     expect(recoverInFlightTasks).not.toHaveBeenCalled();
@@ -829,10 +832,11 @@ describe('AgentWorkManager', () => {
       onSessionLost: (handler) => {
         onSessionLost = handler;
       },
+      getSlot: () => ({ state: 'running', pid: 41 }),
       recoverInFlightTasks,
     });
     try {
-      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', cause: 'unexpected_exit' } as never);
+      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
       await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledTimes(1));
       expect((service as any).recoveryGates.has('room-1:builder')).toBe(true);
       await vi.advanceTimersByTimeAsync(1_000);
@@ -854,10 +858,11 @@ describe('AgentWorkManager', () => {
       onSessionLost: (handler) => {
         onSessionLost = handler;
       },
+      getSlot: () => ({ state: 'running', pid: 41 }),
       recoverInFlightTasks,
     });
     try {
-      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', cause: 'unexpected_exit' } as never);
+      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
       await vi.waitFor(() => expect(recoverInFlightTasks).toHaveBeenCalledTimes(1));
       expect((service as any).recoveryGates.get('room-1:builder')?.retryTimer).toBeDefined();
       service.dispose();

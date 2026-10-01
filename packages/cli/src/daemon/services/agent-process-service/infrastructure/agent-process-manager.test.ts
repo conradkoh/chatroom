@@ -196,7 +196,7 @@ describe('AgentProcessManager', () => {
     manager = new AgentProcessManager(deps);
   });
 
-  test('scoped stop cleanup emits session loss even when the process is already stopped', async () => {
+  test('scoped stop cleanup resets the slot without emitting session loss', async () => {
     const onSessionLost = vi.fn();
     manager.subscribeAgentSessionLost(onSessionLost);
     await manager.ensureRunning(createOpts());
@@ -214,12 +214,10 @@ describe('AgentProcessManager', () => {
       ],
     });
 
-    expect(onSessionLost).toHaveBeenCalledWith({
-      chatroomId: CHATROOM_ID,
-      role: ROLE,
-      cause: 'confirmed_user_stop',
-      pid: PID,
-    });
+    expect(onSessionLost).not.toHaveBeenCalled();
+    expect(manager.getSlot(CHATROOM_ID, ROLE)).toEqual(
+      expect.objectContaining({ state: 'idle', pid: undefined })
+    );
   });
 
   test('stale scoped stop target does not notify or clear a replacement slot', async () => {
@@ -1549,7 +1547,7 @@ describe('AgentProcessManager', () => {
       expect(turnEnded).not.toHaveBeenCalled();
     });
 
-    test('unexpected native exit reports cause and old process identity after exit guards', async () => {
+    test('unexpected native exit reports PID and session identity after exit guards', async () => {
       type SpawnExitCallback = Parameters<NonNullable<SpawnResult['onExit']>>[0];
       let onExit: SpawnExitCallback | undefined;
       const service = {
@@ -1579,7 +1577,6 @@ describe('AgentProcessManager', () => {
       expect(onSessionLost).toHaveBeenCalledWith({
         chatroomId: CHATROOM_ID,
         role: ROLE,
-        cause: 'unexpected_exit',
         pid: PID,
         harnessSessionId: 'sess-loss-1',
       });
