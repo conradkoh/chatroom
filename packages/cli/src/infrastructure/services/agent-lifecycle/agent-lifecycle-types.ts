@@ -5,6 +5,7 @@
  * that AgentProcessManager tracks but the pure domain layer doesn't.
  */
 
+import type { AgentProcessStartReason } from '@workspace/backend/src/domain/entities/agent.js';
 import type { Effect } from 'effect';
 import { Context } from 'effect';
 
@@ -56,7 +57,7 @@ export interface EnsureRunningOpts {
   readonly agentHarness: AgentHarness;
   readonly model?: string | undefined;
   readonly workingDir: string;
-  readonly reason: string;
+  readonly reason: AgentProcessStartReason;
   readonly wantResume: boolean;
   readonly taskId?: string | undefined;
   readonly initPrompt?: string | undefined;

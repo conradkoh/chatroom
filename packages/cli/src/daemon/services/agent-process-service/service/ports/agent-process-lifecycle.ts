@@ -1,4 +1,7 @@
-import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent.js';
+import type {
+  AgentHarness,
+  AgentProcessStartReason,
+} from '@workspace/backend/src/domain/entities/agent.js';
 
 import type { AgentStartDisposition } from '../../../../domain/entities/agent-slot.js';
 import type { StopReason } from '../../../../domain/entities/stop-reason.js';
@@ -17,7 +20,7 @@ export interface EnsureAgentProcessInput {
   readonly agentHarness: AgentHarness;
   readonly model?: string | undefined;
   readonly workingDir: string;
-  readonly reason: string;
+  readonly reason: AgentProcessStartReason;
   readonly wantResume: boolean;
   readonly taskId?: string | undefined;
   readonly initPrompt?: string | undefined;

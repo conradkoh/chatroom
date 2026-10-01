@@ -111,6 +111,29 @@ describe('onRequestStartAgentEffect', () => {
     );
   });
 
+  test('rejects an unknown wire reason through the lifecycle outbox', async () => {
+    const startSpy = vi.fn().mockResolvedValue({ status: 'succeeded' });
+    const apmLayer = makeCommandLayer(startSpy);
+    const lifecycleEnqueue = vi.fn();
+    const sessionLayer = makeSessionLayer(vi.fn(), lifecycleEnqueue);
+    const event = createEvent({ reason: 'unknown.reason' });
+
+    await runEffect(event, apmLayer, sessionLayer);
+
+    expect(startSpy).not.toHaveBeenCalled();
+    expect(lifecycleEnqueue).toHaveBeenCalledTimes(1);
+    expect(lifecycleEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'status',
+        chatroomId: event.chatroomId,
+        role: event.role,
+        status: 'error',
+        errorCode: 'agent.startFailed',
+        errorMessage: 'Invalid agent start reason: unknown.reason',
+      })
+    );
+  });
+
   test('enqueues an agent status fact when startAgent fails', async () => {
     const startSpy = vi.fn().mockRejectedValue(new Error('rate_limited'));
     const apmLayer = makeCommandLayer(startSpy);

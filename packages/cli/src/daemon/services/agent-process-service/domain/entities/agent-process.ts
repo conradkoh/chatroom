@@ -1,3 +1,5 @@
+import type { AgentProcessStartReason } from '@workspace/backend/src/domain/entities/agent.js';
+
 import type { AgentSlotState } from '../../../../domain/entities/agent-slot.js';
 import type { NativeTurnPhase } from '../../../../domain/entities/native-turn-phase.js';
 import type { TurnCompletionResult } from '../../../../infrastructure/local/harness/services/turn-completion.js';
@@ -38,7 +40,7 @@ export interface AgentStartedEvent {
   readonly chatroomId: string;
   readonly role: string;
   /** Start reason from the spawn input (e.g. user.start, platform.pending_task_wake). */
-  readonly reason?: string | undefined;
+  readonly reason?: AgentProcessStartReason | undefined;
 }
 
 export type AgentStartedHandler = (event: AgentStartedEvent) => Promise<void>;
