@@ -11,6 +11,7 @@
  * in sync so the frontend notice doesn't show incorrectly.
  */
 
+import { ACTIVE_QUEUE_TASK_STATUSES } from '@workspace/shared/domain/entities/work-queue';
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
@@ -274,31 +275,6 @@ describe('Queue Notice Sync — manual promotion recovery', () => {
     ).toHaveLength(1);
   });
 
-  test('acknowledged tasks block health notice and promotion', async () => {
-    const { sessionId } = await createTestSession('qns-recovery-ack');
-    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
-    const { taskId } = await t.mutation(api.tasks.createTask, {
-      sessionId,
-      chatroomId,
-      createdBy: 'planner',
-      content: 'task to acknowledge',
-    });
-    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner', taskId });
-    await t.mutation(api.messages.enqueueMessageAtFront, {
-      sessionId,
-      chatroomId,
-      content: 'must remain queued',
-    });
-
-    const health = await t.query(api.tasks.checkQueueHealth, { sessionId, chatroomId });
-    expect(health).toMatchObject({ hasActiveTask: true, needsPromotion: false });
-    expect(await t.mutation(api.tasks.promoteNextTask, { sessionId, chatroomId })).toMatchObject({
-      promoted: false,
-      reason: 'active_task_exists',
-    });
-    expect((await getTaskCounts(sessionId, chatroomId)).queued).toBe(1);
-  });
-
   test('force completing a user-origin task keeps its automatic promotion behavior', async () => {
     const { sessionId } = await createTestSession('qns-recovery-user');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -321,36 +297,75 @@ describe('Queue Notice Sync — manual promotion recovery', () => {
     expect(counts.queued).toBe(0);
   });
 
-  test.each(['pending', 'in_progress'] as const)(
-    '%s task blocks manual recovery',
-    async (status) => {
-      const { sessionId } = await createTestSession(`qns-recovery-${status}`);
-      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
-      const { taskId } = await t.mutation(api.tasks.createTask, {
-        sessionId,
-        chatroomId,
-        createdBy: 'planner',
-        content: `${status} task`,
-      });
-      if (status === 'in_progress') {
-        await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner', taskId });
-        await t.mutation(api.tasks.readTask, { sessionId, chatroomId, role: 'planner', taskId });
-      }
-      await t.mutation(api.messages.enqueueMessageAtFront, {
-        sessionId,
-        chatroomId,
-        content: 'blocked queued message',
-      });
-
-      expect(await t.query(api.tasks.checkQueueHealth, { sessionId, chatroomId })).toMatchObject({
-        hasActiveTask: true,
-        needsPromotion: false,
-      });
-      expect(await t.mutation(api.tasks.promoteNextTask, { sessionId, chatroomId })).toMatchObject({
-        promoted: false,
-        reason: 'active_task_exists',
-      });
-      expect((await getTaskCounts(sessionId, chatroomId)).queued).toBe(1);
+  test.each(ACTIVE_QUEUE_TASK_STATUSES)('%s task blocks manual recovery', async (status) => {
+    const { sessionId } = await createTestSession(`qns-recovery-${status}`);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      createdBy: 'planner',
+      content: `${status} task`,
+    });
+    if (status !== 'pending') {
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner', taskId });
     }
-  );
+    if (status === 'in_progress') {
+      await t.mutation(api.tasks.readTask, { sessionId, chatroomId, role: 'planner', taskId });
+    }
+    await t.mutation(api.messages.enqueueMessageAtFront, {
+      sessionId,
+      chatroomId,
+      content: 'blocked queued message',
+    });
+
+    expect(await t.query(api.tasks.checkQueueHealth, { sessionId, chatroomId })).toMatchObject({
+      hasActiveTask: true,
+      needsPromotion: false,
+    });
+    expect(await t.mutation(api.tasks.promoteNextTask, { sessionId, chatroomId })).toMatchObject({
+      promoted: false,
+      reason: 'active_task_exists',
+    });
+    expect((await getTaskCounts(sessionId, chatroomId)).queued).toBe(1);
+  });
+
+  test('remaining active work blocks recovery after a different task completes', async () => {
+    const { sessionId } = await createTestSession('qns-recovery-remaining-active');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const taskToComplete = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      createdBy: 'planner',
+      content: 'task to complete',
+    });
+    const remainingTask = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      createdBy: 'planner',
+      content: 'remaining active task',
+    });
+    await t.mutation(api.messages.enqueueMessageAtFront, {
+      sessionId,
+      chatroomId,
+      content: 'must stay queued',
+    });
+
+    await t.mutation(api.tasks.completeTaskById, {
+      sessionId,
+      taskId: taskToComplete.taskId,
+      force: true,
+    });
+
+    expect((await getTask(taskToComplete.taskId))?.status).toBe('completed');
+    expect((await getTask(remainingTask.taskId))?.status).toBe('pending');
+    expect(await t.query(api.tasks.checkQueueHealth, { sessionId, chatroomId })).toMatchObject({
+      hasActiveTask: true,
+      needsPromotion: false,
+    });
+    expect(await t.mutation(api.tasks.promoteNextTask, { sessionId, chatroomId })).toMatchObject({
+      promoted: false,
+      reason: 'active_task_exists',
+    });
+    expect((await getTaskCounts(sessionId, chatroomId)).queued).toBe(1);
+  });
 });
