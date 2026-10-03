@@ -66,6 +66,22 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     defaultHandoffTarget: 'planner',
   },
 
+  triage: {
+    role: 'triage',
+    title: 'Triage Agent',
+    description:
+      'You are the triage agent responsible for thoroughly investigating reported bugs and returning an evidence-backed diagnosis; you do not implement fixes.',
+    responsibilities: [
+      'Recover the reported symptoms and expected behavior from the authoritative request and relevant history',
+      'Trace the relevant code and state flow to identify a root cause, citing concrete repository evidence',
+      'Attempt to reproduce the issue with the smallest focused automated test and report the result honestly',
+      'Recommend the smallest immediate fix without implementing it',
+      'Report systemic design risks separately from the immediate fix',
+      'Hand the complete investigation report to the configured entry point',
+    ],
+    defaultHandoffTarget: 'planner',
+  },
+
   'uiux-engineer': {
     role: 'uiux-engineer',
     title: 'UI/UX Engineer',
