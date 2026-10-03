@@ -7,6 +7,7 @@
 
 import { soloArchitectHandoffContract } from './architect';
 import { soloHandoffContract } from './solo';
+import { soloTriageHandoffContract } from './triage';
 import { soloUiuxEngineerHandoffContract } from './uiux-engineer';
 import type {
   HandoffTemplateQuery,
@@ -16,11 +17,12 @@ import { validateRoleHandoffContracts } from '../../../cli/handoff-templates/con
 
 export type { HandoffTemplateQuery as SoloHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned solo catalog (solo, architect, and UI/UX engineer). */
+/** Role-owned solo catalog, including ephemeral architect, triage, and UI/UX roles. */
 export const SOLO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] = [
   soloHandoffContract,
   soloArchitectHandoffContract,
   soloUiuxEngineerHandoffContract,
+  soloTriageHandoffContract,
 ];
 
 /** Validated once at module load so broken catalogs fail fast in tests/startup. */

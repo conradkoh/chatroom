@@ -23,18 +23,42 @@ describe('listHandoffTemplates', () => {
     expect(listing.teamId).toBe('duo');
     expect(listing.role).toBe('planner');
     expect(listing.receivesFrom.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining(['user', 'builder', 'architect', 'uiux-engineer'])
+      expect.arrayContaining(['user', 'builder', 'architect', 'uiux-engineer', 'triage'])
     );
     expect(listing.returnsTo.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining(['builder', 'architect', 'uiux-engineer', 'user'])
+      expect.arrayContaining(['builder', 'architect', 'uiux-engineer', 'triage', 'user'])
     );
 
     const targets = listing.templates.map((t) => t.toRole.toLowerCase());
-    expect(targets).toEqual(['architect', 'builder', 'uiux-engineer', 'user']);
-    for (const toRole of ['builder', 'architect', 'uiux-engineer', 'user']) {
+    expect(targets).toEqual(['architect', 'builder', 'triage', 'uiux-engineer', 'user']);
+    for (const toRole of ['builder', 'architect', 'uiux-engineer', 'triage', 'user']) {
       expect(
         listing.templates.find((t) => t.toRole.toLowerCase() === toRole)?.template
       ).toBeTruthy();
+    }
+    expect(listing.templates.find((t) => t.toRole === 'triage')?.template).toContain(
+      'Handoff Template (planner → triage)'
+    );
+  });
+
+  test('duo triage lists a complete return template to planner', () => {
+    const listing = requireListing({ teamId: 'duo', role: 'triage' });
+
+    expect(listing.receivesFrom).toEqual(['planner']);
+    expect(listing.returnsTo).toEqual(['planner']);
+    expect(listing.templates.map((template) => template.toRole)).toEqual(['planner']);
+    expect(listing.templates[0]?.template).toContain('Handoff Template (Triage → planner)');
+    for (const heading of [
+      '## Summary',
+      '## Reported behavior',
+      '## Root cause',
+      '## Reproduction attempt',
+      '## Proposed immediate fix',
+      '## Systemic issues',
+      '## Work completed',
+      '## Handoff',
+    ]) {
+      expect(listing.templates[0]?.template).toContain(heading);
     }
   });
 
@@ -56,12 +80,26 @@ describe('listHandoffTemplates', () => {
     );
     expect(listing.templates.map((t) => t.toRole.toLowerCase())).toEqual([
       'architect',
+      'triage',
       'uiux-engineer',
       'user',
     ]);
+    expect(listing.templates.find((t) => t.toRole === 'triage')?.template).toContain(
+      'Handoff Template (solo → triage)'
+    );
     expect(listing.templates.find((t) => t.toRole === 'user')?.template).toContain(
       'Report Template (Solo → User)'
     );
+  });
+
+  test('solo triage lists its return template to solo', () => {
+    const listing = requireListing({ teamId: 'solo', role: 'triage' });
+
+    expect(listing.receivesFrom).toEqual(['solo']);
+    expect(listing.returnsTo).toEqual(['solo']);
+    expect(listing.templates.map((template) => template.toRole)).toEqual(['solo']);
+    expect(listing.templates[0]?.template).toContain('Handoff Template (Triage → solo)');
+    expect(listing.templates[0]?.template).toContain('## Root cause');
   });
 
   test('role matching is case-insensitive and defaults team to duo', () => {
@@ -100,7 +138,7 @@ describe('listHandoffTemplatesCommand / formatHandoffTemplateListing', () => {
   test('solo listing omits duplicate planner mappings and stays concise', () => {
     const output = formatHandoffTemplateListing(requireListing({ teamId: 'solo', role: 'solo' }));
     const templates = output.match(/^- `[^`]+` → `[^`]+`$/gm) ?? [];
-    expect(templates).toHaveLength(3);
+    expect(templates).toHaveLength(4);
   });
 
   test('unknown role/team throws a descriptive error', () => {

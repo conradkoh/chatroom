@@ -17,6 +17,7 @@ describe('agent-role lifecycle tags', () => {
     expect(getAgentRoleTags('builder')).toEqual([AgentRoleLifecycleTag.Permanent]);
     expect(getAgentRoleTags('solo')).toEqual([AgentRoleLifecycleTag.Permanent]);
     expect(getAgentRoleTags('architect')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
+    expect(getAgentRoleTags('triage')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('uiux-engineer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect('enhancer' in AGENT_ROLE_DEFINITIONS).toBe(false);
     expect(getAgentRoleTags('enhancer')).toEqual([AgentRoleLifecycleTag.Permanent]);
@@ -31,6 +32,7 @@ describe('agent-role lifecycle tags', () => {
 
   test('tag helpers are case-insensitive', () => {
     expect(isEphemeralAgentRole('Architect')).toBe(true);
+    expect(isEphemeralAgentRole('triage')).toBe(true);
     expect(isEphemeralAgentRole('UIUX-ENGINEER')).toBe(true);
     expect(isPermanentAgentRole('PLANNER')).toBe(true);
     expect(isRetiredAgentRole('Enhancer')).toBe(true);
@@ -40,12 +42,20 @@ describe('agent-role lifecycle tags', () => {
 
   test('filters ephemeral roles from a team role list', () => {
     expect(
-      getPermanentRoleNames(['planner', 'architect', 'uiux-engineer', 'builder', 'enhancer'])
+      getPermanentRoleNames([
+        'planner',
+        'architect',
+        'triage',
+        'uiux-engineer',
+        'builder',
+        'enhancer',
+      ])
     ).toEqual(['planner', 'builder']);
-    expect(getPermanentRoleNames(['solo', 'architect', 'uiux-engineer', 'enhancer'])).toEqual([
-      'solo',
-    ]);
+    expect(
+      getPermanentRoleNames(['solo', 'architect', 'triage', 'uiux-engineer', 'enhancer'])
+    ).toEqual(['solo']);
     expect(getPermanentRoleNames(['architect'])).toEqual([]);
+    expect(getPermanentRoleNames(['triage'])).toEqual([]);
     expect(getPermanentRoleNames(['uiux-engineer'])).toEqual([]);
   });
 });

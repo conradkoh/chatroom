@@ -1,0 +1,165 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`triage handoff template snapshots > planner delegation renders the complete contract 1`] = `
+"---
+
+⚠️ **CRITICAL — Recipient visibility**
+
+The \`triage\` agent **only** receives the text inside your \`handoff --next-role="triage"\` command.
+
+They **cannot** see:
+- Anything you write in this agent session
+- Progress reports
+- Tool output
+
+Put your **complete** deliverable in the handoff message — not in session text.
+
+---
+
+## Handoff Template (planner → triage)
+
+The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
+
+After completing the investigation, triage must return the evidence-backed report to \`planner\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="planner" --next-role="triage" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`triage handoff template snapshots > solo delegation renders the complete contract 1`] = `
+"---
+
+⚠️ **CRITICAL — Recipient visibility**
+
+The \`triage\` agent **only** receives the text inside your \`handoff --next-role="triage"\` command.
+
+They **cannot** see:
+- Anything you write in this agent session
+- Progress reports
+- Tool output
+
+Put your **complete** deliverable in the handoff message — not in session text.
+
+---
+
+## Handoff Template (solo → triage)
+
+The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
+
+After completing the investigation, triage must return the evidence-backed report to \`solo\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="solo" --next-role="triage" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`triage handoff template snapshots > triage to planner renders the complete contract 1`] = `
+"---
+
+⚠️ **CRITICAL — Recipient visibility**
+
+The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
+
+They **cannot** see:
+- Anything you write in this agent session
+- Progress reports
+- Tool output
+
+Put your **complete** deliverable in the handoff message — not in session text.
+
+---
+
+## Handoff Template (Triage → planner)
+
+Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Use the exact sections below. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
+
+## Summary
+<briefly state the diagnosis and whether the root cause was confirmed or remains a hypothesis>
+
+## Reported behavior
+<state the reported symptoms and expected behavior, including reproduction details and constraints recovered from the request or relevant history>
+
+## Root cause
+<trace the relevant ownership, data, and control flow using concrete repository paths and symbols; explain the causal reasoning and explicitly label the finding as confirmed or a hypothesis>
+
+## Reproduction attempt
+<give the focused test path and exact command, the failing assertion or exact blocker, and the outcome; if reproduction was blocked, state what was tried and what additional information would help; do not fabricate proof>
+
+## Proposed immediate fix
+<recommend the smallest appropriate change, naming the likely files and the specific change; do not implement it>
+
+## Systemic issues
+<list each separate systemic concern with repository evidence, impact, and follow-up concern, or write exactly: None observed.>
+
+## Work completed
+<state the code paths inspected and every test or reproduction action taken, including results>
+
+## Handoff
+Run the normal handoff command to \`planner\` with this complete report, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="triage" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`triage handoff template snapshots > triage to solo renders the complete contract 1`] = `
+"---
+
+⚠️ **CRITICAL — Recipient visibility**
+
+The \`solo\` agent **only** receives the text inside your \`handoff --next-role="solo"\` command.
+
+They **cannot** see:
+- Anything you write in this agent session
+- Progress reports
+- Tool output
+
+Put your **complete** deliverable in the handoff message — not in session text.
+
+---
+
+## Handoff Template (Triage → solo)
+
+Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Use the exact sections below. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
+
+## Summary
+<briefly state the diagnosis and whether the root cause was confirmed or remains a hypothesis>
+
+## Reported behavior
+<state the reported symptoms and expected behavior, including reproduction details and constraints recovered from the request or relevant history>
+
+## Root cause
+<trace the relevant ownership, data, and control flow using concrete repository paths and symbols; explain the causal reasoning and explicitly label the finding as confirmed or a hypothesis>
+
+## Reproduction attempt
+<give the focused test path and exact command, the failing assertion or exact blocker, and the outcome; if reproduction was blocked, state what was tried and what additional information would help; do not fabricate proof>
+
+## Proposed immediate fix
+<recommend the smallest appropriate change, naming the likely files and the specific change; do not implement it>
+
+## Systemic issues
+<list each separate systemic concern with repository evidence, impact, and follow-up concern, or write exactly: None observed.>
+
+## Work completed
+<state the code paths inspected and every test or reproduction action taken, including results>
+
+## Handoff
+Run the normal handoff command to \`solo\` with this complete report, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="triage" --next-role="solo" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
