@@ -28,15 +28,15 @@ Return exactly one recommended, evidence-backed design brief for the authoritati
 
 ## Key Knowledge for High Quality Bar
 <cite the inspected repository patterns and complete the UI/UX engineer checklist below; do not provide a high-level essay>
-- Produce exactly one recommended design for complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, keyboard and accessibility behavior, responsive details, and UI tests.
+- Produce exactly one recommended design for complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
 - Name concrete repository paths, existing components/tokens, props/state/events, data boundaries, acceptance criteria, risks, and verification steps.
 
 - Specify complete user flows with explicit loading, empty, error, success, disabled, and retry states where applicable.
-- Define exact keyboard shortcuts, focus order, keyboard navigation, focus restoration, and accessible semantics and labels.
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
 - Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
 - Specify Tailwind utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
-- Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration/accessibility test plan.
+- Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.
+- Do not propose or require web accessibility implementation work unless the user explicitly requests it.
 
 ## Force Multipliers
 <name the existing components, patterns, tokens, utilities, and platform conventions to reuse, and state why each reduces implementation risk or duplication>
@@ -61,23 +61,23 @@ List every file or product surface the implementer must create or modify. Mark e
 
 ### Interfaces & types
 \`\`\`typescript
-// Shared props, state, events, query shapes, or accessibility contracts.
+// Shared props, state, events, query shapes, or interaction contracts.
 \`\`\`
 
 ### Reference snippets
 \`\`\`tsx
-// Canonical component imports, hook usage, keyboard wiring, or layout examples.
+// Canonical component imports, hook usage, or layout examples.
 \`\`\`
 
 ## Requirements (acceptance criteria)
-- <one concrete, verifiable requirement per bullet; include exact states, interactions, semantics, classes/tokens, and responsive behavior>
-- Include UI, integration, and accessibility test coverage for the design's risk areas.
+- <one concrete, verifiable requirement per bullet; include exact states, interactions, classes/tokens, and responsive behavior>
+- Include UI and integration test coverage for the design's risk areas.
 - Verify the implemented user-facing entry point end-to-end; unit tests alone are insufficient.
 
 ## What to avoid
 - Do not implement code or edit files as the UI/UX engineer; this handoff is advisory only.
 - Do not present alternative designs, generic advice, or requirements without concrete evidence and file-level consequences.
-- Do not invent components, props, tokens, keyboard behavior, or source-of-truth locations when existing repository patterns apply.
+- Do not invent components, props, tokens, interaction behavior, or source-of-truth locations when existing repository patterns apply.
 - <explicit task-specific anti-patterns, scope boundaries, and destructive-action/source-of-truth pitfalls>
 
 ## Skills to activate
@@ -125,15 +125,15 @@ Return exactly one recommended, evidence-backed design brief for the authoritati
 
 ## Key Knowledge for High Quality Bar
 <cite the inspected repository patterns and complete the UI/UX engineer checklist below; do not provide a high-level essay>
-- Produce exactly one recommended design for complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, keyboard and accessibility behavior, responsive details, and UI tests.
+- Produce exactly one recommended design for complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
 - Name concrete repository paths, existing components/tokens, props/state/events, data boundaries, acceptance criteria, risks, and verification steps.
 
 - Specify complete user flows with explicit loading, empty, error, success, disabled, and retry states where applicable.
-- Define exact keyboard shortcuts, focus order, keyboard navigation, focus restoration, and accessible semantics and labels.
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
 - Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
 - Specify Tailwind utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
-- Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration/accessibility test plan.
+- Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.
+- Do not propose or require web accessibility implementation work unless the user explicitly requests it.
 
 ## Force Multipliers
 <name the existing components, patterns, tokens, utilities, and platform conventions to reuse, and state why each reduces implementation risk or duplication>
@@ -158,23 +158,23 @@ List every file or product surface the implementer must create or modify. Mark e
 
 ### Interfaces & types
 \`\`\`typescript
-// Shared props, state, events, query shapes, or accessibility contracts.
+// Shared props, state, events, query shapes, or interaction contracts.
 \`\`\`
 
 ### Reference snippets
 \`\`\`tsx
-// Canonical component imports, hook usage, keyboard wiring, or layout examples.
+// Canonical component imports, hook usage, or layout examples.
 \`\`\`
 
 ## Requirements (acceptance criteria)
-- <one concrete, verifiable requirement per bullet; include exact states, interactions, semantics, classes/tokens, and responsive behavior>
-- Include UI, integration, and accessibility test coverage for the design's risk areas.
+- <one concrete, verifiable requirement per bullet; include exact states, interactions, classes/tokens, and responsive behavior>
+- Include UI and integration test coverage for the design's risk areas.
 - Verify the implemented user-facing entry point end-to-end; unit tests alone are insufficient.
 
 ## What to avoid
 - Do not implement code or edit files as the UI/UX engineer; this handoff is advisory only.
 - Do not present alternative designs, generic advice, or requirements without concrete evidence and file-level consequences.
-- Do not invent components, props, tokens, keyboard behavior, or source-of-truth locations when existing repository patterns apply.
+- Do not invent components, props, tokens, interaction behavior, or source-of-truth locations when existing repository patterns apply.
 - <explicit task-specific anti-patterns, scope boundaries, and destructive-action/source-of-truth pitfalls>
 
 ## Skills to activate
@@ -214,7 +214,7 @@ Put your **complete** deliverable in the handoff message — not in session text
 
 The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
 
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, keyboard and accessibility behavior, responsive details, and UI tests.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
 
 After completing the design, hand it back to \`planner\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
 
@@ -254,15 +254,15 @@ Return exactly one recommended, evidence-backed design brief for the authoritati
 
 ## Key Knowledge for High Quality Bar
 <cite the inspected repository patterns and complete the UI/UX engineer checklist below; do not provide a high-level essay>
-- Produce exactly one recommended design for complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, keyboard and accessibility behavior, responsive details, and UI tests.
+- Produce exactly one recommended design for complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
 - Name concrete repository paths, existing components/tokens, props/state/events, data boundaries, acceptance criteria, risks, and verification steps.
 
 - Specify complete user flows with explicit loading, empty, error, success, disabled, and retry states where applicable.
-- Define exact keyboard shortcuts, focus order, keyboard navigation, focus restoration, and accessible semantics and labels.
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
 - Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
 - Specify Tailwind utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
-- Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration/accessibility test plan.
+- Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.
+- Do not propose or require web accessibility implementation work unless the user explicitly requests it.
 
 ## Force Multipliers
 <name the existing components, patterns, tokens, utilities, and platform conventions to reuse, and state why each reduces implementation risk or duplication>
@@ -287,23 +287,23 @@ List every file or product surface the implementer must create or modify. Mark e
 
 ### Interfaces & types
 \`\`\`typescript
-// Shared props, state, events, query shapes, or accessibility contracts.
+// Shared props, state, events, query shapes, or interaction contracts.
 \`\`\`
 
 ### Reference snippets
 \`\`\`tsx
-// Canonical component imports, hook usage, keyboard wiring, or layout examples.
+// Canonical component imports, hook usage, or layout examples.
 \`\`\`
 
 ## Requirements (acceptance criteria)
-- <one concrete, verifiable requirement per bullet; include exact states, interactions, semantics, classes/tokens, and responsive behavior>
-- Include UI, integration, and accessibility test coverage for the design's risk areas.
+- <one concrete, verifiable requirement per bullet; include exact states, interactions, classes/tokens, and responsive behavior>
+- Include UI and integration test coverage for the design's risk areas.
 - Verify the implemented user-facing entry point end-to-end; unit tests alone are insufficient.
 
 ## What to avoid
 - Do not implement code or edit files as the UI/UX engineer; this handoff is advisory only.
 - Do not present alternative designs, generic advice, or requirements without concrete evidence and file-level consequences.
-- Do not invent components, props, tokens, keyboard behavior, or source-of-truth locations when existing repository patterns apply.
+- Do not invent components, props, tokens, interaction behavior, or source-of-truth locations when existing repository patterns apply.
 - <explicit task-specific anti-patterns, scope boundaries, and destructive-action/source-of-truth pitfalls>
 
 ## Skills to activate

@@ -44,9 +44,12 @@ describe('role templates', () => {
       'Recover the authoritative user request and relevant history',
       'Inspect existing UI patterns, components, tokens, and interaction conventions',
       'Design complete user flows including loading, empty, error, and success states',
-      'Specify accessibility, keyboard behavior, responsive layout, state ownership, and UI tests',
+      'Specify responsive layout, state ownership, and UI tests; include web accessibility implementation only when explicitly requested by the user',
       'Hand one evidence-backed design to the planner for implementation',
     ]);
+    expect(ROLE_TEMPLATES['uiux-engineer'].responsibilities[3]).toContain(
+      'web accessibility implementation only when explicitly requested by the user'
+    );
   });
 
   test('uses a lifecycle-neutral template for the legacy ephemeral role', () => {
