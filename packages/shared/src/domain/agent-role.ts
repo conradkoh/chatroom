@@ -19,6 +19,7 @@ export const AGENT_ROLE_DEFINITIONS = {
   builder: { role: 'builder', tags: [AgentRoleLifecycleTag.Permanent] },
   solo: { role: 'solo', tags: [AgentRoleLifecycleTag.Permanent] },
   architect: { role: 'architect', tags: [AgentRoleLifecycleTag.Ephemeral] },
+  triage: { role: 'triage', tags: [AgentRoleLifecycleTag.Ephemeral] },
   'uiux-engineer': {
     role: 'uiux-engineer',
     tags: [AgentRoleLifecycleTag.Ephemeral],

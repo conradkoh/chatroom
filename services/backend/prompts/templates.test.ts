@@ -29,6 +29,23 @@ describe('role templates', () => {
     expect(template.responsibilities).toHaveLength(5);
   });
 
+  test('triage metadata identifies an evidence-driven non-implementer', () => {
+    const template = ROLE_TEMPLATES.triage;
+
+    expect(template.role).toBe('triage');
+    expect(template.title).toBe('Triage Agent');
+    expect(template.description).toContain('you do not implement fixes');
+    expect(template.defaultHandoffTarget).toBe('planner');
+    expect(template.responsibilities).toEqual([
+      'Recover the reported symptoms and expected behavior from the authoritative request and relevant history',
+      'Trace the relevant code and state flow to identify a root cause, citing concrete repository evidence',
+      'Attempt to reproduce the issue with the smallest focused automated test and report the result honestly',
+      'Recommend the smallest immediate fix without implementing it',
+      'Report systemic design risks separately from the immediate fix',
+      'Hand the complete investigation report to the configured entry point',
+    ]);
+  });
+
   test('architect metadata is coding-focused', () => {
     expect(ROLE_TEMPLATES.architect.responsibilities).toEqual([
       'Recover the authoritative user request and relevant history',
