@@ -39,7 +39,9 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
   test('resolves architect and UI/UX pairs for duo and solo', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'architect'))).toMatch(/module boundaries/i);
     expect(getHandoffTemplate(duoQuery('architect', 'planner'))).toMatch(/schemas/i);
-    expect(getHandoffTemplate(duoQuery('planner', 'uiux-engineer'))).toMatch(/accessibility/i);
+    expect(getHandoffTemplate(duoQuery('planner', 'uiux-engineer'))).toMatch(
+      /complete user flows|responsive details/i
+    );
     expect(getHandoffTemplate(duoQuery('uiux-engineer', 'planner'))).toMatch(/UI\/UX/i);
     expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'architect' })).toMatch(
       /module boundaries/i
@@ -49,7 +51,7 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
     );
     expect(
       getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'uiux-engineer' })
-    ).toMatch(/accessibility/i);
+    ).toMatch(/complete user flows|responsive details/i);
     expect(
       getHandoffTemplate({ teamId: 'solo', fromRole: 'uiux-engineer', toRole: 'solo' })
     ).toMatch(/UI\/UX/i);

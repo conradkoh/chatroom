@@ -64,13 +64,17 @@ describe('handoff-templates > resolver', () => {
     const template = getHandoffTemplate({ fromRole: 'uiux-engineer', toRole: 'planner' });
 
     expect(template).toMatch(/loading, empty, error, success/i);
-    expect(template).toMatch(/keyboard shortcuts|focus order|focus restoration/i);
-    expect(template).toMatch(/accessible semantics|labels/i);
+    expect(template).toMatch(
+      /Do not propose or require web accessibility implementation work unless the user explicitly requests it/i
+    );
+    expect(template).not.toMatch(
+      /keyboard shortcuts|focus order|focus restoration|accessible semantics|accessibility test/i
+    );
     expect(template).toMatch(/component hierarchy and ownership|props\/state\/events/i);
     expect(template).toMatch(/ShadCN|Base UI/i);
     expect(template).toMatch(/Tailwind|theme-token/i);
     expect(template).toMatch(/responsive breakpoints|responsive behavior/i);
-    expect(template).toMatch(/UI\/integration\/accessibility test plan/i);
+    expect(template).toMatch(/UI\/integration test plan/i);
   });
 
   test.each(['architect', 'uiux-engineer'] as const)(
@@ -136,7 +140,7 @@ describe('handoff-templates > resolver', () => {
       /implementation sequence/i
     );
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'uiux-engineer' })).toMatch(
-      /loading\/empty\/error\/success|accessibility/i
+      /complete user flows|responsive details/i
     );
     expect(getHandoffTemplate({ fromRole: 'uiux-engineer', toRole: 'planner' })).toMatch(
       /UI\/UX Engineer/i

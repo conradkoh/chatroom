@@ -75,7 +75,7 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
       'Recover the authoritative user request and relevant history',
       'Inspect existing UI patterns, components, tokens, and interaction conventions',
       'Design complete user flows including loading, empty, error, and success states',
-      'Specify accessibility, keyboard behavior, responsive layout, state ownership, and UI tests',
+      'Specify responsive layout, state ownership, and UI tests; include web accessibility implementation only when explicitly requested by the user',
       'Hand one evidence-backed design to the planner for implementation',
     ],
     defaultHandoffTarget: 'planner',
