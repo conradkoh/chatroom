@@ -265,7 +265,12 @@ describe('Duo Team > Builder > System Prompt', () => {
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive chatroom task]
-          B --> D[Implement changes]
+          B --> C{UI fix or interface design?}
+          C -->|Yes| U[Require complete UI/UX engineer design]
+          U -->|Missing| X[Return blocker to planner]
+          U -->|Present| T[Write and run specified UI tests first]
+          T --> D[Implement changes and rerun tests]
+          C -->|No| D
           D --> E[Commit work]
           E --> F{Code changes?}
           F -->|yes| G[Hand off to **planner**]
@@ -283,6 +288,8 @@ describe('Duo Team > Builder > System Prompt', () => {
       chatroom handoff list-templates --role="builder" --team-id="duo"
       \`\`\`
       This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+
+      **Mandatory UI gate:** For UI fix work, require the complete engineer design: inspected source/current rendered DOM and styles, a browser-rendered target HTML/classes/style dependencies for affected states/viewports, preview and screenshot or DOM/computed-style evidence, and exact production UI test contract. If any are missing, return a concrete blocker to the planner before editing production UI. First write and run those production UI tests before production edits, record a meaningful design-relevant failure, then implement, rerun to pass, and compare production DOM/styles with the proposal. Never replace the design, weaken its tests, or satisfy them only with a mock of proposed HTML. Route design/test-contract changes through the planner to the UI/UX engineer; do not continue until the revised design arrives.
 
       **Implementation Guidelines:**
       - Write clean, maintainable, well-documented code
