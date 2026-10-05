@@ -7,7 +7,11 @@
  * agent-to-agent contracts are reciprocal.
  */
 
+import type { BuiltinTeamRole } from '@workspace/shared/domain/agent-role';
+import { CHATROOM_ROLE_USER, type ChatroomUserRole } from '@workspace/shared/domain/chatroom-role';
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
+import { TEAM_PRESETS } from '@workspace/shared/domain/team-presets';
 
 /** Query handed to a handoff template getter (compat shape used by all getters). */
 export interface HandoffTemplateQuery {
@@ -24,12 +28,21 @@ export interface HandoffTemplateQuery {
 export type HandoffTemplateGetter = (query: HandoffTemplateQuery) => string | null;
 
 /** Role-owned declaration of who a role hands off to / receives from. */
-export interface RoleHandoffContract {
-  role: string;
-  receivesFrom: readonly string[];
-  returnsTo: readonly string[];
-  outboundTemplates: Readonly<Record<string, HandoffTemplateGetter>>;
+export interface RoleHandoffContract<R extends string = string, Target extends string = string> {
+  role: R;
+  receivesFrom: readonly Target[];
+  returnsTo: readonly Target[];
+  outboundTemplates: Readonly<Partial<Record<Target, HandoffTemplateGetter>>>;
 }
+
+export type BuiltinTeamRoleHandoffContract<
+  T extends TeamPresetId,
+  R extends BuiltinTeamRole<T>,
+> = RoleHandoffContract<R, BuiltinTeamRole<T> | ChatroomUserRole>;
+
+export type BuiltinTeamHandoffCatalog<T extends TeamPresetId> = {
+  [R in BuiltinTeamRole<T>]: BuiltinTeamRoleHandoffContract<T, R>;
+};
 
 /** One renderable outbound mapping in a role listing. */
 export interface HandoffTemplateDescriptor {
@@ -48,7 +61,8 @@ export interface HandoffTemplateDescriptor {
  *
  * `user` is an external terminal target and never needs to be a catalog role.
  */
-// fallow-ignore-next-line complexity
+// Public generic validator remains available for custom catalogs.
+// fallow-ignore-next-line unused-export complexity
 export function validateRoleHandoffContracts(contracts: readonly RoleHandoffContract[]): void {
   const byRole = new Map<string, RoleHandoffContract>();
   for (const contract of contracts) {
@@ -80,4 +94,99 @@ export function validateRoleHandoffContracts(contracts: readonly RoleHandoffCont
       }
     }
   }
+}
+
+/** Enforces builtin team membership and coherent role-owned handoff capabilities. */
+// fallow-ignore-next-line complexity
+export function validateBuiltinTeamRoleHandoffContracts(
+  teamId: TeamPresetId,
+  contracts: readonly RoleHandoffContract[]
+): void {
+  const teamName = TEAM_PRESETS[teamId].name;
+  const expectedRoles = new Set<string>(TEAM_PRESETS[teamId].roles);
+  const actualRoles = new Set<string>();
+
+  for (const contract of contracts) {
+    const normalizedOwner = contract.role.trim().toLowerCase();
+    if (!normalizedOwner || contract.role !== normalizedOwner) {
+      throw new Error(`${teamName} handoff owner "${contract.role}" is not canonical`);
+    }
+    if (actualRoles.has(normalizedOwner)) {
+      throw new Error(`${teamName} has duplicate handoff contract owner "${contract.role}"`);
+    }
+    if (!expectedRoles.has(normalizedOwner)) {
+      throw new Error(`${teamName} has unexpected handoff contract role "${contract.role}"`);
+    }
+    actualRoles.add(normalizedOwner);
+  }
+
+  for (const role of expectedRoles) {
+    if (!actualRoles.has(role)) {
+      throw new Error(`${teamName} is missing handoff contract for role "${role}"`);
+    }
+  }
+
+  const allowedTargets = new Set<string>([...expectedRoles, CHATROOM_ROLE_USER]);
+  const byRole = new Map(contracts.map((contract) => [contract.role, contract]));
+  for (const contract of contracts) {
+    const owner = contract.role;
+    for (const [label, targets] of [
+      ['receivesFrom', contract.receivesFrom],
+      ['returnsTo', contract.returnsTo],
+    ] as const) {
+      const seen = new Set<string>();
+      for (const target of targets) {
+        const normalizedTarget = target.trim().toLowerCase();
+        if (target !== normalizedTarget || !allowedTargets.has(normalizedTarget)) {
+          throw new Error(`${teamName} role "${owner}" has invalid ${label} target "${target}"`);
+        }
+        if (seen.has(normalizedTarget)) {
+          throw new Error(`${teamName} role "${owner}" has duplicate ${label} target "${target}"`);
+        }
+        seen.add(normalizedTarget);
+      }
+    }
+
+    const outboundTargets = Object.keys(contract.outboundTemplates);
+    if (outboundTargets.length === 0) {
+      throw new Error(`${teamName} role "${owner}" must have an outbound handoff capability`);
+    }
+    const returnsTo = new Set(contract.returnsTo);
+    const outbound = new Set<string>();
+    for (const target of outboundTargets) {
+      const normalizedTarget = target.trim().toLowerCase();
+      if (target !== normalizedTarget || !allowedTargets.has(normalizedTarget)) {
+        throw new Error(`${teamName} role "${owner}" has invalid outbound target "${target}"`);
+      }
+      if (outbound.has(normalizedTarget)) {
+        throw new Error(`${teamName} role "${owner}" has duplicate outbound target "${target}"`);
+      }
+      if (typeof contract.outboundTemplates[target] !== 'function') {
+        throw new Error(
+          `${teamName} role "${owner}" has no outbound getter for target "${target}"`
+        );
+      }
+      outbound.add(normalizedTarget);
+    }
+    if (
+      returnsTo.size !== outbound.size ||
+      [...returnsTo].some((target) => !outbound.has(target))
+    ) {
+      throw new Error(
+        `${teamName} role "${owner}" returnsTo targets must exactly match outbound targets`
+      );
+    }
+
+    for (const receivedFrom of contract.receivesFrom) {
+      if (receivedFrom === CHATROOM_ROLE_USER) continue;
+      const source = byRole.get(receivedFrom);
+      if (!source?.outboundTemplates[owner]) {
+        throw new Error(
+          `${teamName} role "${owner}" receives from "${receivedFrom}" without a reverse outbound edge`
+        );
+      }
+    }
+  }
+
+  validateRoleHandoffContracts(contracts);
 }

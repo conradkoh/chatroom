@@ -45,6 +45,14 @@ jobs:
           src/domain/entities/team-kind.spec.ts
           src/domain/entities/team-presets.spec.ts
 
+      - name: Test builtin prompt and handoff contracts
+        run: >
+          pnpm --dir services/backend exec vitest run
+          prompts/templates.test.ts
+          prompts/builtin-role-contracts.test.ts
+          prompts/cli/handoff-templates/index.test.ts
+          prompts/cli/handoff-templates/list-templates.test.ts
+
       - name: Test frontend team picker projection
         run: pnpm --dir apps/webapp exec vitest run src/modules/chatroom/config/teams.spec.ts
 

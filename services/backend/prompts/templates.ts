@@ -6,7 +6,11 @@
  * returned with each message to fight context rot.
  */
 
-import { isEphemeralAgentRole, isRetiredAgentRole } from '@workspace/shared/domain/agent-role';
+import {
+  isEphemeralAgentRole,
+  isRetiredAgentRole,
+  type BuiltinAgentRole,
+} from '@workspace/shared/domain/agent-role';
 
 export interface RoleTemplate {
   role: string;
@@ -16,11 +20,12 @@ export interface RoleTemplate {
   defaultHandoffTarget: string;
 }
 
-/**
- * Role templates for the chatroom system.
- * Add new roles here as needed.
- */
-export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
+export type BuiltinRoleTemplateCatalog = {
+  [R in BuiltinAgentRole]: Omit<RoleTemplate, 'role'> & { role: R };
+};
+
+/** Dedicated prompt metadata for every builtin role. */
+export const BUILTIN_ROLE_TEMPLATES = {
   builder: {
     role: 'builder',
     title: 'Builder',
@@ -97,20 +102,6 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     defaultHandoffTarget: 'planner',
   },
 
-  tester: {
-    role: 'tester',
-    title: 'Tester',
-    description: 'You are the QA role responsible for testing and validation.',
-    responsibilities: [
-      'Write and execute test cases',
-      'Verify functionality works as expected',
-      'Test edge cases and error handling',
-      'Report bugs and issues clearly',
-      'Confirm quality standards are met',
-    ],
-    defaultHandoffTarget: 'user',
-  },
-
   solo: {
     role: 'solo',
     title: 'Solo',
@@ -127,6 +118,28 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     ],
     defaultHandoffTarget: 'user',
   },
+} satisfies BuiltinRoleTemplateCatalog;
+
+const CUSTOM_ROLE_TEMPLATES = {
+  tester: {
+    role: 'tester',
+    title: 'Tester',
+    description: 'You are the QA role responsible for testing and validation.',
+    responsibilities: [
+      'Write and execute test cases',
+      'Verify functionality works as expected',
+      'Test edge cases and error handling',
+      'Report bugs and issues clearly',
+      'Confirm quality standards are met',
+    ],
+    defaultHandoffTarget: 'user',
+  },
+} satisfies Record<string, RoleTemplate>;
+
+/** Compatibility view for runtime custom-role lookups. */
+export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
+  ...BUILTIN_ROLE_TEMPLATES,
+  ...CUSTOM_ROLE_TEMPLATES,
 };
 
 const EPHEMERAL_ROLE_TEMPLATE: RoleTemplate = {
