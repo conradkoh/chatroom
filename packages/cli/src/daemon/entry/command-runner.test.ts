@@ -15,24 +15,35 @@
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
+import type { FunctionReturnType } from 'convex/server';
+import type { Runtime } from 'effect';
+import { Effect } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
+import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import {
   forceKillAllCommands,
   runOnCommandRun,
   runOnCommandStop,
 } from './handlers/command-runner.js';
 import type { CommandRunnerDeps } from './handlers/command-runner.js';
+import type { api, Id } from '../../api.js';
 import { processManager } from './handlers/process/manager.js';
+import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
+import {
+  _resetCommandRunSubscriptionStateForTest,
+  drainActionableCommandRuns,
+} from './handlers/process/command-run-subscription.js';
 import {
   deriveTerminalStatus,
   SIGTERM_GRACE_PERIOD_MS,
   SOFT_TIMEOUT_MS,
 } from './handlers/process/state.js';
+import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/command-run.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — must be declared before any imports that use them
@@ -57,6 +68,7 @@ vi.mock('../../api.js', () => ({
       updateRunTail: 'mock-updateRunTail',
       getRunStatus: 'mock-getRunStatus',
     },
+    daemon: { commands: { listActionableCommandRuns: 'mock-listActionableCommandRuns' } },
   },
 }));
 
@@ -65,12 +77,14 @@ vi.mock('./handlers/process/output-store.js', () => ({
   createOutputStore: vi.fn(() => ({
     append: vi.fn().mockResolvedValue(undefined),
     getTail: vi.fn().mockReturnValue({ content: '', totalBytes: 0 }),
+    getLastNLines: vi.fn().mockResolvedValue({ content: '', totalBytes: 0, lineCount: 0 }),
     getFullOutput: vi.fn().mockResolvedValue(''),
     destroy: vi.fn().mockResolvedValue(undefined),
   })),
   ensureTempDir: vi.fn().mockResolvedValue(undefined),
   cleanOrphanTempFiles: vi.fn().mockResolvedValue(undefined),
   TAIL_WINDOW_BYTES: 32 * 1024,
+  MAX_TAIL_LINES_V2: 50,
 }));
 
 // Mock output-encoding (needed by spawner.ts)
@@ -559,75 +573,154 @@ describe('24-hour soft timeout', () => {
 // ---------------------------------------------------------------------------
 // G. Real-process-tree regression test (integration)
 //
-// Routes through runOnCommandRun → runOnCommandStop with a real spawned process tree.
-// Verifies that the process-group kill (detached:true + negative PID) terminates
-// not just the sh leader but ALL grandchildren (the bug this fix addresses).
+// Routes a pending and later stop update through the subscriber, actionable-run
+// drain, and real command effects. Verifies process-group termination end to end.
 // ---------------------------------------------------------------------------
 
+type ActionableCommandRuns = FunctionReturnType<
+  typeof api.daemon.commands.listActionableCommandRuns
+>;
+type WatchCallback = (result: ActionableCommandRuns | null | undefined) => void;
+
+function makeCommandRunRuntime(
+  session: DaemonSessionServiceShape
+): Runtime.Runtime<DaemonSessionService> {
+  return Effect.runSync(
+    Effect.runtime<DaemonSessionService>().pipe(
+      Effect.provideService(DaemonSessionService, session)
+    )
+  );
+}
+
 describe('process-group kill (real process tree)', () => {
-  it('kills all grandchildren when runOnCommandStop is called — not just the sh leader', async () => {
-    if (process.platform === 'win32') {
-      // process groups behave differently on Windows — skip
-      return;
-    }
+  it('stops the same run through subscriber updates and kills all descendants', async () => {
+    if (process.platform === 'win32') return;
 
-    // Restore only the process.kill spy (not all mocks) so group kills hit the real OS.
-    // Scoped restore avoids clobbering console spies or the spawn module mock.
     processKillSpy.mockRestore();
-
-    // Wire the module-level spawn mock to delegate to the real child_process.spawn.
-    // This means runOnCommandRun's internal spawn() call uses a real process.
     const actual = (await vi.importActual('node:child_process')) as {
       spawn: typeof spawn;
       execSync: (command: string) => Buffer;
     };
     const { spawn: realSpawn, execSync } = actual;
-    vi.mocked(spawn).mockImplementation(realSpawn as any);
+    vi.mocked(spawn).mockImplementation(realSpawn as typeof spawn);
 
-    // Run the command through the real handler (exercises the detached:true spawn path)
-    const runId = 'run-real-tree' as any;
-    await runOnCommandRun(deps, {
-      runId,
+    const runId = 'run-real-tree' as Id<'chatroom_commandRunsV2'>;
+    const row = {
+      _id: runId,
+      workingDir: '/tmp',
       commandName: 'test',
       script: 'sleep 30 & sleep 30 & sleep 30 & wait',
-      workingDir: '/tmp',
-    });
+    } as ActionableCommandRuns['pendingRuns'][number];
+    let actionable: ActionableCommandRuns = { pendingRuns: [row], stopRequestedRuns: [] };
+    let update!: WatchCallback;
+    const unsubscribe = vi.fn();
+    const wsClient = {
+      onUpdate: vi.fn((_query, _args, callback: WatchCallback) => {
+        update = callback;
+        return unsubscribe;
+      }),
+    } as unknown as ConvexSubscriberDeps['wsClient'];
+    const mutation = vi.fn(async (_reference: unknown, _args: { status?: string }) => undefined);
+    const query = vi.fn(async (reference: unknown) =>
+      reference === 'mock-listActionableCommandRuns' ? actionable : { status: 'pending' }
+    );
+    const session = {
+      sessionId: 'test-session',
+      machineId: 'test-machine',
+      convexUrl: 'http://test-convex-url',
+      client: {},
+      config: null,
+      backend: { query, mutation },
+      fs: {},
+      agentServices: new Map(),
+      events: {},
+      lastPushedGitState: new Map(),
+      lastPushedModels: null,
+      lastPushedHarnessFingerprint: null,
+      logEvent: async () => undefined,
+      taskService: {},
+      agentConfigRegistry: { get: () => undefined },
+    } as unknown as DaemonSessionServiceShape;
+    const runtime = makeCommandRunRuntime(session);
+    const subscriber = startCommandRunSubscriber(
+      {
+        wsClient,
+        sessionId: session.sessionId as ConvexSubscriberDeps['sessionId'],
+        machineId: session.machineId,
+      },
+      (event) => {
+        if (event.type === 'command-run.updated') void drainActionableCommandRuns(session, runtime);
+      }
+    );
 
-    // Wait for sh + its three sleep children to start
-    await new Promise<void>((r) => setTimeout(r, 400));
+    let pid: number | undefined;
+    let children: number[] = [];
+    try {
+      update(actionable);
+      await vi.waitFor(() => {
+        expect(processManager.get(String(runId))).toBeDefined();
+        expect(mutation).toHaveBeenCalledWith(
+          'mock-updateRunStatus',
+          expect.objectContaining({ runId, status: 'running' })
+        );
+      });
 
-    // Get the tracked process PID
-    const tracked = processManager.get(String(runId));
-    expect(tracked).toBeDefined();
-    const pid = tracked?.process.pid;
-    if (pid === undefined) throw new Error('expected tracked process to have a pid');
+      const tracked = processManager.get(String(runId));
+      expect(tracked).toBeDefined();
+      pid = tracked?.process.pid;
+      if (pid === undefined) throw new Error('expected tracked process to have a pid');
+      const leaderPid = pid;
+      expect(() => process.kill(leaderPid, 0)).not.toThrow();
 
-    // Verify sh leader is alive
-    expect(() => process.kill(pid, 0)).not.toThrow();
+      const childrenOutput = execSync(`pgrep -P ${pid}`).toString().trim();
+      children = childrenOutput.split('\n').map(Number).filter(Boolean);
+      expect(children.length).toBeGreaterThanOrEqual(3);
+      for (const childPid of children) expect(() => process.kill(childPid, 0)).not.toThrow();
 
-    // Capture grandchild PIDs (the sleep processes) before we kill
-    const childrenOutput = execSync(`pgrep -P ${pid}`).toString().trim();
-    const children = childrenOutput.split('\n').map(Number).filter(Boolean);
-    // There should be at least the three sleep 30 processes
-    expect(children.length).toBeGreaterThanOrEqual(3);
+      actionable = { pendingRuns: [], stopRequestedRuns: [] };
+      update(actionable);
+      actionable = { pendingRuns: [], stopRequestedRuns: [row] };
+      update(actionable);
 
-    // Verify each grandchild is alive before stop
-    for (const childPid of children) {
-      expect(() => process.kill(childPid, 0)).not.toThrow();
+      await vi.waitFor(
+        () => {
+          expect(mutation).toHaveBeenCalledWith(
+            'mock-updateRunStatus',
+            expect.objectContaining({ runId, status: 'stopped' })
+          );
+        },
+        { timeout: 15_000 }
+      );
+      await vi.waitFor(
+        () => {
+          expect(processManager.get(String(runId))).toBeUndefined();
+        },
+        { timeout: 15_000 }
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, 300));
+
+      for (const childPid of children) expect(() => process.kill(childPid, 0)).toThrow();
+      expect(() => process.kill(leaderPid, 0)).toThrow();
+      expect(processManager.has(String(runId))).toBe(false);
+    } finally {
+      await subscriber.stop();
+      _resetCommandRunSubscriptionStateForTest();
+      const tracked = processManager.get(String(runId));
+      if (tracked) {
+        clearInterval(tracked.flushTimer);
+        if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
+      }
+      const cleanupPid = pid ?? tracked?.process.pid;
+      if (cleanupPid !== undefined) {
+        try {
+          process.kill(-cleanupPid, 'SIGKILL');
+        } catch {
+          // Process group already exited.
+        }
+      }
+      processManager.clear();
     }
-
-    // Stop via the actual handler — exercises killProcess() → process.kill(-pid, signal)
-    await runOnCommandStop(deps, { runId });
-
-    // Brief additional wait for all OS-level cleanup
-    await new Promise<void>((r) => setTimeout(r, 300));
-
-    // All grandchildren must be gone — this is exactly the bug the fix prevents:
-    // without process-group kill, these sleep processes would survive as orphans.
-    for (const childPid of children) {
-      expect(() => process.kill(childPid, 0)).toThrow();
-    }
-  }, 15_000);
+  }, 40_000);
 });
 
 // ---------------------------------------------------------------------------
