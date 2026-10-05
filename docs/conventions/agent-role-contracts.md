@@ -8,6 +8,19 @@ status: stable
 
 # Builtin agent role contracts
 
+## UI/UX-directed implementation
+
+UI fixes and interface design use a required engineer-first workflow:
+
+1. The entry point states the observed UI problem, desired user outcome, constraints, affected surfaces, and existing evidence without prescribing a replacement UI.
+2. The UI/UX engineer studies source markup and the rendered DOM/styles, then returns one browser-rendered target with exact HTML/classes/style dependencies for affected states and viewports. The handback includes the preview location and screenshot or DOM/computed-style evidence, plus the exact production UI tests and meaningful expected initial failure.
+3. The entry point reviews completeness and forwards the engineer's full design unchanged. Incomplete evidence returns to the engineer with concrete blockers; implementation deviations or test-contract changes require a revised engineer design through the entry point.
+4. The builder (or solo implementer) writes and runs the specified production UI tests before production edits, records a design-relevant red result, implements, reruns to green, and compares production DOM/styles with the rendered target. A test that exercises only a mock of the target does not satisfy this gate.
+
+The engineer owns UI structure, classes/styles, states, interactions, responsive behavior, and UI test requirements. The entry point owns coordination and architecture/data/API contracts. Temporary browser preview artifacts outside tracked repository files are allowed; the engineer does not edit tracked source or implement production UI. This is an instruction/template workflow backed by prompt-contract tests, not deterministic runtime enforcement of agent behavior.
+
+Prompt-source owners are `services/backend/prompts/cli/roles/uiux-engineer.ts` and `services/backend/prompts/teams/uiux-engineer-handoff-templates.ts` for the design contract; `services/backend/prompts/cli/sections/delegation-guidelines.ts`, `operating-model.ts`, and `when-work-comes-back.ts` for coordinator flow; `services/backend/prompts/cli/roles/builder.ts` and `services/backend/prompts/teams/duo/handoff-templates/` for implementation and proof; and `services/backend/prompts/teams/solo/prompts/solo.ts` for solo implementation.
+
 Builtin role visibility depends on several connected contracts. A successful prompt listing does not establish team membership or sidebar visibility, and a successful typecheck does not establish that a role is rendered in the browser. Keep membership authored once, derive consumer projections, and verify the real API and route.
 
 ## Ownership
