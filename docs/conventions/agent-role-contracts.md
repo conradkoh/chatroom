@@ -59,7 +59,7 @@ pnpm --dir apps/webapp exec vitest run \
 pnpm --filter chatroom-cli exec vitest run src/commands/team/team.test.ts
 ```
 
-The backend typecheck includes `prompts/builtin-role-contracts.typecheck.ts`; its `@ts-expect-error` assertions ensure incomplete or mismatched builtin catalogs fail compilation. The actual deployment boundary and offline sidebar rendering are checked by:
+The shared typecheck includes `packages/shared/src/domain/agent-team-contracts.typecheck.ts`, and the backend typecheck includes `services/backend/prompts/cli/handoff-templates/builtin-contracts.typecheck.ts`. Their `@ts-expect-error` assertions ensure incomplete or mismatched builtin catalogs fail compilation. The actual deployment boundary and offline sidebar rendering are checked by:
 
 ```bash
 pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts specs/downstream/agent-sidebar.spec.ts --project=chromium

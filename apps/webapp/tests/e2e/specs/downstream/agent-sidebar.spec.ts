@@ -74,12 +74,12 @@ async function assertAllSidebarRows(section: Locator, team: CanonicalTeam): Prom
   );
 
   for (const role of team.roles) {
-    await expect(
-      section.getByRole('button', {
-        name: `${role}: OFFLINE. Click to view all agents.`,
-        exact: true,
-      })
-    ).toHaveCount(1);
+    const row = section.getByRole('button', {
+      name: `${role}: OFFLINE. Click to view all agents.`,
+      exact: true,
+    });
+    await expect(row).toHaveCount(1);
+    await expect(row).toBeVisible();
   }
 }
 
