@@ -1,5 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
+import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useWorkspaceAgentConfig } from './useWorkspaceAgentQueries';
@@ -62,35 +63,21 @@ describe('useWorkspaceAgentConfig', () => {
 });
 
 describe('getWorkspaceAgentRoles', () => {
-  it('derives every rendered role from the static structure, including unconfigured ephemeral roles', () => {
-    const agents = getWorkspaceAgentRoles({
-      teamId: 'duo',
-      teamStructureId: 'duo@1',
-      teamName: 'Duo',
-      entryPoint: 'planner',
-      roles: [
-        { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-        { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-        { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-        { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-      ],
-    });
+  it.each([
+    ['duo', ['planner', 'builder']],
+    ['solo', ['solo']],
+  ] as const)(
+    'derives every rendered %s role from canonical structure when persisted roles omit triage',
+    (teamId, persistedRoles) => {
+      const structure = getTeamStructure({ teamId, persistedRoles });
+      const agents = getWorkspaceAgentRoles(structure);
 
-    expect(agents.map((agent) => agent.role)).toEqual([
-      'planner',
-      'architect',
-      'uiux-engineer',
-      'builder',
-    ]);
-    expect(agents[1]).toMatchObject({
-      lifecycle: AgentRoleLifecycleTag.Ephemeral,
-      optional: true,
-      teamId: 'duo',
-    });
-    expect(agents[2]).toMatchObject({
-      lifecycle: AgentRoleLifecycleTag.Ephemeral,
-      optional: true,
-      teamId: 'duo',
-    });
-  });
+      expect(agents.map((agent) => agent.role)).toEqual(structure.roles.map(({ role }) => role));
+      expect(agents.find(({ role }) => role === 'triage')).toMatchObject({
+        lifecycle: AgentRoleLifecycleTag.Ephemeral,
+        optional: true,
+        teamId,
+      });
+    }
+  );
 });

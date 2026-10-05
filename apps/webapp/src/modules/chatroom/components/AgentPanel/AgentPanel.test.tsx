@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
+import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig } from '../../types/machine';
@@ -26,23 +27,13 @@ vi.mock('./UnifiedAgentListModal', () => ({
 const lifecycle = {
   teamId: 'duo',
   teamName: 'Duo',
-  expectedRoles: ['planner', 'architect', 'uiux-engineer', 'builder'],
+  expectedRoles: getTeamStructure({ teamId: 'duo' }).roles.map(({ role }) => role),
   participants: [],
   hasHistory: false,
 };
 
-const duoStructure = {
-  teamId: 'duo',
-  teamStructureId: 'duo@1',
-  teamName: 'Duo',
-  entryPoint: 'planner',
-  roles: [
-    { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-    { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-    { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-    { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-  ],
-};
+const duoStructure = getTeamStructure({ teamId: 'duo' });
+const soloStructure = getTeamStructure({ teamId: 'solo', persistedRoles: ['solo'] });
 
 const panelProps = {
   chatroomId: 'room1',
@@ -67,7 +58,7 @@ const panelProps = {
 
 beforeEach(() => {
   mockUseAgentStatuses.mockReturnValue({
-    agents: ['planner', 'architect', 'uiux-engineer', 'builder'].map((role) => ({
+    agents: duoStructure.roles.map(({ role }) => ({
       role,
       online: false,
       statusLabel: 'OFFLINE',
@@ -104,16 +95,19 @@ describe('AgentPanel', () => {
     expect(screen.getByText('No team configured')).toBeInTheDocument();
   });
 
-  it('renders permanent agents before the ephemeral section', () => {
+  it('renders permanent agents before ephemeral roles, including unconfigured triage', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} />);
 
-    expect(screen.getByText('Ephemeral (2)')).toBeInTheDocument();
-    expect(screen.getByText('Agents (4)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (3)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (5)')).toBeInTheDocument();
     expect(screen.queryByText(/View More/)).not.toBeInTheDocument();
     const planner = screen.getByLabelText(/planner:/i);
     const builder = screen.getByLabelText(/builder:/i);
     const architect = screen.getByLabelText(/architect:/i);
+    const triage = screen.getByLabelText(/triage:/i);
     const uiuxEngineer = screen.getByLabelText(/uiux-engineer:/i);
+    expect(triage).toHaveTextContent(/OFFLINE/i);
+    expect(screen.queryByText(/triage.*config/i)).not.toBeInTheDocument();
     expect(
       planner.compareDocumentPosition(builder) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
@@ -121,8 +115,39 @@ describe('AgentPanel', () => {
       builder.compareDocumentPosition(architect) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(
-      architect.compareDocumentPosition(uiuxEngineer) & Node.DOCUMENT_POSITION_FOLLOWING
+      architect.compareDocumentPosition(triage) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+    expect(
+      triage.compareDocumentPosition(uiuxEngineer) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('renders canonical Solo triage after its permanent role', () => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        lifecycle={{
+          ...lifecycle,
+          teamId: 'solo',
+          teamName: 'Solo',
+          expectedRoles: soloStructure.roles.map(({ role }) => role),
+        }}
+        teamStructure={soloStructure}
+      />
+    );
+    expect(screen.getByText('Agents (4)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (3)')).toBeInTheDocument();
+    const solo = screen.getByLabelText(/solo:/i);
+    const triage = screen.getByLabelText(/triage:/i);
+    expect(solo.compareDocumentPosition(triage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(triage).toHaveTextContent(/OFFLINE/i);
+  });
+
+  it('opens the agent settings callback from the triage row', () => {
+    const onOpenAgents = vi.fn();
+    render(<AgentPanel {...panelProps} teamStructure={duoStructure} onOpenAgents={onOpenAgents} />);
+    fireEvent.click(screen.getByLabelText(/triage:/i));
+    expect(onOpenAgents).toHaveBeenCalledOnce();
   });
 
   it('keeps all ephemeral agents visible when permanent agents exceed the preview limit', () => {
@@ -134,19 +159,21 @@ describe('AgentPanel', () => {
         { role: 'reviewer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
         { role: 'tester', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
         { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+        { role: 'triage', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
         { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
       ],
     };
 
     render(<AgentPanel {...panelProps} teamStructure={expandedStructure} />);
 
-    expect(screen.getByText('Agents (6)')).toBeInTheDocument();
-    expect(screen.getByText('Ephemeral (2)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (7)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (3)')).toBeInTheDocument();
     expect(screen.getByLabelText(/planner:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/builder:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/reviewer:/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/tester:/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/triage:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/uiux-engineer:/i)).toBeInTheDocument();
     expect(screen.getByText('View More (1 more items)')).toBeInTheDocument();
   });
@@ -158,9 +185,7 @@ describe('AgentPanel', () => {
         lifecycle={{ ...lifecycle, expectedRoles: ['planner', 'builder'] }}
         teamStructure={{
           ...duoStructure,
-          roles: duoStructure.roles.filter(
-            ({ role }) => role !== 'architect' && role !== 'uiux-engineer'
-          ),
+          roles: duoStructure.roles.filter(({ lifecycle }) => lifecycle === 'permanent'),
         }}
       />
     );
