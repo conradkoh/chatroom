@@ -21,10 +21,12 @@ export function startCommandRunSubscriber(
   deps: ConvexSubscriberDeps,
   onEvent: (event: InboundEvent) => void
 ): SubscriberHandle {
-  const seen = new Set<string>();
+  // A run has separate notification identities for its start and stop actions.
+  const seenPending = new Set<string>();
+  const seenStop = new Set<string>();
 
   // fallow-ignore-next-line complexity
-  const emitRuns = (runs: CommandRunRow[] | undefined): void => {
+  const emitRuns = (runs: CommandRunRow[] | undefined, seen: Set<string>): void => {
     if (!runs?.length) return;
     for (const run of runs) {
       const id = runId(run);
@@ -39,8 +41,8 @@ export function startCommandRunSubscriber(
     { sessionId: deps.sessionId, machineId: deps.machineId },
     (result: ActionableCommandRuns | null | undefined) => {
       if (!result) return;
-      emitRuns(result.pendingRuns);
-      emitRuns(result.stopRequestedRuns);
+      emitRuns(result.pendingRuns, seenPending);
+      emitRuns(result.stopRequestedRuns, seenStop);
     },
     (err: unknown) => {
       console.warn(
