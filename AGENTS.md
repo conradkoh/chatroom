@@ -109,6 +109,10 @@ When adding flags:
 
 ## Core Principles
 
+### Builtin Agent Roles
+
+Builtin role lifecycle and team membership belong in shared role metadata; prompts and handoff contracts are exhaustive capabilities. Verify a role on the actual chatroom sidebar before claiming it is visible. Follow [the builtin agent-role guide](docs/conventions/agent-role-contracts.md) when adding or changing a role.
+
 ### Code Approach
 
 **Size of changes**: For complex work, prefer incremental changes or create new code and migrate. Large migrations need a plan — verify as you go.

@@ -43,6 +43,8 @@ Use a shared literal tuple or metadata object as the authored source when a doma
 
 The builtin agent-role metadata in `packages/shared/src/domain/agent-role.ts` is the canonical example. Lifecycle and team membership are authored together, and `packages/shared/src/domain/team-presets.ts` derives team structures from those memberships.
 
+For the complete builtin-role ownership map and add-role verification checklist, see [Builtin agent role contracts](agent-role-contracts.md).
+
 ## Shared team-kind tuple to backend adapter
 
 `packages/shared/src/domain/team-kind.ts` owns the shared tuple and type. The backend adapts that tuple into Zod and derives the Convex validator from the schema options:
