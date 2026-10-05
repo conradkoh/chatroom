@@ -96,15 +96,14 @@ export function validateRoleHandoffContracts(contracts: readonly RoleHandoffCont
   }
 }
 
-/** Enforces builtin team membership and coherent role-owned handoff capabilities. */
 // fallow-ignore-next-line complexity
-export function validateBuiltinTeamRoleHandoffContracts(
-  teamId: TeamPresetId,
+function validateBuiltinOwners(
+  teamName: string,
+  expectedRoles: ReadonlySet<string>,
   contracts: readonly RoleHandoffContract[]
-): void {
-  const teamName = TEAM_PRESETS[teamId].name;
-  const expectedRoles = new Set<string>(TEAM_PRESETS[teamId].roles);
+): Map<string, RoleHandoffContract> {
   const actualRoles = new Set<string>();
+  const byRole = new Map<string, RoleHandoffContract>();
 
   for (const contract of contracts) {
     const normalizedOwner = contract.role.trim().toLowerCase();
@@ -118,6 +117,7 @@ export function validateBuiltinTeamRoleHandoffContracts(
       throw new Error(`${teamName} has unexpected handoff contract role "${contract.role}"`);
     }
     actualRoles.add(normalizedOwner);
+    byRole.set(normalizedOwner, contract);
   }
 
   for (const role of expectedRoles) {
@@ -126,47 +126,60 @@ export function validateBuiltinTeamRoleHandoffContracts(
     }
   }
 
-  const allowedTargets = new Set<string>([...expectedRoles, CHATROOM_ROLE_USER]);
-  const byRole = new Map(contracts.map((contract) => [contract.role, contract]));
+  return byRole;
+}
+
+// fallow-ignore-next-line complexity
+function validateReferenceTargets(
+  teamName: string,
+  owner: string,
+  label: string,
+  targets: readonly string[],
+  allowedTargets: ReadonlySet<string>
+): void {
+  const seen = new Set<string>();
+  for (const target of targets) {
+    const normalizedTarget = target.trim().toLowerCase();
+    if (target !== normalizedTarget || !allowedTargets.has(normalizedTarget)) {
+      throw new Error(`${teamName} role "${owner}" has invalid ${label} target "${target}"`);
+    }
+    if (seen.has(normalizedTarget)) {
+      throw new Error(`${teamName} role "${owner}" has duplicate ${label} target "${target}"`);
+    }
+    seen.add(normalizedTarget);
+  }
+}
+
+// fallow-ignore-next-line complexity
+function validateBuiltinReferences(
+  teamName: string,
+  allowedTargets: ReadonlySet<string>,
+  contracts: readonly RoleHandoffContract[]
+): void {
   for (const contract of contracts) {
     const owner = contract.role;
-    for (const [label, targets] of [
-      ['receivesFrom', contract.receivesFrom],
-      ['returnsTo', contract.returnsTo],
-    ] as const) {
-      const seen = new Set<string>();
-      for (const target of targets) {
-        const normalizedTarget = target.trim().toLowerCase();
-        if (target !== normalizedTarget || !allowedTargets.has(normalizedTarget)) {
-          throw new Error(`${teamName} role "${owner}" has invalid ${label} target "${target}"`);
-        }
-        if (seen.has(normalizedTarget)) {
-          throw new Error(`${teamName} role "${owner}" has duplicate ${label} target "${target}"`);
-        }
-        seen.add(normalizedTarget);
-      }
-    }
+    validateReferenceTargets(
+      teamName,
+      owner,
+      'receivesFrom',
+      contract.receivesFrom,
+      allowedTargets
+    );
+    validateReferenceTargets(teamName, owner, 'returnsTo', contract.returnsTo, allowedTargets);
 
     const outboundTargets = Object.keys(contract.outboundTemplates);
     if (outboundTargets.length === 0) {
       throw new Error(`${teamName} role "${owner}" must have an outbound handoff capability`);
     }
     const returnsTo = new Set(contract.returnsTo);
-    const outbound = new Set<string>();
+    const outbound = new Set(outboundTargets);
+    validateReferenceTargets(teamName, owner, 'outbound', outboundTargets, allowedTargets);
     for (const target of outboundTargets) {
-      const normalizedTarget = target.trim().toLowerCase();
-      if (target !== normalizedTarget || !allowedTargets.has(normalizedTarget)) {
-        throw new Error(`${teamName} role "${owner}" has invalid outbound target "${target}"`);
-      }
-      if (outbound.has(normalizedTarget)) {
-        throw new Error(`${teamName} role "${owner}" has duplicate outbound target "${target}"`);
-      }
       if (typeof contract.outboundTemplates[target] !== 'function') {
         throw new Error(
           `${teamName} role "${owner}" has no outbound getter for target "${target}"`
         );
       }
-      outbound.add(normalizedTarget);
     }
     if (
       returnsTo.size !== outbound.size ||
@@ -176,7 +189,17 @@ export function validateBuiltinTeamRoleHandoffContracts(
         `${teamName} role "${owner}" returnsTo targets must exactly match outbound targets`
       );
     }
+  }
+}
 
+// fallow-ignore-next-line complexity
+function validateBuiltinReciprocity(
+  teamName: string,
+  byRole: ReadonlyMap<string, RoleHandoffContract>,
+  contracts: readonly RoleHandoffContract[]
+): void {
+  for (const contract of contracts) {
+    const owner = contract.role;
     for (const receivedFrom of contract.receivesFrom) {
       if (receivedFrom === CHATROOM_ROLE_USER) continue;
       const source = byRole.get(receivedFrom);
@@ -188,5 +211,26 @@ export function validateBuiltinTeamRoleHandoffContracts(
     }
   }
 
-  validateRoleHandoffContracts(contracts);
+  try {
+    validateRoleHandoffContracts(contracts);
+  } catch (error) {
+    const contextualError = new Error(
+      `${teamName}: ${error instanceof Error ? error.message : String(error)}`
+    );
+    Object.defineProperty(contextualError, 'cause', { value: error, configurable: true });
+    throw contextualError;
+  }
+}
+
+/** Enforces builtin team membership and coherent role-owned handoff capabilities. */
+export function validateBuiltinTeamRoleHandoffContracts(
+  teamId: TeamPresetId,
+  contracts: readonly RoleHandoffContract[]
+): void {
+  const teamName = TEAM_PRESETS[teamId].name;
+  const expectedRoles = new Set<string>(TEAM_PRESETS[teamId].roles);
+  const byRole = validateBuiltinOwners(teamName, expectedRoles, contracts);
+  const allowedTargets = new Set<string>([...expectedRoles, CHATROOM_ROLE_USER]);
+  validateBuiltinReferences(teamName, allowedTargets, contracts);
+  validateBuiltinReciprocity(teamName, byRole, contracts);
 }
