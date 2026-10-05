@@ -53,8 +53,22 @@ jobs:
           prompts/cli/handoff-templates/index.test.ts
           prompts/cli/handoff-templates/list-templates.test.ts
 
+      - name: Test backend canonical agent structure and status APIs
+        run: >
+          pnpm --dir services/backend exec vitest run
+          convex/agents.spec.ts
+          convex/chatroomTeamStructure.spec.ts
+
       - name: Test frontend team picker projection
         run: pnpm --dir apps/webapp exec vitest run src/modules/chatroom/config/teams.spec.ts
+
+      - name: Test frontend canonical agent surfaces
+        run: >
+          pnpm --dir apps/webapp exec vitest run
+          src/modules/chatroom/components/AgentPanel/AgentPanel.test.tsx
+          src/modules/chatroom/components/AgentPanel/WorkspaceInlineAgentListPanel.test.tsx
+          src/modules/chatroom/components/AgentPanel/InlineAgentCard.test.tsx
+          src/modules/chatroom/hooks/useWorkspaceAgentQueries.test.ts
 
       - name: Test CLI (full)
         run: pnpm turbo run test --filter=chatroom-cli
