@@ -1,15 +1,12 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getTeamStructure } from '@workspace/shared/domain/team-presets';
+import { describe, expect, it, vi } from 'vitest';
 
+import type { AgentRoleStatusReadModel } from '../../hooks/useAgentPanelData';
 import type { AgentConfig } from '../../types/machine';
 import { AgentPanel } from '../AgentPanel';
 
-const mockUseAgentStatuses = vi.fn();
-
-vi.mock('../../hooks/useAgentStatuses', () => ({
-  useAgentStatuses: (...args: unknown[]) => mockUseAgentStatuses(...args),
-}));
 vi.mock('./RemoteAgentQuickActions', () => ({
   RemoteAgentQuickActions: () => <div data-testid="quick-actions" />,
 }));
@@ -26,29 +23,30 @@ vi.mock('./UnifiedAgentListModal', () => ({
 const lifecycle = {
   teamId: 'duo',
   teamName: 'Duo',
-  expectedRoles: ['planner', 'architect', 'uiux-engineer', 'builder'],
+  expectedRoles: getTeamStructure({ teamId: 'duo' }).roles.map(({ role }) => role),
   participants: [],
   hasHistory: false,
 };
 
-const duoStructure = {
-  teamId: 'duo',
-  teamStructureId: 'duo@1',
-  teamName: 'Duo',
-  entryPoint: 'planner',
-  roles: [
-    { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-    { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-    { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-    { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-  ],
-};
+const duoStructure = getTeamStructure({ teamId: 'duo' });
+const pinnedTeamFacts = [
+  {
+    teamId: 'duo',
+    permanentRoles: ['planner', 'builder'],
+    ephemeralRoles: ['architect', 'triage', 'uiux-engineer'],
+  },
+  {
+    teamId: 'solo',
+    permanentRoles: ['solo'],
+    ephemeralRoles: ['architect', 'triage', 'uiux-engineer'],
+  },
+] as const;
 
 const panelProps = {
   chatroomId: 'room1',
   machineId: null,
   lifecycle,
-  statusReadModel: undefined,
+  statusReadModel: [],
   teamName: undefined,
   teamId: undefined,
   defaultTeamId: undefined,
@@ -64,20 +62,6 @@ const panelProps = {
   isStoppingAgents: false,
   isStartingAllAgents: false,
 };
-
-beforeEach(() => {
-  mockUseAgentStatuses.mockReturnValue({
-    agents: ['planner', 'architect', 'uiux-engineer', 'builder'].map((role) => ({
-      role,
-      online: false,
-      statusLabel: 'OFFLINE',
-      statusVariant: 'offline',
-      lastSeenAt: null,
-      isWorking: false,
-    })),
-    isLoading: false,
-  });
-});
 
 describe('AgentPanel', () => {
   it('keeps the team selector available when no team is currently assigned', () => {
@@ -104,25 +88,100 @@ describe('AgentPanel', () => {
     expect(screen.getByText('No team configured')).toBeInTheDocument();
   });
 
-  it('renders permanent agents before the ephemeral section', () => {
-    render(<AgentPanel {...panelProps} teamStructure={duoStructure} />);
+  it.each(pinnedTeamFacts)(
+    'renders each canonical $teamId role once with offline state and grouped order',
+    ({ teamId, permanentRoles, ephemeralRoles }) => {
+      const structure = getTeamStructure({ teamId });
+      const expectedOrder = [...permanentRoles, ...ephemeralRoles];
+      const { container } = render(
+        <AgentPanel
+          {...panelProps}
+          lifecycle={{
+            ...lifecycle,
+            teamId,
+            teamName: teamId === 'duo' ? 'Duo' : 'Solo',
+            expectedRoles: expectedOrder,
+          }}
+          teamStructure={structure}
+        />
+      );
 
-    expect(screen.getByText('Ephemeral (2)')).toBeInTheDocument();
-    expect(screen.getByText('Agents (4)')).toBeInTheDocument();
-    expect(screen.queryByText(/View More/)).not.toBeInTheDocument();
-    const planner = screen.getByLabelText(/planner:/i);
-    const builder = screen.getByLabelText(/builder:/i);
-    const architect = screen.getByLabelText(/architect:/i);
-    const uiuxEngineer = screen.getByLabelText(/uiux-engineer:/i);
-    expect(
-      planner.compareDocumentPosition(builder) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(
-      builder.compareDocumentPosition(architect) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(
-      architect.compareDocumentPosition(uiuxEngineer) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
+      expect(structure.roles.map(({ role }) => role)).toEqual(
+        getTeamStructure({ teamId }).roles.map(({ role }) => role)
+      );
+      expect(screen.getByText(`Agents (${expectedOrder.length})`)).toBeInTheDocument();
+      expect(screen.getByText(`Ephemeral (${ephemeralRoles.length})`)).toBeInTheDocument();
+      expect(screen.queryByText(/View More/)).not.toBeInTheDocument();
+
+      const displayedRows = Array.from(
+        container.querySelectorAll<HTMLElement>('[role="button"][aria-label]')
+      );
+      expect(displayedRows.map((row) => row.getAttribute('aria-label')?.split(':')[0])).toEqual(
+        expectedOrder
+      );
+      for (const role of expectedOrder) {
+        const row = screen.getAllByLabelText(new RegExp(`^${role}:`, 'i'));
+        expect(row).toHaveLength(1);
+        expect(row[0]).toHaveTextContent(/OFFLINE/i);
+      }
+
+      const ephemeralHeading = screen.getByText(`Ephemeral (${ephemeralRoles.length})`);
+      const lastPermanentRow = screen.getByLabelText(new RegExp(`^${permanentRoles.at(-1)}:`, 'i'));
+      const firstEphemeralRow = screen.getByLabelText(new RegExp(`^${ephemeralRoles[0]}:`, 'i'));
+      expect(
+        lastPermanentRow.compareDocumentPosition(ephemeralHeading) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      expect(
+        ephemeralHeading.compareDocumentPosition(firstEphemeralRow) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      expect(screen.queryByLabelText(/enhancer:/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/triage.*config/i)).not.toBeInTheDocument();
+    }
+  );
+
+  it('opens the agent settings callback from the triage row', () => {
+    const onOpenAgents = vi.fn();
+    render(<AgentPanel {...panelProps} teamStructure={duoStructure} onOpenAgents={onOpenAgents} />);
+    const triage = screen.getByLabelText(/triage:/i);
+    fireEvent.click(triage);
+    fireEvent.keyDown(triage, { key: 'Enter' });
+    fireEvent.keyDown(triage, { key: ' ' });
+    expect(onOpenAgents).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps declared rows visible while status data is loading', () => {
+    render(<AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={undefined} />);
+
+    expect(screen.getByText('Agents (5)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (3)')).toBeInTheDocument();
+    const triage = screen.getByLabelText(/triage: Loading/i);
+    expect(triage).toBeInTheDocument();
+    expect(within(triage).getByLabelText('Status: Loading...')).toBeInTheDocument();
+  });
+
+  it('keeps declared rows visible with an error status', () => {
+    const errorStatus: AgentRoleStatusReadModel[] = [
+      { role: 'triage', roleKind: 'ephemeral', status: 'error', projectedAt: Date.now() },
+    ];
+    render(
+      <AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={errorStatus} />
+    );
+
+    expect(screen.getByText('Agents (5)')).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/triage:/i)).toHaveLength(1);
+    expect(screen.getByLabelText(/triage:/i)).toHaveTextContent('OFFLINE (ERROR)');
+    expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/uiux-engineer:/i)).toBeInTheDocument();
+  });
+
+  it('shows the loading panel while the team structure is unresolved', () => {
+    render(<AgentPanel {...panelProps} lifecycle={undefined} teamStructure={undefined} />);
+
+    expect(screen.getByText('Agents (0)')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/triage:/i)).not.toBeInTheDocument();
   });
 
   it('keeps all ephemeral agents visible when permanent agents exceed the preview limit', () => {
@@ -134,19 +193,21 @@ describe('AgentPanel', () => {
         { role: 'reviewer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
         { role: 'tester', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
         { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+        { role: 'triage', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
         { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
       ],
     };
 
     render(<AgentPanel {...panelProps} teamStructure={expandedStructure} />);
 
-    expect(screen.getByText('Agents (6)')).toBeInTheDocument();
-    expect(screen.getByText('Ephemeral (2)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (7)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (3)')).toBeInTheDocument();
     expect(screen.getByLabelText(/planner:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/builder:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/reviewer:/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/tester:/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/triage:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/uiux-engineer:/i)).toBeInTheDocument();
     expect(screen.getByText('View More (1 more items)')).toBeInTheDocument();
   });
@@ -158,9 +219,7 @@ describe('AgentPanel', () => {
         lifecycle={{ ...lifecycle, expectedRoles: ['planner', 'builder'] }}
         teamStructure={{
           ...duoStructure,
-          roles: duoStructure.roles.filter(
-            ({ role }) => role !== 'architect' && role !== 'uiux-engineer'
-          ),
+          roles: duoStructure.roles.filter(({ lifecycle }) => lifecycle === 'permanent'),
         }}
       />
     );

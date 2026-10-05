@@ -6,9 +6,9 @@
  */
 
 import { getBuilderToPlannerHandoffTemplate } from './builder-to-planner';
-import type { RoleHandoffContract } from '../../../cli/handoff-templates/contracts';
+import type { BuiltinTeamRoleHandoffContract } from '../../../cli/handoff-templates/contracts';
 
-export const duoBuilderHandoffContract: RoleHandoffContract = {
+export const duoBuilderHandoffContract = {
   role: 'builder',
   receivesFrom: ['planner'],
   returnsTo: ['planner'],
@@ -20,4 +20,4 @@ export const duoBuilderHandoffContract: RoleHandoffContract = {
         cliEnvPrefix: query.cliEnvPrefix,
       }),
   },
-};
+} as const satisfies BuiltinTeamRoleHandoffContract<'duo', 'builder'>;

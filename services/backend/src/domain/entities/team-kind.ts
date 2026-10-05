@@ -1,29 +1,30 @@
 /**
  * Team Kind — canonical definitions for well-known chatroom team types.
  *
- * Uses `z.enum(...)` as the single source of truth. All other shapes
- * (type, readonly tuple, enum-like object, Convex validator, and runtime
- * guard) are derived from the zod schema.
+ * The shared team-kind tuple is the domain source of truth. This backend
+ * adapter derives its Zod schema, enum-like object, Convex validator, and
+ * runtime guard from that tuple.
  *
- * To add or remove a team kind, edit ONLY the `z.enum(...)` array.
- * Every derived shape updates automatically.
+ * To add or remove a team kind, update the shared team-kind tuple; all backend
+ * validation shapes update automatically.
  *
  * @see docs/conventions/domain-models.md
  */
 
+import { TEAM_PRESET_IDS, type TeamPresetId } from '@workspace/shared/domain/team-kind';
 import { v } from 'convex/values';
 import { z } from 'zod';
 
 import { toLiteralValidators } from './_shared/v-literals-of';
 
-// ─── Source of truth ────────────────────────────────────────────────────────
+// ─── Shared source adapter ──────────────────────────────────────────────────
 
-export const teamKindSchema = z.enum(['duo', 'solo']);
+export const teamKindSchema = z.enum(TEAM_PRESET_IDS);
 
 // ─── Derived shapes ─────────────────────────────────────────────────────────
 
 /** TS type of a well-known team kind. */
-export type TeamKind = z.infer<typeof teamKindSchema>;
+export type TeamKind = TeamPresetId;
 
 /** Readonly tuple of all well-known team kinds — iteration order is canonical. */
 export const WELL_KNOWN_TEAM_KINDS = teamKindSchema.options;

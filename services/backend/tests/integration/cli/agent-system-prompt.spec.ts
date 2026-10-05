@@ -336,7 +336,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
        
 
       ### Handoff Options
-      Available targets: planner, architect, uiux-engineer, user
+      Available targets: planner, architect, triage, uiux-engineer, user
 
       ### Commands
 

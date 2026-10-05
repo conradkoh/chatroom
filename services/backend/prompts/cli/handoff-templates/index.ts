@@ -74,7 +74,7 @@ export function listHandoffTemplates(
   // Deterministic order: sort outbound targets alphabetically.
   for (const toRole of Object.keys(contract.outboundTemplates).sort()) {
     const getter = contract.outboundTemplates[toRole];
-    const template = getter({
+    const template = getter?.({
       fromRole: contract.role,
       toRole,
       teamId,

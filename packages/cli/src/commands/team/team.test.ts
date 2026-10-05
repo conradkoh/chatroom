@@ -1,3 +1,5 @@
+import { TEAM_PRESET_IDS } from '@workspace/shared/domain/team-kind';
+import { TEAM_PRESETS } from '@workspace/shared/domain/team-presets';
 import { describe, expect, test, vi } from 'vitest';
 
 import { getTeam, listTeamPresets, setTeam } from './index.js';
@@ -17,11 +19,24 @@ describe('team commands', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await listTeamPresets();
     expect(log.mock.calls.join('\n')).toContain(
-      'duo — Duo (planner, architect, uiux-engineer, builder) entry: planner'
+      'duo — Duo (planner, architect, triage, uiux-engineer, builder) entry: planner'
     );
     expect(log.mock.calls.join('\n')).toContain(
-      'solo — Solo (solo, architect, uiux-engineer) entry: solo'
+      'solo — Solo (solo, architect, triage, uiux-engineer) entry: solo'
     );
+    log.mockRestore();
+  });
+
+  test('lists every canonical role and entry point for each preset', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await listTeamPresets();
+    const output = log.mock.calls.join('\n');
+    for (const teamId of TEAM_PRESET_IDS) {
+      const preset = TEAM_PRESETS[teamId];
+      expect(output).toContain(
+        `${teamId} — ${preset.name} (${preset.roles.join(', ')}) entry: ${preset.entryPoint}`
+      );
+    }
     log.mockRestore();
   });
 

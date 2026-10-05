@@ -1,8 +1,39 @@
+import { AGENT_ROLE_DEFINITIONS } from '@workspace/shared/domain/agent-role';
 import { describe, expect, test } from 'vitest';
 
-import { getRoleTemplate, ROLE_TEMPLATES } from './templates';
+import { BUILTIN_ROLE_TEMPLATES, getRoleTemplate, ROLE_TEMPLATES } from './templates';
 
 describe('role templates', () => {
+  test('every builtin role has a dedicated nonempty prompt object', () => {
+    for (const [role, definition] of Object.entries(AGENT_ROLE_DEFINITIONS)) {
+      const template = BUILTIN_ROLE_TEMPLATES[role as keyof typeof BUILTIN_ROLE_TEMPLATES];
+      expect(template).toBeDefined();
+      expect(template.role).toBe(role);
+      expect(template.description.trim()).not.toBe('');
+      expect(template.responsibilities.length).toBeGreaterThan(0);
+      expect(ROLE_TEMPLATES[role]).toBe(template);
+      expect(definition.role).toBe(role);
+    }
+  });
+
+  test('retains tester as a custom prompt and unknown roles use the generic fallback', () => {
+    expect(ROLE_TEMPLATES.tester).toMatchObject({
+      role: 'tester',
+      title: 'Tester',
+      description: 'You are the QA role responsible for testing and validation.',
+      responsibilities: [
+        'Write and execute test cases',
+        'Verify functionality works as expected',
+        'Test edge cases and error handling',
+        'Report bugs and issues clearly',
+        'Confirm quality standards are met',
+      ],
+      defaultHandoffTarget: 'user',
+    });
+    expect(getRoleTemplate('reviewer').description).toContain('participating as the reviewer');
+    expect(BUILTIN_ROLE_TEMPLATES).not.toHaveProperty('tester');
+  });
+
   test('architect metadata identifies the architect as a non-implementer', () => {
     const template = ROLE_TEMPLATES.architect;
 
@@ -78,5 +109,6 @@ describe('role templates', () => {
     expect(text).not.toMatch(/enhancer/i);
     expect(text).not.toMatch(/single-turn|memoryless/i);
     expect(template.defaultHandoffTarget).toBe('user');
+    expect(BUILTIN_ROLE_TEMPLATES).not.toHaveProperty('enhancer');
   });
 });

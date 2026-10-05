@@ -12,8 +12,9 @@ import { duoBuilderHandoffContract } from './builder';
 import { duoPlannerHandoffContract } from './planner';
 import { duoTriageHandoffContract } from './triage';
 import { duoUiuxEngineerHandoffContract } from './uiux-engineer';
-import { validateRoleHandoffContracts } from '../../../cli/handoff-templates/contracts';
+import { validateBuiltinTeamRoleHandoffContracts } from '../../../cli/handoff-templates/contracts';
 import type {
+  BuiltinTeamHandoffCatalog,
   HandoffTemplateQuery,
   RoleHandoffContract,
 } from '../../../cli/handoff-templates/contracts';
@@ -21,17 +22,20 @@ import type {
 export type { HandoffTemplateQuery as DuoHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
 /** Role-owned duo catalog, including ephemeral architect, triage, and UI/UX roles. */
-export const DUO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] = [
-  duoPlannerHandoffContract,
-  duoBuilderHandoffContract,
-  duoArchitectHandoffContract,
-  duoUiuxEngineerHandoffContract,
-  duoTriageHandoffContract,
-];
+export const DUO_ROLE_HANDOFF_CATALOG = {
+  planner: duoPlannerHandoffContract,
+  builder: duoBuilderHandoffContract,
+  architect: duoArchitectHandoffContract,
+  'uiux-engineer': duoUiuxEngineerHandoffContract,
+  triage: duoTriageHandoffContract,
+} satisfies BuiltinTeamHandoffCatalog<'duo'>;
+
+export const DUO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] =
+  Object.values(DUO_ROLE_HANDOFF_CATALOG);
 
 /** Validated once at module load so broken catalogs fail fast in tests/startup. */
 export const validatedDuoRoleHandoffContracts: readonly RoleHandoffContract[] = (() => {
-  validateRoleHandoffContracts(DUO_ROLE_HANDOFF_CONTRACTS);
+  validateBuiltinTeamRoleHandoffContracts('duo', DUO_ROLE_HANDOFF_CONTRACTS);
   return DUO_ROLE_HANDOFF_CONTRACTS;
 })();
 
