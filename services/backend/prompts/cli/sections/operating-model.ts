@@ -46,8 +46,13 @@ ${delegationNote}
 \`\`\`mermaid
 flowchart TD
 ${getTaskIntakeNodes(nativeIntegration)}
-    E --> F[Delegate ONE phase to builder]
-    F --> G[Builder completes phase]
+    E --> U{UI fix or interface design?}
+    U -->|Yes| V[State problem and hand off to UI/UX engineer]
+    V --> W[Review rendered target and test contract]
+    W -->|Incomplete| V
+    W -->|Complete| F[Delegate ONE phase; preserve engineer design for UI]
+    U -->|No| F[Delegate ONE phase]
+    F --> G[Builder writes/runs UI tests first when applicable, then implements]
     G --> H[Builder hands off to planner]
     H --> I[Review builder output]
     I --> J{phase acceptable?}
@@ -77,6 +82,7 @@ export function getPlannerSoloOperatingModel(nativeIntegration?: boolean): strin
     return `**Operating model: Planner Solo**
 
 ${intakeSteps}
+For UI fixes or interface design, first state the problem, desired outcome, affected surfaces, constraints, and existing evidence; hand off to the UI/UX engineer and wait for a rendered target plus test contract before implementation. Then write and run meaningful production UI tests first, implement, rerun, and compare the production DOM/styles with the target. Non-UI work follows the normal solo path.
 3. Deliver to **user**
 4. ${continueStep}`;
   }
@@ -84,6 +90,7 @@ ${intakeSteps}
   return `**Operating model: Planner Solo**
 
 ${intakeSteps}
+For UI fixes or interface design, first state the problem, desired outcome, affected surfaces, constraints, and existing evidence; hand off to the UI/UX engineer and wait for a rendered target plus test contract before implementation. Then write and run meaningful production UI tests first, implement, rerun, and compare the production DOM/styles with the target. Non-UI work follows the normal solo path.
 3. Review your own work for quality
 4. Deliver to **user**
 5. ${continueStep}`;

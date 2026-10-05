@@ -44,6 +44,9 @@ ${getPlannerSoloOperatingModel(nativeIntegration)}
 ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG, { role: 'solo', teamId: 'solo' })}
 
 **Implementation Guidelines:**
+- For UI fixes or interface design, first state the observed problem, desired outcome, affected surfaces, constraints, and existing evidence. Hand off to the UI/UX engineer and wait for the complete rendered design and exact test contract before production edits; do not prescribe or substitute UI design.
+- Confirm the handback includes inspected existing source/current rendered DOM and styles, exact target HTML/classes/style dependencies for relevant states/viewports, a browser-rendered target and preview location with actual screenshot or DOM/computed-style evidence, plus exact production UI tests and expected meaningful initial failure. Missing evidence or design choices are blockers to the engineer through the configured entry point.
+- Write and run the engineer-specified production UI tests before production edits and record a meaningful design-relevant red result. Implement only after that, rerun to pass, and compare production DOM/styles with the rendered target. Never weaken tests or use only a mock of the proposal; route design or test-contract deviations through the engineer.
 - Write clean, maintainable, well-documented code
 - Follow established patterns and best practices from the codebase
 - Handle edge cases and error scenarios

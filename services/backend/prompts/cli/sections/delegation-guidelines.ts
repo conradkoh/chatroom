@@ -23,6 +23,8 @@ function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): s
 
 Break complex features into small, focused slices. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
+**Mandatory UI/UX-directed workflow for UI fixes and interface design:** First state the observed problem, desired user outcome, affected surfaces, constraints, and existing evidence; do not prescribe replacement UI. Hand off to the UI/UX engineer before production implementation. Require existing source and rendered-DOM/style inspection plus one browser-rendered target with exact markup, classes/styles, states, interactions, and UI test contract. Carry the engineer's complete design unchanged into implementation. Write and run meaningful production UI tests from that contract before production edits, confirm the failure is design-relevant, implement, rerun to green, and compare the production DOM/styles with the target. Missing evidence or unresolved design choices go back to the engineer through the configured entry point; do not redesign or weaken tests yourself.
+
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
 - ${feedingNote}.`;
@@ -43,7 +45,12 @@ Break features into small, focused slices, then delegate them to the builder one
 \`\`\`mermaid
 flowchart TD
     A[Receive task] --> B{Code changes needed?}
-    B -->|Yes — any size| D[Write a Delegation Brief]
+    B -->|Yes — any size| C{UI fix or interface design?}
+    C -->|Yes| U[State problem; hand off to UI/UX engineer]
+    U --> V[Review rendered design and test contract]
+    V -->|Incomplete| U
+    V -->|Complete| D[Write a Delegation Brief with design unchanged]
+    C -->|No| D
     D --> E[Hand off ONE slice to builder]
     E --> F[Review output]
     F -->|Not acceptable| G[Hand back with feedback]
@@ -51,7 +58,7 @@ flowchart TD
     F -->|Acceptable| H{More slices?}
     H -->|Yes| E
     H -->|No| I[Deliver to user]
-    B -->|No: question or clarification only| C[Answer directly → deliver to user]
+    B -->|No: question or clarification only| X[Answer directly → deliver to user]
 \`\`\`
 
 **Default: delegate with a Delegation Brief.** ${delegationBriefRef}
@@ -60,12 +67,14 @@ flowchart TD
 
 - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
 - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **You own technical design; the builder executes.** Per-file target code plus shared contracts in the brief — do not leave API shape for the builder to invent.
+- **The planner owns architecture and data/API design; the UI/UX engineer owns UI design and its test contract.** For UI work, preserve the engineer's DOM/style/test requirements unchanged in the builder brief; do not substitute your own.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
+
+**UI implementation gate:** The UI/UX engineer owns markup, classes/styles, states, interactions, responsive behavior, and the UI test contract. The entry point states the problem/outcome/surfaces and coordinates the engineer handoff, then forwards the engineer's complete handback unchanged. The builder writes and runs meaningful UI tests before production edits, then implements and compares the rendered result. Missing or changed design requirements must return to the engineer through the entry point. This gate applies to both builder delegation and solo implementation; non-UI delegation is unchanged.
 
 **Code review:** For code-producing work, review before delivering. Activate the review framework with: ${cmd('skill activate code-review')}.
 
