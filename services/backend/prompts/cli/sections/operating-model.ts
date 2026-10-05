@@ -43,10 +43,12 @@ export function getPlannerPlusBuilderOperatingModel(nativeIntegration?: boolean)
 
 ${delegationNote}
 
+For UI fixes, first hand off the problem to the UI/UX engineer; wait for its rendered design/test contract, then delegate tests-first implementation to builder. Non-UI work follows the normal loop.
+
 \`\`\`mermaid
 flowchart TD
 ${getTaskIntakeNodes(nativeIntegration)}
-    E --> F[UI design; tests first]
+    E --> F[Delegate tests-first phase to builder]
     F --> G[Builder completes phase]
     G --> H[Builder hands off to planner]
     H --> I[Review builder output]

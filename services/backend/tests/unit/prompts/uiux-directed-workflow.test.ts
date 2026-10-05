@@ -171,11 +171,38 @@ describe('UI/UX-directed implementation contract', () => {
         nativeIntegration,
       });
       expect(guidance).toContain('Planner owns architecture/data/API; UI/UX owns design/tests.');
-      expect(guidance).toContain('Preserve it; builder tests first.');
-      expect(guidance).toContain('UI design; tests first');
+      expect(guidance).toContain(
+        'State the problem; hand off to the UI/UX engineer before builder work.'
+      );
+      expect(guidance).toContain(
+        'Forward the complete rendered design/test contract unchanged; missing evidence or changes return to the engineer.'
+      );
+      expectOrdered(guidance, [
+        'For UI fixes, first hand off the problem to the UI/UX engineer',
+        'delegate tests-first implementation to builder',
+      ]);
+      expectOrdered(guidance, ['UI fix?', 'UI/UX engineer', 'builder']);
+      expect(guidance).toContain('C -->|No| E');
+      expect(guidance).not.toContain('UI/UX if needed');
       expect(guidance).toContain('UI: Design ≠ completion.');
       expect(guidance).toContain('gaps/changes → engineer via entry point');
       expect(guidance).toContain('Forward it unchanged only to implementation.');
+    }
+  );
+
+  test.each([false, true])(
+    'solo planner implementation guidance uses solo tests-first language without builder delegation (native=%s)',
+    (nativeIntegration) => {
+      const guidance = getPlannerGuidance({
+        role: 'planner',
+        teamRoles: ['solo'],
+        isEntryPoint: true,
+        convexUrl: 'http://127.0.0.1:3210',
+        nativeIntegration,
+      });
+
+      expect(guidance).toContain('Solo/implementer writes tests first.');
+      expect(guidance).not.toMatch(/builder tests first|delegate.{0,30}builder/i);
     }
   );
 

@@ -23,7 +23,7 @@ function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): s
 
 Break complex features into small, focused slices. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**UI fixes:** Follow the injected engineer-first design contract: give problem/evidence, not a design; review and forward the complete handback unchanged. Builder tests first.
+**UI fixes:** Follow the injected engineer-first design contract: give problem/evidence, not a design; review and forward the complete handback unchanged. Solo/implementer writes tests first.
 
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
@@ -37,16 +37,18 @@ function getBuilderDelegationGuidelines(
 ): string {
   return `**Delegation Guidelines:**
 
-Break features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
+For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is.
+**UI fixes:** State the problem; hand off to the UI/UX engineer before builder work. Forward the complete rendered design/test contract unchanged; missing evidence or changes return to the engineer.
 
 **Decision flow:**
 \`\`\`mermaid
 flowchart TD
     A[Receive task] --> B{Code changes needed?}
-    B -->|Yes — any size| D[UI/UX if needed]
-    D --> E[Hand off ONE slice to builder]
+    B -->|Yes — any size| C{UI fix?}
+    C -->|Yes| D[UI/UX engineer]
+    D --> E[Forward unchanged; builder]
+    C -->|No| E
     E --> F[Review output]
     F -->|Not acceptable| G[Hand back with feedback]
     G --> E
@@ -60,11 +62,10 @@ flowchart TD
 
 **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
-- **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
-- **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
+- Name concrete artifacts, list every file, and include enough detail that the builder cannot guess wrong.
 - Planner owns architecture/data/API; UI/UX owns design/tests. Preserve it; builder tests first.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
-- **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
+- **One slice ≈ one focused review surface.** Split work that cannot be reviewed in one sitting.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
