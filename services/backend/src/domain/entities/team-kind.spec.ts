@@ -1,10 +1,10 @@
 /**
  * Team Kind entity — unit tests
  *
- * Validates the multi-shape pattern: all derived shapes are consistent
- * with the source-of-truth const array.
+ * Validates that backend adapters remain synchronized with the shared tuple.
  */
 
+import { TEAM_PRESET_IDS } from '@workspace/shared/domain/team-kind';
 import { describe, expect, test } from 'vitest';
 
 import {
@@ -17,6 +17,11 @@ import {
 import type { TeamKind } from './team-kind';
 
 describe('TeamKind', () => {
+  test('backend schema options derive from the shared team-kind tuple', () => {
+    expect(teamKindSchema.options).toEqual(TEAM_PRESET_IDS);
+    expect(WELL_KNOWN_TEAM_KINDS).toEqual(TEAM_PRESET_IDS);
+  });
+
   test('WELL_KNOWN_TEAM_KINDS contains expected values', () => {
     expect(WELL_KNOWN_TEAM_KINDS).toEqual(['duo', 'solo']);
   });
@@ -57,17 +62,12 @@ describe('TeamKind', () => {
     expect(typeof teamKindValidator).toBe('object');
   });
 
-  test('type exhaustiveness compiles', () => {
-    // Compile-time check: if a new TeamKind is added, this switch should fail
-    // to compile (unless the new kind is handled). We use a runtime assertion
-    // that all known kinds pass isTeamKind.
-    const allKnown: TeamKind[] = [...WELL_KNOWN_TEAM_KINDS];
-
-    const _exhaustive: TeamKind[] = allKnown;
+  test('shared tuple entries pass the runtime guard', () => {
+    const allKnown: TeamKind[] = [...TEAM_PRESET_IDS];
     expect(allKnown.every(isTeamKind)).toBe(true);
   });
 
-  test('teamKindValidator.members stays in sync with WELL_KNOWN_TEAM_KINDS', () => {
+  test('teamKindValidator.members stays in sync with shared TEAM_PRESET_IDS', () => {
     // Convex VUnion exposes its members at runtime. Each member is a VLiteral
     // whose `.value` is the literal it accepts. Sorting both sides because the
     // test asserts set-equality, not order (order is already asserted elsewhere).
@@ -75,7 +75,7 @@ describe('TeamKind', () => {
       .map((m) => m.value)
       .slice()
       .sort();
-    const sourceMembers = WELL_KNOWN_TEAM_KINDS.slice().sort();
+    const sourceMembers = [...TEAM_PRESET_IDS].sort();
     expect(validatorMembers).toEqual(sourceMembers);
   });
 });

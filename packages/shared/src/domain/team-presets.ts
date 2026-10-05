@@ -1,4 +1,15 @@
-import { getAgentRoleTags, getPermanentRoleNames, type AgentRoleLifecycleTag } from './agent-role';
+import {
+  getAgentRoleTags,
+  getBuiltinRolesForTeam,
+  getPermanentRoleNames,
+  type AgentRoleLifecycleTag,
+  type BuiltinTeamRole,
+  type PermanentBuiltinTeamRole,
+} from './agent-role';
+import { TEAM_PRESET_IDS, type TeamPresetId } from './team-kind';
+
+export { TEAM_PRESET_IDS } from './team-kind';
+export type { TeamPresetId } from './team-kind';
 
 export interface TeamPreset {
   /** Immutable identifier for this structural definition. */
@@ -24,22 +35,25 @@ export interface TeamStructure {
   roles: TeamStructureRole[];
 }
 
-export const TEAM_PRESET_IDS = ['duo', 'solo'] as const;
-export type TeamPresetId = (typeof TEAM_PRESET_IDS)[number];
 export const DEFAULT_TEAM_PRESET_ID: TeamPresetId = 'duo';
 
-export const TEAM_STRUCTURE_IDS: Record<TeamPresetId, string> = {
+export const TEAM_STRUCTURE_IDS = {
   duo: 'duo@1',
   solo: 'solo@1',
+} as const satisfies Record<TeamPresetId, string>;
+
+export type BuiltinTeamPreset<T extends TeamPresetId> = Omit<TeamPreset, 'roles' | 'entryPoint'> & {
+  roles: readonly BuiltinTeamRole<T>[];
+  entryPoint: PermanentBuiltinTeamRole<T>;
 };
 
-export const TEAM_PRESETS: Record<TeamPresetId, TeamPreset> = {
+export const TEAM_PRESETS = {
   duo: {
     structureId: TEAM_STRUCTURE_IDS.duo,
     name: 'Duo',
     description:
       'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, triage, and uiux-engineer roles',
-    roles: ['planner', 'architect', 'triage', 'uiux-engineer', 'builder'],
+    roles: getBuiltinRolesForTeam('duo'),
     entryPoint: 'planner',
   },
   solo: {
@@ -47,10 +61,10 @@ export const TEAM_PRESETS: Record<TeamPresetId, TeamPreset> = {
     name: 'Solo',
     description:
       'A single agent working independently, with optional ephemeral architect, triage, and uiux-engineer roles',
-    roles: ['solo', 'architect', 'triage', 'uiux-engineer'],
+    roles: getBuiltinRolesForTeam('solo'),
     entryPoint: 'solo',
   },
-};
+} satisfies { [T in TeamPresetId]: BuiltinTeamPreset<T> };
 
 /** Resolves legacy and versioned identifiers to the canonical preset kind. */
 export function getTeamPresetId(teamId: string): TeamPresetId | undefined {

@@ -31,7 +31,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck changed workspaces
-        run: pnpm turbo run typecheck --filter=chatroom-cli --filter=@workspace/backend --filter=@workspace/webapp
+        run: pnpm turbo run typecheck --filter=@workspace/shared --filter=chatroom-cli --filter=@workspace/backend --filter=@workspace/webapp
+
+      - name: Test shared role domain contracts
+        run: >
+          pnpm --dir packages/shared exec vitest run
+          src/domain/agent-role.test.ts
+          src/domain/team-presets.test.ts
+
+      - name: Test backend team-kind and preset adapters
+        run: >
+          pnpm --dir services/backend exec vitest run
+          src/domain/entities/team-kind.spec.ts
+          src/domain/entities/team-presets.spec.ts
+
+      - name: Test frontend team picker projection
+        run: pnpm --dir apps/webapp exec vitest run src/modules/chatroom/config/teams.spec.ts
 
       - name: Test CLI (full)
         run: pnpm turbo run test --filter=chatroom-cli

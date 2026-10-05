@@ -1,9 +1,14 @@
+import {
+  TEAM_PRESETS as sharedTeamPresets,
+  getTeamStructure as getSharedTeamStructure,
+} from '@workspace/shared/domain/team-presets';
 import { describe, expect, test } from 'vitest';
 
 import {
   DEFAULT_TEAM_PRESET_ID,
   TEAM_PRESETS,
   getTeamPreset,
+  getTeamStructure,
   listTeamPresetIds,
 } from './team-presets';
 
@@ -26,5 +31,14 @@ describe('team presets', () => {
     expect(listTeamPresetIds()).toEqual(['duo', 'solo']);
     expect(getTeamPreset('duo')).toBe(TEAM_PRESETS.duo);
     expect(getTeamPreset('unknown')).toBeUndefined();
+  });
+
+  test('backend facade uses the shared preset definitions and structure resolver', () => {
+    expect(TEAM_PRESETS).toBe(sharedTeamPresets);
+    expect(getTeamPreset('duo')).toBe(sharedTeamPresets.duo);
+    expect(getTeamPreset('solo')).toBe(sharedTeamPresets.solo);
+    for (const teamId of ['duo', 'solo'] as const) {
+      expect(getTeamStructure({ teamId })).toEqual(getSharedTeamStructure({ teamId }));
+    }
   });
 });
