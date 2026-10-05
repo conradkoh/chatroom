@@ -46,13 +46,8 @@ ${delegationNote}
 \`\`\`mermaid
 flowchart TD
 ${getTaskIntakeNodes(nativeIntegration)}
-    E --> U{UI fix or interface design?}
-    U -->|Yes| V[State problem and hand off to UI/UX engineer]
-    V --> W[Review rendered target and test contract]
-    W -->|Incomplete| V
-    W -->|Complete| F[Delegate ONE phase; preserve engineer design for UI]
-    U -->|No| F[Delegate ONE phase]
-    F --> G[Builder writes/runs UI tests first when applicable, then implements]
+    E --> F[UI design; tests first]
+    F --> G[Builder completes phase]
     G --> H[Builder hands off to planner]
     H --> I[Review builder output]
     I --> J{phase acceptable?}

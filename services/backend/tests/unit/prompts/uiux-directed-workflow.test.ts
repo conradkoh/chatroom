@@ -170,15 +170,12 @@ describe('UI/UX-directed implementation contract', () => {
         convexUrl: 'http://127.0.0.1:3210',
         nativeIntegration,
       });
-      expect(guidance).toContain('planner owns architecture and data/API design');
-      expect(guidance).toContain('engineer owns UI design and its test contract');
-      expect(guidance).toContain('UI fix');
-      expect(guidance).toContain("engineer's complete handback unchanged");
-      expect(guidance).toContain('tests before production edits');
-      expect(guidance).toContain(
-        'never deliver the design handback to the user as a completed feature'
-      );
-      expect(guidance).toContain('revised engineer design through the entry point');
+      expect(guidance).toContain('Planner owns architecture/data/API; UI/UX owns design/tests.');
+      expect(guidance).toContain('Preserve it; builder tests first.');
+      expect(guidance).toContain('UI design; tests first');
+      expect(guidance).toContain('UI: Design ≠ completion.');
+      expect(guidance).toContain('gaps/changes → engineer via entry point');
+      expect(guidance).toContain('Forward it unchanged only to implementation.');
     }
   );
 

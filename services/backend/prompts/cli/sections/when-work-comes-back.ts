@@ -17,11 +17,7 @@ export function getWhenWorkComesBackSection(
   const reworkLine = config.hasBuilder
     ? '3. If requirements are NOT met (including partial work) → hand back to `builder` for rework'
     : '3. If requirements are NOT met (including partial work) → revise and re-validate';
-  const implementerReview = config.hasBuilder
-    ? 'Builder implementation defects return to the builder.'
-    : 'Implementation defects return to solo implementation for rework.';
-
-  const uiReview = `**UI/UX-directed work:** Treat an engineer handback as a design artifact, not completed implementation. Check existing DOM/style evidence, actual browser-rendered target markup and styles, viewport/state evidence, and the exact tests-first contract. If any are incomplete, return concrete missing evidence to the UI/UX engineer through the configured entry point. If complete, forward the design unchanged into implementation; never deliver the design handback to the user as a completed feature. ${implementerReview} Any design or test-contract deviation requires a revised engineer design through the entry point.`;
+  const uiReview = `UI: Design ≠ completion. Check DOM/styles and test contract; gaps/changes → engineer via entry point. Forward it unchanged only to implementation.`;
 
   return `**When you receive work back from team members:**
 ${uiReview}

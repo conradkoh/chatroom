@@ -19,13 +19,8 @@ After delegating to the builder, hand off and wait for work to return.
 flowchart TD
     A([Start]) --> B[Receive chatroom task from get-next-task]
     B --> E[Decompose into phases]
-    E --> U{UI fix or interface design?}
-    U -->|Yes| V[State problem and hand off to UI/UX engineer]
-    V --> W[Review rendered target and test contract]
-    W -->|Incomplete| V
-    W -->|Complete| F[Delegate ONE phase; preserve engineer design for UI]
-    U -->|No| F[Delegate ONE phase]
-    F --> G[Builder writes/runs UI tests first when applicable, then implements]
+    E --> F[UI design; tests first]
+    F --> G[Builder completes phase]
     G --> H[Builder hands off to planner]
     H --> I[Review builder output]
     I --> J{phase acceptable?}
@@ -62,12 +57,7 @@ Break features into small, focused slices, then delegate them to the builder one
 \`\`\`mermaid
 flowchart TD
     A[Receive task] --> B{Code changes needed?}
-    B -->|Yes — any size| C{UI fix or interface design?}
-    C -->|Yes| U[State problem; hand off to UI/UX engineer]
-    U --> V[Review rendered design and test contract]
-    V -->|Incomplete| U
-    V -->|Complete| D[Write a Delegation Brief with design unchanged]
-    C -->|No| D
+    B -->|Yes — any size| D[UI/UX if needed]
     D --> E[Hand off ONE slice to builder]
     E --> F[Review output]
     F -->|Not acceptable| G[Hand back with feedback]
@@ -84,14 +74,12 @@ flowchart TD
 
 - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
 - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **The planner owns architecture and data/API design; the UI/UX engineer owns UI design and its test contract.** For UI work, preserve the engineer's DOM/style/test requirements unchanged in the builder brief; do not substitute your own.
+- Planner owns architecture/data/API; UI/UX owns design/tests. Preserve it; builder tests first.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
-
-**UI implementation gate:** The UI/UX engineer owns markup, classes/styles, states, interactions, responsive behavior, and the UI test contract. The entry point states the problem/outcome/surfaces and coordinates the engineer handoff, then forwards the engineer's complete handback unchanged. The builder writes and runs meaningful UI tests before production edits, then implements and compares the rendered result. Missing or changed design requirements must return to the engineer through the entry point. This gate applies to both builder delegation and solo implementation; non-UI delegation is unchanged.
 
 **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-chatroom-id" --role="planner"\`.
 
@@ -119,7 +107,7 @@ flowchart TD
   ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
 **When you receive work back from team members:**
-**UI/UX-directed work:** Treat an engineer handback as a design artifact, not completed implementation. Check existing DOM/style evidence, actual browser-rendered target markup and styles, viewport/state evidence, and the exact tests-first contract. If any are incomplete, return concrete missing evidence to the UI/UX engineer through the configured entry point. If complete, forward the design unchanged into implementation; never deliver the design handback to the user as a completed feature. Builder implementation defects return to the builder. Any design or test-contract deviation requires a revised engineer design through the entry point.
+UI: Design ≠ completion. Check DOM/styles and test contract; gaps/changes → engineer via entry point. Forward it unchanged only to implementation.
 1. Review the completed work against the original user request
 2. If requirements are met → run proof of verification → deliver to \`user\`
 3. If requirements are NOT met (including partial work) → hand back to \`builder\` for rework
@@ -161,7 +149,7 @@ This lists who you receive work from, who you return to, and every outbound hand
 
 Break complex features into small, focused slices. For code review guidance, activate the \`code-review\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-chatroom-id" --role="solo"\`.
 
-**Mandatory UI/UX-directed workflow for UI fixes and interface design:** First state the observed problem, desired user outcome, affected surfaces, constraints, and existing evidence; do not prescribe replacement UI. Hand off to the UI/UX engineer before production implementation. Require existing source and rendered-DOM/style inspection plus one browser-rendered target with exact markup, classes/styles, states, interactions, and UI test contract. Carry the engineer's complete design unchanged into implementation. Write and run meaningful production UI tests from that contract before production edits, confirm the failure is design-relevant, implement, rerun to green, and compare the production DOM/styles with the target. Missing evidence or unresolved design choices go back to the engineer through the configured entry point; do not redesign or weaken tests yourself.
+**UI fixes:** Follow the injected engineer-first design contract: give problem/evidence, not a design; review and forward the complete handback unchanged. Builder tests first.
 
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
@@ -178,7 +166,7 @@ Break complex features into small, focused slices. For code review guidance, act
   ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
 **When you receive work back from team members:**
-**UI/UX-directed work:** Treat an engineer handback as a design artifact, not completed implementation. Check existing DOM/style evidence, actual browser-rendered target markup and styles, viewport/state evidence, and the exact tests-first contract. If any are incomplete, return concrete missing evidence to the UI/UX engineer through the configured entry point. If complete, forward the design unchanged into implementation; never deliver the design handback to the user as a completed feature. Implementation defects return to solo implementation for rework. Any design or test-contract deviation requires a revised engineer design through the entry point.
+UI: Design ≠ completion. Check DOM/styles and test contract; gaps/changes → engineer via entry point. Forward it unchanged only to implementation.
 1. Review the completed work against the original user request
 2. If requirements are met → run proof of verification → deliver to \`user\`
 3. If requirements are NOT met (including partial work) → revise and re-validate
@@ -204,13 +192,8 @@ After delegating to the builder, **run handoff as your last action and end your 
 flowchart TD
     A([Start]) --> B[Receive user message]
     B --> E[Decompose into phases]
-    E --> U{UI fix or interface design?}
-    U -->|Yes| V[State problem and hand off to UI/UX engineer]
-    V --> W[Review rendered target and test contract]
-    W -->|Incomplete| V
-    W -->|Complete| F[Delegate ONE phase; preserve engineer design for UI]
-    U -->|No| F[Delegate ONE phase]
-    F --> G[Builder writes/runs UI tests first when applicable, then implements]
+    E --> F[UI design; tests first]
+    F --> G[Builder completes phase]
     G --> H[Builder hands off to planner]
     H --> I[Review builder output]
     I --> J{phase acceptable?}
@@ -247,12 +230,7 @@ Break features into small, focused slices, then delegate them to the builder one
 \`\`\`mermaid
 flowchart TD
     A[Receive task] --> B{Code changes needed?}
-    B -->|Yes — any size| C{UI fix or interface design?}
-    C -->|Yes| U[State problem; hand off to UI/UX engineer]
-    U --> V[Review rendered design and test contract]
-    V -->|Incomplete| U
-    V -->|Complete| D[Write a Delegation Brief with design unchanged]
-    C -->|No| D
+    B -->|Yes — any size| D[UI/UX if needed]
     D --> E[Hand off ONE slice to builder]
     E --> F[Review output]
     F -->|Not acceptable| G[Hand back with feedback]
@@ -269,14 +247,12 @@ flowchart TD
 
 - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
 - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **The planner owns architecture and data/API design; the UI/UX engineer owns UI design and its test contract.** For UI work, preserve the engineer's DOM/style/test requirements unchanged in the builder brief; do not substitute your own.
+- Planner owns architecture/data/API; UI/UX owns design/tests. Preserve it; builder tests first.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
-
-**UI implementation gate:** The UI/UX engineer owns markup, classes/styles, states, interactions, responsive behavior, and the UI test contract. The entry point states the problem/outcome/surfaces and coordinates the engineer handoff, then forwards the engineer's complete handback unchanged. The builder writes and runs meaningful UI tests before production edits, then implements and compares the rendered result. Missing or changed design requirements must return to the engineer through the entry point. This gate applies to both builder delegation and solo implementation; non-UI delegation is unchanged.
 
 **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-chatroom-id" --role="planner"\`.
 
@@ -302,7 +278,7 @@ flowchart TD
   ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
 **When you receive work back from team members:**
-**UI/UX-directed work:** Treat an engineer handback as a design artifact, not completed implementation. Check existing DOM/style evidence, actual browser-rendered target markup and styles, viewport/state evidence, and the exact tests-first contract. If any are incomplete, return concrete missing evidence to the UI/UX engineer through the configured entry point. If complete, forward the design unchanged into implementation; never deliver the design handback to the user as a completed feature. Builder implementation defects return to the builder. Any design or test-contract deviation requires a revised engineer design through the entry point.
+UI: Design ≠ completion. Check DOM/styles and test contract; gaps/changes → engineer via entry point. Forward it unchanged only to implementation.
 1. Review the completed work against the original user request
 2. If requirements are met → run proof of verification → deliver to \`user\`
 3. If requirements are NOT met (including partial work) → hand back to \`builder\` for rework
@@ -343,7 +319,7 @@ This lists who you receive work from, who you return to, and every outbound hand
 
 Break complex features into small, focused slices. For code review guidance, activate the \`code-review\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-chatroom-id" --role="solo"\`.
 
-**Mandatory UI/UX-directed workflow for UI fixes and interface design:** First state the observed problem, desired user outcome, affected surfaces, constraints, and existing evidence; do not prescribe replacement UI. Hand off to the UI/UX engineer before production implementation. Require existing source and rendered-DOM/style inspection plus one browser-rendered target with exact markup, classes/styles, states, interactions, and UI test contract. Carry the engineer's complete design unchanged into implementation. Write and run meaningful production UI tests from that contract before production edits, confirm the failure is design-relevant, implement, rerun to green, and compare the production DOM/styles with the target. Missing evidence or unresolved design choices go back to the engineer through the configured entry point; do not redesign or weaken tests yourself.
+**UI fixes:** Follow the injected engineer-first design contract: give problem/evidence, not a design; review and forward the complete handback unchanged. Builder tests first.
 
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
@@ -358,7 +334,7 @@ Break complex features into small, focused slices. For code review guidance, act
   ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
 **When you receive work back from team members:**
-**UI/UX-directed work:** Treat an engineer handback as a design artifact, not completed implementation. Check existing DOM/style evidence, actual browser-rendered target markup and styles, viewport/state evidence, and the exact tests-first contract. If any are incomplete, return concrete missing evidence to the UI/UX engineer through the configured entry point. If complete, forward the design unchanged into implementation; never deliver the design handback to the user as a completed feature. Implementation defects return to solo implementation for rework. Any design or test-contract deviation requires a revised engineer design through the entry point.
+UI: Design ≠ completion. Check DOM/styles and test contract; gaps/changes → engineer via entry point. Forward it unchanged only to implementation.
 1. Review the completed work against the original user request
 2. If requirements are met → run proof of verification → deliver to \`user\`
 3. If requirements are NOT met (including partial work) → revise and re-validate

@@ -353,7 +353,7 @@ describe('Solo Team > Solo > System Prompt', () => {
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **When you receive work back from team members:**
-      **UI/UX-directed work:** Treat an engineer handback as a design artifact, not completed implementation. Check existing DOM/style evidence, actual browser-rendered target markup and styles, viewport/state evidence, and the exact tests-first contract. If any are incomplete, return concrete missing evidence to the UI/UX engineer through the configured entry point. If complete, forward the design unchanged into implementation; never deliver the design handback to the user as a completed feature. Implementation defects return to solo implementation for rework. Any design or test-contract deviation requires a revised engineer design through the entry point.
+      UI: Design ≠ completion. Check DOM/styles and test contract; gaps/changes → engineer via entry point. Forward it unchanged only to implementation.
       1. Review the completed work against the original user request
       2. If requirements are met → run proof of verification → deliver to \`user\`
       3. If requirements are NOT met (including partial work) → revise and re-validate
