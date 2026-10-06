@@ -22,7 +22,7 @@ function delivery(role: string, teamId: 'duo' | 'solo', nativeIntegration: boole
     role,
     cliEnvPrefix: '',
     teamId,
-    task: { _id: 'task-id', content: snapshot },
+    task: { _id: 'task-id', content: 'Implement the requested UI.' },
     message: null,
     isEntryPoint: role === 'planner' || role === 'solo',
     availableHandoffTargets:
@@ -47,7 +47,10 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
           convexUrl: 'http://127.0.0.1:3210',
           nativeIntegration,
         });
-        expect(guidance).toContain('target markup, classes, and styles');
+        expect(guidance).toContain('The UI/UX engineer owns the design.');
+        expect(guidance).toContain(
+          'Request its markup, classes, and styles for the implementation brief.'
+        );
         if (teamId === 'duo')
           expect(guidance).toContain(
             'You own architecture and API shape; the UI/UX engineer owns UI/UX design.'
@@ -59,53 +62,56 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
     expect(getUiuxEngineerGuidance()).toContain(
       'Provide the target markup, classes, and styles in your handoff.'
     );
-    expect(
-      ['planner', 'solo'].map(getUiuxEngineerToEntryPointHandoffTemplate).join('\n')
-    ).toContain(
-      'Provide the target HTML markup with exact class attributes and any required CSS/styles in the handoff.'
-    );
+    for (const role of ['planner', 'solo'] as const)
+      expect(getUiuxEngineerToEntryPointHandoffTemplate(role)).toContain(
+        'Provide the target HTML markup with exact class attributes and any required CSS/styles in the handoff.'
+      );
     expect(getHandoffTemplate({ fromRole: 'uiux-engineer', toRole: 'planner' })).toContain(
       'Target HTML markup, exact class attributes, and required CSS/styles.'
     );
   });
 
   test('builder and Solo require a failing rendered snapshot before implementation', () => {
-    const builder = getBuilderGuidance({
-      role: 'builder',
-      teamRoles: ['planner', 'builder'],
-      isEntryPoint: false,
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-    const solo = getSoloGuidance({
-      role: 'solo',
-      teamRoles: ['solo'],
-      isEntryPoint: true,
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-    for (const guidance of [builder, solo]) {
-      expect(guidance).toContain(snapshot);
+    for (const nativeIntegration of [false, true]) {
+      const builder = getBuilderGuidance({
+        role: 'builder',
+        teamRoles: ['planner', 'builder'],
+        isEntryPoint: false,
+        convexUrl: 'http://127.0.0.1:3210',
+        nativeIntegration,
+      });
+      const solo = getSoloGuidance({
+        role: 'solo',
+        teamRoles: ['solo'],
+        isEntryPoint: true,
+        convexUrl: 'http://127.0.0.1:3210',
+        nativeIntegration,
+      });
+      for (const guidance of [builder, solo]) expect(guidance).toContain(snapshot);
+      expect(solo).toContain(
+        'owns the UI/UX decisions and provides the target markup, classes, and styles'
+      );
     }
-    expect(solo).toContain(
-      'owns the UI/UX decisions and provides the target markup, classes, and styles'
-    );
   });
 
-  test('Duo/Solo native and CLI task deliveries retain their UI/UX contract', () => {
+  test('Duo planner and Duo/Solo engineer deliveries retain their UI/UX handoff contracts', () => {
     for (const [teamId, role] of [
       ['duo', 'planner'],
-      ['duo', 'builder'],
       ['duo', 'uiux-engineer'],
-      ['solo', 'solo'],
       ['solo', 'uiux-engineer'],
     ] as const)
       for (const nativeIntegration of [false, true]) {
         const output = delivery(role, teamId, nativeIntegration);
-        expect(output).toContain(snapshot);
-        if (role === 'planner') expect(output).toContain('one evidence-backed design focused on');
-        if (role === 'uiux-engineer')
+        if (role === 'planner') {
+          expect(output).toContain('The UI/UX engineer owns UI/UX design.');
+          expect(output).toContain(
+            'Include its target markup, classes, and styles in UI implementation briefs'
+          );
+        } else {
           expect(output).toContain(
             'Provide the target HTML markup with exact class attributes and any required CSS/styles in the handoff.'
           );
+        }
       }
   });
 });

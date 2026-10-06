@@ -23,7 +23,7 @@ function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): s
 
 Break complex features into small, focused slices. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**UI/UX work:** Request the design from the UI/UX engineer, who owns UI/UX decisions and supplies the target markup, classes, and styles. Include that target in the implementation brief.
+**UI/UX work:** The UI/UX engineer owns the design. Request its markup, classes, and styles for the implementation brief.
 
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
@@ -39,7 +39,7 @@ function getBuilderDelegationGuidelines(
 
 Break features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**UI/UX work:** Request the design from the UI/UX engineer, who owns UI/UX decisions and supplies the target markup, classes, and styles. Include that target in the implementation brief.
+**UI/UX work:** The UI/UX engineer owns the design. Request its markup, classes, and styles for the implementation brief.
 
 **Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is.
 
@@ -64,7 +64,7 @@ flowchart TD
 
 - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
 - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **You own architecture and API shape; the UI/UX engineer owns UI/UX design.** Include per-file target code and shared contracts in the brief.
+- **You own architecture and API shape; the UI/UX engineer owns UI/UX design.**
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
