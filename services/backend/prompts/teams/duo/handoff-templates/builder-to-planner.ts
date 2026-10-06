@@ -48,7 +48,7 @@ ${getDelegationBriefDisclosureBlock()}
 ${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you modified>
 
-For UI work, also cite the UI/UX engineer design; list the exact UI tests written and run before production edits; include exact red and green commands/results; and describe the final production DOM/style comparison with the rendered target. Identify any deviations and the engineer revision that approved them, or report the blocking issue. Non-UI handbacks need no additional proof.
+For UI work, cite the UI/UX engineer design; list the exact UI tests written and run before production edits; include exact red and green commands/results; and describe the final production DOM/style comparison with the rendered target. If the engineer issued design or test revisions, cite each revision and its evidence. Report any blocking issue.
 
 ## Code Change Verification
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}

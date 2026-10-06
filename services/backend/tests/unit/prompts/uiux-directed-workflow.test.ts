@@ -14,16 +14,6 @@ const DESIGN_HEADINGS = [
   '## Existing UI evidence',
   '## Rendered target markup',
   '## UI tests first',
-  '## Design authority and implementation sequence',
-];
-
-const DESIGN_ORDER = [
-  'source/current rendered DOM',
-  'browser-rendered target',
-  'before production edits',
-  'meaningful',
-  'rerun',
-  'compare',
 ];
 
 function expectOrdered(text: string, pieces: string[]): void {
@@ -101,10 +91,13 @@ describe('UI/UX-directed implementation contract', () => {
       for (const heading of DESIGN_HEADINGS) expect(template).toContain(heading);
       expect(template).toContain('complete target HTML with class attributes');
       expect(template).toContain('actual browser screenshot or DOM/computed-style evidence');
-      expect(template).toContain('expected initial failure');
+      expect(template).toContain('expected meaningful initial failure');
       expect(template).toContain('never test only a mock of the proposal');
-      expect(template).toContain('UI design and its test contract');
-      expect(template).toContain('engineer revision');
+      expect(template).toContain('compare production DOM and styles with the rendered target');
+      expect(template).toContain('The UI/UX engineer defines interface structure');
+      expect(template).toContain('Provide design or test revisions through the entry point');
+      expect(template).not.toContain('## Design authority and implementation sequence');
+      expect(template).not.toContain('unchanged');
       expect(template).toContain(
         'Do not propose or require web accessibility implementation work unless the user explicitly requests it'
       );
@@ -115,6 +108,35 @@ describe('UI/UX-directed implementation contract', () => {
     const generic = viewHandoffTemplate({ role: 'uiux-engineer' });
     expect(generic).toContain('<entry-point-role>');
     expect(generic).not.toMatch(/planner|solo/);
+  });
+
+  test('affected role contracts state UI ownership and evidence without historical shorthand', () => {
+    const planner = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner', 'builder'],
+      isEntryPoint: true,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+    const solo = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['solo'],
+      isEntryPoint: true,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+    const engineer = getUiuxEngineerToEntryPointHandoffTemplate('planner');
+    const builderBrief = getHandoffTemplate({ fromRole: 'planner', toRole: 'builder' }) ?? '';
+
+    for (const prompt of [planner, solo, engineer, builderBrief]) {
+      expect(prompt).not.toMatch(
+        /unchanged|normal loop|normal solo path|existing handoff contract|Preserve it|Design ≠ completion/
+      );
+    }
+    expect(engineer).toContain(
+      'The configured entry point owns architecture, data, and API decisions'
+    );
+    expect(engineer).toContain(
+      'the UI/UX engineer owns UI structure, styles, states, interactions, and UI tests'
+    );
   });
 
   test.each([
@@ -132,7 +154,9 @@ describe('UI/UX-directed implementation contract', () => {
       if (teamId === 'duo') {
         expect(output).toContain('## UI/UX design contract');
         expect(output).toContain('complete UI/UX engineer handback verbatim');
-        expect(output).toContain('otherwise stop and return concrete missing evidence to planner');
+        expect(output).toContain(
+          'Return missing evidence to the planner before production UI edits'
+        );
       }
     }
   );
@@ -155,7 +179,7 @@ describe('UI/UX-directed implementation contract', () => {
         const output = delivery('uiux-engineer', teamId, nativeIntegration);
         for (const heading of DESIGN_HEADINGS) expect(output).toContain(heading);
         expect(output).toContain('actual browser screenshot or DOM/computed-style evidence');
-        expect(output).toContain('expected initial failure');
+        expect(output).toContain('expected meaningful initial failure');
       }
     }
   );
@@ -170,23 +194,25 @@ describe('UI/UX-directed implementation contract', () => {
         convexUrl: 'http://127.0.0.1:3210',
         nativeIntegration,
       });
-      expect(guidance).toContain('Planner owns architecture/data/API; UI/UX owns design/tests.');
       expect(guidance).toContain(
-        'State the problem; hand off to the UI/UX engineer before builder work.'
+        'Define architecture, data, and API contracts in the brief. The UI/UX engineer defines UI design and tests; the builder runs the specified UI tests before production UI edits.'
       );
       expect(guidance).toContain(
-        'Forward the complete rendered design/test contract unchanged; missing evidence or changes return to the engineer.'
+        'Describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer before builder implementation.'
       );
+      expect(guidance).toContain('Include the engineer’s complete browser-rendered design');
       expectOrdered(guidance, [
-        'For UI fixes, first hand off the problem to the UI/UX engineer',
-        'delegate tests-first implementation to builder',
+        'For UI fixes or interface design, the UI/UX engineer supplies a browser-rendered design',
+        'C{UI work?}',
+        'U[Request UI/UX engineer design]',
+        'V[Review rendered design and UI tests]',
+        'F[Delegate ONE phase to builder]',
       ]);
-      expectOrdered(guidance, ['UI fix?', 'UI/UX engineer', 'builder']);
-      expect(guidance).toContain('C -->|No| E');
+      expect(guidance).toContain('C -->|No| F');
       expect(guidance).not.toContain('UI/UX if needed');
-      expect(guidance).toContain('UI: Design ≠ completion.');
-      expect(guidance).toContain('gaps/changes → engineer via entry point');
-      expect(guidance).toContain('Forward it unchanged only to implementation.');
+      expect(guidance).toContain('A design handback authorizes implementation.');
+      expect(guidance).toContain('User delivery requires completed implementation, passing tests');
+      expect(guidance).not.toMatch(/unchanged|normal loop|Design ≠ completion|gaps\/changes/);
     }
   );
 
@@ -201,7 +227,8 @@ describe('UI/UX-directed implementation contract', () => {
         nativeIntegration,
       });
 
-      expect(guidance).toContain('Solo/implementer writes tests first.');
+      expect(guidance).toContain('Write and run those tests before production UI edits');
+      expect(guidance).toContain('request missing evidence or design revisions from the engineer');
       expect(guidance).not.toMatch(/builder tests first|delegate.{0,30}builder/i);
     }
   );
@@ -225,15 +252,27 @@ describe('UI/UX-directed implementation contract', () => {
       });
 
       for (const guidance of [builder, solo]) {
-        expectOrdered(guidance, DESIGN_ORDER);
-        expect(guidance).toContain('meaningful');
+        expectOrdered(guidance, [
+          'before production edits',
+          'meaningful design-relevant failure',
+          'implement',
+          'compare production DOM and styles with the rendered target',
+        ]);
+        expect(guidance).toMatch(
+          /production UI tests before production (?:UI )?edits|those tests to a meaningful failure before production UI edits/i
+        );
+        expect(guidance).toMatch(/meaningful (?:design-relevant )?(?:initial )?(?:failure|red)/i);
+        expect(guidance).toMatch(/rerun.{0,30}pass/i);
+        expect(guidance).toMatch(/compare production DOM and styles with the rendered target/i);
         expect(guidance).toMatch(/weaken.*tests/i);
-        expect(guidance).toMatch(/return a concrete blocker|missing evidence.*blockers/i);
+        expect(guidance).toMatch(
+          /return a concrete blocker|missing evidence.*blockers|report missing evidence/i
+        );
       }
     }
   );
 
-  test('engineer design handoff is wired while unrelated role edges stay unchanged', () => {
+  test('engineer design handoff is wired and retains supported role handoffs', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'uiux-engineer' })).toMatch(
       /state the observed UI problem/i
     );

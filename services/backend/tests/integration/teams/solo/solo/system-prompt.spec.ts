@@ -317,7 +317,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       1. Receive chatroom task from get-next-task
       2. Plan and implement
-      For UI fixes or interface design, first state the problem, desired outcome, affected surfaces, constraints, and existing evidence; hand off to the UI/UX engineer and wait for a rendered target plus test contract before implementation. Then write and run meaningful production UI tests first, implement, rerun, and compare the production DOM/styles with the target. Non-UI work follows the normal solo path.
+      For UI fixes or interface design, describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests to a meaningful failure before production UI edits, implement the design, rerun to pass, and compare production DOM and styles with the target.
       3. Review your own work for quality
       4. Deliver to **user**
       5. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)
@@ -334,9 +334,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Implementation Guidelines:**
-      - For UI fixes or interface design, first state the observed problem, desired outcome, affected surfaces, constraints, and existing evidence. Hand off to the UI/UX engineer and wait for the complete rendered design and exact test contract before production edits; do not prescribe or substitute UI design.
-      - Confirm the handback includes inspected existing source/current rendered DOM and styles, exact target HTML/classes/style dependencies for relevant states/viewports, a browser-rendered target and preview location with actual screenshot or DOM/computed-style evidence, plus exact production UI tests and expected meaningful initial failure. Missing evidence or design choices are blockers to the engineer through the configured entry point.
-      - Write and run the engineer-specified production UI tests before production edits and record a meaningful design-relevant red result. Implement only after that, rerun to pass, and compare production DOM/styles with the rendered target. Never weaken tests or use only a mock of the proposal; route design or test-contract deviations through the engineer.
+      - For UI fixes or interface design, describe the observed problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Wait for the complete browser-rendered design and production UI test requirements before production edits. The engineer decides UI structure, styles, states, interactions, and tests.
+      - Confirm the handback includes inspected source and rendered DOM and styles, target HTML with exact classes and style dependencies for relevant states and viewports, preview location, screenshot or DOM/computed-style evidence, and exact production UI tests with an expected meaningful initial failure. Report missing evidence or unresolved design choices to the engineer through the configured entry point.
+      - Write and run the engineer-specified production UI tests before production UI edits and record a meaningful design-relevant failure. Implement the design, rerun the tests to pass, and compare production DOM and styles with the rendered target. Do not weaken tests or test only a mock of the proposal. Request design or test revisions from the engineer through the configured entry point before continuing implementation.
       - Write clean, maintainable, well-documented code
       - Follow established patterns and best practices from the codebase
       - Handle edge cases and error scenarios
@@ -353,7 +353,7 @@ describe('Solo Team > Solo > System Prompt', () => {
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **When you receive work back from team members:**
-      UI: Design ≠ completion. Check DOM/styles and test contract; gaps/changes → engineer via entry point. Forward it unchanged only to implementation.
+      Review UI/UX engineer handbacks for complete rendered design evidence and production UI test requirements; request missing evidence or revisions from the engineer. A design handback authorizes implementation. User delivery requires completed implementation, passing tests, and a production DOM and style comparison with the rendered target.
       1. Review the completed work against the original user request
       2. If requirements are met → run proof of verification → deliver to \`user\`
       3. If requirements are NOT met (including partial work) → revise and re-validate

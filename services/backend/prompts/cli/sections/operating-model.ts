@@ -43,12 +43,16 @@ export function getPlannerPlusBuilderOperatingModel(nativeIntegration?: boolean)
 
 ${delegationNote}
 
-For UI fixes, first hand off the problem to the UI/UX engineer; wait for its rendered design/test contract, then delegate tests-first implementation to builder. Non-UI work follows the normal loop.
+For UI fixes or interface design, the UI/UX engineer supplies a browser-rendered design and production UI test requirements before builder implementation. The planner coordinates design review and implementation.
 
 \`\`\`mermaid
 flowchart TD
 ${getTaskIntakeNodes(nativeIntegration)}
-    E --> F[Delegate tests-first phase to builder]
+    E --> C{UI work?}
+    C -->|Yes| U[Request UI/UX engineer design]
+    U --> V[Review rendered design and UI tests]
+    V --> F[Delegate ONE phase to builder]
+    C -->|No| F
     F --> G[Builder completes phase]
     G --> H[Builder hands off to planner]
     H --> I[Review builder output]
@@ -79,7 +83,7 @@ export function getPlannerSoloOperatingModel(nativeIntegration?: boolean): strin
     return `**Operating model: Planner Solo**
 
 ${intakeSteps}
-For UI fixes or interface design, first state the problem, desired outcome, affected surfaces, constraints, and existing evidence; hand off to the UI/UX engineer and wait for a rendered target plus test contract before implementation. Then write and run meaningful production UI tests first, implement, rerun, and compare the production DOM/styles with the target. Non-UI work follows the normal solo path.
+For UI fixes or interface design, describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests to a meaningful failure before production UI edits, implement the design, rerun to pass, and compare production DOM and styles with the target.
 3. Deliver to **user**
 4. ${continueStep}`;
   }
@@ -87,7 +91,7 @@ For UI fixes or interface design, first state the problem, desired outcome, affe
   return `**Operating model: Planner Solo**
 
 ${intakeSteps}
-For UI fixes or interface design, first state the problem, desired outcome, affected surfaces, constraints, and existing evidence; hand off to the UI/UX engineer and wait for a rendered target plus test contract before implementation. Then write and run meaningful production UI tests first, implement, rerun, and compare the production DOM/styles with the target. Non-UI work follows the normal solo path.
+For UI fixes or interface design, describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests to a meaningful failure before production UI edits, implement the design, rerun to pass, and compare production DOM and styles with the target.
 3. Review your own work for quality
 4. Deliver to **user**
 5. ${continueStep}`;

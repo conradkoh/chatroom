@@ -20,7 +20,7 @@ function getUiuxEngineerRequirements(): string {
 - Study the existing source markup and browser-rendered DOM/styles, including relevant states and viewports, before proposing a target.
 - Supply complete target HTML/DOM with exact class attributes and required CSS/theme dependencies, then render it in a browser using project styling and theme. Include the preview location, viewport/state, and actual screenshot or DOM/computed-style evidence.
 - Define exact production UI tests, entry points, selectors/assertions, and the expected meaningful initial failure; the implementer runs them before production edits, then reruns them and compares the result with the rendered target. Never test only a mock of proposed HTML.
-- The UI/UX engineer owns interface structure, classes/styles, states, interactions, and this UI test contract. Missing render evidence or unresolved choices are blockers for the configured entry point; implementation or test-contract deviations need an engineer revision through that entry point.
+- The UI/UX engineer defines interface structure, classes, styles, states, interactions, and production UI test requirements. Report missing render evidence or unresolved choices to the configured entry point. Provide design or test revisions through the entry point before implementation continues.
 - Do not propose or require web accessibility implementation work unless the user explicitly requests it.`;
 }
 
@@ -113,18 +113,10 @@ ${getFileReferenceGuidanceComment()}
 <complete target HTML with class attributes and required CSS/style dependencies for each affected state/viewport; concrete mapping to production components; preview artifact location plus actual browser screenshot or DOM/computed-style evidence; unresolved rendering prerequisites are blockers>
 
 ## UI tests first
-<exact production UI test files, fixtures, entry points, selectors/assertions, and expected initial failure for the engineer-owned markup/styles/states/interactions; run before production edits, confirm design-relevant failure, implement, then rerun to pass; never test only a mock of the proposal>
-
-## Design authority and implementation sequence
-1. The entry point states the UI problem and coordinates the handoff.
-2. The UI/UX engineer studies existing markup and renders the target DOM, classes, and styles.
-3. The implementer writes and runs the specified UI tests before changing production UI.
-4. The implementer implements the remaining code, reruns the tests, and compares the production UI with the rendered design.
-<The UI/UX engineer owns UI design and its test contract. The entry point forwards it unchanged; implementation or test-contract deviations require an engineer revision through the entry point. If blocked, hand back concrete evidence rather than choosing a replacement design.>
+<exact production UI test files, fixtures, entry points, selectors/assertions, and expected meaningful initial failure for the engineer-owned markup/styles/states/interactions; run before production edits, confirm design-relevant failure, implement, rerun to pass, and compare production DOM and styles with the rendered target; never test only a mock of the proposal>
 
 ${sharedContractsHeading}
-<The configured entry point owns architecture and data/API contracts. UI structure, classes/styles, states, interactions, and UI test requirements belong to the UI/UX engineer.>
-<list cross-file interfaces, component/data contracts, state boundaries, or write exactly \`Not Applicable.\` when genuinely inapplicable>
+<Describe cross-file architecture, data, and API contracts and component/state boundaries. The configured entry point owns architecture, data, and API decisions; the UI/UX engineer owns UI structure, styles, states, interactions, and UI tests. Write exactly \`Not Applicable.\` when no shared contracts are needed.>
 
 ### Interfaces & types
 \`\`\`typescript

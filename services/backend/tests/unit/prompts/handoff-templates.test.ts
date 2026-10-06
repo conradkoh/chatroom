@@ -380,7 +380,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified>
 
-      For UI work, also cite the UI/UX engineer design; list the exact UI tests written and run before production edits; include exact red and green commands/results; and describe the final production DOM/style comparison with the rendered target. Identify any deviations and the engineer revision that approved them, or report the blocking issue. Non-UI handbacks need no additional proof.
+      For UI work, cite the UI/UX engineer design; list the exact UI tests written and run before production edits; include exact red and green commands/results; and describe the final production DOM/style comparison with the rendered target. If the engineer issued design or test revisions, cite each revision and its evidence. Report any blocking issue.
 
       ## Code Change Verification
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
@@ -422,7 +422,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
-      **Division of labor:** You (planner) own architecture and data/API shape. The UI/UX engineer owns UI structure, classes/styles, states, interactions, responsive behavior, and the UI test contract. The builder implements the specified design and does not redesign or invent alternatives unless blocked.
+      **Division of labor:** You (planner) own architecture and data/API shape. The UI/UX engineer owns UI structure, classes/styles, states, interactions, responsive behavior, and the UI test contract. The builder implements these contracts and requests missing details or design revisions through the planner.
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
@@ -465,13 +465,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <For UI fix/interface work, paste the complete UI/UX engineer handback verbatim, including existing source/rendered DOM/style evidence, browser-rendered target HTML with class attributes and style dependencies, states/viewports, preview location and actual screenshot or DOM/computed-style evidence, and exact tests-first contract. The builder is a fresh session; a message link or summary is insufficient. For non-UI work, omit this section.>
 
       **UI implementation sequence and acceptance gates (mandatory for UI work):**
-      1. The engineer design above is complete and unchanged; otherwise stop and return concrete missing evidence to planner.
+      1. Require the engineer’s source and rendered UI evidence, browser-rendered target, style dependencies, affected states and viewports, and production UI test requirements. Return missing evidence to the planner before production UI edits.
       2. Write and run the specified production UI tests before production edits. Record a meaningful design-relevant initial failure, not setup/environment failure.
-      3. Implement the design, rerun the same tests to pass, and compare production DOM/styles against the rendered target. Do not test only a mock of the proposed HTML.
-      4. If implementation requires a design or test-contract deviation, stop and request an engineer revision through planner. Planner must not substitute DOM/style/test requirements.
+      3. Implement the design, rerun the specified tests to pass, and compare production DOM/styles against the rendered target. Do not test only a mock of the proposed HTML.
+      4. Request UI design or test revisions from the UI/UX engineer through the planner before continuing implementation. The planner coordinates the revision; the engineer decides markup, styles, states, interactions, and UI tests.
 
       ## Shared contracts (planner-owned)
-      Cross-file architecture, data, and API types or patterns that apply beyond a single file. UI design and UI test authority remain with the UI/UX engineer. Omit if everything is already specified per-file above.
+      Cross-file architecture, data, and API types or patterns. Include this section when the implementation needs shared contracts.
 
       ### Interfaces & types
       \`\`\`typescript
@@ -527,7 +527,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
-      **Division of labor:** You (planner) own architecture and data/API shape. The UI/UX engineer owns UI structure, classes/styles, states, interactions, responsive behavior, and the UI test contract. The builder implements the specified design and does not redesign or invent alternatives unless blocked.
+      **Division of labor:** You (planner) own architecture and data/API shape. The UI/UX engineer owns UI structure, classes/styles, states, interactions, responsive behavior, and the UI test contract. The builder implements these contracts and requests missing details or design revisions through the planner.
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
@@ -570,13 +570,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <For UI fix/interface work, paste the complete UI/UX engineer handback verbatim, including existing source/rendered DOM/style evidence, browser-rendered target HTML with class attributes and style dependencies, states/viewports, preview location and actual screenshot or DOM/computed-style evidence, and exact tests-first contract. The builder is a fresh session; a message link or summary is insufficient. For non-UI work, omit this section.>
 
       **UI implementation sequence and acceptance gates (mandatory for UI work):**
-      1. The engineer design above is complete and unchanged; otherwise stop and return concrete missing evidence to planner.
+      1. Require the engineer’s source and rendered UI evidence, browser-rendered target, style dependencies, affected states and viewports, and production UI test requirements. Return missing evidence to the planner before production UI edits.
       2. Write and run the specified production UI tests before production edits. Record a meaningful design-relevant initial failure, not setup/environment failure.
-      3. Implement the design, rerun the same tests to pass, and compare production DOM/styles against the rendered target. Do not test only a mock of the proposed HTML.
-      4. If implementation requires a design or test-contract deviation, stop and request an engineer revision through planner. Planner must not substitute DOM/style/test requirements.
+      3. Implement the design, rerun the specified tests to pass, and compare production DOM/styles against the rendered target. Do not test only a mock of the proposed HTML.
+      4. Request UI design or test revisions from the UI/UX engineer through the planner before continuing implementation. The planner coordinates the revision; the engineer decides markup, styles, states, interactions, and UI tests.
 
       ## Shared contracts (planner-owned)
-      Cross-file architecture, data, and API types or patterns that apply beyond a single file. UI design and UI test authority remain with the UI/UX engineer. Omit if everything is already specified per-file above.
+      Cross-file architecture, data, and API types or patterns. Include this section when the implementation needs shared contracts.
 
       ### Interfaces & types
       \`\`\`typescript

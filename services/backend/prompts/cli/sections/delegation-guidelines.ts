@@ -23,7 +23,7 @@ function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): s
 
 Break complex features into small, focused slices. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**UI fixes:** Follow the injected engineer-first design contract: give problem/evidence, not a design; review and forward the complete handback unchanged. Solo/implementer writes tests first.
+**UI work:** Describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests before production UI edits; request missing evidence or design revisions from the engineer.
 
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
@@ -37,33 +37,16 @@ function getBuilderDelegationGuidelines(
 ): string {
   return `**Delegation Guidelines:**
 
-For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
+Break features into focused slices and delegate all code changes to the builder. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**UI fixes:** State the problem; hand off to the UI/UX engineer before builder work. Forward the complete rendered design/test contract unchanged; missing evidence or changes return to the engineer.
-
-**Decision flow:**
-\`\`\`mermaid
-flowchart TD
-    A[Receive task] --> B{Code changes needed?}
-    B -->|Yes — any size| C{UI fix?}
-    C -->|Yes| D[UI/UX engineer]
-    D --> E[Forward unchanged; builder]
-    C -->|No| E
-    E --> F[Review output]
-    F -->|Not acceptable| G[Hand back with feedback]
-    G --> E
-    F -->|Acceptable| H{More slices?}
-    H -->|Yes| E
-    H -->|No| I[Deliver to user]
-    B -->|No: question or clarification only| X[Answer directly → deliver to user]
-\`\`\`
+**UI work:** Describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer before builder implementation. Include the engineer’s complete browser-rendered design and production UI test requirements in the builder brief. The engineer decides UI structure, styles, states, interactions, and tests; request missing evidence or revisions from the engineer.
 
 **Default: delegate with a Delegation Brief.** ${delegationBriefRef}
 
 **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
 - Name concrete artifacts, list every file, and include enough detail that the builder cannot guess wrong.
-- Planner owns architecture/data/API; UI/UX owns design/tests. Preserve it; builder tests first.
+- Define architecture, data, and API contracts in the brief. The UI/UX engineer defines UI design and tests; the builder runs the specified UI tests before production UI edits.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** Split work that cannot be reviewed in one sitting.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
