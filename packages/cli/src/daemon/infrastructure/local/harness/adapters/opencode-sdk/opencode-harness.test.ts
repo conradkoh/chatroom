@@ -2,10 +2,11 @@ import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
-import type { OpencodeClient } from '@opencode-ai/sdk';
+import { createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk';
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkHarness, startOpencodeSdkHarness } from './opencode-harness.js';
+import { OpencodeSdkSession } from './opencode-session.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
 import { waitForListeningUrl } from '../../services/opencode-sdk/parse-listening-url.js';
@@ -117,6 +118,19 @@ function createHarness(overrides?: {
   return harness;
 }
 
+function makeAbortableSubscription(signal: AbortSignal) {
+  return new Promise<{ stream: AsyncIterable<unknown> }>((resolve) => {
+    const finish = () => {
+      resolve({ stream: (async function* () {})() });
+    };
+    if (signal.aborted) {
+      finish();
+    } else {
+      signal.addEventListener('abort', finish, { once: true });
+    }
+  });
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('OpencodeSdkHarness', () => {
@@ -124,10 +138,15 @@ describe('OpencodeSdkHarness', () => {
     for (const harness of harnesses) await harness.close();
     harnesses.clear();
     vi.useRealTimers();
+    vi.useRealTimers();
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGlobalEvent.mockReset();
+    mockGlobalEvent.mockImplementation((options: { signal: AbortSignal }) =>
+      makeAbortableSubscription(options.signal)
+    );
     mockProviderList.mockResolvedValue({
       data: {
         all: [
@@ -355,6 +374,7 @@ describe('OpencodeSdkHarness', () => {
       workspaceId: 'ws-1',
       resolvedConvexUrl: 'http://test:3210',
     });
+    if (harness instanceof OpencodeSdkHarness) harnesses.add(harness);
     expect(spawn).toHaveBeenCalledWith(
       'opencode',
       ['serve', '--print-logs', '--log-level', 'WARN'],
@@ -396,6 +416,10 @@ describe('OpencodeSdkHarness', () => {
 describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGlobalEvent.mockReset();
+    mockGlobalEvent.mockImplementation((options: { signal: AbortSignal }) =>
+      makeAbortableSubscription(options.signal)
+    );
   });
 
   afterEach(async () => {
@@ -403,16 +427,6 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     harnesses.clear();
     vi.useRealTimers();
   });
-
-  // Helper: make a controlled async stream
-  function _makeNeverEndingStream() {
-    return {
-      stream: (async function* () {
-        // yields nothing, hangs forever — represents a live SSE connection
-        await new Promise<void>(() => {}); // never resolves
-      })(),
-    };
-  }
 
   function makeEmptyStream() {
     return {
@@ -467,8 +481,6 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   });
 
   it('registers first session → forks exactly one SSE fiber (_sseFiber is non-null)', () => {
-    mockGlobalEvent.mockReturnValue(new Promise(() => {})); // never resolves (stream hangs)
-
     const harness = createHarness();
     expect((harness as any)._sseFiber).toBeNull();
 
@@ -477,8 +489,6 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   });
 
   it('registering 3 sessions concurrently forks exactly one fiber (not 3)', () => {
-    mockGlobalEvent.mockReturnValue(new Promise(() => {}));
-
     const harness = createHarness();
     harness.registerSessionListener('sess-a', { _receiveEvent: vi.fn() } as any);
     harness.registerSessionListener('sess-b', { _receiveEvent: vi.fn() } as any);
@@ -508,7 +518,8 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
           try {
             await new Promise<void>((resolve) => {
               releaseStream = resolve;
-              options.signal.addEventListener('abort', () => resolve(), { once: true });
+              if (options.signal.aborted) resolve();
+              else options.signal.addEventListener('abort', () => resolve(), { once: true });
             });
           } finally {
             cleanedUp = true;
@@ -519,8 +530,22 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     });
 
     const harness = createHarness();
-    harness.registerSessionListener('sess-a', { _receiveEvent: vi.fn() } as any);
-    harness.registerSessionListener('sess-b', { _receiveEvent: vi.fn() } as any);
+    const sessionA = new OpencodeSdkSession({
+      client: createOpencodeClient(),
+      opencodeSessionId: 'sess-a',
+      sessionTitle: '',
+      cwd: '/test/workspace',
+    });
+    const sessionB = new OpencodeSdkSession({
+      client: createOpencodeClient(),
+      opencodeSessionId: 'sess-b',
+      sessionTitle: '',
+      cwd: '/test/workspace',
+    });
+    const receiveA = vi.spyOn(sessionA, '_receiveEvent');
+    const receiveB = vi.spyOn(sessionB, '_receiveEvent');
+    harness.registerSessionListener('sess-a', sessionA);
+    harness.registerSessionListener('sess-b', sessionB);
 
     try {
       await vi.waitFor(() => expect(capturedSignal).toBeDefined());
@@ -533,6 +558,8 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
       harness.unregisterSessionListener('sess-b');
       await vi.waitFor(() => expect(capturedSignal?.aborted).toBe(true));
       await cleaned;
+      expect(receiveA).not.toHaveBeenCalled();
+      expect(receiveB).not.toHaveBeenCalled();
       expect({ aborted: capturedSignal?.aborted, cleanedUp }).toEqual({
         aborted: true,
         cleanedUp: true,
@@ -562,7 +589,8 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
           try {
             await new Promise<void>((resolve) => {
               releaseStream = resolve;
-              options.signal.addEventListener('abort', () => resolve(), { once: true });
+              if (options.signal.aborted) resolve();
+              else options.signal.addEventListener('abort', () => resolve(), { once: true });
             });
             yield {
               directory: '/test/workspace',
@@ -577,18 +605,24 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     });
 
     const harness = createHarness();
-    harness.registerSessionListener('sess-close', {
-      _receiveEvent: (event: unknown) => {
-        listenerCalls++;
-        received(event);
-      },
-    } as any);
+    const session = new OpencodeSdkSession({
+      client: createOpencodeClient(),
+      opencodeSessionId: 'sess-close',
+      sessionTitle: '',
+      cwd: '/test/workspace',
+    });
+    const receiveEvent = vi.spyOn(session, '_receiveEvent').mockImplementation((event) => {
+      listenerCalls++;
+      received(event);
+    });
+    harness.registerSessionListener('sess-close', session);
 
     try {
       await vi.waitFor(() => expect(capturedSignal).toBeDefined());
       await vi.waitFor(() => expect(releaseStream).toBeTypeOf('function'));
       await harness.close();
       expect(listenerCalls).toBe(0);
+      expect(receiveEvent).not.toHaveBeenCalled();
       expect(mockGlobalEvent).toHaveBeenCalledTimes(1);
       expect(received).not.toHaveBeenCalled();
       expect({ aborted: capturedSignal?.aborted, cleanedUp }).toEqual({
@@ -648,8 +682,6 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   }, 5000);
 
   it('unregistering the last session clears the fiber reference', () => {
-    mockGlobalEvent.mockReturnValue(new Promise(() => {}));
-
     const harness = createHarness();
     const sid = 'sess-test';
     const mockSession = { _receiveEvent: vi.fn() } as any;
@@ -663,8 +695,6 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   });
 
   it('close() interrupts the fiber and clears listeners', async () => {
-    mockGlobalEvent.mockReturnValue(new Promise(() => {}));
-
     const harness = createHarness();
     const sid = 'sess-close-test';
     const mockSession = { _receiveEvent: vi.fn() } as any;

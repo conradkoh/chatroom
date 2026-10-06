@@ -315,12 +315,16 @@ export class OpencodeSdkHarness implements BoundHarness {
         } catch {
           break;
         }
-        if (next.done) break;
+        if (next.done || interrupted() || this.closed) break;
 
         this.processEventLine(next.value);
       }
     } finally {
-      void iterator.return?.();
+      try {
+        await iterator.return?.();
+      } catch (error) {
+        console.warn('[opencode-harness] SSE iterator cleanup error:', error);
+      }
     }
   }
 
@@ -346,10 +350,14 @@ export class OpencodeSdkHarness implements BoundHarness {
 
     return Effect.async<void, never>((resume) => {
       const state = { interrupted: false, abortController: null as AbortController | null };
-      void self._sseRunLoop(state, resume);
-      return Effect.sync(() => {
+      const loopDone = self._sseRunLoop(state, resume).catch((error: unknown) => {
+        console.warn('[opencode-harness] SSE loop error:', error);
+        resume(Effect.succeed(undefined));
+      });
+      return Effect.promise(async () => {
         state.interrupted = true;
         state.abortController?.abort();
+        await loopDone;
       });
     });
   }
@@ -359,9 +367,13 @@ export class OpencodeSdkHarness implements BoundHarness {
     resume: (eff: Effect.Effect<void, never, never>) => void
   ): Promise<void> {
     while (this._sseShouldContinue(state)) {
-      const stream = await this._sseSubscribeUntilStream(state);
-      if (stream) {
-        await this.drainEventStream(stream, () => state.interrupted);
+      try {
+        const stream = await this._sseSubscribeUntilStream(state);
+        if (stream) {
+          await this.drainEventStream(stream, () => state.interrupted);
+        }
+      } finally {
+        state.abortController = null;
       }
       await this._sseSleepIfActive(100, state);
     }
@@ -387,7 +399,6 @@ export class OpencodeSdkHarness implements BoundHarness {
       state.abortController.signal,
       () => state.interrupted
     );
-    state.abortController = null;
 
     if (!subscribed) {
       await this._sseSleepIfActive(500, state);
