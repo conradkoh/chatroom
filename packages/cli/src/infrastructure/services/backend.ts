@@ -1,7 +1,7 @@
 /**
  * BackendService — Effect-TS service definition for Convex backend operations.
  *
- * Wraps BackendOps in an Effect Context.Tag for dependency injection via Layers.
+ * Wraps BackendOps in an Effect Context.Service for dependency injection via Layers.
  * Phase 1: Define service interface; existing BackendOps consumers unchanged until Phase 2+.
  */
 
@@ -23,10 +23,9 @@ export interface BackendServiceShape {
   ) => Effect.Effect<T, Error>;
 }
 
-export class BackendService extends Context.Tag('BackendService')<
-  BackendService,
-  BackendServiceShape
->() {}
+export class BackendService extends Context.Service<BackendService, BackendServiceShape>()(
+  'BackendService'
+) {}
 
 /**
  * Live Layer — wraps a ConvexClient (or BackendOps-compatible object).
@@ -40,7 +39,7 @@ export const BackendServiceLive = (ops: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query: (e: any, a: any) => Promise<any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  action?:( (e: any, a: any) => Promise<any>) | undefined;
+  action?: ((e: any, a: any) => Promise<any>) | undefined;
 }): Layer.Layer<BackendService> =>
   Layer.succeed(BackendService, {
     mutation: (endpoint, args) =>

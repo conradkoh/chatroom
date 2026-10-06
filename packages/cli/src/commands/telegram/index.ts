@@ -166,7 +166,10 @@ function handleSendMessageError(err: SendMessageError): Effect.Effect<void> {
       console.error('\n❌ ERROR: Failed to send message to Telegram');
 
       if (err.cause instanceof ConvexError) {
-        const errorData = err.cause.data as { code?: string | undefined; message?: string | undefined };
+        const errorData = err.cause.data as {
+          code?: string | undefined;
+          message?: string | undefined;
+        };
         console.error(`\n${errorData.message || 'An unexpected error occurred'}`);
 
         if (process.env.CHATROOM_DEBUG === 'true') {
@@ -203,7 +206,7 @@ export async function sendMessage(
 
   await Effect.runPromise(
     sendMessageEffect(options).pipe(
-      Effect.catchAll((err) => handleSendMessageError(err)),
+      Effect.catch((err) => handleSendMessageError(err)),
       Effect.provide(layer)
     )
   );

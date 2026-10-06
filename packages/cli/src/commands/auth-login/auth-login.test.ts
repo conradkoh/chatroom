@@ -72,9 +72,9 @@ interface EnvServiceConfig {
   cliVersion?: string | undefined;
   saveAuthDataError?: Error | undefined;
   env?: Record<string, string | undefined>;
-  openBrowserFn?:( (url: string) => void) | undefined;
+  openBrowserFn?: ((url: string) => void) | undefined;
   nowValue?: number | undefined;
-  delayFn?:( () => void) | undefined;
+  delayFn?: (() => void) | undefined;
 }
 
 /** Create a test AuthLoginEnvService with configurable responses. */
@@ -124,7 +124,7 @@ function makeTestEnvService(config: EnvServiceConfig = {}) {
 /** Helper: extract a typed error from a Failure exit. */
 function extractError<E>(exit: Exit.Exit<unknown, E>): E | null {
   if (exit._tag !== 'Failure') return null;
-  const option = Cause.failureOption(exit.cause);
+  const option = Cause.findErrorOption(exit.cause);
   return option._tag === 'Some' ? option.value : null;
 }
 

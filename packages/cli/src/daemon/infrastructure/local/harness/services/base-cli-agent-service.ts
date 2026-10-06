@@ -96,13 +96,13 @@ const SPAWN_READY_DELAY_MS = 500;
 
 // ─── Retry Schedule ───────────────────────────────────────────────────────────
 
-const retrySchedule = Schedule.exponential(
-  Duration.millis(DETECTION_RETRY_POLICY.initialDelayMs),
-  DETECTION_RETRY_POLICY.backoffFactor
-).pipe(
-  Schedule.either(Schedule.spaced(Duration.millis(DETECTION_RETRY_POLICY.maxDelayMs))),
-  Schedule.compose(Schedule.recurs(DETECTION_RETRY_POLICY.maxAttempts - 1))
-);
+const retrySchedule = Schedule.min([
+  Schedule.exponential(
+    Duration.millis(DETECTION_RETRY_POLICY.initialDelayMs),
+    DETECTION_RETRY_POLICY.backoffFactor
+  ),
+  Schedule.spaced(Duration.millis(DETECTION_RETRY_POLICY.maxDelayMs)),
+]).pipe(Schedule.upTo({ times: DETECTION_RETRY_POLICY.maxAttempts - 1 }));
 
 // ─── Base Class ───────────────────────────────────────────────────────────────
 
@@ -146,7 +146,7 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
     options: {
       stdio?: ExecSyncOptions['stdio'] | undefined;
       timeout?: number | undefined;
-      classifyNotInstalled?:( (err: unknown) => boolean) | undefined;
+      classifyNotInstalled?: ((err: unknown) => boolean) | undefined;
     } = {}
   ): Effect.Effect<CommandOutcome, never> {
     const {
@@ -182,7 +182,7 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
     // Run with retry, then map remaining failure to Failure
     const program = detection.pipe(
       Effect.retry(retrySchedule),
-      Effect.catchAll((err: TransientDetectionError) =>
+      Effect.catch((err: TransientDetectionError) =>
         Effect.succeed({ _tag: 'Failure' as const, reason: err.reason, attempts })
       )
     );

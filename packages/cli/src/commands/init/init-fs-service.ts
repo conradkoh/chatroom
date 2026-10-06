@@ -1,5 +1,5 @@
 /**
- * Init File System Service — Effect Context.Tag for init command fs operations.
+ * Init File System Service — Effect Context.Service for init command fs operations.
  *
  * This service provides file system operations specific to the init command.
  */
@@ -17,7 +17,6 @@ export interface InitFsServiceShape {
 
 // ─── Service Tag ───────────────────────────────────────────────────────────
 
-export class InitFsService extends Context.Tag('InitFsService')<
-  InitFsService,
-  InitFsServiceShape
->() {}
+export class InitFsService extends Context.Service<InitFsService, InitFsServiceShape>()(
+  'InitFsService'
+) {}

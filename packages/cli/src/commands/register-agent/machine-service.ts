@@ -1,5 +1,5 @@
 /**
- * RegisterAgentMachineService — Effect Context.Tag for machine operations
+ * RegisterAgentMachineService — Effect Context.Service for machine operations
  *
  * This service wraps local machine configuration operations (not Convex-related).
  */
@@ -13,7 +13,7 @@ export interface RegisterAgentMachineServiceShape {
   loadMachineConfig: () => Effect.Effect<MachineConfig | null>;
 }
 
-export class RegisterAgentMachineService extends Context.Tag('RegisterAgentMachineService')<
+export class RegisterAgentMachineService extends Context.Service<
   RegisterAgentMachineService,
   RegisterAgentMachineServiceShape
->() {}
+>()('RegisterAgentMachineService') {}

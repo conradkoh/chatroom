@@ -30,7 +30,7 @@ export const handleSessionIdleEffect = (
   config: IdleHandlerConfig,
   sessionRepository: SessionRepository
 ): Effect.Effect<void, never, never> =>
-  Effect.catchAll(
+  Effect.catch(
     Effect.gen(function* () {
       const rowId = handle.harnessSessionId;
 
@@ -44,7 +44,7 @@ export const handleSessionIdleEffect = (
               catch: (e) => e,
             })
           ),
-          Effect.catchAll((err) =>
+          Effect.catch((err) =>
             Effect.sync(() => {
               console.warn(
                 `[harness] Failed to finalize turn ${turnId} for session ${rowId}:`,
@@ -83,7 +83,7 @@ export const handleSessionIdleEffect = (
             catch: (e) => e,
           })
         ),
-        Effect.catchAll((err) =>
+        Effect.catch((err) =>
           Effect.gen(function* () {
             console.warn(
               `[harness] Failed to prompt queued message for session ${rowId}:`,

@@ -203,7 +203,9 @@ export const authLoginEffect = (
 
         // Validate session against backend; trust local file on network failure
         const keepAuthenticated = yield* backend
-          .query<{ valid: boolean; reason?: string | undefined }>(api.cliAuth.validateSession, { sessionId })
+          .query<{ valid: boolean; reason?: string | undefined }>(api.cliAuth.validateSession, {
+            sessionId,
+          })
           .pipe(
             Effect.match({
               onFailure: (_e) => {
@@ -322,7 +324,7 @@ export const authLoginEffect = (
       const statusResult = yield* backend
         .query<StatusResponse>(api.cliAuth.getAuthRequestStatus, { requestId })
         .pipe(
-          Effect.catchAll((e) => {
+          Effect.catch((e) => {
             const err = e instanceof Error ? e : new Error(String(e));
             console.error(`\n⚠️  Error polling for authorization: ${err.message}`);
             return Effect.succeed({ status: 'error', sessionId: undefined } as StatusResponse);
@@ -422,7 +424,7 @@ export async function authLogin(options: AuthLoginOptions, deps?: AuthLoginDeps)
 
   await Effect.runPromise(
     authLoginEffect(options).pipe(
-      Effect.catchAll((err) => handleAuthLoginError(err)),
+      Effect.catch((err) => handleAuthLoginError(err)),
       Effect.provide(layer)
     )
   );

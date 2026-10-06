@@ -50,7 +50,7 @@ describe('viewGuidelinesEffect', () => {
 
     expect(Exit.isFailure(exit)).toBe(true);
     if (Exit.isFailure(exit)) {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as GuidelinesError | null;
       expect(error).not.toBeNull();
@@ -71,7 +71,7 @@ describe('viewGuidelinesEffect', () => {
 
     expect(Exit.isFailure(exit)).toBe(true);
     if (Exit.isFailure(exit)) {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as GuidelinesError | null;
       expect(error).not.toBeNull();
@@ -107,7 +107,7 @@ describe('viewGuidelinesEffect', () => {
 
     expect(Exit.isFailure(exit)).toBe(true);
     if (Exit.isFailure(exit)) {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as GuidelinesError | null;
       expect(error).not.toBeNull();
@@ -146,7 +146,7 @@ describe('listGuidelineTypesEffect', () => {
 
     expect(Exit.isFailure(exit)).toBe(true);
     if (Exit.isFailure(exit)) {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as GuidelinesError | null;
       expect(error).not.toBeNull();
@@ -182,7 +182,7 @@ describe('listGuidelineTypesEffect', () => {
 
     expect(Exit.isFailure(exit)).toBe(true);
     if (Exit.isFailure(exit)) {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as GuidelinesError | null;
       expect(error).not.toBeNull();

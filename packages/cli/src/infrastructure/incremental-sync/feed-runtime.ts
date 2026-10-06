@@ -45,7 +45,7 @@ function runWorkerLoop<TItem>(
         nack: (opts) => buffer.nack(key, opts?.requeue ?? false),
       };
 
-      yield* onItem(ctx).pipe(Effect.catchAll(() => Effect.void));
+      yield* onItem(ctx).pipe(Effect.catch(() => Effect.void));
     }
   });
 }
@@ -65,7 +65,7 @@ export const runIncrementalSubscribeLive = <TItem, TArgs>(
       initialAfterKey: opts.initialAfterKey ?? null,
       onError: opts.onError,
     });
-    const workerFiber = yield* Effect.forkDaemon(
+    const workerFiber = yield* Effect.forkDetach(
       runWorkerLoop(opts.def.name, buffer, opts.def.itemKey, opts.onItem)
     );
 
@@ -91,12 +91,12 @@ const runReconcilePoll = <TResult, TArgs>(
     let backoffMs = opts.intervalMs;
     let stopped = false;
 
-    const loopFiber = yield* Effect.forkDaemon(
+    const loopFiber = yield* Effect.forkDetach(
       Effect.gen(function* () {
         while (!stopped) {
-          const pollOutcome = yield* Effect.either(Effect.tryPromise(() => opts.poll(opts.args)));
+          const pollOutcome = yield* Effect.result(Effect.tryPromise(() => opts.poll(opts.args)));
 
-          if (pollOutcome._tag === 'Left') {
+          if (pollOutcome._tag === 'Failure') {
             backoffMs = Math.min(
               backoffMs === opts.intervalMs ? backoffCfg.initialMs : backoffMs * 2,
               backoffCfg.maxMs
@@ -105,7 +105,7 @@ const runReconcilePoll = <TResult, TArgs>(
             continue;
           }
 
-          yield* opts.onResult(pollOutcome.right);
+          yield* opts.onResult(pollOutcome.success);
           backoffMs = opts.intervalMs;
           yield* clock.sleep(opts.intervalMs);
         }
@@ -153,7 +153,7 @@ export interface RunDualChannelFeedOptions<TSignal, TRow, TArgs, TReconcileResul
   readonly isStopped: () => boolean;
   readonly onSignalRow: (row: TRow) => Effect.Effect<void, unknown, never>;
   readonly onReconcileRows: (rows: readonly TRow[]) => Effect.Effect<void, unknown, never>;
-  readonly onSubscribeError?:( (err: unknown) => void) | undefined;
+  readonly onSubscribeError?: ((err: unknown) => void) | undefined;
 }
 
 /** Hydrate, cursor seed, incremental subscribe, and reconcile poll over a working snapshot. */
@@ -168,7 +168,7 @@ export const runDualChannelFeedLive = <TSignal, TRow, TArgs, TReconcileResult>(
       const rows = opts.extractReconcileRows(initial);
       opts.snapshot.replaceAll(rows);
       if (rows.length > 0) {
-        yield* opts.onReconcileRows(rows).pipe(Effect.catchAll(() => Effect.void));
+        yield* opts.onReconcileRows(rows).pipe(Effect.catch(() => Effect.void));
       }
     }
 
@@ -201,7 +201,7 @@ export const runDualChannelFeedLive = <TSignal, TRow, TArgs, TReconcileResult>(
           if (!row) {
             return;
           }
-          yield* opts.onSignalRow(row).pipe(Effect.catchAll(() => Effect.void));
+          yield* opts.onSignalRow(row).pipe(Effect.catch(() => Effect.void));
         }),
     });
 
@@ -217,7 +217,7 @@ export const runDualChannelFeedLive = <TSignal, TRow, TArgs, TReconcileResult>(
               Effect.gen(function* () {
                 const rows = opts.extractReconcileRows(result);
                 opts.snapshot.replaceAll(rows);
-                yield* opts.onReconcileRows(rows).pipe(Effect.catchAll(() => Effect.void));
+                yield* opts.onReconcileRows(rows).pipe(Effect.catch(() => Effect.void));
               }),
           });
 

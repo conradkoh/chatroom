@@ -14,10 +14,9 @@ export interface MessagesFsServiceShape {
   ) => Effect.Effect<void, Error>;
 }
 
-export class MessagesFsService extends Context.Tag('MessagesFsService')<
-  MessagesFsService,
-  MessagesFsServiceShape
->() {}
+export class MessagesFsService extends Context.Service<MessagesFsService, MessagesFsServiceShape>()(
+  'MessagesFsService'
+) {}
 
 export const MessagesFsServiceLive: Layer.Layer<MessagesFsService> = Layer.succeed(
   MessagesFsService,

@@ -198,9 +198,7 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
     const complete = !truncated && !hasMore;
 
     // Clean output dir
-    yield* fs
-      .rm(outputDir, { recursive: true, force: true })
-      .pipe(Effect.catchAll(() => Effect.void));
+    yield* fs.rm(outputDir, { recursive: true, force: true }).pipe(Effect.catch(() => Effect.void));
     yield* fs
       .mkdir(outputDir, { recursive: true })
       .pipe(Effect.mapError((cause): DownloadMessagesError => ({ _tag: 'OutputDirError', cause })));
@@ -343,7 +341,7 @@ export async function downloadMessages(
 
   await Effect.runPromise(
     downloadMessagesEffect(chatroomId, options).pipe(
-      Effect.catchAll(handler),
+      Effect.catch(handler),
       Effect.provide(Layer.mergeAll(layer, MessagesFsServiceLive))
     )
   );

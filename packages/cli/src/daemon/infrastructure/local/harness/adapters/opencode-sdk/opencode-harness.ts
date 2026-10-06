@@ -14,7 +14,7 @@
  *   A single Effect fiber (`_sseFiber`) owns the SSE event loop.
  *   It is forked lazily when the first session listener is registered, and
  *   interrupted when the last listener unregisters or the harness is closed.
- *   The inner loop is a plain async while-loop (not Effect.async) to avoid
+ *   The inner loop is a plain async while-loop (not Effect.callback) to avoid
  *   interaction issues between Effect's fiber scheduler and async iterator stepping.
  *   Events are dispatched to sessions via `session._receiveEvent()`, which pushes
  *   into each session's SseEventBuffer for async consumer delivery.
@@ -102,7 +102,7 @@ export class OpencodeSdkHarness implements BoundHarness {
    * The single Effect fiber that owns the SSE subscription loop.
    * Forked on first listener registration; interrupted on last removal or close().
    */
-  private _sseFiber: Fiber.RuntimeFiber<void, never> | null = null;
+  private _sseFiber: Fiber.Fiber<void, never> | null = null;
 
   // ── Debug instrumentation (test-only) ──────────────────────────────────────
   /**
@@ -281,7 +281,7 @@ export class OpencodeSdkHarness implements BoundHarness {
   /**
    * Builds the Effect program that manages the single SSE subscription.
    *
-   * Wraps a plain async while-loop in Effect.async so it can be managed
+   * Wraps a plain async while-loop in Effect.callback so it can be managed
    * as an interruptible Fiber. The inner loop uses direct iterator.next()
    * calls (not for-await) to avoid interaction issues between Effect's
    * fiber scheduler and JavaScript's async iterator protocol.
@@ -348,7 +348,7 @@ export class OpencodeSdkHarness implements BoundHarness {
   private buildSseProgram(): Effect.Effect<void, never, never> {
     const self = this;
 
-    return Effect.async<void, never>((resume) => {
+    return Effect.callback<void, never>((resume) => {
       const state = { interrupted: false, abortController: null as AbortController | null };
       const loopDone = self._sseRunLoop(state, resume).catch((error: unknown) => {
         console.warn('[opencode-harness] SSE loop error:', error);

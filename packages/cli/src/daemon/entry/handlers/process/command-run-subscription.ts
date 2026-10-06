@@ -12,7 +12,8 @@
  */
 
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Runtime } from 'effect';
+import { Effect } from 'effect';
+import type { Context } from 'effect';
 
 import { api } from '../../../../api.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
@@ -30,13 +31,13 @@ const dispatchedStop = new Set<string>();
 function dispatchPendingRun(
   run: ActionableCommandRuns['pendingRuns'][number],
   session: DaemonSessionServiceShape,
-  effectContext: Runtime.Runtime<DaemonSessionService>
+  effectContext: Context.Context<DaemonSessionService>
 ): void {
   const id = run._id.toString();
   if (dispatchedPending.has(id)) return;
   dispatchedPending.add(id);
   console.log(`[${formatTimestamp()}] ⚡ Imperative command.run: ${run.commandName} (${id})`);
-  Runtime.runFork(effectContext)(
+  Effect.runForkWith(effectContext)(
     onCommandRunEffect({
       workingDir: run.workingDir,
       commandName: run.commandName,
@@ -49,13 +50,13 @@ function dispatchPendingRun(
 function dispatchStopRequest(
   run: ActionableCommandRuns['stopRequestedRuns'][number],
   session: DaemonSessionServiceShape,
-  effectContext: Runtime.Runtime<DaemonSessionService>
+  effectContext: Context.Context<DaemonSessionService>
 ): void {
   const id = run._id.toString();
   if (dispatchedStop.has(id)) return;
   dispatchedStop.add(id);
   console.log(`[${formatTimestamp()}] ⚡ Imperative command.stop: (${id})`);
-  Runtime.runFork(effectContext)(
+  Effect.runForkWith(effectContext)(
     onCommandStopEffect({ runId: run._id }).pipe(
       Effect.provideService(DaemonSessionService, session)
     )
@@ -66,7 +67,7 @@ function dispatchStopRequest(
 // fallow-ignore-next-line unused-export
 export function processActionableCommandRuns(
   session: DaemonSessionServiceShape,
-  effectContext: Runtime.Runtime<DaemonSessionService>,
+  effectContext: Context.Context<DaemonSessionService>,
   result: ActionableCommandRuns | null | undefined
 ): void {
   if (!result) return;
@@ -81,7 +82,7 @@ export function processActionableCommandRuns(
 /** Query backend and process all actionable runs (for v2 inbound nudge). */
 export async function drainActionableCommandRuns(
   session: DaemonSessionServiceShape,
-  effectContext: Runtime.Runtime<DaemonSessionService>
+  effectContext: Context.Context<DaemonSessionService>
 ): Promise<void> {
   const result = await session.backend.query(api.daemon.commands.listActionableCommandRuns, {
     sessionId: session.sessionId as SessionId,

@@ -90,7 +90,7 @@ function makeTestSessionFactory(opts: { startFn?: (() => Promise<void>) | undefi
 /** Extract a typed failure value from an Effect Exit. */
 function extractError<E>(exit: Exit.Exit<unknown, E>): E | null {
   if (exit._tag !== 'Failure') return null;
-  const option = Cause.failureOption(exit.cause);
+  const option = Cause.findErrorOption(exit.cause);
   return option._tag === 'Some' ? option.value : null;
 }
 

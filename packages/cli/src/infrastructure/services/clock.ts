@@ -1,7 +1,7 @@
 /**
  * ClockService — Effect-TS service definition for time and delays.
  *
- * Wraps ClockOps in an Effect Context.Tag for dependency injection via Layers.
+ * Wraps ClockOps in an Effect Context.Service for dependency injection via Layers.
  * Phase 1: Define service interface; existing ClockOps consumers unchanged until Phase 2+.
  */
 
@@ -14,7 +14,9 @@ export interface ClockServiceShape {
   delay: (ms: number) => Effect.Effect<void>;
 }
 
-export class ClockService extends Context.Tag('ClockService')<ClockService, ClockServiceShape>() {}
+export class ClockService extends Context.Service<ClockService, ClockServiceShape>()(
+  'ClockService'
+) {}
 
 /**
  * Live Layer — uses real Date.now() and setTimeout.

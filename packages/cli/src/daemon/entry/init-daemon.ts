@@ -296,7 +296,7 @@ const registerMachineEffect = (
   sessionId: SessionId,
   config: MachineConfig
 ): Effect.Effect<void, never, never> =>
-  Effect.catchAll(
+  Effect.catch(
     Effect.tryPromise(() =>
       client.mutation(api.machines.register, {
         sessionId: asConvexSessionId(sessionId),
@@ -327,7 +327,7 @@ const fetchCachedMachineModelsEffect = (
     catch: (e) => e,
   }).pipe(
     Effect.map((result) => result?.availableModels ?? {}),
-    Effect.catchAll(() => Effect.succeed({} as Record<string, string[]>))
+    Effect.catch(() => Effect.succeed({} as Record<string, string[]>))
   );
 
 type ConnectOnceResult = {
@@ -468,7 +468,7 @@ const connectDaemonEffect = (
       }),
     catch: (e) => e,
   }).pipe(
-    Effect.catchAll((error) => {
+    Effect.catch((error) => {
       if (isNetworkError(error)) {
         // Do NOT log — connectOnce retry loop owns failure logging
         return Effect.fail(error);
@@ -485,7 +485,7 @@ const cleanPreviousDaemonStateEffect = (
   init: DaemonSessionInit
 ): Effect.Effect<void, never, never> =>
   Effect.gen(function* () {
-    yield* Effect.catchAllCause(
+    yield* Effect.catchCause(
       Effect.gen(function* () {
         yield* clearStaleSpawnedPidsEffect().pipe(Effect.provide(daemonSessionToLayers(init)));
         console.log('   🧹 Queued stale agent PID cleanup');
@@ -496,7 +496,7 @@ const cleanPreviousDaemonStateEffect = (
         })
     );
 
-    yield* Effect.catchAllCause(
+    yield* Effect.catchCause(
       Effect.gen(function* () {
         const reapedCount = yield* reapOrphanCommandRunsEffect().pipe(
           Effect.provide(daemonSessionToLayers(init))
@@ -553,7 +553,7 @@ const connectWithRetryEffect = (
       yield* Ref.update(attemptRef, (n) => n + 1);
       return yield* connectOnceEffect(client, sessionId, convexUrl);
     }).pipe(
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.flatMap(Ref.get(attemptRef), (currentAttempt) =>
           isNetworkError(error)
             ? Effect.fail(new NetworkRetryError(error, currentAttempt))
@@ -583,7 +583,7 @@ const connectWithRetryEffect = (
       Effect.retry(retrySchedule)
     );
 
-    const result = yield* connectWithRetry.pipe(Effect.catchAll((e) => Effect.die(e)));
+    const result = yield* connectWithRetry.pipe(Effect.catch((e) => Effect.die(e)));
     const attempt = yield* Ref.get(attemptRef);
 
     if (attempt > 1) {

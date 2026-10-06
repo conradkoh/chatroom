@@ -53,7 +53,7 @@ export const pushCommandsEffect: Effect.Effect<void, never, CommandSyncRequireme
 
     for (const workingDir of uniqueWorkingDirs) {
       yield* pushSingleWorkspaceCommandsEffect(workingDir).pipe(
-        Effect.catchAll((err) =>
+        Effect.catch((err) =>
           Effect.sync(() => {
             console.warn(
               `[${formatTimestamp()}] ⚠️ Command sync failed for ${workingDir}: ${getErrorMessage(err)}`

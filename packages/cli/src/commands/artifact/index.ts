@@ -364,7 +364,7 @@ export async function createArtifact(
 
   return Effect.runPromise(
     createArtifactEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleArtifactError(err).pipe(Effect.map(() => undefined))),
+      Effect.catch((err) => handleArtifactError(err).pipe(Effect.map(() => undefined))),
       Effect.provide(layer)
     )
   );
@@ -386,7 +386,7 @@ export async function viewArtifact(
 
   await Effect.runPromise(
     viewArtifactEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleArtifactError(err)),
+      Effect.catch((err) => handleArtifactError(err)),
       Effect.provide(layer)
     )
   );
@@ -408,7 +408,7 @@ export async function viewManyArtifacts(
 
   await Effect.runPromise(
     viewManyArtifactsEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleArtifactError(err)),
+      Effect.catch((err) => handleArtifactError(err)),
       Effect.provide(layer)
     )
   );

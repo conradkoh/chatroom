@@ -211,7 +211,7 @@ export async function listSkills(
 
   await Effect.runPromise(
     listSkillsEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleListSkillsError(err)),
+      Effect.catch((err) => handleListSkillsError(err)),
       Effect.provide(layer)
     )
   );
@@ -231,7 +231,7 @@ export async function activateSkill(
 
   await Effect.runPromise(
     activateSkillEffect(chatroomId, skillId, options).pipe(
-      Effect.catchAll((err) => handleActivateSkillError(err)),
+      Effect.catch((err) => handleActivateSkillError(err)),
       Effect.provide(layer)
     )
   );

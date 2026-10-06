@@ -156,6 +156,7 @@ describe('runDualChannelFeedLive', () => {
     );
 
     try {
+      await vi.advanceTimersByTimeAsync(0);
       expect(callTimes).toEqual([0, 0]);
       const expectedCalls = [
         { at: 1_000, count: 3 },

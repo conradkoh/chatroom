@@ -9,19 +9,15 @@
  *   processRequestsEffect                 (E4.3)
  */
 
-import type { Runtime } from 'effect';
 import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
-import {
-  DaemonSessionService,
-  type DaemonMutableStateService,
-  type DaemonSessionServiceShape,
-} from './daemon-services.js';
+import { DaemonSessionService, type DaemonMutableStateService } from './daemon-services.js';
 import type { DaemonSessionInit } from './daemon-types.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
+import type { PendingRequest } from './workspace-git/git-subscription.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — avoid real WebSocket connections
@@ -113,20 +109,17 @@ async function runWithSession<A>(
   const layer = makeSessionLayer(overrides);
   return Effect.runPromise(
     Effect.gen(function* () {
-      const runtime = yield* Effect.runtime<DaemonSessionService>();
+      const effectContext = yield* Effect.context<DaemonSessionService>();
       const session = yield* DaemonSessionService;
-      const sessionWithRuntime = { ...session, runtime };
-      return yield* effect.pipe(
-        Effect.provideService(DaemonSessionService, sessionWithRuntime as DaemonSessionServiceShape)
-      );
+      const sessionWithContext = { ...session, effectContext };
+      return yield* effect.pipe(Effect.provideService(DaemonSessionService, sessionWithContext));
     }).pipe(Effect.provide(layer))
   );
 }
 
-// Simple mock runtime for tests that call processRequestsEffect
-const mockRuntime: Runtime.Runtime<DaemonSessionService> = {
-  run: <A>(effect: Effect.Effect<A>) => Effect.runPromise(effect),
-} as any;
+const mockEffectContext = Effect.runSync(
+  Effect.context<DaemonSessionService>().pipe(Effect.provide(makeSessionLayer()))
+);
 
 function withDeps(
   deps: ReturnType<typeof createMockDaemonDeps>,
@@ -274,6 +267,63 @@ describe('startGitRequestSubscriptionEffect', () => {
 
     expect(wsClient.onUpdate).not.toHaveBeenCalled();
   });
+
+  it('resets orphaned processing requests when the subscription starts', async () => {
+    const { startGitRequestSubscriptionEffect } =
+      await import('./workspace-git/git-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.mutation).mockResolvedValue(2);
+
+    await runWithSession(
+      startGitRequestSubscriptionEffect(),
+      withDeps(deps, {
+        sessionId: 'session-git-reset',
+        machineId: 'machine-git-reset',
+      })
+    );
+
+    expect(deps.backend.mutation).toHaveBeenCalledWith('mock-resetProcessingRequests', {
+      sessionId: 'session-git-reset',
+      machineId: 'machine-git-reset',
+    });
+  });
+
+  it('deduplicates the same pending request across overlapping drains', async () => {
+    const { startGitRequestSubscriptionEffect } =
+      await import('./workspace-git/git-subscription.js');
+    const deps = createMockDaemonDeps();
+    const request = {
+      _id: 'req-overlap' as PendingRequest['_id'],
+      requestType: 'full_diff' as const,
+      workingDir: '/tmp/repo',
+      status: 'pending' as const,
+      machineId: 'machine-overlap',
+      requestedAt: 0,
+      updatedAt: 0,
+      _creationTime: 0,
+    } satisfies PendingRequest;
+    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
+    vi.mocked(deps.backend.query).mockResolvedValue([request]);
+    const gitReader = await import('../infrastructure/git/git-reader.js');
+    vi.mocked(gitReader.getFullDiff).mockResolvedValue({ status: 'not_found' });
+    const handle = await runWithSession(startGitRequestSubscriptionEffect(), withDeps(deps));
+
+    await Promise.all([handle.drainPendingGitRequests(), handle.drainPendingGitRequests()]);
+
+    expect(gitReader.getFullDiff).toHaveBeenCalledTimes(1);
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      'mock-updateRequestStatus',
+      expect.objectContaining({ requestId: 'req-overlap', status: 'done' })
+    );
+    expect(
+      vi
+        .mocked(deps.backend.mutation)
+        .mock.calls.filter(
+          ([endpoint, args]) =>
+            endpoint === 'mock-updateRequestStatus' && args.status === 'processing'
+        )
+    ).toHaveLength(1);
+  });
 });
 
 describe('processRequestsEffect', () => {
@@ -281,7 +331,7 @@ describe('processRequestsEffect', () => {
     const { processRequestsEffect } = await import('./workspace-git/git-subscription.js');
 
     await expect(
-      runWithSession(processRequestsEffect([], new Map(), 300_000, mockRuntime))
+      runWithSession(processRequestsEffect([], new Map(), 300_000, mockEffectContext))
     ).resolves.toBeUndefined();
   });
 
@@ -292,18 +342,22 @@ describe('processRequestsEffect', () => {
 
     // A single request that will be picked up (status: pending) — minimal shape
     const req = {
-      _id: 'req-d4-1' as any,
+      _id: 'req-d4-1' as PendingRequest['_id'],
       requestType: 'full_diff' as const,
       workingDir: '/tmp/repo',
-      offset: undefined,
-    };
+      status: 'pending' as const,
+      machineId: 'machine-process',
+      requestedAt: 0,
+      updatedAt: 0,
+      _creationTime: 0,
+    } satisfies PendingRequest;
 
     // full_diff will call gitReader.getFullDiff — mock it to throw so we test error path
     const gitReader = await import('../infrastructure/git/git-reader.js');
     vi.mocked(gitReader.getFullDiff).mockResolvedValue({ status: 'not_found' } as never);
 
     await runWithSession(
-      processRequestsEffect([req as any], new Map(), 300_000, mockRuntime),
+      processRequestsEffect([req], new Map(), 300_000, mockEffectContext),
       withDeps(deps, { machineId: 'machine-process', sessionId: 'session-process' })
     );
 

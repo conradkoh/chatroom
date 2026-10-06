@@ -1,7 +1,7 @@
 /**
  * SessionService — Effect-TS service definition for authentication.
  *
- * Wraps SessionOps in an Effect Context.Tag for dependency injection via Layers.
+ * Wraps SessionOps in an Effect Context.Service for dependency injection via Layers.
  * Phase 1: Define service interface; existing SessionOps consumers unchanged until Phase 2+.
  */
 
@@ -17,10 +17,9 @@ export interface SessionServiceShape {
   getOtherSessionUrls: () => Effect.Effect<string[]>;
 }
 
-export class SessionService extends Context.Tag('SessionService')<
-  SessionService,
-  SessionServiceShape
->() {}
+export class SessionService extends Context.Service<SessionService, SessionServiceShape>()(
+  'SessionService'
+) {}
 
 /**
  * Live layer — constructed with concrete implementations at wiring time.

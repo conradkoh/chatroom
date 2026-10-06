@@ -140,7 +140,7 @@ export async function runPromptFetchEffect(
 
   await Effect.runPromise(
     effect.pipe(
-      Effect.catchAll((err) => handlePromptFetchError(err, resourceLabel)),
+      Effect.catch((err) => handlePromptFetchError(err, resourceLabel)),
       Effect.provide(layer)
     )
   );

@@ -75,12 +75,12 @@ async function runWithSession<A>(
 ) {
   return Effect.runPromise(
     Effect.gen(function* () {
-      const runtime = yield* Effect.runtime<DaemonSessionService>();
+      const effectContext = yield* Effect.context<DaemonSessionService>();
       const session = yield* DaemonSessionService;
       return yield* effect.pipe(
         Effect.provideService(DaemonSessionService, {
           ...session,
-          runtime,
+          effectContext,
         } as DaemonSessionServiceShape)
       );
     }).pipe(Effect.provide(makeSessionLayer(overrides)))

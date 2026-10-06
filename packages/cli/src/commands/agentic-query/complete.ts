@@ -107,7 +107,7 @@ export async function agenticQueryComplete(
   await Effect.runPromise(
     agenticQueryCompleteEffect(chatroomId, options).pipe(
       Effect.provide(commandServicesLayerFromDeps(deps)),
-      Effect.catchAll(handleCompleteError)
+      Effect.catch(handleCompleteError)
     )
   );
 }

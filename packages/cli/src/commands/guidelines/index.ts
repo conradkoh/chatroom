@@ -187,7 +187,7 @@ export async function viewGuidelines(
 
   await Effect.runPromise(
     viewGuidelinesEffect(options).pipe(
-      Effect.catchAll((err) => handleViewGuidelinesError(err)),
+      Effect.catch((err) => handleViewGuidelinesError(err)),
       Effect.provide(layer)
     )
   );
@@ -203,7 +203,7 @@ export async function listGuidelineTypes(deps?: GuidelinesDeps): Promise<void> {
 
   await Effect.runPromise(
     listGuidelineTypesEffect().pipe(
-      Effect.catchAll((err) => handleListGuidelineTypesError(err)),
+      Effect.catch((err) => handleListGuidelineTypesError(err)),
       Effect.provide(layer)
     )
   );

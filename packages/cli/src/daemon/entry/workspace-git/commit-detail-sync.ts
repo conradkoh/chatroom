@@ -51,7 +51,7 @@ const prefetchSingleShaEffect = (
   sha: string,
   commits: GitCommit[]
 ): Effect.Effect<void, never, never> =>
-  Effect.catchAll(
+  Effect.catch(
     Effect.gen(function* () {
       const metadata = commits.find((c) => c.sha === sha);
       const result = yield* Effect.tryPromise(() => gitReader.getCommitDetail(workingDir, sha));
@@ -127,7 +127,7 @@ export const syncCommitDetailsEffect = (
     const shasMap = seenShasMap ?? seenShas;
 
     for (const workingDir of uniqueWorkingDirs) {
-      yield* Effect.catchAll(
+      yield* Effect.catch(
         Effect.gen(function* () {
           const key = `${session.machineId}::${workingDir}`;
           let seen = shasMap.get(key);

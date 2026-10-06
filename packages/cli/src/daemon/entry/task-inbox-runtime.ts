@@ -58,7 +58,7 @@ export const startTaskInboxEffect = (
       taskService: session.taskService,
     });
     yield* Effect.tryPromise(() => session.taskService.startTaskInbox(wsClient)).pipe(
-      Effect.catchAll((error) => {
+      Effect.catch((error) => {
         console.warn('[TaskService] task inbox bootstrap failed:', error);
         return Effect.void;
       })

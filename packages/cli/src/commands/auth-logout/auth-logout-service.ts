@@ -1,5 +1,5 @@
 /**
- * AuthLogoutService — Effect Context.Tag for auth-logout operations
+ * AuthLogoutService — Effect Context.Service for auth-logout operations
  *
  * This service wraps local session storage operations (not Convex-related).
  */
@@ -12,7 +12,6 @@ export interface AuthLogoutServiceShape {
   getAuthFilePath: () => Effect.Effect<string>;
 }
 
-export class AuthLogoutService extends Context.Tag('AuthLogoutService')<
-  AuthLogoutService,
-  AuthLogoutServiceShape
->() {}
+export class AuthLogoutService extends Context.Service<AuthLogoutService, AuthLogoutServiceShape>()(
+  'AuthLogoutService'
+) {}

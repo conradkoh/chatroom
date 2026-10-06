@@ -213,7 +213,7 @@ function handlePickFolderCommandEffect(
         }),
       catch: (error) => error,
     }).pipe(
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.sync(() => {
           console.warn(
             `[${formatTimestamp()}] ⚠️  Folder picker report failed: ${getErrorMessage(error)}`
@@ -258,7 +258,7 @@ function handleRefreshCapabilitiesEffect(
         }),
       catch: (error) => error,
     }).pipe(
-      Effect.catchAll((error) =>
+      Effect.catch((error) =>
         Effect.sync(() => {
           console.warn(
             `[${formatTimestamp()}] ⚠️  Capabilities refresh report failed: ${getErrorMessage(error)}`

@@ -44,7 +44,7 @@ const reportRunFailedEffect = (
   runId: string,
   reason: string
 ): Effect.Effect<void, never, never> =>
-  Effect.catchAll(
+  Effect.catch(
     Effect.tryPromise(() =>
       session.backend.mutation(api.commands.updateRunStatus, {
         sessionId: session.sessionId,
@@ -85,7 +85,7 @@ export const onCommandRunEffect = (event: {
       console.log(
         `[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`
       );
-      yield* Effect.catchAll(
+      yield* Effect.catch(
         Effect.tryPromise(() =>
           session.backend.mutation(api.commands.updateRunStatus, {
             sessionId: session.sessionId,
@@ -104,7 +104,7 @@ export const onCommandRunEffect = (event: {
       return;
     }
 
-    const isTerminal = yield* Effect.catchAll(
+    const isTerminal = yield* Effect.catch(
       Effect.tryPromise(() =>
         session.backend.query(api.commands.getRunStatus, {
           sessionId: session.sessionId,
@@ -153,7 +153,7 @@ export const onCommandRunEffect = (event: {
       return;
     }
 
-    const dirFound = yield* Effect.catchAll(
+    const dirFound = yield* Effect.catch(
       Effect.tryPromise(() => access(workingDir)).pipe(Effect.map(() => true)),
       () => Effect.succeed(false)
     );
@@ -173,7 +173,7 @@ export const onCommandRunEffect = (event: {
     };
     const tracked = yield* Effect.promise(() => spawnCommandProcess(spawnDeps, event, commandKey));
 
-    yield* Effect.catchAll(
+    yield* Effect.catch(
       Effect.tryPromise(() =>
         session.backend.mutation(api.commands.updateRunStatus, {
           sessionId: session.sessionId,
@@ -227,7 +227,7 @@ export const onCommandStopEffect = (event: {
     tracked.terminationIntent = 'stopped';
     yield* Effect.promise(() => killTrackedProcess(tracked));
 
-    yield* Effect.catchAll(
+    yield* Effect.catch(
       Effect.tryPromise(() =>
         session.backend.mutation(api.commands.updateRunStatus, {
           sessionId: session.sessionId,

@@ -9,7 +9,11 @@
 
 import { Effect } from 'effect';
 
-import type { AgentLifecyclePorts, SpawnPort, HarnessSpawnPort } from './agent-lifecycle-types.js';
+import type {
+  AgentLifecyclePortsShape,
+  SpawnPort,
+  HarnessSpawnPort,
+} from './agent-lifecycle-types.js';
 import type {
   RemoteAgentService,
   SpawnResult,
@@ -107,11 +111,11 @@ export function createHarnessSpawnPort(deps: AgentLifecyclePortAdapterDeps): Har
 
 export function createAgentLifecyclePorts(
   deps: AgentLifecyclePortAdapterDeps
-): AgentLifecyclePorts {
+): AgentLifecyclePortsShape {
   return {
     spawn: createSpawnPort(deps.spawning),
     harness: createHarnessSpawnPort(deps),
     sessionId: deps.sessionId,
     machineId: deps.machineId,
-  } as AgentLifecyclePorts;
+  };
 }

@@ -135,7 +135,7 @@ describe('listBySenderRoleEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as MessagesError | null;
       expect(error).not.toBeNull();
@@ -160,7 +160,7 @@ describe('listBySenderRoleEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as MessagesError | null;
       expect(error).not.toBeNull();
@@ -185,7 +185,7 @@ describe('listBySenderRoleEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as MessagesError | null;
       expect(error).not.toBeNull();
@@ -240,7 +240,7 @@ describe('listSinceMessageEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as MessagesError | null;
       expect(error).not.toBeNull();
@@ -261,7 +261,7 @@ describe('listSinceMessageEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as MessagesError | null;
       expect(error).not.toBeNull();
@@ -283,7 +283,7 @@ describe('listSinceMessageEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as MessagesError | null;
       expect(error).not.toBeNull();

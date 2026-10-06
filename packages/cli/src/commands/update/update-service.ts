@@ -17,10 +17,9 @@ export interface UpdateServiceShape {
   exec: (cmd: string) => Effect.Effect<ExecResult, Error>;
 }
 
-export class UpdateService extends Context.Tag('UpdateService')<
-  UpdateService,
-  UpdateServiceShape
->() {}
+export class UpdateService extends Context.Service<UpdateService, UpdateServiceShape>()(
+  'UpdateService'
+) {}
 
 /**
  * Live Layer — wraps getVersion and exec functions

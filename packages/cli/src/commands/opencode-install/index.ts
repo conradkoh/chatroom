@@ -107,7 +107,7 @@ function layerFromDeps(deps: OpenCodeInstallDeps): Layer.Layer<OpenCodeInstallFs
         catch: () => new Error(''),
       }).pipe(
         Effect.map(() => true),
-        Effect.catchAll(() => Effect.succeed(false))
+        Effect.catch(() => Effect.succeed(false))
       ),
     mkdir: (p, options) =>
       Effect.tryPromise({
@@ -547,7 +547,7 @@ export async function installTool(
 
   return Effect.runPromise(
     installToolEffect(options).pipe(
-      Effect.catchAll((err) => handleInstallError(err)),
+      Effect.catch((err) => handleInstallError(err)),
       Effect.provide(layer)
     )
   );

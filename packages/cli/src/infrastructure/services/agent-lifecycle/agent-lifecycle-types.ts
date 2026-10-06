@@ -109,17 +109,17 @@ export interface HarnessSpawnPort {
   isAlive: (pid: number) => Effect.Effect<boolean>;
 }
 
-export interface AgentLifecyclePorts {
+export interface AgentLifecyclePortsShape {
   readonly spawn: SpawnPort;
   readonly harness: HarnessSpawnPort;
   readonly sessionId: string;
   readonly machineId: string;
 }
 
-export class AgentLifecyclePorts extends Context.Tag('AgentLifecyclePorts')<
+export class AgentLifecyclePorts extends Context.Service<
   AgentLifecyclePorts,
-  AgentLifecyclePorts
->() {}
+  AgentLifecyclePortsShape
+>()('AgentLifecyclePorts') {}
 
 // ─── Service Shape ─────────────────────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ export interface AgentLifecycleServiceShape {
   reset: (input: AgentLifecycleResetInput) => Effect.Effect<void>;
 }
 
-export class AgentLifecycleService extends Context.Tag('AgentLifecycleService')<
+export class AgentLifecycleService extends Context.Service<
   AgentLifecycleService,
   AgentLifecycleServiceShape
->() {}
+>()('AgentLifecycleService') {}

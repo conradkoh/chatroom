@@ -221,7 +221,7 @@ export async function registerAgent(
 
   await Effect.runPromise(
     registerAgentEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleRegisterAgentError(err)),
+      Effect.catch((err) => handleRegisterAgentError(err)),
       Effect.provide(layer)
     )
   );

@@ -93,25 +93,39 @@ export const readContextEffect = (
           taskId?: string | undefined;
           taskStatus?: string | undefined;
           taskContent?: string | undefined;
-          attachedTasks?: {
-            _id: string;
-            content: string;
-            status?: string | undefined;
-            backlogStatus?: string | undefined;
-          }[] | undefined;
-          attachedBacklogItems?: { _id?: string | undefined; id?: string | undefined; content: string; status: string }[] | undefined;
+          attachedTasks?:
+            | {
+                _id: string;
+                content: string;
+                status?: string | undefined;
+                backlogStatus?: string | undefined;
+              }[]
+            | undefined;
+          attachedBacklogItems?:
+            | {
+                _id?: string | undefined;
+                id?: string | undefined;
+                content: string;
+                status: string;
+              }[]
+            | undefined;
           attachedMessages?: { _id: string; content: string; senderRole: string }[] | undefined;
-          attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+          attachedSnippets?:
+            { reference: string; fileSource: string; selectedContent: string }[] | undefined;
         }[];
-        currentContext?: {
-          content: string;
-          createdBy: string;
-          createdAt: number;
-        } | undefined;
-        originMessage?: {
-          _id: string;
-          _creationTime: number;
-        } | undefined;
+        currentContext?:
+          | {
+              content: string;
+              createdBy: string;
+              createdAt: number;
+            }
+          | undefined;
+        originMessage?:
+          | {
+              _id: string;
+              _creationTime: number;
+            }
+          | undefined;
         pendingTasksForRole: number;
       }>(api.messages.getContextForRole, {
         sessionId,
@@ -216,7 +230,7 @@ export const newContextEffect = (
         triggerMessageId: options.triggerMessageId as Id<'chatroom_messages'> | undefined,
       })
       .pipe(
-        Effect.catchAll((cause) =>
+        Effect.catch((cause) =>
           Effect.fail<ContextError>({
             _tag: 'NewContextFailed',
             cause: cause as Error,
@@ -441,7 +455,7 @@ export async function readContext(
 
   await Effect.runPromise(
     readContextEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleContextError(err)),
+      Effect.catch((err) => handleContextError(err)),
       Effect.provide(layer)
     )
   );
@@ -465,7 +479,7 @@ export async function newContext(
 
   await Effect.runPromise(
     newContextEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleContextError(err)),
+      Effect.catch((err) => handleContextError(err)),
       Effect.provide(layer)
     )
   );
@@ -487,7 +501,7 @@ export async function listContexts(
 
   await Effect.runPromise(
     listContextsEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleContextError(err)),
+      Effect.catch((err) => handleContextError(err)),
       Effect.provide(layer)
     )
   );
@@ -516,7 +530,7 @@ export async function inspectContext(
 
   await Effect.runPromise(
     inspectContextEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleContextError(err)),
+      Effect.catch((err) => handleContextError(err)),
       Effect.provide(layer)
     )
   );

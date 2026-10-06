@@ -166,6 +166,6 @@ export async function anchorMessages(
   };
 
   await Effect.runPromise(
-    anchorMessagesEffect(chatroomId, options).pipe(Effect.catchAll(handler), Effect.provide(layer))
+    anchorMessagesEffect(chatroomId, options).pipe(Effect.catch(handler), Effect.provide(layer))
   );
 }

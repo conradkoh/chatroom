@@ -127,7 +127,7 @@ describe('listSkillsEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ListSkillsError | null;
       expect(error).not.toBeNull();
@@ -152,7 +152,7 @@ describe('listSkillsEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ListSkillsError | null;
       expect(error).not.toBeNull();
@@ -175,7 +175,7 @@ describe('listSkillsEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ListSkillsError | null;
       expect(error).not.toBeNull();
@@ -244,7 +244,7 @@ describe('activateSkillEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ActivateSkillError | null;
       expect(error).not.toBeNull();
@@ -265,7 +265,7 @@ describe('activateSkillEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ActivateSkillError | null;
       expect(error).not.toBeNull();
@@ -287,7 +287,7 @@ describe('activateSkillEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ActivateSkillError | null;
       expect(error).not.toBeNull();

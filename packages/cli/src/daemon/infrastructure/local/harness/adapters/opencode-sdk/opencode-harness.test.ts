@@ -138,7 +138,6 @@ describe('OpencodeSdkHarness', () => {
     for (const harness of harnesses) await harness.close();
     harnesses.clear();
     vi.useRealTimers();
-    vi.useRealTimers();
   });
 
   beforeEach(() => {

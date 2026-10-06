@@ -114,7 +114,7 @@ function layerFromDeps(deps: InitDeps): Layer.Layer<InitFsService> {
         catch: () => new Error(''),
       }).pipe(
         Effect.map(() => true),
-        Effect.catchAll(() => Effect.succeed(false))
+        Effect.catch(() => Effect.succeed(false))
       ),
     readFile: (p, enc) =>
       Effect.tryPromise({
@@ -186,7 +186,7 @@ export const initEffect = (
             console.log('✅ Created AGENTS.md with CHATROOM INTEGRATION section');
           })
         ),
-        Effect.catchAll((err) =>
+        Effect.catch((err) =>
           Effect.sync(() => {
             console.error(`❌ Failed to create AGENTS.md: ${err}`);
           })
@@ -200,7 +200,7 @@ export const initEffect = (
         // Read file — log error and continue if failed
         const contentResult = yield* fsService.readFile(filePath, 'utf-8').pipe(
           Effect.map((content) => ({ success: true as const, content })),
-          Effect.catchAll((err) =>
+          Effect.catch((err) =>
             Effect.sync(() => {
               console.error(`❌ Failed to read ${filename}: ${err}`);
               return { success: false as const };
@@ -224,7 +224,7 @@ export const initEffect = (
                 console.log(`✅ Updated CHATROOM INTEGRATION section in ${filename}`);
               })
             ),
-            Effect.catchAll((err) =>
+            Effect.catch((err) =>
               Effect.sync(() => {
                 console.error(`❌ Failed to update ${filename}: ${err}`);
               })
@@ -240,7 +240,7 @@ export const initEffect = (
                 console.log(`✅ Added CHATROOM INTEGRATION section to ${filename}`);
               })
             ),
-            Effect.catchAll((err) =>
+            Effect.catch((err) =>
               Effect.sync(() => {
                 console.error(`❌ Failed to update ${filename}: ${err}`);
               })

@@ -1,5 +1,5 @@
 /**
- * GetNextTaskSessionService — Effect Context.Tag for GetNextTaskSession construction.
+ * GetNextTaskSessionService — Effect Context.Service for GetNextTaskSession construction.
  *
  * Wraps the creation of `GetNextTaskSession` in an Effect service so tests can
  * inject a stub with a controllable `start()` without standing up a real
@@ -15,7 +15,7 @@ export interface GetNextTaskSessionShape {
   createSession: (params: SessionParams) => GetNextTaskSession;
 }
 
-export class GetNextTaskSessionService extends Context.Tag('GetNextTaskSessionService')<
+export class GetNextTaskSessionService extends Context.Service<
   GetNextTaskSessionService,
   GetNextTaskSessionShape
->() {}
+>()('GetNextTaskSessionService') {}

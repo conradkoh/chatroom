@@ -62,7 +62,7 @@ export const updateEffect = (): Effect.Effect<void, UpdateError, UpdateService> 
 
     // Check if npm is available
     const npmCheckResult = yield* updateService.exec('npm --version').pipe(
-      Effect.catchAll(() =>
+      Effect.catch(() =>
         Effect.fail<UpdateError>({
           _tag: 'NpmNotAvailable',
         })
@@ -78,7 +78,7 @@ export const updateEffect = (): Effect.Effect<void, UpdateError, UpdateService> 
 
     // Check latest version
     const latestVersionResult = yield* updateService.exec('npm view chatroom-cli version').pipe(
-      Effect.catchAll(() =>
+      Effect.catch(() =>
         Effect.fail<UpdateError>({
           _tag: 'VersionCheckFailed',
         })
@@ -152,7 +152,7 @@ export async function update(deps?: UpdateDeps): Promise<void> {
 
   await Effect.runPromise(
     updateEffect().pipe(
-      Effect.catchAll((err) => handleUpdateError(err)),
+      Effect.catch((err) => handleUpdateError(err)),
       Effect.provide(layer)
     )
   );

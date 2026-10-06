@@ -1,5 +1,5 @@
 /**
- * OpenCodeInstallFsService — Effect Context.Tag for opencode-install command operations.
+ * OpenCodeInstallFsService — Effect Context.Service for opencode-install command operations.
  *
  * This service provides file system operations and CLI detection specific
  * to the opencode-install command.
@@ -22,7 +22,7 @@ export interface OpenCodeInstallFsServiceShape {
 
 // ─── Service Tag ───────────────────────────────────────────────────────────
 
-export class OpenCodeInstallFsService extends Context.Tag('OpenCodeInstallFsService')<
+export class OpenCodeInstallFsService extends Context.Service<
   OpenCodeInstallFsService,
   OpenCodeInstallFsServiceShape
->() {}
+>()('OpenCodeInstallFsService') {}

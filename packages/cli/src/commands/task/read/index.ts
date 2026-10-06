@@ -224,7 +224,7 @@ export async function taskRead(
 
   await Effect.runPromise(
     taskReadEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleTaskReadError(err)),
+      Effect.catch((err) => handleTaskReadError(err)),
       Effect.provide(layer)
     )
   );

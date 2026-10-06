@@ -39,7 +39,7 @@ const stopAgentFromSnapshot = (
           )
         : Effect.void
     ),
-    Effect.catchAllCause((cause) =>
+    Effect.catchCause((cause) =>
       Effect.sync(() => {
         console.warn(`   ⚠️  Failed to stop ${role}@${chatroomId}: ${Cause.pretty(cause)}`);
         return false;

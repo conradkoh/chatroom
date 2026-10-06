@@ -424,7 +424,7 @@ export const fulfillFileWriteRequestsEffect: Effect.Effect<void, never, DaemonSe
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
 
-    const requests: PendingFileWriteRequest[] = yield* Effect.catchAll(
+    const requests: PendingFileWriteRequest[] = yield* Effect.catch(
       Effect.tryPromise(() =>
         session.backend.query(api.workspaceFiles.getPendingFileWriteRequests, {
           sessionId: session.sessionId,
@@ -443,7 +443,7 @@ export const fulfillFileWriteRequestsEffect: Effect.Effect<void, never, DaemonSe
     );
 
     for (const request of sortedRequests) {
-      yield* Effect.catchAll(
+      yield* Effect.catch(
         Effect.tryPromise(() => fulfillOneFileWriteRequest(session, request)),
         () => Effect.void
       );
