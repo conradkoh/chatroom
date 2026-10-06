@@ -420,7 +420,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
-      **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
+      **Division of labor:** You (planner) own architecture and API shape. The UI/UX engineer owns UI/UX design. Include its target markup, classes, and styles in UI implementation briefs; the builder implements the components.
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
@@ -516,7 +516,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
-      **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
+      **Division of labor:** You (planner) own architecture and API shape. The UI/UX engineer owns UI/UX design. Include its target markup, classes, and styles in UI implementation briefs; the builder implements the components.
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
