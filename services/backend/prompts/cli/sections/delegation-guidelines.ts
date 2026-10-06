@@ -23,8 +23,6 @@ function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): s
 
 Break complex features into small, focused slices. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**UI work:** Describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests before production UI edits; request missing evidence or design revisions from the engineer.
-
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
 - ${feedingNote}.`;
@@ -37,23 +35,39 @@ function getBuilderDelegationGuidelines(
 ): string {
   return `**Delegation Guidelines:**
 
-Break features into focused slices and delegate all code changes to the builder. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
+Break features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**UI work:** Describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer before builder implementation. Include the engineer’s complete browser-rendered design and production UI test requirements in the builder brief. The engineer decides UI structure, styles, states, interactions, and tests; request missing evidence or revisions from the engineer.
+**Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is.
+
+**Decision flow:**
+\`\`\`mermaid
+flowchart TD
+    A[Receive task] --> B{Code changes needed?}
+    B -->|Yes — any size| D[Write a Delegation Brief]
+    D --> E[Hand off ONE slice to builder]
+    E --> F[Review output]
+    F -->|Not acceptable| G[Hand back with feedback]
+    G --> E
+    F -->|Acceptable| H{More slices?}
+    H -->|Yes| E
+    H -->|No| I[Deliver to user]
+    B -->|No: question or clarification only| C[Answer directly → deliver to user]
+\`\`\`
 
 **Default: delegate with a Delegation Brief.** ${delegationBriefRef}
 
 **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
-- Name concrete artifacts, list every file, and include enough detail that the builder cannot guess wrong.
-- Define architecture, data, and API contracts in the brief. The UI/UX engineer defines UI design and tests; the builder runs the specified UI tests before production UI edits.
+- **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
+- **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
+- **You own technical design; the builder executes.** Per-file target code plus shared contracts in the brief — do not leave API shape for the builder to invent.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
-- **One slice ≈ one focused review surface.** Split work that cannot be reviewed in one sitting.
+- **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-**Code review:** Review code-producing work before delivery.
+**Code review:** For code-producing work, review before delivering. Activate the review framework with: ${cmd('skill activate code-review')}.
 
 **Backlog items:** When the task originates from a backlog item, activate the backlog skill: ${cmd('skill activate backlog')}.
 

@@ -7,7 +7,7 @@ function normalizeEntryPointRole(entryPointRole: string): string {
 }
 
 function getUiuxEngineerFocus(): string {
-  return 'existing source and rendered DOM evidence, browser-rendered target markup/styles, complete user flows with loading/empty/error/success states, responsive details, and exact UI tests';
+  return 'complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests';
 }
 
 function getUiuxEngineerRequirements(): string {
@@ -17,10 +17,6 @@ function getUiuxEngineerRequirements(): string {
 - Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
 - Specify Tailwind utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
 - Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.
-- Study the existing source markup and browser-rendered DOM/styles, including relevant states and viewports, before proposing a target.
-- Supply complete target HTML/DOM with exact class attributes and required CSS/theme dependencies, then render it in a browser using project styling and theme. Include the preview location, viewport/state, and actual screenshot or DOM/computed-style evidence.
-- Define exact production UI tests, entry points, selectors/assertions, and the expected meaningful initial failure; the implementer runs them before production edits, then reruns them and compares the result with the rendered target. Never test only a mock of proposed HTML.
-- The UI/UX engineer defines interface structure, classes, styles, states, interactions, and production UI test requirements. Report missing render evidence or unresolved choices to the configured entry point. Provide design or test revisions through the entry point before implementation continues.
 - Do not propose or require web accessibility implementation work unless the user explicitly requests it.`;
 }
 
@@ -32,9 +28,9 @@ export function getEntryPointToUiuxEngineerHandoffTemplate(entryPointRole: strin
 
 ## Handoff Template (${entryPoint} → uiux-engineer)
 
-The automatically injected \`<user-message>\` is the authoritative request. State the observed UI problem and desired user outcome, relevant constraints/surfaces, and existing evidence. Do not prescribe replacement UI or classes; the UI/UX Engineer owns those decisions.
+The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
 
-Ask the engineer to inspect the existing source markup and rendered DOM/styles, then produce and browser-render one concrete target with exact HTML/classes/style dependencies, complete user flows and loading/empty/error/success states, responsive behavior, and an exact tests-first contract. Request screenshot or DOM/computed-style evidence plus viewport/state and preview location; unresolved rendering prerequisites are blockers.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on ${getUiuxEngineerFocus()}.
 
 After completing the design, hand it back to \`${entryPoint}\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
 
@@ -74,7 +70,7 @@ function renderUiuxEngineerToEntryPointHandoffTemplate(
 
 ## Handoff Template (UI/UX Engineer → Entry Point)
 
-Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. Own the UI design and test contract, but do not implement production code or edit tracked source. Temporary design preview artifacts outside the tracked repository and browser rendering are permitted. Do not spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -93,7 +89,7 @@ ${getUiuxEngineerRequirements()}
 - Keep the design within the repository's established source-of-truth boundaries and avoid introducing a new registry or abstraction without evidence.
 
 ## Files to implement (exhaustive, file-level)
-List every file or product surface the implementer must create or modify. Mark each \`(Required)\` or \`(Optional)\`. For every file, give the exact responsibility, exported types/signatures/props, state/data/event boundaries, component hierarchy, and rendered target HTML/classes/styles detailed enough to implement without guessing.
+List every file or product surface the implementer must create or modify. Mark each \`(Required)\` or \`(Optional)\`. For every file, give the exact responsibility, exported types/signatures/props, state/data/event boundaries, component hierarchy, and target Tailwind/theme-token snippet detailed enough to implement without guessing.
 ${getFileReferenceGuidanceComment()}
 
 ### \`<repo-relative/path.ext>\` (Required)
@@ -101,22 +97,13 @@ ${getFileReferenceGuidanceComment()}
 
 \`\`\`text
 // Component hierarchy, props/state/events, test structure, or exact
-// rendered HTML, class attributes, CSS/theme dependencies, and state/viewport variations.
+// Tailwind/theme-token classes. Enough detail that implementation requires no invention.
 \`\`\`
 
 <add one block per file; do not collapse multiple files into a directory or vague layer>
 
-## Existing UI evidence
-<source paths, current rendered DOM/style evidence, observed problem, and inspected states/viewports>
-
-## Rendered target markup
-<complete target HTML with class attributes and required CSS/style dependencies for each affected state/viewport; concrete mapping to production components; preview artifact location plus actual browser screenshot or DOM/computed-style evidence; unresolved rendering prerequisites are blockers>
-
-## UI tests first
-<exact production UI test files, fixtures, entry points, selectors/assertions, and expected meaningful initial failure for the engineer-owned markup/styles/states/interactions; run before production edits, confirm design-relevant failure, implement, rerun to pass, and compare production DOM and styles with the rendered target; never test only a mock of the proposal>
-
 ${sharedContractsHeading}
-<Describe cross-file architecture, data, and API contracts and component/state boundaries. The configured entry point owns architecture, data, and API decisions; the UI/UX engineer owns UI structure, styles, states, interactions, and UI tests. Write exactly \`Not Applicable.\` when no shared contracts are needed.>
+<list cross-file interfaces, component/data contracts, state boundaries, or write exactly \`Not Applicable.\` when genuinely inapplicable>
 
 ### Interfaces & types
 \`\`\`typescript
@@ -134,7 +121,7 @@ ${sharedContractsHeading}
 - Verify the implemented user-facing entry point end-to-end; unit tests alone are insufficient.
 
 ## What to avoid
-- Do not edit tracked production source or implement production UI as the UI/UX engineer; temporary preview artifacts outside the tracked repository are permitted.
+- Do not implement code or edit files as the UI/UX engineer; this handoff is advisory only.
 - Do not present alternative designs, generic advice, or requirements without concrete evidence and file-level consequences.
 - Do not invent components, props, tokens, interaction behavior, or source-of-truth locations when existing repository patterns apply.
 - <explicit task-specific anti-patterns, scope boundaries, and destructive-action/source-of-truth pitfalls>

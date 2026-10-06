@@ -304,12 +304,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive chatroom task]
-          B --> C{UI fix or interface design?}
-          C -->|Yes| U[Require complete UI/UX engineer design]
-          U -->|Missing| X[Return blocker to planner]
-          U -->|Present| T[Write and run specified UI tests first]
-          T --> D[Implement changes and rerun tests]
-          C -->|No| D
+          B --> D[Implement changes]
           D --> E[Commit work]
           E --> F{Code changes?}
           F -->|yes| G[Hand off to **planner**]
@@ -327,8 +322,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       chatroom handoff list-templates --role="builder" --team-id="duo"
       \`\`\`
       This lists who you receive work from, who you return to, and every outbound handoff template you can use.
-
-      **Mandatory UI gate:** For UI fixes or interface design, require the complete engineer design: inspected source and rendered DOM and styles, a browser-rendered target HTML with exact classes and style dependencies for affected states and viewports, preview location and screenshot or DOM/computed-style evidence, and exact production UI test requirements. If any are missing, return a concrete blocker to the planner before editing production UI. Write and run those production UI tests before production edits, record a meaningful design-relevant failure, then implement, rerun to pass, and compare production DOM and styles with the rendered target. Do not replace the design, weaken its tests, or satisfy them only with a mock of proposed HTML. Route design and test requirement revisions through the planner to the UI/UX engineer; continue implementation after the engineer supplies revised requirements.
 
       **Implementation Guidelines:**
       - Write clean, maintainable, well-documented code

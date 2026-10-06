@@ -292,17 +292,11 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       After delegating to the builder, hand off and wait for work to return.
 
-      For UI fixes or interface design, the UI/UX engineer supplies a browser-rendered design and production UI test requirements before builder implementation. The planner coordinates design review and implementation.
-
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive chatroom task from get-next-task]
           B --> E[Decompose into phases]
-          E --> C{UI work?}
-          C -->|Yes| U[Request UI/UX engineer design]
-          U --> V[Review rendered design and UI tests]
-          V --> F[Delegate ONE phase to builder]
-          C -->|No| F
+          E --> F[Delegate ONE phase to builder]
           F --> G[Builder completes phase]
           G --> H[Builder hands off to planner]
           H --> I[Review builder output]
@@ -332,23 +326,39 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Delegation Guidelines:**
 
-      Break features into focused slices and delegate all code changes to the builder. For code review guidance, activate the \`code-review\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
+      Break features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
-      **UI work:** Describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer before builder implementation. Include the engineer’s complete browser-rendered design and production UI test requirements in the builder brief. The engineer decides UI structure, styles, states, interactions, and tests; request missing evidence or revisions from the engineer.
+      **Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is.
+
+      **Decision flow:**
+      \`\`\`mermaid
+      flowchart TD
+          A[Receive task] --> B{Code changes needed?}
+          B -->|Yes — any size| D[Write a Delegation Brief]
+          D --> E[Hand off ONE slice to builder]
+          E --> F[Review output]
+          F -->|Not acceptable| G[Hand back with feedback]
+          G --> E
+          F -->|Acceptable| H{More slices?}
+          H -->|Yes| E
+          H -->|No| I[Deliver to user]
+          B -->|No: question or clarification only| C[Answer directly → deliver to user]
+      \`\`\`
 
       **Default: delegate with a Delegation Brief.** Use the **Handoff to \`builder\`** template in the task delivery \`<handoff-templates>\` section — follow that structure in your handoff message.
 
       **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
-      - Name concrete artifacts, list every file, and include enough detail that the builder cannot guess wrong.
-      - Define architecture, data, and API contracts in the brief. The UI/UX engineer defines UI design and tests; the builder runs the specified UI tests before production UI edits.
+      - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
+      - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
+      - **You own technical design; the builder executes.** Per-file target code plus shared contracts in the brief — do not leave API shape for the builder to invent.
       - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
-      - **One slice ≈ one focused review surface.** Split work that cannot be reviewed in one sitting.
+      - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
       - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
       - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
       - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-      **Code review:** Review code-producing work before delivery.
+      **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
       **Backlog items:** When the task originates from a backlog item, activate the backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
@@ -374,7 +384,6 @@ describe('Duo Team > Planner > System Prompt', () => {
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **When you receive work back from team members:**
-      Review UI/UX engineer handbacks for complete rendered design evidence and production UI test requirements; request missing evidence or revisions from the engineer. A complete design handback authorizes implementation. For UI work, user delivery requires completed implementation, passing tests, and a production DOM and style comparison with the rendered target.
       1. Review the completed work against the original user request
       2. If requirements are met → run proof of verification → deliver to \`user\`
       3. If requirements are NOT met (including partial work) → hand back to \`builder\` for rework

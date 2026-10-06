@@ -17,10 +17,8 @@ export function getWhenWorkComesBackSection(
   const reworkLine = config.hasBuilder
     ? '3. If requirements are NOT met (including partial work) → hand back to `builder` for rework'
     : '3. If requirements are NOT met (including partial work) → revise and re-validate';
-  const uiReview = `Review UI/UX engineer handbacks for complete rendered design evidence and production UI test requirements; request missing evidence or revisions from the engineer. A complete design handback authorizes implementation. For UI work, user delivery requires completed implementation, passing tests, and a production DOM and style comparison with the rendered target.`;
 
   return `**When you receive work back from team members:**
-${uiReview}
 1. Review the completed work against the original user request
 2. If requirements are met → run proof of verification → deliver to \`user\`
 ${reworkLine}

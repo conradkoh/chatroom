@@ -2,9 +2,9 @@
  * Handoff template: Duo planner → builder (delegation brief).
  *
  * Provides the structure the planner should follow when delegating an
- * implementation slice to the builder. The planner owns architecture/data/API
- * decisions down to the file level; the UI/UX engineer owns UI design and its
- * UI test contract. The builder executes implementation and verification.
+ * implementation slice to the builder. The planner owns technical decisions
+ * down to the file level, with code snippets that leave no ambiguity; the
+ * builder executes implementation, tool calls, and verification.
  * Fields that do not apply may be omitted.
  */
 
@@ -23,7 +23,7 @@ export function getPlannerToBuilderHandoffTemplate(): string {
 
 ${getDelegationBriefIntro()}
 
-**Division of labor:** You (planner) own architecture and data/API shape. The UI/UX engineer owns UI structure, classes/styles, states, interactions, responsive behavior, and the UI test contract. The builder implements these contracts and requests missing details or design revisions through the planner.
+**Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
@@ -62,17 +62,8 @@ ${getFileReferenceGuidanceComment()}
 
 (Add one ### block per file. If this slice touches only one file, still use the ### header.)
 
-## UI/UX design contract
-<For UI fix/interface work, paste the complete UI/UX engineer handback verbatim, including existing source/rendered DOM/style evidence, browser-rendered target HTML with class attributes and style dependencies, states/viewports, preview location and actual screenshot or DOM/computed-style evidence, and exact tests-first contract. The builder is a fresh session; a message link or summary is insufficient. For non-UI work, omit this section.>
-
-**UI implementation sequence and acceptance gates (mandatory for UI work):**
-1. Require the engineer’s source and rendered UI evidence, browser-rendered target, style dependencies, affected states and viewports, and production UI test requirements. Return missing evidence to the planner before production UI edits.
-2. Write and run the specified production UI tests before production edits. Record a meaningful design-relevant initial failure, not setup/environment failure.
-3. Implement the design, rerun the specified tests to pass, and compare production DOM/styles against the rendered target. Do not test only a mock of the proposed HTML.
-4. Request UI design or test revisions from the UI/UX engineer through the planner before continuing implementation. The planner coordinates the revision; the engineer decides markup, styles, states, interactions, and UI tests.
-
 ## Shared contracts (planner-owned)
-Cross-file architecture, data, and API types or patterns. Include this section when the implementation needs shared contracts.
+Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
 
 ### Interfaces & types
 \`\`\`typescript

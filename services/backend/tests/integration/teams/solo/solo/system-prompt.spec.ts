@@ -315,7 +315,6 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Operating model: Planner Solo**
 
-      For UI fixes or interface design, describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests to a meaningful failure before production UI edits, implement the design, rerun to pass, and compare production DOM and styles with the target.
       1. Receive chatroom task from get-next-task
       2. Plan and implement
       3. Review your own work for quality
@@ -334,9 +333,6 @@ describe('Solo Team > Solo > System Prompt', () => {
       This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Implementation Guidelines:**
-      - For UI fixes or interface design, describe the observed problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Wait for the complete browser-rendered design and production UI test requirements before production edits. The engineer decides UI structure, styles, states, interactions, and tests.
-      - Confirm the handback includes inspected source and rendered DOM and styles, target HTML with exact classes and style dependencies for relevant states and viewports, preview location, screenshot or DOM/computed-style evidence, and exact production UI tests with an expected meaningful initial failure. Report missing evidence or unresolved design choices to the engineer through the configured entry point.
-      - Write and run the engineer-specified production UI tests before production UI edits and record a meaningful design-relevant failure. Implement the design, rerun the tests to pass, and compare production DOM and styles with the rendered target. Do not weaken tests or test only a mock of the proposal. Request design or test revisions from the engineer through the configured entry point before continuing implementation.
       - Write clean, maintainable, well-documented code
       - Follow established patterns and best practices from the codebase
       - Handle edge cases and error scenarios
@@ -353,7 +349,6 @@ describe('Solo Team > Solo > System Prompt', () => {
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **When you receive work back from team members:**
-      Review UI/UX engineer handbacks for complete rendered design evidence and production UI test requirements; request missing evidence or revisions from the engineer. A complete design handback authorizes implementation. For UI work, user delivery requires completed implementation, passing tests, and a production DOM and style comparison with the rendered target.
       1. Review the completed work against the original user request
       2. If requirements are met → run proof of verification → deliver to \`user\`
       3. If requirements are NOT met (including partial work) → revise and re-validate

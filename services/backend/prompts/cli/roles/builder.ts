@@ -19,23 +19,13 @@ function getBuilderFlowMermaid(
   if (nativeIntegration) {
     return `flowchart TD
     A([Start]) --> B[Receive task]
-    B --> C{UI fix or interface design?}
-    C -->|Yes| U[Require complete UI/UX engineer design]
-    U -->|Missing| X[Return blocker to planner]
-    U -->|Present| T[Write and run specified UI tests first]
-    T --> D[Implement changes and rerun tests]
-    C -->|No| D
+    B --> D[Implement changes]
 ${handoffNodes}`;
   }
 
   return `flowchart TD
     A([Start]) --> B[Receive chatroom task]
-    B --> C{UI fix or interface design?}
-    C -->|Yes| U[Require complete UI/UX engineer design]
-    U -->|Missing| X[Return blocker to planner]
-    U -->|Present| T[Write and run specified UI tests first]
-    T --> D[Implement changes and rerun tests]
-    C -->|No| D
+    B --> D[Implement changes]
 ${handoffNodes}`;
 }
 
@@ -71,8 +61,6 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 ${getInterRoleHandoffRule()}
 
 ${getHandoffTemplateDiscoveryGuidance({ teamId: 'duo', rolePlaceholder: 'builder' })}
-
-**Mandatory UI gate:** For UI fixes or interface design, require the complete engineer design: inspected source and rendered DOM and styles, a browser-rendered target HTML with exact classes and style dependencies for affected states and viewports, preview location and screenshot or DOM/computed-style evidence, and exact production UI test requirements. If any are missing, return a concrete blocker to the planner before editing production UI. Write and run those production UI tests before production edits, record a meaningful design-relevant failure, then implement, rerun to pass, and compare production DOM and styles with the rendered target. Do not replace the design, weaken its tests, or satisfy them only with a mock of proposed HTML. Route design and test requirement revisions through the planner to the UI/UX engineer; continue implementation after the engineer supplies revised requirements.
 
 **Implementation Guidelines:**
 - Write clean, maintainable, well-documented code
