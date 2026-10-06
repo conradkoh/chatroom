@@ -234,7 +234,7 @@ describe('BaseCLIAgentService', () => {
       expect(callTimes[0]).toBe(0);
       expect(callTimes[1]).toBeGreaterThanOrEqual(45);
       expect(callTimes[1]).toBeLessThanOrEqual(60);
-      expect(callTimes[2]).toBeGreaterThanOrEqual(95);
+      expect(callTimes[2]).toBeGreaterThanOrEqual(140);
       expect(callTimes[2]).toBeLessThanOrEqual(160);
     });
   });
@@ -606,7 +606,10 @@ describe('BaseCLIAgentService', () => {
       // NotInstalled
       const depsNotInstalled = createMockDeps({
         execSync: vi.fn(() => {
-          const err = new Error('not found') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+          const err = new Error('not found') as Error & {
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
+          };
           err.status = 1;
           err.stderr = Buffer.from('');
           throw err;
@@ -638,7 +641,10 @@ describe('BaseCLIAgentService', () => {
       const deps = createMockDeps({
         execSync: vi.fn(() => {
           callTimes.push(Date.now() - startTime);
-          const err = new Error('transient') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+          const err = new Error('transient') as Error & {
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
+          };
           err.status = 127;
           err.stderr = Buffer.from('error');
           throw err;
@@ -677,13 +683,19 @@ describe('BaseCLIAgentService', () => {
             }
             if (i < 8) {
               // NotInstalled
-              const err = new Error('not found') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+              const err = new Error('not found') as Error & {
+                status?: number | undefined;
+                stderr?: Buffer | undefined;
+              };
               err.status = 1;
               err.stderr = Buffer.from('');
               throw err;
             } else {
               // DetectionError
-              const err = new Error('transient') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+              const err = new Error('transient') as Error & {
+                status?: number | undefined;
+                stderr?: Buffer | undefined;
+              };
               err.status = 127;
               err.stderr = Buffer.from('error');
               throw err;

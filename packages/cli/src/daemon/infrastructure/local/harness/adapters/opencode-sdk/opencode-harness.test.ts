@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 import type { OpencodeClient } from '@opencode-ai/sdk';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkHarness, startOpencodeSdkHarness } from './opencode-harness.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
@@ -18,6 +18,7 @@ const mockAbort = vi.fn();
 const mockPrompt = vi.fn();
 const mockProviderList = vi.fn();
 const mockGlobalEvent = vi.fn();
+const harnesses = new Set<OpencodeSdkHarness>();
 
 vi.mock('@opencode-ai/sdk', () => ({
   createOpencodeClient: vi.fn(() => ({
@@ -102,7 +103,7 @@ function createHarness(overrides?: {
   process?: (MockProcess & EventEmitter) | undefined;
 }) {
   const proc = overrides?.process ?? makeProcess();
-  return new OpencodeSdkHarness({
+  const harness = new OpencodeSdkHarness({
     baseUrl: overrides?.baseUrl ?? 'http://127.0.0.1:19999',
     cwd: overrides?.cwd ?? '/test/workspace',
     client: (overrides?.client ?? {
@@ -112,11 +113,19 @@ function createHarness(overrides?: {
     }) as unknown as OpencodeClient,
     process: proc as unknown as ChildProcess,
   });
+  harnesses.add(harness);
+  return harness;
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('OpencodeSdkHarness', () => {
+  afterEach(async () => {
+    for (const harness of harnesses) await harness.close();
+    harnesses.clear();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockProviderList.mockResolvedValue({
@@ -346,7 +355,6 @@ describe('OpencodeSdkHarness', () => {
       workspaceId: 'ws-1',
       resolvedConvexUrl: 'http://test:3210',
     });
-
     expect(spawn).toHaveBeenCalledWith(
       'opencode',
       ['serve', '--print-logs', '--log-level', 'WARN'],
@@ -386,6 +394,16 @@ describe('OpencodeSdkHarness', () => {
 // ─── SSE Fan-out Tests ────────────────────────────────────────────────────────
 
 describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    for (const harness of harnesses) await harness.close();
+    harnesses.clear();
+    vi.useRealTimers();
+  });
+
   // Helper: make a controlled async stream
   function _makeNeverEndingStream() {
     return {
@@ -473,6 +491,115 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     // the important invariant is that only ONE fiber was forked.
     const subscribeCallCount = (harness as any)._subscribeCallCount;
     expect(subscribeCallCount).toBeLessThanOrEqual(1); // ≤1 in synchronous scope
+  });
+
+  it('shares one abortable stream and waits for its cleanup when the last listener unregisters', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let finishCleanup!: () => void;
+    let releaseStream: (() => void) | undefined;
+    let cleanedUp = false;
+    const cleaned = new Promise<void>((resolve) => {
+      finishCleanup = resolve;
+    });
+    mockGlobalEvent.mockImplementation((options: { signal: AbortSignal }) => {
+      capturedSignal = options.signal;
+      return Promise.resolve({
+        stream: (async function* () {
+          try {
+            await new Promise<void>((resolve) => {
+              releaseStream = resolve;
+              options.signal.addEventListener('abort', () => resolve(), { once: true });
+            });
+          } finally {
+            cleanedUp = true;
+            finishCleanup();
+          }
+        })(),
+      });
+    });
+
+    const harness = createHarness();
+    harness.registerSessionListener('sess-a', { _receiveEvent: vi.fn() } as any);
+    harness.registerSessionListener('sess-b', { _receiveEvent: vi.fn() } as any);
+
+    try {
+      await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+      await vi.waitFor(() => expect(releaseStream).toBeTypeOf('function'));
+      expect(mockGlobalEvent).toHaveBeenCalledTimes(1);
+      expect(capturedSignal?.aborted).toBe(false);
+
+      harness.unregisterSessionListener('sess-a');
+      expect(capturedSignal?.aborted).toBe(false);
+      harness.unregisterSessionListener('sess-b');
+      await vi.waitFor(() => expect(capturedSignal?.aborted).toBe(true));
+      await cleaned;
+      expect({ aborted: capturedSignal?.aborted, cleanedUp }).toEqual({
+        aborted: true,
+        cleanedUp: true,
+      });
+      expect(mockGlobalEvent).toHaveBeenCalledTimes(1);
+    } finally {
+      releaseStream?.();
+      if (releaseStream !== undefined) await cleaned;
+      await harness.close();
+    }
+  });
+
+  it('close aborts an active stream, waits for cleanup, and prevents reconnect', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let finishCleanup!: () => void;
+    let releaseStream: (() => void) | undefined;
+    let cleanedUp = false;
+    let listenerCalls = 0;
+    const received = vi.fn();
+    const cleaned = new Promise<void>((resolve) => {
+      finishCleanup = resolve;
+    });
+    mockGlobalEvent.mockImplementation((options: { signal: AbortSignal }) => {
+      capturedSignal = options.signal;
+      return Promise.resolve({
+        stream: (async function* () {
+          try {
+            await new Promise<void>((resolve) => {
+              releaseStream = resolve;
+              options.signal.addEventListener('abort', () => resolve(), { once: true });
+            });
+            yield {
+              directory: '/test/workspace',
+              payload: { type: 'session.idle', properties: { sessionID: 'sess-close' } },
+            };
+          } finally {
+            cleanedUp = true;
+            finishCleanup();
+          }
+        })(),
+      });
+    });
+
+    const harness = createHarness();
+    harness.registerSessionListener('sess-close', {
+      _receiveEvent: (event: unknown) => {
+        listenerCalls++;
+        received(event);
+      },
+    } as any);
+
+    try {
+      await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+      await vi.waitFor(() => expect(releaseStream).toBeTypeOf('function'));
+      await harness.close();
+      expect(listenerCalls).toBe(0);
+      expect(mockGlobalEvent).toHaveBeenCalledTimes(1);
+      expect(received).not.toHaveBeenCalled();
+      expect({ aborted: capturedSignal?.aborted, cleanedUp }).toEqual({
+        aborted: true,
+        cleanedUp: true,
+      });
+    } finally {
+      releaseStream?.();
+      if (releaseStream !== undefined) await cleaned;
+      await harness.close();
+    }
   });
 
   it('fiber calls subscribe once and routes events to matching session listener', async () => {

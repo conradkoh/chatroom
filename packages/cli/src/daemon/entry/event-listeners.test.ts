@@ -82,6 +82,63 @@ function registerListeners(
 }
 
 describe('registerEventListeners', () => {
+  test('registrations stay isolated and can unsubscribe independently after registration returns', async () => {
+    const initA = createTestInit();
+    const initB = createTestInit();
+    const unsubscribeA = registerListeners(initA);
+    const unsubscribeB = registerListeners(initB);
+    let subscribedA = true;
+    const eventA = {
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      pid: 4101,
+      code: 7,
+      signal: null,
+      stopReason: 'agent_process.crashed',
+    } as const;
+    const eventB = {
+      chatroomId: 'other-chatroom' as Id<'chatroom_rooms'>,
+      role: 'reviewer',
+      pid: 5202,
+      code: null,
+      signal: 'SIGTERM',
+      stopReason: 'agent_process.signal',
+    } as const;
+
+    try {
+      initA.events.emit('agent:exited', eventA);
+      await vi.waitFor(() => {
+        expect(initA.agentProcessManager.handleExit).toHaveBeenCalledWith({
+          chatroomId: eventA.chatroomId,
+          role: eventA.role,
+          pid: eventA.pid,
+          code: eventA.code,
+          signal: eventA.signal,
+        });
+      });
+      expect(initB.agentProcessManager.handleExit).not.toHaveBeenCalled();
+
+      unsubscribeA();
+      subscribedA = false;
+      initA.events.emit('agent:exited', { ...eventA, pid: 4102 });
+      initB.events.emit('agent:exited', eventB);
+      await vi.waitFor(() => {
+        expect(initB.agentProcessManager.handleExit).toHaveBeenCalledWith({
+          chatroomId: eventB.chatroomId,
+          role: eventB.role,
+          pid: eventB.pid,
+          code: eventB.code,
+          signal: eventB.signal,
+        });
+      });
+      expect(initA.agentProcessManager.handleExit).toHaveBeenCalledTimes(1);
+      expect(initB.agentProcessManager.handleExit).toHaveBeenCalledTimes(1);
+    } finally {
+      if (subscribedA) unsubscribeA();
+      unsubscribeB();
+    }
+  });
+
   test('agent:exited delegates to agentProcessManager.handleExit', async () => {
     const init = createTestInit();
     const unsubscribe = registerListeners(init);
