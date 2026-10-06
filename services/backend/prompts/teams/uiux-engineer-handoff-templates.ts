@@ -16,6 +16,7 @@ function getUiuxEngineerRequirements(): string {
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
 - Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
 - Specify Tailwind utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
+- Provide the target HTML markup with exact class attributes and any required CSS/styles in the handoff.
 - Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.
 - Do not propose or require web accessibility implementation work unless the user explicitly requests it.`;
 }
@@ -96,8 +97,8 @@ ${getFileReferenceGuidanceComment()}
 **Change:** <precise add/modify/remove responsibility and why>
 
 \`\`\`text
-// Component hierarchy, props/state/events, test structure, or exact
-// Tailwind/theme-token classes. Enough detail that implementation requires no invention.
+// Target HTML markup, exact class attributes, and required CSS/styles.
+// Include component hierarchy and props/state/events needed for implementation.
 \`\`\`
 
 <add one block per file; do not collapse multiple files into a directory or vague layer>
