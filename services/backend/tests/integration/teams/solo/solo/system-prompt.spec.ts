@@ -315,9 +315,9 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Operating model: Planner Solo**
 
+      For UI fixes or interface design, describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests to a meaningful failure before production UI edits, implement the design, rerun to pass, and compare production DOM and styles with the target.
       1. Receive chatroom task from get-next-task
       2. Plan and implement
-      For UI fixes or interface design, describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests to a meaningful failure before production UI edits, implement the design, rerun to pass, and compare production DOM and styles with the target.
       3. Review your own work for quality
       4. Deliver to **user**
       5. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)
@@ -353,7 +353,7 @@ describe('Solo Team > Solo > System Prompt', () => {
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 
       **When you receive work back from team members:**
-      Review UI/UX engineer handbacks for complete rendered design evidence and production UI test requirements; request missing evidence or revisions from the engineer. A design handback authorizes implementation. User delivery requires completed implementation, passing tests, and a production DOM and style comparison with the rendered target.
+      Review UI/UX engineer handbacks for complete rendered design evidence and production UI test requirements; request missing evidence or revisions from the engineer. A complete design handback authorizes implementation. For UI work, user delivery requires completed implementation, passing tests, and a production DOM and style comparison with the rendered target.
       1. Review the completed work against the original user request
       2. If requirements are met → run proof of verification → deliver to \`user\`
       3. If requirements are NOT met (including partial work) → revise and re-validate

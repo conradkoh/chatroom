@@ -82,16 +82,16 @@ export function getPlannerSoloOperatingModel(nativeIntegration?: boolean): strin
   if (nativeIntegration) {
     return `**Operating model: Planner Solo**
 
-${intakeSteps}
 For UI fixes or interface design, describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests to a meaningful failure before production UI edits, implement the design, rerun to pass, and compare production DOM and styles with the target.
+${intakeSteps}
 3. Deliver to **user**
 4. ${continueStep}`;
   }
 
   return `**Operating model: Planner Solo**
 
-${intakeSteps}
 For UI fixes or interface design, describe the problem, desired outcome, affected surfaces, constraints, and evidence to the UI/UX engineer. Require a browser-rendered design and production UI test requirements before implementation. Write and run those tests to a meaningful failure before production UI edits, implement the design, rerun to pass, and compare production DOM and styles with the target.
+${intakeSteps}
 3. Review your own work for quality
 4. Deliver to **user**
 5. ${continueStep}`;

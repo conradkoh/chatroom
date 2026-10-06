@@ -210,8 +210,10 @@ describe('UI/UX-directed implementation contract', () => {
       ]);
       expect(guidance).toContain('C -->|No| F');
       expect(guidance).not.toContain('UI/UX if needed');
-      expect(guidance).toContain('A design handback authorizes implementation.');
-      expect(guidance).toContain('User delivery requires completed implementation, passing tests');
+      expect(guidance).toContain('A complete design handback authorizes implementation.');
+      expect(guidance).toContain(
+        'For UI work, user delivery requires completed implementation, passing tests'
+      );
       expect(guidance).not.toMatch(/unchanged|normal loop|Design ≠ completion|gaps\/changes/);
     }
   );
@@ -229,6 +231,11 @@ describe('UI/UX-directed implementation contract', () => {
 
       expect(guidance).toContain('Write and run those tests before production UI edits');
       expect(guidance).toContain('request missing evidence or design revisions from the engineer');
+      expectOrdered(guidance, [
+        'For UI fixes or interface design, describe the problem',
+        '1. Receive',
+      ]);
+      expect(guidance).toMatch(/2\. Plan and implement\n3\./);
       expect(guidance).not.toMatch(/builder tests first|delegate.{0,30}builder/i);
     }
   );
