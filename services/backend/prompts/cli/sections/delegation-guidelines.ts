@@ -53,7 +53,7 @@ Break features into focused slices and delegate all code changes to the builder.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-**Code review:** For code-producing work, review before delivering. Activate the review framework with: ${cmd('skill activate code-review')}.
+**Code review:** Review code-producing work before delivery.
 
 **Backlog items:** When the task originates from a backlog item, activate the backlog skill: ${cmd('skill activate backlog')}.
 

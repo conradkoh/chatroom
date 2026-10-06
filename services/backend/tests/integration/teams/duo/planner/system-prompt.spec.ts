@@ -348,7 +348,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
       - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-      **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
+      **Code review:** Review code-producing work before delivery.
 
       **Backlog items:** When the task originates from a backlog item, activate the backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
