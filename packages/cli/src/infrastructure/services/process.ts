@@ -1,7 +1,7 @@
 /**
  * ProcessService — Effect-TS service definition for OS process management.
  *
- * Wraps ProcessOps in an Effect Context.Tag for dependency injection via Layers.
+ * Wraps ProcessOps in an Effect Context.Service for dependency injection via Layers.
  * Phase 1: Define service interface; existing ProcessOps consumers unchanged until Phase 2+.
  */
 
@@ -16,10 +16,9 @@ export interface ProcessServiceShape {
   isAlive: (pid: number) => Effect.Effect<boolean>;
 }
 
-export class ProcessService extends Context.Tag('ProcessService')<
-  ProcessService,
-  ProcessServiceShape
->() {}
+export class ProcessService extends Context.Service<ProcessService, ProcessServiceShape>()(
+  'ProcessService'
+) {}
 
 /**
  * Live Layer — uses real process.kill.

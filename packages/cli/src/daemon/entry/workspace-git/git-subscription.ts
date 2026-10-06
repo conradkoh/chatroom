@@ -20,7 +20,8 @@
 import { gzipSync } from 'node:zlib';
 
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Layer, Runtime } from 'effect';
+import { Effect, Layer } from 'effect';
+import type { Context } from 'effect';
 
 import { pushGitStateEffect, type GitStateDeps } from './git-heartbeat.js';
 import { api } from '../../../api.js';
@@ -57,7 +58,7 @@ export interface GitSubscriptionHandle {
  */
 export type GitSubscriptionDeps = GitStateDeps & {
   logger?: Pick<Console, 'log' | 'warn'> | undefined;
-  runtime: Runtime.Runtime<DaemonSessionService>;
+  effectContext: Context.Context<DaemonSessionService>;
 };
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
@@ -215,7 +216,7 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
   );
 
   // Refresh git state so the UI updates (PR list, branch, etc.)
-  Runtime.runFork(deps.runtime)(
+  Effect.runForkWith(deps.effectContext)(
     pushGitStateEffect.pipe(
       Effect.provide(
         Layer.mergeAll(
@@ -228,7 +229,7 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
           })
         )
       ),
-      Effect.catchAll((err) =>
+      Effect.catch((err) =>
         Effect.sync(() =>
           console.warn(
             `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
@@ -426,7 +427,7 @@ function dispatchGitRequest(
 // fallow-ignore-next-line unused-export
 export async function drainPendingGitRequests(
   session: DaemonSessionServiceShape,
-  runtime: Runtime.Runtime<DaemonSessionService>,
+  effectContext: Context.Context<DaemonSessionService>,
   processedRequestIds: Map<string, number>,
   dedupTtlMs: number,
   processingState: { isProcessing: boolean }
@@ -439,11 +440,11 @@ export async function drainPendingGitRequests(
   if (processingState.isProcessing) return;
 
   processingState.isProcessing = true;
-  const sessionWithRuntime = { ...session, runtime } as unknown as DaemonSessionServiceShape;
+  const sessionWithContext = { ...session, effectContext };
   try {
     await Effect.runPromise(
-      processRequestsEffect(requests, processedRequestIds, dedupTtlMs, runtime).pipe(
-        Effect.provideService(DaemonSessionService, sessionWithRuntime)
+      processRequestsEffect(requests, processedRequestIds, dedupTtlMs, effectContext).pipe(
+        Effect.provideService(DaemonSessionService, sessionWithContext)
       )
     );
   } finally {
@@ -459,13 +460,13 @@ export const startGitRequestSubscriptionEffect = (): Effect.Effect<
 > =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    const runtime = yield* Effect.runtime<DaemonSessionService>();
+    const effectContext = yield* Effect.context<DaemonSessionService>();
 
     // Session-scoped dedup — prevents re-processing the same request within a single daemon run.
     const processedRequestIds = new Map<string, number>();
     const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-    const sessionWithRuntime = { ...session, runtime } as unknown as DaemonSessionServiceShape;
+    const sessionWithContext = { ...session, effectContext };
 
     const processingState = { isProcessing: false };
 
@@ -491,8 +492,8 @@ export const startGitRequestSubscriptionEffect = (): Effect.Effect<
     return {
       drainPendingGitRequests: () =>
         drainPendingGitRequests(
-          sessionWithRuntime,
-          runtime,
+          sessionWithContext,
+          effectContext,
           processedRequestIds,
           DEDUP_TTL_MS,
           processingState
@@ -507,7 +508,7 @@ export const processRequestsEffect = (
   requests: PendingRequest[],
   processedRequestIds: Map<string, number>,
   dedupTtlMs: number,
-  runtime: Runtime.Runtime<DaemonSessionService>
+  effectContext: Context.Context<DaemonSessionService>
 ): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
@@ -541,9 +542,9 @@ export const processRequestsEffect = (
           `[${formatTimestamp()}] ⚙️  Processing git request: type=${req.requestType}, id=${requestId}`
         );
 
-        const sessionWithRuntime = { ...session, runtime } as unknown as GitSubscriptionDeps;
+        const sessionWithContext = { ...session, effectContext };
 
-        yield* dispatchGitRequest(sessionWithRuntime, req);
+        yield* dispatchGitRequest(sessionWithContext, req);
 
         // Mark as done
         yield* Effect.promise(() =>

@@ -7,7 +7,6 @@
  *   → infrastructure/services/
  */
 
-import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
@@ -47,10 +46,10 @@ export interface AgentLifecycleOutboxServiceShape {
 type DaemonLifecycleOutboxPort = {
   enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult>;
 };
-export class AgentLifecycleOutboxService extends Context.Tag('AgentLifecycleOutboxService')<
+export class AgentLifecycleOutboxService extends Context.Service<
   AgentLifecycleOutboxService,
   AgentLifecycleOutboxServiceShape
->() {}
+>()('AgentLifecycleOutboxService') {}
 export const AgentLifecycleOutboxServiceLive = (
   registry: AgentLifecycleOutboxRegistry,
   machineId: string
@@ -90,10 +89,10 @@ export interface DaemonMachineServiceShape {
 }
 
 // fallow-ignore-next-line unused-export
-export class DaemonMachineService extends Context.Tag('DaemonMachineService')<
+export class DaemonMachineService extends Context.Service<
   DaemonMachineService,
   DaemonMachineServiceShape
->() {}
+>()('DaemonMachineService') {}
 
 export const DaemonMachineServiceLive = (ops: MachineStateOps): Layer.Layer<DaemonMachineService> =>
   Layer.succeed(DaemonMachineService, {
@@ -122,10 +121,10 @@ export interface DaemonSpawningServiceShape {
 }
 
 // fallow-ignore-next-line unused-export
-export class DaemonSpawningService extends Context.Tag('DaemonSpawningService')<
+export class DaemonSpawningService extends Context.Service<
   DaemonSpawningService,
   DaemonSpawningServiceShape
->() {}
+>()('DaemonSpawningService') {}
 
 export const DaemonSpawningServiceLive = (ops: SpawningOps): Layer.Layer<DaemonSpawningService> =>
   Layer.succeed(DaemonSpawningService, {
@@ -166,9 +165,10 @@ export interface DaemonAgentProcessManagerServiceShape {
   subscribeAgentTurnProgress: (handler: AgentTurnProgressHandler) => () => void;
 }
 
-export class DaemonAgentProcessManagerService extends Context.Tag(
-  'DaemonAgentProcessManagerService'
-)<DaemonAgentProcessManagerService, DaemonAgentProcessManagerServiceShape>() {}
+export class DaemonAgentProcessManagerService extends Context.Service<
+  DaemonAgentProcessManagerService,
+  DaemonAgentProcessManagerServiceShape
+>()('DaemonAgentProcessManagerService') {}
 
 export const DaemonAgentProcessManagerServiceLive = (
   mgr: AgentProcessManager,
@@ -201,9 +201,10 @@ export const DaemonAgentProcessManagerServiceLive = (
  * Existing callers continue using DaemonAgentProcessManagerService until they
  * are migrated to this interface.
  */
-export class DaemonAgentProcessManagerCommandService extends Context.Tag(
-  'DaemonAgentProcessManagerCommandService'
-)<DaemonAgentProcessManagerCommandService, AgentProcessManagerService>() {}
+export class DaemonAgentProcessManagerCommandService extends Context.Service<
+  DaemonAgentProcessManagerCommandService,
+  AgentProcessManagerService
+>()('DaemonAgentProcessManagerCommandService') {}
 
 export const DaemonAgentProcessManagerCommandServiceLive = (
   service: AgentProcessManagerService
@@ -244,8 +245,8 @@ export interface DaemonSessionServiceShape {
   /** Populated by workspace-list-subscription; consumed by heartbeats. Mutable reference. */
   workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number } | undefined;
   logger?: Pick<Console, 'log' | 'warn'> | undefined;
-  /** Runtime for Effect execution — provided by `startGitRequestSubscriptionEffect` via `Effect.runtime()`. */
-  runtime?: Runtime.Runtime<DaemonSessionService> | undefined;
+  /** Context captured for imperative callbacks that outlive their starter effect. */
+  effectContext?: Context.Context<DaemonSessionService> | undefined;
 
   // ─── Mutable state (shared reference semantics) ───────────────────
   /** Change-detection cache for git state, keyed by `machineId::workingDir`. */
@@ -259,15 +260,15 @@ export interface DaemonSessionServiceShape {
   logEvent: (event: Record<string, unknown>) => Promise<void>;
 }
 
-export class DaemonSessionService extends Context.Tag('DaemonSessionService')<
+export class DaemonSessionService extends Context.Service<
   DaemonSessionService,
   DaemonSessionServiceShape
->() {}
+>()('DaemonSessionService') {}
 
-// ─── DaemonMutableStateService (E5 — Effect.Ref for mutable state) ───────────
+// ─── DaemonMutableStateService (E5 — Ref for mutable state) ──────────────────
 
 /**
- * Effect.Ref-backed mutable state previously held as shared references on
+ * Ref.Ref-backed mutable state previously held as shared references on
  * DaemonSessionService. Migrating consumers incrementally (E5-2+).
  */
 export interface DaemonMutableStateServiceShape {
@@ -277,10 +278,10 @@ export interface DaemonMutableStateServiceShape {
   workspaceListStore: Ref.Ref<{ workspaces: WorkspaceForSync[]; updatedAt: number } | undefined>;
 }
 
-export class DaemonMutableStateService extends Context.Tag('DaemonMutableStateService')<
+export class DaemonMutableStateService extends Context.Service<
   DaemonMutableStateService,
   DaemonMutableStateServiceShape
->() {}
+>()('DaemonMutableStateService') {}
 
 /** Build DaemonMutableStateService layer from initial values. */
 export function DaemonMutableStateServiceLive(init: {

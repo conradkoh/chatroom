@@ -104,7 +104,7 @@ export async function authLogout(deps?: AuthLogoutDeps): Promise<void> {
 
   await Effect.runPromise(
     authLogoutEffect().pipe(
-      Effect.catchAll((err) => handleAuthLogoutError(err)),
+      Effect.catch((err) => handleAuthLogoutError(err)),
       Effect.provide(layer)
     )
   );

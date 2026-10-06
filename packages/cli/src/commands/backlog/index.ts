@@ -23,6 +23,7 @@ import {
   SessionService,
   SessionServiceLive,
 } from '../../infrastructure/services/index.js';
+import type { SessionServiceShape } from '../../infrastructure/services/session.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
@@ -229,7 +230,7 @@ async function createDefaultDeps(): Promise<BacklogDeps> {
 // ─── Auth / Validation Helpers (Effect versions) ───────────────────────────
 
 function requireAuthEffect(
-  sessionService: SessionService['Type']
+  sessionService: SessionServiceShape
 ): Effect.Effect<string, BacklogError> {
   return sessionService
     .getSessionId()
@@ -744,7 +745,8 @@ export const historyBacklogEffect = (
         for (const task of tasks) {
           const statusEmoji = getStatusEmoji(task.status as TaskStatus | BacklogItemStatus);
           const completedTs =
-            (task as { completedAt?: number | undefined }).completedAt ?? (task.updatedAt as number);
+            (task as { completedAt?: number | undefined }).completedAt ??
+            (task.updatedAt as number);
           const date = new Date(completedTs).toLocaleString('en-US', {
             month: 'short',
             day: 'numeric',
@@ -1132,7 +1134,7 @@ export async function listBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     listBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1149,7 +1151,7 @@ export async function addBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     addBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1166,7 +1168,7 @@ export async function completeBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     completeBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1183,7 +1185,7 @@ export async function reopenBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     reopenBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1201,7 +1203,7 @@ export async function patchBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     patchBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1218,7 +1220,7 @@ export async function scoreBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     scoreBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1235,7 +1237,7 @@ export async function markForReviewBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     markForReviewBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1252,7 +1254,7 @@ export async function historyBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     historyBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1269,7 +1271,7 @@ export async function updateBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     updateBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1286,7 +1288,7 @@ export async function closeBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     closeBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1303,7 +1305,7 @@ export async function deleteBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     deleteBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )
   );
@@ -1325,7 +1327,7 @@ export async function exportBacklog(
   }
   await Effect.runPromise(
     exportBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(Layer.merge(buildBaseLayer(d), buildFsLayer(d.fs)))
     )
   );
@@ -1348,7 +1350,7 @@ export async function importBacklog(
   }
   await Effect.runPromise(
     importBacklogEffect(chatroomId, options).pipe(
-      Effect.catchAll(handleBacklogError),
+      Effect.catch(handleBacklogError),
       Effect.provide(Layer.merge(buildBaseLayer(d), buildFsLayer(d.fs)))
     )
   );

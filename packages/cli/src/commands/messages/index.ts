@@ -254,7 +254,7 @@ export async function listBySenderRole(
 
   await Effect.runPromise(
     listBySenderRoleEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleMessagesError(err)),
+      Effect.catch((err) => handleMessagesError(err)),
       Effect.provide(layer)
     )
   );
@@ -274,7 +274,7 @@ export async function listSinceMessage(
 
   await Effect.runPromise(
     listSinceMessageEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleMessagesError(err)),
+      Effect.catch((err) => handleMessagesError(err)),
       Effect.provide(layer)
     )
   );

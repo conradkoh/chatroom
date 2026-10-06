@@ -1,7 +1,7 @@
 /**
  * Effect-TS Service Definitions — index barrel export.
  *
- * Re-exports all infrastructure service Context.Tags + Layers.
+ * Re-exports all infrastructure service Context.Services + Layers.
  * Phase 1: Define service interfaces; existing deps/ consumers unchanged until Phase 2+.
  */
 

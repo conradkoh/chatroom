@@ -4,10 +4,13 @@
  * Tests use in-memory test layers to verify Effect pipeline behavior without touching a real backend.
  */
 
+import { ConvexError } from 'convex/values';
 import { Effect } from 'effect';
 import { describe, it, expect } from 'vitest';
 
-import { BackendService } from './backend.js';
+import { BackendService, BackendServiceLive } from './backend.js';
+import { api } from '../../api.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 describe('BackendService', () => {
   it('mutation returns the resolved value', async () => {
@@ -66,5 +69,23 @@ describe('BackendService', () => {
       Effect.provideService(BackendService, layer)
     );
     await expect(Effect.runPromise(program)).rejects.toThrow('query failed');
+  });
+
+  it('runPromise rejects with the original ConvexError and preserves its message', async () => {
+    const error = new ConvexError({ code: 'EXPECTED', message: 'original backend error' });
+    const program = Effect.gen(function* () {
+      const service = yield* BackendService;
+      return yield* service.mutation(api.machines.daemonHeartbeat, {
+        sessionId: 'session-test',
+        machineId: 'machine-test',
+      });
+    });
+    const live = BackendServiceLive({
+      mutation: async () => Promise.reject(error),
+      query: async () => undefined,
+    });
+
+    await expect(Effect.runPromise(program.pipe(Effect.provide(live)))).rejects.toBe(error);
+    expect(getErrorMessage(error)).toBe('original backend error');
   });
 });

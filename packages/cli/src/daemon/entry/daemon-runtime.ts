@@ -19,6 +19,7 @@ import {
 } from './command-inbound-registry.js';
 import { DaemonSessionService } from './daemon-services.js';
 import type {
+  AgentLifecycleOutboxService,
   DaemonAgentProcessManagerCommandService,
   DaemonAgentProcessManagerService,
   DaemonMutableStateService,
@@ -78,6 +79,7 @@ export type DaemonRuntimeDeps = {
     | DaemonAgentProcessManagerService
     | DaemonAgentProcessManagerCommandService
     | DaemonMutableStateService
+    | AgentLifecycleOutboxService
   >;
   onNativeDeliveryReady?: (nativeDelivery: AgentWorkManager | null) => void;
 };
@@ -169,7 +171,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
             | DaemonAgentProcessManagerCommandService
             | DaemonMutableStateService
           >();
-          yield* onDaemonShutdownEffect.pipe(Effect.provide(effectContext));
+          yield* onDaemonShutdownEffect.pipe(Effect.provideContext(effectContext));
         }).pipe(Effect.provide(deps.layers))
       ),
       PROCESS_KILL_TIMEOUT_MS
@@ -284,7 +286,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       try: () => session.agentConfigRegistry.start(deps.wsClient),
       catch: (error) => error,
     }).pipe(
-      Effect.catchAll((error) => {
+      Effect.catch((error) => {
         console.warn(
           `[${formatTimestamp()}] ⚠️  Agent config inbox bootstrap failed: ${getErrorMessage(error)}`
         );
@@ -297,7 +299,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       deps.wsClient
     );
 
-    const commandRunRuntime = yield* Effect.runtime<DaemonSessionService>();
+    const commandRunContext = yield* Effect.context<DaemonSessionService>();
 
     agenticQueryWorkerHandle = startAgenticQuerySubscriptions(
       {
@@ -331,16 +333,14 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
           nativeDelivery
         );
       } else {
-        await drainActionableCommandRuns(session, commandRunRuntime);
+        await drainActionableCommandRuns(session, commandRunContext);
       }
     });
   });
 
   return {
     async run(): Promise<void> {
-      await Effect.runPromise(
-        startRuntimeEffect.pipe(Effect.provide(deps.layers)) as Effect.Effect<void, never, never>
-      );
+      await Effect.runPromise(startRuntimeEffect.pipe(Effect.provide(deps.layers)));
       await new Promise<void>((resolve) => {
         runResolve = resolve;
       });

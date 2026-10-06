@@ -211,7 +211,7 @@ export async function handoff(
 
   await Effect.runPromise(
     handoffEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleHandoffError(err)),
+      Effect.catch((err) => handleHandoffError(err)),
       Effect.provide(layer)
     )
   );

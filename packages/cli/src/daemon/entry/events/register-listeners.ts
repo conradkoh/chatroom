@@ -5,7 +5,7 @@
  * Returns an unsubscribe function that removes all listeners (for tests/shutdown).
  */
 
-import { Effect, Runtime } from 'effect';
+import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerService } from '../daemon-services.js';
 import { DaemonSessionService } from '../daemon-services.js';
@@ -20,7 +20,7 @@ export const registerEventListenersEffect = (): Effect.Effect<
 > =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    const runtime = yield* Effect.runtime<
+    const effectContext = yield* Effect.context<
       DaemonSessionService | DaemonAgentProcessManagerService
     >();
 
@@ -28,7 +28,7 @@ export const registerEventListenersEffect = (): Effect.Effect<
 
     unsubs.push(
       session.events.on('agent:exited', (payload) => {
-        Runtime.runFork(runtime)(onAgentExitedEffect(payload));
+        Effect.runForkWith(effectContext)(onAgentExitedEffect(payload));
       })
     );
     unsubs.push(session.events.on('agent:started', (payload) => logAgentStarted(payload)));

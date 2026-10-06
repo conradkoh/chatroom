@@ -56,7 +56,7 @@ function fulfillGzippedContentEffect(
   encoding: 'utf8' | 'binary' = 'utf8'
 ): Effect.Effect<void> {
   const content = gzipPlainText(plainText);
-  return Effect.catchAll(
+  return Effect.catch(
     Effect.tryPromise(() =>
       session.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
         sessionId: session.sessionId,
@@ -78,16 +78,15 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
 
-    const requests: { _id: string; workingDir: string; filePath: string }[] =
-      yield* Effect.catchAll(
-        Effect.tryPromise(() =>
-          session.backend.query(api.workspaceFiles.getPendingFileContentRequests, {
-            sessionId: session.sessionId,
-            machineId: session.machineId,
-          })
-        ),
-        () => Effect.succeed([])
-      );
+    const requests: { _id: string; workingDir: string; filePath: string }[] = yield* Effect.catch(
+      Effect.tryPromise(() =>
+        session.backend.query(api.workspaceFiles.getPendingFileContentRequests, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+        })
+      ),
+      () => Effect.succeed([])
+    );
 
     if (requests.length === 0) return;
 
@@ -99,7 +98,7 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
       const startTime = Date.now();
       const { workingDir, filePath } = request;
 
-      const registered = yield* Effect.catchAll(
+      const registered = yield* Effect.catch(
         Effect.tryPromise(() => assertRegisteredWorkingDir(session, workingDir)),
         (): Effect.Effect<{ ok: true } | { ok: false; error: string }> =>
           Effect.succeed({ ok: false, error: 'Workspace check failed' })
@@ -118,7 +117,7 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
         continue;
       }
 
-      const resolved = yield* Effect.catchAll(
+      const resolved = yield* Effect.catch(
         Effect.tryPromise(() => resolvePathWithinWorkspace(workingDir, filePath)),
         (): Effect.Effect<{ ok: true; absolutePath: string } | { ok: false; error: string }> =>
           Effect.succeed({ ok: false, error: 'Invalid file path' })
@@ -172,7 +171,7 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
       }
 
       let fileNotFound = false;
-      const buffer: Buffer = yield* Effect.catchAll(
+      const buffer: Buffer = yield* Effect.catch(
         Effect.tryPromise(() => readFile(absolutePath)),
         (error): Effect.Effect<Buffer> => {
           if (isENOENT(error)) {
@@ -223,7 +222,7 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
       const compressed = gzipSync(Buffer.from(content));
       const contentCompressed = compressed.toString('base64');
 
-      yield* Effect.catchAll(
+      yield* Effect.catch(
         Effect.tryPromise(() =>
           session.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
             sessionId: session.sessionId,

@@ -16,8 +16,8 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 import type { FunctionReturnType } from 'convex/server';
-import type { Runtime } from 'effect';
 import { Effect } from 'effect';
+import type { Context } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
@@ -582,11 +582,11 @@ type ActionableCommandRuns = FunctionReturnType<
 >;
 type WatchCallback = (result: ActionableCommandRuns | null | undefined) => void;
 
-function makeCommandRunRuntime(
+function makeEffectContext(
   session: DaemonSessionServiceShape
-): Runtime.Runtime<DaemonSessionService> {
+): Context.Context<DaemonSessionService> {
   return Effect.runSync(
-    Effect.runtime<DaemonSessionService>().pipe(
+    Effect.context<DaemonSessionService>().pipe(
       Effect.provideService(DaemonSessionService, session)
     )
   );
@@ -641,7 +641,7 @@ describe('process-group kill (real process tree)', () => {
       taskService: {},
       agentConfigRegistry: { get: () => undefined },
     } as unknown as DaemonSessionServiceShape;
-    const runtime = makeCommandRunRuntime(session);
+    const effectContext = makeEffectContext(session);
     const subscriber = startCommandRunSubscriber(
       {
         wsClient,
@@ -649,7 +649,8 @@ describe('process-group kill (real process tree)', () => {
         machineId: session.machineId,
       },
       (event) => {
-        if (event.type === 'command-run.updated') void drainActionableCommandRuns(session, runtime);
+        if (event.type === 'command-run.updated')
+          void drainActionableCommandRuns(session, effectContext);
       }
     );
 

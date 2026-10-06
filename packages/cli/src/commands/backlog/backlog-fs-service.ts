@@ -1,5 +1,5 @@
 /**
- * BacklogFsService — Effect Context.Tag for filesystem operations needed by
+ * BacklogFsService — Effect Context.Service for filesystem operations needed by
  * the backlog export/import commands.
  */
 
@@ -20,10 +20,9 @@ export interface BacklogFsServiceShape {
   ) => Effect.Effect<string | undefined, Error>;
 }
 
-export class BacklogFsService extends Context.Tag('BacklogFsService')<
-  BacklogFsService,
-  BacklogFsServiceShape
->() {}
+export class BacklogFsService extends Context.Service<BacklogFsService, BacklogFsServiceShape>()(
+  'BacklogFsService'
+) {}
 
 // ─── Live Layer (real fs) ───────────────────────────────────────────────────
 

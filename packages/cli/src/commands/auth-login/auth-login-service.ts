@@ -1,8 +1,8 @@
 /**
- * AuthLoginEnvService — Effect Context.Tag for auth-login environment operations.
+ * AuthLoginEnvService — Effect Context.Service for auth-login environment operations.
  *
  * Merges auth storage, browser, clock, and process env into one service tag
- * to keep test setup simple — one Context.Tag, one mock layer in tests.
+ * to keep test setup simple — one Context.Service, one mock layer in tests.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -28,7 +28,7 @@ export interface AuthLoginEnvServiceShape {
   stdoutWrite: (text: string) => Effect.Effect<void>;
 }
 
-export class AuthLoginEnvService extends Context.Tag('AuthLoginEnvService')<
+export class AuthLoginEnvService extends Context.Service<
   AuthLoginEnvService,
   AuthLoginEnvServiceShape
->() {}
+>()('AuthLoginEnvService') {}

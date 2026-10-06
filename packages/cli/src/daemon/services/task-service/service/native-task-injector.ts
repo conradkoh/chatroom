@@ -104,7 +104,7 @@ function reportDeliveryFailureEffect(
   return Effect.tryPromise({
     try: () => emitTaskDeliveryFailed(deps, args),
     catch: () => undefined,
-  }).pipe(Effect.catchAll(() => Effect.void));
+  }).pipe(Effect.catch(() => Effect.void));
 }
 
 function applyColdSessionIfRequested(
@@ -119,13 +119,13 @@ function applyColdSessionIfRequested(
     const coldSessionResult = yield* Effect.tryPromise({
       try: () => ensureColdSessionBeforeNativeInject(task, deps),
       catch: (err) => err,
-    }).pipe(Effect.either);
+    }).pipe(Effect.result);
     ensureCurrent(deps);
 
-    if (coldSessionResult._tag === 'Left' || !coldSessionResult.right) {
+    if (coldSessionResult._tag === 'Failure' || !coldSessionResult.success) {
       const error =
-        coldSessionResult._tag === 'Left'
-          ? getErrorMessage(coldSessionResult.left)
+        coldSessionResult._tag === 'Failure'
+          ? getErrorMessage(coldSessionResult.failure)
           : 'cold session restart failed';
       yield* reportDeliveryFailureEffect(deps, {
         chatroomId,
@@ -136,7 +136,7 @@ function applyColdSessionIfRequested(
       return { failed: true as const, error };
     }
 
-    return { harnessSessionId: coldSessionResult.right };
+    return { harnessSessionId: coldSessionResult.success };
   });
 }
 
@@ -157,17 +157,17 @@ function claimTaskForDelivery(
           taskId,
         }),
       catch: (err) => err,
-    }).pipe(Effect.either);
+    }).pipe(Effect.result);
     ensureCurrent(deps);
 
-    if (claimResult._tag === 'Left') {
+    if (claimResult._tag === 'Failure') {
       yield* reportDeliveryFailureEffect(deps, {
         chatroomId,
         role,
         taskId: taskId as string,
-        error: getErrorMessage(claimResult.left),
+        error: getErrorMessage(claimResult.failure),
       });
-      return yield* Effect.fail(claimResult.left);
+      return yield* Effect.fail(claimResult.failure);
     }
   });
 }
@@ -273,7 +273,7 @@ function emitSessionAugmentationIfNeeded(
       });
     },
     catch: (err) => err,
-  }).pipe(Effect.catchAll(() => Effect.void));
+  }).pipe(Effect.catch(() => Effect.void));
 }
 
 function resumeHarnessWithPrompt(
@@ -290,11 +290,11 @@ function resumeHarnessWithPrompt(
     const resumeResult = yield* Effect.tryPromise({
       try: () => deps.agentMgr.resumeTurnForSlot({ chatroomId, role, prompt }),
       catch: (err) => err,
-    }).pipe(Effect.either);
+    }).pipe(Effect.result);
     ensureCurrent(deps);
 
-    if (resumeResult._tag === 'Left') {
-      const error = getErrorMessage(resumeResult.left);
+    if (resumeResult._tag === 'Failure') {
+      const error = getErrorMessage(resumeResult.failure);
       console.warn(`[NativeTaskInjector] resumeTurn failed for ${role}@${chatroomId}: ${error}`);
       yield* reportDeliveryFailureEffect(deps, {
         chatroomId,
@@ -315,7 +315,7 @@ function resumeHarnessWithPrompt(
           taskId,
         }),
       catch: (err) => err,
-    }).pipe(Effect.catchAll(() => Effect.void));
+    }).pipe(Effect.catch(() => Effect.void));
 
     ensureCurrent(deps);
     deps.onTaskDelivered?.({
@@ -350,17 +350,17 @@ function loadNativeInjectionPrompt(
           ...(deps.convexUrl ? { convexUrl: deps.convexUrl } : {}),
         }) as Promise<{ fullCliOutput: string }>,
       catch: (err) => err,
-    }).pipe(Effect.either);
+    }).pipe(Effect.result);
     ensureCurrent(deps);
 
-    if (deliveryResult._tag === 'Left') {
+    if (deliveryResult._tag === 'Failure') {
       yield* reportDeliveryFailureEffect(deps, {
         chatroomId,
         role,
         taskId: taskId as string,
-        error: getErrorMessage(deliveryResult.left),
+        error: getErrorMessage(deliveryResult.failure),
       });
-      return yield* Effect.fail(deliveryResult.left);
+      return yield* Effect.fail(deliveryResult.failure);
     }
 
     const augmentationMode = resolveSessionAugmentationForTask(
@@ -375,7 +375,7 @@ function loadNativeInjectionPrompt(
     return {
       augmentationMode,
       prompt: buildNativeInjectionPrompt({
-        taskDeliveryOutput: deliveryResult.right.fullCliOutput,
+        taskDeliveryOutput: deliveryResult.success.fullCliOutput,
         augmentationMode,
       }),
     };

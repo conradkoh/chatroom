@@ -106,7 +106,7 @@ describe('readContextEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();
@@ -127,7 +127,7 @@ describe('readContextEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();
@@ -150,7 +150,7 @@ describe('readContextEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();
@@ -191,7 +191,7 @@ describe('newContextEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();
@@ -212,7 +212,7 @@ describe('newContextEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();
@@ -233,7 +233,7 @@ describe('newContextEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();
@@ -253,7 +253,7 @@ describe('newContextEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();
@@ -306,7 +306,7 @@ describe('listContextsEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();
@@ -355,7 +355,7 @@ describe('inspectContextEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as ContextError | null;
       expect(error).not.toBeNull();

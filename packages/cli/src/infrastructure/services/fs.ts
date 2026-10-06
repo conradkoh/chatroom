@@ -1,7 +1,7 @@
 /**
  * FsService — Effect-TS service definition for filesystem operations.
  *
- * Wraps FsOps in an Effect Context.Tag for dependency injection via Layers.
+ * Wraps FsOps in an Effect Context.Service for dependency injection via Layers.
  * Phase 1: Define service interface; existing FsOps consumers unchanged until Phase 2+.
  */
 
@@ -15,7 +15,7 @@ export interface FsServiceShape {
   stat: (path: string) => Effect.Effect<Stats, Error>;
 }
 
-export class FsService extends Context.Tag('FsService')<FsService, FsServiceShape>() {}
+export class FsService extends Context.Service<FsService, FsServiceShape>()('FsService') {}
 
 /**
  * Live Layer — uses real node:fs/promises.

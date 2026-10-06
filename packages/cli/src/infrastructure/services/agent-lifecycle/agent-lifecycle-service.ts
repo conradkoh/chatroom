@@ -114,7 +114,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
             prompt: createSpawnPrompt(opts.initPrompt),
             systemPrompt: opts.systemPrompt,
           })
-          .pipe(Effect.catchAll(() => Effect.succeed(null)));
+          .pipe(Effect.catch(() => Effect.succeed(null)));
 
         if (!spawnHandle) {
           return { success: false, error: 'spawn_failed' };

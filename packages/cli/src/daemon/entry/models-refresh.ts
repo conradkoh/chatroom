@@ -321,7 +321,7 @@ const pushModelsSnapshotIfChangedEffect = (
       options
     );
   }).pipe(
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       Effect.sync(() => {
         const message = getErrorMessage(error);
         console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);
@@ -363,7 +363,7 @@ export const refreshModelsEffect: Effect.Effect<
 
     return yield* pushModelsSnapshotIfChangedEffect(models);
   }).pipe(
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       Effect.sync(() => {
         const message = getErrorMessage(error);
         console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);

@@ -8,7 +8,7 @@
 import type { ConvexHttpClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
-import type { Runtime } from 'effect';
+import type { Context } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -73,9 +73,11 @@ function makeSession(): DaemonSessionServiceShape {
   };
 }
 
-function makeRuntime(session: DaemonSessionServiceShape): Runtime.Runtime<DaemonSessionService> {
+function makeEffectContext(
+  session: DaemonSessionServiceShape
+): Context.Context<DaemonSessionService> {
   return Effect.runSync(
-    Effect.runtime<DaemonSessionService>().pipe(
+    Effect.context<DaemonSessionService>().pipe(
       Effect.provideService(DaemonSessionService, session)
     )
   );
@@ -93,9 +95,9 @@ describe('processActionableCommandRuns', () => {
 
   it('dispatches onCommandRunEffect for a new pending run', async () => {
     const session = makeSession();
-    const runtime = makeRuntime(session);
+    const effectContext = makeEffectContext(session);
 
-    processActionableCommandRuns(session, runtime, {
+    processActionableCommandRuns(session, effectContext, {
       pendingRuns: [
         { _id: rid('run-1'), workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' },
       ],
@@ -115,9 +117,9 @@ describe('processActionableCommandRuns', () => {
 
   it('dispatches onCommandStopEffect for a stop-requested running run', async () => {
     const session = makeSession();
-    const runtime = makeRuntime(session);
+    const effectContext = makeEffectContext(session);
 
-    processActionableCommandRuns(session, runtime, {
+    processActionableCommandRuns(session, effectContext, {
       pendingRuns: [],
       stopRequestedRuns: [{ _id: rid('run-9') }],
     });
@@ -130,7 +132,7 @@ describe('processActionableCommandRuns', () => {
 
   it('deduplicates the same pending run on subsequent updates', async () => {
     const session = makeSession();
-    const runtime = makeRuntime(session);
+    const effectContext = makeEffectContext(session);
 
     const result: ActionableCommandRuns = {
       pendingRuns: [
@@ -139,14 +141,14 @@ describe('processActionableCommandRuns', () => {
       stopRequestedRuns: [],
     };
 
-    processActionableCommandRuns(session, runtime, result);
+    processActionableCommandRuns(session, effectContext, result);
     await FLUSH();
-    processActionableCommandRuns(session, runtime, result);
+    processActionableCommandRuns(session, effectContext, result);
     await FLUSH();
 
     expect(mockedOnCommandRunEffect).toHaveBeenCalledTimes(1);
 
-    processActionableCommandRuns(session, runtime, {
+    processActionableCommandRuns(session, effectContext, {
       pendingRuns: [
         { _id: rid('run-2'), workingDir: '/tmp/ws', commandName: 'build', script: 'echo build' },
       ],
@@ -155,6 +157,24 @@ describe('processActionableCommandRuns', () => {
     await FLUSH();
 
     expect(mockedOnCommandRunEffect).toHaveBeenCalledTimes(2);
+  });
+
+  it('deduplicates pending runs and stop nudges independently after context capture', async () => {
+    const session = makeSession();
+    const effectContext = makeEffectContext(session);
+    const result: ActionableCommandRuns = {
+      pendingRuns: [
+        { _id: rid('run-shared'), workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' },
+      ],
+      stopRequestedRuns: [{ _id: rid('run-shared') }],
+    };
+
+    processActionableCommandRuns(session, effectContext, result);
+    processActionableCommandRuns(session, effectContext, result);
+    await FLUSH();
+
+    expect(mockedOnCommandRunEffect).toHaveBeenCalledTimes(1);
+    expect(mockedOnCommandStopEffect).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -172,9 +192,9 @@ describe('drainActionableCommandRuns', () => {
       ],
       stopRequestedRuns: [],
     });
-    const runtime = makeRuntime(session);
+    const effectContext = makeEffectContext(session);
 
-    await drainActionableCommandRuns(session, runtime);
+    await drainActionableCommandRuns(session, effectContext);
     await FLUSH();
 
     expect(session.backend.query).toHaveBeenCalledWith('mock-listActionableCommandRuns', {

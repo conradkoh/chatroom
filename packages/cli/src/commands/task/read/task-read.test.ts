@@ -104,7 +104,7 @@ describe('taskReadEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as TaskReadError | null;
       expect(error).not.toBeNull();
@@ -129,7 +129,7 @@ describe('taskReadEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as TaskReadError | null;
       expect(error).not.toBeNull();
@@ -155,7 +155,7 @@ describe('taskReadEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as TaskReadError | null;
       expect(error).not.toBeNull();
@@ -178,7 +178,7 @@ describe('taskReadEffect', () => {
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
       ) as TaskReadError | null;
       expect(error).not.toBeNull();

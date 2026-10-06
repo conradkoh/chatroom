@@ -8,10 +8,9 @@ export interface IntervalClockShape {
   readonly sleep: (ms: number) => Effect.Effect<void>;
 }
 
-export class IntervalClock extends Context.Tag('IntervalClock')<
-  IntervalClock,
-  IntervalClockShape
->() {}
+export class IntervalClock extends Context.Service<IntervalClock, IntervalClockShape>()(
+  'IntervalClock'
+) {}
 
 export const IntervalClockLive: Layer.Layer<IntervalClock> = Layer.succeed(IntervalClock, {
   sleep: (ms) => Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, ms))),

@@ -7,7 +7,7 @@
  */
 
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { Context, Effect, Runtime } from 'effect';
+import { Context, Effect } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
@@ -82,7 +82,6 @@ describe('native duplicate task injection', () => {
 
     const reconcileParams = withTestTaskService({
       tasks: [row],
-      runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
       runSerializedForAgent: vi.fn(async (_key, _options, operation) =>
@@ -140,7 +139,6 @@ describe('native duplicate task injection', () => {
     const onTaskDelivered = vi.fn();
     const params = withTestTaskService({
       tasks: [row],
-      runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
       runSerializedForAgent: vi.fn() as never,

@@ -147,7 +147,7 @@ export const getNextTaskEffect = (
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
       })
       .pipe(
-        Effect.catchAll((e) => {
+        Effect.catch((e) => {
           const cause = e instanceof Error ? e : new Error(String(e));
           if (isNetworkError(e)) {
             formatConnectivityError(e, convexUrl);
@@ -185,7 +185,7 @@ export const getNextTaskEffect = (
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role: options.role,
       })
-      .pipe(Effect.catchAll(() => Effect.succeed(null as AgentConfig | null)));
+      .pipe(Effect.catch(() => Effect.succeed(null as AgentConfig | null)));
 
     const participantAgentType = lastSentRequest?.agentType;
 
@@ -222,7 +222,7 @@ export const getNextTaskEffect = (
         role: options.role,
         convexUrl,
       })
-      .pipe(Effect.catchAll(() => Effect.succeed(null as InitPromptResult)));
+      .pipe(Effect.catch(() => Effect.succeed(null as InitPromptResult)));
 
     if (initPromptResult?.prompt) {
       yield* Effect.sync(() => {
@@ -318,7 +318,7 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
 
   await Effect.runPromise(
     getNextTaskEffect(chatroomId, options).pipe(
-      Effect.catchAll((err) => handleGetNextTaskError(err)),
+      Effect.catch((err) => handleGetNextTaskError(err)),
       Effect.provide(layer)
     )
   );

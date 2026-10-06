@@ -39,7 +39,7 @@ export interface AuthSessionServiceShape {
 /**
  * Auth Session Service tag for dependency injection.
  */
-export class AuthSessionService extends Context.Tag('AuthSessionService')<
+export class AuthSessionService extends Context.Service<
   AuthSessionService,
   AuthSessionServiceShape
->() {}
+>()('AuthSessionService') {}
