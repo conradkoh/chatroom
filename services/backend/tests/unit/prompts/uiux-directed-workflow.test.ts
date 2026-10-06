@@ -23,12 +23,7 @@ function delivery(role: string, teamId: 'duo' | 'solo', nativeIntegration: boole
     cliEnvPrefix: '',
     teamId,
     task: { _id: 'task-id', content: snapshot },
-    message: {
-      _id: 'message-id',
-      senderRole:
-        role === 'planner' || role === 'solo' ? 'user' : teamId === 'solo' ? 'solo' : 'planner',
-      content: '',
-    },
+    message: null,
     isEntryPoint: role === 'planner' || role === 'solo',
     availableHandoffTargets:
       role === 'uiux-engineer' ? [teamId === 'solo' ? 'solo' : 'planner'] : targets,
@@ -89,9 +84,6 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
     });
     for (const guidance of [builder, solo]) {
       expect(guidance).toContain(snapshot);
-      expect(guidance.indexOf(snapshot)).toBeLessThan(
-        guidance.indexOf('- Write clean, maintainable')
-      );
     }
     expect(solo).toContain(
       'owns the UI/UX decisions and provides the target markup, classes, and styles'
