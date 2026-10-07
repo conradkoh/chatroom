@@ -81,6 +81,22 @@ describe('groupFlatModels', () => {
     expect(keys).not.toContain('opus');
   });
 
+  it.each(['claude', 'claude-sdk'] as const)(
+    'groups Haiku 5.5 options from the %s catalog',
+    (harness) => {
+      const groups = groupFlatModels([...HARNESS_MODEL_CATALOG[harness]]);
+      const options = groups.flatMap((group) => group.options);
+      const base = options.find((option) => option.value === 'anthropic/claude-haiku-5-5');
+      const effort = options.find(
+        (option) => option.value === 'anthropic/claude-haiku-5-5[effort=high]'
+      );
+
+      expect(base?.label).toContain('Claude Haiku 5 5');
+      expect(effort).toBeDefined();
+      expect(effort?.value).not.toBe(base?.value);
+    }
+  );
+
   it('shows distinct labels for base model and effort=none variant', () => {
     const groups = groupFlatModels([
       'claude-opus-4-8',

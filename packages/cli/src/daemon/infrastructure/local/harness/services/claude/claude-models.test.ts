@@ -45,6 +45,14 @@ describe('decodeClaudeVariant', () => {
       model: 'claude-haiku-4-5-20251001',
     });
   });
+  it.each([
+    ['claude-haiku-5-5', { model: 'claude-haiku-5-5' }],
+    ['anthropic/claude-haiku-5-5', { model: 'claude-haiku-5-5' }],
+    ['claude-haiku-5-5[effort=none]', { model: 'claude-haiku-5-5' }],
+    ['anthropic/claude-haiku-5-5[effort=xhigh]', { model: 'claude-haiku-5-5', effort: 'xhigh' }],
+  ] as const)('decodes Haiku 5.5 selection %s', (selection, expected) => {
+    expect(decodeClaudeVariant(selection)).toEqual(expected);
+  });
   it('omits none effort', () =>
     expect(decodeClaudeVariant('sonnet[effort=none]')).toEqual({ model: 'sonnet' }));
   it('rejects malformed and unknown variants', () => {

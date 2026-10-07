@@ -54,6 +54,36 @@ describe('extractBashCommandFromToolInput (Claude)', () => {
 });
 
 describe('ClaudeCodeAgentService typed activity', () => {
+  it.each([
+    {
+      model: 'anthropic/claude-haiku-5-5[effort=high]',
+      expected: ['--model', 'claude-haiku-5-5', '--effort', 'high'],
+    },
+    { model: 'anthropic/claude-haiku-5-5[effort=none]', expected: ['--model', 'claude-haiku-5-5'] },
+  ])('forwards Haiku 5.5 selection to claude CLI: $model', async ({ model, expected }) => {
+    const { child, mockStdout, mockStderr } = makeChildWithStdout();
+    const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+    const service = new ClaudeCodeAgentService(deps);
+
+    await service.spawn({
+      workingDir: '/tmp/work',
+      prompt: createSpawnPrompt('do work'),
+      systemPrompt: 'you are helpful',
+      model,
+      context: { machineId: 'm1', chatroomId: 'c1', role: 'builder' },
+      resolvedConvexUrl: 'http://test:3210',
+    });
+
+    const args = vi.mocked(deps.spawn).mock.calls[0]![1] as string[];
+    const modelIndex = args.indexOf('--model');
+    expect(args.slice(modelIndex, modelIndex + expected.length)).toEqual(expected);
+    expect(args.join(' ')).not.toContain('anthropic/');
+    expect(args.join(' ')).not.toContain('[effort=');
+    child.emit('exit', 0, null);
+    mockStdout.destroy();
+    mockStderr.destroy();
+  });
+
   it('returns activityEmitter and emits transport plus progress for assistant events', async () => {
     const { child, mockStdout } = makeChildWithStdout();
     const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
