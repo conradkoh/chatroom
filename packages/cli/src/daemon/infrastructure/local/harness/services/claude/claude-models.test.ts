@@ -46,12 +46,18 @@ describe('decodeClaudeVariant', () => {
     });
   });
   it.each([
-    ['claude-haiku-5-5', { model: 'claude-haiku-5-5' }],
-    ['anthropic/claude-haiku-5-5', { model: 'claude-haiku-5-5' }],
-    ['claude-haiku-5-5[effort=none]', { model: 'claude-haiku-5-5' }],
-    ['anthropic/claude-haiku-5-5[effort=xhigh]', { model: 'claude-haiku-5-5', effort: 'xhigh' }],
-  ] as const)('decodes Haiku 5.5 selection %s', (selection, expected) => {
-    expect(decodeClaudeVariant(selection)).toEqual(expected);
+    'claude-haiku-5-5',
+    'claude-sonnet-5-5',
+    'claude-mythos-5-1',
+    'claude-mythos-5',
+  ] as const)('decodes Claude model variants for %s', (model) => {
+    expect(decodeClaudeVariant(model)).toEqual({ model });
+    expect(decodeClaudeVariant(`anthropic/${model}`)).toEqual({ model });
+    expect(decodeClaudeVariant(`${model}[effort=none]`)).toEqual({ model });
+    expect(decodeClaudeVariant(`anthropic/${model}[effort=xhigh]`)).toEqual({
+      model,
+      effort: 'xhigh',
+    });
   });
   it('omits none effort', () =>
     expect(decodeClaudeVariant('sonnet[effort=none]')).toEqual({ model: 'sonnet' }));

@@ -116,7 +116,12 @@ describe('ClaudeSdkAgentService', () => {
   });
 
   describe('spawn', () => {
-    it('forwards Haiku 5.5 model and effort to the SDK query options', async () => {
+    it.each([
+      'claude-haiku-5-5',
+      'claude-sonnet-5-5',
+      'claude-mythos-5-1',
+      'claude-mythos-5',
+    ] as const)('forwards %s model and effort to SDK query options', async (model) => {
       stubQuery([
         { type: 'system', subtype: 'init', session_id: 'haiku-5-5-session' },
         { type: 'result', subtype: 'success', session_id: 'haiku-5-5-session', is_error: false },
@@ -129,7 +134,7 @@ describe('ClaudeSdkAgentService', () => {
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
-        model: 'anthropic/claude-haiku-5-5[effort=xhigh]',
+        model: `anthropic/${model}[effort=xhigh]`,
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -138,7 +143,7 @@ describe('ClaudeSdkAgentService', () => {
       expect(mockQueryFn.mock.calls[0]![0]).toMatchObject({
         prompt: 'do work',
         options: expect.objectContaining({
-          model: 'claude-haiku-5-5',
+          model,
           effort: 'xhigh',
         }),
       });

@@ -55,12 +55,15 @@ describe('extractBashCommandFromToolInput (Claude)', () => {
 
 describe('ClaudeCodeAgentService typed activity', () => {
   it.each([
-    {
-      model: 'anthropic/claude-haiku-5-5[effort=high]',
-      expected: ['--model', 'claude-haiku-5-5', '--effort', 'high'],
-    },
-    { model: 'anthropic/claude-haiku-5-5[effort=none]', expected: ['--model', 'claude-haiku-5-5'] },
-  ])('forwards Haiku 5.5 selection to claude CLI: $model', async ({ model, expected }) => {
+    ['claude-haiku-5-5', 'high'],
+    ['claude-haiku-5-5', 'none'],
+    ['claude-sonnet-5-5', 'high'],
+    ['claude-sonnet-5-5', 'none'],
+    ['claude-mythos-5-1', 'high'],
+    ['claude-mythos-5-1', 'none'],
+    ['claude-mythos-5', 'high'],
+    ['claude-mythos-5', 'none'],
+  ] as const)('forwards %s effort=%s to claude CLI', async (baseModel, effort) => {
     const { child, mockStdout, mockStderr } = makeChildWithStdout();
     const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
     const service = new ClaudeCodeAgentService(deps);
@@ -69,14 +72,17 @@ describe('ClaudeCodeAgentService typed activity', () => {
       workingDir: '/tmp/work',
       prompt: createSpawnPrompt('do work'),
       systemPrompt: 'you are helpful',
-      model,
+      model: `anthropic/${baseModel}[effort=${effort}]`,
       context: { machineId: 'm1', chatroomId: 'c1', role: 'builder' },
       resolvedConvexUrl: 'http://test:3210',
     });
 
     const args = vi.mocked(deps.spawn).mock.calls[0]![1] as string[];
     const modelIndex = args.indexOf('--model');
+    const expected =
+      effort === 'none' ? ['--model', baseModel] : ['--model', baseModel, '--effort', 'high'];
     expect(args.slice(modelIndex, modelIndex + expected.length)).toEqual(expected);
+    if (effort === 'none') expect(args).not.toContain('--effort');
     expect(args.join(' ')).not.toContain('anthropic/');
     expect(args.join(' ')).not.toContain('[effort=');
     child.emit('exit', 0, null);

@@ -82,18 +82,25 @@ describe('groupFlatModels', () => {
   });
 
   it.each(['claude', 'claude-sdk'] as const)(
-    'groups Haiku 5.5 options from the %s catalog',
+    'groups current Claude options from the %s catalog',
     (harness) => {
       const groups = groupFlatModels([...HARNESS_MODEL_CATALOG[harness]]);
       const options = groups.flatMap((group) => group.options);
-      const base = options.find((option) => option.value === 'anthropic/claude-haiku-5-5');
-      const effort = options.find(
-        (option) => option.value === 'anthropic/claude-haiku-5-5[effort=high]'
-      );
+      const models = [
+        ['claude-haiku-5-5', 'Claude Haiku 5 5'],
+        ['claude-sonnet-5-5', 'Claude Sonnet 5 5'],
+        ['claude-mythos-5-1', 'Claude Mythos 5 1'],
+        ['claude-mythos-5', 'Claude Mythos 5'],
+      ] as const;
 
-      expect(base?.label).toContain('Claude Haiku 5 5');
-      expect(effort).toBeDefined();
-      expect(effort?.value).not.toBe(base?.value);
+      for (const [model, expectedLabel] of models) {
+        const base = options.find((option) => option.value === `anthropic/${model}`);
+        const effort = options.find((option) => option.value === `anthropic/${model}[effort=high]`);
+
+        expect(base?.label).toContain(expectedLabel);
+        expect(effort).toBeDefined();
+        expect(effort?.value).not.toBe(base?.value);
+      }
     }
   );
 
