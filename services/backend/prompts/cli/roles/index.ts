@@ -5,6 +5,7 @@
 import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
+import { getResearcherGuidance } from './researcher';
 import { getUiuxEngineerGuidance } from './uiux-engineer';
 
 type RoleSpecificGuidanceParams = {
@@ -24,6 +25,8 @@ const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams)
   builder: getBuilderGuidance,
   architect: ({ entryPointRole, nativeIntegration }) =>
     getArchitectGuidance({ entryPointRole, nativeIntegration }),
+  researcher: ({ entryPointRole, nativeIntegration }) =>
+    getResearcherGuidance({ entryPointRole, nativeIntegration }),
   'uiux-engineer': ({ entryPointRole, nativeIntegration }) =>
     getUiuxEngineerGuidance({ entryPointRole, nativeIntegration }),
 };
