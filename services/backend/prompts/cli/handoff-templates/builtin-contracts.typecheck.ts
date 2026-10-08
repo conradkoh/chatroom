@@ -16,6 +16,7 @@ const missingPrompt: BuiltinRoleTemplateCatalog = {
   planner: BUILTIN_ROLE_TEMPLATES.planner,
   builder: BUILTIN_ROLE_TEMPLATES.builder,
   solo: BUILTIN_ROLE_TEMPLATES.solo,
+  researcher: BUILTIN_ROLE_TEMPLATES.researcher,
   triage: BUILTIN_ROLE_TEMPLATES.triage,
   'uiux-engineer': BUILTIN_ROLE_TEMPLATES['uiux-engineer'],
 };
@@ -32,6 +33,7 @@ void wrongPrompt;
 const missingDuoContract: BuiltinTeamHandoffCatalog<'duo'> = {
   planner: DUO_ROLE_HANDOFF_CATALOG.planner,
   builder: DUO_ROLE_HANDOFF_CATALOG.builder,
+  researcher: DUO_ROLE_HANDOFF_CATALOG.researcher,
   triage: DUO_ROLE_HANDOFF_CATALOG.triage,
   'uiux-engineer': DUO_ROLE_HANDOFF_CATALOG['uiux-engineer'],
 };

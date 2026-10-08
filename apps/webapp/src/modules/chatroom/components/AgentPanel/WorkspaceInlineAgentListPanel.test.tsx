@@ -88,7 +88,7 @@ const teamFacts = [
   {
     teamId: 'duo',
     permanentRoles: ['planner', 'builder'],
-    ephemeralRoles: ['architect', 'triage', 'uiux-engineer'],
+    ephemeralRoles: ['architect', 'researcher', 'triage', 'uiux-engineer'],
   },
   {
     teamId: 'solo',

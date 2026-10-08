@@ -33,7 +33,7 @@ const pinnedTeamFacts = [
   {
     teamId: 'duo',
     permanentRoles: ['planner', 'builder'],
-    ephemeralRoles: ['architect', 'triage', 'uiux-engineer'],
+    ephemeralRoles: ['architect', 'researcher', 'triage', 'uiux-engineer'],
   },
   {
     teamId: 'solo',
@@ -154,8 +154,8 @@ describe('AgentPanel', () => {
   it('keeps declared rows visible while status data is loading', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={undefined} />);
 
-    expect(screen.getByText('Agents (5)')).toBeInTheDocument();
-    expect(screen.getByText('Ephemeral (3)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (6)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (4)')).toBeInTheDocument();
     const triage = screen.getByLabelText(/triage: Loading/i);
     expect(triage).toBeInTheDocument();
     expect(within(triage).getByLabelText('Status: Loading...')).toBeInTheDocument();
@@ -169,7 +169,7 @@ describe('AgentPanel', () => {
       <AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={errorStatus} />
     );
 
-    expect(screen.getByText('Agents (5)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (6)')).toBeInTheDocument();
     expect(screen.getAllByLabelText(/triage:/i)).toHaveLength(1);
     expect(screen.getByLabelText(/triage:/i)).toHaveTextContent('OFFLINE (ERROR)');
     expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();

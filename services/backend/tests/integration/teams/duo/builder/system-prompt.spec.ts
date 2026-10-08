@@ -298,7 +298,7 @@ describe('Duo Team > Builder > System Prompt', () => {
        
 
       ### Handoff Options
-      Available targets: planner, architect, triage, uiux-engineer, user
+      Available targets: planner, architect, researcher, triage, uiux-engineer, user
 
       ### Commands
 

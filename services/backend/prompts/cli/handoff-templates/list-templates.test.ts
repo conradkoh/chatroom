@@ -23,15 +23,43 @@ describe('listHandoffTemplates', () => {
     expect(listing.teamId).toBe('duo');
     expect(listing.role).toBe('planner');
     expect(listing.receivesFrom.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining(['user', 'builder', 'architect', 'uiux-engineer', 'triage'])
+      expect.arrayContaining([
+        'user',
+        'builder',
+        'architect',
+        'uiux-engineer',
+        'researcher',
+        'triage',
+      ])
     );
     expect(listing.returnsTo.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining(['builder', 'architect', 'uiux-engineer', 'triage', 'user'])
+      expect.arrayContaining([
+        'builder',
+        'architect',
+        'uiux-engineer',
+        'researcher',
+        'triage',
+        'user',
+      ])
     );
 
     const targets = listing.templates.map((t) => t.toRole.toLowerCase());
-    expect(targets).toEqual(['architect', 'builder', 'triage', 'uiux-engineer', 'user']);
-    for (const toRole of ['builder', 'architect', 'uiux-engineer', 'triage', 'user']) {
+    expect(targets).toEqual([
+      'architect',
+      'builder',
+      'researcher',
+      'triage',
+      'uiux-engineer',
+      'user',
+    ]);
+    for (const toRole of [
+      'builder',
+      'architect',
+      'uiux-engineer',
+      'researcher',
+      'triage',
+      'user',
+    ]) {
       expect(
         listing.templates.find((t) => t.toRole.toLowerCase() === toRole)?.template
       ).toBeTruthy();

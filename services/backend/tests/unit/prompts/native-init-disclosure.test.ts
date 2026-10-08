@@ -15,8 +15,12 @@ import { NATIVE_INIT_SCENARIOS, TEAM_CONFIGS } from '../../helpers/native-workfl
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
 
-/** Length budget for native duo/planner init with shared inter-role guidance. */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 12600;
+/**
+ * Length budget for native duo/planner init with shared inter-role guidance.
+ * Raised from 12600 to admit the researcher nudge bullet and the planner→builder
+ * pre-pickup paragraph (~230 characters).
+ */
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 12900;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

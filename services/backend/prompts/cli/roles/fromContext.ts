@@ -5,6 +5,7 @@
 import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
+import { getResearcherGuidance } from './researcher';
 import { getUiuxEngineerGuidance } from './uiux-engineer';
 import { getSoloGuidanceFromContext } from '../../teams/solo/prompts/fromContext';
 import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../types/cli';
@@ -49,6 +50,11 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
   solo: getSoloGuidanceFromContext,
   architect: (ctx) =>
     getArchitectGuidance({
+      nativeIntegration: ctx.nativeIntegration,
+      entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
+    }),
+  researcher: (ctx) =>
+    getResearcherGuidance({
       nativeIntegration: ctx.nativeIntegration,
       entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
     }),
