@@ -56,7 +56,11 @@ describe('agents.requestChatroomAgentOperation', () => {
       expect(result.failed).toEqual([]);
       expect(result.skipped).toEqual([]);
     }
-    expect(await getCommandEvents(sessionId, machineId)).toEqual([]);
+    // Registering the workspace enqueues a daemon.gitRefresh; only agent commands matter here.
+    const agentCommands = (await getCommandEvents(sessionId, machineId)).filter(
+      (event) => event.type !== 'daemon.gitRefresh'
+    );
+    expect(agentCommands).toEqual([]);
   });
 
   test('starts and restarts a configured ephemeral-tagged role through the generic path', async () => {
