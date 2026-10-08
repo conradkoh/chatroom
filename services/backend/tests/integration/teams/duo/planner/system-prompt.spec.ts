@@ -76,6 +76,9 @@ describe('Duo Team > Planner > System Prompt', () => {
     expect(prompt).toContain(
       'Available targets: architect, researcher, triage, uiux-engineer, builder, user'
     );
+    // Researcher nudge points to the researcher handoff template rather than restating its criteria
+    expect(prompt).toContain('Ground new work first');
+    expect(prompt).toContain('`researcher` handoff template');
     expect(prompt).toContain('### Commands');
 
     // Should contain context view-template hint near context new commands
@@ -283,6 +286,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - You are the entry point — you communicate directly with the user
       - You coordinate with the builder for implementation tasks
       - You are ultimately accountable for all work quality
+      - **Ground new work first:** when a request introduces something not yet grounded in this repository, get a researcher brief before delegating. The \`researcher\` handoff template defines when research is needed and how to request it.
       - After reviewing builder output, deliver results to the user
       - **Only you can hand off to \`user\`**
 
