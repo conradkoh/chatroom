@@ -113,6 +113,29 @@ describe('CommandQueuePanel', () => {
     expect(screen.getByText('Processing')).toBeInTheDocument();
   });
 
+  it('formats the queued model label for start commands', () => {
+    mocks.commands = [
+      makeCommand('cmd-1', {
+        type: 'agent.requestStart',
+        requestId: 'request-1',
+        chatroomId: 'room-1' as Id<'chatroom_rooms'>,
+        role: 'planner',
+        agentHarness: 'claude-sdk',
+        model: 'anthropic/claude-haiku-5-5[effort=xhigh]',
+        workingDir: '/workspace',
+        reason: AgentStartReasonCode.USER_START,
+        wantResume: false,
+      }),
+    ];
+
+    render(<CommandQueuePanel machineId="machine-1" />);
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
+
+    expect(
+      screen.getByText('claude-sdk · Anthropic / Claude Haiku 5.5 [effort=xhigh]')
+    ).toBeInTheDocument();
+  });
+
   it('uses chatroom industrial buttons in the queue footer', () => {
     render(<CommandQueuePanel machineId="machine-1" />);
     fireEvent.click(screen.getByTestId('command-queue-panel'));

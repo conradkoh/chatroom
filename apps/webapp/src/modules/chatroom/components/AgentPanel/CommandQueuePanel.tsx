@@ -8,6 +8,7 @@ import { AlertTriangle, Clock3, ListTodo, Loader2, Trash2 } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { getModelDisplayLabel } from '../../types/machine';
 import {
   chatroomIndustrialButtonDestructiveClassName,
   chatroomIndustrialButtonSecondaryClassName,
@@ -65,7 +66,7 @@ function getCommandDetail(command: QueueCommandPayload): string | null {
   switch (command.type) {
     case 'agent.requestStart':
     case 'agent.restart':
-      return `${command.agentHarness} · ${command.model}`;
+      return `${command.agentHarness} · ${getModelDisplayLabel(command.model)}`;
     case 'daemon.gitRefresh':
       return command.workingDir;
     case 'daemon.localAction':
