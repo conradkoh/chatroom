@@ -7,6 +7,7 @@ import {
   getModelDisplayLabel,
   getCompactModelId,
   getCompactModelLabel,
+  getHarnessModelKeyLabel,
   harnessSupportsNativeIntegration,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
@@ -177,6 +178,24 @@ describe('getModelDisplayLabel', () => {
         omitParamKeys: new Set(['effort']),
       })
     ).toBe('Anthropic / Claude Opus 5.5 [thinking=enabled]');
+  });
+});
+
+describe('getHarnessModelKeyLabel', () => {
+  it('formats the harness and the title-cased model label', () => {
+    expect(getHarnessModelKeyLabel('pi/claude-sonnet-4-20250514')).toBe(
+      'Pi / Claude Sonnet 4 20250514'
+    );
+  });
+
+  it('keeps provider-prefixed model ids intact after the harness', () => {
+    expect(getHarnessModelKeyLabel('opencode-sdk/anthropic/claude-haiku-5-5[effort=xhigh]')).toBe(
+      'OpenCode (SDK) / Anthropic / Claude Haiku 5.5 [effort=xhigh]'
+    );
+  });
+
+  it('returns the harness display name when no model is present', () => {
+    expect(getHarnessModelKeyLabel('claude')).toBe('Claude Code');
   });
 });
 

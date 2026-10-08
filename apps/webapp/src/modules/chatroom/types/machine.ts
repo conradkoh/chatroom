@@ -261,6 +261,18 @@ export function getModelDisplayLabel(modelId: string, options?: ModelDisplayLabe
   }
 }
 
+/**
+ * Display label for a "harness/model" key (e.g. "opencode/anthropic/claude-haiku-5-5").
+ * Splits on the first slash only, so provider-prefixed model ids stay intact.
+ */
+export function getHarnessModelKeyLabel(harnessModelKey: string): string {
+  const slashIdx = harnessModelKey.indexOf('/');
+  if (slashIdx === -1) return getHarnessDisplayName(harnessModelKey);
+  const harness = harnessModelKey.substring(0, slashIdx);
+  const model = harnessModelKey.substring(slashIdx + 1);
+  return `${getHarnessDisplayName(harness)} / ${getModelDisplayLabel(model)}`;
+}
+
 /** Last segment of a provider/model path for compact agent sidebar display. */
 // fallow-ignore-next-line unused-export
 export function getCompactModelId(modelId: string): string {
