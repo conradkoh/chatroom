@@ -152,6 +152,7 @@ describe('getModelDisplayLabel', () => {
     ['cursor/composer-2.5', 'Cursor / Composer 2.5'],
     ['github-copilot/claude-opus-5-5', 'Github Copilot / Claude Opus 5.5'],
     ['anthropic/claude-haiku-4-5-20251001', 'Anthropic / Claude Haiku 4.5 20251001'],
+    ['anthropic/claude-opus-4-5-20251101', 'Anthropic / Claude Opus 4.5 20251101'],
     ['anthropic/claude-haiku-5-5[effort=xhigh]', 'Anthropic / Claude Haiku 5.5 [effort=xhigh]'],
     ['gpt-5.6-terra[reasoning=high]', 'Gpt 5.6 Terra [reasoning=high]'],
   ] as const)('formats model version tokens in %s', (modelId, expected) => {
