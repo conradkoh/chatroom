@@ -8,6 +8,7 @@ import { useAllTabConversation } from './hooks/useAllTabConversation';
 import { QueuedMessagesIndicator } from '../../components/QueuedMessagesIndicator';
 import { ComposerPreflightBar } from '../../components/timeline/ComposerPreflightBar';
 import type { MachineNameEntry } from '../../components/timeline/timelineRowStyles';
+import { useChatroomListing } from '../../context/ChatroomListingContext';
 import { useHandoffNotification } from '../../hooks/useHandoffNotification';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -47,9 +48,16 @@ export function AllTabConversationPanel({
     onRegisterAllTabNavigation?.({ goToLatestAnchor });
   }, [onRegisterAllTabNavigation, goToLatestAnchor]);
 
+  const { chatrooms } = useChatroomListing();
+  const notifyChatroom = useMemo(
+    () => chatrooms?.find((c) => c._id === chatroomId),
+    [chatrooms, chatroomId]
+  );
+
   useHandoffNotification(
     useMemo(() => messages.map((m) => m), [messages]),
-    chatroomId
+    chatroomId,
+    notifyChatroom
   );
 
   return (

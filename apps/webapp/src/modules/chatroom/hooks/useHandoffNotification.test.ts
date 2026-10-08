@@ -155,7 +155,60 @@ describe('useHandoffNotification', () => {
       payload: {
         title: 'Chatroom',
         body: 'Tasks complete',
-        tag: 'chatroom-handoff',
+        tag: 'chatroom-handoff-test-chatroom-id',
+        chatroomId: 'test-chatroom-id',
+      },
+    });
+  });
+
+  it('uses a tag unique to each chatroom so notifications do not replace each other', () => {
+    // Two independent hook instances, one per chatroom (each has its own throttle and seen-IDs).
+    const initialA = [makeMessage({ _id: 'a-init' })];
+    const initialB = [makeMessage({ _id: 'b-init' })];
+    const { rerender } = renderHook(
+      ({ a, b }) => {
+        useHandoffNotification(a, 'room-a');
+        useHandoffNotification(b, 'room-b');
+      },
+      { initialProps: { a: initialA, b: initialB } }
+    );
+
+    setDocumentHidden(true);
+
+    rerender({
+      a: [...initialA, makeMessage({ _id: 'a-1', type: 'handoff', targetRole: 'user' })],
+      b: [...initialB, makeMessage({ _id: 'b-1', type: 'handoff', targetRole: 'user' })],
+    });
+
+    const tags = swPostMessage.mock.calls.map(
+      ([message]) => (message as { payload: { tag: string } }).payload.tag
+    );
+    expect(tags).toEqual(['chatroom-handoff-room-a', 'chatroom-handoff-room-b']);
+  });
+
+  it('titles the notification with the chatroom name when chatroom is provided', () => {
+    const initialMessages = [makeMessage({ _id: 'init-1' })];
+    const { rerender } = renderHook(
+      ({ msgs }) =>
+        useHandoffNotification(msgs, 'test-chatroom-id', { name: 'Foo', teamName: 'Duo' }),
+      { initialProps: { msgs: initialMessages } }
+    );
+
+    setDocumentHidden(true);
+
+    rerender({
+      msgs: [
+        ...initialMessages,
+        makeMessage({ _id: 'named-1', type: 'handoff', targetRole: 'user' }),
+      ],
+    });
+
+    expect(swPostMessage).toHaveBeenCalledWith({
+      type: 'SHOW_NOTIFICATION',
+      payload: {
+        title: 'Foo',
+        body: 'Tasks complete',
+        tag: 'chatroom-handoff-test-chatroom-id',
         chatroomId: 'test-chatroom-id',
       },
     });

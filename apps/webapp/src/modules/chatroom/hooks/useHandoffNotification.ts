@@ -95,7 +95,9 @@ export function useHandoffNotification(
   const fireNotification = useCallback(() => {
     const { title, body } = buildHandoffNotificationContent(chatroom ?? {});
     console.log('[Notification] Firing notification:', title);
-    showNotification(title, body, 'chatroom-handoff', chatroomId);
+    // Per-chatroom tag so a handoff in one chatroom does not replace another chatroom's notification.
+    // Same format as useGlobalHandoffNotification so both paths agree.
+    showNotification(title, body, `chatroom-handoff-${chatroomId}`, chatroomId);
   }, [chatroom, chatroomId]);
 
   // Detect new handoff messages and fire notifications

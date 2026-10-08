@@ -25,6 +25,13 @@ vi.mock('../../components/timeline/ComposerPreflightBar', () => ({
   },
 }));
 
+vi.mock('../../context/ChatroomListingContext', () => ({
+  useChatroomListing: () => ({
+    chatrooms: [{ _id: 'room-1', name: 'Foo', teamName: 'Duo' }],
+    isLoading: false,
+  }),
+}));
+
 vi.mock('../../components/QueuedMessagesIndicator', () => ({
   QueuedMessagesIndicator: () => <div data-testid="queued-messages-indicator" />,
 }));
@@ -172,6 +179,16 @@ describe('AllTabConversationPanel', () => {
     );
 
     expect(onRegisterAllTabNavigation).toHaveBeenCalledWith({ goToLatestAnchor });
+  });
+
+  it('passes the matching chatroom to useHandoffNotification', () => {
+    render(<AllTabConversationPanel chatroomId="room-1" />);
+
+    expect(mockUseHandoffNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      'room-1',
+      expect.objectContaining({ name: 'Foo' })
+    );
   });
 
   it('forwards onRequestComposerFocus to ComposerPreflightBar', () => {
