@@ -25,8 +25,8 @@ describe('team presets', () => {
       name: 'Duo',
       structureId: 'duo@1',
       description:
-        'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, triage, and uiux-engineer roles',
-      roles: ['planner', 'architect', 'triage', 'uiux-engineer', 'builder'],
+        'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, and uiux-engineer roles',
+      roles: ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'builder'],
       entryPoint: 'planner',
     });
     expect(TEAM_PRESETS.solo).toMatchObject({
@@ -66,6 +66,7 @@ describe('team presets', () => {
           ? [
               { role: 'planner', lifecycle: 'permanent', optional: false },
               { role: 'architect', lifecycle: 'ephemeral', optional: true },
+              { role: 'researcher', lifecycle: 'ephemeral', optional: true },
               { role: 'triage', lifecycle: 'ephemeral', optional: true },
               { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
               { role: 'builder', lifecycle: 'permanent', optional: false },
@@ -130,14 +131,14 @@ describe('team presets', () => {
       'duo@1',
       'Duo',
       'planner',
-      ['planner', 'architect', 'triage', 'uiux-engineer', 'builder'],
+      ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'builder'],
     ],
     [
       'duo@1',
       'duo@1',
       'Duo',
       'planner',
-      ['planner', 'architect', 'triage', 'uiux-engineer', 'builder'],
+      ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'builder'],
     ],
     ['solo', 'solo@1', 'Solo', 'solo', ['solo', 'architect', 'triage', 'uiux-engineer']],
     ['solo@1', 'solo@1', 'Solo', 'solo', ['solo', 'architect', 'triage', 'uiux-engineer']],
@@ -155,10 +156,10 @@ describe('team presets', () => {
         entryPoint,
         roles: roles.map((role) => ({
           role,
-          lifecycle: ['architect', 'triage', 'uiux-engineer'].includes(role)
+          lifecycle: ['architect', 'researcher', 'triage', 'uiux-engineer'].includes(role)
             ? 'ephemeral'
             : 'permanent',
-          optional: ['architect', 'triage', 'uiux-engineer'].includes(role),
+          optional: ['architect', 'researcher', 'triage', 'uiux-engineer'].includes(role),
         })),
       });
       expect(structure.roles.find(({ role }) => role === 'triage')).toEqual({

@@ -37,9 +37,9 @@ const teamFacts = [
   {
     teamId: 'duo',
     persistedRoles: ['planner', 'builder'],
-    roles: ['planner', 'architect', 'triage', 'uiux-engineer', 'builder'],
+    roles: ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'builder'],
     permanentRoles: ['planner', 'builder'],
-    ephemeralRoles: ['architect', 'triage', 'uiux-engineer'],
+    ephemeralRoles: ['architect', 'researcher', 'triage', 'uiux-engineer'],
   },
   {
     teamId: 'solo',

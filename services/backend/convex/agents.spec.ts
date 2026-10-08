@@ -9,7 +9,7 @@ const canonicalTeamFacts = [
   {
     teamId: 'duo',
     teamStructureId: 'duo@1',
-    roles: ['planner', 'architect', 'triage', 'uiux-engineer', 'builder'],
+    roles: ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'builder'],
     permanentRoles: ['planner', 'builder'],
   },
   {

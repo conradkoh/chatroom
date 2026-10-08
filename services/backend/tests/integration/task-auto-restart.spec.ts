@@ -135,6 +135,7 @@ describe('Handoff target role validation', () => {
       'user',
       'planner',
       'architect',
+      'researcher',
       'triage',
       'uiux-engineer',
       'builder',

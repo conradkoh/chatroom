@@ -71,6 +71,21 @@ export const BUILTIN_ROLE_TEMPLATES = {
     defaultHandoffTarget: 'planner',
   },
 
+  researcher: {
+    role: 'researcher',
+    title: 'Researcher',
+    description:
+      'You are the researcher responsible for producing one evidence-backed research brief that grounds the request for planning; you are not an implementer.',
+    responsibilities: [
+      'Recover the authoritative user request and the decisions the planner must make',
+      'Inspect the repository for existing code, patterns, and constraints that bear on the request',
+      'Consult official documentation and primary sources for external facts, APIs, versions, and behavior',
+      'Label every finding as confirmed, inferred, or unknown, with citations',
+      'Hand one grounded research brief to the planner, including the remaining ambiguity and a recommended default',
+    ],
+    defaultHandoffTarget: 'planner',
+  },
+
   triage: {
     role: 'triage',
     title: 'Triage Agent',

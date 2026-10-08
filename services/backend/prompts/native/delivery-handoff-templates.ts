@@ -15,10 +15,11 @@ const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
   'solo:solo': ['user', 'architect', 'uiux-engineer'],
   'solo:architect': ['solo'],
   'solo:uiux-engineer': ['solo'],
-  'duo:planner': ['user', 'builder', 'architect', 'uiux-engineer'],
+  'duo:planner': ['user', 'builder', 'architect', 'uiux-engineer', 'researcher'],
   'duo:builder': ['planner'],
   'duo:architect': ['planner'],
   'duo:uiux-engineer': ['planner'],
+  'duo:researcher': ['planner'],
 };
 
 function getNativeDeliveryTemplateTargets(
