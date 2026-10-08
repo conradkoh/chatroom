@@ -17,10 +17,9 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
 
 /**
  * Length budget for native duo/planner init with shared inter-role guidance.
- * Raised from 12600 to admit the researcher nudge bullet and the planner→builder
- * pre-pickup paragraph (~230 characters).
+ * Raised from 12900 to admit the bug-report-to-triage nudge bullet (~270 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 12900;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 13200;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

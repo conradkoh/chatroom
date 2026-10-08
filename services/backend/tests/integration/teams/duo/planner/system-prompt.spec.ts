@@ -79,6 +79,9 @@ describe('Duo Team > Planner > System Prompt', () => {
     // Researcher nudge points to the researcher handoff template rather than restating its criteria
     expect(prompt).toContain('Ground new work first');
     expect(prompt).toContain('`researcher` handoff template');
+    // Bug-report nudge routes reported bugs to triage before any builder delegation
+    expect(prompt).toContain('Bug reports go to triage first');
+    expect(prompt).toContain('Never delegate a bug fix straight to the builder');
     expect(prompt).toContain('### Commands');
 
     // Should contain context view-template hint near context new commands
@@ -287,6 +290,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - You coordinate with the builder for implementation tasks
       - You are ultimately accountable for all work quality
       - **Ground new work first:** when a request introduces something not yet grounded in this repository, get a researcher brief before delegating. The \`researcher\` handoff template defines when research is needed and how to request it.
+      - **Bug reports go to triage first:** when the user reports a bug (something broken or behaving differently than expected), always hand off to \`triage\` to investigate before any builder delegation. Never delegate a bug fix straight to the builder. The \`triage\` handoff template defines what to send.
       - After reviewing builder output, deliver results to the user
       - **Only you can hand off to \`user\`**
 
