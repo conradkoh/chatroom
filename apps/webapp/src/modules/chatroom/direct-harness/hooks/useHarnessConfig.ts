@@ -10,6 +10,7 @@
 
 import { useMemo, useState } from 'react';
 
+import { getProviderModelLabel } from '../../components/model-selection/modelKeys';
 import type { HarnessVersionInfo } from '../../types/machine';
 import type { AgentOption, ProviderOption } from '../components/harness-selectors/types';
 
@@ -92,7 +93,7 @@ export function useHarnessConfig({
         if (isModelHiddenFn?.(key)) continue; // exclude filtered models
         list.push({
           value: key,
-          label: `${provider.name} · ${model.name}`,
+          label: `${provider.name} · ${getProviderModelLabel(provider, model)}`,
         });
       }
     }

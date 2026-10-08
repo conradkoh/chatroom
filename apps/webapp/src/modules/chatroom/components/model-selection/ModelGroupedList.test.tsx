@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ModelGroupedList } from './ModelGroupedList';
-import { groupFlatModels } from './modelGroups';
+import { groupFlatModels, groupProviderOptions } from './modelGroups';
 import type { ModelGroup } from './types';
 
 const GROUPS: ModelGroup[] = [
@@ -48,6 +48,41 @@ describe('ModelGroupedList', () => {
     fireEvent.click(screen.getByText('Anthropic / Claude Haiku 5.5 [effort=xhigh]'));
 
     expect(onValueChange).toHaveBeenCalledWith(haikuId);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('renders raw Claude SDK names and preserves provider model keys', () => {
+    const haikuKey = 'anthropic::claude-haiku-5-5[effort=xhigh]';
+    const groups = groupProviderOptions([
+      {
+        providerID: 'anthropic',
+        name: 'Anthropic',
+        models: [
+          { modelID: 'claude-opus-5-5', name: 'anthropic/claude-opus-5-5' },
+          {
+            modelID: 'claude-haiku-5-5[effort=xhigh]',
+            name: 'anthropic/claude-haiku-5-5[effort=xhigh]',
+          },
+        ],
+      },
+    ]);
+    const onValueChange = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <ModelGroupedList
+        mode="select"
+        groups={groups}
+        value=""
+        onValueChange={onValueChange}
+        onClose={onClose}
+      />
+    );
+
+    expect(screen.getByText('Claude Opus 5.5')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Claude Haiku 5.5 [effort=xhigh]'));
+
+    expect(onValueChange).toHaveBeenCalledWith(haikuKey);
     expect(onClose).toHaveBeenCalled();
   });
 

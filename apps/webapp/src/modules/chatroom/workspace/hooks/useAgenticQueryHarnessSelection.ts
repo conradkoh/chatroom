@@ -7,6 +7,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { getProviderModelLabel } from '@/modules/chatroom/components/model-selection/modelKeys';
 import { parseModelKey } from '@/modules/chatroom/direct-harness/components/harness-selectors';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import { useNativeHarnessWorkspace } from '@/modules/chatroom/direct-harness/hooks/useNativeHarnessWorkspace';
@@ -78,7 +79,7 @@ function buildModelOptions(
       if (isModelHidden?.(key)) continue;
       list.push({
         value: key,
-        label: `${provider.name} · ${model.name}`,
+        label: `${provider.name} · ${getProviderModelLabel(provider, model)}`,
       });
     }
   }
@@ -165,6 +166,7 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
     harnessName: resolvedHarnessName,
     setHarnessName,
     providers,
+    modelOptions,
     selectedModel,
     setSelectedModel,
     isModelHidden: filter.isHidden,

@@ -239,4 +239,64 @@ describe('useAgenticQueryHarnessSelection', () => {
     expect(typeof result.current.applyConfig).toBe('function');
     expect(typeof result.current.isFavorite).toBe('function');
   });
+
+  it('formats raw Claude names but submits and records the original model key', async () => {
+    mockCapabilities = {
+      machineId: 'machine-1',
+      harnesses: [
+        {
+          name: 'claude-sdk',
+          providers: [
+            {
+              providerID: 'anthropic',
+              name: 'Anthropic',
+              models: [
+                { modelID: 'claude-opus-5-5', name: 'anthropic/claude-opus-5-5' },
+                {
+                  modelID: 'claude-haiku-5-5[effort=xhigh]',
+                  name: 'anthropic/claude-haiku-5-5[effort=xhigh]',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    localStorage.setItem(
+      'agentic-query-harness:machine-1',
+      JSON.stringify({ harnessName: 'claude-sdk', modelKey: 'anthropic::claude-opus-5-5' })
+    );
+
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.harnessName).toBe('claude-sdk');
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    expect(result.current.modelOptions).toEqual([
+      { value: 'anthropic::claude-opus-5-5', label: 'Anthropic · Claude Opus 5.5' },
+      {
+        value: 'anthropic::claude-haiku-5-5[effort=xhigh]',
+        label: 'Anthropic · Claude Haiku 5.5 [effort=xhigh]',
+      },
+    ]);
+
+    act(() => {
+      result.current.setSelectedModel('anthropic::claude-haiku-5-5[effort=xhigh]');
+    });
+
+    expect(result.current.toSubmitSelection()).toEqual({
+      harnessName: 'claude-sdk',
+      model: { providerID: 'anthropic', modelID: 'claude-haiku-5-5[effort=xhigh]' },
+    });
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem('agentic-query-harness:machine-1') ?? '{}');
+      expect(stored.modelKey).toBe('anthropic::claude-haiku-5-5[effort=xhigh]');
+    });
+    expect(mockRecordUsage).toHaveBeenLastCalledWith({
+      harnessName: 'claude-sdk',
+      modelKey: 'anthropic::claude-haiku-5-5[effort=xhigh]',
+    });
+  });
 });

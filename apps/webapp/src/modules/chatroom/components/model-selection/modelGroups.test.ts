@@ -189,6 +189,30 @@ describe('groupProviderOptions', () => {
     expect(opencode?.options[0].value).toBe('opencode::big-pickle');
   });
 
+  it('formats raw provider model names and preserves providerID::modelID values', () => {
+    const anthropic: ProviderOption = {
+      providerID: 'anthropic',
+      name: 'Anthropic',
+      models: [
+        { modelID: 'claude-opus-5-5', name: 'anthropic/claude-opus-5-5' },
+        {
+          modelID: 'claude-haiku-5-5[effort=xhigh]',
+          name: 'anthropic/claude-haiku-5-5[effort=xhigh]',
+        },
+      ],
+    };
+    const groups = groupProviderOptions([anthropic]);
+
+    expect(groups[0].providerLabel).toBe('Anthropic');
+    expect(groups[0].options).toEqual([
+      { value: 'anthropic::claude-opus-5-5', label: 'Claude Opus 5.5' },
+      {
+        value: 'anthropic::claude-haiku-5-5[effort=xhigh]',
+        label: 'Claude Haiku 5.5 [effort=xhigh]',
+      },
+    ]);
+  });
+
   it('uses custom modelKey and modelLabel options', () => {
     const groups = groupProviderOptions(providers, {
       modelKey: (p, m) => `${p}/${m}`,
