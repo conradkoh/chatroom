@@ -165,7 +165,7 @@ export function getMachineDisplayName(machine: { hostname: string; alias?: strin
  *
  * "github-copilot" → "Github Copilot"
  * "gpt-4o" → "Gpt 4o"
- * "claude-sonnet-4-5" → "Claude Sonnet 4.5"
+ * "claude-sonnet-4.5" → "Claude Sonnet 4.5"
  */
 function slugToLabel(slug: string): string {
   return slug
@@ -175,12 +175,12 @@ function slugToLabel(slug: string): string {
 }
 
 /**
- * Join short numeric slug tokens into dotted model versions while leaving
- * long date/build tokens intact (for example, 4-5-20251001 → 4.5-20251001).
+ * Join short numeric slug tokens into dotted versions. A short token following
+ * another number is part of a date/build sequence and stays separated.
  */
 function formatModelVersion(slug: string): string {
   return slug.replace(
-    /(^|[^a-z0-9])(v?\d{1,2}(?:\.\d{1,2})*(?:-\d{1,2}(?=-|$))+)/gi,
+    /(^|[^a-z0-9])(?<!\d-)(v?\d{1,2}(?:\.\d{1,2})*(?:-\d{1,2}(?=-|$))+)/gi,
     (_match, separator: string, version: string) => `${separator}${version.replace(/-/g, '.')}`
   );
 }

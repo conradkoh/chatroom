@@ -163,6 +163,14 @@ describe('getModelDisplayLabel', () => {
     );
   });
 
+  it('preserves short date components after long numeric tokens', () => {
+    expect(getModelDisplayLabel('openai/gpt-4o-2024-11-20')).toBe('Openai / Gpt 4o 2024 11 20');
+    expect(getModelDisplayLabel('openai/gpt-4-2025-04-14')).toBe('Openai / Gpt 4 2025 04 14');
+    expect(getModelDisplayLabel('anthropic/claude-haiku-4-5-2025-10-01')).toBe(
+      'Anthropic / Claude Haiku 4.5 2025 10 01'
+    );
+  });
+
   it('omits selected variant parameters while retaining dotted model versions', () => {
     expect(
       getModelDisplayLabel('anthropic/claude-opus-5-5[effort=high,thinking=enabled]', {
@@ -187,6 +195,9 @@ describe('getCompactModelId', () => {
 
   it('preserves raw model ids with hyphenated version tokens', () => {
     expect(getCompactModelId('anthropic/claude-opus-5-5')).toBe('claude-opus-5-5');
+    expect(getCompactModelId('anthropic/claude-haiku-4-5-2025-10-01')).toBe(
+      'claude-haiku-4-5-2025-10-01'
+    );
   });
 });
 
@@ -203,6 +214,14 @@ describe('getCompactModelLabel', () => {
     expect(getCompactModelLabel('claude-opus-4-8[effort=high]')).toBe('claude-opus-4.8 [high]');
     expect(getCompactModelLabel('anthropic/claude-opus-5-5[effort=high]')).toBe(
       'claude-opus-5.5 [high]'
+    );
+  });
+
+  it('keeps date components separate in compact labels', () => {
+    expect(getCompactModelLabel('openai/gpt-4o-2024-11-20')).toBe('gpt-4o-2024-11-20');
+    expect(getCompactModelLabel('openai/gpt-4-2025-04-14')).toBe('gpt-4-2025-04-14');
+    expect(getCompactModelLabel('anthropic/claude-haiku-4-5-2025-10-01')).toBe(
+      'claude-haiku-4.5-2025-10-01'
     );
   });
 
