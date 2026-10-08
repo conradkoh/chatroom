@@ -131,6 +131,45 @@ describe('getModelDisplayLabel', () => {
       'Gpt 5.6 Terra [reasoning=high]'
     );
   });
+
+  it.each([
+    ['anthropic/claude-opus-5-5', 'Anthropic / Claude Opus 5.5'],
+    ['anthropic/claude-haiku-5-5', 'Anthropic / Claude Haiku 5.5'],
+    ['anthropic/claude-sonnet-5-5', 'Anthropic / Claude Sonnet 5.5'],
+    ['anthropic/claude-mythos-5-1', 'Anthropic / Claude Mythos 5.1'],
+    ['anthropic/claude-fable-5-1', 'Anthropic / Claude Fable 5.1'],
+    ['anthropic/claude-opus-4-8', 'Anthropic / Claude Opus 4.8'],
+    ['anthropic/claude-sonnet-4-7', 'Anthropic / Claude Sonnet 4.7'],
+    ['anthropic/claude-haiku-4-6', 'Anthropic / Claude Haiku 4.6'],
+    ['anthropic/claude-opus-4-5', 'Anthropic / Claude Opus 4.5'],
+    ['anthropic/claude-3-5-sonnet', 'Anthropic / Claude 3.5 Sonnet'],
+    ['google/gemini-2-5-pro', 'Google / Gemini 2.5 Pro'],
+    ['deepseek-v3-2', 'Deepseek V3.2'],
+    ['llama-3-1-70b', 'Llama 3.1 70b'],
+    ['anthropic/claude-opus-5', 'Anthropic / Claude Opus 5'],
+    ['openai/gpt-5.6-terra', 'Openai / Gpt 5.6 Terra'],
+    ['cursor/composer-2.5', 'Cursor / Composer 2.5'],
+    ['github-copilot/claude-opus-5-5', 'Github Copilot / Claude Opus 5.5'],
+    ['anthropic/claude-haiku-4-5-20251001', 'Anthropic / Claude Haiku 4.5 20251001'],
+    ['anthropic/claude-haiku-5-5[effort=xhigh]', 'Anthropic / Claude Haiku 5.5 [effort=xhigh]'],
+    ['gpt-5.6-terra[reasoning=high]', 'Gpt 5.6 Terra [reasoning=high]'],
+  ] as const)('formats model version tokens in %s', (modelId, expected) => {
+    expect(getModelDisplayLabel(modelId)).toBe(expected);
+  });
+
+  it('keeps provider labels and pinned date tokens separate from model versions', () => {
+    expect(getModelDisplayLabel('github-copilot/claude-haiku-4-5-20251001')).toBe(
+      'Github Copilot / Claude Haiku 4.5 20251001'
+    );
+  });
+
+  it('omits selected variant parameters while retaining dotted model versions', () => {
+    expect(
+      getModelDisplayLabel('anthropic/claude-opus-5-5[effort=high,thinking=enabled]', {
+        omitParamKeys: new Set(['effort']),
+      })
+    ).toBe('Anthropic / Claude Opus 5.5 [thinking=enabled]');
+  });
 });
 
 describe('getCompactModelId', () => {
@@ -145,6 +184,10 @@ describe('getCompactModelId', () => {
   it('returns the last segment for multi-segment paths', () => {
     expect(getCompactModelId('provider/subprovider/model-name')).toBe('model-name');
   });
+
+  it('preserves raw model ids with hyphenated version tokens', () => {
+    expect(getCompactModelId('anthropic/claude-opus-5-5')).toBe('claude-opus-5-5');
+  });
 });
 
 describe('getCompactModelLabel', () => {
@@ -157,7 +200,10 @@ describe('getCompactModelLabel', () => {
   });
 
   it('appends normalized effort level', () => {
-    expect(getCompactModelLabel('claude-opus-4-8[effort=high]')).toBe('claude-opus-4-8 [high]');
+    expect(getCompactModelLabel('claude-opus-4-8[effort=high]')).toBe('claude-opus-4.8 [high]');
+    expect(getCompactModelLabel('anthropic/claude-opus-5-5[effort=high]')).toBe(
+      'claude-opus-5.5 [high]'
+    );
   });
 
   it('appends a variant level', () => {
@@ -172,13 +218,13 @@ describe('getCompactModelLabel', () => {
 
   it('prefers effort over thinking when both are present', () => {
     expect(getCompactModelLabel('claude-opus-4-8[effort=high,thinking=enabled]')).toBe(
-      'claude-opus-4-8 [high]'
+      'claude-opus-4.8 [high]'
     );
   });
 
   it('renders boolean thinking marker as thinking', () => {
     expect(getCompactModelLabel('claude-opus-4-8[thinking=enabled]')).toBe(
-      'claude-opus-4-8 [thinking]'
+      'claude-opus-4.8 [thinking]'
     );
   });
 

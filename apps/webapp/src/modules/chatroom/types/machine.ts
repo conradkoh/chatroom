@@ -165,13 +165,24 @@ export function getMachineDisplayName(machine: { hostname: string; alias?: strin
  *
  * "github-copilot" → "Github Copilot"
  * "gpt-4o" → "Gpt 4o"
- * "claude-sonnet-4.5" → "Claude Sonnet 4.5"
+ * "claude-sonnet-4-5" → "Claude Sonnet 4.5"
  */
 function slugToLabel(slug: string): string {
   return slug
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+/**
+ * Join short numeric slug tokens into dotted model versions while leaving
+ * long date/build tokens intact (for example, 4-5-20251001 → 4.5-20251001).
+ */
+function formatModelVersion(slug: string): string {
+  return slug.replace(
+    /(^|[^a-z0-9])(v?\d{1,2}(?:\.\d{1,2})*(?:-\d{1,2}(?=-|$))+)/gi,
+    (_match, separator: string, version: string) => `${separator}${version.replace(/-/g, '.')}`
+  );
 }
 
 /** Friendly labels for bare model slugs (cursor-sdk / cursor CLI). */
@@ -184,7 +195,7 @@ const BARE_MODEL_DISPLAY_LABELS: Record<string, string> = {
  * Parse an OpenCode model ID (provider/model-slug format) into display parts.
  *
  * OpenCode models use the format "provider/model-slug", e.g.:
- *   "github-copilot/claude-sonnet-4.5" → { provider: "Github Copilot", model: "Claude Sonnet 4.5" }
+ *   "github-copilot/claude-sonnet-4-5" → { provider: "Github Copilot", model: "Claude Sonnet 4.5" }
  *   "opencode/big-pickle" → { provider: "OPENCODE", model: "BIG PICKLE" }
  *
  * For IDs without a slash, the entire string is treated as the model name.
@@ -194,7 +205,7 @@ function parseModelId(modelId: string): { provider: string; model: string } {
   if (slashIdx === -1) {
     return {
       provider: '',
-      model: BARE_MODEL_DISPLAY_LABELS[modelId] ?? slugToLabel(modelId),
+      model: BARE_MODEL_DISPLAY_LABELS[modelId] ?? slugToLabel(formatModelVersion(modelId)),
     };
   }
 
@@ -203,7 +214,7 @@ function parseModelId(modelId: string): { provider: string; model: string } {
 
   return {
     provider: slugToLabel(providerSlug),
-    model: slugToLabel(modelSlug),
+    model: slugToLabel(formatModelVersion(modelSlug)),
   };
 }
 
@@ -257,7 +268,7 @@ export function getCompactModelId(modelId: string): string {
  */
 // fallow-ignore-next-line complexity
 export function getCompactModelLabel(modelId: string): string {
-  const compactModelId = getCompactModelId(modelId);
+  const compactModelId = formatModelVersion(getCompactModelId(modelId));
 
   try {
     const { params } = decodeModelVariant(modelId);

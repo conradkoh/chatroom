@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ModelGroupedList } from './ModelGroupedList';
+import { groupFlatModels } from './modelGroups';
 import type { ModelGroup } from './types';
 
 const GROUPS: ModelGroup[] = [
@@ -27,6 +28,29 @@ const TAGGED_GROUPS: ModelGroup[] = [
 ];
 
 describe('ModelGroupedList', () => {
+  it('renders dotted Claude versions and preserves the selected model id', () => {
+    const haikuId = 'anthropic/claude-haiku-5-5[effort=xhigh]';
+    const groups = groupFlatModels(['anthropic/claude-opus-5-5', haikuId]);
+    const onValueChange = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <ModelGroupedList
+        mode="select"
+        groups={groups}
+        value=""
+        onValueChange={onValueChange}
+        onClose={onClose}
+      />
+    );
+
+    expect(screen.getByText('Anthropic / Claude Opus 5.5')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Anthropic / Claude Haiku 5.5 [effort=xhigh]'));
+
+    expect(onValueChange).toHaveBeenCalledWith(haikuId);
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it('renders select mode options', () => {
     const onValueChange = vi.fn();
     const onClose = vi.fn();

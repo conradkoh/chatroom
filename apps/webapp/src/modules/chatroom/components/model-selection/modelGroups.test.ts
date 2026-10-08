@@ -87,9 +87,10 @@ describe('groupFlatModels', () => {
       const groups = groupFlatModels([...HARNESS_MODEL_CATALOG[harness]]);
       const options = groups.flatMap((group) => group.options);
       const models = [
-        ['claude-haiku-5-5', 'Claude Haiku 5 5'],
-        ['claude-sonnet-5-5', 'Claude Sonnet 5 5'],
-        ['claude-mythos-5-1', 'Claude Mythos 5 1'],
+        ['claude-opus-5-5', 'Claude Opus 5.5'],
+        ['claude-haiku-5-5', 'Claude Haiku 5.5'],
+        ['claude-sonnet-5-5', 'Claude Sonnet 5.5'],
+        ['claude-mythos-5-1', 'Claude Mythos 5.1'],
         ['claude-mythos-5', 'Claude Mythos 5'],
       ] as const;
 
@@ -97,9 +98,10 @@ describe('groupFlatModels', () => {
         const base = options.find((option) => option.value === `anthropic/${model}`);
         const effort = options.find((option) => option.value === `anthropic/${model}[effort=high]`);
 
-        expect(base?.label).toContain(expectedLabel);
-        expect(effort).toBeDefined();
-        expect(effort?.value).not.toBe(base?.value);
+        expect(base?.label).toBe(`Anthropic / ${expectedLabel}`);
+        expect(base?.value).toBe(`anthropic/${model}`);
+        expect(effort?.label).toBe(`Anthropic / ${expectedLabel} [effort=high]`);
+        expect(effort?.value).toBe(`anthropic/${model}[effort=high]`);
       }
     }
   );
@@ -111,9 +113,9 @@ describe('groupFlatModels', () => {
       'claude-opus-4-8[effort=high]',
     ]);
     const labels = groups.flatMap((group) => group.options.map((option) => option.label));
-    expect(labels).toContain('Claude Opus 4 8');
-    expect(labels).toContain('Claude Opus 4 8 [effort=none]');
-    expect(labels).toContain('Claude Opus 4 8 [effort=high]');
+    expect(labels).toContain('Claude Opus 4.8');
+    expect(labels).toContain('Claude Opus 4.8 [effort=none]');
+    expect(labels).toContain('Claude Opus 4.8 [effort=high]');
     expect(new Set(labels).size).toBe(3);
   });
 
