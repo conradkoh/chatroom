@@ -23,6 +23,8 @@ export function getPlannerToBuilderHandoffTemplate(): string {
 
 ${getDelegationBriefIntro()}
 
+**Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved design choice), hand off to \`researcher\` first and delegate only after its brief returns. Skip this for small, well-understood edits. The \`researcher\` handoff template defines the criteria.
+
 **Division of labor:** You (planner) own architecture and API shape. The UI/UX engineer owns UI/UX design. Include its target markup, classes, and styles in UI implementation briefs; the builder implements the components.
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
