@@ -4,6 +4,7 @@ import {
   adaptProviderGroupsToModelGroups,
   aggregateFlatModelsByProvider,
 } from './modelGroupAdapter';
+import { getProviderModelLabel } from './modelKeys';
 import type { ModelGroup } from './types';
 import type { ProviderOption } from '../../direct-harness/components/harness-selectors/types';
 import { getModelDisplayLabel } from '../../types/machine';
@@ -47,9 +48,7 @@ export function groupProviderOptions(
 ): ModelGroup[] {
   if (providers.length === 0) return [];
   const modelKey = options?.modelKey ?? ((p: string, m: string) => `${p}::${m}`);
-  const modelLabel =
-    options?.modelLabel ??
-    ((_provider: ProviderOption, model: { modelID: string; name: string }) => model.name);
+  const modelLabel = options?.modelLabel ?? getProviderModelLabel;
 
   return adaptProviderGroupsToModelGroups(
     providers.map((provider) => ({

@@ -116,6 +116,42 @@ describe('ClaudeSdkAgentService', () => {
   });
 
   describe('spawn', () => {
+    it.each([
+      'claude-haiku-5-5',
+      'claude-sonnet-5-5',
+      'claude-mythos-5-1',
+      'claude-mythos-5',
+    ] as const)('forwards %s model and effort to SDK query options', async (model) => {
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: 'haiku-5-5-session' },
+        { type: 'result', subtype: 'success', session_id: 'haiku-5-5-session', is_error: false },
+      ]);
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        model: `anthropic/${model}[effort=xhigh]`,
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      await vi.waitFor(() => expect(mockQueryFn).toHaveBeenCalledTimes(1));
+      expect(mockQueryFn.mock.calls[0]![0]).toMatchObject({
+        prompt: 'do work',
+        options: expect.objectContaining({
+          model,
+          effort: 'xhigh',
+        }),
+      });
+      const onAgentEnd = vi.fn();
+      result.onAgentEnd?.(onAgentEnd);
+      await vi.waitFor(() => expect(onAgentEnd).toHaveBeenCalledTimes(1));
+    });
+
     it('registers keeper PID and fires onOutput/onAgentEnd after mocked stream completes', async () => {
       stubQuery([
         { type: 'system', subtype: 'init', session_id: 'sess-1' },

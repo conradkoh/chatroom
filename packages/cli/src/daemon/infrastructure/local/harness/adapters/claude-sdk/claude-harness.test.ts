@@ -202,7 +202,7 @@ describe('ClaudeSdkHarness', () => {
     const catalog = HARNESS_MODEL_CATALOG['claude-sdk'];
     expect(ids).toEqual(catalog.map((id) => stripProviderPrefix('anthropic', id)));
     const bases = ids.map((id) => decodeModelVariant(id).model);
-    expect(new Set(bases).size).toBe(16);
+    expect(new Set(bases).size).toBe(20);
     expect(bases).toEqual(
       expect.arrayContaining([
         'opus',
@@ -211,9 +211,46 @@ describe('ClaudeSdkHarness', () => {
         'claude-opus-5',
         'claude-sonnet-5',
         'claude-fable-5-1',
+        'claude-mythos-5-1',
+        'claude-mythos-5',
         'claude-opus-5-5',
+        'claude-sonnet-5-5',
+        'claude-haiku-5-5',
         'claude-haiku-4-5-20251001',
       ])
     );
+  });
+
+  it.each([
+    'claude-haiku-5-5',
+    'claude-sonnet-5-5',
+    'claude-mythos-5-1',
+    'claude-mythos-5',
+  ] as const)('discovers and forwards %s through a session prompt', async (baseModel) => {
+    stubQuery([
+      { type: 'system', subtype: 'init', session_id: `${baseModel}-session` },
+      {
+        type: 'result',
+        subtype: 'success',
+        session_id: `${baseModel}-session`,
+        is_error: false,
+      },
+    ]);
+    const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
+    const providers = await harness.listProviders();
+    const models = providers.find((provider) => provider.providerID === 'anthropic')!.models;
+    const advertised = models.find((model) => model.modelID === `${baseModel}[effort=max]`);
+    expect(advertised).toBeDefined();
+    const session = await harness.newSession({ model: `anthropic/${advertised!.modelID}` });
+
+    await session.prompt({ agent: 'builder', parts: [{ type: 'text', text: 'say hello' }] });
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: 'say hello',
+        options: expect.objectContaining({ model: baseModel, effort: 'max' }),
+      })
+    );
+    await harness.close();
   });
 });

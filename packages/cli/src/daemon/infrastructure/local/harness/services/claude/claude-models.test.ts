@@ -45,6 +45,20 @@ describe('decodeClaudeVariant', () => {
       model: 'claude-haiku-4-5-20251001',
     });
   });
+  it.each([
+    'claude-haiku-5-5',
+    'claude-sonnet-5-5',
+    'claude-mythos-5-1',
+    'claude-mythos-5',
+  ] as const)('decodes Claude model variants for %s', (model) => {
+    expect(decodeClaudeVariant(model)).toEqual({ model });
+    expect(decodeClaudeVariant(`anthropic/${model}`)).toEqual({ model });
+    expect(decodeClaudeVariant(`${model}[effort=none]`)).toEqual({ model });
+    expect(decodeClaudeVariant(`anthropic/${model}[effort=xhigh]`)).toEqual({
+      model,
+      effort: 'xhigh',
+    });
+  });
   it('omits none effort', () =>
     expect(decodeClaudeVariant('sonnet[effort=none]')).toEqual({ model: 'sonnet' }));
   it('rejects malformed and unknown variants', () => {

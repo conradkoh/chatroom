@@ -254,20 +254,24 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'claude-sonnet-5',
       'claude-fable-5-1',
       'claude-fable-5',
+      'claude-mythos-5-1',
+      'claude-mythos-5',
       'claude-opus-5-5',
       'claude-opus-4-8',
       'claude-opus-4-7',
       'claude-opus-4-6',
       'claude-opus-4-5-20251101',
+      'claude-sonnet-5-5',
       'claude-sonnet-4-6',
       'claude-sonnet-4-5-20250929',
+      'claude-haiku-5-5',
       'claude-haiku-4-5',
       'claude-haiku-4-5-20251001',
     ] as const;
     for (const harness of ['claude', 'claude-sdk'] as const) {
       const catalog = HARNESS_MODEL_CATALOG[harness];
       const baseIds = catalog.map((entry) => decodeModelVariant(entry).model);
-      // Three aliases plus thirteen provider-documented exact ids.
+      // All catalog aliases and provider-documented exact ids are independently specified above.
       expect(new Set(baseIds).size).toBe(expectedClaudeBaseIds.length);
       for (const base of expectedClaudeBaseIds) {
         expect(baseIds).toContain(`anthropic/${base}`);
@@ -285,6 +289,17 @@ describe('HARNESS_MODEL_CATALOG', () => {
       expect(baseIds).toContain('anthropic/claude-sonnet-5');
       expect(baseIds).toContain('anthropic/claude-sonnet-4-6');
       expect(baseIds).toContain('anthropic/claude-haiku-4-5');
+      for (const model of [
+        'claude-haiku-5-5',
+        'claude-sonnet-5-5',
+        'claude-mythos-5-1',
+        'claude-mythos-5',
+      ] as const) {
+        expect(catalog).toContain(`anthropic/${model}`);
+        for (const effort of ['none', 'low', 'medium', 'high', 'xhigh', 'max'] as const) {
+          expect(catalog).toContain(`anthropic/${model}[effort=${effort}]`);
+        }
+      }
     }
   });
 });

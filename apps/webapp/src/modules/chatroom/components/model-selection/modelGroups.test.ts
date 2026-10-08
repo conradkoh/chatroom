@@ -81,6 +81,31 @@ describe('groupFlatModels', () => {
     expect(keys).not.toContain('opus');
   });
 
+  it.each(['claude', 'claude-sdk'] as const)(
+    'groups current Claude options from the %s catalog',
+    (harness) => {
+      const groups = groupFlatModels([...HARNESS_MODEL_CATALOG[harness]]);
+      const options = groups.flatMap((group) => group.options);
+      const models = [
+        ['claude-opus-5-5', 'Claude Opus 5.5'],
+        ['claude-haiku-5-5', 'Claude Haiku 5.5'],
+        ['claude-sonnet-5-5', 'Claude Sonnet 5.5'],
+        ['claude-mythos-5-1', 'Claude Mythos 5.1'],
+        ['claude-mythos-5', 'Claude Mythos 5'],
+      ] as const;
+
+      for (const [model, expectedLabel] of models) {
+        const base = options.find((option) => option.value === `anthropic/${model}`);
+        const effort = options.find((option) => option.value === `anthropic/${model}[effort=high]`);
+
+        expect(base?.label).toBe(`Anthropic / ${expectedLabel}`);
+        expect(base?.value).toBe(`anthropic/${model}`);
+        expect(effort?.label).toBe(`Anthropic / ${expectedLabel} [effort=high]`);
+        expect(effort?.value).toBe(`anthropic/${model}[effort=high]`);
+      }
+    }
+  );
+
   it('shows distinct labels for base model and effort=none variant', () => {
     const groups = groupFlatModels([
       'claude-opus-4-8',
@@ -88,9 +113,9 @@ describe('groupFlatModels', () => {
       'claude-opus-4-8[effort=high]',
     ]);
     const labels = groups.flatMap((group) => group.options.map((option) => option.label));
-    expect(labels).toContain('Claude Opus 4 8');
-    expect(labels).toContain('Claude Opus 4 8 [effort=none]');
-    expect(labels).toContain('Claude Opus 4 8 [effort=high]');
+    expect(labels).toContain('Claude Opus 4.8');
+    expect(labels).toContain('Claude Opus 4.8 [effort=none]');
+    expect(labels).toContain('Claude Opus 4.8 [effort=high]');
     expect(new Set(labels).size).toBe(3);
   });
 
@@ -162,6 +187,30 @@ describe('groupProviderOptions', () => {
     const opencode = groups.find((g) => g.providerKey === 'opencode');
     expect(opencode?.options).toHaveLength(1);
     expect(opencode?.options[0].value).toBe('opencode::big-pickle');
+  });
+
+  it('formats raw provider model names and preserves providerID::modelID values', () => {
+    const anthropic: ProviderOption = {
+      providerID: 'anthropic',
+      name: 'Anthropic',
+      models: [
+        { modelID: 'claude-opus-5-5', name: 'anthropic/claude-opus-5-5' },
+        {
+          modelID: 'claude-haiku-5-5[effort=xhigh]',
+          name: 'anthropic/claude-haiku-5-5[effort=xhigh]',
+        },
+      ],
+    };
+    const groups = groupProviderOptions([anthropic]);
+
+    expect(groups[0].providerLabel).toBe('Anthropic');
+    expect(groups[0].options).toEqual([
+      { value: 'anthropic::claude-opus-5-5', label: 'Claude Opus 5.5' },
+      {
+        value: 'anthropic::claude-haiku-5-5[effort=xhigh]',
+        label: 'Claude Haiku 5.5 [effort=xhigh]',
+      },
+    ]);
   });
 
   it('uses custom modelKey and modelLabel options', () => {
