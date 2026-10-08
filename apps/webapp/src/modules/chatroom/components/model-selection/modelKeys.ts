@@ -33,6 +33,16 @@ export function getProviderModelLabel(
     : model.name;
 }
 
+/**
+ * Label for a "providerID::modelID" key that is missing from the loaded catalog
+ * (e.g. a stale saved config). Formats the key the same way as catalog models.
+ */
+export function getUnresolvedHarnessModelLabel(value: string): string {
+  const [providerID, modelID] = value.split('::');
+  if (!providerID || !modelID) return value;
+  return getModelDisplayLabel(`${providerID}/${stripProviderPrefix(providerID, modelID)}`);
+}
+
 export function getHarnessModelLabel(providers: ProviderOption[], value: string): string | null {
   if (!value) return null;
   const [providerID, modelID] = value.split('::');
