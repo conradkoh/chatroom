@@ -186,6 +186,34 @@ describe('useHandoffNotification', () => {
     expect(tags).toEqual(['chatroom-handoff-room-a', 'chatroom-handoff-room-b']);
   });
 
+  it('titles the notification with the chatroom name when chatroom is provided', () => {
+    const initialMessages = [makeMessage({ _id: 'init-1' })];
+    const { rerender } = renderHook(
+      ({ msgs }) =>
+        useHandoffNotification(msgs, 'test-chatroom-id', { name: 'Foo', teamName: 'Duo' }),
+      { initialProps: { msgs: initialMessages } }
+    );
+
+    setDocumentHidden(true);
+
+    rerender({
+      msgs: [
+        ...initialMessages,
+        makeMessage({ _id: 'named-1', type: 'handoff', targetRole: 'user' }),
+      ],
+    });
+
+    expect(swPostMessage).toHaveBeenCalledWith({
+      type: 'SHOW_NOTIFICATION',
+      payload: {
+        title: 'Foo',
+        body: 'Tasks complete',
+        tag: 'chatroom-handoff-test-chatroom-id',
+        chatroomId: 'test-chatroom-id',
+      },
+    });
+  });
+
   it('falls back to Notification API when SW is not available', () => {
     disableServiceWorker();
 
