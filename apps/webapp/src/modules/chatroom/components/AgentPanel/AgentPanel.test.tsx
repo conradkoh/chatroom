@@ -243,7 +243,27 @@ describe('AgentPanel', () => {
       <AgentPanel {...panelProps} teamStructure={duoStructure} agentConfigs={[plannerConfig]} />
     );
 
-    expect(screen.getByText('gpt-5.6-terra [high]')).toBeInTheDocument();
+    expect(screen.getByText('Gpt 5.6 Terra [high]')).toBeInTheDocument();
+  });
+
+  it('renders the dotted, title-cased model label in the sidebar for Claude haiku 5.5', () => {
+    const haikuConfig: AgentConfig = {
+      machineId: 'machine-1',
+      hostname: 'test-host',
+      role: 'planner',
+      agentType: 'claude-sdk',
+      workingDir: '/Users/alice/chatroom',
+      model: 'anthropic/claude-haiku-5-5[effort=high]',
+      availableHarnesses: ['claude-sdk'],
+      updatedAt: Date.now(),
+    };
+
+    render(
+      <AgentPanel {...panelProps} teamStructure={duoStructure} agentConfigs={[haikuConfig]} />
+    );
+
+    expect(screen.getByText('Claude Haiku 5.5 [high]')).toBeInTheDocument();
+    expect(screen.queryByText('claude-haiku-5-5 [high]')).not.toBeInTheDocument();
   });
 
   it('shows the newest configuration snapshot for each role', () => {
@@ -271,7 +291,7 @@ describe('AgentPanel', () => {
       />
     );
 
-    expect(screen.getByText('gpt-5.6-luna [low]')).toBeInTheDocument();
+    expect(screen.getByText('Gpt 5.6 Luna [low]')).toBeInTheDocument();
     expect(screen.queryByText('big-pickle')).not.toBeInTheDocument();
   });
 });

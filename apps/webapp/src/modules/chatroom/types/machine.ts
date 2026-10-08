@@ -203,10 +203,7 @@ const BARE_MODEL_DISPLAY_LABELS: Record<string, string> = {
 function parseModelId(modelId: string): { provider: string; model: string } {
   const slashIdx = modelId.indexOf('/');
   if (slashIdx === -1) {
-    return {
-      provider: '',
-      model: BARE_MODEL_DISPLAY_LABELS[modelId] ?? slugToLabel(formatModelVersion(modelId)),
-    };
+    return { provider: '', model: formatModelName(modelId) };
   }
 
   const providerSlug = modelId.substring(0, slashIdx);
@@ -214,8 +211,19 @@ function parseModelId(modelId: string): { provider: string; model: string } {
 
   return {
     provider: slugToLabel(providerSlug),
-    model: slugToLabel(formatModelVersion(modelSlug)),
+    model: formatModelName(modelSlug),
   };
+}
+
+/**
+ * Title-cased display name for a bare model slug (no provider, no variant params).
+ * Shared by full and compact labels so the model part reads identically everywhere.
+ *
+ * "claude-haiku-5-5" → "Claude Haiku 5.5"
+ * "auto" → "Auto"
+ */
+function formatModelName(slug: string): string {
+  return BARE_MODEL_DISPLAY_LABELS[slug] ?? slugToLabel(formatModelVersion(slug));
 }
 
 export interface ModelDisplayLabelOptions {
@@ -253,6 +261,18 @@ export function getModelDisplayLabel(modelId: string, options?: ModelDisplayLabe
   }
 }
 
+/**
+ * Display label for a "harness/model" key (e.g. "opencode/anthropic/claude-haiku-5-5").
+ * Splits on the first slash only, so provider-prefixed model ids stay intact.
+ */
+export function getHarnessModelKeyLabel(harnessModelKey: string): string {
+  const slashIdx = harnessModelKey.indexOf('/');
+  if (slashIdx === -1) return getHarnessDisplayName(harnessModelKey);
+  const harness = harnessModelKey.substring(0, slashIdx);
+  const model = harnessModelKey.substring(slashIdx + 1);
+  return `${getHarnessDisplayName(harness)} / ${getModelDisplayLabel(model)}`;
+}
+
 /** Last segment of a provider/model path for compact agent sidebar display. */
 // fallow-ignore-next-line unused-export
 export function getCompactModelId(modelId: string): string {
@@ -262,13 +282,16 @@ export function getCompactModelId(modelId: string): string {
 
 /**
  * Compact sidebar label with one normalized effort-like model level.
+ * The model part is title-cased like the full label, without the provider.
+ * e.g. "anthropic/claude-haiku-5-5[effort=high]" → "Claude Haiku 5.5 [high]"
+
  * Harnesses currently call this parameter effort, reasoning, thinking, or variant;
  * the sidebar treats those values as equivalent at this density. Prefer an
  * explicit effort/reasoning level over Cursor's boolean thinking marker.
  */
 // fallow-ignore-next-line complexity
 export function getCompactModelLabel(modelId: string): string {
-  const compactModelId = formatModelVersion(getCompactModelId(modelId));
+  const compactModelId = formatModelName(getCompactModelId(modelId));
 
   try {
     const { params } = decodeModelVariant(modelId);

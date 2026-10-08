@@ -7,6 +7,7 @@ import {
   getModelDisplayLabel,
   getCompactModelId,
   getCompactModelLabel,
+  getHarnessModelKeyLabel,
   harnessSupportsNativeIntegration,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
@@ -151,6 +152,7 @@ describe('getModelDisplayLabel', () => {
     ['cursor/composer-2.5', 'Cursor / Composer 2.5'],
     ['github-copilot/claude-opus-5-5', 'Github Copilot / Claude Opus 5.5'],
     ['anthropic/claude-haiku-4-5-20251001', 'Anthropic / Claude Haiku 4.5 20251001'],
+    ['anthropic/claude-opus-4-5-20251101', 'Anthropic / Claude Opus 4.5 20251101'],
     ['anthropic/claude-haiku-5-5[effort=xhigh]', 'Anthropic / Claude Haiku 5.5 [effort=xhigh]'],
     ['gpt-5.6-terra[reasoning=high]', 'Gpt 5.6 Terra [reasoning=high]'],
   ] as const)('formats model version tokens in %s', (modelId, expected) => {
@@ -180,6 +182,24 @@ describe('getModelDisplayLabel', () => {
   });
 });
 
+describe('getHarnessModelKeyLabel', () => {
+  it('formats the harness and the title-cased model label', () => {
+    expect(getHarnessModelKeyLabel('pi/claude-sonnet-4-20250514')).toBe(
+      'Pi / Claude Sonnet 4 20250514'
+    );
+  });
+
+  it('keeps provider-prefixed model ids intact after the harness', () => {
+    expect(getHarnessModelKeyLabel('opencode-sdk/anthropic/claude-haiku-5-5[effort=xhigh]')).toBe(
+      'OpenCode (SDK) / Anthropic / Claude Haiku 5.5 [effort=xhigh]'
+    );
+  });
+
+  it('returns the harness display name when no model is present', () => {
+    expect(getHarnessModelKeyLabel('claude')).toBe('Claude Code');
+  });
+});
+
 describe('getCompactModelId', () => {
   it('returns the last segment of a provider/model path', () => {
     expect(getCompactModelId('github-copilot/gpt-4o')).toBe('gpt-4o');
@@ -202,60 +222,77 @@ describe('getCompactModelId', () => {
 });
 
 describe('getCompactModelLabel', () => {
-  it('returns compact model id for plain provider/model paths', () => {
-    expect(getCompactModelLabel('github-copilot/gpt-4o')).toBe('gpt-4o');
+  it('returns title-cased model name for plain provider/model paths', () => {
+    expect(getCompactModelLabel('github-copilot/gpt-4o')).toBe('Gpt 4o');
   });
 
   it('appends normalized reasoning level', () => {
-    expect(getCompactModelLabel('gpt-5.6-terra[reasoning=high]')).toBe('gpt-5.6-terra [high]');
+    expect(getCompactModelLabel('gpt-5.6-terra[reasoning=high]')).toBe('Gpt 5.6 Terra [high]');
   });
 
   it('appends normalized effort level', () => {
-    expect(getCompactModelLabel('claude-opus-4-8[effort=high]')).toBe('claude-opus-4.8 [high]');
+    expect(getCompactModelLabel('claude-opus-4-8[effort=high]')).toBe('Claude Opus 4.8 [high]');
     expect(getCompactModelLabel('anthropic/claude-opus-5-5[effort=high]')).toBe(
-      'claude-opus-5.5 [high]'
+      'Claude Opus 5.5 [high]'
     );
   });
 
+  it('matches the full label model name for Claude haiku 5.5 variants', () => {
+    expect(getCompactModelLabel('anthropic/claude-haiku-5-5[effort=xhigh]')).toBe(
+      'Claude Haiku 5.5 [xhigh]'
+    );
+    expect(getCompactModelLabel('anthropic/claude-haiku-5-5[effort=high]')).toBe(
+      'Claude Haiku 5.5 [high]'
+    );
+    expect(getCompactModelLabel('anthropic/claude-haiku-5-5')).toBe('Claude Haiku 5.5');
+  });
+
   it('keeps date components separate in compact labels', () => {
-    expect(getCompactModelLabel('openai/gpt-4o-2024-11-20')).toBe('gpt-4o-2024-11-20');
-    expect(getCompactModelLabel('openai/gpt-4-2025-04-14')).toBe('gpt-4-2025-04-14');
+    expect(getCompactModelLabel('openai/gpt-4o-2024-11-20')).toBe('Gpt 4o 2024 11 20');
+    expect(getCompactModelLabel('openai/gpt-4-2025-04-14')).toBe('Gpt 4 2025 04 14');
     expect(getCompactModelLabel('anthropic/claude-haiku-4-5-2025-10-01')).toBe(
-      'claude-haiku-4.5-2025-10-01'
+      'Claude Haiku 4.5 2025 10 01'
+    );
+  });
+
+  it('preserves pinned date tokens in compact labels', () => {
+    expect(getCompactModelLabel('anthropic/claude-opus-4-5-20251101')).toBe(
+      'Claude Opus 4.5 20251101'
     );
   });
 
   it('appends a variant level', () => {
-    expect(getCompactModelLabel('openai/gpt-6-luna[variant=high]')).toBe('gpt-6-luna [high]');
+    expect(getCompactModelLabel('openai/gpt-6-luna[variant=high]')).toBe('Gpt 6 Luna [high]');
   });
 
   it('prefers effort over variant when both are present', () => {
     expect(getCompactModelLabel('openai/gpt-6-luna[effort=medium,variant=high]')).toBe(
-      'gpt-6-luna [medium]'
+      'Gpt 6 Luna [medium]'
     );
   });
 
   it('prefers effort over thinking when both are present', () => {
     expect(getCompactModelLabel('claude-opus-4-8[effort=high,thinking=enabled]')).toBe(
-      'claude-opus-4.8 [high]'
+      'Claude Opus 4.8 [high]'
     );
   });
 
   it('renders boolean thinking marker as thinking', () => {
     expect(getCompactModelLabel('claude-opus-4-8[thinking=enabled]')).toBe(
-      'claude-opus-4.8 [thinking]'
+      'Claude Opus 4.8 [thinking]'
     );
   });
 
-  it('returns plain compact model id when no variant level exists', () => {
-    expect(getCompactModelLabel('composer-2.5')).toBe('composer-2.5');
+  it('returns title-cased model name when no variant level exists', () => {
+    expect(getCompactModelLabel('composer-2.5')).toBe('Composer 2.5');
+    expect(getCompactModelLabel('auto')).toBe('Auto');
   });
 
   it('renders future non-boolean thinking values', () => {
-    expect(getCompactModelLabel('gpt-5.6[thinking=high]')).toBe('gpt-5.6 [high]');
+    expect(getCompactModelLabel('gpt-5.6[thinking=high]')).toBe('Gpt 5.6 [high]');
   });
 
-  it('falls back to compact model id for malformed variants', () => {
-    expect(getCompactModelLabel('gpt-5.6[reasoning]')).toBe('gpt-5.6[reasoning]');
+  it('falls back to a title-cased model name for malformed variants', () => {
+    expect(getCompactModelLabel('gpt-5.6[reasoning]')).toBe('Gpt 5.6[reasoning]');
   });
 });

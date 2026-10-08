@@ -86,6 +86,37 @@ describe('ModelGroupedList', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('renders provider names that spell out the haiku version with dots', () => {
+    const haikuKey = 'anthropic::claude-haiku-5-5[effort=xhigh]';
+    const groups = groupProviderOptions([
+      {
+        providerID: 'anthropic',
+        name: 'Anthropic',
+        models: [
+          {
+            modelID: 'claude-haiku-5-5[effort=xhigh]',
+            name: 'Claude Haiku 5 5 [effort=xhigh]',
+          },
+        ],
+      },
+    ]);
+    const onValueChange = vi.fn();
+
+    render(
+      <ModelGroupedList
+        mode="select"
+        groups={groups}
+        value=""
+        onValueChange={onValueChange}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText('Claude Haiku 5 5 [effort=xhigh]')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Claude Haiku 5.5 [effort=xhigh]'));
+    expect(onValueChange).toHaveBeenCalledWith(haikuKey);
+  });
+
   it('renders select mode options', () => {
     const onValueChange = vi.fn();
     const onClose = vi.fn();

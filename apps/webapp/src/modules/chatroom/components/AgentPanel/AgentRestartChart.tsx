@@ -6,6 +6,8 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 
+import { getHarnessModelKeyLabel } from '../../types/machine';
+
 // ─── Color palette for model bars ───────────────────────────────────────────
 
 const MODEL_COLORS = [
@@ -373,6 +375,7 @@ export function AgentRestartChart({
                   <Bar
                     key={model}
                     dataKey={model}
+                    name={getHarnessModelKeyLabel(model)}
                     stackId="a"
                     fill={getModelColor(colorIdx)}
                     radius={[0, 0, 0, 0]}
@@ -428,14 +431,14 @@ export function AgentRestartChart({
                 className={`flex items-center gap-1 transition-opacity ${
                   isSelected ? 'opacity-100' : 'opacity-40'
                 }`}
-                title={isSelected ? `Hide ${model}` : `Show ${model}`}
+                title={`${isSelected ? 'Hide' : 'Show'} ${getHarnessModelKeyLabel(model)}`}
               >
                 <div
                   className="w-2.5 h-2.5 flex-shrink-0"
                   style={{ backgroundColor: getModelColor(idx) }}
                 />
                 <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]">
-                  {model}
+                  {getHarnessModelKeyLabel(model)}
                 </span>
               </button>
             );

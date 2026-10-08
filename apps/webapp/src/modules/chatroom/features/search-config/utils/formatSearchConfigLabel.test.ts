@@ -28,7 +28,6 @@ describe('formatSearchConfigLabel', () => {
       { harnessName: 'unknown', modelKey: 'foo::bar' },
       mockHarnesses
     );
-    expect(result).toContain('Unknown /');
-    expect(result).toContain('foo::bar');
+    expect(result).toBe('Unknown / Foo / Bar');
   });
 });
