@@ -94,7 +94,35 @@ describe('getProviderModelLabel', () => {
       { modelID: 'claude-opus-4.8', name: 'anthropic/claude-opus-4.8' },
       'Claude Opus 4.8',
     ],
+    [
+      { providerID: 'anthropic' },
+      { modelID: 'claude-haiku-5-5', name: 'Claude Haiku 5 5' },
+      'Claude Haiku 5.5',
+    ],
+    [
+      { providerID: 'anthropic' },
+      {
+        modelID: 'claude-haiku-5-5[effort=xhigh]',
+        name: 'Claude Haiku 5 5 [effort=xhigh]',
+      },
+      'Claude Haiku 5.5 [effort=xhigh]',
+    ],
+    [
+      { providerID: 'anthropic' },
+      {
+        modelID: 'claude-haiku-5-5[effort=xhigh]',
+        name: 'anthropic/claude-haiku-5-5[effort=xhigh]',
+      },
+      'Claude Haiku 5.5 [effort=xhigh]',
+    ],
+    [
+      { providerID: 'anthropic' },
+      { modelID: 'claude-haiku-5-5', name: 'Claude Haiku (Preview)' },
+      'Claude Haiku (Preview)',
+    ],
     [{ providerID: 'openai' }, { modelID: 'gpt-4o', name: 'GPT-4o' }, 'GPT-4o'],
+    [{ providerID: 'openai' }, { modelID: 'gpt-4o', name: 'GPT 4o Mini' }, 'GPT 4o Mini'],
+    [{ providerID: 'meta' }, { modelID: 'llama-3-1-70b', name: 'Llama 3 70 B' }, 'Llama 3 70 B'],
     [{ providerID: 'opencode' }, { modelID: 'big-pickle', name: 'Big Pickle' }, 'Big Pickle'],
   ] as const)('formats raw names or preserves friendly names: %s', (provider, model, expected) => {
     expect(getProviderModelLabel(provider, model)).toBe(expected);
