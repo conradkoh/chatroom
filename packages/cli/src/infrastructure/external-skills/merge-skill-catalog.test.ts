@@ -1,13 +1,9 @@
 /**
- * mergeSkillCatalog / findExternalSkill — pure merge tests.
+ * mergeSkillCatalog — pure merge tests.
  */
 import { describe, expect, test } from 'vitest';
 
-import {
-  findExternalSkill,
-  mergeSkillCatalog,
-  type BuiltinSkillSummary,
-} from './merge-skill-catalog.js';
+import { mergeSkillCatalog, type BuiltinSkillSummary } from './merge-skill-catalog.js';
 import type { ExternalSkill, ExternalSkillDiscovery } from './types.js';
 
 function externalSkill(skillId: string, root = '/roots/a'): ExternalSkill {
@@ -67,20 +63,5 @@ describe('mergeSkillCatalog', () => {
 
     expect(catalog.issues.map((i) => i.reason)).toEqual(['too-large', 'builtin-collision']);
     expect(catalog.issues[0]).toBe(discoveryIssue);
-  });
-});
-
-describe('findExternalSkill', () => {
-  const catalog = mergeSkillCatalog([], {
-    skills: [externalSkill('alpha'), externalSkill('beta')],
-    issues: [],
-  });
-
-  test('returns the entry on hit', () => {
-    expect(findExternalSkill(catalog, 'beta')?.skillId).toBe('beta');
-  });
-
-  test('returns undefined on miss', () => {
-    expect(findExternalSkill(catalog, 'missing')).toBeUndefined();
   });
 });

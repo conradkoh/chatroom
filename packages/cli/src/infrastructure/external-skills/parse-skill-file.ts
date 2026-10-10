@@ -1,5 +1,3 @@
-// TODO(external-skills): remove this suppression once list/activate import this module.
-// fallow-ignore-file unused-file
 /**
  * Pure SKILL.md parser.
  *
@@ -12,9 +10,7 @@
 import { parse } from 'yaml';
 
 /** Spec name: lowercase alphanumerics separated by single hyphens. */
-// TODO(external-skills): remove this suppression once list/activate import this module.
-// fallow-ignore-next-line unused-export
-export const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const MAX_NAME_LENGTH = 64;
 const MAX_DESCRIPTION_LENGTH = 1024;
@@ -46,8 +42,6 @@ function fail(reason: ParseFailure['reason'], detail?: string): ParseFailure {
  * - Unknown frontmatter keys (`hidden`, `allowed-tools`, `metadata`, ...) are ignored, not rejected.
  * - The body is returned verbatim, except that leading blank lines are trimmed.
  */
-// TODO(external-skills): remove this suppression once list/activate import this module.
-// fallow-ignore-next-line unused-export
 export function parseSkillFile(content: string): ParseSkillFileResult {
   const normalized = content.replace(/^﻿/, '').replace(/\r\n/g, '\n');
 

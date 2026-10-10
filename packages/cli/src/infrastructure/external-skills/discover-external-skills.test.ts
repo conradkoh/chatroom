@@ -10,12 +10,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
-import {
-  MAX_ENTRIES_PER_ROOT,
-  MAX_SKILL_FILE_BYTES,
-  discoverExternalSkills,
-  getExternalSkillRoots,
-} from './discover-external-skills.js';
+import { discoverExternalSkills } from './discover-external-skills.js';
 import type { ExternalSkillRoot } from './types.js';
 
 let testDir: string;
@@ -163,11 +158,12 @@ describe('discoverExternalSkills — per-entry issues', () => {
     expect(result.issues[0]).toMatchObject({ path: join(root, 'loop'), reason: 'unreadable' });
   });
 
-  test('SKILL.md larger than MAX_SKILL_FILE_BYTES is too-large and the skill is absent', async () => {
+  test('SKILL.md larger than the 64 KiB cap is too-large and the skill is absent', async () => {
     const root = join(testDir, 'root');
     const dir = join(root, 'huge');
     await mkdir(dir, { recursive: true });
-    const padding = 'x'.repeat(MAX_SKILL_FILE_BYTES);
+    // 64 KiB of padding plus frontmatter: over the module's MAX_SKILL_FILE_BYTES cap.
+    const padding = 'x'.repeat(64 * 1024);
     await writeFile(join(dir, 'SKILL.md'), `---\nname: huge\ndescription: d\n---\n${padding}`);
 
     const result = await discoverExternalSkills({ roots: [rootAt(root)] });
@@ -234,31 +230,40 @@ describe('discoverExternalSkills — roots', () => {
     expect(ids).toEqual(['alpha', 'mid', 'zeta']);
     expect(ids).toEqual([...ids].sort());
   });
-
-  test('default cap constant is 200 entries per root', () => {
-    expect(MAX_ENTRIES_PER_ROOT).toBe(200);
-  });
 });
 
 // ─── Root list ──────────────────────────────────────────────────────────────
 
-describe('getExternalSkillRoots', () => {
-  test('returns the 10 roots under homeDir in the documented precedence order', () => {
+describe('discoverExternalSkills — root precedence', () => {
+  test('scans all ten roots in precedence order', async () => {
     const homeDir = join(testDir, 'fake-home');
+    const roots = [
+      '.agents/skills',
+      '.config/agents/skills',
+      '.claude/skills',
+      '.codex/skills',
+      '.config/opencode/skills',
+      '.config/opencode/skill',
+      '.cursor/skills',
+      '.gemini/skills',
+      '.copilot/skills',
+      '.pi/agent/skills',
+    ];
+    for (const root of roots) {
+      const dir = join(homeDir, root, 'dup');
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, 'SKILL.md'),
+        '---\nname: dup\ndescription: Dup skill.\n---\nbody\n'
+      );
+    }
 
-    const roots = getExternalSkillRoots(homeDir).map((r) => r.path);
+    const result = await discoverExternalSkills({ homeDir });
 
-    expect(roots).toEqual([
-      join(homeDir, '.agents', 'skills'),
-      join(homeDir, '.config', 'agents', 'skills'),
-      join(homeDir, '.claude', 'skills'),
-      join(homeDir, '.codex', 'skills'),
-      join(homeDir, '.config', 'opencode', 'skills'),
-      join(homeDir, '.config', 'opencode', 'skill'),
-      join(homeDir, '.cursor', 'skills'),
-      join(homeDir, '.gemini', 'skills'),
-      join(homeDir, '.copilot', 'skills'),
-      join(homeDir, '.pi', 'agent', 'skills'),
-    ]);
+    expect(result.skills[0]?.sourcePath).toBe(join(homeDir, '.agents/skills/dup'));
+    expect(result.issues.map((i) => i.path)).toEqual(
+      roots.slice(1).map((r) => join(homeDir, r, 'dup'))
+    );
+    for (const issue of result.issues) expect(issue.reason).toBe('shadowed');
   });
 });

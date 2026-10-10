@@ -29,8 +29,28 @@ function createMockDeps(overrides?: Partial<SkillDeps>): SkillDeps {
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
       getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
+    externalSkills: {
+      discover: vi.fn().mockResolvedValue({ skills: [], issues: [] }),
+    },
     ...overrides,
   };
+}
+
+/** Build a discovered external skill. Paths are fake; nothing touches the real filesystem. */
+function externalSkill(skillId: string, overrides: { description?: string } = {}) {
+  const dir = `/home/user/.agents/skills/${skillId}`;
+  return {
+    skillId,
+    name: skillId,
+    description: overrides.description ?? `${skillId} description`,
+    skillDir: dir,
+    sourcePath: dir,
+    body: `# ${skillId}\n`,
+  };
+}
+
+function mockDiscovery(deps: SkillDeps, skills: unknown[], issues: unknown[] = []): void {
+  (deps.externalSkills.discover as ReturnType<typeof vi.fn>).mockResolvedValue({ skills, issues });
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +139,76 @@ describe('listSkills', () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllErrorOutput()).toContain('Network error');
+  });
+});
+
+describe('listSkills — machine-installed skills', () => {
+  const builtinBrowser = {
+    skillId: 'agent-browser',
+    name: 'Builtin Browser',
+    description: 'Builtin browser description',
+    type: 'builtin',
+  };
+
+  it('lists installed skills with their skill directory', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { skillId: 'backlog', name: 'Backlog', description: 'Manage backlog', type: 'builtin' },
+    ]);
+    mockDiscovery(deps, [externalSkill('agent-browser', { description: 'Drive a browser' })]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    const output = getAllLogOutput();
+    expect(output).toContain('Available skills:');
+    expect(output).toContain('Installed skills (this machine):');
+    expect(output).toContain('agent-browser');
+    expect(output).toContain('Drive a browser');
+    expect(output).toContain('/home/user/.agents/skills/agent-browser');
+  });
+
+  it('hides an installed skill that collides with a builtin and reports it as skipped', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([builtinBrowser]);
+    mockDiscovery(deps, [externalSkill('agent-browser', { description: 'External browser' })]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Builtin browser description');
+    expect(output).not.toContain('External browser');
+    expect(output).not.toContain('Installed skills (this machine):');
+    expect(output).toContain('Skipped installed skills:');
+    expect(output).toContain('builtin-collision');
+  });
+
+  it('lists installed skills without printing "No skills available." when there are no builtins', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [externalSkill('local-tool')]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('local-tool');
+    expect(output).toContain('Installed skills (this machine):');
+    expect(output).not.toContain('No skills available.');
+    expect(output).not.toContain('Available skills:');
+  });
+
+  it('strips control characters from installed skill fields', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('evil-skill', { description: 'Clean\u001b[31m RED\u001b[0m\u0007 text' }),
+    ]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Clean RED text');
+    expect(output).not.toMatch(/\u001b|\u0007/);
   });
 });
 

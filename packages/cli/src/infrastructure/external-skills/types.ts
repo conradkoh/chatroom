@@ -1,5 +1,3 @@
-// TODO(external-skills): remove this suppression once list/activate import this module.
-// fallow-ignore-file unused-file
 /**
  * Shared types for external (machine-installed) Agent Skills discovery.
  *
@@ -9,8 +7,6 @@
  */
 
 /** A directory that is scanned for external skills. */
-// TODO(external-skills): remove this suppression once list/activate import this module.
-// fallow-ignore-next-line unused-type
 export interface ExternalSkillRoot {
   /** Absolute path to the root directory. */
   path: string;
@@ -58,8 +54,6 @@ export interface ExternalSkillDiscovery {
   issues: ExternalSkillIssue[];
 }
 
-// TODO(external-skills): remove this suppression once list/activate import this module.
-// fallow-ignore-next-line unused-type
 export interface ExternalSkillsOps {
   discover(): Promise<ExternalSkillDiscovery>;
 }

@@ -1,5 +1,3 @@
-// TODO(external-skills): remove this suppression once list/activate import this module.
-// fallow-ignore-file unused-file
 /**
  * External Agent Skills discovery.
  *
@@ -30,10 +28,10 @@ import type {
 } from './types.js';
 
 /** Maximum number of directory entries considered per root. Extra entries are dropped with a `root-truncated` issue. */
-export const MAX_ENTRIES_PER_ROOT = 200;
+const MAX_ENTRIES_PER_ROOT = 200;
 
 /** SKILL.md files larger than this are reported as `too-large` and never read. */
-export const MAX_SKILL_FILE_BYTES = 64 * 1024;
+const MAX_SKILL_FILE_BYTES = 64 * 1024;
 
 const SKILL_FILE_NAME = 'SKILL.md';
 
@@ -75,7 +73,7 @@ function issue(
 }
 
 /** Machine-level external skill roots under `homeDir`, in precedence order. */
-export function getExternalSkillRoots(homeDir: string): ExternalSkillRoot[] {
+function getExternalSkillRoots(homeDir: string): ExternalSkillRoot[] {
   return EXTERNAL_SKILL_ROOT_SUFFIXES.map((suffix) => ({
     path: join(homeDir, ...suffix.split('/')),
   }));
@@ -91,7 +89,7 @@ export function getExternalSkillRoots(homeDir: string): ExternalSkillRoot[] {
  *
  * Builtin collisions are NOT handled here. They are resolved in `mergeSkillCatalog`.
  */
-// TODO(external-skills): remove this suppression once list/activate import this module.
+// CRAP-only: pre-commit audit runs without --coverage (CRAP=cc²+cc); covered by discover-external-skills.test.ts. Remove when the gate receives coverage.
 // fallow-ignore-next-line complexity
 export async function discoverExternalSkills(options?: {
   homeDir?: string;
@@ -112,7 +110,7 @@ export async function discoverExternalSkills(options?: {
 }
 
 /** Scan one root's direct children, capped at `cap` entries. */
-// TODO(external-skills): remove this suppression once list/activate import this module.
+// CRAP-only: pre-commit audit runs without --coverage (CRAP=cc²+cc); covered by discover-external-skills.test.ts. Remove when the gate receives coverage.
 // fallow-ignore-next-line complexity
 async function scanRoot(rootPath: string, cap: number, state: DiscoveryState): Promise<void> {
   const names = await listRoot(rootPath, state.issues);
@@ -149,7 +147,7 @@ async function listRoot(
 }
 
 /** Validate one `<root>/<entry>` candidate and record the result into `state`. */
-// TODO(external-skills): remove this suppression once list/activate import this module.
+// CRAP-only: pre-commit audit runs without --coverage (CRAP=cc²+cc); covered by discover-external-skills.test.ts. Remove when the gate receives coverage.
 // fallow-ignore-next-line complexity
 async function scanEntry(entry: string, sourcePath: string, state: DiscoveryState): Promise<void> {
   if (!(await isSkillCandidate(sourcePath, state.issues))) return;
@@ -181,7 +179,7 @@ async function scanEntry(entry: string, sourcePath: string, state: DiscoveryStat
  * True when `sourcePath` is a directory containing a regular SKILL.md within the size limit.
  * A missing SKILL.md is silent (e.g. `synced/` layouts). Every other failure is recorded.
  */
-// TODO(external-skills): remove this suppression once list/activate import this module.
+// CRAP-only: pre-commit audit runs without --coverage (CRAP=cc²+cc); covered by discover-external-skills.test.ts. Remove when the gate receives coverage.
 // fallow-ignore-next-line complexity
 async function isSkillCandidate(
   sourcePath: string,

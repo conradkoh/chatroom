@@ -18,9 +18,15 @@ import {
   type ListSkillsOptions,
   type ActivateSkillOptions,
 } from './index.js';
+import type { ExternalSkillsOps } from '../../infrastructure/external-skills/index.js';
 import { BackendService, SessionService } from '../../infrastructure/services/index.js';
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
+
+/** External skills stub: no machine-installed skills. Never touches the real $HOME. */
+const noExternalSkills: ExternalSkillsOps = {
+  discover: async () => ({ skills: [], issues: [] }),
+};
 
 /** Create a test backend service with configurable query/mutation responses */
 function makeTestBackend(config: {
@@ -90,7 +96,9 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Success');
@@ -104,7 +112,9 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Success');
@@ -122,7 +132,9 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Failure');
@@ -147,7 +159,7 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(shortId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(shortId, validOptions, noExternalSkills).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Failure');
@@ -170,7 +182,9 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Failure');

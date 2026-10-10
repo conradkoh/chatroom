@@ -1,5 +1,3 @@
-// TODO(external-skills): remove this suppression once list/activate import this module.
-// fallow-ignore-file unused-file
 /**
  * Single merge point for builtin and external skills.
  *
@@ -53,12 +51,4 @@ export function mergeSkillCatalog(
     external,
     issues: [...discovery.issues, ...collisionIssues],
   };
-}
-
-/** Look up an external skill by id in a merged catalog. */
-export function findExternalSkill(
-  catalog: SkillCatalog,
-  skillId: string
-): ExternalSkill | undefined {
-  return catalog.external.find((s) => s.skillId === skillId);
 }
