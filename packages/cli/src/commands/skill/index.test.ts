@@ -407,6 +407,57 @@ describe('carriage returns in installed skill output', () => {
   });
 });
 
+describe('single-line fields and multi-line bodies', () => {
+  it('collapses a multi-line description and directory onto one row each', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('multi', { description: 'first line\nsecond line\n  /fake/dir' }),
+    ]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const lines = getAllLogOutput().split('\n');
+    const start = lines.indexOf('Installed skills (this machine):');
+    const block = lines.slice(start);
+    expect(block).toHaveLength(3);
+    expect(block[1]).toContain('first line second line /fake/dir');
+  });
+
+  it('prints a skipped issue whose path contains a newline on one row', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [], [{ path: '/roots/a\nb', reason: 'unreadable', detail: 'EACCES' }]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const lines = getAllLogOutput().split('\n');
+    expect(lines).toContain('  /roots/a b: unreadable (EACCES)');
+  });
+
+  it('keeps internal newlines in the activation body', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [externalSkill('stepped', { body: '# T\n\nstep 1' })]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'stepped', { role: 'builder' }, deps);
+
+    expect(getAllLogOutput()).toContain('# T\n\nstep 1');
+  });
+
+  it('prints the not-found id on one row with no escape sequences or newlines', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'bad\nid\u001B[31m', { role: 'builder' }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const errors = getAllErrorOutput();
+    expect(errors).toContain('Skill "bad id" not found');
+    expect(errors).not.toMatch(/\u001B/);
+  });
+});
+
 describe('invisible characters in installed skill output', () => {
   it('strips zero-width and tag characters from the skill list description', async () => {
     const deps = createMockDeps();

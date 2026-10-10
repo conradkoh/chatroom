@@ -95,6 +95,14 @@ export const listSkillsEffect = (
     yield* Effect.sync(() => printSkillCatalog(catalog));
   });
 
+/**
+ * Sanitize untrusted text for a one-row field: any whitespace run (incl. newlines) becomes one space.
+ * Presentation only; `sanitizeForTerminal` itself keeps newlines for multi-line bodies.
+ */
+function singleLine(text: string): string {
+  return sanitizeForTerminal(text).replace(/\s+/g, ' ').trim();
+}
+
 /** Print the merged catalog. Builtin lines are unchanged; external fields are sanitized. */
 function printSkillCatalog(catalog: SkillCatalog): void {
   if (catalog.builtin.length === 0 && catalog.external.length === 0) {
@@ -126,8 +134,8 @@ function printExternalSkills(skills: SkillCatalog['external'], afterBuiltins: bo
 
   console.log('Installed skills (this machine):');
   for (const skill of skills) {
-    console.log(`  ${skill.skillId.padEnd(maxIdLen)}  ${sanitizeForTerminal(skill.description)}`);
-    console.log(`${directoryIndent}${sanitizeForTerminal(skill.skillDir)}`);
+    console.log(`  ${skill.skillId.padEnd(maxIdLen)}  ${singleLine(skill.description)}`);
+    console.log(`${directoryIndent}${singleLine(skill.skillDir)}`);
   }
 }
 
@@ -136,8 +144,8 @@ function printSkippedSkills(issues: SkillCatalog['issues']): void {
 
   console.log('Skipped installed skills:');
   for (const issue of issues) {
-    const detail = issue.detail === undefined ? '' : ` (${sanitizeForTerminal(issue.detail)})`;
-    console.log(`  ${sanitizeForTerminal(issue.path)}: ${issue.reason}${detail}`);
+    const detail = issue.detail === undefined ? '' : ` (${singleLine(issue.detail)})`;
+    console.log(`  ${singleLine(issue.path)}: ${issue.reason}${detail}`);
   }
 }
 
@@ -218,10 +226,8 @@ const activateExternalSkill = (
   });
 
 function printExternalSkillActivation(skill: ExternalSkill): void {
-  console.log(
-    `✅ Skill "${sanitizeForTerminal(skill.skillId)}" activated (installed on this machine).`
-  );
-  console.log(`   Skill directory: ${sanitizeForTerminal(skill.skillDir)}`);
+  console.log(`✅ Skill "${singleLine(skill.skillId)}" activated (installed on this machine).`);
+  console.log(`   Skill directory: ${singleLine(skill.skillDir)}`);
   console.log(`   Resolve relative paths in the instructions below against the skill directory.`);
   console.log('');
   console.log(sanitizeForTerminal(skill.body));
@@ -266,7 +272,7 @@ function handleActivateSkillError(
       process.exit(1);
     } else if (err._tag === 'SkillNotFound') {
       console.error(
-        `❌ Skill "${err.skillId}" not found. Run \`chatroom skill list --chatroom-id=${context.chatroomId} --role=${context.role}\` to see available skills.`
+        `❌ Skill "${singleLine(err.skillId)}" not found. Run \`chatroom skill list --chatroom-id=${context.chatroomId} --role=${context.role}\` to see available skills.`
       );
       process.exit(1);
     }
