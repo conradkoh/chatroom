@@ -2,6 +2,8 @@
  * Remove ANSI escape sequences and control characters from untrusted text
  * before writing to the terminal, including Unicode bidi embedding/override/isolate
  * controls (Trojan Source); U+2028/U+2029 become newlines. CR/CRLF become LF.
+ * Zero-width space, word joiner, BOM and Unicode tag characters (ASCII smuggling)
+ * are stripped. ZWNJ, ZWJ and VS16 are kept.
  *
  * LRM, RLM, ALM and ZWJ are kept so right-to-left and emoji text still renders.
  */
@@ -12,7 +14,8 @@ export function sanitizeForTerminal(input: string): string {
     .replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
     .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')
-    .replace(/[\u2028\u2029]/g, '\n');
+    .replace(/[\u2028\u2029]/g, '\n')
+    .replace(/[\u200b\u2060\ufeff]|[\u{E0000}-\u{E007F}]/gu, '');
 }
 
 export function sanitizeUnknownForTerminal(value: unknown): string {

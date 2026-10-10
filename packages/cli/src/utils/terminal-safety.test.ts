@@ -92,6 +92,47 @@ describe('carriage returns', () => {
   });
 });
 
+describe('invisible characters', () => {
+  test.each([
+    ['U+200B zero-width space', '\u200B'],
+    ['U+2060 word joiner', '\u2060'],
+    ['U+FEFF BOM', '\uFEFF'],
+  ])('strips %s', (_name, ch) => {
+    expect(sanitizeForTerminal(`a${ch}b`)).toBe('ab');
+  });
+
+  test('strips a tag-character sequence', () => {
+    expect(
+      sanitizeForTerminal('a' + String.fromCodePoint(0xe0001, 0xe0049, 0xe0047, 0xe007f) + 'b')
+    ).toBe('ab');
+  });
+
+  test('strips every code point in the Unicode tag block (U+E0000–U+E007F)', () => {
+    for (let cp = 0xe0000; cp <= 0xe007f; cp++) {
+      expect(sanitizeForTerminal('a' + String.fromCodePoint(cp) + 'b')).toBe('ab');
+    }
+  });
+
+  test('keeps ZWNJ, which Persian text needs', () => {
+    const persian = 'می‌خواهم';
+    expect(sanitizeForTerminal(persian)).toBe(persian);
+  });
+
+  test('keeps a ZWJ family emoji sequence', () => {
+    const family = '\u{1F468}‍\u{1F469}‍\u{1F467}';
+    expect(sanitizeForTerminal(family)).toBe(family);
+  });
+
+  test('keeps VS16 emoji presentation selector', () => {
+    expect(sanitizeForTerminal('❤️')).toBe('❤️');
+  });
+
+  test('degrades a Scotland flag tag sequence to the base flag', () => {
+    const scotland = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}';
+    expect(sanitizeForTerminal(scotland)).toBe('\u{1F3F4}');
+  });
+});
+
 describe('sanitizeUnknownForTerminal', () => {
   test('sanitizes an error message', () => {
     expect(sanitizeUnknownForTerminal(new Error('x\u202Ey').message)).toBe('xy');

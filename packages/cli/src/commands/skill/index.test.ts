@@ -406,3 +406,20 @@ describe('carriage returns in installed skill output', () => {
     expect(output).not.toContain('\r');
   });
 });
+
+describe('invisible characters in installed skill output', () => {
+  it('strips zero-width and tag characters from the skill list description', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('hidden-text', { description: 'Zero\u200Bwidth\u{E0049} text' }),
+    ]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Zerowidth text');
+    expect(output).not.toContain('\u200B');
+    expect(output).not.toMatch(/[\u{E0000}-\u{E007F}]/u);
+  });
+});

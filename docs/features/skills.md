@@ -350,7 +350,7 @@ Invalid skills are not listed. They appear in the `Skipped installed skills:` se
 
 ### Listing
 
-`chatroom skill list` prints builtins under `Available skills:`, installed skills under `Installed skills (this machine):` (with each skill directory), and skipped skills under `Skipped installed skills:`. Every external field is sanitized before printing, so ANSI sequences and control characters are stripped, and Unicode bidi controls (U+202A–U+202E, U+2066–U+2069) are stripped; U+2028/U+2029 become newlines, and carriage returns become newlines.
+`chatroom skill list` prints builtins under `Available skills:`, installed skills under `Installed skills (this machine):` (with each skill directory), and skipped skills under `Skipped installed skills:`. Every external field is sanitized before printing, so ANSI sequences and control characters are stripped, and Unicode bidi controls (U+202A–U+202E, U+2066–U+2069) are stripped; U+2028/U+2029 become newlines, carriage returns become newlines, and zero-width space, word joiner, BOM and Unicode tag characters are stripped.
 
 ### Activation
 
