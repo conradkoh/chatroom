@@ -70,6 +70,28 @@ describe('sanitizeForTerminal — existing behaviour is preserved', () => {
   });
 });
 
+describe('carriage returns', () => {
+  test('a lone CR becomes a newline', () => {
+    expect(sanitizeForTerminal('a\rb')).toBe('a\nb');
+  });
+
+  test('CRLF becomes one newline, not two', () => {
+    expect(sanitizeForTerminal('a\r\nb')).toBe('a\nb');
+  });
+
+  test('a CR followed by CRLF keeps both line breaks', () => {
+    expect(sanitizeForTerminal('a\r\r\nb')).toBe('a\n\nb');
+  });
+
+  test('a CR cannot overwrite the start of an already-printed line', () => {
+    expect(sanitizeForTerminal('rm -rf /\rls')).toBe('rm -rf /\nls');
+  });
+
+  test('sanitizes CR in an error message', () => {
+    expect(sanitizeUnknownForTerminal(new Error('x\ry').message)).toBe('x\ny');
+  });
+});
+
 describe('sanitizeUnknownForTerminal', () => {
   test('sanitizes an error message', () => {
     expect(sanitizeUnknownForTerminal(new Error('x\u202Ey').message)).toBe('xy');

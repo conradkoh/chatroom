@@ -392,3 +392,17 @@ describe('bidi controls in installed skill output', () => {
     expect(activateOutput).not.toMatch(bidi);
   });
 });
+
+describe('carriage returns in installed skill output', () => {
+  it('turns a CR in the activation body into a newline, so it cannot overwrite a printed line', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [externalSkill('crafty', { body: 'line1\rSPOOF' })]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'crafty', { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('line1\nSPOOF');
+    expect(output).not.toContain('\r');
+  });
+});
