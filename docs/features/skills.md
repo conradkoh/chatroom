@@ -297,3 +297,65 @@ chatroom skill activate backlog-score --chatroom-id=<id> --role=<role>
 - **Seeding**: Built-in skills seeded lazily on first `activate` call (idempotent)
 - **CLI**: `packages/cli/src/commands/skill/` — `listSkills` and `activateSkill` functions
 - **Tests**: `services/backend/convex/skills.spec.ts` — 6 tests covering all query/mutation paths
+
+## 9. Machine-installed (external) skills
+
+`chatroom skill list` and `chatroom skill activate` also discover Agent Skills installed on the local machine, for example `~/.agents/skills/agent-browser/SKILL.md`. These skills are read by the CLI process from the local filesystem. They are never written to the backend.
+
+Agents running under the Claude SDK do not load these skills natively, so `chatroom skill` is the only discovery path for them.
+
+### Scanned roots
+
+Roots are scanned in this order, relative to the home directory:
+
+1. `.agents/skills`
+2. `.config/agents/skills`
+3. `.claude/skills`
+4. `.codex/skills`
+5. `.config/opencode/skills`
+6. `.config/opencode/skill`
+7. `.cursor/skills`
+8. `.gemini/skills`
+9. `.copilot/skills`
+10. `.pi/agent/skills`
+
+A missing root is skipped silently. Other read errors are reported as issues.
+
+### Discovery rules
+
+- Depth is exactly one level: `<root>/<entry>/SKILL.md`. Nothing is recursed into.
+- Dot-directories are skipped. Each root considers at most 200 entries, sorted by name. Extra entries are dropped with a `root-truncated` issue.
+- Symlinked skill directories are followed. The realpath is used for de-duplication.
+- Only `SKILL.md` is read. Its size is checked before reading. Files larger than 64 KiB are reported as `too-large` and are not read or truncated.
+- No scripts or other files in the skill directory are executed or read.
+
+### Precedence
+
+1. **Builtins win.** An installed skill whose id matches a builtin is hidden and reported as `builtin-collision`.
+2. **First root wins.** When two roots contain the same id at different realpaths, the later one is reported as `shadowed`.
+3. **Same realpath is de-duplicated silently.** This happens when one skill directory is reachable through several roots.
+
+### Validation
+
+`SKILL.md` must start with YAML frontmatter delimited by `---` lines.
+
+| Field         | Rule                                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `name`        | Required. Lowercase letters, digits, and single hyphens, at most 64 characters. Must equal the directory name. |
+| `description` | Required. 1 to 1024 characters after trimming.                                                                 |
+
+Other frontmatter keys, such as `hidden`, `allowed-tools`, `license`, `compatibility`, and `metadata`, are parsed and ignored. In particular, `hidden: true` does not hide a skill.
+
+Invalid skills are not listed. They appear in the `Skipped installed skills:` section of `chatroom skill list`, with the path and reason.
+
+### Listing
+
+`chatroom skill list` prints builtins under `Available skills:`, installed skills under `Installed skills (this machine):` (with each skill directory), and skipped skills under `Skipped installed skills:`. Every external field is sanitized before printing, so ANSI sequences and control characters are stripped.
+
+### Activation
+
+`chatroom skill activate <name>` first checks the backend builtin registry. Builtin ids keep the existing backend path, which is unchanged.
+
+For a non-builtin id that matches an installed skill, the CLI prints the skill directory and the body of `SKILL.md`. It makes no backend call. Relative references in the body resolve against the skill directory.
+
+Installed-skill activations are local only. They are not persisted to `chatroom_skillActivations` and are not re-injected into an agent's context. After a context reset, run `chatroom skill activate <name>` again.
