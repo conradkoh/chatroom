@@ -10,7 +10,10 @@ import { api, type Id } from '../../api.js';
 import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import {
   externalSkillsOpsLive,
+  findExternalSkill,
   mergeSkillCatalog,
+  type BuiltinSkillSummary,
+  type ExternalSkill,
   type ExternalSkillsOps,
   type SkillCatalog,
 } from '../../infrastructure/external-skills/index.js';
@@ -48,7 +51,9 @@ export type ListSkillsError =
 export type ActivateSkillError =
   | { readonly _tag: 'NotAuthenticated'; readonly convexUrl: string; readonly otherUrls: string[] }
   | { readonly _tag: 'InvalidChatroomId'; readonly id: string }
-  | { readonly _tag: 'MutationFailed'; readonly cause: Error };
+  | { readonly _tag: 'QueryFailed'; readonly cause: Error }
+  | { readonly _tag: 'MutationFailed'; readonly cause: Error }
+  | { readonly _tag: 'SkillNotFound'; readonly skillId: string };
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
@@ -143,7 +148,8 @@ function printSkippedSkills(issues: SkillCatalog['issues']): void {
 export const activateSkillEffect = (
   chatroomId: string,
   skillId: string,
-  options: ActivateSkillOptions
+  options: ActivateSkillOptions,
+  externalSkills: ExternalSkillsOps
 ): Effect.Effect<void, ActivateSkillError, BackendService | SessionService> =>
   Effect.gen(function* () {
     const session = yield* SessionService;
@@ -152,7 +158,19 @@ export const activateSkillEffect = (
 
     const convexUrl = yield* session.getConvexUrl();
 
-    // Activate skill
+    // Builtin-ness is decided by the backend registry, not by the mutation's error text.
+    const builtins = yield* backend
+      .query<BuiltinSkillSummary[]>(api.skills.list, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      })
+      .pipe(Effect.mapError((cause): ActivateSkillError => ({ _tag: 'QueryFailed', cause })));
+
+    if (!(builtins ?? []).some((s) => s.skillId === skillId)) {
+      return yield* activateExternalSkill(skillId, builtins ?? [], externalSkills);
+    }
+
+    // Activate builtin skill
     const result = yield* backend
       .mutation<{
         skill: { skillId: string; prompt?: string | undefined };
@@ -180,6 +198,35 @@ export const activateSkillEffect = (
     });
   });
 
+/**
+ * Activate a machine-installed skill locally: print its directory and body.
+ * Makes no backend call; external activations are not persisted.
+ */
+const activateExternalSkill = (
+  skillId: string,
+  builtins: BuiltinSkillSummary[],
+  externalSkills: ExternalSkillsOps
+): Effect.Effect<void, ActivateSkillError> =>
+  Effect.gen(function* () {
+    const discovery = yield* Effect.promise(() => externalSkills.discover());
+    const external = findExternalSkill(mergeSkillCatalog(builtins, discovery), skillId);
+    if (!external) {
+      const notFound: ActivateSkillError = { _tag: 'SkillNotFound', skillId };
+      return yield* Effect.fail(notFound);
+    }
+    yield* Effect.sync(() => printExternalSkillActivation(external));
+  });
+
+function printExternalSkillActivation(skill: ExternalSkill): void {
+  console.log(
+    `✅ Skill "${sanitizeForTerminal(skill.skillId)}" activated (installed on this machine).`
+  );
+  console.log(`   Skill directory: ${sanitizeForTerminal(skill.skillDir)}`);
+  console.log(`   Resolve relative paths in the instructions below against the skill directory.`);
+  console.log('');
+  console.log(sanitizeForTerminal(skill.body));
+}
+
 // ─── Error Handlers ────────────────────────────────────────────────────────
 
 /**
@@ -200,7 +247,10 @@ function handleListSkillsError(err: ListSkillsError): Effect.Effect<void> {
   });
 }
 
-function handleActivateSkillError(err: ActivateSkillError): Effect.Effect<void> {
+function handleActivateSkillError(
+  err: ActivateSkillError,
+  context: { chatroomId: string; role: string }
+): Effect.Effect<void> {
   return Effect.sync(() => {
     if (err._tag === 'NotAuthenticated') {
       formatAuthError(err.convexUrl, err.otherUrls);
@@ -208,8 +258,16 @@ function handleActivateSkillError(err: ActivateSkillError): Effect.Effect<void> 
     } else if (err._tag === 'InvalidChatroomId') {
       formatChatroomIdError(err.id);
       process.exit(1);
+    } else if (err._tag === 'QueryFailed') {
+      console.error(`❌ Failed to activate skill: ${getErrorMessage(err.cause)}`);
+      process.exit(1);
     } else if (err._tag === 'MutationFailed') {
       console.error(`❌ Failed to activate skill: ${getErrorMessage(err.cause)}`);
+      process.exit(1);
+    } else if (err._tag === 'SkillNotFound') {
+      console.error(
+        `❌ Skill "${err.skillId}" not found. Run \`chatroom skill list --chatroom-id=${context.chatroomId} --role=${context.role}\` to see available skills.`
+      );
       process.exit(1);
     }
   });
@@ -249,8 +307,8 @@ export async function activateSkill(
   const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
-    activateSkillEffect(chatroomId, skillId, options).pipe(
-      Effect.catch((err) => handleActivateSkillError(err)),
+    activateSkillEffect(chatroomId, skillId, options, d.externalSkills).pipe(
+      Effect.catch((err) => handleActivateSkillError(err, { chatroomId, role: options.role })),
       Effect.provide(layer)
     )
   );

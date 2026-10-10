@@ -5,7 +5,6 @@
  * Does NOT make real network calls — all backend ops are mocked.
  */
 
-import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SkillDeps } from './deps.js';
@@ -36,8 +35,13 @@ function createMockDeps(overrides?: Partial<SkillDeps>): SkillDeps {
   };
 }
 
+/** Builtin registry as returned by api.skills.list. */
+const builtinBacklogList = [
+  { skillId: 'backlog', name: 'Backlog', description: 'Manage backlog items', type: 'builtin' },
+];
+
 /** Build a discovered external skill. Paths are fake; nothing touches the real filesystem. */
-function externalSkill(skillId: string, overrides: { description?: string } = {}) {
+function externalSkill(skillId: string, overrides: { description?: string; body?: string } = {}) {
   const dir = `/home/user/.agents/skills/${skillId}`;
   return {
     skillId,
@@ -45,7 +49,7 @@ function externalSkill(skillId: string, overrides: { description?: string } = {}
     description: overrides.description ?? `${skillId} description`,
     skillDir: dir,
     sourcePath: dir,
-    body: `# ${skillId}\n`,
+    body: overrides.body ?? `# ${skillId}\n`,
   };
 }
 
@@ -234,6 +238,7 @@ describe('activateSkill', () => {
 
   it('prints success message when activation succeeds', async () => {
     const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       skill: {
@@ -251,21 +256,20 @@ describe('activateSkill', () => {
     expect(output).toContain('Score all unscored backlog items.');
   });
 
-  it('exits with code 1 and prints error message when skill not found (ConvexError)', async () => {
+  it('exits with code 1 and says not found when the id is neither builtin nor installed', async () => {
     const deps = createMockDeps();
-    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new ConvexError('Skill "bad-skill" not found or is disabled.')
-    );
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
 
     await activateSkill(TEST_CHATROOM_ID, 'bad-skill', { role: 'builder' }, deps);
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    const errorOutput = getAllErrorOutput();
-    expect(errorOutput).toContain('not found or is disabled');
+    expect(getAllErrorOutput()).toContain('not found');
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
   it('exits with code 1 when mutation throws a generic error', async () => {
     const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('Connection refused')
     );
@@ -279,6 +283,7 @@ describe('activateSkill', () => {
 
   it('calls mutation with the correct arguments', async () => {
     const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       skill: {
@@ -300,5 +305,68 @@ describe('activateSkill', () => {
         convexUrl: 'http://test:3210',
       })
     );
+  });
+});
+
+describe('activateSkill — machine-installed skills', () => {
+  it('prints the directory and body of an installed skill and makes no mutation call', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
+    mockDiscovery(deps, [
+      externalSkill('agent-browser', { body: '# agent-browser\n\nUse the browser.\n' }),
+    ]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'agent-browser', { role: 'builder' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+    const output = getAllLogOutput();
+    expect(output).toContain('✅ Skill "agent-browser" activated (installed on this machine).');
+    expect(output).toContain('Skill directory: /home/user/.agents/skills/agent-browser');
+    expect(output).toContain('# agent-browser');
+    expect(output).toContain('Use the browser.');
+  });
+
+  it('calls the mutation for a builtin id even when an installed skill has the same name', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+      skill: { skillId: 'backlog', prompt: 'Builtin prompt.' },
+    });
+    mockDiscovery(deps, [externalSkill('backlog', { body: 'External body.' })]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'backlog', { role: 'builder' }, deps);
+
+    expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+    const output = getAllLogOutput();
+    expect(output).toContain('Builtin prompt.');
+    expect(output).not.toContain('External body.');
+  });
+
+  it('strips control characters from the installed skill body', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('evil-skill', { body: 'Plain\u001b[31m RED\u001b[0m\u0007 line\n' }),
+    ]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'evil-skill', { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Plain RED line');
+    expect(output).not.toMatch(/\u001b|\u0007/);
+  });
+
+  it('points to chatroom skill list when the id is neither builtin nor installed', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
+
+    await activateSkill(TEST_CHATROOM_ID, 'does-not-exist', { role: 'builder' }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getAllErrorOutput()).toContain(
+      `❌ Skill "does-not-exist" not found. Run \`chatroom skill list --chatroom-id=${TEST_CHATROOM_ID} --role=builder\` to see available skills.`
+    );
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 });

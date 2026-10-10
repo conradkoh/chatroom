@@ -52,3 +52,11 @@ export function mergeSkillCatalog(
     issues: [...discovery.issues, ...collisionIssues],
   };
 }
+
+/** Look up an external skill by id in a merged catalog. */
+export function findExternalSkill(
+  catalog: SkillCatalog,
+  skillId: string
+): ExternalSkill | undefined {
+  return catalog.external.find((s) => s.skillId === skillId);
+}
