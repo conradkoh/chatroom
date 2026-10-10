@@ -370,3 +370,25 @@ describe('activateSkill — machine-installed skills', () => {
     expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 });
+
+describe('bidi controls in installed skill output', () => {
+  it('strips bidi controls from both skill list and skill activate output', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('spoof', { description: 'Safe\u202E desc', body: 'Body\u2066 text\n' }),
+    ]);
+    const bidi = /[\u202A-\u202E\u2066-\u2069]/;
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+    const listOutput = getAllLogOutput();
+    expect(listOutput).toContain('Safe desc');
+    expect(listOutput).not.toMatch(bidi);
+
+    logSpy.mockClear();
+    await activateSkill(TEST_CHATROOM_ID, 'spoof', { role: 'builder' }, deps);
+    const activateOutput = getAllLogOutput();
+    expect(activateOutput).toContain('Body text');
+    expect(activateOutput).not.toMatch(bidi);
+  });
+});
