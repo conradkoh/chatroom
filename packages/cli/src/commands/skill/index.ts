@@ -15,6 +15,7 @@ import {
   requireSessionForChatroomEffect,
 } from '../../infrastructure/services/index.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
+import { formatAuthError, formatChatroomIdError } from '../../utils/error-formatting.js';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
 
@@ -141,24 +142,10 @@ export const activateSkillEffect = (
 function handleListSkillsError(err: ListSkillsError): Effect.Effect<void> {
   return Effect.sync(() => {
     if (err._tag === 'NotAuthenticated') {
-      console.error(`❌ Not authenticated for: ${err.convexUrl}`);
-
-      if (err.otherUrls.length > 0) {
-        console.error(`\n💡 You have sessions for other environments:`);
-        for (const url of err.otherUrls) {
-          console.error(`   • ${url}`);
-        }
-        console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
-        console.error(`   CHATROOM_CONVEX_URL=${err.otherUrls[0]} chatroom skill list ...`);
-        console.error(`\n   Or to authenticate for the current environment:`);
-      }
-
-      console.error(`   chatroom auth login`);
+      formatAuthError(err.convexUrl, err.otherUrls);
       process.exit(1);
     } else if (err._tag === 'InvalidChatroomId') {
-      console.error(
-        `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${err.id?.length || 0})`
-      );
+      formatChatroomIdError(err.id);
       process.exit(1);
     } else if (err._tag === 'QueryFailed') {
       console.error(`❌ Failed to list skills: ${getErrorMessage(err.cause)}`);
@@ -170,24 +157,10 @@ function handleListSkillsError(err: ListSkillsError): Effect.Effect<void> {
 function handleActivateSkillError(err: ActivateSkillError): Effect.Effect<void> {
   return Effect.sync(() => {
     if (err._tag === 'NotAuthenticated') {
-      console.error(`❌ Not authenticated for: ${err.convexUrl}`);
-
-      if (err.otherUrls.length > 0) {
-        console.error(`\n💡 You have sessions for other environments:`);
-        for (const url of err.otherUrls) {
-          console.error(`   • ${url}`);
-        }
-        console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
-        console.error(`   CHATROOM_CONVEX_URL=${err.otherUrls[0]} chatroom skill activate ...`);
-        console.error(`\n   Or to authenticate for the current environment:`);
-      }
-
-      console.error(`   chatroom auth login`);
+      formatAuthError(err.convexUrl, err.otherUrls);
       process.exit(1);
     } else if (err._tag === 'InvalidChatroomId') {
-      console.error(
-        `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${err.id?.length || 0})`
-      );
+      formatChatroomIdError(err.id);
       process.exit(1);
     } else if (err._tag === 'MutationFailed') {
       console.error(`❌ Failed to activate skill: ${getErrorMessage(err.cause)}`);
