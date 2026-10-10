@@ -25,7 +25,7 @@ describe('sanitizeForTerminal — bidi controls', () => {
   });
 
   test('keeps LRM, RLM, ALM and ZWJ so RTL and emoji text still renders', () => {
-    expect(sanitizeForTerminal('a‎b‏c؜d')).toBe('a‎b‏c؜d');
+    expect(sanitizeForTerminal('a\u200Eb\u200Fc\u061Cd')).toBe('a\u200Eb\u200Fc\u061Cd');
   });
 
   test('keeps Hebrew and Arabic letters', () => {
@@ -34,7 +34,7 @@ describe('sanitizeForTerminal — bidi controls', () => {
   });
 
   test('keeps a ZWJ family emoji sequence', () => {
-    expect(sanitizeForTerminal('👨‍👩‍👧')).toBe('👨‍👩‍👧');
+    expect(sanitizeForTerminal('👨\u200D👩\u200D👧')).toBe('👨\u200D👩\u200D👧');
   });
 });
 
@@ -114,17 +114,17 @@ describe('invisible characters', () => {
   });
 
   test('keeps ZWNJ, which Persian text needs', () => {
-    const persian = 'می‌خواهم';
+    const persian = 'می\u200Cخواهم';
     expect(sanitizeForTerminal(persian)).toBe(persian);
   });
 
-  test('keeps a ZWJ family emoji sequence', () => {
-    const family = '\u{1F468}‍\u{1F469}‍\u{1F467}';
+  test('keeps a ZWJ family sequence built from escapes', () => {
+    const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
     expect(sanitizeForTerminal(family)).toBe(family);
   });
 
   test('keeps VS16 emoji presentation selector', () => {
-    expect(sanitizeForTerminal('❤️')).toBe('❤️');
+    expect(sanitizeForTerminal('❤\uFE0F')).toBe('❤\uFE0F');
   });
 
   test('degrades a Scotland flag tag sequence to the base flag', () => {

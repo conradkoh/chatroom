@@ -41,13 +41,16 @@ const builtinBacklogList = [
 ];
 
 /** Build a discovered external skill. Paths are fake; nothing touches the real filesystem. */
-function externalSkill(skillId: string, overrides: { description?: string; body?: string } = {}) {
+function externalSkill(
+  skillId: string,
+  overrides: { description?: string; body?: string; skillDir?: string } = {}
+) {
   const dir = `/home/user/.agents/skills/${skillId}`;
   return {
     skillId,
     name: skillId,
     description: overrides.description ?? `${skillId} description`,
-    skillDir: dir,
+    skillDir: overrides.skillDir ?? dir,
     sourcePath: dir,
     body: overrides.body ?? `# ${skillId}\n`,
   };
@@ -412,7 +415,10 @@ describe('single-line fields and multi-line bodies', () => {
     const deps = createMockDeps();
     (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     mockDiscovery(deps, [
-      externalSkill('multi', { description: 'first line\nsecond line\n  /fake/dir' }),
+      externalSkill('multi', {
+        description: 'first line\nsecond line\n  /fake/dir',
+        skillDir: '/fake\n  dir',
+      }),
     ]);
 
     await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
@@ -421,7 +427,9 @@ describe('single-line fields and multi-line bodies', () => {
     const start = lines.indexOf('Installed skills (this machine):');
     const block = lines.slice(start);
     expect(block).toHaveLength(3);
-    expect(block[1]).toContain('first line second line /fake/dir');
+    // "  " + id padded to 5 + "  " = 9 columns, so the directory row aligns under the description.
+    expect(block[1]).toBe('  multi  first line second line /fake/dir');
+    expect(block[2]).toBe(`${' '.repeat(9)}/fake dir`);
   });
 
   it('prints a skipped issue whose path contains a newline on one row', async () => {
