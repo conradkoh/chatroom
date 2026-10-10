@@ -133,6 +133,18 @@ describe('discoverExternalSkills — identity and paths', () => {
     expect(result.issues).toEqual([{ path: dir, reason: 'unreadable', detail: 'ENOENT' }]);
   });
 
+  test('self-referential SKILL.md symlink is reported as unreadable with ELOOP', async () => {
+    const root = join(testDir, 'root');
+    const dir = join(root, 'd');
+    await mkdir(dir, { recursive: true });
+    await symlink('SKILL.md', join(dir, 'SKILL.md'));
+
+    const result = await discoverExternalSkills({ roots: [rootAt(root)] });
+
+    expect(result.skills).toEqual([]);
+    expect(result.issues).toEqual([{ path: dir, reason: 'unreadable', detail: 'ELOOP' }]);
+  });
+
   test('directory without SKILL.md (synced/ layout) is ignored silently', async () => {
     const root = join(testDir, 'root');
     await writeSkill(join(root, 'synced'), 'inner', 'inner');
@@ -294,7 +306,7 @@ describe('discoverExternalSkills — realpath claims', () => {
       skillDir: await realpath(join(root, 'b')),
     });
     expect(result.issues).toEqual([
-      { path: join(root, 'a'), reason: 'name-mismatch', detail: expect.any(String) },
+      { path: join(root, 'a'), reason: 'name-mismatch', detail: 'name "b" ≠ directory "a"' },
     ]);
   });
 
