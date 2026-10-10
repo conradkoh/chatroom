@@ -14,7 +14,7 @@
  * - `discoverExternalSkills` never rejects. Every per-entry failure becomes an issue.
  * - Output strings are raw. Sanitization happens at print time, not here.
  */
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
 import { join } from 'node:path';
 
@@ -176,7 +176,7 @@ async function scanEntry(entry: string, sourcePath: string, state: DiscoveryStat
 
 /**
  * True when `sourcePath` is a directory containing a regular SKILL.md within the size limit.
- * A missing SKILL.md is silent (e.g. `synced/` layouts). Every other failure is recorded.
+ * A missing SKILL.md is silent (e.g. `synced/` layouts); a dangling SKILL.md symlink is reported as unreadable.
  */
 // CRAP-only: pre-commit audit runs without --coverage (CRAP=cc²+cc); covered by discover-external-skills.test.ts. Remove when the gate receives coverage.
 // fallow-ignore-next-line complexity
@@ -192,8 +192,9 @@ async function isSkillCandidate(
     return false;
   }
 
+  const skillPath = join(sourcePath, SKILL_FILE_NAME);
   try {
-    const skillStat = await stat(join(sourcePath, SKILL_FILE_NAME));
+    const skillStat = await stat(skillPath);
     if (!skillStat.isFile()) return false;
     if (skillStat.size > MAX_SKILL_FILE_BYTES) {
       issues.push(issue(sourcePath, 'too-large', String(skillStat.size)));
@@ -202,7 +203,18 @@ async function isSkillCandidate(
     return true;
   } catch (err) {
     const code = errorCode(err);
-    if (code !== 'ENOENT') issues.push(issue(sourcePath, 'unreadable', code));
+    if (code !== 'ENOENT' || (await isSymlink(skillPath))) {
+      issues.push(issue(sourcePath, 'unreadable', code));
+    }
+    return false;
+  }
+}
+
+/** True when `path` itself is a symlink (its target may be missing). */
+async function isSymlink(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isSymbolicLink();
+  } catch {
     return false;
   }
 }

@@ -121,6 +121,18 @@ describe('discoverExternalSkills — identity and paths', () => {
     expect(result).toEqual({ skills: [], issues: [] });
   });
 
+  test('dangling SKILL.md symlink is reported as unreadable with ENOENT', async () => {
+    const root = join(testDir, 'root');
+    const dir = join(root, 'c');
+    await mkdir(dir, { recursive: true });
+    await symlink(join(testDir, 'missing.md'), join(dir, 'SKILL.md'));
+
+    const result = await discoverExternalSkills({ roots: [rootAt(root)] });
+
+    expect(result.skills).toEqual([]);
+    expect(result.issues).toEqual([{ path: dir, reason: 'unreadable', detail: 'ENOENT' }]);
+  });
+
   test('directory without SKILL.md (synced/ layout) is ignored silently', async () => {
     const root = join(testDir, 'root');
     await writeSkill(join(root, 'synced'), 'inner', 'inner');

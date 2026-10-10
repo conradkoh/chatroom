@@ -319,7 +319,7 @@ Roots are scanned in this order, relative to the home directory:
 9. `.copilot/skills`
 10. `.pi/agent/skills`
 
-A missing root is skipped silently. Other read errors are reported as issues.
+A missing root is skipped silently. Other read errors are reported as issues. A dangling `SKILL.md` symlink is reported as `unreadable` (`ENOENT`); a directory without `SKILL.md` is ignored silently.
 
 ### Discovery rules
 
