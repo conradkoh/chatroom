@@ -85,8 +85,49 @@ async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
 // Tests
 // ---------------------------------------------------------------------------
 
+async function registerPrimaryWorkspace(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+    sessionId,
+    chatroomId,
+    machineId,
+    workingDir,
+    hostname: 'test-host',
+    registeredBy: 'planner',
+  });
+  await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+    sessionId,
+    chatroomId,
+    workspaceId,
+  });
+  return workspaceId;
+}
+
+async function saveRoleConfig(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  workspaceId: Id<'chatroom_workspaces'>,
+  machineId: string,
+  role: string
+): Promise<void> {
+  await t.mutation(api.agents.saveConfig, {
+    sessionId,
+    chatroomId,
+    workspaceId,
+    role,
+    machineId,
+    agentHarness: 'opencode',
+    model: TEST_MODEL_OPENCODE,
+    workingDir: '/tmp/test',
+  });
+}
+
 describe('_sendMessageHandler — queued user message routing', () => {
-  test('schedules offline permanent-agent startup after a successful user message', async () => {
+  test('schedules startup for an offline configured agent after a user message', async () => {
     vi.useFakeTimers();
     try {
       const { sessionId } = await createTestSession('msg-offline-agent-start');
@@ -154,6 +195,222 @@ describe('_sendMessageHandler — queued user message routing', () => {
         model: TEST_MODEL_OPENCODE,
         workingDir: '/tmp/test',
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('starts a never-run configured ephemeral role from a user message', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId } = await createTestSession('msg-wake-never-run');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'msg-wake-never-run-machine';
+      await t.mutation(api.machines.register, {
+        sessionId,
+        machineId,
+        hostname: 'test-host',
+        os: 'linux',
+        availableHarnesses: ['opencode'],
+      });
+      const workspaceId = await registerPrimaryWorkspace(
+        sessionId,
+        chatroomId,
+        machineId,
+        '/tmp/test'
+      );
+      await saveRoleConfig(sessionId, chatroomId, workspaceId, machineId, 'architect');
+      await saveRoleConfig(sessionId, chatroomId, workspaceId, machineId, 'builder');
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'wake the team',
+        type: 'message',
+      });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts.map((row) => row.command)).toHaveLength(2);
+      expect(starts.map((row) => row.command)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'agent.requestStart',
+            chatroomId,
+            role: 'architect',
+            model: TEST_MODEL_OPENCODE,
+            workingDir: '/tmp/test',
+          }),
+          expect.objectContaining({
+            type: 'agent.requestStart',
+            chatroomId,
+            role: 'builder',
+            model: TEST_MODEL_OPENCODE,
+            workingDir: '/tmp/test',
+          }),
+        ])
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('does not wake roles that are already running and retries errored roles', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId } = await createTestSession('msg-wake-running-skip');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'msg-wake-running-skip-machine';
+      await t.mutation(api.machines.register, {
+        sessionId,
+        machineId,
+        hostname: 'test-host',
+        os: 'linux',
+        availableHarnesses: ['opencode'],
+      });
+      const workspaceId = await registerPrimaryWorkspace(
+        sessionId,
+        chatroomId,
+        machineId,
+        '/tmp/test'
+      );
+      for (const role of ['planner', 'builder', 'architect', 'triage']) {
+        await saveRoleConfig(sessionId, chatroomId, workspaceId, machineId, role);
+      }
+      const statusRows: [string, 'waiting' | 'stopping' | 'error' | 'working'][] = [
+        ['planner', 'waiting'],
+        ['builder', 'stopping'],
+        ['architect', 'error'],
+        ['triage', 'working'],
+      ];
+      await t.run(async (ctx) => {
+        for (const [role, status] of statusRows) {
+          await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+            chatroomId,
+            role,
+            roleKind: role === 'planner' || role === 'builder' ? 'persistent' : 'ephemeral',
+            status,
+            machineId,
+            workspaceId,
+            projectedAt: Date.now(),
+          });
+        }
+      });
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'check the team',
+        type: 'message',
+      });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts).toHaveLength(1);
+      expect(starts[0]?.command).toMatchObject({ role: 'architect', workingDir: '/tmp/test' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('does not duplicate start commands across consecutive user messages', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId } = await createTestSession('msg-wake-no-duplicate');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'msg-wake-no-duplicate-machine';
+      await t.mutation(api.machines.register, {
+        sessionId,
+        machineId,
+        hostname: 'test-host',
+        os: 'linux',
+        availableHarnesses: ['opencode'],
+      });
+      const workspaceId = await registerPrimaryWorkspace(
+        sessionId,
+        chatroomId,
+        machineId,
+        '/tmp/test'
+      );
+      await saveRoleConfig(sessionId, chatroomId, workspaceId, machineId, 'architect');
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'first message',
+        type: 'message',
+      });
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'second message',
+        type: 'message',
+      });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts.filter((row) => row.command.role === 'architect')).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('ignores a running row from a non-primary workspace', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId } = await createTestSession('msg-wake-other-workspace');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'msg-wake-other-workspace-machine';
+      await t.mutation(api.machines.register, {
+        sessionId,
+        machineId,
+        hostname: 'test-host',
+        os: 'linux',
+        availableHarnesses: ['opencode'],
+      });
+      const primaryWorkspaceId = await registerPrimaryWorkspace(
+        sessionId,
+        chatroomId,
+        machineId,
+        '/tmp/test'
+      );
+      const otherWorkspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+        sessionId,
+        chatroomId,
+        machineId,
+        workingDir: '/tmp/other',
+        hostname: 'test-host',
+        registeredBy: 'builder',
+      });
+      await saveRoleConfig(sessionId, chatroomId, primaryWorkspaceId, machineId, 'architect');
+      await t.run(async (ctx) => {
+        await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+          chatroomId,
+          role: 'architect',
+          roleKind: 'ephemeral',
+          status: 'waiting',
+          machineId,
+          workspaceId: otherWorkspaceId,
+          projectedAt: Date.now(),
+        });
+      });
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'wake the architect',
+        type: 'message',
+      });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts).toHaveLength(1);
+      expect(starts[0]?.command).toMatchObject({ role: 'architect', workingDir: '/tmp/test' });
     } finally {
       vi.useRealTimers();
     }
