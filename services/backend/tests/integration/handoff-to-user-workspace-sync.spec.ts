@@ -46,8 +46,14 @@ describe('Handoff-to-user workspace sync', () => {
     await joinParticipant(sessionId, chatroomId, 'planner');
     await registerMachineWithDaemon(sessionId, 'sync-machine-1');
 
+    // Registration itself enqueues one gitRefresh per workspace, so measure handoff effects as deltas.
     await registerChatroomWorkspace(sessionId, chatroomId, 'sync-machine-1', '/sync/ws-1');
     await registerChatroomWorkspace(sessionId, chatroomId, 'sync-machine-1', '/sync/ws-2');
+    const ws1Baseline = (await findGitRefreshCommands('sync-machine-1', '/sync/ws-1')).length;
+    const ws2Baseline = (await findGitRefreshCommands('sync-machine-1', '/sync/ws-2')).length;
+    // A freshly registered workspace already has a pending gitRefresh, with no handoff yet
+    expect(ws1Baseline).toBe(1);
+    expect(ws2Baseline).toBe(1);
 
     // Handoff to builder must NOT enqueue any gitRefresh events
     const builderHandoff = await t.mutation(api.messages.handoff, {
@@ -58,8 +64,8 @@ describe('Handoff-to-user workspace sync', () => {
       content: 'Handing work to builder.',
     });
     expect(builderHandoff.success).toBe(true);
-    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-1')).toHaveLength(0);
-    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-2')).toHaveLength(0);
+    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-1')).toHaveLength(ws1Baseline);
+    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-2')).toHaveLength(ws2Baseline);
 
     // Handoff to user must enqueue gitRefresh for every active workspace
     const userHandoff = await t.mutation(api.messages.handoff, {
@@ -73,10 +79,10 @@ describe('Handoff-to-user workspace sync', () => {
 
     const ws1Rows = await findGitRefreshCommands('sync-machine-1', '/sync/ws-1');
     const ws2Rows = await findGitRefreshCommands('sync-machine-1', '/sync/ws-2');
-    expect(ws1Rows).toHaveLength(1);
-    expect(ws2Rows).toHaveLength(1);
-    expect(ws1Rows[0]!.machineId).toBe('sync-machine-1');
-    expect(ws2Rows[0]!.machineId).toBe('sync-machine-1');
+    expect(ws1Rows).toHaveLength(ws1Baseline + 1);
+    expect(ws2Rows).toHaveLength(ws2Baseline + 1);
+    expect(ws1Rows[ws1Rows.length - 1]!.machineId).toBe('sync-machine-1');
+    expect(ws2Rows[ws2Rows.length - 1]!.machineId).toBe('sync-machine-1');
   });
 
   test('soft-deleted workspaces are excluded from gitRefresh enqueue', async () => {
@@ -104,6 +110,12 @@ describe('Handoff-to-user workspace sync', () => {
       workspaceId: removedWs,
     });
 
+    // Registration enqueues one gitRefresh per workspace, so measure the handoff as a delta.
+    const activeBaseline = (await findGitRefreshCommands('sync-machine-2', '/sync/ws-active'))
+      .length;
+    const removedBaseline = (await findGitRefreshCommands('sync-machine-2', '/sync/ws-removed'))
+      .length;
+
     await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
@@ -114,9 +126,9 @@ describe('Handoff-to-user workspace sync', () => {
 
     const activeRows = await findGitRefreshCommands('sync-machine-2', '/sync/ws-active');
     const removedRows = await findGitRefreshCommands('sync-machine-2', '/sync/ws-removed');
-    expect(activeRows).toHaveLength(1);
-    expect(activeRows[0]!.machineId).toBe('sync-machine-2');
-    expect(removedRows).toHaveLength(0);
+    expect(activeRows).toHaveLength(activeBaseline + 1);
+    expect(activeRows[activeRows.length - 1]!.machineId).toBe('sync-machine-2');
+    expect(removedRows).toHaveLength(removedBaseline);
     expect(activeWs).not.toBe(removedWs);
   });
 });

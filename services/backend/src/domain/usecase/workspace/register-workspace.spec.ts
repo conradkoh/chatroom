@@ -9,6 +9,7 @@ import { listWorkspacesForChatroom } from './list-workspaces-for-chatroom';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
+import { getGitRefreshCommandsForMachine } from '../../../../tests/helpers/machine-command-inbox';
 
 async function createSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
@@ -278,5 +279,102 @@ describe('registerWorkspace path validation', () => {
         enabled: true,
       })
     ).rejects.toThrow();
+  });
+});
+
+describe('registerWorkspace git refresh enqueue', () => {
+  test('new registration enqueues exactly one daemon.gitRefresh without any handoff', async () => {
+    const { sessionId } = await createSession('register-ws-gitrefresh-insert');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-gitrefresh-insert';
+    const workingDir = '/tmp/gitrefresh-insert-workspace';
+    await registerMachine(sessionId, machineId);
+
+    await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'user',
+    });
+
+    const rows = await getGitRefreshCommandsForMachine(machineId, workingDir);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.command).toEqual({ type: 'daemon.gitRefresh', workingDir });
+  });
+
+  test('re-registering an active workspace enqueues nothing more', async () => {
+    const { sessionId } = await createSession('register-ws-gitrefresh-noop');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-gitrefresh-noop';
+    const workingDir = '/tmp/gitrefresh-noop-workspace';
+    await registerMachine(sessionId, machineId);
+
+    const register = () =>
+      t.mutation(api.workspaces.registerWorkspace, {
+        sessionId,
+        chatroomId,
+        machineId,
+        workingDir,
+        hostname: 'test-host',
+        registeredBy: 'user',
+      });
+    await register();
+    await register();
+
+    const rows = await getGitRefreshCommandsForMachine(machineId, workingDir);
+    expect(rows).toHaveLength(1);
+  });
+
+  test('reactivating a removed workspace enqueues one more daemon.gitRefresh', async () => {
+    const { sessionId } = await createSession('register-ws-gitrefresh-reactivate');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-gitrefresh-reactivate';
+    const workingDir = '/tmp/gitrefresh-reactivate-workspace';
+    await registerMachine(sessionId, machineId);
+
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'user',
+    });
+    await t.mutation(api.workspaces.removeWorkspace, { sessionId, workspaceId });
+    await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'user',
+    });
+
+    const rows = await getGitRefreshCommandsForMachine(machineId, workingDir);
+    expect(rows).toHaveLength(2);
+  });
+
+  test('enqueues with the normalized working directory (trailing separator stripped)', async () => {
+    const { sessionId } = await createSession('register-ws-gitrefresh-normalized');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-gitrefresh-normalized';
+    await registerMachine(sessionId, machineId);
+
+    await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/tmp/gitrefresh-normalized-workspace/',
+      hostname: 'test-host',
+      registeredBy: 'user',
+    });
+
+    const rows = await getGitRefreshCommandsForMachine(
+      machineId,
+      '/tmp/gitrefresh-normalized-workspace'
+    );
+    expect(rows).toHaveLength(1);
   });
 });
