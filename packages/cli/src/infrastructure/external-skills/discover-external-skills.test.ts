@@ -267,3 +267,48 @@ describe('discoverExternalSkills — root precedence', () => {
     for (const issue of result.issues) expect(issue.reason).toBe('shadowed');
   });
 });
+
+describe('discoverExternalSkills — realpath claims', () => {
+  test('a rejected alias that sorts first does not hide the real skill directory', async () => {
+    const root = join(testDir, 'root');
+    await writeSkill(root, 'b');
+    await symlink('b', join(root, 'a'));
+
+    const result = await discoverExternalSkills({ roots: [rootAt(root)] });
+
+    expect(result.skills.map((s) => s.skillId)).toEqual(['b']);
+    expect(result.skills[0]).toMatchObject({
+      sourcePath: join(root, 'b'),
+      skillDir: await realpath(join(root, 'b')),
+    });
+    expect(result.issues).toEqual([
+      { path: join(root, 'a'), reason: 'name-mismatch', detail: expect.any(String) },
+    ]);
+  });
+
+  test('an accepted skill claims its realpath, so a later alias is de-duplicated silently', async () => {
+    const root = join(testDir, 'root');
+    await writeSkill(root, 'b');
+    await symlink('b', join(root, 'z'));
+
+    const result = await discoverExternalSkills({ roots: [rootAt(root)] });
+
+    expect(result.skills.map((s) => s.skillId)).toEqual(['b']);
+    expect(result.issues).toEqual([]);
+  });
+
+  test('a shadowed skill claims its realpath, so a later alias in the same root is de-duplicated silently', async () => {
+    const root1 = join(testDir, 'root1');
+    const root2 = join(testDir, 'root2');
+    await writeSkill(root1, 'b');
+    await writeSkill(root2, 'b');
+    await symlink(join(root2, 'b'), join(root2, 'z'));
+
+    const result = await discoverExternalSkills({ roots: [rootAt(root1), rootAt(root2)] });
+
+    expect(result.skills.map((s) => s.sourcePath)).toEqual([join(root1, 'b')]);
+    expect(result.issues).toEqual([
+      { path: join(root2, 'b'), reason: 'shadowed', detail: join(root1, 'b') },
+    ]);
+  });
+});

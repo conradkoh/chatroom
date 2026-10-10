@@ -152,7 +152,7 @@ async function listRoot(
 async function scanEntry(entry: string, sourcePath: string, state: DiscoveryState): Promise<void> {
   if (!(await isSkillCandidate(sourcePath, state.issues))) return;
 
-  // Realpath de-duplication happens BEFORE parsing, so a duplicate directory never reports issues.
+  // Realpath de-dup happens before reading; only an accepted or shadowed entry claims the realpath (see recordSkill), so a rejected alias never hides the real directory.
   let realDir: string;
   try {
     realDir = await realpath(sourcePath);
@@ -161,7 +161,6 @@ async function scanEntry(entry: string, sourcePath: string, state: DiscoveryStat
     return;
   }
   if (state.seenRealpaths.has(realDir)) return;
-  state.seenRealpaths.add(realDir);
 
   const content = await readSkillFile(sourcePath, state.issues);
   if (content === undefined) return;
@@ -235,6 +234,9 @@ function recordSkill(
     );
     return;
   }
+
+  // Accepted or shadowed entries claim the realpath; rejected entries never do.
+  state.seenRealpaths.add(realDir);
 
   // Precedence: first root wins on id collision.
   const winner = state.byId.get(parsed.name);

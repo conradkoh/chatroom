@@ -333,7 +333,7 @@ A missing root is skipped silently. Other read errors are reported as issues.
 
 1. **Builtins win.** An installed skill whose id matches a builtin is hidden and reported as `builtin-collision`.
 2. **First root wins.** When two roots contain the same id at different realpaths, the later one is reported as `shadowed`.
-3. **Same realpath is de-duplicated silently.** This happens when one skill directory is reachable through several roots.
+3. **Same realpath is de-duplicated silently.** Only an accepted or shadowed entry claims a realpath, so a rejected alias (for example a symlink whose name doesn't match the frontmatter) never hides the real skill directory.
 
 ### Validation
 
