@@ -31,10 +31,12 @@ import {
   requestChatroomWorkspaceAgentStop,
   requestWorkspaceAgentStop,
 } from '../src/domain/usecase/agent/request-chatroom-workspace-agent-stop';
+import { selectWakeableAgentRoles } from '../src/domain/usecase/agent/select-wakeable-agent-roles';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import {
   startAgentFromCurrentWorkspaceConfig,
   startAgentsFromCurrentConfig,
+  type StartAgentsResult,
 } from '../src/domain/usecase/agent/start-agent-from-current-config';
 import {
   normalizeWorkingDir,
@@ -42,6 +44,7 @@ import {
 } from '../src/domain/usecase/agent/workspace-match';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
+import { getPrimaryWorkspaceForChatroom } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 
 /** Canonical one-time start command from the webapp. */
 export const requestStart = mutation({
@@ -177,34 +180,42 @@ export const requestChatroomAgentOperation = mutation({
 });
 
 /**
- * Message-triggered wake-up. The status read model is only a filter; the
- * daemon decides whether each queued request is already satisfied.
+ * Message-triggered wake-up. Starts every configured role in the chatroom's
+ * primary workspace that is not running, permanent or ephemeral. The status read
+ * model is only a filter; the daemon decides whether each queued request is
+ * already satisfied.
  */
-export const startOfflinePermanentAgentsForChatroom = internalMutation({
+export const startNonRunningAgentsForChatroom = internalMutation({
   args: { chatroomId: v.id('chatroom_rooms') },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<StartAgentsResult> => {
+    const empty: StartAgentsResult = { started: [], skipped: [], failed: [] };
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom?.ownerId) return { started: [], skipped: [], failed: [] };
+    if (!chatroom?.ownerId) return empty;
     const structure = await getActiveTeamStructure(ctx, args.chatroomId);
-    if (!structure) return { started: [], skipped: [], failed: [] };
+    if (!structure) return empty;
+    const workspace = await getPrimaryWorkspaceForChatroom(ctx, args.chatroomId, {
+      fallbackToNewest: false,
+    });
+    if (!workspace) return empty;
     const team = getTeamStructure({
       teamId: structure.teamStructureId,
       persistedRoles: chatroom.teamRoles ?? null,
       persistedEntryPoint: chatroom.teamEntryPoint ?? null,
     });
     const configuredRoles = team.roles.map(({ role }) => role).filter((role) => role !== 'user');
-    const offlineRows = await ctx.db
+    const statusRows = await ctx.db
       .query('chatroom_agentRoleStatusReadModel')
-      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId))
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
-    const offlineRoles = configuredRoles.filter((role) =>
-      offlineRows.some(
-        (row) => row.role.toLowerCase() === role.toLowerCase() && row.status === 'offline'
-      )
-    );
+    const roles = selectWakeableAgentRoles({
+      roles: configuredRoles,
+      workspaceId: workspace._id,
+      statusRows,
+    });
     return startAgentsFromCurrentConfig(ctx, {
       chatroomId: args.chatroomId,
-      roles: offlineRoles,
+      workspaceId: workspace._id,
+      roles,
       requestedBy: chatroom.ownerId,
     });
   },
