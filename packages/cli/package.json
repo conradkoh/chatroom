@@ -37,6 +37,7 @@
     "ignore": "^7.0.0",
     "jsonc-parser": "^3.3.1",
     "socket.io": "^4.8.1",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
