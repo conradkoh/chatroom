@@ -47,16 +47,18 @@ type PollNodeResult = {
 };
 
 /**
- * Exponential retry delay: `pollIntervalMs` after no failures, doubling per failure up to a 2^5
- * multiplier, then capped at `maxBackoffMs` (defaults to the 30s change-source cap).
+ * Exponential retry delay: `pollIntervalMs` after no failures, doubling per failure up to a
+ * 2^`maxExponent` multiplier (default 2^5), then capped at `maxBackoffMs` (defaults to the 30s
+ * change-source cap).
  */
 export function computeBackoff(
   failures: number,
   pollIntervalMs: number,
-  maxBackoffMs = MAX_BACKOFF_MS
+  maxBackoffMs = MAX_BACKOFF_MS,
+  maxExponent = 5
 ): number {
   if (failures <= 0) return pollIntervalMs;
-  const backoff = pollIntervalMs * 2 ** Math.min(failures - 1, 5);
+  const backoff = pollIntervalMs * 2 ** Math.min(failures - 1, maxExponent);
   return Math.min(backoff, maxBackoffMs);
 }
 
