@@ -34,7 +34,7 @@ export type LocalRecomputeSchedulerOptions = {
  *   request since the last run, so a continuous burst still runs at `maxWaitMs`.
  * - Empty requests are ignored and never start a timer.
  */
-// Reason: the WorkspaceMonitor (next commit) is the first consumer; remove this annotation when it lands.
+// Reason: the monitor imports this, but the monitor has no production consumer until S4b-2.
 // fallow-ignore-next-line unused-export
 export function createLocalRecomputeScheduler(
   options: LocalRecomputeSchedulerOptions
