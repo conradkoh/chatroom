@@ -354,7 +354,7 @@ describe('createWorkspaceService', () => {
     h.service.start();
     h.push(observedNow(DIR_A, DIR_B));
     await h.advance(0);
-    const bStart = remoteTimesFor(h, DIR_B)[0] ?? Number.NaN;
+    const bStart = remoteTimesFor(h, DIR_B)[0];
 
     // A's refresh schedules A on the shared queue. B's own timer must keep its cadence.
     await h.advance(5_000);
