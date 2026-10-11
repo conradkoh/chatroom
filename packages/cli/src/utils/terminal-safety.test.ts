@@ -155,6 +155,20 @@ describe('invisible characters', () => {
   });
 });
 
+describe('OSC sequences', () => {
+  test('visible text between two OSC sequences survives', () => {
+    expect(sanitizeForTerminal('\u001B]0;a\u001B\\visible\u001B]0;b\u0007')).toBe('visible');
+  });
+
+  test('an OSC sequence terminated by BEL still strips cleanly', () => {
+    expect(sanitizeForTerminal('\u001B]0;title\u0007ok')).toBe('ok');
+  });
+
+  test('an OSC with no terminator leaves its payload visible once the ESC is stripped', () => {
+    expect(sanitizeForTerminal('\u001B]0;title')).toBe(']0;title');
+  });
+});
+
 describe('sanitizeUnknownForTerminal', () => {
   test('sanitizes an error message', () => {
     expect(sanitizeUnknownForTerminal(new Error('x\u202Ey').message)).toBe('xy');

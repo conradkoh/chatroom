@@ -14,7 +14,11 @@ export function sanitizeForTerminal(input: string): string {
   return (
     input
       .replace(/\r\n?/g, '\n')
-      .replace(/\u001B\][^\u0007]*(?:\u0007|\u001B\\)/g, '')
+      // OSC payload excludes ESC: `[^\u0007]*` would also consume ESC, so a greedy match
+      // could run from one OSC sequence through visible text to a later terminator.
+      // Excluding ESC stops each match at its own terminator. A stray ESC is still
+      // removed by the C0 step below.
+      .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
       .replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '')
       .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
       .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')
