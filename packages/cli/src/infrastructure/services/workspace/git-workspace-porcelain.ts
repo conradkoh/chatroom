@@ -49,6 +49,13 @@ export type GitHeadState = {
   head: string | null;
 };
 
+/**
+ * Parses `git status --porcelain=v1 -z`.
+ *
+ * Rename/copy convention: `path` is the destination and `fromPath` is the origin. Git writes the
+ * destination in the record (`R  <new>`) and the origin as the next NUL-terminated field
+ * (`<old>`). Consumers rely on this order: a rename emits `add(path)` and `unlink(fromPath)`.
+ */
 export function parseGitPorcelainZ(stdout: string): GitPorcelainEntry[] {
   const entries: GitPorcelainEntry[] = [];
   const parts = stdout.split('\0');
@@ -66,11 +73,11 @@ export function parseGitPorcelainZ(stdout: string): GitPorcelainEntry[] {
 
     if ((xy[0] === 'R' || xy[0] === 'C') && rest) {
       i++;
-      const dest = parts[i] ?? '';
+      const origin = parts[i] ?? '';
       entries.push({
         xy,
-        path: dest.replace(/\\/g, '/'),
-        fromPath: rest.replace(/\\/g, '/'),
+        path: rest.replace(/\\/g, '/'),
+        fromPath: origin.replace(/\\/g, '/'),
       });
     } else if (rest) {
       entries.push({ xy, path: rest.replace(/\\/g, '/') });
@@ -161,9 +168,9 @@ function applyBranchHeader(branch: GitBranchHeader, record: string): void {
  * Parses `git status --porcelain=v2 --branch -z`.
  *
  * Entries match `parseGitPorcelainZ` field for field (`xy` with `.` as space, backslashes
- * normalized to `/`), so `diffPorcelainSnapshots` accepts them unchanged. Rename convention
- * follows the v1 parser: a `2` record is followed by its own NUL-terminated origin record, which
- * becomes `path`, and the header's path becomes `fromPath`.
+ * normalized to `/`), so `diffPorcelainSnapshots` accepts them unchanged. Rename convention:
+ * `path` is the destination (the `2` header's path) and `fromPath` is the origin, which git writes
+ * as the next NUL-terminated record after the header.
  */
 // Reason: the WorkspaceService probe (S3b) is the first production consumer; tests use it until then.
 // fallow-ignore-next-line unused-export
@@ -185,7 +192,7 @@ export function parseGitPorcelainV2Z(stdout: string): {
       i++;
       const renamed = parseV2Entry(record);
       if (renamed) {
-        entries.push({ xy: renamed.xy, path: origin.replace(/\\/g, '/'), fromPath: renamed.path });
+        entries.push({ xy: renamed.xy, path: renamed.path, fromPath: origin.replace(/\\/g, '/') });
       }
     } else {
       const entry = parseV2Entry(record);

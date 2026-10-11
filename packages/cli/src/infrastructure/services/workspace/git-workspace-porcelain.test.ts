@@ -50,8 +50,8 @@ describe('parseGitPorcelainZ', () => {
     expect(result).toEqual<GitPorcelainEntry[]>([{ xy: ' D', path: 'gone.ts' }]);
   });
 
-  it('parses a rename with two NUL fields', () => {
-    const result = parseGitPorcelainZ('R  old.ts\0new.ts\0');
+  it('parses a rename: path is the destination, fromPath the origin (second NUL field)', () => {
+    const result = parseGitPorcelainZ('R  new.ts\0old.ts\0');
     expect(result).toEqual<GitPorcelainEntry[]>([{ xy: 'R ', path: 'new.ts', fromPath: 'old.ts' }]);
   });
 
@@ -598,13 +598,13 @@ describe('parseGitPorcelainV2Z entries', () => {
     expect(entries).toEqual<GitPorcelainEntry[]>([{ xy: 'UU', path: 'conflict.ts' }]);
   });
 
-  it('parses a rename with its origin record, following the v1 fromPath convention', () => {
-    // Same convention as parseGitPorcelainZ: the origin record becomes `path`, the header path becomes `fromPath`.
+  it('parses a rename: path is the destination, fromPath the origin record', () => {
+    // Same convention as parseGitPorcelainZ: the header path is `path`, the origin record is `fromPath`.
     const { entries } = parseGitPorcelainV2Z(
       '2 R. N... 100644 100644 100644 abc abc R100 new.ts\0old.ts\0'
     );
     expect(entries).toEqual<GitPorcelainEntry[]>([
-      { xy: 'R ', path: 'old.ts', fromPath: 'new.ts' },
+      { xy: 'R ', path: 'new.ts', fromPath: 'old.ts' },
     ]);
   });
 
@@ -685,6 +685,87 @@ describe('v1/v2 parity on a git repo fixture', () => {
       parseGitPorcelainV2Z(gitStdout(['status', '--porcelain=v2', '--branch', '-z', '-uall']))
         .entries
     );
+  });
+});
+
+describe('rename convention against real git', () => {
+  let tmpDir: string;
+
+  const gitStdout = (args: string[]): string =>
+    execFileSync('git', args, { cwd: tmpDir, encoding: 'utf8' });
+
+  const repoNode = (): GitRepoNode => ({
+    workTree: tmpDir,
+    gitDir: path.join(tmpDir, '.git'),
+    relativePath: '',
+    pathspec: [],
+    children: [],
+  });
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(path.join(os.tmpdir(), 'porcelain-rename-'));
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: tmpDir });
+    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir });
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tmpDir });
+    await writeFile(path.join(tmpDir, 'old.ts'), 'a\n');
+    await writeFile(path.join(tmpDir, 'my file.ts'), 'b\n');
+    execFileSync('git', ['add', '-A'], { cwd: tmpDir });
+    execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: tmpDir });
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('git emits the destination first and the origin as the second NUL field; both parsers agree', () => {
+    execFileSync('git', ['mv', 'old.ts', 'new.ts'], { cwd: tmpDir });
+
+    const v1Raw = gitStdout(['status', '--porcelain=v1', '-z', '-uall']);
+    // Real-output evidence for the convention, independent of the parser under test.
+    expect(v1Raw).toBe('R  new.ts\0old.ts\0');
+
+    const v1 = parseGitPorcelainZ(v1Raw);
+    expect(v1).toEqual<GitPorcelainEntry[]>([{ xy: 'R ', path: 'new.ts', fromPath: 'old.ts' }]);
+
+    const v2 = parseGitPorcelainV2Z(
+      gitStdout(['status', '--porcelain=v2', '--branch', '-z', '-uall'])
+    ).entries;
+    expect(v2).toEqual<GitPorcelainEntry[]>([{ xy: 'R ', path: 'new.ts', fromPath: 'old.ts' }]);
+  });
+
+  it('a real rename emits add for the destination and unlink for the origin, from v1 and v2', () => {
+    execFileSync('git', ['mv', 'old.ts', 'new.ts'], { cwd: tmpDir });
+    const v1 = parseGitPorcelainZ(gitStdout(['status', '--porcelain=v1', '-z', '-uall']));
+    const v2 = parseGitPorcelainV2Z(
+      gitStdout(['status', '--porcelain=v2', '--branch', '-z', '-uall'])
+    ).entries;
+
+    const expected = [
+      { kind: 'add', path: 'new.ts' },
+      { kind: 'unlink', path: 'old.ts' },
+    ];
+    for (const next of [v1, v2]) {
+      const events = diffPorcelainSnapshots({
+        workspaceRoot: tmpDir,
+        node: repoNode(),
+        prev: [],
+        next,
+      });
+      expect(events).toEqual(expected);
+    }
+  });
+
+  it('a rename whose names contain spaces keeps both paths intact', () => {
+    execFileSync('git', ['mv', 'my file.ts', 'renamed file.ts'], { cwd: tmpDir });
+    const v1 = parseGitPorcelainZ(gitStdout(['status', '--porcelain=v1', '-z', '-uall']));
+    const v2 = parseGitPorcelainV2Z(
+      gitStdout(['status', '--porcelain=v2', '--branch', '-z', '-uall'])
+    ).entries;
+
+    expect(v1).toEqual<GitPorcelainEntry[]>([
+      { xy: 'R ', path: 'renamed file.ts', fromPath: 'my file.ts' },
+    ]);
+    expect(v2).toEqual(v1);
   });
 });
 
