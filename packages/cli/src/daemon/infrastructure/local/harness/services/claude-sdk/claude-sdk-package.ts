@@ -1,6 +1,15 @@
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import type * as ClaudeAgentSdkModule from '@anthropic-ai/claude-agent-sdk';
@@ -27,9 +36,13 @@ function resolveChatroomCliRoot(moduleRef: string = import.meta.url): string {
   while (dir !== dirname(dir)) {
     const packageJsonPath = join(dir, 'package.json');
     if (existsSync(packageJsonPath)) {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string | undefined };
+      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+        name?: string | undefined;
+      };
       if (pkg.name === 'chatroom-cli') {
-        return dir;
+        // Resolve symlinks (e.g. `npm install -g .` links to the repo folder) so that
+        // sibling platform packages are looked up next to the real pnpm/npm layout.
+        return realpathSync(dir);
       }
     }
     dir = dirname(dir);
@@ -84,7 +97,7 @@ function resolvePlatformPackageName(): string {
 }
 
 function resolveNativeCliBinaryPath(sdkEntryPath: string): string {
-  const require = createRequire(sdkEntryPath);
+  const require = createRequire(realpathSync(sdkEntryPath));
   const platformPkg = resolvePlatformPackageName();
   const binaryName = process.platform === 'win32' ? 'claude.exe' : 'claude';
 
@@ -107,11 +120,37 @@ function resolveNativeCliBinaryPath(sdkEntryPath: string): string {
   return binaryPath;
 }
 
+/** Where pinned native binaries live. Outside the npm install tree, so upgrades can't delete them. */
+const PINNED_BINARY_ROOT = join(homedir(), '.chatroom', 'claude-native');
+
+/**
+ * Copy the native binary to `<pinRoot>/<sdkVersion>/<name>` and return that path.
+ *
+ * A running daemon can outlive the install it was loaded from: `npm install -g` replaces
+ * the files, so a path into the install tree stops existing. A copy keyed by SDK version
+ * survives that. The copy is written to a temp file and renamed, so readers never see a
+ * partial binary.
+ */
+// fallow-ignore-next-line unused-export
+export function pinNativeBinary(sourcePath: string, sdkVersion: string, pinRoot: string): string {
+  const dir = join(pinRoot, sdkVersion);
+  const pinnedPath = join(dir, basename(sourcePath));
+  if (existsSync(pinnedPath)) return pinnedPath;
+
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const tmpPath = `${pinnedPath}.tmp.${process.pid}`;
+  copyFileSync(sourcePath, tmpPath);
+  chmodSync(tmpPath, 0o755);
+  renameSync(tmpPath, pinnedPath);
+  return pinnedPath;
+}
+
 let cachedExecutablePath: string | undefined;
 
 /**
  * Resolve pathToClaudeCodeExecutable for query() options.
- * Uses extractFromBunfs() so the same path works in dev and bun --compile bundles.
+ * Uses extractFromBunfs() so the same path works in dev and bun --compile bundles, then
+ * pins the binary outside the install tree so the path stays valid across upgrades.
  */
 export async function resolvePathToClaudeCodeExecutable(
   moduleRef: string = import.meta.url
@@ -124,7 +163,12 @@ export async function resolvePathToClaudeCodeExecutable(
   const embeddedPath = resolveNativeCliBinaryPath(sdkEntryPath);
 
   const { extractFromBunfs } = await import('@anthropic-ai/claude-agent-sdk/extract');
-  cachedExecutablePath = extractFromBunfs(embeddedPath);
+  const extractedPath = extractFromBunfs(embeddedPath);
+  cachedExecutablePath = pinNativeBinary(
+    extractedPath,
+    readInstalledSdkVersion(sdkEntryPath),
+    PINNED_BINARY_ROOT
+  );
   return cachedExecutablePath;
 }
 
