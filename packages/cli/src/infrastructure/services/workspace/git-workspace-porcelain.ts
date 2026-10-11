@@ -8,13 +8,13 @@ import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
 export const GIT_POLL_TIMEOUT_MS = 10_000;
 
 export class GitWorkspaceCommandError extends Error {
-  readonly operation: 'readGitHead' | 'readGitPorcelainStatus';
+  readonly operation: 'readGitHead' | 'readGitPorcelainStatus' | 'readGitStatusV2';
   readonly workTree: string;
   readonly relativePath: string;
   readonly cause: Error;
 
   constructor(args: {
-    operation: 'readGitHead' | 'readGitPorcelainStatus';
+    operation: 'readGitHead' | 'readGitPorcelainStatus' | 'readGitStatusV2';
     workTree: string;
     relativePath: string;
     cause: Error;
@@ -79,6 +79,121 @@ export function parseGitPorcelainZ(stdout: string): GitPorcelainEntry[] {
   }
 
   return entries;
+}
+
+/** Branch metadata from the `# branch.*` header records of `git status --porcelain=v2 --branch`. */
+export type GitBranchHeader = {
+  /** HEAD commit SHA; null on an unborn branch (`(initial)`). */
+  oid: string | null;
+  /** Branch name; `HEAD` when detached (`(detached)`); null when git did not report one. */
+  head: string | null;
+  /** Configured upstream ref name, or null when there is none. */
+  upstream: string | null;
+  /** Commits ahead of upstream; 0 when there is no upstream. */
+  ahead: number;
+  /** Commits behind upstream; 0 when there is no upstream. */
+  behind: number;
+};
+
+/**
+ * Number of space-separated fields before the path in each v2 record type, counting the record
+ * type character itself. The path is everything after them, so it may contain spaces.
+ */
+const V2_FIELDS_BEFORE_PATH: Readonly<Record<string, number>> = {
+  '1': 8,
+  '2': 9,
+  u: 10,
+};
+
+function splitV2Record(
+  record: string,
+  fieldsBeforePath: number
+): { fields: string[]; path: string } {
+  const fields: string[] = [];
+  let cursor = 0;
+  for (let n = 0; n < fieldsBeforePath; n++) {
+    const space = record.indexOf(' ', cursor);
+    if (space === -1) return { fields, path: '' };
+    fields.push(record.slice(cursor, space));
+    cursor = space + 1;
+  }
+  return { fields, path: record.slice(cursor).replace(/\\/g, '/') };
+}
+
+/** Entry for one non-rename record, or null for ignored (`!`) and unknown record types. */
+function parseV2Entry(record: string): GitPorcelainEntry | null {
+  const type = record.charAt(0);
+  if (type === '?') {
+    const { path } = splitV2Record(record, 1);
+    return path ? { xy: '??', path } : null;
+  }
+  const fieldsBeforePath = V2_FIELDS_BEFORE_PATH[type];
+  if (fieldsBeforePath === undefined) return null;
+  const { fields, path } = splitV2Record(record, fieldsBeforePath);
+  return path ? { xy: (fields[1] ?? '').replace(/\./g, ' '), path } : null;
+}
+
+function applyBranchHeader(branch: GitBranchHeader, record: string): void {
+  const [key = '', ...valueParts] = record.slice(2).split(' ');
+  const value = valueParts.join(' ');
+  switch (key) {
+    case 'branch.oid':
+      branch.oid = value === '(initial)' ? null : value;
+      return;
+    case 'branch.head':
+      branch.head = value === '(detached)' ? 'HEAD' : value;
+      return;
+    case 'branch.upstream':
+      branch.upstream = value;
+      return;
+    case 'branch.ab': {
+      const [ahead = '', behind = ''] = value.split(' ');
+      branch.ahead = Math.abs(Number.parseInt(ahead, 10)) || 0;
+      branch.behind = Math.abs(Number.parseInt(behind, 10)) || 0;
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+/**
+ * Parses `git status --porcelain=v2 --branch -z`.
+ *
+ * Entries match `parseGitPorcelainZ` field for field (`xy` with `.` as space, backslashes
+ * normalized to `/`), so `diffPorcelainSnapshots` accepts them unchanged. Rename convention
+ * follows the v1 parser: a `2` record is followed by its own NUL-terminated origin record, which
+ * becomes `path`, and the header's path becomes `fromPath`.
+ */
+// Reason: the WorkspaceService probe (S3b) is the first production consumer; tests use it until then.
+// fallow-ignore-next-line unused-export
+export function parseGitPorcelainV2Z(stdout: string): {
+  branch: GitBranchHeader;
+  entries: GitPorcelainEntry[];
+} {
+  const branch: GitBranchHeader = { oid: null, head: null, upstream: null, ahead: 0, behind: 0 };
+  const entries: GitPorcelainEntry[] = [];
+  const records = stdout.split('\0');
+
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i] ?? '';
+    if (record.startsWith('# ')) {
+      applyBranchHeader(branch, record);
+    } else if (record.startsWith('2 ')) {
+      // The origin path is a separate record that follows the rename header.
+      const origin = records[i + 1] ?? '';
+      i++;
+      const renamed = parseV2Entry(record);
+      if (renamed) {
+        entries.push({ xy: renamed.xy, path: origin.replace(/\\/g, '/'), fromPath: renamed.path });
+      }
+    } else {
+      const entry = parseV2Entry(record);
+      if (entry) entries.push(entry);
+    }
+  }
+
+  return { branch, entries };
 }
 
 export function toWorkspaceRelativePath(args: {
@@ -262,7 +377,7 @@ export function porcelainUntrackedDeletedEvents(args: {
   node: GitRepoNode;
   prev: readonly GitPorcelainEntry[];
   next: readonly GitPorcelainEntry[];
-  pathExists?:( (absolutePath: string) => boolean) | undefined;
+  pathExists?: ((absolutePath: string) => boolean) | undefined;
 }): WorkspaceFsEvent[] {
   const exists = args.pathExists ?? ((p: string) => existsSync(p));
   const left = porcelainPathsLeftSnapshot({
@@ -338,4 +453,26 @@ export async function readGitPorcelainStatus(node: GitRepoNode): Promise<GitPorc
     });
   }
   return parseGitPorcelainZ(result.stdout);
+}
+
+/** Reads branch metadata and entries in one `git status` call. Throws `GitWorkspaceCommandError` on failure. */
+// Reason: the WorkspaceService probe (S3b) is the first production consumer; tests use it until then.
+// fallow-ignore-next-line unused-export
+export async function readGitStatusV2(workTree: string): Promise<{
+  branch: GitBranchHeader;
+  entries: GitPorcelainEntry[];
+}> {
+  const result = await runGit(['status', '--porcelain=v2', '--branch', '-z', '-uall'], workTree, {
+    timeout: GIT_POLL_TIMEOUT_MS,
+    readOnly: true,
+  });
+  if ('error' in result) {
+    throw new GitWorkspaceCommandError({
+      operation: 'readGitStatusV2',
+      workTree,
+      relativePath: '',
+      cause: result.error,
+    });
+  }
+  return parseGitPorcelainV2Z(result.stdout);
 }

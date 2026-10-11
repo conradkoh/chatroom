@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -12,11 +13,13 @@ import {
   diffPorcelainSnapshots,
   GitWorkspaceCommandError,
   headChanged,
+  parseGitPorcelainV2Z,
   parseGitPorcelainZ,
   porcelainPathsLeftSnapshot,
   porcelainUntrackedDeletedEvents,
   readGitHead,
   readGitPorcelainStatus,
+  readGitStatusV2,
   toWorkspaceRelativePath,
 } from './git-workspace-porcelain.js';
 import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
@@ -515,5 +518,188 @@ describe('porcelainUntrackedDeletedEvents integration with file on disk', () => 
       next: [],
     });
     expect(events).toEqual([]);
+  });
+});
+
+const V2_ORDINARY = (xy: string, path: string) =>
+  `1 ${xy} N... 100644 100644 100644 abc1234 def5678 ${path}`;
+
+describe('parseGitPorcelainV2Z header', () => {
+  it('parses a branch with upstream and ahead/behind counts', () => {
+    const result = parseGitPorcelainV2Z(
+      '# branch.oid abc123\0# branch.head main\0# branch.upstream origin/main\0# branch.ab +2 -1\0'
+    );
+    expect(result.branch).toEqual({
+      oid: 'abc123',
+      head: 'main',
+      upstream: 'origin/main',
+      ahead: 2,
+      behind: 1,
+    });
+    expect(result.entries).toEqual([]);
+  });
+
+  it('reports a detached HEAD as head HEAD with the commit still present', () => {
+    const result = parseGitPorcelainV2Z('# branch.oid abc123\0# branch.head (detached)\0');
+    expect(result.branch.head).toBe('HEAD');
+    expect(result.branch.oid).toBe('abc123');
+  });
+
+  it('reports an unborn branch with a null oid', () => {
+    const result = parseGitPorcelainV2Z('# branch.oid (initial)\0# branch.head main\0');
+    expect(result.branch.oid).toBeNull();
+    expect(result.branch.head).toBe('main');
+  });
+
+  it('reports no upstream with zero ahead and behind when none is configured', () => {
+    const result = parseGitPorcelainV2Z('# branch.oid abc123\0# branch.head main\0');
+    expect(result.branch).toEqual({
+      oid: 'abc123',
+      head: 'main',
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+    });
+  });
+
+  it('returns an empty header and no entries for empty output', () => {
+    expect(parseGitPorcelainV2Z('')).toEqual({
+      branch: { oid: null, head: null, upstream: null, ahead: 0, behind: 0 },
+      entries: [],
+    });
+  });
+});
+
+describe('parseGitPorcelainV2Z entries', () => {
+  it('parses a modified file as xy " M"', () => {
+    const { entries } = parseGitPorcelainV2Z(`${V2_ORDINARY('.M', 'a.ts')}\0`);
+    expect(entries).toEqual<GitPorcelainEntry[]>([{ xy: ' M', path: 'a.ts' }]);
+  });
+
+  it('parses a staged-and-modified file as "MM"', () => {
+    const { entries } = parseGitPorcelainV2Z(`${V2_ORDINARY('MM', 'b.ts')}\0`);
+    expect(entries).toEqual<GitPorcelainEntry[]>([{ xy: 'MM', path: 'b.ts' }]);
+  });
+
+  it('parses an untracked file as "??"', () => {
+    const { entries } = parseGitPorcelainV2Z('? new.txt\0');
+    expect(entries).toEqual<GitPorcelainEntry[]>([{ xy: '??', path: 'new.txt' }]);
+  });
+
+  it('parses a deleted file as xy " D"', () => {
+    const { entries } = parseGitPorcelainV2Z(`${V2_ORDINARY('.D', 'gone.ts')}\0`);
+    expect(entries).toEqual<GitPorcelainEntry[]>([{ xy: ' D', path: 'gone.ts' }]);
+  });
+
+  it('parses an unmerged entry from a u record', () => {
+    const { entries } = parseGitPorcelainV2Z(
+      'u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.ts\0'
+    );
+    expect(entries).toEqual<GitPorcelainEntry[]>([{ xy: 'UU', path: 'conflict.ts' }]);
+  });
+
+  it('parses a rename with its origin record, following the v1 fromPath convention', () => {
+    // Same convention as parseGitPorcelainZ: the origin record becomes `path`, the header path becomes `fromPath`.
+    const { entries } = parseGitPorcelainV2Z(
+      '2 R. N... 100644 100644 100644 abc abc R100 new.ts\0old.ts\0'
+    );
+    expect(entries).toEqual<GitPorcelainEntry[]>([
+      { xy: 'R ', path: 'old.ts', fromPath: 'new.ts' },
+    ]);
+  });
+
+  it('keeps spaces in the path and does not consume the next record', () => {
+    const { entries } = parseGitPorcelainV2Z(
+      `${V2_ORDINARY('.M', 'dir with space/my file.ts')}\0? other one.txt\0`
+    );
+    expect(entries).toEqual<GitPorcelainEntry[]>([
+      { xy: ' M', path: 'dir with space/my file.ts' },
+      { xy: '??', path: 'other one.txt' },
+    ]);
+  });
+
+  it('skips ignored entries', () => {
+    expect(parseGitPorcelainV2Z('! node_modules/pkg\0').entries).toEqual([]);
+  });
+});
+
+describe('v1/v2 parity on a git repo fixture', () => {
+  let tmpDir: string;
+
+  const gitStdout = (args: string[]): string =>
+    execFileSync('git', args, { cwd: tmpDir, encoding: 'utf8' });
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(path.join(os.tmpdir(), 'porcelain-parity-'));
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: tmpDir });
+    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir });
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tmpDir });
+    for (const name of ['modified.txt', 'staged.txt', 'both.txt', 'deleted.txt', 'old-name.txt']) {
+      await writeFile(path.join(tmpDir, name), 'original\n');
+    }
+    execFileSync('git', ['add', '-A'], { cwd: tmpDir });
+    execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: tmpDir });
+
+    // Unstaged modification.
+    await writeFile(path.join(tmpDir, 'modified.txt'), 'changed\n');
+    // Staged-only modification.
+    await writeFile(path.join(tmpDir, 'staged.txt'), 'staged\n');
+    execFileSync('git', ['add', 'staged.txt'], { cwd: tmpDir });
+    // Staged, then modified again in the worktree.
+    await writeFile(path.join(tmpDir, 'both.txt'), 'first\n');
+    execFileSync('git', ['add', 'both.txt'], { cwd: tmpDir });
+    await writeFile(path.join(tmpDir, 'both.txt'), 'second\n');
+    // Deleted in the worktree only (unstaged).
+    await rm(path.join(tmpDir, 'deleted.txt'));
+    // Staged rename.
+    execFileSync('git', ['mv', 'old-name.txt', 'new-name.txt'], { cwd: tmpDir });
+    // Untracked, with and without a space in the name.
+    await writeFile(path.join(tmpDir, 'untracked.txt'), 'new\n');
+    await writeFile(path.join(tmpDir, 'with space.txt'), 'new\n');
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('produces the same path, xy and fromPath from porcelain v1 and v2', () => {
+    const v1 = parseGitPorcelainZ(gitStdout(['status', '--porcelain=v1', '-z', '-uall']));
+    const v2 = parseGitPorcelainV2Z(
+      gitStdout(['status', '--porcelain=v2', '--branch', '-z', '-uall'])
+    ).entries;
+
+    // The fixture must cover every kind, otherwise parity is vacuous.
+    expect(new Set(v1.map((e) => e.xy))).toEqual(new Set([' M', 'M ', 'MM', ' D', 'R ', '??']));
+
+    const project = (entries: readonly GitPorcelainEntry[]) =>
+      entries.map((e) => ({ path: e.path, xy: e.xy, fromPath: e.fromPath }));
+    expect(project(v2)).toEqual(project(v1));
+  });
+
+  it('readGitStatusV2 returns the branch header and the same entries as the parser', async () => {
+    const result = await readGitStatusV2(tmpDir);
+    expect(result.branch.head).toBe('main');
+    expect(result.branch.oid).not.toBeNull();
+    expect(result.branch.upstream).toBeNull();
+    expect(result.entries).toEqual(
+      parseGitPorcelainV2Z(gitStdout(['status', '--porcelain=v2', '--branch', '-z', '-uall']))
+        .entries
+    );
+  });
+});
+
+describe('readGitStatusV2 failure', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(os.tmpdir(), 'porcelain-v2-not-repo-'));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws GitWorkspaceCommandError outside a git repository', async () => {
+    await expect(readGitStatusV2(tmpDir)).rejects.toBeInstanceOf(GitWorkspaceCommandError);
   });
 });
