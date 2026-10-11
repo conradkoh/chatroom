@@ -127,6 +127,28 @@ describe('invisible characters', () => {
     expect(sanitizeForTerminal('❤\uFE0F')).toBe('❤\uFE0F');
   });
 
+  test.each([
+    ['U+180E Mongolian vowel separator', '\u180E'],
+    ['U+00AD soft hyphen', '\u00AD'],
+    ['U+034F combining grapheme joiner', '\u034F'],
+    ['U+115F Hangul choseong filler', '\u115F'],
+    ['U+1160 Hangul jungseong filler', '\u1160'],
+    ['U+2061 function application', '\u2061'],
+    ['U+2062 invisible times', '\u2062'],
+    ['U+2063 invisible separator', '\u2063'],
+    ['U+2064 invisible plus', '\u2064'],
+    ['U+3164 Hangul filler', '\u3164'],
+    ['U+FFA0 halfwidth Hangul filler', '\uFFA0'],
+  ])('strips %s', (_name, ch) => {
+    expect(sanitizeForTerminal(`a${ch}b`)).toBe('ab');
+  });
+
+  test('strips every code point in the variation selectors supplement (U+E0100–U+E01EF)', () => {
+    for (let cp = 0xe0100; cp <= 0xe01ef; cp++) {
+      expect(sanitizeForTerminal('a' + String.fromCodePoint(cp) + 'b')).toBe('ab');
+    }
+  });
+
   test('degrades a Scotland flag tag sequence to the base flag', () => {
     const scotland = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}';
     expect(sanitizeForTerminal(scotland)).toBe('\u{1F3F4}');
