@@ -9,10 +9,10 @@
  * observation set on every call.
  */
 
+import { loadActiveWorkspacesWithObservation } from './list-workspace-activity-for-machine';
 import { OBSERVATION_TTL_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
-import { isActiveWorkspace } from '../../entities/workspace';
 
 export interface WorkspaceForMachineView {
   _id: Id<'chatroom_workspaces'>;
@@ -35,34 +35,11 @@ export async function listRecentlyObservedWorkspacesForMachine(
 ): Promise<ListRecentlyObservedWorkspacesForMachineResult> {
   const cutoff = Date.now() - OBSERVATION_TTL_MS;
 
-  const workspaces = await ctx.db
-    .query('chatroom_workspaces')
-    .withIndex('by_machine', (q) => q.eq('machineId', input.machineId))
-    .collect();
+  const rows = await loadActiveWorkspacesWithObservation(ctx, input.machineId);
 
-  const activeWorkspaces = workspaces.filter((ws) => isActiveWorkspace(ws.removedAt));
-  if (activeWorkspaces.length === 0) return [];
-
-  // Resolve recency by reading the observation for each of this machine's
-  // chatrooms directly (one singleton row per chatroom via `by_chatroomId`),
-  // rather than collecting every recently-observed chatroom globally.
-  const chatroomIds = [...new Set(activeWorkspaces.map((ws) => ws.chatroomId))];
-  const recentlyObservedChatrooms = new Set<Id<'chatroom_rooms'>>();
-  await Promise.all(
-    chatroomIds.map(async (chatroomId) => {
-      const observation = await ctx.db
-        .query('chatroom_observation')
-        .withIndex('by_chatroomId', (q) => q.eq('chatroomId', chatroomId))
-        .first();
-      if (observation && observation.lastObservedAt > cutoff) {
-        recentlyObservedChatrooms.add(chatroomId);
-      }
-    })
-  );
-
-  return activeWorkspaces
-    .filter((ws) => recentlyObservedChatrooms.has(ws.chatroomId))
-    .map((ws): WorkspaceForMachineView => ({
+  return rows
+    .filter(({ lastObservedAt }) => lastObservedAt !== null && lastObservedAt > cutoff)
+    .map(({ workspace: ws }): WorkspaceForMachineView => ({
       _id: ws._id,
       chatroomId: ws.chatroomId,
       workingDir: ws.workingDir,
