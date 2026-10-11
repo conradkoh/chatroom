@@ -124,6 +124,49 @@ describe('agents.requestChatroomAgentOperation', () => {
     ).toBe(true);
   });
 
+  test('start requests a never-run configured ephemeral role and skips unconfigured roles', async () => {
+    const { sessionId } = await createTestSession('chatroom-agent-operation-never-run');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'machine-chatroom-agent-operation-never-run';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/workspace/never-run',
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    });
+    await t.mutation(api.agents.saveConfig, {
+      sessionId,
+      chatroomId,
+      workspaceId,
+      role: 'architect',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'test-model',
+      workingDir: '/workspace/never-run',
+    });
+
+    const result = await t.mutation(api.agents.requestChatroomAgentOperation, {
+      sessionId,
+      chatroomId,
+      operation: 'start',
+    });
+
+    expect(result.requested).toEqual([{ role: 'architect', workspaceId, machineId }]);
+    expect(result.failed).toEqual([]);
+    const unconfiguredRoles = ['planner', 'builder', 'triage', 'uiux-engineer', 'researcher'];
+    expect(result.skipped).toEqual(
+      expect.arrayContaining(
+        unconfiguredRoles.map((role) =>
+          expect.objectContaining({ role, reason: 'No saved launch configuration' })
+        )
+      )
+    );
+    expect(result.skipped.map(({ role }) => role)).not.toContain('architect');
+  });
+
   test('queues one workspace-scoped stop per active workspace', async () => {
     const { sessionId } = await createTestSession('chatroom-agent-operation');
     const chatroomId = await createDuoTeamChatroom(sessionId);
