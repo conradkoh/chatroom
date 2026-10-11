@@ -34,12 +34,12 @@ const workspaceActivityRowSchema = z.strictObject({
 });
 
 /**
- * Parses one snapshot. Returns null when the payload is not an array, so the caller skips the
- * update and keeps the previous membership. An invalid row is logged and dropped; the others
- * are kept.
+ * Parses one snapshot. Returns null when the payload is not an array, or when any row fails the
+ * schema. The caller skips a null result and keeps the previous membership.
  *
- * Constraint: a dropped row removes its workspace from membership on this snapshot, the same as
- * a row that is absent from the backend result.
+ * Constraint: a snapshot with any invalid row is ignored as a whole, so schema drift cannot remove
+ * every monitor. Dropping one row would tear down its monitor, call `stopKeys`, and discard
+ * pending deliveries. The first failing row is logged once.
  */
 function parseWorkspaceActivityRows(payload: unknown): WorkspaceActivityRow[] | null {
   if (!Array.isArray(payload)) {
@@ -49,14 +49,14 @@ function parseWorkspaceActivityRows(payload: unknown): WorkspaceActivityRow[] | 
   const rows: WorkspaceActivityRow[] = [];
   for (const raw of payload) {
     const parsed = workspaceActivityRowSchema.safeParse(raw);
-    if (parsed.success) {
-      rows.push(parsed.data);
-    } else {
+    if (!parsed.success) {
       console.error(
-        '[workspace-activity] dropping row that deviates from the schema:',
+        '[workspace-activity] ignoring snapshot with a row that deviates from the schema:',
         parsed.error
       );
+      return null;
     }
+    rows.push(parsed.data);
   }
   return rows;
 }

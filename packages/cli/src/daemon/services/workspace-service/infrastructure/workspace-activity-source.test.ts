@@ -31,8 +31,8 @@ function fakeWsClient() {
   };
 }
 
-/** Subscribes a source to a fake client and returns the rows delivered for one payload. */
-function deliver(payload: unknown): readonly WorkspaceActivityRow[] | undefined {
+/** Subscribes a source to a fake client, pushes one payload, and returns the onRows spy. */
+function deliverToCallback(payload: unknown) {
   const client = fakeWsClient();
   const source = createWorkspaceActivitySource({
     wsClient: client.wsClient,
@@ -42,6 +42,12 @@ function deliver(payload: unknown): readonly WorkspaceActivityRow[] | undefined 
   const onRows = vi.fn();
   source.subscribe(onRows);
   client.push(payload);
+  return onRows;
+}
+
+/** Returns the rows delivered for one payload, or undefined when onRows was not called. */
+function deliver(payload: unknown): readonly WorkspaceActivityRow[] | undefined {
+  const onRows = deliverToCallback(payload);
   return onRows.mock.calls.length === 0 ? undefined : onRows.mock.calls[0][0];
 }
 
@@ -62,27 +68,28 @@ describe('createWorkspaceActivitySource parsing', () => {
     ]);
   });
 
-  it('drops a row with an extra key and keeps the rest', () => {
+  it('ignores the whole snapshot when a row has an extra key', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    const rows = deliver([
+    const onRows = deliverToCallback([
       { workingDir: '/a', lastObservedAt: 1, extra: true },
       { workingDir: '/b', lastObservedAt: 2 },
     ]);
 
-    expect(rows).toEqual([{ workingDir: '/b', lastObservedAt: 2 }]);
+    expect(onRows).not.toHaveBeenCalled();
     expect(console.error).toHaveBeenCalledTimes(1);
   });
 
-  it('drops a row whose lastObservedAt is neither a number nor null', () => {
+  it('ignores the whole snapshot when a row has a lastObservedAt that is neither number nor null', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    expect(
-      deliver([
-        { workingDir: '/a', lastObservedAt: '1000' },
-        { workingDir: '/b', lastObservedAt: undefined },
-      ])
-    ).toEqual([]);
+    const onRows = deliverToCallback([
+      { workingDir: '/a', lastObservedAt: 1_000 },
+      { workingDir: '/b', lastObservedAt: '1000' },
+    ]);
+
+    expect(onRows).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledTimes(1);
   });
 
   it('skips a payload that is not an array without calling onRows', () => {
