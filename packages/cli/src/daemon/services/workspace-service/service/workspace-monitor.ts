@@ -79,6 +79,8 @@ type RemoteOk = Extract<RemoteCollectResult, { ok: true }>;
  * - Remote polls reschedule only while `observed`. A poll that was already queued runs once in `idle`.
  * - All I/O arrives through `deps`, so the monitor needs no git, gh, Convex, or outbox at test time.
  */
+// Reason: the WorkspaceService constructs one monitor per workspace; S5 wires that service.
+// fallow-ignore-next-line unused-export
 export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMonitor {
   const { workingDir, policy, probe, now } = deps;
   const setTimer: (fn: () => void, ms: number) => TimerHandle = deps.setTimer ?? setTimeout;
