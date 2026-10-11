@@ -23,7 +23,7 @@ const PERSISTENT_FAILURE_THRESHOLD = 3;
 export type GitWorkspaceChangeSourceOptions = WorkspaceChangeSourceOptions & {
   hierarchy: GitWorkspaceHierarchy;
   pollIntervalMs?: number | undefined;
-  onNeedsReconcile?:( () => void | Promise<void>) | undefined;
+  onNeedsReconcile?: (() => void | Promise<void>) | undefined;
 };
 
 function flattenGitRepoNodes(root: GitRepoNode): GitRepoNode[] {
@@ -46,7 +46,9 @@ type PollNodeResult = {
   nextState: NodePollState;
 };
 
-function computeBackoff(failures: number, pollIntervalMs: number): number {
+// Reason: WorkspaceService monitor (S4) is the first production consumer.
+// fallow-ignore-next-line unused-export
+export function computeBackoff(failures: number, pollIntervalMs: number): number {
   if (failures <= 0) return pollIntervalMs;
   const backoff = pollIntervalMs * 2 ** Math.min(failures - 1, 5);
   return Math.min(backoff, MAX_BACKOFF_MS);
