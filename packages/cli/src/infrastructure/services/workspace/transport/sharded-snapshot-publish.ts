@@ -12,7 +12,7 @@ import type { DaemonSessionServiceShape } from '../../../../daemon/entry/daemon-
 import { MAX_SHARD_BATCH_SIZE, partitionFileTree } from '../file-tree-partition.js';
 
 export async function publishShardedSnapshot(
-  session: DaemonSessionServiceShape,
+  session: Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>,
   workingDir: string,
   tree: FileTree,
   syncGeneration: string

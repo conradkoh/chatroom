@@ -18,6 +18,9 @@ import { publishShardedSnapshot } from '../../../infrastructure/services/workspa
 import { isFileTreeSyncDisabledError } from '../../../utils/convex-error.js';
 import type { DaemonSessionServiceShape } from '../../entry/daemon-services.js';
 
+/** Only the fields this adapter reads, so the service-owned host can call it without a cycle. */
+type FileTreeSendSession = Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>;
+
 type FileTreeCheckpointSnapshot = { strategyId: 'blob' | 'sharded'; snapshotId: string };
 function needsMoreCheckpointPrune(result: PublishCheckpointResult): boolean {
   return (
@@ -33,7 +36,7 @@ function assertCheckpointAccepted(result: PublishCheckpointResult): void {
 }
 
 async function syncScannedFileTree(
-  session: DaemonSessionServiceShape,
+  session: FileTreeSendSession,
   normalizedWorkingDir: string,
   tree: FileTree,
   dataHash: string,
@@ -53,7 +56,7 @@ async function syncScannedFileTree(
 
 /** One outbox delivery: snapshot upload + checkpoint publish, including batched prune/resync steps. */
 async function publishCheckpointUntilPruned(
-  session: DaemonSessionServiceShape,
+  session: FileTreeSendSession,
   normalizedWorkingDir: string,
   snapshot: FileTreeCheckpointSnapshot,
   revision: number
@@ -78,7 +81,7 @@ async function publishCheckpointUntilPruned(
 }
 
 export function createWorkspaceFileTreeCheckpointSend(
-  session: DaemonSessionServiceShape,
+  session: FileTreeSendSession,
   normalizedWorkingDir: string,
   options?: { onSyncDisabled?: () => void | Promise<void> }
 ): (state: WorkspaceFileTreeCheckpointState) => Promise<WorkspaceFileTreeCheckpointSendResult> {
