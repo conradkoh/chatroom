@@ -374,9 +374,10 @@ async function _sendMessageHandler(
         message: 'Chatroom is not active',
       });
     }
-    // Wake only roles whose backend projection is offline. The daemon remains
-    // authoritative and treats duplicate start requests as idempotent.
-    await ctx.scheduler.runAfter(0, internal.agents.startOfflinePermanentAgentsForChatroom, {
+    // Wake every configured role (permanent or ephemeral) that is not running in the
+    // primary workspace. The daemon remains authoritative and treats duplicate start
+    // requests as idempotent.
+    await ctx.scheduler.runAfter(0, internal.agents.startNonRunningAgentsForChatroom, {
       chatroomId: args.chatroomId,
     });
     return result.messageId;

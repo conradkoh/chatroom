@@ -131,6 +131,7 @@ export async function startAgentsFromCurrentConfig(
   ctx: MutationCtx,
   input: {
     chatroomId: Id<'chatroom_rooms'>;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
     roles: readonly string[];
     requestedBy: Id<'users'>;
   }
@@ -147,6 +148,7 @@ export async function startAgentsFromCurrentConfig(
         try {
           const started = await startAgentFromCurrentWorkspaceConfig(ctx, {
             chatroomId: input.chatroomId,
+            workspaceId: input.workspaceId,
             role,
             requestedBy: input.requestedBy,
           });
