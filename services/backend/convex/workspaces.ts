@@ -20,11 +20,13 @@ import { upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { normalizeWorkingDir } from './workspacePathSecurity';
+import { workspaceGitStateUnitValidator } from '../src/domain/entities/workspace-git-state-unit';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { getPrimaryWorkspaceForChatroom as getPrimaryWorkspaceForChatroomUseCase } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
+import { patchWorkspaceGitState as patchWorkspaceGitStateUseCase } from '../src/domain/usecase/workspace/patch-workspace-git-state';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
 
@@ -602,6 +604,9 @@ export const resetProcessingRequests = mutation({
  *
  * Called by the daemon on each heartbeat when the state has changed.
  * Uses upsert pattern: query by index → patch existing or insert new.
+ *
+ * @deprecated Retained for daemons that predate WorkspaceService; new daemons use patchWorkspaceGitState.
+ * Behaviour unchanged.
  */
 export const upsertWorkspaceGitState = mutation({
   args: {
@@ -767,6 +772,37 @@ export const upsertWorkspaceGitState = mutation({
     } else {
       await ctx.db.insert('chatroom_workspaceGitState', omitUndefinedRecord({ ...data }));
     }
+  },
+});
+
+/**
+ * Applies one git-state unit (e.g. only the HEAD branch) to a workspace.
+ *
+ * Called by the daemon's WorkspaceService on every change. The row's `updatedAt`
+ * is stamped server-side and only moves when a field owned by the unit changed.
+ * Returns `workspace_inactive` if the workspace was removed; nothing is written.
+ */
+export const patchWorkspaceGitState = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    unit: workspaceGitStateUnitValidator,
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireSession(ctx, args.sessionId);
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+
+    return patchWorkspaceGitStateUseCase(ctx, {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      unit: args.unit,
+      now: Date.now(),
+    });
   },
 });
 
