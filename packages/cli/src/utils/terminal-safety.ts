@@ -30,11 +30,11 @@ export function sanitizeForTerminal(input: string): string {
   return (
     input
       .replace(/\r\n?/g, '\n')
-      // OSC payload excludes ESC: `[^\u0007]*` would also consume ESC, so a greedy match
-      // could run from one OSC sequence through visible text to a later terminator.
-      // Excluding ESC stops each match at its own terminator. A stray ESC is still
-      // removed by the C0 step below.
-      .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
+      // OSC ends at BEL, ESC `\` or the 8-bit ST (U+009C). The payload excludes all three,
+      // so a match stops at its own terminator. Without that exclusion a greedy match could
+      // run from one OSC sequence through visible text to a later terminator. A stray ESC
+      // is still removed by the C0 step below, and a bare U+009C by the C1 step.
+      .replace(/\u001B\][^\u0007\u001B\u009C]*(?:\u0007|\u001B\\|\u009C)/g, '')
       .replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '')
       .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
       .replace(/[\u2028\u2029]/g, '\n')

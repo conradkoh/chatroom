@@ -167,6 +167,36 @@ describe('OSC sequences', () => {
   test('an OSC with no terminator leaves its payload visible once the ESC is stripped', () => {
     expect(sanitizeForTerminal('\u001B]0;title')).toBe(']0;title');
   });
+
+  test('an 8-bit ST ends an OSC sequence, so visible text after it survives', () => {
+    expect(sanitizeForTerminal('x\u001B]0;title\u009Cvisible\u0007y')).toBe('xvisibley');
+  });
+
+  test('an 8-bit ST ends an OSC sequence that has no BEL after it', () => {
+    expect(sanitizeForTerminal('a\u001B]0;t\u009Cb')).toBe('ab');
+  });
+
+  test('a BEL-terminated OSC sequence strips cleanly', () => {
+    expect(sanitizeForTerminal('a\u001B]0;t\u0007b')).toBe('ab');
+  });
+
+  test('an OSC 8 hyperlink keeps its link text', () => {
+    expect(sanitizeForTerminal('a\u001B]8;;http://x\u001B\\link\u001B]8;;\u001B\\b')).toBe(
+      'alinkb'
+    );
+  });
+
+  test('a bare 8-bit ST is removed', () => {
+    expect(sanitizeForTerminal('a\u009Cb')).toBe('ab');
+  });
+
+  test('a bare 8-bit OSC introducer is removed, leaving its payload visible', () => {
+    expect(sanitizeForTerminal('a\u009D0;t\u0007b')).toBe('a0;tb');
+  });
+
+  test('an unterminated OSC leaves its payload visible once the ESC is stripped', () => {
+    expect(sanitizeForTerminal('a\u001B]0;title')).toBe('a]0;title');
+  });
 });
 
 describe('variation selectors', () => {
