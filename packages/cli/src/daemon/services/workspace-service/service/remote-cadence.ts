@@ -25,10 +25,12 @@ export type RemoteCadenceInput = {
 export function nextRemotePollDelayMs(input: RemoteCadenceInput): number {
   const { policy } = input;
   if (input.consecutiveFailures > 0) {
+    // Uncapped exponent: the delay doubles until it reaches errorBackoffMaxMs, which is the only cap.
     return computeBackoff(
       input.consecutiveFailures,
       policy.hotIntervalMs,
-      policy.errorBackoffMaxMs
+      policy.errorBackoffMaxMs,
+      Infinity
     );
   }
   if (input.checksState === 'pending') return policy.pendingChecksIntervalMs;

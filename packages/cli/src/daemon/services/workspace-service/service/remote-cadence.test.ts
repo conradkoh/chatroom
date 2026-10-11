@@ -91,6 +91,14 @@ describe('nextRemotePollDelayMs', () => {
       ]);
     });
 
+    it('reaches errorBackoffMaxMs at the 7th failure under the default policy and stays there', () => {
+      const delays = [1, 2, 3, 4, 5, 6, 7].map((consecutiveFailures) =>
+        nextRemotePollDelayMs(input({ consecutiveFailures }))
+      );
+      expect(delays).toEqual([15_000, 30_000, 60_000, 120_000, 240_000, 480_000, 600_000]);
+      expect(nextRemotePollDelayMs(input({ consecutiveFailures: 20 }))).toBe(600_000);
+    });
+
     it('caps the delay at errorBackoffMaxMs', () => {
       const policy = { ...POLICY, errorBackoffMaxMs: 100_000 };
       const delays = [1, 2, 3, 4, 5, 6].map((consecutiveFailures) =>
