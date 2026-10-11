@@ -49,6 +49,21 @@ export type PackageManager = 'pnpm' | 'yarn' | 'bun' | 'npm';
 const MAX_NAME_LENGTH = 256;
 const MAX_SCRIPT_LENGTH = 4096;
 
+/**
+ * Basenames of files that `discoverCommands` reads. A change to one of these can change the
+ * discovered command set, so the workspace service uses this list to decide when to re-discover.
+ */
+// Reason: the WorkspaceService commands collector (S3b/S5) consumes this to detect manifest changes; no production consumer yet.
+// fallow-ignore-next-line unused-export
+export const COMMAND_MANIFEST_BASENAMES: ReadonlySet<string> = new Set([
+  'package.json',
+  'turbo.json',
+  'deno.json',
+  'deno.jsonc',
+  'Makefile',
+  'makefile',
+]);
+
 // ─── Package Manager Detection ─────────────────────────────────────────────
 
 /**
@@ -194,10 +209,10 @@ async function readRootPackageJson(
 ): Promise<{ commands: DiscoveredCommand[]; rootPackageName: string }> {
   let rootPackageName = basename(workingDir);
 
-  const pkg = await readJsonFile<{ name?: string | undefined; scripts?: Record<string, string> | undefined }>(
-    join(workingDir, 'package.json'),
-    'root package.json'
-  );
+  const pkg = await readJsonFile<{
+    name?: string | undefined;
+    scripts?: Record<string, string> | undefined;
+  }>(join(workingDir, 'package.json'), 'root package.json');
   if (!pkg) return { commands: [], rootPackageName };
 
   if (pkg.name) rootPackageName = pkg.name;
@@ -235,10 +250,10 @@ async function readTurboJson(
 async function readDenoJson(workingDir: string): Promise<DiscoveredCommand[]> {
   const commands: DiscoveredCommand[] = [];
   for (const fileName of ['deno.json', 'deno.jsonc'] as const) {
-    const deno = await readJsonFile<{ name?: string | undefined; tasks?: Record<string, string> | undefined }>(
-      join(workingDir, fileName),
-      fileName
-    );
+    const deno = await readJsonFile<{
+      name?: string | undefined;
+      tasks?: Record<string, string> | undefined;
+    }>(join(workingDir, fileName), fileName);
     if (!deno?.tasks || typeof deno.tasks !== 'object') continue;
 
     const pkgName = deno.name ?? basename(workingDir);
