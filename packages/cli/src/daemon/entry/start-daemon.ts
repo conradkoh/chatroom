@@ -15,6 +15,10 @@ import { createLogServer, resolveLogsDbPath } from '../../infrastructure/log-ser
 import { loadDaemonState } from '../../infrastructure/machine/daemon-state.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
+import {
+  formatClaudeSdkLoadError,
+  resolvePathToClaudeCodeExecutable,
+} from '../infrastructure/local/harness/services/claude-sdk/claude-sdk-package.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { createLogRepository } from '../infrastructure/repository/log-repository.js';
 import { ingestChatroomEvent } from '../local-web/client/lib/socket.js';
@@ -187,6 +191,13 @@ export async function startDaemon(): Promise<void> {
   startBackgroundMachineCapabilitiesDiscovery(
     createStartBackgroundCapabilitiesDiscoveryDeps(layers)
   );
+  // Pin the Claude SDK native binary now, while the install it came from is still in place.
+  // Optional: a failure only means the claude-sdk harness is unavailable.
+  resolvePathToClaudeCodeExecutable().catch((err: unknown) => {
+    console.warn(
+      `[daemon] Claude SDK binary not pinned at startup: ${formatClaudeSdkLoadError(err)}`
+    );
+  });
 
   const runtime = createDaemonRuntime({
     wsClient,

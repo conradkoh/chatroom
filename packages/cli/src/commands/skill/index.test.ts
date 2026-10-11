@@ -5,7 +5,6 @@
  * Does NOT make real network calls — all backend ops are mocked.
  */
 
-import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SkillDeps } from './deps.js';
@@ -29,8 +28,36 @@ function createMockDeps(overrides?: Partial<SkillDeps>): SkillDeps {
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
       getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
+    externalSkills: {
+      discover: vi.fn().mockResolvedValue({ skills: [], issues: [] }),
+    },
     ...overrides,
   };
+}
+
+/** Builtin registry as returned by api.skills.list. */
+const builtinBacklogList = [
+  { skillId: 'backlog', name: 'Backlog', description: 'Manage backlog items', type: 'builtin' },
+];
+
+/** Build a discovered external skill. Paths are fake; nothing touches the real filesystem. */
+function externalSkill(
+  skillId: string,
+  overrides: { description?: string; body?: string; skillDir?: string } = {}
+) {
+  const dir = `/home/user/.agents/skills/${skillId}`;
+  return {
+    skillId,
+    name: skillId,
+    description: overrides.description ?? `${skillId} description`,
+    skillDir: overrides.skillDir ?? dir,
+    sourcePath: dir,
+    body: overrides.body ?? `# ${skillId}\n`,
+  };
+}
+
+function mockDiscovery(deps: SkillDeps, skills: unknown[], issues: unknown[] = []): void {
+  (deps.externalSkills.discover as ReturnType<typeof vi.fn>).mockResolvedValue({ skills, issues });
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +149,76 @@ describe('listSkills', () => {
   });
 });
 
+describe('listSkills — machine-installed skills', () => {
+  const builtinBrowser = {
+    skillId: 'agent-browser',
+    name: 'Builtin Browser',
+    description: 'Builtin browser description',
+    type: 'builtin',
+  };
+
+  it('lists installed skills with their skill directory', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { skillId: 'backlog', name: 'Backlog', description: 'Manage backlog', type: 'builtin' },
+    ]);
+    mockDiscovery(deps, [externalSkill('agent-browser', { description: 'Drive a browser' })]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    const output = getAllLogOutput();
+    expect(output).toContain('Available skills:');
+    expect(output).toContain('Installed skills (this machine):');
+    expect(output).toContain('agent-browser');
+    expect(output).toContain('Drive a browser');
+    expect(output).toContain('/home/user/.agents/skills/agent-browser');
+  });
+
+  it('hides an installed skill that collides with a builtin and reports it as skipped', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([builtinBrowser]);
+    mockDiscovery(deps, [externalSkill('agent-browser', { description: 'External browser' })]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Builtin browser description');
+    expect(output).not.toContain('External browser');
+    expect(output).not.toContain('Installed skills (this machine):');
+    expect(output).toContain('Skipped installed skills:');
+    expect(output).toContain('builtin-collision');
+  });
+
+  it('lists installed skills without printing "No skills available." when there are no builtins', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [externalSkill('local-tool')]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('local-tool');
+    expect(output).toContain('Installed skills (this machine):');
+    expect(output).not.toContain('No skills available.');
+    expect(output).not.toContain('Available skills:');
+  });
+
+  it('strips control characters from installed skill fields', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('evil-skill', { description: 'Clean\u001b[31m RED\u001b[0m\u0007 text' }),
+    ]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Clean RED text');
+    expect(output).not.toMatch(/\u001b|\u0007/);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // activateSkill tests
 // ---------------------------------------------------------------------------
@@ -144,6 +241,7 @@ describe('activateSkill', () => {
 
   it('prints success message when activation succeeds', async () => {
     const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       skill: {
@@ -161,21 +259,20 @@ describe('activateSkill', () => {
     expect(output).toContain('Score all unscored backlog items.');
   });
 
-  it('exits with code 1 and prints error message when skill not found (ConvexError)', async () => {
+  it('exits with code 1 and says not found when the id is neither builtin nor installed', async () => {
     const deps = createMockDeps();
-    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new ConvexError('Skill "bad-skill" not found or is disabled.')
-    );
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
 
     await activateSkill(TEST_CHATROOM_ID, 'bad-skill', { role: 'builder' }, deps);
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    const errorOutput = getAllErrorOutput();
-    expect(errorOutput).toContain('not found or is disabled');
+    expect(getAllErrorOutput()).toContain('not found');
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
   it('exits with code 1 when mutation throws a generic error', async () => {
     const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('Connection refused')
     );
@@ -189,6 +286,7 @@ describe('activateSkill', () => {
 
   it('calls mutation with the correct arguments', async () => {
     const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       skill: {
@@ -210,5 +308,177 @@ describe('activateSkill', () => {
         convexUrl: 'http://test:3210',
       })
     );
+  });
+});
+
+describe('activateSkill — machine-installed skills', () => {
+  it('prints the directory and body of an installed skill and makes no mutation call', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
+    mockDiscovery(deps, [
+      externalSkill('agent-browser', { body: '# agent-browser\n\nUse the browser.\n' }),
+    ]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'agent-browser', { role: 'builder' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+    const output = getAllLogOutput();
+    expect(output).toContain('✅ Skill "agent-browser" activated (installed on this machine).');
+    expect(output).toContain('Skill directory: /home/user/.agents/skills/agent-browser');
+    expect(output).toContain('# agent-browser');
+    expect(output).toContain('Use the browser.');
+  });
+
+  it('calls the mutation for a builtin id even when an installed skill has the same name', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+      skill: { skillId: 'backlog', prompt: 'Builtin prompt.' },
+    });
+    mockDiscovery(deps, [externalSkill('backlog', { body: 'External body.' })]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'backlog', { role: 'builder' }, deps);
+
+    expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+    const output = getAllLogOutput();
+    expect(output).toContain('Builtin prompt.');
+    expect(output).not.toContain('External body.');
+  });
+
+  it('strips control characters from the installed skill body', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('evil-skill', { body: 'Plain\u001b[31m RED\u001b[0m\u0007 line\n' }),
+    ]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'evil-skill', { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Plain RED line');
+    expect(output).not.toMatch(/\u001b|\u0007/);
+  });
+
+  it('points to chatroom skill list when the id is neither builtin nor installed', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(builtinBacklogList);
+
+    await activateSkill(TEST_CHATROOM_ID, 'does-not-exist', { role: 'builder' }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getAllErrorOutput()).toContain(
+      `❌ Skill "does-not-exist" not found. Run \`chatroom skill list --chatroom-id=${TEST_CHATROOM_ID} --role=builder\` to see available skills.`
+    );
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+});
+
+describe('bidi controls in installed skill output', () => {
+  it('strips bidi controls from both skill list and skill activate output', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('spoof', { description: 'Safe\u202E desc', body: 'Body\u2066 text\n' }),
+    ]);
+    const bidi = /[\u202A-\u202E\u2066-\u2069]/;
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+    const listOutput = getAllLogOutput();
+    expect(listOutput).toContain('Safe desc');
+    expect(listOutput).not.toMatch(bidi);
+
+    logSpy.mockClear();
+    await activateSkill(TEST_CHATROOM_ID, 'spoof', { role: 'builder' }, deps);
+    const activateOutput = getAllLogOutput();
+    expect(activateOutput).toContain('Body text');
+    expect(activateOutput).not.toMatch(bidi);
+  });
+});
+
+describe('carriage returns in installed skill output', () => {
+  it('turns a CR in the activation body into a newline, so it cannot overwrite a printed line', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [externalSkill('crafty', { body: 'line1\rSPOOF' })]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'crafty', { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('line1\nSPOOF');
+    expect(output).not.toContain('\r');
+  });
+});
+
+describe('single-line fields and multi-line bodies', () => {
+  it('collapses a multi-line description and directory onto one row each', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('multi', {
+        description: 'first line\nsecond line\n  /fake/dir',
+        skillDir: '/fake\n  dir',
+      }),
+    ]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const lines = getAllLogOutput().split('\n');
+    const start = lines.indexOf('Installed skills (this machine):');
+    const block = lines.slice(start);
+    expect(block).toHaveLength(3);
+    // "  " + id padded to 5 + "  " = 9 columns, so the directory row aligns under the description.
+    expect(block[1]).toBe('  multi  first line second line /fake/dir');
+    expect(block[2]).toBe(`${' '.repeat(9)}/fake dir`);
+  });
+
+  it('prints a skipped issue whose path contains a newline on one row', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [], [{ path: '/roots/a\nb', reason: 'unreadable', detail: 'EACCES' }]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const lines = getAllLogOutput().split('\n');
+    expect(lines).toContain('  /roots/a b: unreadable (EACCES)');
+  });
+
+  it('keeps internal newlines in the activation body', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [externalSkill('stepped', { body: '# T\n\nstep 1' })]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'stepped', { role: 'builder' }, deps);
+
+    expect(getAllLogOutput()).toContain('# T\n\nstep 1');
+  });
+
+  it('prints the not-found id on one row with no escape sequences or newlines', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await activateSkill(TEST_CHATROOM_ID, 'bad\nid\u001B[31m', { role: 'builder' }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const errors = getAllErrorOutput();
+    expect(errors).toContain('Skill "bad id" not found');
+    expect(errors).not.toMatch(/\u001B/);
+  });
+});
+
+describe('invisible characters in installed skill output', () => {
+  it('strips zero-width and tag characters from the skill list description', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockDiscovery(deps, [
+      externalSkill('hidden-text', { description: 'Zero\u200Bwidth\u{E0049} text' }),
+    ]);
+
+    await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Zerowidth text');
+    expect(output).not.toContain('\u200B');
+    expect(output).not.toMatch(/[\u{E0000}-\u{E007F}]/u);
   });
 });

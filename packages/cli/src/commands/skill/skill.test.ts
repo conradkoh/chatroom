@@ -18,9 +18,15 @@ import {
   type ListSkillsOptions,
   type ActivateSkillOptions,
 } from './index.js';
+import type { ExternalSkillsOps } from '../../infrastructure/external-skills/index.js';
 import { BackendService, SessionService } from '../../infrastructure/services/index.js';
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
+
+/** External skills stub: no machine-installed skills. Never touches the real $HOME. */
+const noExternalSkills: ExternalSkillsOps = {
+  discover: async () => ({ skills: [], issues: [] }),
+};
 
 /** Create a test backend service with configurable query/mutation responses */
 function makeTestBackend(config: {
@@ -62,6 +68,11 @@ function makeTestSession(config: {
   });
 }
 
+/** Builtin registry as returned by api.skills.list. Activate decides builtin-ness from this. */
+const builtinBacklog = [
+  { skillId: 'backlog', name: 'Backlog', description: 'Manage backlog items', type: 'builtin' },
+];
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe('listSkillsEffect', () => {
@@ -90,7 +101,9 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Success');
@@ -104,7 +117,9 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Success');
@@ -122,7 +137,9 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Failure');
@@ -147,7 +164,7 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(shortId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(shortId, validOptions, noExternalSkills).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Failure');
@@ -170,7 +187,9 @@ describe('listSkillsEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Failure');
@@ -212,12 +231,12 @@ describe('activateSkillEffect', () => {
     };
 
     const testLayer = Layer.mergeAll(
-      makeTestBackend({ mutationResponse: mockResult }),
+      makeTestBackend({ queryResponse: builtinBacklog, mutationResponse: mockResult }),
       makeTestSession({ sessionId: 'test-session' })
     );
 
     const exit = await Effect.runPromiseExit(
-      activateSkillEffect(validChatroomId, validSkillId, validOptions).pipe(
+      activateSkillEffect(validChatroomId, validSkillId, validOptions, noExternalSkills).pipe(
         Effect.provide(testLayer)
       )
     );
@@ -237,7 +256,7 @@ describe('activateSkillEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      activateSkillEffect(validChatroomId, validSkillId, validOptions).pipe(
+      activateSkillEffect(validChatroomId, validSkillId, validOptions, noExternalSkills).pipe(
         Effect.provide(testLayer)
       )
     );
@@ -260,7 +279,9 @@ describe('activateSkillEffect', () => {
     );
 
     const exit = await Effect.runPromiseExit(
-      activateSkillEffect(shortId, validSkillId, validOptions).pipe(Effect.provide(testLayer))
+      activateSkillEffect(shortId, validSkillId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Failure');
@@ -273,14 +294,65 @@ describe('activateSkillEffect', () => {
     }
   });
 
-  test('fails with MutationFailed when backend mutation throws', async () => {
+  test('fails with SkillNotFound when the id is neither builtin nor installed', async () => {
     const testLayer = Layer.mergeAll(
-      makeTestBackend({ mutationResponse: new Error('Skill not found') }),
+      makeTestBackend({ queryResponse: builtinBacklog }),
       makeTestSession({ sessionId: 'test-session' })
     );
 
     const exit = await Effect.runPromiseExit(
-      activateSkillEffect(validChatroomId, validSkillId, validOptions).pipe(
+      activateSkillEffect(validChatroomId, 'does-not-exist', validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag === 'Failure') {
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
+        option._tag === 'Some' ? option.value : null
+      ) as ActivateSkillError | null;
+      expect(error?._tag).toBe('SkillNotFound');
+      if (error?._tag === 'SkillNotFound') {
+        expect(error.skillId).toBe('does-not-exist');
+      }
+    }
+  });
+
+  test('fails with QueryFailed when the builtin skill query throws', async () => {
+    const testLayer = Layer.mergeAll(
+      makeTestBackend({ queryResponse: new Error('Network error') }),
+      makeTestSession({ sessionId: 'test-session' })
+    );
+
+    const exit = await Effect.runPromiseExit(
+      activateSkillEffect(validChatroomId, validSkillId, validOptions, noExternalSkills).pipe(
+        Effect.provide(testLayer)
+      )
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag === 'Failure') {
+      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
+        option._tag === 'Some' ? option.value : null
+      ) as ActivateSkillError | null;
+      expect(error?._tag).toBe('QueryFailed');
+      if (error?._tag === 'QueryFailed') {
+        expect(error.cause.message).toBe('Network error');
+      }
+    }
+  });
+
+  test('fails with MutationFailed when backend mutation throws', async () => {
+    const testLayer = Layer.mergeAll(
+      makeTestBackend({
+        queryResponse: builtinBacklog,
+        mutationResponse: new Error('Skill not found'),
+      }),
+      makeTestSession({ sessionId: 'test-session' })
+    );
+
+    const exit = await Effect.runPromiseExit(
+      activateSkillEffect(validChatroomId, validSkillId, validOptions, noExternalSkills).pipe(
         Effect.provide(testLayer)
       )
     );
