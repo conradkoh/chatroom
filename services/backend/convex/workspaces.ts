@@ -1623,6 +1623,15 @@ export const upsertRecentCommits = mutation({
       )
       .first();
 
+    // No-op guard: identical commits leave updatedAt untouched.
+    if (
+      existing &&
+      existing.hasMoreCommits === args.hasMoreCommits &&
+      JSON.stringify(existing.commits) === JSON.stringify(args.commits)
+    ) {
+      return;
+    }
+
     const now = Date.now();
     if (existing) {
       await ctx.db.patch('chatroom_workspaceRecentCommits', existing._id, {

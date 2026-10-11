@@ -904,3 +904,76 @@ describe('daemon.commands.updateRunTail', () => {
     expect(result.tail?.content).toBe('tail-data');
   });
 });
+
+describe('syncCommands no-op guard', () => {
+  const WORKING_DIR = '/tmp/sync-noop';
+  const COMMANDS = [
+    { name: 'dev', script: 'vite', source: 'package.json' as const },
+    {
+      name: 'build',
+      script: 'vite build',
+      source: 'package.json' as const,
+      subWorkspace: { type: 'npm', path: 'apps/web', name: '@workspace/web' },
+    },
+  ];
+
+  function readRunnableCommands(machineId: string) {
+    return t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_runnableCommands')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', machineId).eq('workingDir', WORKING_DIR)
+        )
+        .collect()
+    );
+  }
+
+  test('identical command set (any order) leaves rows untouched: same _id and syncedAt', async () => {
+    const { sessionId, machineId } = await setupMachine('sync-noop-same');
+    await t.mutation(api.commands.syncCommands, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      commands: COMMANDS,
+    });
+    const before = await readRunnableCommands(machineId);
+
+    vi.setSystemTime(FIXED_NOW + 60_000);
+    await t.mutation(api.commands.syncCommands, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      commands: [...COMMANDS].reverse(),
+    });
+    const after = await readRunnableCommands(machineId);
+
+    expect(after.map((row) => row._id).sort()).toEqual(before.map((row) => row._id).sort());
+    expect(after.every((row) => row.syncedAt === FIXED_NOW)).toBe(true);
+  });
+
+  test('changed command set replaces rows', async () => {
+    const { sessionId, machineId } = await setupMachine('sync-noop-changed');
+    await t.mutation(api.commands.syncCommands, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      commands: COMMANDS,
+    });
+    const before = await readRunnableCommands(machineId);
+
+    vi.setSystemTime(FIXED_NOW + 60_000);
+    await t.mutation(api.commands.syncCommands, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      commands: [{ name: 'dev', script: 'vite --host', source: 'package.json' as const }],
+    });
+    const after = await readRunnableCommands(machineId);
+
+    expect(after).toHaveLength(1);
+    expect(after[0]!.script).toBe('vite --host');
+    expect(after[0]!.syncedAt).toBe(FIXED_NOW + 60_000);
+    const beforeIds = new Set(before.map((row) => row._id));
+    expect(beforeIds.has(after[0]!._id)).toBe(false);
+  });
+});

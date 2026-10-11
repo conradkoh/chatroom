@@ -7,6 +7,10 @@
  * automatic trigger for daemon git+command pushes. The daemon consumes these
  * events and pushes git state + command state for each workspace once per
  * delivery.
+ *
+ * Compatibility refresh trigger: it is retained for daemons without WorkspaceService.
+ * Current daemons sync on every change, and their `refresh()` deduplicates, so this
+ * enqueue is redundant for them.
  */
 
 import type { Id } from '../../../../convex/_generated/dataModel';
