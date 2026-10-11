@@ -350,7 +350,7 @@ Invalid skills are not listed. They appear in the `Skipped installed skills:` se
 
 ### Listing
 
-`chatroom skill list` prints builtins under `Available skills:`, installed skills under `Installed skills (this machine):` (with each skill directory), and skipped skills under `Skipped installed skills:`. Every external field is sanitized before printing, so ANSI sequences and control characters are stripped, and Unicode bidi controls (U+202A–U+202E, U+2066–U+2069) are stripped; U+2028/U+2029 become newlines, carriage returns become newlines, and zero-width space, word joiner, BOM and Unicode tag characters are stripped; soft hyphen, the Hangul fillers and invisible operators (U+2061–U+2064), and the variation selectors supplement (U+E0100–U+E01EF) are also stripped. Single-line fields (description, directory, skipped path and detail, the not-found id) are collapsed to one line so a multi-line value can't forge rows; the activation body keeps its newlines.
+`chatroom skill list` prints builtins under `Available skills:`, installed skills under `Installed skills (this machine):` (with each skill directory), and skipped skills under `Skipped installed skills:`. Every external field is sanitized before printing: ANSI sequences and control characters are stripped, carriage returns and U+2028/U+2029 become newlines, and all Unicode default-ignorable characters plus U+FFF9–U+FFFB are stripped, except ALM, ZWNJ, ZWJ, LRM, RLM and VS16; runs of those are capped at 2. Single-line fields (description, directory, skipped path and detail, the not-found id) are collapsed to one line so a multi-line value can't forge rows; the activation body keeps its newlines.
 
 ### Activation
 

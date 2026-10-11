@@ -169,6 +169,73 @@ describe('OSC sequences', () => {
   });
 });
 
+describe('variation selectors', () => {
+  test('strips every code point in U+FE00–U+FE0E (VS1–VS15)', () => {
+    for (let cp = 0xfe00; cp <= 0xfe0e; cp++) {
+      expect(sanitizeForTerminal('a' + String.fromCodePoint(cp) + 'b')).toBe('ab');
+    }
+  });
+
+  test('a text-variation selector after a glyph leaves the base glyph', () => {
+    expect(sanitizeForTerminal('↩\uFE0E')).toBe('↩');
+  });
+
+  test('keeps VS16 emoji presentation', () => {
+    expect(sanitizeForTerminal('❤\uFE0F')).toBe('❤\uFE0F');
+  });
+
+  test('keeps a rainbow flag, which uses VS16 followed by ZWJ', () => {
+    const rainbow = '\u{1F3F3}\uFE0F\u200D\u{1F308}';
+    expect(sanitizeForTerminal(rainbow)).toBe(rainbow);
+  });
+
+  test('strips the nibble payload and keeps the surviving VS16 run', () => {
+    expect(sanitizeForTerminal('A\uFE01\uFE0F\uFE03\uFE0F\uFE0F')).toBe('A\uFE0F\uFE0F');
+  });
+});
+
+describe('default-ignorable format controls', () => {
+  test('strips default-ignorable code points outside the earlier hand-written list', () => {
+    const ranges: [number, number][] = [
+      [0x206a, 0x206f],
+      [0xfff9, 0xfffb],
+      [0x180b, 0x180d],
+      [0x180f, 0x180f],
+      [0x1d173, 0x1d17a],
+      [0x1bca0, 0x1bca3],
+      [0x17b4, 0x17b5],
+      [0xe0080, 0xe0080],
+    ];
+    for (const [start, end] of ranges) {
+      for (let cp = start; cp <= end; cp++) {
+        expect(sanitizeForTerminal('a' + String.fromCodePoint(cp) + 'b')).toBe('ab');
+      }
+    }
+  });
+
+  test('keeps each text-shaping mark when it stands alone', () => {
+    for (const cp of [0x061c, 0x200c, 0x200d, 0x200e, 0x200f, 0xfe0f]) {
+      const ch = String.fromCodePoint(cp);
+      expect(sanitizeForTerminal('a' + ch + 'b')).toBe('a' + ch + 'b');
+    }
+  });
+});
+
+describe('kept-mark runs', () => {
+  test('caps a run of ZWJ at two', () => {
+    expect(sanitizeForTerminal('a' + '\u200D'.repeat(10) + 'b')).toBe('a\u200D\u200Db');
+  });
+
+  test('caps an alternating run of ZWNJ and ZWJ at two', () => {
+    expect(sanitizeForTerminal('A' + '\u200C\u200D'.repeat(20))).toBe('A\u200C\u200D');
+  });
+
+  test('keeps the emoji family sequence unchanged', () => {
+    const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+    expect(sanitizeForTerminal(family)).toBe(family);
+  });
+});
+
 describe('sanitizeUnknownForTerminal', () => {
   test('sanitizes an error message', () => {
     expect(sanitizeUnknownForTerminal(new Error('x\u202Ey').message)).toBe('xy');
