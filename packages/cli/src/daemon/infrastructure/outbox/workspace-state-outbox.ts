@@ -28,12 +28,45 @@ export function encodeWorkspaceStateKey(workingDir: string, kind: WorkspaceState
   return JSON.stringify([workingDir, kind]);
 }
 
+const WORKSPACE_STATE_KINDS: ReadonlySet<string> = new Set<WorkspaceStateKind>([
+  'head',
+  'worktree',
+  'upstream',
+  'remotes',
+  'pullRequests',
+  'checks',
+  'recentCommits',
+  'commands',
+]);
+
+/**
+ * Throws on any key that `encodeWorkspaceStateKey` could not have produced, so a corrupt
+ * durable row fails loudly instead of being routed with an unknown kind.
+ */
 export function decodeWorkspaceStateKey(key: string): {
   workingDir: string;
   kind: WorkspaceStateKind;
 } {
-  const [workingDir, kind] = JSON.parse(key) as [string, WorkspaceStateKind];
+  const parsed = parseKeyTuple(key);
+  const [workingDir, kind] = parsed ?? [];
+  if (typeof workingDir !== 'string' || !isWorkspaceStateKind(kind)) {
+    throw new Error(`Malformed workspace-state key: ${key}`);
+  }
   return { workingDir, kind };
+}
+
+/** Returns the raw `[workingDir, kind]` pair, or null when the key is not a 2-element JSON array. */
+function parseKeyTuple(key: string): unknown[] | null {
+  try {
+    const parsed: unknown = JSON.parse(key);
+    return Array.isArray(parsed) && parsed.length === 2 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isWorkspaceStateKind(value: unknown): value is WorkspaceStateKind {
+  return typeof value === 'string' && WORKSPACE_STATE_KINDS.has(value);
 }
 
 /**

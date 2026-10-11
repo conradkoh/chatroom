@@ -75,6 +75,13 @@ describe('workspace-state outbox key codec', () => {
     });
   });
 
+  it.each(['not json', '["/a","bogus"]', '["/a"]', '[1,"head"]', '"head"'])(
+    'rejects a malformed key %j',
+    (key) => {
+      expect(() => decodeWorkspaceStateKey(key)).toThrow(/Malformed workspace-state key/);
+    }
+  );
+
   it('keeps the same working directory with different kinds on different keys', () => {
     expect(encodeWorkspaceStateKey('/ws', 'head')).not.toBe(
       encodeWorkspaceStateKey('/ws', 'worktree')
