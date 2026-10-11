@@ -41,7 +41,7 @@ const workspaceActivityRowSchema = z.strictObject({
  * Constraint: a dropped row removes its workspace from membership on this snapshot, the same as
  * a row that is absent from the backend result.
  */
-export function parseWorkspaceActivityRows(payload: unknown): WorkspaceActivityRow[] | null {
+function parseWorkspaceActivityRows(payload: unknown): WorkspaceActivityRow[] | null {
   if (!Array.isArray(payload)) {
     console.error('[workspace-activity] snapshot is not an array; skipping update');
     return null;
@@ -65,6 +65,8 @@ export function parseWorkspaceActivityRows(payload: unknown): WorkspaceActivityR
  * Subscribes to the active workspaces of `machineId`. Each parsed snapshot is handed to the
  * caller as-is; membership and normalization are decided by the service, not here.
  */
+// Reason: the daemon constructs this source in S5, which is its first production consumer.
+// fallow-ignore-next-line unused-export
 export function createWorkspaceActivitySource(args: {
   wsClient: ConvexWsClientLike;
   sessionId: SessionId;
