@@ -1,9 +1,11 @@
+import type { FunctionArgs } from 'convex/server';
+
 import type { WorkspaceStateUnit } from './workspace-state-outbox-schema.js';
 import type { WorkspaceStateSendResult } from './workspace-state-outbox.js';
 import { decodeWorkspaceStateKey } from './workspace-state-outbox.js';
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
-import type { SessionId } from '../../entry/daemon-types.js';
+import { asConvexSessionId, type SessionId } from '../../entry/daemon-types.js';
 
 type WorkspaceStateSendDeps = {
   sessionId: SessionId;
@@ -32,34 +34,45 @@ function runInWorkingDirChain<T>(
   return current;
 }
 
-/** The only place where workspace-state unit kinds map to Convex functions. */
+type PatchWorkspaceGitStateArgs = FunctionArgs<typeof api.workspaces.patchWorkspaceGitState>;
+type UpsertRecentCommitsArgs = FunctionArgs<typeof api.workspaces.upsertRecentCommits>;
+type SyncCommandsArgs = FunctionArgs<typeof api.commands.syncCommands>;
+
+/**
+ * The only place where workspace-state unit kinds map to Convex functions.
+ * Each call's args are checked with `satisfies` against the generated backend signature, so
+ * a zod schema that drifts from the backend validators fails to typecheck here.
+ */
 async function deliverUnit(
   deps: WorkspaceStateSendDeps,
   workingDir: string,
   unit: WorkspaceStateUnit
 ): Promise<WorkspaceStateSendResult> {
-  const base = { sessionId: deps.sessionId, machineId: deps.machineId, workingDir };
+  const base = {
+    sessionId: asConvexSessionId(deps.sessionId),
+    machineId: deps.machineId,
+    workingDir,
+  };
   switch (unit.kind) {
-    case 'recentCommits':
+    case 'recentCommits': {
       // upsertRecentCommits returns nothing, so there is no backend applied signal.
-      await deps.backend.mutation(api.workspaces.upsertRecentCommits, {
+      const args = {
         ...base,
         commits: unit.commits,
         hasMoreCommits: unit.hasMoreCommits,
-      });
+      } satisfies UpsertRecentCommitsArgs;
+      await deps.backend.mutation(api.workspaces.upsertRecentCommits, args);
       return { applied: true };
-    case 'commands':
+    }
+    case 'commands': {
       // syncCommands returns nothing; its no-op guard is internal to the backend.
-      await deps.backend.mutation(api.commands.syncCommands, {
-        ...base,
-        commands: unit.commands,
-      });
+      const args = { ...base, commands: unit.commands } satisfies SyncCommandsArgs;
+      await deps.backend.mutation(api.commands.syncCommands, args);
       return { applied: true };
+    }
     default: {
-      const result = await deps.backend.mutation(api.workspaces.patchWorkspaceGitState, {
-        ...base,
-        unit,
-      });
+      const args = { ...base, unit } satisfies PatchWorkspaceGitStateArgs;
+      const result = await deps.backend.mutation(api.workspaces.patchWorkspaceGitState, args);
       return { applied: result.applied };
     }
   }

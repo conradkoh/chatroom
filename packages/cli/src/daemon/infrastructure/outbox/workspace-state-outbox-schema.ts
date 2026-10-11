@@ -34,7 +34,8 @@ const commitSchema = z.strictObject({
   sha: z.string(),
   shortSha: z.string(),
   message: z.string(),
-  body: z.string().optional(),
+  // exactOptional matches Convex v.optional under exactOptionalPropertyTypes (no `| undefined`).
+  body: z.exactOptional(z.string()),
   author: z.string(),
   date: z.string(),
 });
@@ -43,13 +44,13 @@ const commandSchema = z.strictObject({
   name: z.string(),
   script: z.string(),
   source: z.enum(['package.json', 'turbo.json', 'deno.json', 'Makefile']),
-  subWorkspace: z
-    .strictObject({
+  subWorkspace: z.exactOptional(
+    z.strictObject({
       type: z.string(),
       path: z.string(),
       name: z.string(),
     })
-    .optional(),
+  ),
 });
 
 /**
