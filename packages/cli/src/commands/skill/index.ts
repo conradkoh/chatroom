@@ -201,6 +201,11 @@ export const activateSkillEffect = (
       // Show the full prompt that the agent sees (first 500 chars for display)
       const promptPreview = result.skill.prompt?.slice(0, 500) ?? '(empty)';
       const promptLength = result.skill.prompt?.length ?? 0;
+      // NOTE: The builtin prompt preview is printed raw on purpose. Every entry in SKILLS
+      // (services/backend/src/domain/types/skills.ts) has customizationType: null, so no
+      // user-editable text reaches this line. Builtin output is byte-identical to before
+      // the external-skills change, which this relies on. If any builtin becomes customizable,
+      // wrap the preview in sanitizeForTerminal before printing.
       console.log(`   ${promptPreview}${promptLength > 500 ? '...' : ''}`);
       console.log('');
     });
