@@ -243,6 +243,19 @@ describe('default-ignorable format controls', () => {
     }
   });
 
+  test('strips every Default_Ignorable_Code_Point except the kept marks (property-based)', () => {
+    const kept = new Set([0x061c, 0x200c, 0x200d, 0x200e, 0x200f, 0xfe0f]);
+    const defaultIgnorable = /\p{Default_Ignorable_Code_Point}/u;
+    let every = '\uFFF9\uFFFA\uFFFB';
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (!kept.has(cp) && defaultIgnorable.test(String.fromCodePoint(cp))) {
+        every += String.fromCodePoint(cp);
+      }
+    }
+    expect(every.length).toBeGreaterThan(3);
+    expect(sanitizeForTerminal(every)).toBe('');
+  });
+
   test('keeps each text-shaping mark when it stands alone', () => {
     for (const cp of [0x061c, 0x200c, 0x200d, 0x200e, 0x200f, 0xfe0f]) {
       const ch = String.fromCodePoint(cp);
@@ -258,6 +271,12 @@ describe('kept-mark runs', () => {
 
   test('caps an alternating run of ZWNJ and ZWJ at two', () => {
     expect(sanitizeForTerminal('A' + '\u200C\u200D'.repeat(20))).toBe('A\u200C\u200D');
+  });
+
+  test('caps a mixed run of ALM, LRM, RLM, ZWJ and VS16 at two', () => {
+    expect(sanitizeForTerminal('a' + '\u061C\u200E\u200F\uFE0F\u200D'.repeat(3) + 'b')).toBe(
+      'a\u061C\u200Eb'
+    );
   });
 
   test('keeps the emoji family sequence unchanged', () => {
