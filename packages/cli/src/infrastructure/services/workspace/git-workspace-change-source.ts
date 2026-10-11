@@ -46,12 +46,18 @@ type PollNodeResult = {
   nextState: NodePollState;
 };
 
-// Reason: WorkspaceService monitor (S4) is the first production consumer.
-// fallow-ignore-next-line unused-export
-export function computeBackoff(failures: number, pollIntervalMs: number): number {
+/**
+ * Exponential retry delay: `pollIntervalMs` after no failures, doubling per failure up to a 2^5
+ * multiplier, then capped at `maxBackoffMs` (defaults to the 30s change-source cap).
+ */
+export function computeBackoff(
+  failures: number,
+  pollIntervalMs: number,
+  maxBackoffMs = MAX_BACKOFF_MS
+): number {
   if (failures <= 0) return pollIntervalMs;
   const backoff = pollIntervalMs * 2 ** Math.min(failures - 1, 5);
-  return Math.min(backoff, MAX_BACKOFF_MS);
+  return Math.min(backoff, maxBackoffMs);
 }
 
 async function pollGitWorkspaceNode(args: {
