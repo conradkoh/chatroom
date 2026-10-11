@@ -245,6 +245,35 @@ describe('createWorkspaceMonitor', () => {
     expect(localKindsEnqueued(h)).toEqual([...LOCAL_KINDS]);
   });
 
+  it('arms the probe and the remote poll on tier-up even when local collection throws', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const h = setup();
+    h.collectLocal.mockRejectedValueOnce(new Error('collect failed'));
+
+    h.setTier('observed');
+    await h.advance(0);
+    expect(h.scheduleRemote).toHaveBeenLastCalledWith(0);
+
+    await h.advance(PROBE);
+    expect(h.probe.readSnapshot).toHaveBeenCalled();
+  });
+
+  it('starts no probe on tier-up when the last completed recompute found no git repo', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const h = setup();
+    h.repo.headAvailable = false;
+    h.setTier('observed');
+    await h.advance(0);
+    h.setTier('idle');
+    h.collectLocal.mockRejectedValueOnce(new Error('collect failed'));
+
+    h.setTier('observed');
+    await h.advance(PROBE);
+
+    expect(h.scheduleRemote).toHaveBeenLastCalledWith(0);
+    expect(h.probe.readSnapshot).not.toHaveBeenCalled();
+  });
+
   it('emits nothing when a later recompute finds no changed unit', async () => {
     const h = setup();
     h.setTier('observed');

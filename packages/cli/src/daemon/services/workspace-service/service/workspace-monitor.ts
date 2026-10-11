@@ -89,7 +89,8 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
   let chain: Promise<void> = Promise.resolve();
 
   const lastHash = new Map<WorkspaceStateKind, string>();
-  let gitAvailable = false;
+  /** Set by each completed local recompute. Null until the first one completes. */
+  let gitAvailable: boolean | null = null;
   let lastHasRemote = false;
   let lastSnapshot: ProbeSnapshot | null = null;
   let lastTriggerAt: number | null = null;
@@ -286,13 +287,22 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
 
   // ---- Public API ----
 
+  /**
+   * Runs the full recompute, then arms the probe and the remote poll. The arm steps run in
+   * `finally`, so a failed local recompute still arms them. The probe is skipped only when the
+   * last completed recompute reported no git repo.
+   */
   async function tierUp(): Promise<void> {
     if (!isObserving()) return;
-    await localRecompute(new Set(LOCAL_KINDS));
-    if (!isObserving()) return;
-    if (gitAvailable) startProbeLoop();
-    lastTriggerAt = now();
-    deps.scheduleRemote(0);
+    try {
+      await localRecompute(new Set(LOCAL_KINDS));
+    } finally {
+      if (isObserving()) {
+        if (gitAvailable !== false) startProbeLoop();
+        lastTriggerAt = now();
+        deps.scheduleRemote(0);
+      }
+    }
   }
 
   return {
