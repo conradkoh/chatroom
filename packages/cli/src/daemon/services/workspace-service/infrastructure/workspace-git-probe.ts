@@ -174,9 +174,23 @@ function localKindsFor(upstreamChanged: boolean, changed: GitPorcelainEntry[]): 
 }
 
 /**
- * Projects a probe snapshot onto the root change-source shape, restricted to `rootPathspec`.
- * An entry is kept when its path or its rename origin is equal to a prefix or below it.
- * An empty pathspec keeps everything.
+ * The entries that `readGitPorcelainStatus` reports for the root node, derived from one probe
+ * snapshot. Same entries, same order.
+ *
+ * Constraint: `git status -- <pathspec>` does not pair a rename across the pathspec boundary, so
+ * it reports only the side inside. The full-repo probe pairs it, so each rename is rewritten to
+ * what git reports for the pathspec:
+ * - both sides inside: kept as a rename.
+ * - destination inside, origin outside: an add of the destination (`R` becomes `A`, the worktree
+ *   column is kept, and `fromPath` is dropped).
+ * - origin inside, destination outside: a delete of the origin (`D `, path = origin).
+ * - neither side inside: dropped.
+ * Renames are read from the index column (`R` in the first xy character), which is what a staged
+ * `git mv` produces. Worktree-only renames are not handled.
+ *
+ * Order matches git's short status: tracked entries by path, then untracked entries by path. A
+ * rewritten entry changes its path, so the output is re-sorted. An empty pathspec returns the
+ * probe entries unchanged, because they are already in that order.
  */
 // Reason: S6 wires this into the file-tree root seam (readRootSnapshot); no production caller until then.
 // fallow-ignore-next-line unused-export
@@ -191,10 +205,38 @@ export function toRootChangeSourceSnapshot(
   const entries =
     prefixes.length === 0
       ? s.entries
-      : s.entries.filter(
-          (entry) =>
-            matches(entry.path) || (entry.fromPath !== undefined && matches(entry.fromPath))
-        );
+      : s.entries.flatMap((entry) => rootEntriesFor(entry, matches)).sort(gitStatusOrder);
 
   return { head: { head: s.branch.oid }, entries };
+}
+
+/** The entries git's pathspec-limited status reports for one probe entry. Empty when none. */
+function rootEntriesFor(
+  entry: GitPorcelainEntry,
+  matches: (p: string) => boolean
+): GitPorcelainEntry[] {
+  if (entry.fromPath === undefined) return matches(entry.path) ? [entry] : [];
+  return renameForPathspec(entry, entry.fromPath, matches);
+}
+
+/** A rename as git's pathspec status reports it, given which of its two sides are inside. */
+function renameForPathspec(
+  entry: GitPorcelainEntry,
+  fromPath: string,
+  matches: (p: string) => boolean
+): GitPorcelainEntry[] {
+  const destinationInside = matches(entry.path);
+  const originInside = matches(fromPath);
+  if (destinationInside === originInside) return destinationInside ? [entry] : [];
+  if (destinationInside) return [{ xy: `A${entry.xy.slice(1)}`, path: entry.path }];
+  return [{ xy: 'D ', path: fromPath }];
+}
+
+/** git's short-status order: tracked entries first, then untracked (`??`), each sorted by path. */
+function gitStatusOrder(a: GitPorcelainEntry, b: GitPorcelainEntry): number {
+  const untrackedRank = (e: GitPorcelainEntry): number => (e.xy === '??' ? 1 : 0);
+  const rankDelta = untrackedRank(a) - untrackedRank(b);
+  if (rankDelta !== 0) return rankDelta;
+  if (a.path === b.path) return 0;
+  return a.path < b.path ? -1 : 1;
 }

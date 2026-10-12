@@ -4,6 +4,7 @@
  * Covers single-flight reads, cache age, read errors, edit fingerprints, the pure diff rules,
  * and the root pathspec projection. Stat-based cases use a real temp directory.
  */
+import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,9 +17,12 @@ import {
   toRootChangeSourceSnapshot,
   type ProbeSnapshot,
 } from './workspace-git-probe.js';
-import type {
-  GitBranchHeader,
-  GitPorcelainEntry,
+import type { GitRepoNode } from '../../../../infrastructure/services/workspace/git-workspace-hierarchy.js';
+import {
+  readGitHead,
+  readGitPorcelainStatus,
+  type GitBranchHeader,
+  type GitPorcelainEntry,
 } from '../../../../infrastructure/services/workspace/git-workspace-porcelain.js';
 import { LOCAL_KINDS } from '../domain/workspace-state-unit.js';
 
@@ -305,9 +309,9 @@ describe('toRootChangeSourceSnapshot', () => {
     entries: [
       { xy: ' M', path: 'packages/cli/x.ts' },
       { xy: ' M', path: 'apps/web/y.ts' },
-      { xy: 'R.', path: 'packages/cli/new.ts', fromPath: 'packages/cli/old.ts' },
+      { xy: 'R ', path: 'packages/cli/new.ts', fromPath: 'packages/cli/old.ts' },
       { xy: ' M', path: 'packages/cli-old/z.ts' },
-      { xy: 'R.', path: 'apps/web/moved.ts', fromPath: 'packages/cli/from.ts' },
+      { xy: 'R ', path: 'apps/web/moved.ts', fromPath: 'packages/cli/from.ts' },
     ],
   });
 
@@ -318,9 +322,10 @@ describe('toRootChangeSourceSnapshot', () => {
     expect(paths).not.toContain('apps/web/y.ts');
   });
 
-  test('keeps a rename whose fromPath is inside the pathspec', () => {
+  test('a rename whose origin is inside and destination outside becomes a delete of the origin', () => {
     const { entries } = toRootChangeSourceSnapshot(snap, ['packages/cli']);
-    expect(entries.map((e) => e.path)).toContain('apps/web/moved.ts');
+    expect(entries).toContainEqual({ xy: 'D ', path: 'packages/cli/from.ts' });
+    expect(entries.map((e) => e.path)).not.toContain('apps/web/moved.ts');
   });
 
   test('a prefix does not match a sibling directory that shares its leading characters', () => {
@@ -340,5 +345,106 @@ describe('toRootChangeSourceSnapshot', () => {
 
   test('head is the branch oid', () => {
     expect(toRootChangeSourceSnapshot(snap, []).head).toEqual({ head: 'aaa111' });
+  });
+});
+
+describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
+  let repoRoot: string;
+
+  function git(args: string[]): void {
+    execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd: repoRoot, stdio: 'pipe' });
+  }
+
+  async function write(relPath: string, content: string): Promise<void> {
+    const abs = path.join(repoRoot, relPath);
+    await fs.mkdir(path.dirname(abs), { recursive: true });
+    await fs.writeFile(abs, content);
+  }
+
+  /** The v1 root reader for a root node whose pathspec is `pathspec`. */
+  async function readV1Root(pathspec: string[]) {
+    const node: GitRepoNode = {
+      workTree: repoRoot,
+      gitDir: path.join(repoRoot, '.git'),
+      relativePath: '',
+      pathspec,
+      children: [],
+    };
+    const [head, entries] = await Promise.all([
+      readGitHead(repoRoot),
+      readGitPorcelainStatus(node),
+    ]);
+    return {
+      head,
+      entries: entries.map(({ xy, path: p, fromPath }) => ({ xy, path: p, fromPath })),
+    };
+  }
+
+  async function readProbeRoot(pathspec: string[]) {
+    const snapshot = await createWorkspaceGitProbe({
+      workTree: repoRoot,
+      rootPathspec: pathspec,
+      dirtyStatCap: 500,
+    }).readSnapshot({ maxAgeMs: 0 });
+    const root = toRootChangeSourceSnapshot(snapshot, pathspec);
+    return {
+      head: root.head,
+      entries: root.entries.map(({ xy, path: p, fromPath }) => ({ xy, path: p, fromPath })),
+    };
+  }
+
+  beforeEach(async () => {
+    repoRoot = path.join(tmpDir, 'repo');
+    await fs.mkdir(repoRoot);
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.email', 'parity@example.com']);
+    git(['config', 'user.name', 'Parity']);
+    await write('packages/cli/a.ts', 'a1\n');
+    await write('packages/cli/rename-me.ts', 'r1\n');
+    await write('packages/cli/sub/b.ts', 'b1\n');
+    await write('packages/cli/sub/d.ts', 'd1\n');
+    await write('apps/web/c.ts', 'c1\n');
+    git(['add', '-A']);
+    git(['commit', '-q', '-m', 'init']);
+
+    // Mutations covering every status shape the root node can see.
+    await write('packages/cli/a.ts', 'a2\n'); // unstaged modification
+    await write('packages/cli/staged.ts', 'staged\n');
+    git(['add', 'packages/cli/staged.ts']); // staged add
+    await write('packages/cli/new.ts', 'new\n'); // untracked
+    await fs.rm(path.join(repoRoot, 'packages/cli/sub/b.ts')); // unstaged delete
+    git(['mv', 'packages/cli/rename-me.ts', 'packages/cli/renamed.ts']); // rename inside
+    git(['mv', 'apps/web/c.ts', 'packages/cli/moved.ts']); // rename into from outside
+    await write('packages/cli/moved.ts', 'c2\n'); // destination also modified
+    await write('packages/cli/my file.ts', 'spaces\n'); // untracked, space in name
+    await write('apps/web/x.ts', 'x\n'); // untracked, outside pathspec
+    git(['mv', 'packages/cli/sub/d.ts', 'apps/web/d.ts']); // rename out of pathspec
+    await write('apps/web/d.ts', 'd2\n'); // destination also modified
+  });
+
+  test.each([
+    ['subdirectory workspace', ['packages/cli']],
+    ['repo-root workspace', []],
+  ])('%s matches the v1 status', async (_label, pathspec) => {
+    expect(await readProbeRoot(pathspec)).toEqual(await readV1Root(pathspec));
+  });
+
+  test('boundary-crossing renames match the v1 pathspec output exactly', async () => {
+    // moved.ts: origin outside, destination inside, then modified. sub/d.ts: origin inside,
+    // destination outside, then modified. Git's pathspec status reports them as an add and a delete.
+    const crossing = ['packages/cli/moved.ts', 'packages/cli/sub/d.ts'];
+    const pick = (entries: { path: string }[]) => entries.filter((e) => crossing.includes(e.path));
+
+    const probe = await readProbeRoot(['packages/cli']);
+    const v1 = await readV1Root(['packages/cli']);
+    expect(pick(probe.entries)).toEqual(pick(v1.entries));
+    expect(pick(v1.entries)).toEqual([
+      { xy: 'AM', path: 'packages/cli/moved.ts' },
+      { xy: 'D ', path: 'packages/cli/sub/d.ts' },
+    ]);
+    // Only the in-pathspec rename (rename-me.ts -> renamed.ts) keeps an origin.
+    expect(
+      probe.entries.every((e) => e.fromPath === undefined || e.fromPath.startsWith('packages/cli/'))
+    ).toBe(true);
   });
 });
