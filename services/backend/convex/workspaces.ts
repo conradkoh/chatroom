@@ -25,7 +25,6 @@ import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { getPrimaryWorkspaceForChatroom as getPrimaryWorkspaceForChatroomUseCase } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listRegisteredWorkingDirsForMachine as listRegisteredWorkingDirsForMachineUseCase } from '../src/domain/usecase/workspace/list-registered-working-dirs-for-machine';
-import { listWorkspaceActivityForMachine as listWorkspaceActivityForMachineUseCase } from '../src/domain/usecase/workspace/list-workspace-activity-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { patchWorkspaceGitState as patchWorkspaceGitStateUseCase } from '../src/domain/usecase/workspace/patch-workspace-git-state';
@@ -219,29 +218,6 @@ export const listRecentlyObservedWorkspacesForMachine = query({
       machineId: args.machineId,
     });
     return workspaces.map((ws) => ws.workingDir);
-  },
-});
-
-/**
- * Lists each active workspace directory on a machine with its last observed time.
- *
- * Deterministic: applies no server-time cutoff and sorts by workingDir, so the
- * daemon can diff successive results.
- */
-export const listWorkspaceActivityForMachine = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return [];
-    await requireAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'machine', id: args.machineId },
-      permission: 'write-access',
-    });
-    return listWorkspaceActivityForMachineUseCase(ctx, { machineId: args.machineId });
   },
 });
 
