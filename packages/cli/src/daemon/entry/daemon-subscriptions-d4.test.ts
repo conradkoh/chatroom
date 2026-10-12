@@ -30,7 +30,6 @@ vi.mock('../../api.js', () => ({
       fulfillFileContentV2: 'mock-fulfillFileContentV2',
     },
     workspaces: {
-      listRecentlyObservedWorkspacesForMachine: 'mock-listRecentlyObservedWorkspacesForMachine',
       getPendingRequests: 'mock-getPendingRequests',
       resetProcessingRequests: 'mock-resetProcessingRequests',
       updateRequestStatus: 'mock-updateRequestStatus',

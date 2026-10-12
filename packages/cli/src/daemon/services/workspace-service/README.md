@@ -228,5 +228,3 @@ skip their bodies, and then awaits the chain to drain. This gap is not yet close
 - **Remove the handoff-to-user enqueue.** `services/backend/convex/messages.ts` still calls
   `requestSyncOnHandoffToUser`, which enqueues `daemon.gitRefresh` for every active workspace on each
   handoff to the user. It is kept for older CLIs. Remove it once a minimum daemon version is enforced.
-- **Git request lookup.** `packages/cli/src/daemon/infrastructure/convex/subscribers/git-request.ts` still
-  calls the Date-based `listWorkspacesForMachine` to find pending git requests.

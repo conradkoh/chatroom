@@ -1,8 +1,10 @@
 import type { ConvexClient } from 'convex/browser';
+import { getFunctionName } from 'convex/server';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, it, vi } from 'vitest';
 
 import { startGitRequestSubscriber } from './git-request.js';
+import { api } from '../../../../api.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { WorkspaceGitInboundEvent } from '../../../domain/usecase/handle-workspace-git-inbound.js';
 import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
@@ -13,84 +15,101 @@ const GIT_REQUEST_ID = 'git_req_1';
 const SESSION_ID = 'session-test' as SessionId;
 const MACHINE_ID = 'machine-test';
 
-const DEFAULT_WORKSPACES = [
-  {
-    _id: 'ws-1',
-    chatroomId: 'chatroom-1',
-    workingDir: '/a',
-    hostname: 'h',
-    registeredAt: 1,
-    registeredBy: 'user',
-  },
-];
+const MEMBERSHIP = getFunctionName(api.workspaces.listRegisteredWorkingDirsForMachine);
+const PENDING = getFunctionName(api.workspaces.getPendingRequestsForWorkspace);
+const OBSERVATION_LIST = getFunctionName(api.workspaces.listWorkspacesForMachine);
 
+type Subscription = {
+  name: string;
+  args: Record<string, unknown>;
+  callback: (result: unknown) => void;
+  active: boolean;
+  unsubscribe: ReturnType<typeof vi.fn>;
+};
+
+/**
+ * Fake Convex client that routes each `onUpdate` by query name. The membership subscription and the
+ * per-workspace pending-request watches are driven separately, as the server would.
+ */
 function createMockWsClient() {
-  const callbacks: ((result: unknown) => void)[] = [];
-
+  const subscriptions: Subscription[] = [];
   const wsClient = {
-    onUpdate: vi.fn((_query, _args, onUpdate) => {
-      callbacks.push(onUpdate);
-      return vi.fn();
-    }),
-    query: vi.fn().mockResolvedValue(DEFAULT_WORKSPACES),
+    onUpdate: vi.fn(
+      (
+        query: unknown,
+        args: Record<string, unknown>,
+        callback: (result: unknown) => void
+      ): (() => void) => {
+        const sub: Subscription = {
+          name: getFunctionName(query as Parameters<typeof getFunctionName>[0]),
+          args,
+          callback,
+          active: true,
+          unsubscribe: vi.fn(() => {
+            sub.active = false;
+          }),
+        };
+        subscriptions.push(sub);
+        return sub.unsubscribe as unknown as () => void;
+      }
+    ),
+    query: vi.fn().mockResolvedValue([]),
     mutation: vi.fn().mockResolvedValue(null),
   } as unknown as ConvexClient;
 
+  const activeOf = (name: string) => subscriptions.filter((sub) => sub.name === name && sub.active);
   return {
     wsClient,
-    emitUpdate: (result: unknown) => {
-      for (const callback of callbacks) {
-        callback(result);
+    subscriptions,
+    /** Delivers a membership snapshot to every active membership subscription. */
+    emitMembership(workingDirs: unknown) {
+      for (const sub of activeOf(MEMBERSHIP)) sub.callback(workingDirs);
+    },
+    /** Delivers pending requests to the watch for `workingDir`. */
+    emitPending(workingDir: string, requests: unknown[]) {
+      for (const sub of activeOf(PENDING)) {
+        if (sub.args.workingDir === workingDir) sub.callback(requests);
       }
+    },
+    /** Every pending-request watch ever created for `workingDir`, active or not. */
+    watchesFor(workingDir: string) {
+      return subscriptions.filter(
+        (sub) => sub.name === PENDING && sub.args.workingDir === workingDir
+      );
     },
   };
 }
 
-const gitWatchArgs = (call: unknown[]) =>
-  call[1] != null && typeof call[1] === 'object' && 'workingDir' in (call[1] as object);
-
-const workspaceView = (workingDir: string) => ({
-  _id: `ws-${workingDir}`,
-  chatroomId: `chatroom-${workingDir}`,
-  workingDir,
-  hostname: 'h',
-  registeredAt: 1,
-  registeredBy: 'user',
-});
-
 describe('workspace-git v2 subscribers', () => {
   it('git-request subscriber emits git.request with requestId', async () => {
     const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
+    const mock = createMockWsClient();
 
     const handle = startGitRequestSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       (event) => events.push(event)
     );
-    await new Promise((r) => setTimeout(r, 0));
+    mock.emitMembership(['/a']);
 
-    expect(wsClient.onUpdate).toHaveBeenCalledWith(
+    expect(mock.wsClient.onUpdate).toHaveBeenCalledWith(
       expect.anything(),
       { sessionId: SESSION_ID, machineId: MACHINE_ID, workingDir: '/a' },
       expect.any(Function),
       expect.any(Function)
     );
 
-    emitUpdate([{ _id: GIT_REQUEST_ID }]);
+    mock.emitPending('/a', [{ _id: GIT_REQUEST_ID }]);
     await handle.stop();
 
-    expect(events).toContainEqual({
-      type: 'git.request',
-      requestId: GIT_REQUEST_ID,
-    });
+    expect(events).toContainEqual({ type: 'git.request', requestId: GIT_REQUEST_ID });
   });
 
-  it('registry routes git.request to workspace-git handler', async () => {
+  it('registry routes git.request to workspace-git handler', () => {
     const handled: WorkspaceGitInboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
+    const mock = createMockWsClient();
 
     const registry = startAllSubscribers({
-      wsClient,
+      wsClient: mock.wsClient,
       sessionId: SESSION_ID,
       machineId: MACHINE_ID,
       router: {
@@ -104,14 +123,11 @@ describe('workspace-git v2 subscribers', () => {
         agenticQuery: {},
       },
     });
-    await new Promise((r) => setTimeout(r, 0));
+    mock.emitMembership(['/a']);
+    mock.emitPending('/a', [{ _id: GIT_REQUEST_ID }]);
 
-    emitUpdate([{ _id: GIT_REQUEST_ID }]);
-    await registry.stopAll();
-
-    expect(handled).toContainEqual({
-      type: 'git.request',
-      requestId: GIT_REQUEST_ID,
+    return registry.stopAll().then(() => {
+      expect(handled).toContainEqual({ type: 'git.request', requestId: GIT_REQUEST_ID });
     });
   });
 
@@ -136,145 +152,105 @@ describe('workspace-git v2 subscribers', () => {
   });
 
   it('deduplicates workspaces sharing a workingDir into a single watch', async () => {
-    const { wsClient } = createMockWsClient();
-    vi.mocked(wsClient.query).mockResolvedValue([workspaceView('/a'), workspaceView('/a')]);
+    const mock = createMockWsClient();
     const handle = startGitRequestSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       () => {}
     );
-    await new Promise((r) => setTimeout(r, 0));
+    mock.emitMembership(['/a', '/a']);
 
-    const gitCalls = vi.mocked(wsClient.onUpdate).mock.calls.filter(gitWatchArgs);
-    expect(gitCalls).toHaveLength(1);
-    expect(gitCalls[0][1]).toMatchObject({ workingDir: '/a' });
+    expect(mock.watchesFor('/a')).toHaveLength(1);
     await handle.stop();
   });
 
-  it('refreshWorkspaces adds and removes only the workspace delta', async () => {
-    const { wsClient } = createMockWsClient();
-    vi.mocked(wsClient.query).mockResolvedValue([workspaceView('/a')]);
+  it('a membership snapshot adds and removes only the workspace delta, without restarting', async () => {
+    const mock = createMockWsClient();
     const handle = startGitRequestSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       () => {}
     );
-    await new Promise((r) => setTimeout(r, 0));
-    expect(vi.mocked(wsClient.onUpdate).mock.calls.filter(gitWatchArgs)).toHaveLength(1);
+    mock.emitMembership(['/a']);
+    expect(mock.watchesFor('/a')).toHaveLength(1);
 
-    vi.mocked(wsClient.query).mockResolvedValue([workspaceView('/a'), workspaceView('/b')]);
-    await handle.refreshWorkspaces();
-    const afterAdd = vi.mocked(wsClient.onUpdate).mock.calls.filter(gitWatchArgs);
-    expect(afterAdd).toHaveLength(2);
-    expect(afterAdd[1][1]).toMatchObject({ workingDir: '/b' });
+    mock.emitMembership(['/a', '/b']);
+    expect(mock.watchesFor('/a')).toHaveLength(1);
+    expect(mock.watchesFor('/b')).toHaveLength(1);
 
-    vi.mocked(wsClient.query).mockResolvedValue([workspaceView('/b')]);
-    const unsubForA = vi.mocked(wsClient.onUpdate).mock.results[0].value as () => void;
-    await handle.refreshWorkspaces();
-    expect(unsubForA).toHaveBeenCalled();
-    expect(vi.mocked(wsClient.onUpdate).mock.calls.filter(gitWatchArgs)).toHaveLength(2);
+    mock.emitMembership(['/b']);
+    const [watchA] = mock.watchesFor('/a');
+    expect(watchA.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(mock.watchesFor('/b')).toHaveLength(1);
     await handle.stop();
   });
 
-  it('failed refresh logs and preserves existing watches', async () => {
+  it('a membership payload that is not an array of strings keeps the existing watches', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { wsClient } = createMockWsClient();
-    vi.mocked(wsClient.query).mockRejectedValueOnce(new Error('boom'));
+    const mock = createMockWsClient();
     const handle = startGitRequestSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       () => {}
     );
-    await new Promise((r) => setTimeout(r, 0));
+    mock.emitMembership(['/a']);
+
+    mock.emitMembership({ workingDir: '/a' });
 
     expect(warn).toHaveBeenCalled();
-    vi.mocked(wsClient.query).mockResolvedValue(DEFAULT_WORKSPACES);
-    await handle.refreshWorkspaces();
-    expect(vi.mocked(wsClient.onUpdate).mock.calls.filter(gitWatchArgs)).toHaveLength(1);
+    expect(mock.watchesFor('/a')).toHaveLength(1);
+    expect(mock.watchesFor('/a')[0].unsubscribe).not.toHaveBeenCalled();
     warn.mockRestore();
     await handle.stop();
   });
 
-  it('stop prevents an in-flight refresh from installing watches', async () => {
-    let release!: () => void;
-    const { wsClient } = createMockWsClient();
-    vi.mocked(wsClient.query).mockImplementation(async () => {
-      await new Promise<void>((r) => {
-        release = r;
-      });
-      return DEFAULT_WORKSPACES;
-    });
+  it('stop unsubscribes the membership subscription and every watch', async () => {
+    const events: InboundEvent[] = [];
+    const mock = createMockWsClient();
     const handle = startGitRequestSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      () => {}
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
     );
-    await new Promise((r) => setTimeout(r, 0));
+    mock.emitMembership(['/a', '/b']);
+
     await handle.stop();
-    release();
-    await new Promise((r) => setTimeout(r, 0));
-    expect(vi.mocked(wsClient.onUpdate).mock.calls.filter(gitWatchArgs)).toHaveLength(0);
-  });
+    mock.emitMembership(['/c']);
+    mock.emitPending('/a', [{ _id: GIT_REQUEST_ID }]);
 
-  it('refresh requested during an in-flight refresh performs a trailing reconciliation', async () => {
-    const { wsClient } = createMockWsClient();
-    const gates: (() => void)[] = [];
-    let queryCount = 0;
-    vi.mocked(wsClient.query).mockImplementation(async () => {
-      const index = queryCount++;
-      if (index < 3) {
-        await new Promise<void>((r) => {
-          gates.push(r);
-        });
-      }
-      return DEFAULT_WORKSPACES;
-    });
-
-    const handle = startGitRequestSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      () => {}
+    expect(mock.subscriptions.filter((sub) => sub.name === MEMBERSHIP && sub.active)).toHaveLength(
+      0
     );
-    await new Promise((r) => setTimeout(r, 0));
-    // Startup refresh is in flight on gates[0].
-    const first = handle.refreshWorkspaces();
-    const second = handle.refreshWorkspaces();
-
-    gates[0]();
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
-    // Queued re-run is now in flight on gates[1]; queue a trailing run.
-    void handle.refreshWorkspaces();
-    gates[1]();
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
-    // Trailing run completes on gates[2].
-    gates[2]();
-    await first;
-    await second;
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(queryCount).toBe(3);
-    expect(vi.mocked(wsClient.onUpdate).mock.calls.filter(gitWatchArgs)).toHaveLength(1);
-    await handle.stop();
+    expect(mock.subscriptions.filter((sub) => sub.name === PENDING && sub.active)).toHaveLength(0);
+    expect(
+      events.filter((event) => event.type === 'git.request' && event.requestId === GIT_REQUEST_ID)
+    ).toHaveLength(0);
   });
 
   it('events from different child watches preserve global request-id dedup', async () => {
     const events: InboundEvent[] = [];
-    const { wsClient } = createMockWsClient();
-    vi.mocked(wsClient.query).mockResolvedValue([workspaceView('/a'), workspaceView('/b')]);
+    const mock = createMockWsClient();
     const handle = startGitRequestSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       (event) => events.push(event)
     );
-    await new Promise((r) => setTimeout(r, 0));
+    mock.emitMembership(['/a', '/b']);
 
-    const calls = vi.mocked(wsClient.onUpdate).mock.calls.filter(gitWatchArgs);
-    expect(calls).toHaveLength(2);
-    const watchFor = (workingDir: string) =>
-      calls.find((call) => (call[1] as { workingDir: string }).workingDir === workingDir)![2] as (
-        result: unknown
-      ) => void;
+    mock.emitPending('/a', [{ _id: GIT_REQUEST_ID }]);
+    mock.emitPending('/b', [{ _id: GIT_REQUEST_ID }]);
 
-    watchFor('/a')([{ _id: GIT_REQUEST_ID }]);
-    watchFor('/b')([{ _id: GIT_REQUEST_ID }]);
+    expect(
+      events.filter((event) => event.type === 'git.request' && event.requestId === GIT_REQUEST_ID)
+    ).toHaveLength(1);
+    await handle.stop();
+  });
 
-    expect(events.filter((event) => event.type === 'git.request')).toHaveLength(1);
+  it('never reads the observation-filtered workspace list', async () => {
+    const mock = createMockWsClient();
+    const handle = startGitRequestSubscriber(
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      () => {}
+    );
+    mock.emitMembership(['/a']);
+
+    expect(mock.wsClient.query).not.toHaveBeenCalled();
+    expect(mock.subscriptions.some((sub) => sub.name === OBSERVATION_LIST)).toBe(false);
     await handle.stop();
   });
 
