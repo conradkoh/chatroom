@@ -216,7 +216,7 @@ export function toRootChangeSourceSnapshot(
   const entries =
     prefixes.length === 0
       ? s.entries
-      : s.entries.flatMap((entry) => rootEntriesFor(entry, matches)).sort(gitStatusOrder);
+      : s.entries.filter((entry) => matches(entry.path)).sort(gitStatusOrder);
 
   return { head: { head: s.branch.oid }, entries };
 }
@@ -298,28 +298,6 @@ export async function readGitRenameLimit(workTree: string): Promise<number> {
   );
   if ('error' in result) throw result.error;
   return renameLimitFromConfig(result.stdout);
-}
-
-/** The entries git's pathspec-limited status reports for one probe entry. Empty when none. */
-function rootEntriesFor(
-  entry: GitPorcelainEntry,
-  matches: (p: string) => boolean
-): GitPorcelainEntry[] {
-  if (entry.fromPath === undefined) return matches(entry.path) ? [entry] : [];
-  return renameForPathspec(entry, entry.fromPath, matches);
-}
-
-/** A rename as git's pathspec status reports it, given which of its two sides are inside. */
-function renameForPathspec(
-  entry: GitPorcelainEntry,
-  fromPath: string,
-  matches: (p: string) => boolean
-): GitPorcelainEntry[] {
-  const destinationInside = matches(entry.path);
-  const originInside = matches(fromPath);
-  if (destinationInside === originInside) return destinationInside ? [entry] : [];
-  if (destinationInside) return [{ xy: `A${entry.xy.slice(1)}`, path: entry.path }];
-  return [{ xy: 'D ', path: fromPath }];
 }
 
 /**
