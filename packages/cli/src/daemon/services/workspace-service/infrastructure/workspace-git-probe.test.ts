@@ -349,6 +349,10 @@ describe('toRootChangeSourceSnapshot', () => {
 });
 
 describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
+  // Non-ASCII names: git orders them by UTF-8 bytes, which differs from UTF-16 code units.
+  const FULLWIDTH_TILDE = '\uFF5E.ts';
+  const EMOJI = '\u{1F600}.ts';
+
   let repoRoot: string;
 
   function git(args: string[]): void {
@@ -359,6 +363,14 @@ describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
     const abs = path.join(repoRoot, relPath);
     await fs.mkdir(path.dirname(abs), { recursive: true });
     await fs.writeFile(abs, content);
+  }
+
+  async function initRepo(dir: string): Promise<void> {
+    repoRoot = dir;
+    await fs.mkdir(repoRoot);
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.email', 'parity@example.com']);
+    git(['config', 'user.name', 'Parity']);
   }
 
   /** The v1 root reader for a root node whose pathspec is `pathspec`. */
@@ -394,21 +406,21 @@ describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
   }
 
   beforeEach(async () => {
-    repoRoot = path.join(tmpDir, 'repo');
-    await fs.mkdir(repoRoot);
-    git(['init', '-q', '-b', 'main']);
-    git(['config', 'user.email', 'parity@example.com']);
-    git(['config', 'user.name', 'Parity']);
+    await initRepo(path.join(tmpDir, 'repo'));
     await write('packages/cli/a.ts', 'a1\n');
     await write('packages/cli/rename-me.ts', 'r1\n');
     await write('packages/cli/sub/b.ts', 'b1\n');
     await write('packages/cli/sub/d.ts', 'd1\n');
     await write('apps/web/c.ts', 'c1\n');
+    await write(`packages/cli/${FULLWIDTH_TILDE}`, 'u1\n');
+    await write(`packages/cli/${EMOJI}`, 'u1\n');
     git(['add', '-A']);
     git(['commit', '-q', '-m', 'init']);
 
     // Mutations covering every status shape the root node can see.
     await write('packages/cli/a.ts', 'a2\n'); // unstaged modification
+    await write(`packages/cli/${FULLWIDTH_TILDE}`, 'u2\n'); // unstaged, non-ASCII name
+    await write(`packages/cli/${EMOJI}`, 'u2\n'); // unstaged, non-ASCII name
     await write('packages/cli/staged.ts', 'staged\n');
     git(['add', 'packages/cli/staged.ts']); // staged add
     await write('packages/cli/new.ts', 'new\n'); // untracked
@@ -447,4 +459,31 @@ describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
       probe.entries.every((e) => e.fromPath === undefined || e.fromPath.startsWith('packages/cli/'))
     ).toBe(true);
   });
+
+  // KNOWN LIMIT. git pairs renames only among the paths it is given. Here the full repo pairs
+  // c.ts with the outside b.ts, so the probe emits `A c.ts`, while the pathspec-limited status
+  // pairs c.ts with a.ts (`R c.ts <- a.ts`). Re-running the pairing needs blob similarity, which
+  // the probe snapshot does not carry. test.fails pins the divergence: when it stops failing,
+  // the limit is gone and this test should become a plain parity assertion.
+  test.fails(
+    'a rename that competes with an outside candidate matches v1 (known limit)',
+    async () => {
+      await initRepo(path.join(tmpDir, 'competing'));
+      const sharedLines = (from: number, to: number): string =>
+        Array.from(
+          { length: to - from + 1 },
+          (_, i) => `shared line number ${from + i} with some padding text to make it longer\n`
+        ).join('');
+      await write('apps/web/b.ts', sharedLines(1, 10));
+      await write('packages/cli/a.ts', `${sharedLines(1, 6)}a-only line padding padding padding\n`);
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+      await fs.rm(path.join(repoRoot, 'apps/web/b.ts'));
+      await fs.rm(path.join(repoRoot, 'packages/cli/a.ts'));
+      await write('packages/cli/c.ts', `${sharedLines(1, 9)}changed tail line for c\n`);
+      git(['add', '-A']);
+
+      expect(await readProbeRoot(['packages/cli'])).toEqual(await readV1Root(['packages/cli']));
+    }
+  );
 });

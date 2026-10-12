@@ -232,11 +232,14 @@ function renameForPathspec(
   return [{ xy: 'D ', path: fromPath }];
 }
 
-/** git's short-status order: tracked entries first, then untracked (`??`), each sorted by path. */
+/**
+ * git's short-status order: tracked entries first, then untracked (`??`), each sorted by path.
+ * git compares path bytes (UTF-8), which is not JavaScript's UTF-16 code-unit order for some
+ * characters, so the comparison is on bytes.
+ */
 function gitStatusOrder(a: GitPorcelainEntry, b: GitPorcelainEntry): number {
   const untrackedRank = (e: GitPorcelainEntry): number => (e.xy === '??' ? 1 : 0);
   const rankDelta = untrackedRank(a) - untrackedRank(b);
   if (rankDelta !== 0) return rankDelta;
-  if (a.path === b.path) return 0;
-  return a.path < b.path ? -1 : 1;
+  return Buffer.compare(Buffer.from(a.path), Buffer.from(b.path));
 }
