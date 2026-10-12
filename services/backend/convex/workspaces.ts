@@ -24,6 +24,7 @@ import { workspaceGitStateUnitValidator } from '../src/domain/entities/workspace
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { getPrimaryWorkspaceForChatroom as getPrimaryWorkspaceForChatroomUseCase } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
+import { listRegisteredWorkingDirsForMachine as listRegisteredWorkingDirsForMachineUseCase } from '../src/domain/usecase/workspace/list-registered-working-dirs-for-machine';
 import { listWorkspaceActivityForMachine as listWorkspaceActivityForMachineUseCase } from '../src/domain/usecase/workspace/list-workspace-activity-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
@@ -241,6 +242,29 @@ export const listWorkspaceActivityForMachine = query({
       permission: 'write-access',
     });
     return listWorkspaceActivityForMachineUseCase(ctx, { machineId: args.machineId });
+  },
+});
+
+/**
+ * Lists the distinct working directories of a machine's active workspaces, sorted ascending.
+ *
+ * Membership source for the daemon. Reads only registration state, so it does not depend on
+ * observations or the current time.
+ */
+export const listRegisteredWorkingDirsForMachine = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+    return listRegisteredWorkingDirsForMachineUseCase(ctx, { machineId: args.machineId });
   },
 });
 
