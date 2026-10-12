@@ -19,6 +19,12 @@ git reads, such as the git request handlers, are not monitoring.
 
   Monitors stop before the flush, so no unit can be enqueued after the final flush.
 
+Membership follows the activity rows. A removed directory leaves the monitor map before any `await`,
+so `isRegistered` is false at once, and a re-added directory never shares state with the old monitor
+(`service/workspace-service.ts`). Once retired, a monitor cannot enqueue units or schedule remote polls.
+After `stopKeys(workingDir)` the outbox gets no more writes for that directory (`service/workspace-service.ts`,
+`createEntry`).
+
 ## Modules
 
 | Path                                          | Role                                                                              |
@@ -54,6 +60,9 @@ encoded by `encodeWorkspaceStateKey`. The eight kinds are:
 
 Local kinds come from `LOCAL_KINDS`. The remote kinds are `pullRequests` and `checks`.
 
+A unit is enqueued only when its hash differs from the last hash the monitor emitted for its kind. `refresh`
+clears the hashes (`service/workspace-monitor.ts`, `emit`).
+
 ## Tiers
 
 - **Observed**: the probe loop runs, and remote polls follow `nextRemotePollDelayMs` (pending-checks,
@@ -79,7 +88,8 @@ new activity row arrives.
    `refresh` the directory.
 
 Activity rows from the Convex subscription decide membership and tier. An idle → observed change
-runs a full recompute (see Tiers).
+runs a full recompute (see Tiers). At most one remote poll is in flight across all workspaces. Each
+workspace has its own timer, so scheduling one never delays another (`service/remote-poll-queue.ts`).
 
 `refresh` failures are handled at the call site: `command-dispatch.ts` logs them and the command
 still completes. The monitor's serial chain logs its own internal errors (I6).
@@ -92,23 +102,30 @@ partial overrides with `resolveWorkspaceSyncPolicy`. Production does not call it
 
 ## Invariants
 
-These follow the constraint lists in the code. I4 and I6 carry the same labels in the source.
+The labels below are the architect's design invariants. The source cites I4 and I6 by the same labels.
 
-- **I1: Membership changes are synchronous.** A removed directory leaves the monitor map before any
-  `await`, so `isRegistered` is false at once. A re-added directory never shares state with the
-  old monitor. (`service/workspace-service.ts`)
-- **I2: Retired monitors are silent.** Once retired, a monitor cannot enqueue units or schedule
-  remote polls. After `stopKeys(workingDir)`, the outbox gets no more writes for that directory.
-  (`service/workspace-service.ts`, `createEntry`)
-- **I3: One remote queue.** At most one remote poll is in flight across all workspaces. Each
-  workspace has its own timer, so scheduling one never delays another. (`service/remote-poll-queue.ts`)
-- **I4: Remote results are checked before they apply.** A remote result is applied only when the
-  branch and HEAD oid are unchanged since the poll started. Otherwise it is dropped and the poll runs
+- **I1: One in-flight send per key, always the latest state.** Per (workingDir, kind) there is at most
+  one in-flight send, and it always carries the latest state. (`infrastructure/outbox/lib/coalescing-state-outbox.ts`,
+  `createCoalescingStateOutbox`)
+- **I2: Serialized per workingDir.** Per workingDir, sends are serialized in enqueue order by the send
+  adapter's chain. Initial snapshots enqueue head first. (`infrastructure/outbox/workspace-state-send.ts`,
+  `runInWorkingDirChain`; head-first order in `infrastructure/local-unit-collector.ts`, `collectLocalUnits`)
+- **I3: Only head writes `status`.** Units other than head never write `status`. When no row exists,
+  `patchWorkspaceGitState` inserts `status: 'available'`. The daemon only emits non-head git units after a
+  head `available` in the same recompute. (`infrastructure/local-unit-collector.ts`, `collectLocalUnits`;
+  `services/backend/src/domain/usecase/workspace/patch-workspace-git-state.ts`, `patchWorkspaceGitState`)
+- **I4: Remote results are checked before they apply.** A remote result is applied only when the branch
+  and oid match the values captured at poll start (stale guard). Otherwise it is dropped and the poll runs
   again at once. (`service/remote-cadence.ts`, `isRemoteResultCurrent`)
-- **I5: Dedup by hash.** A unit is enqueued only when its hash differs from the last hash emitted
-  for its kind. `refresh` clears the hashes. (`service/workspace-monitor.ts`, `emit`)
-- **I6: One serial chain.** Every monitor state transition runs on one serial promise chain. An
-  error is logged and never breaks the chain. (`service/workspace-monitor.ts`, `serial`)
+- **I5: No write without a change.** The backend writes nothing when values are unchanged and nothing for
+  inactive workspaces. (`services/backend/src/domain/usecase/workspace/patch-workspace-git-state.ts`,
+  `patchWorkspaceGitState`: the `unchanged` and `workspace_inactive` results)
+- **I6: One serial chain per monitor.** All monitor state transitions (local recompute, remote apply, tier
+  change, refresh, stop) run on one per-monitor serial promise chain. An error is logged and never breaks
+  the chain. (`service/workspace-monitor.ts`, `serial`)
+
+Known gap against I6: `stop` does not enter the chain. It sets `stopped` synchronously, so queued tasks
+skip their bodies, and then awaits the chain to drain. Closing this gap is not part of this slice.
 
 ## Failure handling
 
