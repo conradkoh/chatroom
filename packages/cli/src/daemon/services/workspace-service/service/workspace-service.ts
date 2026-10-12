@@ -1,6 +1,11 @@
 import { createRemotePollQueue, type RemotePollQueue } from './remote-poll-queue.js';
+import {
+  createWorkspaceFileTreeHost,
+  type WorkspaceFileTreeHost,
+} from './workspace-file-tree-host.js';
 import { createWorkspaceMonitor, type WorkspaceMonitor } from './workspace-monitor.js';
 import { normalizeWorkingDirForLookup } from '../../../../infrastructure/services/workspace/normalize-working-dir.js';
+import type { DaemonSessionServiceShape } from '../../../entry/daemon-services.js';
 import {
   createObservationTracker,
   type ObservationTier,
@@ -33,9 +38,15 @@ export type WorkspaceServiceOutbox = {
   stopKeys(workingDir: string): void;
 };
 
-type OptionalDeps = Omit<WorkspaceServiceDeps, 'activitySource' | 'outbox'>;
+/** The daemon session identity that file-tree sync acts for. */
+type FileTreeSessionDeps = Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>;
 
-export type WorkspaceServiceDeps = {
+type OptionalDeps = Omit<
+  WorkspaceServiceDeps,
+  keyof FileTreeSessionDeps | 'activitySource' | 'outbox'
+>;
+
+export type WorkspaceServiceDeps = FileTreeSessionDeps & {
   activitySource: WorkspaceActivitySource;
   outbox: WorkspaceServiceOutbox;
   /** Default `DEFAULT_WORKSPACE_SYNC_POLICY`. Use `resolveWorkspaceSyncPolicy` for partial overrides. */
@@ -56,6 +67,8 @@ export type WorkspaceServiceDeps = {
 export type WorkspaceRefreshReason = 'command' | 'local-action' | 'pr-action';
 
 export type WorkspaceService = {
+  /** Per-directory file-tree sync. Stopped by `stopAll`. */
+  readonly fileTree: WorkspaceFileTreeHost;
   /** Subscribes to the activity source. Idempotent. No-op after `stopAll`. */
   start(): void;
   /**
@@ -112,9 +125,15 @@ type ServiceState = {
  */
 export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceService {
   const state = createServiceState(deps);
+  const fileTree = createWorkspaceFileTreeHost({
+    session: { sessionId: deps.sessionId, machineId: deps.machineId, backend: deps.backend },
+    getRootSnapshotReader: async () => undefined, // S6b-3 wires the probe here
+  });
   let unsubscribe: (() => void) | null = null;
 
   return {
+    fileTree,
+
     start() {
       if (state.stopped || unsubscribe !== null) return;
       unsubscribe = deps.activitySource.subscribe((rows) => applySnapshot(state, rows));
@@ -133,7 +152,13 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
     async stopAll() {
       unsubscribe?.();
       unsubscribe = null;
+      // Stop order: monitors, file tree, remote queue. A file-tree failure is logged so the
+      // remote queue still stops and the daemon's shutdown sequence continues.
       await stopAllMembers(state);
+      await fileTree.stopAll().catch((error: unknown) => {
+        console.warn('[workspace-service] file-tree stop failed', error);
+      });
+      await state.queue.stopAll();
     },
   };
 }
@@ -304,9 +329,5 @@ async function stopAllMembers(state: ServiceState): Promise<void> {
   const entries = [...state.monitors.values()];
   state.monitors.clear();
   for (const entry of entries) entry.retire();
-  await Promise.all([
-    ...entries.map((entry) => entry.monitor.stop()),
-    ...state.pendingStops,
-    state.queue.stopAll(),
-  ]);
+  await Promise.all([...entries.map((entry) => entry.monitor.stop()), ...state.pendingStops]);
 }

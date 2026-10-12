@@ -150,6 +150,9 @@ function startHarness(workingDir: string, fake: FakeBackend): Harness {
       },
     },
     policy: POLICY,
+    sessionId: SESSION_ID,
+    machineId: MACHINE_ID,
+    backend: fake.backend,
   });
   service.start();
   return { service, registry, fake };

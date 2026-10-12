@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createWorkspaceService, type WorkspaceService } from './workspace-service.js';
+import {
+  createWorkspaceService,
+  type WorkspaceService,
+  type WorkspaceServiceDeps,
+} from './workspace-service.js';
 import type { WorkspaceActivityRow } from '../domain/observation-tier.js';
 import {
   LOCAL_KINDS,
@@ -146,6 +150,9 @@ function setup(overrides?: DeepPartial<WorkspaceSyncPolicy>) {
     createProbe,
     collectLocal,
     collectRemote,
+    sessionId: 'workspace-service-test-session' as WorkspaceServiceDeps['sessionId'],
+    machineId: 'workspace-service-test',
+    backend: { mutation: vi.fn(async () => undefined), query: vi.fn(async () => null) },
   });
 
   return {

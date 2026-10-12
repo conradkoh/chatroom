@@ -20,6 +20,15 @@ export function createFakeWorkspaceService(
   overrides?: Partial<WorkspaceService>
 ): WorkspaceService {
   return {
+    fileTree: {
+      ensure: vi.fn(async () => {
+        throw new Error('fileTree.ensure is not stubbed');
+      }),
+      stop: vi.fn(async () => {}),
+      disable: vi.fn(async () => {}),
+      oneShot: vi.fn(async () => {}),
+      stopAll: vi.fn(async () => {}),
+    },
     start: vi.fn(),
     refresh: vi.fn(async () => {}),
     isRegistered: vi.fn(() => true),

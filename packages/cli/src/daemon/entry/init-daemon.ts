@@ -432,6 +432,9 @@ function createWorkspaceSync(args: {
       machineId,
     }),
     outbox,
+    sessionId,
+    machineId,
+    backend,
   });
   return { workspaceService, workspaceStateOutbox };
 }
