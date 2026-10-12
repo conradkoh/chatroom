@@ -23,6 +23,9 @@ const PERSISTENT_FAILURE_THRESHOLD = 3;
 /**
  * Reads the root node's HEAD and status in one call. Injected when a caller already holds a
  * shared git status snapshot, so the root node does not spawn its own git commands.
+ *
+ * Contract: the reader must describe the same workTree and pathspec as `hierarchy.root`. Nothing
+ * checks this at runtime; a mismatch scopes the root node to the wrong paths.
  */
 export type GitRootSnapshotReader = () => Promise<{
   head: GitHeadState;
