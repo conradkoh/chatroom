@@ -5,6 +5,7 @@ import {
   deriveChatroomState,
   isChatroomStopAvailable,
 } from '@workspace/shared/domain/chatroom-activity-status';
+import { hasActiveChatroomAgent } from '@workspace/shared/domain/chatroom-agent-activity-status';
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -537,7 +538,7 @@ export const getChatroomStatus = query({
       rows.map((row) => ({ status: row.status }))
     );
     const state = deriveChatroomState(activityStatus);
-    const remoteAgentStatus = rows.some((row) => row.status !== 'offline') ? 'running' : 'none';
+    const remoteAgentStatus = hasActiveChatroomAgent(rows) ? 'running' : 'none';
 
     return {
       chatroomId: args.chatroomId,
