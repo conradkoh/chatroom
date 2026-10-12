@@ -2,9 +2,11 @@
  * End-to-end test of the wired WorkspaceService against a real git repository.
  *
  * Real: git (temp repo with a bare origin), the git probe, the local and remote collectors, the
- * monitor, the service, and the durable workspace-state outbox (SQLite under a temp HOME).
- * Faked: the backend mutation (records calls and can be made to fail) and the activity source
- * (reports the repository as observed). The GitHub readers are stubbed because they need `gh`.
+ * monitor, the service, and the durable workspace-state outbox (SQLite under a temp HOME). The
+ * dead-agent scenario also uses a real AgentProcessManager as the presence source.
+ * Faked: the backend mutation (records calls and can be made to fail), the registered-directory
+ * membership, and agent presence, which the tests control. The GitHub readers are stubbed because
+ * they need `gh`. The agent harness and the process kill are fakes, as in the manager's unit tests.
  *
  * Run with: vitest run --config vitest.integration.config.ts
  */
@@ -15,13 +17,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
+import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
 import { getFunctionName } from 'convex/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createWorkspaceService,
+  type WorkspaceAgentPresenceSource,
   type WorkspaceService,
-  type WorkspaceServiceDeps,
 } from './workspace-service.js';
 import { api } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
@@ -34,11 +37,18 @@ import {
   type WorkspaceStateOutboxRegistry,
 } from '../../../infrastructure/outbox/index.js';
 import type { WorkspaceStateKind } from '../../../infrastructure/outbox/workspace-state-outbox.js';
+import type { AgentWorkspacePresence } from '../../agent-process-service/domain/entities/agent-process.js';
+import {
+  AgentProcessManager,
+  type AgentProcessManagerDeps,
+  type EnsureRunningOpts,
+} from '../../agent-process-service/infrastructure/agent-process-manager.js';
 import type { WorkspaceStateUnit } from '../domain/workspace-state-unit.js';
 import {
   resolveWorkspaceSyncPolicy,
   type WorkspaceSyncPolicy,
 } from '../domain/workspace-sync-policy.js';
+import type { WorkspaceMembershipSource } from '../infrastructure/workspace-membership-source.js';
 
 // The GitHub readers shell out to `gh`. Stub only those two; the git readers stay real.
 vi.mock('../../../infrastructure/git/git-reader.js', async (importOriginal) => ({
@@ -50,6 +60,9 @@ vi.mock('../../../infrastructure/git/git-reader.js', async (importOriginal) => (
 const execFileAsync = promisify(execFile);
 const MACHINE_ID = 'machine-integration';
 const SESSION_ID = 'session-integration' as SessionId;
+const CHATROOM_ID = 'chatroom-integration';
+/** The pid the first fake agent process gets. Later spawns get the following pids. */
+const FIRST_AGENT_PID = 42;
 
 /** Probe, settle, and outbox windows short enough for a fast end-to-end run. */
 const POLICY: WorkspaceSyncPolicy = resolveWorkspaceSyncPolicy({
@@ -107,35 +120,85 @@ function createFakeBackend(): FakeBackend {
   };
 }
 
-/**
- * One member directory with one present agent in it, so the directory starts active. This is the
- * state the old observation gate produced for a freshly observed repository.
- */
-function activeMembership(
-  workingDir: string
-): Pick<WorkspaceServiceDeps, 'membershipSource' | 'agentPresence'> {
+/** Registered directories the test controls. The service subscribes once; `set` fires its callback. */
+type FakeMembership = {
+  source: WorkspaceMembershipSource;
+  set(workingDirs: readonly string[]): void;
+};
+
+/** Calls back with the initial directories on subscribe, as the Convex subscription does. */
+function fakeMembership(initial: readonly string[]): FakeMembership {
+  let current = initial;
+  let onChange: ((workingDirs: readonly string[]) => void) | null = null;
   return {
-    membershipSource: {
-      subscribe(onWorkingDirs) {
-        onWorkingDirs([workingDir]);
-        return () => undefined;
+    source: {
+      subscribe(callback) {
+        onChange = callback;
+        callback(current);
+        return () => {
+          onChange = null;
+        };
       },
     },
-    agentPresence: {
-      list: () => [{ chatroomId: 'chatroom-integration', role: 'builder', workingDir }],
-      subscribe: () => () => undefined,
+    set(workingDirs) {
+      current = workingDirs;
+      onChange?.(workingDirs);
     },
   };
+}
+
+/** Agent presence the test controls. `set` replaces the snapshot and fires subscribers, as the manager does. */
+type FakePresence = {
+  source: WorkspaceAgentPresenceSource;
+  set(presences: readonly AgentWorkspacePresence[]): void;
+};
+
+function fakePresence(initial: readonly AgentWorkspacePresence[]): FakePresence {
+  let current = initial;
+  const subscribers = new Set<() => void>();
+  return {
+    source: {
+      list: () => current,
+      subscribe(onChange) {
+        subscribers.add(onChange);
+        return () => {
+          subscribers.delete(onChange);
+        };
+      },
+    },
+    set(presences) {
+      current = presences;
+      for (const onChange of [...subscribers]) onChange();
+    },
+  };
+}
+
+/** One present builder agent in `workingDir`. */
+function agentIn(workingDir: string, role = 'builder'): AgentWorkspacePresence {
+  return { chatroomId: CHATROOM_ID, role, workingDir };
 }
 
 type Harness = {
   service: WorkspaceService;
   registry: WorkspaceStateOutboxRegistry;
   fake: FakeBackend;
+  membership: FakeMembership;
+  presence: FakePresence;
+};
+
+type StartOptions = {
+  /** Registered directories at start. Default: the repository, which the existing tests start from. */
+  members?: string[];
+  /** Present agents at start. Default: one builder in the repository, so it starts active. */
+  agents?: AgentWorkspacePresence[];
+  /** A real presence source to use instead of the controllable one. */
+  presenceSource?: WorkspaceAgentPresenceSource;
 };
 
 /** Starts the real service and durable outbox on top of `fake`. */
-function startHarness(workingDir: string, fake: FakeBackend): Harness {
+function startHarness(workingDir: string, fake: FakeBackend, options: StartOptions = {}): Harness {
+  const membership = fakeMembership(options.members ?? [workingDir]);
+  const presence = fakePresence(options.agents ?? [agentIn(workingDir)]);
   const registry = createWorkspaceStateOutboxRegistry(
     MACHINE_ID,
     createWorkspaceStateSend({
@@ -150,7 +213,8 @@ function startHarness(workingDir: string, fake: FakeBackend): Harness {
     }
   );
   const service = createWorkspaceService({
-    ...activeMembership(workingDir),
+    membershipSource: membership.source,
+    agentPresence: options.presenceSource ?? presence.source,
     outbox: {
       enqueue: (dir, unit) => {
         registry.enqueue(encodeWorkspaceStateKey(dir, unit.kind), unit).catch(() => undefined);
@@ -167,7 +231,105 @@ function startHarness(workingDir: string, fake: FakeBackend): Harness {
     backend: fake.backend,
   });
   service.start();
-  return { service, registry, fake };
+  return { service, registry, fake, membership, presence };
+}
+
+/**
+ * A real AgentProcessManager with fake spawn and kill, configured as in its unit tests. Killing a
+ * pid through `markDead` makes the manager's liveness check see it as gone.
+ */
+function createAgentProcessFixture() {
+  const deadPids = new Set<number>();
+  let nextPid = FIRST_AGENT_PID;
+  const kill = vi.fn((pid: number, signal?: number | string) => {
+    if (signal === 0) {
+      if (deadPids.has(pid)) throw new Error('ESRCH');
+      return;
+    }
+    if (signal === 'SIGTERM' || signal === 'SIGKILL') deadPids.add(pid);
+  });
+  const harness = {
+    id: 'opencode',
+    displayName: 'OpenCode',
+    command: 'opencode',
+    isInstalled: vi.fn().mockResolvedValue(true),
+    getVersion: vi.fn().mockResolvedValue({ version: '1.0.0', major: 1 }),
+    listModels: vi.fn().mockResolvedValue([]),
+    spawn: vi.fn(async () => {
+      const pid = nextPid;
+      nextPid += 1;
+      return { pid, onExit: vi.fn(), onOutput: vi.fn(), onAgentEnd: vi.fn() };
+    }),
+    stop: vi.fn(async (pid: number) => {
+      deadPids.add(pid);
+    }),
+    isAlive: vi.fn().mockReturnValue(false),
+    getTrackedProcesses: vi.fn().mockReturnValue([]),
+    untrack: vi.fn(),
+  };
+  const deps = {
+    logEvent: vi.fn().mockResolvedValue(undefined),
+    agentServices: new Map([['opencode', harness]]),
+    backend: {
+      query: vi.fn().mockResolvedValue({
+        prompt: true,
+        rolePrompt: 'You are a builder',
+        initialMessage: 'Start working',
+      }),
+      mutation: vi.fn(async (_endpoint: unknown, args?: Record<string, unknown>) =>
+        args &&
+        'sessionId' in args &&
+        'machineId' in args &&
+        'chatroomId' in args &&
+        'role' in args &&
+        !('action' in args) &&
+        !('pid' in args) &&
+        !('fact' in args)
+          ? { allowed: true }
+          : {}
+      ),
+    },
+    lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue({ success: true }) },
+    sessionId: 'test-session',
+    machineId: MACHINE_ID,
+    processes: { kill },
+    clock: { delay: vi.fn().mockResolvedValue(undefined), now: () => Date.now() },
+    fs: { stat: vi.fn().mockResolvedValue({ isDirectory: () => true }) },
+    persistence: {
+      persistAgentPid: vi.fn(),
+      clearAgentPid: vi.fn(),
+      listAgentEntries: vi.fn().mockResolvedValue([]),
+    },
+    spawning: { shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }) },
+    convexUrl: 'http://test:3210',
+  } as unknown as AgentProcessManagerDeps;
+  return {
+    manager: new AgentProcessManager(deps),
+    markDead: (pid: number) => {
+      deadPids.add(pid);
+    },
+  };
+}
+
+/** The manager's presence, as the service consumes it in production. */
+function managerPresence(manager: AgentProcessManager): WorkspaceAgentPresenceSource {
+  return {
+    list: () => manager.listWorkspacePresences(),
+    subscribe: (onChange) => manager.subscribeAgentPresenceChanged(onChange),
+  };
+}
+
+/** Start options for a builder or reviewer in `workingDir`, as the daemon issues them. */
+function agentStart(workingDir: string, role: string, chatroomId = CHATROOM_ID): EnsureRunningOpts {
+  return {
+    chatroomId,
+    role,
+    agentHarness: 'opencode',
+    model: 'gpt-4',
+    workingDir,
+    reason: AgentStartReasonCode.USER_START,
+    wantResume: true,
+  };
 }
 
 async function git(cwd: string, args: string[]): Promise<void> {
@@ -233,10 +395,15 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
   const open: Harness[] = [];
 
   /** Starts a harness and tracks it so afterEach can stop it even when a test fails. */
-  function start(fake: FakeBackend): Harness {
-    const harness = startHarness(repo, fake);
+  function start(fake: FakeBackend, options?: StartOptions): Harness {
+    const harness = startHarness(repo, fake, options);
     open.push(harness);
     return harness;
+  }
+
+  /** Overwrites the tracked README. */
+  function editReadme(content: string): Promise<void> {
+    return writeFile(join(repo, 'README.md'), content);
   }
 
   beforeEach(async () => {
@@ -480,5 +647,173 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
     const quietFrom = fake.calls.length;
     await sleep(POLICY.probeIntervalMs * 10);
     expect(fake.calls.slice(quietFrom)).toEqual([]);
+  });
+
+  it('sends nothing while no agent is active, and an explicit refresh still sends the units', async () => {
+    const fake = createFakeBackend();
+    const h = start(fake, { agents: [] });
+
+    await editReadme('second\n');
+    await git(repo, ['commit', '-q', '-am', 'second']);
+    await editReadme('edited\n');
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    expect(fake.calls).toEqual([]);
+    expect(h.service.isRegistered(repo)).toBe(true);
+
+    await h.service.refresh(repo, 'command');
+    await waitFor(
+      () =>
+        patchUnits(fake.calls).some((u) => u.kind === 'head') &&
+        worktreeUnits(fake.calls).length > 0,
+      'head and worktree units from an explicit refresh'
+    );
+  });
+
+  it('starts syncing with the head-first initial snapshot within 5s when an agent starts', async () => {
+    const fake = createFakeBackend();
+    const h = start(fake, { agents: [] });
+    await sleep(POLICY.probeIntervalMs * 3);
+    expect(fake.calls).toEqual([]);
+
+    h.presence.set([agentIn(repo)]);
+    await waitFor(
+      () => patchUnits(fake.calls).some((u) => u.kind === 'checks'),
+      'initial snapshot after an agent starts',
+      5_000
+    );
+    await waitFor(() => fake.calls.some((c) => c.name === SYNC_COMMANDS), 'commands', 5_000);
+    await waitFor(
+      () => fake.calls.some((c) => c.name === UPSERT_RECENT_COMMITS),
+      'recent commits',
+      5_000
+    );
+
+    expect(patchUnits(fake.calls)[0]?.kind).toBe('head');
+    expect(fake.calls.filter((c) => c.name === SYNC_COMMANDS)).toHaveLength(1);
+  });
+
+  it('flushes the last edit and stops when the last agent exits', async () => {
+    const fake = createFakeBackend();
+    const h = start(fake);
+    await waitFor(() => worktreeUnits(fake.calls).length > 0, 'initial worktree unit');
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    // The edit lands, then the last agent exits before the next probe tick. Only the final flush
+    // can send it, because the probe stops with the agent.
+    await editReadme('hello\nworld\n');
+    h.presence.set([]);
+    await waitFor(
+      () =>
+        worktreeUnits(fake.calls).some(
+          (u) => u.isDirty && u.diffStat.insertions === 2 && u.diffStat.deletions === 1
+        ),
+      'final flush of the last edit',
+      5_000
+    );
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    const mark = fake.calls.length;
+    await editReadme('hello\nworld\nmore\nlines\n');
+    await sleep(POLICY.probeIntervalMs * 3);
+    expect(fake.calls.length).toBe(mark);
+  });
+
+  it('keeps a directory active while one of two agents runs, and stops when the last one exits', async () => {
+    const fake = createFakeBackend();
+    const h = start(fake, { agents: [agentIn(repo, 'builder'), agentIn(repo, 'reviewer')] });
+    await waitFor(() => worktreeUnits(fake.calls).length > 0, 'initial worktree unit');
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    // One of the two agents exits. The directory is still active, so an edit is sent.
+    h.presence.set([agentIn(repo, 'reviewer')]);
+    await sleep(POLICY.probeIntervalMs * 3);
+    const mark = fake.calls.length;
+    await editReadme('still active\n');
+    await waitFor(
+      () =>
+        worktreeUnits(fake.calls.slice(mark)).some(
+          (u) => u.diffStat.insertions === 1 && u.diffStat.deletions === 1
+        ),
+      'worktree unit while one agent still runs',
+      5_000
+    );
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    // The last agent exits. Its final flush sends the edit made just before it.
+    await editReadme('still active\nlast\n');
+    h.presence.set([]);
+    await waitFor(
+      () =>
+        worktreeUnits(fake.calls.slice(mark)).some(
+          (u) => u.diffStat.insertions === 2 && u.diffStat.deletions === 1
+        ),
+      'final flush after the last agent exits',
+      5_000
+    );
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    const quietFrom = fake.calls.length;
+    await editReadme('after\n');
+    await sleep(POLICY.probeIntervalMs * 3);
+    expect(fake.calls.length).toBe(quietFrom);
+  });
+
+  it('a dead agent does not keep the workspace active', async () => {
+    const fake = createFakeBackend();
+    const fixture = createAgentProcessFixture();
+    const h = start(fake, { agents: [], presenceSource: managerPresence(fixture.manager) });
+
+    // The first agent starts through the real manager. Its spawn notifies presence, so the
+    // directory activates.
+    const started = await fixture.manager.ensureRunning(agentStart(repo, 'builder'));
+    expect(started.success).toBe(true);
+    await waitFor(() => worktreeUnits(fake.calls).length > 0, 'initial worktree unit', 5_000);
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    // The first agent dies without an exit callback. An edit lands while the directory still looks
+    // active, so the final flush below has something to send.
+    fixture.markDead(FIRST_AGENT_PID);
+    await editReadme('dead agent edit\n');
+
+    // A second agent starts in a directory that is not registered. Its spawn notifies presence,
+    // so the service re-reads presence while the first agent's pid is dead.
+    const other = await fixture.manager.ensureRunning(
+      agentStart('/unregistered-dir', 'reviewer', 'chatroom-other')
+    );
+    expect(other.success).toBe(true);
+    await waitFor(
+      () =>
+        worktreeUnits(fake.calls).some(
+          (u) => u.diffStat.insertions === 1 && u.diffStat.deletions === 1
+        ),
+      'final flush of the edit made after the agent died',
+      5_000
+    );
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    // This edit changes the diffStat (two insertions), so an unchanged-unit dedup cannot hide a send.
+    const mark = fake.calls.length;
+    await editReadme('after the death\nmore\n');
+    await sleep(POLICY.probeIntervalMs * 3);
+    expect(fake.calls.length).toBe(mark);
+    expect(h.service.isRegistered(repo)).toBe(true);
+  });
+
+  it('a presence for a non-member creates no sync, and a membership update activates it at once', async () => {
+    const fake = createFakeBackend();
+    const h = start(fake, { members: [], agents: [agentIn(repo)] });
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    expect(fake.calls).toEqual([]);
+    expect(h.service.isRegistered(repo)).toBe(false);
+
+    h.membership.set([repo]);
+    await waitFor(
+      () => patchUnits(fake.calls).some((u) => u.kind === 'checks'),
+      'initial snapshot after the directory is registered',
+      5_000
+    );
+    expect(patchUnits(fake.calls)[0]?.kind).toBe('head');
   });
 });
