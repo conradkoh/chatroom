@@ -519,6 +519,7 @@ describe('toRootChangeSourceSnapshot against the v1 root reader (git fixtures)',
 
     test.each([
       ['subdirectory workspace', ['packages/cli']],
+      ['subdirectory workspace with a trailing slash', ['packages/cli/']],
       ['repo-root workspace', []],
     ])('%s matches the v1 status', async (_label, pathspec) => {
       expect(await readProbeRoot(pathspec)).toEqual(await readV1Root(pathspec));
@@ -641,6 +642,25 @@ describe('toRootChangeSourceSnapshot against the v1 root reader (git fixtures)',
       ]);
       expect(await readProbeRootOrUndefined(['apps/*'])).toBeUndefined();
     });
+
+    test.each([
+      ['top', ':(top)packages/cli'],
+      ['exclude', ':!packages/cli/x'],
+      ['root-anchored', ':/packages/cli'],
+    ])(
+      'a pathspec with git pathspec magic (%s) falls back, because v1 reads the magic',
+      async (label, pathspec) => {
+        await initRepo(path.join(tmpDir, `magic-${label}`));
+        await write('packages/cli/x.ts', 'x1\n');
+        await write('apps/web/c.ts', 'c1\n');
+        git(['add', '-A']);
+        git(['commit', '-q', '-m', 'init']);
+        await write('packages/cli/x.ts', 'x2\n');
+        await write('apps/web/c.ts', 'c2\n');
+
+        expect(await readProbeRootOrUndefined([pathspec])).toBeUndefined();
+      }
+    );
 
     test('a rename that only the pathspec view pairs falls back when the full view skipped rename detection', async () => {
       await initRepo(path.join(tmpDir, 'limit'));

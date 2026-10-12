@@ -181,8 +181,9 @@ function localKindsFor(upstreamChanged: boolean, changed: GitPorcelainEntry[]): 
  * be proven. The caller must then read the root directly for this tick.
  *
  * Each rule returns `undefined` when it fails:
- * 1. Glob metacharacters in `rootPathspec`. v1 passes the pathspec to git as a glob. This
- *    projection matches literally, so the two would diverge.
+ * 1. Glob metacharacters or pathspec magic in `rootPathspec`. v1 passes the pathspec to git as
+ *    written. Git reads glob syntax and magic such as `:(top)` or `:!x` in it, and this projection
+ *    matches neither, so the two would diverge.
  * 2. Any rename or copy in the full snapshot, including one entirely outside the pathspec. The
  *    full view can pair an inside entry with an outside candidate, and the pathspec view then
  *    pairs differently. The projection has no blob similarity to reproduce that.
@@ -235,6 +236,8 @@ function isProvablyExact(
 ): boolean {
   return (
     !rootPathspec.some((p) => GLOB_METACHARACTERS.test(p)) &&
+    // Git pathspec magic (`:(top)`, `:!x`, `:/`, `:^x`, `:(glob)`) always starts with `:`.
+    !rootPathspec.some((p) => p.startsWith(':')) &&
     !entries.some((entry) => /[RC]/.test(entry.xy)) &&
     !exceedsRenameLimit(entries, renameLimit)
   );
