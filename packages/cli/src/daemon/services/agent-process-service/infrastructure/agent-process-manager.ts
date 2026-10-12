@@ -423,12 +423,17 @@ export class AgentProcessManager {
   }
 
   /**
-   * Reaps running agents whose process is gone, then notifies presence.
+   * Reaps agents whose process is gone, then notifies presence once.
    *
-   * Reuses handleExit, so a reap matches a real exit: the slot resets, the exited fact is
-   * enqueued, and the pid is cleared. Only running slots with a dead pid are reaped. Spawning
-   * slots have no pid yet, and stopping slots belong to the stop flow. Each reap is isolated, so
-   * one failure does not stop the sweep. Returns the number of slots that left the running state.
+   * - Running slots with a dead pid go through `handleExit`, so a reap matches a real exit: the
+   *   slot resets, the exited fact is enqueued, and the pid is cleared.
+   * - Stopping slots with a dead pid are cleared through `forceClearStuckStoppingSlot` once
+   *   `STOPPING_TIMEOUT_MS` has elapsed. A stop whose harness call never resolves would otherwise
+   *   keep the slot stopping forever.
+   * - Live stopping slots are never touched, at any age. Spawning slots have no pid yet and are skipped.
+   *
+   * Each reap is isolated, so one failure does not stop the sweep. Returns the number of slots
+   * reaped by either path. A sweep with nothing to reap writes nothing.
    */
   async reapDeadAgentProcesses(): Promise<number> {
     let reaped = 0;
@@ -457,8 +462,53 @@ export class AgentProcessManager {
         );
       }
     }
+    reaped += await this.reapStoppingSlotsWithDeadPids();
     this.notifyAgentPresenceChanged();
     return reaped;
+  }
+
+  /**
+   * Clears stopping slots whose process is gone and whose stop has timed out. Called by the sweep.
+   *
+   * Exactly-once: `forceClearStuckStoppingSlot` clears `slot.pid` before its first await. A stop that
+   * resolves later sees the cleared pid and drops its exited fact (see `doStop`). Ownership is
+   * re-checked with no await between the liveness read and the call.
+   */
+  private async reapStoppingSlotsWithDeadPids(): Promise<number> {
+    let reaped = 0;
+    for (const [key, slot] of [...this.slots]) {
+      const pid = slot.pid;
+      if (slot.state !== AGENT_SLOT_STATE.STOPPING || pid === undefined) continue;
+      if (isProcessAlive(this.deps.processes.kill, pid) || !this.isStopTimedOut(slot)) continue;
+      const identity = parseAgentKey(key);
+      try {
+        if (slot.state !== AGENT_SLOT_STATE.STOPPING || slot.pid !== pid) continue;
+        await this.forceClearStuckStoppingSlot(
+          key,
+          slot,
+          identity.chatroomId,
+          identity.role,
+          'daemon.stop_timeout'
+        );
+        reaped++;
+        console.warn(
+          `[AgentProcessManager] ⚠️ Reaped stopping slot with dead pid ${pid} for ${identity.role}@${identity.chatroomId}`
+        );
+      } catch (error) {
+        console.warn(
+          `[AgentProcessManager] stopping reap failed for ${identity.role}@${identity.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+    return reaped;
+  }
+
+  /** True once a stopping slot has been stopping for STOPPING_TIMEOUT_MS. A slot with no stoppingSince counts as timed out. */
+  private isStopTimedOut(slot: AgentSlot): boolean {
+    return (
+      slot.stoppingSince === undefined ||
+      this.deps.clock.now() - slot.stoppingSince >= STOPPING_TIMEOUT_MS
+    );
   }
 
   /**
@@ -1228,10 +1278,7 @@ export class AgentProcessManager {
       return false;
     }
     const key = agentKey(chatroomId, role, slot.workingDir);
-    const elapsed = slot.stoppingSince
-      ? this.deps.clock.now() - slot.stoppingSince
-      : STOPPING_TIMEOUT_MS;
-    if (elapsed < STOPPING_TIMEOUT_MS) {
+    if (!this.isStopTimedOut(slot)) {
       return false;
     }
     await this.forceClearStuckStoppingSlot(
@@ -2157,7 +2204,17 @@ export class AgentProcessManager {
             sessionId: this.deps.sessionId,
             agentServices: this.deps.agentServices,
             processes: this.deps.processes,
-            lifecycleOutbox: this.deps.lifecycleOutbox,
+            lifecycleOutbox: {
+              // The stop owns the exited fact only while the slot still holds this pid. After a
+              // force-clear (stuck stop), the slot already emitted it. A late fact would double-project.
+              enqueue: (fact) => {
+                if (slot.pid === pid) return this.deps.lifecycleOutbox.enqueue(fact);
+                console.log(
+                  `[AgentProcessManager] dropped late exited fact for pid ${pid} (slot already cleared)`
+                );
+                return Promise.resolve({ success: true } as const);
+              },
+            },
             logEvent: this.deps.logEvent,
             clock: this.deps.clock,
             killProcessWithFallback: this.killProcessWithFallback.bind(this),

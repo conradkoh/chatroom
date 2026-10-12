@@ -42,6 +42,7 @@ import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
+  STOPPING_TIMEOUT_MS,
 } from '../../agent-process-service/infrastructure/agent-process-manager.js';
 import type { WorkspaceStateUnit } from '../domain/workspace-state-unit.js';
 import {
@@ -241,6 +242,9 @@ function startHarness(workingDir: string, fake: FakeBackend, options: StartOptio
 function createAgentProcessFixture() {
   const deadPids = new Set<number>();
   let nextPid = FIRST_AGENT_PID;
+  // Offset clock, so a test can age a stop past STOPPING_TIMEOUT_MS without sleeping.
+  let clockOffsetMs = 0;
+  const lifecycleOutbox = { enqueue: vi.fn().mockResolvedValue({ success: true }) };
   const kill = vi.fn((pid: number, signal?: number | string) => {
     if (signal === 0) {
       if (deadPids.has(pid)) throw new Error('ESRCH');
@@ -289,11 +293,14 @@ function createAgentProcessFixture() {
           : {}
       ),
     },
-    lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue({ success: true }) },
+    lifecycleOutbox,
     sessionId: 'test-session',
     machineId: MACHINE_ID,
     processes: { kill },
-    clock: { delay: vi.fn().mockResolvedValue(undefined), now: () => Date.now() },
+    clock: {
+      delay: vi.fn().mockResolvedValue(undefined),
+      now: () => Date.now() + clockOffsetMs,
+    },
     fs: { stat: vi.fn().mockResolvedValue({ isDirectory: () => true }) },
     persistence: {
       persistAgentPid: vi.fn(),
@@ -305,10 +312,27 @@ function createAgentProcessFixture() {
   } as unknown as AgentProcessManagerDeps;
   return {
     manager: new AgentProcessManager(deps),
+    /** The fake harness, so a test can hold a stop open. */
+    harness,
+    /** The lifecycle outbox the manager enqueues facts to. */
+    lifecycleOutbox,
     markDead: (pid: number) => {
       deadPids.add(pid);
     },
+    advanceClock: (ms: number) => {
+      clockOffsetMs += ms;
+    },
   };
+}
+
+/** The exited facts enqueued for `pid`. */
+function exitedFactsFor(
+  lifecycleOutbox: { enqueue: { mock: { calls: unknown[][] } } },
+  pid: number
+): Record<string, unknown>[] {
+  return lifecycleOutbox.enqueue.mock.calls
+    .map(([fact]) => fact as Record<string, unknown>)
+    .filter((fact) => fact.kind === 'exited' && fact.pid === pid);
 }
 
 /** The manager's presence, as the service consumes it in production. */
@@ -815,5 +839,55 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
       5_000
     );
     expect(patchUnits(fake.calls)[0]?.kind).toBe('head');
+  });
+
+  it('a stop that hangs on a dead agent clears the workspace and sends one exited fact', async () => {
+    const fake = createFakeBackend();
+    const fixture = createAgentProcessFixture();
+    start(fake, { agents: [], presenceSource: managerPresence(fixture.manager) });
+
+    const started = await fixture.manager.ensureRunning(agentStart(repo, 'builder'));
+    expect(started.success).toBe(true);
+    await waitFor(() => worktreeUnits(fake.calls).length > 0, 'initial worktree unit', 5_000);
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    // The stop's harness call never resolves, and the agent's process then dies.
+    fixture.harness.stop.mockImplementationOnce(() => new Promise<void>(() => undefined));
+    void fixture.manager.stop({
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      reason: 'user.stop',
+      workingDir: repo,
+    });
+    await waitFor(
+      () => fixture.manager.getSlot(CHATROOM_ID, 'builder')?.state === 'stopping',
+      'slot stopping'
+    );
+    fixture.markDead(FIRST_AGENT_PID);
+    await editReadme('hung stop edit\n');
+
+    // Past the timeout, the sweep clears the stuck stop, and the directory goes idle.
+    fixture.advanceClock(STOPPING_TIMEOUT_MS);
+    expect(await fixture.manager.reapDeadAgentProcesses()).toBe(1);
+    await waitFor(
+      () =>
+        worktreeUnits(fake.calls).some(
+          (u) => u.isDirty && u.diffStat.insertions === 1 && u.diffStat.deletions === 1
+        ),
+      'final flush of the edit made during the hung stop',
+      5_000
+    );
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    expect(exitedFactsFor(fixture.lifecycleOutbox, FIRST_AGENT_PID)).toHaveLength(1);
+    expect(exitedFactsFor(fixture.lifecycleOutbox, FIRST_AGENT_PID)[0]).toMatchObject({
+      stopReason: 'daemon.stop_timeout',
+    });
+
+    // Idle: a further edit with a different diffStat sends nothing.
+    const mark = fake.calls.length;
+    await editReadme('after the hang\nmore\nlines\n');
+    await sleep(POLICY.probeIntervalMs * 3);
+    expect(fake.calls.length).toBe(mark);
   });
 });

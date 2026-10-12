@@ -147,6 +147,9 @@ The constraints are documented on `probeRootSnapshotReader` and `toRootChangeSou
   `probeIntervalMs` (3s at the default policy). The cache is not shortened to close this gap.
 - **Rename-limit window.** A `status.renameLimit` or `diff.renameLimit` change reaches the root
   projection within 10 probe intervals (30s at the default policy).
+- **Hung stop on a dead agent.** A stop whose harness call never resolves, for a process that has
+  died, is cleared by the liveness sweep once `STOPPING_TIMEOUT_MS` (30s) has elapsed. The UI may
+  show the agent online for up to about 40s after the hung stop began.
 
 Both are explained under [Root file-tree read](#root-file-tree-read).
 

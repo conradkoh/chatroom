@@ -2263,3 +2263,181 @@ describe('liveness sweep', () => {
     }
   });
 });
+
+describe('stopping slots in the liveness sweep', () => {
+  let deps: AgentProcessManagerDeps;
+  let manager: AgentProcessManager;
+  let nowMs: number;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    deps = createDeps();
+    nowMs = 1_000_000;
+    // The manager holds the same clock object, so this controls stoppingSince and the timeout.
+    deps.clock.now = () => nowMs;
+    manager = new AgentProcessManager(deps);
+  });
+
+  function serviceStop(): ReturnType<typeof vi.fn> {
+    return deps.agentServices.get('opencode')!.stop as ReturnType<typeof vi.fn>;
+  }
+
+  function serviceSpawn(): ReturnType<typeof vi.fn> {
+    return deps.agentServices.get('opencode')!.spawn as ReturnType<typeof vi.fn>;
+  }
+
+  function markDead(pid: number): void {
+    (deps.processes.kill as unknown as { markDead: (pid: number) => void }).markDead(pid);
+  }
+
+  /** Exited lifecycle facts enqueued since the last clear. */
+  function exitedFacts(): Record<string, unknown>[] {
+    return vi
+      .mocked(deps.lifecycleOutbox.enqueue)
+      .mock.calls.map(([fact]) => fact as unknown as Record<string, unknown>)
+      .filter((fact) => fact.kind === 'exited');
+  }
+
+  /** A promise the test resolves by hand. */
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  /** Starts the agent, then starts a stop whose harness call never resolves. The slot is stopping. */
+  async function startHungStop() {
+    await manager.ensureRunning(createOpts());
+    const hung = deferred<undefined>();
+    serviceStop().mockImplementationOnce(() => hung.promise);
+    const stopping = manager.stop({
+      chatroomId: CHATROOM_ID,
+      role: ROLE,
+      reason: 'user.stop',
+      workingDir: '/tmp/test',
+    });
+    await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
+    vi.mocked(deps.lifecycleOutbox.enqueue).mockClear();
+    return { hung, stopping };
+  }
+
+  test('a dead pid past the timeout is cleared: one exited fact, idle slot, presence notified', async () => {
+    await startHungStop();
+    const handler = vi.fn();
+    manager.subscribeAgentPresenceChanged(handler);
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS;
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(1);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBeUndefined();
+    expect(manager.listWorkspacePresences()).toEqual([]);
+    expect(exitedFacts()).toEqual([
+      expect.objectContaining({ kind: 'exited', pid: PID, stopReason: 'daemon.stop_timeout' }),
+    ]);
+    expect(handler).toHaveBeenCalled();
+  });
+
+  test('a hung stop that resolves after the sweep enqueues nothing more and resolves success', async () => {
+    const { hung, stopping } = await startHungStop();
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS;
+    await manager.reapDeadAgentProcesses();
+
+    hung.resolve(undefined);
+
+    await expect(stopping).resolves.toEqual({ success: true });
+    expect(exitedFacts()).toHaveLength(1);
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+  });
+
+  test('a hung stop that resolves after a new run started does not touch the new run', async () => {
+    const { hung, stopping } = await startHungStop();
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS;
+    await manager.reapDeadAgentProcesses();
+
+    // A new run starts with a different pid. The old stop must leave it alone.
+    serviceSpawn().mockImplementationOnce(async () => ({
+      pid: PID + 1,
+      onExit: vi.fn(),
+      onOutput: vi.fn(),
+      onAgentEnd: vi.fn(),
+    }));
+    await manager.ensureRunning(createOpts());
+    vi.mocked(deps.persistence.clearAgentPid).mockClear();
+    vi.mocked(deps.lifecycleOutbox.enqueue).mockClear();
+
+    hung.resolve(undefined);
+    await stopping;
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)).toMatchObject({ state: 'running', pid: PID + 1 });
+    expect(exitedFacts()).toEqual([]);
+    expect(deps.persistence.clearAgentPid).not.toHaveBeenCalled();
+  });
+
+  test('a dead pid under the timeout is untouched: no fact, no kill, state stopping', async () => {
+    const { hung, stopping } = await startHungStop();
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS - 1;
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping');
+    expect(exitedFacts()).toEqual([]);
+    expect(deps.processes.kill).not.toHaveBeenCalledWith(-PID, 'SIGKILL');
+    hung.resolve(undefined);
+    await stopping;
+  });
+
+  test('a live pid past the timeout is untouched: no fact, no kill, state stopping', async () => {
+    const { hung, stopping } = await startHungStop();
+    nowMs += STOPPING_TIMEOUT_MS * 2;
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping');
+    expect(exitedFacts()).toEqual([]);
+    expect(deps.processes.kill).not.toHaveBeenCalledWith(-PID, 'SIGKILL');
+    // Mark the process dead before the stop resolves, so the stop's own confirmation returns.
+    markDead(PID);
+    hung.resolve(undefined);
+    await stopping;
+  });
+
+  test('a stop that completes emits exactly one exited fact, and a later sweep does nothing', async () => {
+    await manager.ensureRunning(createOpts());
+    serviceStop().mockImplementationOnce(async (pid: number) => {
+      markDead(pid);
+    });
+
+    await expect(
+      manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+        workingDir: '/tmp/test',
+      })
+    ).resolves.toEqual({ success: true });
+    expect(exitedFacts()).toHaveLength(1);
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+
+    nowMs += STOPPING_TIMEOUT_MS;
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+    expect(exitedFacts()).toHaveLength(1);
+  });
+
+  test('a second sweep after the clear resolves 0 and enqueues nothing more', async () => {
+    await startHungStop();
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS;
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(1);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(exitedFacts()).toHaveLength(1);
+  });
+});
