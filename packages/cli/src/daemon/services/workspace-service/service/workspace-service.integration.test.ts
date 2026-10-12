@@ -199,6 +199,20 @@ function worktreeUnits(calls: readonly MutationCall[]) {
   );
 }
 
+/** The only backend mutations a git change may cause. Anything else means a handoff-style path ran. */
+const CHANGE_DRIVEN_CALLS: ReadonlySet<string> = new Set([
+  PATCH_UNIT,
+  UPSERT_RECENT_COMMITS,
+  SYNC_COMMANDS,
+]);
+
+function expectOnlyChangeDrivenCalls(calls: readonly MutationCall[]): void {
+  const unexpected = calls
+    .map((call) => call.name)
+    .filter((name) => !CHANGE_DRIVEN_CALLS.has(name));
+  expect(unexpected).toEqual([]);
+}
+
 describe('WorkspaceService end-to-end (real git, real outbox)', () => {
   let tmp: string;
   let home: string;
@@ -382,5 +396,77 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
 
     const recovered = worktreeUnits(restarted.calls).find((u) => u.diffStat.insertions === 2);
     expect(recovered?.isDirty).toBe(true);
+  });
+
+  it('emits a head unit for a new branch within 5s, with no handoff call', async () => {
+    const fake = createFakeBackend();
+    start(fake);
+    await waitFor(() => patchUnits(fake.calls).some((u) => u.kind === 'checks'), 'initial sync');
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    const mark = fake.calls.length;
+    const startedAt = Date.now();
+    await git(repo, ['checkout', '-q', '-b', 'x']);
+    await waitFor(
+      () =>
+        patchUnits(fake.calls.slice(mark)).some(
+          (u) => u.kind === 'head' && u.status === 'available' && u.branch === 'x'
+        ),
+      'head unit for branch x',
+      5_000
+    );
+
+    expect(Date.now() - startedAt).toBeLessThan(5_000);
+    expectOnlyChangeDrivenCalls(fake.calls);
+  });
+
+  it('emits a worktree unit with the new diffStat after a tracked edit, with no handoff call', async () => {
+    const fake = createFakeBackend();
+    start(fake);
+    await waitFor(() => worktreeUnits(fake.calls).length > 0, 'initial worktree unit');
+
+    const mark = fake.calls.length;
+    await writeFile(join(repo, 'README.md'), 'hello\nworld\n');
+    await waitFor(
+      () =>
+        worktreeUnits(fake.calls.slice(mark)).some(
+          (u) => u.isDirty && u.diffStat.insertions === 2 && u.diffStat.deletions === 1
+        ),
+      'worktree unit with diffStat +2 -1'
+    );
+
+    expectOnlyChangeDrivenCalls(fake.calls);
+  });
+
+  it('emits an upstream unit when a push clears the ahead count, then sends nothing on unchanged refreshes', async () => {
+    const fake = createFakeBackend();
+    start(fake);
+    await waitFor(() => patchUnits(fake.calls).some((u) => u.kind === 'checks'), 'initial sync');
+    await git(repo, ['checkout', '-q', '-b', 'x']);
+    await git(repo, ['push', '-q', '-u', 'origin', 'x']);
+    await sleep(POLICY.probeIntervalMs * 3);
+
+    await writeFile(join(repo, 'README.md'), 'second\n');
+    await git(repo, ['commit', '-q', '-am', 'second']);
+    await waitFor(
+      () => patchUnits(fake.calls).some((u) => u.kind === 'upstream' && u.commitsAhead === 1),
+      'upstream unit one commit ahead'
+    );
+
+    const mark = fake.calls.length;
+    await git(repo, ['push', '-q', 'origin', 'x']);
+    await waitFor(
+      () =>
+        patchUnits(fake.calls.slice(mark)).some(
+          (u) => u.kind === 'upstream' && u.commitsAhead === 0 && u.commitsBehind === 0
+        ),
+      'upstream unit after push'
+    );
+    expectOnlyChangeDrivenCalls(fake.calls);
+
+    await sleep(POLICY.probeIntervalMs * 3);
+    const quietFrom = fake.calls.length;
+    await sleep(POLICY.probeIntervalMs * 10);
+    expect(fake.calls.slice(quietFrom)).toEqual([]);
   });
 });
