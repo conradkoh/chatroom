@@ -26,15 +26,16 @@ const PERSISTENT_FAILURE_THRESHOLD = 3;
  * The consumer MUST then read directly (readNodeGitState) for this tick.
  *
  * Contract:
- * - Called only for the root node, with the same workTree and pathspec as the consumer. Nothing
- *   checks this at runtime. A mismatch scopes the root node to the wrong paths.
+ * - Called only for the root node. `rootPathspec` is that node's pathspec, the same array the
+ *   consumer passes to its own direct read. The reader must project onto this argument and must not
+ *   derive a pathspec of its own. A second derivation could disagree with the consumer's node.
  * - `undefined` is a normal answer, not an error. The snapshot declines when the pathspec has glob
  *   metacharacters, when any rename or copy is present, or when git would skip inexact rename
  *   detection. The consumer then reads v1 for that tick.
  * - A rejected promise is reported through `onError`, and the root git reads are skipped for that
  *   tick. It is not retried as a direct read.
  */
-export type GitRootSnapshotReader = () => Promise<
+export type GitRootSnapshotReader = (rootPathspec: string[]) => Promise<
   | {
       head: GitHeadState;
       entries: GitPorcelainEntry[];
@@ -102,7 +103,7 @@ async function pollGitWorkspaceNode(args: {
 }): Promise<PollNodeResult> {
   const snapshot =
     args.node === args.options.hierarchy.root && args.options.readRootSnapshot
-      ? await args.options.readRootSnapshot()
+      ? await args.options.readRootSnapshot(args.node.pathspec)
       : undefined;
   const { head: nextHead, entries: nextEntries } = snapshot ?? (await readNodeGitState(args.node));
 

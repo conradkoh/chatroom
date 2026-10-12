@@ -554,6 +554,36 @@ describe('git-workspace-change-source: injected root snapshot', () => {
     await source.stop();
   });
 
+  it('passes the root node pathspec to readRootSnapshot', async () => {
+    const scopedHierarchy: GitWorkspaceHierarchy = {
+      workspaceRoot: '/workspace/packages/cli',
+      root: {
+        workTree: '/workspace',
+        gitDir: '/workspace/.git',
+        relativePath: '',
+        pathspec: ['packages/cli'],
+        children: [],
+      },
+    };
+    const readRootSnapshot = vi.fn<GitRootSnapshotReader>(async () => ({
+      head: { head: 'abc' },
+      entries: [],
+    }));
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace/packages/cli',
+      hierarchy: scopedHierarchy,
+      pollIntervalMs: 1000,
+      onEvents: vi.fn(),
+      readRootSnapshot,
+    });
+    await source.ready;
+
+    expect(readRootSnapshot).toHaveBeenCalledWith(['packages/cli']);
+
+    await source.stop();
+  });
+
   it('routes a rejected readRootSnapshot through onError and skips the root git reads', async () => {
     const onError = vi.fn();
     const failure = new Error('snapshot unavailable');
