@@ -200,9 +200,8 @@ function localKindsFor(upstreamChanged: boolean, changed: GitPorcelainEntry[]): 
  * An empty pathspec returns the probe entries unchanged, because they are already in that order.
  *
  * `renameLimit` must come from `readGitRenameLimit` for the same `workTree` as the snapshot.
+ * `rootPathspec` is the root node's pathspec, the same array the change source passes to the reader.
  */
-// Reason: S6 wires this into the file-tree root seam (readRootSnapshot); no production caller until then.
-// fallow-ignore-next-line unused-export
 export function toRootChangeSourceSnapshot(
   s: ProbeSnapshot,
   rootPathspec: string[],
@@ -263,7 +262,7 @@ function exceedsRenameLimit(entries: GitPorcelainEntry[], renameLimit: number): 
  * unparsable values. Those values have no documented meaning, so 1 is used. A smaller limit only
  * adds fallbacks, so 1 never misses a skip whatever git does with them.
  */
-// Reason: S6 wires this into the file-tree root seam (readRootSnapshot); no production caller until then.
+// Reason: exported for the rename-limit tests. Production reads go through `readGitRenameLimit`.
 // fallow-ignore-next-line unused-export
 export function renameLimitFromConfig(stdout: string): number {
   const configured =
@@ -291,8 +290,6 @@ function toLowerBoundLimit(value: string): number {
  * runner, so it costs one extra git process per call. Call it once per snapshot, with the same
  * `workTree` as the snapshot.
  */
-// Reason: S6 wires this into the file-tree root seam (readRootSnapshot); no production caller until then.
-// fallow-ignore-next-line unused-export
 export async function readGitRenameLimit(workTree: string): Promise<number> {
   const result = await runGit(
     ['config', '--get-regexp', '^(status|diff)\\.renamelimit$'],

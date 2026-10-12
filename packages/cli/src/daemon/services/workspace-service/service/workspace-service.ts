@@ -4,6 +4,7 @@ import {
   type WorkspaceFileTreeHost,
 } from './workspace-file-tree-host.js';
 import { createWorkspaceMonitor, type WorkspaceMonitor } from './workspace-monitor.js';
+import type { GitRootSnapshotReader } from '../../../../infrastructure/services/workspace/git-workspace-change-source.js';
 import { normalizeWorkingDirForLookup } from '../../../../infrastructure/services/workspace/normalize-working-dir.js';
 import type { DaemonSessionServiceShape } from '../../../entry/daemon-services.js';
 import {
@@ -28,6 +29,8 @@ import {
 import type { WorkspaceActivitySource } from '../infrastructure/workspace-activity-source.js';
 import {
   createWorkspaceGitProbe,
+  readGitRenameLimit,
+  toRootChangeSourceSnapshot,
   type WorkspaceGitProbe,
 } from '../infrastructure/workspace-git-probe.js';
 
@@ -91,6 +94,8 @@ type ResolvedDeps = {
 
 type MonitorEntry = {
   monitor: WorkspaceMonitor;
+  /** The probe the monitor reads. The root snapshot reader shares it, so one git read serves both. */
+  probe: WorkspaceGitProbe;
   /** The tier last passed to `monitor.setTier`. Only a change is forwarded. */
   tier: ObservationTier;
   /** Stops this entry's callbacks from reaching the outbox and the remote queue. */
@@ -127,7 +132,9 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
   const state = createServiceState(deps);
   const fileTree = createWorkspaceFileTreeHost({
     session: { sessionId: deps.sessionId, machineId: deps.machineId, backend: deps.backend },
-    getRootSnapshotReader: async () => undefined, // S6b-3 wires the probe here
+    getRootSnapshotReader: probeRootSnapshotReader(
+      (workingDir) => state.monitors.get(normalizeWorkingDirForLookup(workingDir))?.probe
+    ),
   });
   let unsubscribe: (() => void) | null = null;
 
@@ -160,6 +167,36 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
       });
       await state.queue.stopAll();
     },
+  };
+}
+
+/**
+ * Builds the root snapshot reader for a working directory from the probe its monitor owns.
+ * Resolved once per coordinator start. Each tick, the reader projects the probe's snapshot onto
+ * the pathspec the change source passes in.
+ *
+ * Constraint: a coordinator that starts before its monitor is registered keeps the direct v1 read
+ * for its whole lifetime. Parity holds either way. Only the probe saving is lost.
+ *
+ * - No monitor for the directory: the factory resolves `undefined`, so the coordinator reads v1.
+ * - The projection declines (`toRootChangeSourceSnapshot` is `undefined`): the reader resolves
+ *   `undefined` for that tick, so the change source reads v1.
+ * - A probe or config read rejects: the rejection reaches the change source, which reports it
+ *   through `onError` and skips the root git reads for that tick. It is not retried as a direct read.
+ *
+ * `maxAgeMs: 0` makes every tick read git. A read already in flight is shared, not restarted.
+ */
+function probeRootSnapshotReader(
+  probeFor: (workingDir: string) => WorkspaceGitProbe | undefined
+): (workingDir: string) => Promise<GitRootSnapshotReader | undefined> {
+  return async (workingDir) => {
+    const probe = probeFor(workingDir);
+    if (!probe) return undefined;
+    return async (rootPathspec) => {
+      const snapshot = await probe.readSnapshot({ maxAgeMs: 0 });
+      const renameLimit = await readGitRenameLimit(probe.workTree);
+      return toRootChangeSourceSnapshot(snapshot, rootPathspec, renameLimit);
+    };
   };
 }
 
@@ -236,11 +273,12 @@ function createServiceState(deps: WorkspaceServiceDeps): ServiceState {
 function createEntry(state: ServiceState, workingDir: string): MonitorEntry {
   const { deps, outbox, queue } = state;
   let live = true;
+  const probe = deps.createProbe(workingDir);
   const monitor = createWorkspaceMonitor({
     workingDir,
     policy: deps.policy,
     now: deps.now,
-    probe: deps.createProbe(workingDir),
+    probe,
     collectLocal: deps.collectLocal,
     collectRemote: deps.collectRemote,
     enqueue: (unit) => {
@@ -257,6 +295,7 @@ function createEntry(state: ServiceState, workingDir: string): MonitorEntry {
   });
   return {
     monitor,
+    probe,
     tier: 'idle',
     retire: () => {
       live = false;
