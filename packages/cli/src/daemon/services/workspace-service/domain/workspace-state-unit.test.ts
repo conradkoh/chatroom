@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hashUnit, normalizeUnit } from './workspace-state-unit.js';
+import { hashUnit } from './workspace-state-unit.js';
 import type { WorkspaceStateUnit } from '../../../infrastructure/outbox/workspace-state-outbox-schema.js';
 
 const CHECK_A = { name: 'build', status: 'completed', conclusion: 'success' };
@@ -44,51 +44,18 @@ const COMMAND_SUB = {
 };
 const COMMAND_TURBO = { name: 'build', script: 'turbo build', source: 'turbo.json' as const };
 
-describe('normalizeUnit', () => {
-  it('sorts checks by name then status and keeps the status fields', () => {
-    const normalized = normalizeUnit(CHECKS_SHUFFLED);
-    expect(normalized).toEqual(CHECKS_ORDERED);
-  });
-
-  it('sorts remotes by name then url', () => {
-    const normalized = normalizeUnit({ kind: 'remotes', remotes: [REMOTE_B, REMOTE_A] });
-    // 'fork' < 'origin'
-    expect(normalized).toEqual({ kind: 'remotes', remotes: [REMOTE_B, REMOTE_A] });
-  });
-
-  it('sorts pull requests by number', () => {
-    const normalized = normalizeUnit({ kind: 'pullRequests', openPullRequests: [PR_2, PR_1] });
-    expect(normalized).toEqual({ kind: 'pullRequests', openPullRequests: [PR_1, PR_2] });
-  });
-
-  it('sorts commands by source, then sub-workspace path, then name', () => {
-    const normalized = normalizeUnit({
-      kind: 'commands',
-      commands: [COMMAND_TURBO, COMMAND_SUB, COMMAND_ROOT],
-    });
-    // 'package.json' < 'turbo.json'; within package.json the root ('' path) precedes 'packages/a'.
-    expect(normalized).toEqual({
-      kind: 'commands',
-      commands: [COMMAND_ROOT, COMMAND_SUB, COMMAND_TURBO],
-    });
-  });
-
-  it('does not mutate its input', () => {
+describe('hashUnit', () => {
+  it('does not mutate its input when sorting array-valued fields', () => {
     const input: WorkspaceStateUnit = { kind: 'remotes', remotes: [REMOTE_B, REMOTE_A] };
     const snapshot = JSON.parse(JSON.stringify(input));
-    normalizeUnit(input);
+    hashUnit(input);
     expect(input).toEqual(snapshot);
   });
 
-  it('passes null checks through unchanged', () => {
-    expect(normalizeUnit({ kind: 'checks', headCommitStatus: null })).toEqual({
-      kind: 'checks',
-      headCommitStatus: null,
-    });
+  it('hashes a unit with null checks status', () => {
+    expect(hashUnit({ kind: 'checks', headCommitStatus: null })).toMatch(/^[0-9a-f]{40}$/);
   });
-});
 
-describe('hashUnit', () => {
   it('is equal for checks inputs that differ only in array order', () => {
     expect(hashUnit(CHECKS_SHUFFLED)).toBe(hashUnit(CHECKS_ORDERED));
   });

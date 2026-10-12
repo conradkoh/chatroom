@@ -83,7 +83,8 @@ export const DEFAULT_WORKSPACE_SYNC_POLICY: WorkspaceSyncPolicy = {
  * Never mutates `DEFAULT_WORKSPACE_SYNC_POLICY`; always returns a fresh object tree.
  * Constraint: the policy contains only plain objects and numbers, so arrays are not merged.
  */
-// Reason: test seam for shortening intervals; production passes DEFAULT_WORKSPACE_SYNC_POLICY.
+// Reason: no public path. Production passes DEFAULT_WORKSPACE_SYNC_POLICY and has no override
+// source by design; only the service, monitor and integration tests build partial overrides.
 // fallow-ignore-next-line unused-export
 export function resolveWorkspaceSyncPolicy(
   overrides?: DeepPartial<WorkspaceSyncPolicy>

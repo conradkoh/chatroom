@@ -81,10 +81,9 @@ function compareCommands(a: Command, b: Command): number {
  * Canonical form of a unit for hashing and comparison. Array-valued fields are sorted so that
  * order-only differences from the source do not register as a change. Never mutates the input.
  */
-// Reason: exported so the sort order is tested directly; production reaches it through hashUnit.
-// One switch arm per unit kind is the exhaustive dispatch; splitting it would only move the arms.
-// fallow-ignore-next-line unused-export complexity
-export function normalizeUnit(u: WorkspaceStateUnit): WorkspaceStateUnit {
+// Reason: one switch arm per unit kind is the exhaustive dispatch; splitting it would only move the arms.
+// fallow-ignore-next-line complexity
+function normalizeUnit(u: WorkspaceStateUnit): WorkspaceStateUnit {
   switch (u.kind) {
     case 'checks':
       return normalizeChecks(u);
