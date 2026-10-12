@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFakeWorkspaceService } from './testing/index.js';
+import { DEFAULT_WORKSPACE_SYNC_POLICY } from '../services/workspace-service/domain/workspace-sync-policy.js';
 
 const registerCommandInboundHandler = vi.fn();
 const unregisterCommandInboundHandler = vi.fn();
@@ -69,9 +70,12 @@ vi.mock('../../events/lifecycle/on-daemon-shutdown.js', async () => {
 describe('createDaemonRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // A test may leave a pending stop behind; each test sets the stop it needs.
+    taskInboxStop.mockReset();
   });
 
-  it('registers inbound handlers on run and unregisters on shutdown', async () => {
+  /** Builds the runtime, starts it, and resolves once the inbound handlers are registered. */
+  async function startRuntime() {
     const { Effect, Layer } = await import('effect');
     const {
       AgentLifecycleOutboxService,
@@ -124,6 +128,11 @@ describe('createDaemonRuntime', () => {
 
     const runPromise = runtime.run();
     await new Promise((r) => setTimeout(r, 50));
+    return { runtime, runPromise, workspaceService, onNativeDeliveryReady };
+  }
+
+  it('registers inbound handlers on run and unregisters on shutdown', async () => {
+    const { runtime, runPromise, workspaceService, onNativeDeliveryReady } = await startRuntime();
 
     expect(registerCommandInboundHandler).toHaveBeenCalled();
     expect(registerFileInboundHandler).toHaveBeenCalled();
@@ -153,5 +162,28 @@ describe('createDaemonRuntime', () => {
     expect(unregisterWorkspaceGitInboundHandler).toHaveBeenCalled();
     expect(onNativeDeliveryReady).toHaveBeenLastCalledWith(null);
     expect(shutdownEffectStarted).toHaveBeenCalledOnce();
+  });
+
+  it('gives up on a flush that never settles after shutdownFlushTimeoutMs, then stops the outbox', async () => {
+    const { runtime, runPromise } = await startRuntime();
+    workspaceStateOutboxFlush.mockImplementationOnce(() => new Promise<void>(() => undefined));
+    const flushTimeoutMs = DEFAULT_WORKSPACE_SYNC_POLICY.outbox.shutdownFlushTimeoutMs;
+
+    // Only the timers are faked, so the shutdown's promise chain still runs for real.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const shutdownPromise = runtime.shutdown();
+      await vi.advanceTimersByTimeAsync(flushTimeoutMs - 1);
+      expect(workspaceStateOutboxFlush).toHaveBeenCalledOnce();
+      expect(workspaceStateOutboxStop).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(workspaceStateOutboxStop).toHaveBeenCalledOnce();
+
+      await shutdownPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+    await runPromise;
   });
 });

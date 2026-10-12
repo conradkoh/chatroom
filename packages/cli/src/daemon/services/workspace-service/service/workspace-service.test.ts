@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as QueueModule from './remote-poll-queue.js';
+import type * as MonitorModule from './workspace-monitor.js';
 import {
   createWorkspaceService,
   type WorkspaceService,
@@ -21,6 +23,46 @@ import type { LocalCollectResult } from '../infrastructure/local-unit-collector.
 import type { RemoteCollectResult } from '../infrastructure/remote-unit-collector.js';
 import type { WorkspaceActivitySource } from '../infrastructure/workspace-activity-source.js';
 import type { ProbeSnapshot, WorkspaceGitProbe } from '../infrastructure/workspace-git-probe.js';
+
+/**
+ * Ordered record of the stop path. The monitor and queue mocks below are passthroughs that only
+ * append to it, so stop order can be asserted without changing behaviour.
+ */
+const stopOrder = vi.hoisted(() => [] as string[]);
+
+vi.mock('./workspace-monitor.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof MonitorModule>();
+  return {
+    ...actual,
+    createWorkspaceMonitor: (deps: Parameters<typeof MonitorModule.createWorkspaceMonitor>[0]) => {
+      const monitor = actual.createWorkspaceMonitor(deps);
+      return {
+        ...monitor,
+        stop: () => {
+          stopOrder.push(`monitor:${deps.workingDir}`);
+          return monitor.stop();
+        },
+      };
+    },
+  };
+});
+
+vi.mock('./remote-poll-queue.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof QueueModule>();
+  return {
+    ...actual,
+    createRemotePollQueue: (deps: Parameters<typeof QueueModule.createRemotePollQueue>[0]) => {
+      const queue = actual.createRemotePollQueue(deps);
+      return {
+        ...queue,
+        stopAll: () => {
+          stopOrder.push('queue.stopAll');
+          return queue.stopAll();
+        },
+      };
+    },
+  };
+});
 
 const START = 1_000_000;
 const DIR_A = '/repo-a';
@@ -87,6 +129,7 @@ function snapshotOf(repo: FakeRepo): ProbeSnapshot {
 function fakeActivitySource() {
   let onRows: ((rows: readonly WorkspaceActivityRow[]) => void) | null = null;
   const unsubscribe = vi.fn(() => {
+    stopOrder.push('unsubscribe');
     onRows = null;
   });
   const source: WorkspaceActivitySource = {
@@ -192,6 +235,7 @@ describe('createWorkspaceService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(START);
+    stopOrder.length = 0;
   });
 
   afterEach(() => {
@@ -345,6 +389,53 @@ describe('createWorkspaceService', () => {
     expect(vi.getTimerCount()).toBe(0);
     expect(h.service.isRegistered(DIR_A)).toBe(false);
     expect(() => h.push(observedNow(DIR_A))).toThrow('not subscribed');
+  });
+
+  /**
+   * Replaces the file-tree stop with a recorder. With `reject`, the recorded stop then rejects, so
+   * the test can check what runs after a file-tree failure.
+   */
+  function recordFileTreeStop(h: Harness, reject?: Error): void {
+    const original = h.service.fileTree.stopAll.bind(h.service.fileTree);
+    vi.spyOn(h.service.fileTree, 'stopAll').mockImplementation(async () => {
+      stopOrder.push('fileTree.stopAll');
+      if (reject) throw reject;
+      await original();
+    });
+  }
+
+  it('stopAll unsubscribes first, then stops every monitor, then the file tree, then the remote queue', async () => {
+    const h = setup();
+    h.service.start();
+    h.push(observedNow(DIR_A, DIR_B));
+    await h.advance(0);
+    recordFileTreeStop(h);
+
+    await h.service.stopAll();
+
+    expect(stopOrder.at(0)).toBe('unsubscribe');
+    const monitorStops = stopOrder.slice(1, -2);
+    expect(monitorStops).toHaveLength(2);
+    expect(monitorStops.every((call) => call.startsWith('monitor:'))).toBe(true);
+    expect(stopOrder.slice(-2)).toEqual(['fileTree.stopAll', 'queue.stopAll']);
+  });
+
+  it('a file-tree stop failure is logged, and the remote queue still stops', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const h = setup();
+    h.service.start();
+    h.push(observedNow(DIR_A));
+    await h.advance(0);
+    recordFileTreeStop(h, new Error('file-tree stop failed'));
+
+    await expect(h.service.stopAll()).resolves.toBeUndefined();
+
+    expect(stopOrder.at(-2)).toBe('fileTree.stopAll');
+    expect(stopOrder.at(-1)).toBe('queue.stopAll');
+    expect(warn).toHaveBeenCalledWith(
+      '[workspace-service] file-tree stop failed',
+      expect.any(Error)
+    );
   });
 
   it('start subscribes only once', () => {

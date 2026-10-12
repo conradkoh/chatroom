@@ -159,8 +159,8 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
     async stopAll() {
       unsubscribe?.();
       unsubscribe = null;
-      // Stop order: monitors, file tree, remote queue. A file-tree failure is logged so the
-      // remote queue still stops and the daemon's shutdown sequence continues.
+      // Stop order: unsubscribe, monitors, file tree, remote queue. A file-tree failure is logged
+      // so the remote queue still stops and the daemon's shutdown sequence continues.
       await stopAllMembers(state);
       await fileTree.stopAll().catch((error: unknown) => {
         console.warn('[workspace-service] file-tree stop failed', error);
