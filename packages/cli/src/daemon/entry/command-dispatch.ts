@@ -15,6 +15,7 @@ import type {
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerCommandService,
   DaemonMutableStateService,
+  DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
@@ -137,6 +138,20 @@ function handlePingCommandEffect(
   });
 }
 
+/** Refreshes a workspace's monitor. A failure is logged and never fails the command. */
+function refreshWorkspaceEffect(
+  session: DaemonSessionServiceShape,
+  workingDir: string
+): Effect.Effect<void> {
+  return Effect.promise(() =>
+    session.workspaceService.refresh(workingDir).catch((error: unknown) => {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Workspace refresh failed for ${workingDir}: ${getErrorMessage(error)}`
+      );
+    })
+  );
+}
+
 function handleGitRefreshCommandEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -147,7 +162,7 @@ function handleGitRefreshCommandEffect(
     const session = yield* DaemonSessionService;
     const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitRefresh' }>;
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
-    yield* Effect.promise(() => session.workspaceService.refresh(typedEvent.workingDir));
+    yield* refreshWorkspaceEffect(session, typedEvent.workingDir);
     tracker.gitRefreshIds.set(eventId, Date.now());
   });
 }
@@ -174,7 +189,7 @@ function handleLocalActionCommandEffect(
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
     } else if (GIT_PUSH_ACTIONS.has(typedEvent.action)) {
       const session = yield* DaemonSessionService;
-      yield* Effect.promise(() => session.workspaceService.refresh(typedEvent.workingDir));
+      yield* refreshWorkspaceEffect(session, typedEvent.workingDir);
     }
     tracker.localActionIds.set(eventId, Date.now());
   });

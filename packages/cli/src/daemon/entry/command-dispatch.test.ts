@@ -453,4 +453,28 @@ describe('dispatchCommandEventEffect daemon.gitRefresh', () => {
 
     expect(workspaceService.refresh).toHaveBeenCalledTimes(1);
   });
+
+  it('logs a failed refresh, completes the command, and still dedups the event', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const deps = createMockDaemonDeps();
+    const workspaceService = createFakeWorkspaceService({
+      refresh: vi.fn().mockRejectedValue(new Error('git exploded')),
+    });
+    const event = {
+      _id: 'evt-git-refresh-fail',
+      type: 'daemon.gitRefresh',
+      workingDir: '/tmp/repo-fail',
+    } as any;
+    const tracker = createDedupTracker();
+    const overrides = withDeps(deps, { workspaceService });
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    expect(tracker.gitRefreshIds.has('evt-git-refresh-fail')).toBe(true);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Workspace refresh failed for /tmp/repo-fail: git exploded')
+    );
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    expect(workspaceService.refresh).toHaveBeenCalledTimes(1);
+  });
 });
