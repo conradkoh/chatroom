@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   createWorkspaceGitProbe,
   diffProbeSnapshots,
+  readGitRenameLimit,
+  renameLimitFromConfig,
   toRootChangeSourceSnapshot,
   type ProbeSnapshot,
 } from './workspace-git-probe.js';
@@ -304,56 +306,129 @@ describe('diffProbeSnapshots', () => {
   });
 });
 
+/** Default git rename limit; the pure projection tests pass it explicitly. */
+const DEFAULT_RENAME_LIMIT = 1000;
+
 describe('toRootChangeSourceSnapshot', () => {
-  const snap = snapshot({
+  const inside = snapshot({
     entries: [
       { xy: ' M', path: 'packages/cli/x.ts' },
       { xy: ' M', path: 'apps/web/y.ts' },
-      { xy: 'R ', path: 'packages/cli/new.ts', fromPath: 'packages/cli/old.ts' },
       { xy: ' M', path: 'packages/cli-old/z.ts' },
-      { xy: 'R ', path: 'apps/web/moved.ts', fromPath: 'packages/cli/from.ts' },
     ],
   });
 
+  function project(s: ProbeSnapshot, pathspec: string[], renameLimit = DEFAULT_RENAME_LIMIT) {
+    const root = toRootChangeSourceSnapshot(s, pathspec, renameLimit);
+    if (root === undefined) throw new Error('expected a projected root snapshot');
+    return root;
+  }
+
   test('keeps entries under the prefix and drops others', () => {
-    const { entries } = toRootChangeSourceSnapshot(snap, ['packages/cli']);
-    const paths = entries.map((e) => e.path);
+    const paths = project(inside, ['packages/cli']).entries.map((e) => e.path);
     expect(paths).toContain('packages/cli/x.ts');
     expect(paths).not.toContain('apps/web/y.ts');
   });
 
-  test('a rename whose origin is inside and destination outside becomes a delete of the origin', () => {
-    const { entries } = toRootChangeSourceSnapshot(snap, ['packages/cli']);
-    expect(entries).toContainEqual({ xy: 'D ', path: 'packages/cli/from.ts' });
-    expect(entries.map((e) => e.path)).not.toContain('apps/web/moved.ts');
-  });
-
   test('a prefix does not match a sibling directory that shares its leading characters', () => {
-    const { entries } = toRootChangeSourceSnapshot(snap, ['packages/cli']);
-    expect(entries.map((e) => e.path)).not.toContain('packages/cli-old/z.ts');
+    const paths = project(inside, ['packages/cli']).entries.map((e) => e.path);
+    expect(paths).not.toContain('packages/cli-old/z.ts');
   });
 
   test('a trailing slash on the prefix is ignored', () => {
-    const { entries } = toRootChangeSourceSnapshot(snap, ['packages/cli/']);
-    expect(entries.map((e) => e.path)).toContain('packages/cli/x.ts');
+    const paths = project(inside, ['packages/cli/']).entries.map((e) => e.path);
+    expect(paths).toContain('packages/cli/x.ts');
   });
 
   test('empty pathspec keeps everything', () => {
-    const { entries } = toRootChangeSourceSnapshot(snap, []);
-    expect(entries).toHaveLength(snap.entries.length);
+    expect(project(inside, []).entries).toHaveLength(inside.entries.length);
   });
 
   test('head is the branch oid', () => {
-    expect(toRootChangeSourceSnapshot(snap, []).head).toEqual({ head: 'aaa111' });
+    expect(project(inside, []).head).toEqual({ head: 'aaa111' });
+  });
+
+  test.each(['apps/[slug]', 'apps/*', 'apps/?', 'apps/a]b', 'apps\\x'])(
+    'returns undefined when the pathspec %s contains a glob metacharacter',
+    (pathspec) => {
+      expect(toRootChangeSourceSnapshot(inside, [pathspec], DEFAULT_RENAME_LIMIT)).toBeUndefined();
+    }
+  );
+
+  test('returns undefined when a rename sits entirely outside the pathspec', () => {
+    const s = snapshot({
+      entries: [
+        { xy: ' M', path: 'packages/cli/x.ts' },
+        { xy: 'R ', path: 'apps/web/moved.ts', fromPath: 'apps/web/old.ts' },
+      ],
+    });
+    expect(toRootChangeSourceSnapshot(s, ['packages/cli'], DEFAULT_RENAME_LIMIT)).toBeUndefined();
+  });
+
+  test('returns undefined when a copy is present', () => {
+    const s = snapshot({
+      entries: [{ xy: 'C ', path: 'packages/cli/copy.ts', fromPath: 'packages/cli/x.ts' }],
+    });
+    expect(toRootChangeSourceSnapshot(s, ['packages/cli'], DEFAULT_RENAME_LIMIT)).toBeUndefined();
+  });
+
+  test('returns undefined when adds × deletes exceeds the limit squared', () => {
+    // 3 adds (A, A, ??) and 2 deletes (D, worktree D): product 6.
+    const s = snapshot({
+      entries: [
+        { xy: 'A ', path: 'packages/cli/a1.ts' },
+        { xy: '??', path: 'packages/cli/a2.ts' },
+        { xy: 'A ', path: 'apps/web/a3.ts' },
+        { xy: 'D ', path: 'packages/cli/d1.ts' },
+        { xy: ' D', path: 'apps/web/d2.ts' },
+      ],
+    });
+    expect(toRootChangeSourceSnapshot(s, ['packages/cli'], 2)).toBeUndefined(); // 6 > 4
+    expect(toRootChangeSourceSnapshot(s, ['packages/cli'], 3)).toBeDefined(); // 6 <= 9
+  });
+
+  test('a product equal to the limit squared is accepted', () => {
+    const s = snapshot({
+      entries: [
+        { xy: 'A ', path: 'packages/cli/a1.ts' },
+        { xy: '??', path: 'packages/cli/a2.ts' },
+        { xy: 'D ', path: 'packages/cli/d1.ts' },
+        { xy: ' D', path: 'packages/cli/d2.ts' },
+      ],
+    });
+    expect(toRootChangeSourceSnapshot(s, ['packages/cli'], 2)).toBeDefined(); // 4 <= 4
   });
 });
 
-describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
+describe('renameLimitFromConfig', () => {
+  test.each([
+    ['unset', '', 1000],
+    ['diff.renamelimit only', 'diff.renamelimit 2\n', 2],
+    [
+      'status.renamelimit overrides diff.renamelimit',
+      'diff.renamelimit 2\nstatus.renamelimit 5\n',
+      5,
+    ],
+    ['zero (unlimited in git) is treated as 1', 'diff.renamelimit 0\n', 1],
+    ['negative is treated as 1', 'diff.renamelimit -1\n', 1],
+    ['a suffixed value git would accept is treated as 1', 'diff.renamelimit 2k\n', 1],
+    ['a key without a value is treated as 1', 'diff.renamelimit\n', 1],
+  ])('%s', (_label, stdout, expected) => {
+    expect(renameLimitFromConfig(stdout)).toBe(expected);
+  });
+});
+
+describe('toRootChangeSourceSnapshot against the v1 root reader (git fixtures)', () => {
   // Non-ASCII names: git orders them by UTF-8 bytes, which differs from UTF-16 code units.
-  const FULLWIDTH_TILDE = '\uFF5E.ts';
+  const FULLWIDTH_TILDE = '～.ts';
   const EMOJI = '\u{1F600}.ts';
 
   let repoRoot: string;
+
+  type RootView = {
+    head: { head: string | null };
+    entries: { xy: string; path: string; fromPath: string | undefined }[];
+  };
 
   function git(args: string[]): void {
     execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd: repoRoot, stdio: 'pipe' });
@@ -374,7 +449,7 @@ describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
   }
 
   /** The v1 root reader for a root node whose pathspec is `pathspec`. */
-  async function readV1Root(pathspec: string[]) {
+  async function readV1Root(pathspec: string[]): Promise<RootView> {
     const node: GitRepoNode = {
       workTree: repoRoot,
       gitDir: path.join(repoRoot, '.git'),
@@ -392,88 +467,136 @@ describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
     };
   }
 
-  async function readProbeRoot(pathspec: string[]) {
+  /** The projected root for `pathspec`, or undefined when the projection declines. */
+  async function readProbeRootOrUndefined(pathspec: string[]): Promise<RootView | undefined> {
     const snapshot = await createWorkspaceGitProbe({
       workTree: repoRoot,
       rootPathspec: pathspec,
       dirtyStatCap: 500,
     }).readSnapshot({ maxAgeMs: 0 });
-    const root = toRootChangeSourceSnapshot(snapshot, pathspec);
+    const root = toRootChangeSourceSnapshot(snapshot, pathspec, await readGitRenameLimit(repoRoot));
+    if (root === undefined) return undefined;
     return {
       head: root.head,
       entries: root.entries.map(({ xy, path: p, fromPath }) => ({ xy, path: p, fromPath })),
     };
   }
 
-  beforeEach(async () => {
-    await initRepo(path.join(tmpDir, 'repo'));
-    await write('packages/cli/a.ts', 'a1\n');
-    await write('packages/cli/rename-me.ts', 'r1\n');
-    await write('packages/cli/sub/b.ts', 'b1\n');
-    await write('packages/cli/sub/d.ts', 'd1\n');
-    await write('apps/web/c.ts', 'c1\n');
-    await write(`packages/cli/${FULLWIDTH_TILDE}`, 'u1\n');
-    await write(`packages/cli/${EMOJI}`, 'u1\n');
-    git(['add', '-A']);
-    git(['commit', '-q', '-m', 'init']);
+  async function readProbeRoot(pathspec: string[]): Promise<RootView> {
+    const root = await readProbeRootOrUndefined(pathspec);
+    if (root === undefined) throw new Error('expected a projected root snapshot');
+    return root;
+  }
 
-    // Mutations covering every status shape the root node can see.
-    await write('packages/cli/a.ts', 'a2\n'); // unstaged modification
-    await write(`packages/cli/${FULLWIDTH_TILDE}`, 'u2\n'); // unstaged, non-ASCII name
-    await write(`packages/cli/${EMOJI}`, 'u2\n'); // unstaged, non-ASCII name
-    await write('packages/cli/staged.ts', 'staged\n');
-    git(['add', 'packages/cli/staged.ts']); // staged add
-    await write('packages/cli/new.ts', 'new\n'); // untracked
-    await fs.rm(path.join(repoRoot, 'packages/cli/sub/b.ts')); // unstaged delete
-    git(['mv', 'packages/cli/rename-me.ts', 'packages/cli/renamed.ts']); // rename inside
-    git(['mv', 'apps/web/c.ts', 'packages/cli/moved.ts']); // rename into from outside
-    await write('packages/cli/moved.ts', 'c2\n'); // destination also modified
-    await write('packages/cli/my file.ts', 'spaces\n'); // untracked, space in name
-    await write('apps/web/x.ts', 'x\n'); // untracked, outside pathspec
-    git(['mv', 'packages/cli/sub/d.ts', 'apps/web/d.ts']); // rename out of pathspec
-    await write('apps/web/d.ts', 'd2\n'); // destination also modified
+  const sharedLines = (from: number, to: number): string =>
+    Array.from(
+      { length: to - from + 1 },
+      (_, i) => `shared line number ${from + i} with some padding text to make it longer\n`
+    ).join('');
+
+  describe('rename-free fixtures match v1', () => {
+    beforeEach(async () => {
+      await initRepo(path.join(tmpDir, 'repo'));
+      await write('packages/cli/a.ts', 'a1\n');
+      await write('packages/cli/sub/b.ts', 'b1\n');
+      await write('apps/web/c.ts', 'c1\n');
+      await write(`packages/cli/${FULLWIDTH_TILDE}`, 'u1\n');
+      await write(`packages/cli/${EMOJI}`, 'u1\n');
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+
+      // Mutations covering every status shape the root node can see, with no renames.
+      await write('packages/cli/a.ts', 'a2\n'); // unstaged modification
+      await write(`packages/cli/${FULLWIDTH_TILDE}`, 'u2\n'); // unstaged, non-ASCII name
+      await write(`packages/cli/${EMOJI}`, 'u2\n'); // unstaged, non-ASCII name
+      await write('packages/cli/staged.ts', 'staged\n');
+      git(['add', 'packages/cli/staged.ts']); // staged add
+      await write('packages/cli/new.ts', 'new\n'); // untracked
+      await fs.rm(path.join(repoRoot, 'packages/cli/sub/b.ts')); // unstaged delete
+      await write('packages/cli/my file.ts', 'spaces\n'); // untracked, space in name
+      await write('apps/web/x.ts', 'x\n'); // untracked, outside pathspec
+    });
+
+    test.each([
+      ['subdirectory workspace', ['packages/cli']],
+      ['repo-root workspace', []],
+    ])('%s matches the v1 status', async (_label, pathspec) => {
+      expect(await readProbeRoot(pathspec)).toEqual(await readV1Root(pathspec));
+    });
+
+    test('non-ASCII names are ordered by UTF-8 bytes, in v1 and in the projection', async () => {
+      const nonAscii = [`packages/cli/${FULLWIDTH_TILDE}`, `packages/cli/${EMOJI}`];
+      const pick = (view: RootView) =>
+        view.entries.map((e) => e.path).filter((p) => nonAscii.includes(p));
+
+      expect(pick(await readV1Root(['packages/cli']))).toEqual(nonAscii);
+      expect(pick(await readProbeRoot(['packages/cli']))).toEqual(nonAscii);
+    });
+
+    test('a limit equal to the candidate product still matches v1', async () => {
+      // Candidates in the full view: 4 add-like (staged, new, my file, apps/web/x) and 1
+      // delete-like (sub/b.ts). Product 4 <= 2 squared.
+      git(['config', 'diff.renameLimit', '2']);
+
+      expect(await readProbeRootOrUndefined(['packages/cli'])).toEqual(
+        await readV1Root(['packages/cli'])
+      );
+    });
+
+    test('a limit below the candidate product falls back', async () => {
+      git(['config', 'diff.renameLimit', '1']);
+
+      expect(await readProbeRootOrUndefined(['packages/cli'])).toBeUndefined();
+    });
   });
 
-  test.each([
-    ['subdirectory workspace', ['packages/cli']],
-    ['repo-root workspace', []],
-  ])('%s matches the v1 status', async (_label, pathspec) => {
-    expect(await readProbeRoot(pathspec)).toEqual(await readV1Root(pathspec));
-  });
+  describe('fixtures that must fall back', () => {
+    test('a rename with both sides inside the pathspec falls back', async () => {
+      await initRepo(path.join(tmpDir, 'rename-in'));
+      await write('packages/cli/rename-me.ts', 'r1\n');
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+      git(['mv', 'packages/cli/rename-me.ts', 'packages/cli/renamed.ts']);
 
-  test('boundary-crossing renames match the v1 pathspec output exactly', async () => {
-    // moved.ts: origin outside, destination inside, then modified. sub/d.ts: origin inside,
-    // destination outside, then modified. Git's pathspec status reports them as an add and a delete.
-    const crossing = ['packages/cli/moved.ts', 'packages/cli/sub/d.ts'];
-    const pick = (entries: { path: string }[]) => entries.filter((e) => crossing.includes(e.path));
+      expect((await readV1Root(['packages/cli'])).entries).toContainEqual(
+        expect.objectContaining({ xy: 'R ', fromPath: 'packages/cli/rename-me.ts' })
+      );
+      expect(await readProbeRootOrUndefined(['packages/cli'])).toBeUndefined();
+    });
 
-    const probe = await readProbeRoot(['packages/cli']);
-    const v1 = await readV1Root(['packages/cli']);
-    expect(pick(probe.entries)).toEqual(pick(v1.entries));
-    expect(pick(v1.entries)).toEqual([
-      { xy: 'AM', path: 'packages/cli/moved.ts' },
-      { xy: 'D ', path: 'packages/cli/sub/d.ts' },
-    ]);
-    // Only the in-pathspec rename (rename-me.ts -> renamed.ts) keeps an origin.
-    expect(
-      probe.entries.every((e) => e.fromPath === undefined || e.fromPath.startsWith('packages/cli/'))
-    ).toBe(true);
-  });
+    test('a rename whose origin is inside and destination outside falls back', async () => {
+      await initRepo(path.join(tmpDir, 'rename-out'));
+      await write('packages/cli/sub/d.ts', 'd1\n');
+      await write('apps/web/keep.ts', 'k1\n'); // gives `git mv` an existing destination directory
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+      git(['mv', 'packages/cli/sub/d.ts', 'apps/web/d.ts']);
 
-  // KNOWN LIMIT. git pairs renames only among the paths it is given. Here the full repo pairs
-  // c.ts with the outside b.ts, so the probe emits `A c.ts`, while the pathspec-limited status
-  // pairs c.ts with a.ts (`R c.ts <- a.ts`). Re-running the pairing needs blob similarity, which
-  // the probe snapshot does not carry. test.fails pins the divergence: when it stops failing,
-  // the limit is gone and this test should become a plain parity assertion.
-  test.fails(
-    'a rename that competes with an outside candidate matches v1 (known limit)',
-    async () => {
+      expect((await readV1Root(['packages/cli'])).entries).toContainEqual({
+        xy: 'D ',
+        path: 'packages/cli/sub/d.ts',
+        fromPath: undefined,
+      });
+      expect(await readProbeRootOrUndefined(['packages/cli'])).toBeUndefined();
+    });
+
+    test('a rename whose destination is inside and origin outside falls back', async () => {
+      await initRepo(path.join(tmpDir, 'rename-into'));
+      await write('apps/web/c.ts', 'c1\n');
+      await write('packages/cli/keep.ts', 'k1\n'); // gives `git mv` an existing destination directory
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+      git(['mv', 'apps/web/c.ts', 'packages/cli/moved.ts']);
+      await write('packages/cli/moved.ts', 'c2\n');
+
+      expect((await readV1Root(['packages/cli'])).entries).toContainEqual(
+        expect.objectContaining({ xy: 'AM', path: 'packages/cli/moved.ts' })
+      );
+      expect(await readProbeRootOrUndefined(['packages/cli'])).toBeUndefined();
+    });
+
+    test('a rename that competes with an outside candidate falls back', async () => {
       await initRepo(path.join(tmpDir, 'competing'));
-      const sharedLines = (from: number, to: number): string =>
-        Array.from(
-          { length: to - from + 1 },
-          (_, i) => `shared line number ${from + i} with some padding text to make it longer\n`
-        ).join('');
       await write('apps/web/b.ts', sharedLines(1, 10));
       await write('packages/cli/a.ts', `${sharedLines(1, 6)}a-only line padding padding padding\n`);
       git(['add', '-A']);
@@ -483,7 +606,71 @@ describe('toRootChangeSourceSnapshot parity with the v1 root reader', () => {
       await write('packages/cli/c.ts', `${sharedLines(1, 9)}changed tail line for c\n`);
       git(['add', '-A']);
 
-      expect(await readProbeRoot(['packages/cli'])).toEqual(await readV1Root(['packages/cli']));
-    }
-  );
+      expect(
+        (await readV1Root(['packages/cli'])).entries.some((e) => e.fromPath !== undefined)
+      ).toBe(true);
+      expect(await readProbeRootOrUndefined(['packages/cli'])).toBeUndefined();
+    });
+
+    test('a rename mixed with modified, untracked, and deleted entries falls back', async () => {
+      await initRepo(path.join(tmpDir, 'mixed'));
+      await write('packages/cli/rename-me.ts', 'r1\n');
+      await write('packages/cli/keep.ts', 'k1\n');
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+      git(['mv', 'packages/cli/rename-me.ts', 'packages/cli/renamed.ts']);
+      await write('packages/cli/keep.ts', 'k2\n');
+      await write('packages/cli/aaa.ts', 'new\n');
+
+      expect(await readProbeRootOrUndefined(['packages/cli'])).toBeUndefined();
+    });
+
+    test('a pathspec with a glob metacharacter falls back, because v1 matches beyond the literal path', async () => {
+      await initRepo(path.join(tmpDir, 'glob'));
+      await write('apps/[slug]/page.ts', 'p1\n');
+      await write('apps/web/c.ts', 'c1\n');
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+      await write('apps/[slug]/page.ts', 'p2\n');
+      await write('apps/web/c.ts', 'c2\n');
+
+      // `apps/*` is a glob, so v1 reports both siblings. A literal projection would match no path.
+      expect((await readV1Root(['apps/*'])).entries.map((e) => e.path).sort()).toEqual([
+        'apps/[slug]/page.ts',
+        'apps/web/c.ts',
+      ]);
+      expect(await readProbeRootOrUndefined(['apps/*'])).toBeUndefined();
+    });
+
+    test('a rename that only the pathspec view pairs falls back when the full view skipped rename detection', async () => {
+      await initRepo(path.join(tmpDir, 'limit'));
+      git(['config', 'diff.renameLimit', '2']);
+      await write('packages/cli/old.ts', sharedLines(1, 10));
+      await write('apps/web/x1.ts', 'unrelated one\n');
+      await write('apps/web/x2.ts', 'unrelated two\n');
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+      await fs.rm(path.join(repoRoot, 'packages/cli/old.ts'));
+      await fs.rm(path.join(repoRoot, 'apps/web/x1.ts'));
+      await fs.rm(path.join(repoRoot, 'apps/web/x2.ts'));
+      await write('packages/cli/new.ts', `${sharedLines(1, 9)}changed tail line\n`);
+      await write('apps/web/y1.ts', 'other one\n');
+      await write('apps/web/y2.ts', 'other two\n');
+      git(['add', '-A']);
+
+      // Full view: 3 add-like and 3 delete-like, product 9 > 2 squared, so git skips inexact
+      // detection and shows no rename. Pathspec view: 1 and 1, so it pairs old.ts with new.ts.
+      const full = await readV1Root([]);
+      const pathspec = await readV1Root(['packages/cli']);
+      expect(full.entries.some((e) => e.fromPath !== undefined)).toBe(false);
+      expect(full.entries).toContainEqual({
+        xy: 'D ',
+        path: 'packages/cli/old.ts',
+        fromPath: undefined,
+      });
+      expect(pathspec.entries.some((e) => e.fromPath === 'packages/cli/old.ts')).toBe(true);
+
+      expect(await readProbeRootOrUndefined(['packages/cli'])).toBeUndefined();
+    });
+  });
 });
