@@ -142,7 +142,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     unregisterFileInboundHandler();
     unregisterWorkspaceGitInboundHandler();
     gitSubscriptionHandle?.stop();
-    fileTreeSubscriptionHandle?.stop();
     agentConfigRegistryHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     agenticQueryWorkerHandle?.stop();
