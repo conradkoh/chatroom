@@ -21,16 +21,18 @@ const MAX_BACKOFF_MS = 30_000;
 const PERSISTENT_FAILURE_THRESHOLD = 3;
 
 /**
- * Reads the root node's HEAD and status in one call. Injected when a caller already holds a
- * shared git status snapshot, so the root node does not spawn its own git commands.
- *
- * Contract: the reader must describe the same workTree and pathspec as `hierarchy.root`. Nothing
- * checks this at runtime; a mismatch scopes the root node to the wrong paths.
+ * Returns the root repo state from a shared probe snapshot, or `undefined` when the snapshot
+ * cannot be proven equal to the direct pathspec-limited v1 read for this tick.
+ * The consumer MUST then read directly (readNodeGitState) for this tick.
+ * Must be called only for the root node, with the same workTree and pathspec as the consumer.
  */
-export type GitRootSnapshotReader = () => Promise<{
-  head: GitHeadState;
-  entries: GitPorcelainEntry[];
-}>;
+export type GitRootSnapshotReader = () => Promise<
+  | {
+      head: GitHeadState;
+      entries: GitPorcelainEntry[];
+    }
+  | undefined
+>;
 
 export type GitWorkspaceChangeSourceOptions = WorkspaceChangeSourceOptions & {
   hierarchy: GitWorkspaceHierarchy;
@@ -90,11 +92,11 @@ async function pollGitWorkspaceNode(args: {
   node: GitRepoNode;
   prev: NodePollState;
 }): Promise<PollNodeResult> {
-  const readRoot =
-    args.node === args.options.hierarchy.root ? args.options.readRootSnapshot : undefined;
-  const { head: nextHead, entries: nextEntries } = readRoot
-    ? await readRoot()
-    : await readNodeGitState(args.node);
+  const snapshot =
+    args.node === args.options.hierarchy.root && args.options.readRootSnapshot
+      ? await args.options.readRootSnapshot()
+      : undefined;
+  const { head: nextHead, entries: nextEntries } = snapshot ?? (await readNodeGitState(args.node));
 
   let needsReconcile = false;
   const events: WorkspaceFsEvent[] = [];
