@@ -1,4 +1,7 @@
-import { createGitWorkspaceChangeSource } from './git-workspace-change-source.js';
+import {
+  createGitWorkspaceChangeSource,
+  type GitRootSnapshotReader,
+} from './git-workspace-change-source.js';
 import { discoverGitWorkspaceHierarchy } from './git-workspace-hierarchy.js';
 import type { GitRepoNode } from './git-workspace-hierarchy.js';
 import {
@@ -10,9 +13,11 @@ import type { WorkspacePathType } from './workspace-sync-state.js';
 
 export type WorkspaceChangeSourceOptions = WorkspaceFsWatcherOptions & {
   pollIntervalMs?: number | undefined;
-  onNeedsReconcile?:( () => void | Promise<void>) | undefined;
-  onPersistentFailure?:( () => void | Promise<void>) | undefined;
-  getKnownPaths?:( () => Readonly<Record<string, WorkspacePathType>>) | undefined;
+  onNeedsReconcile?: (() => void | Promise<void>) | undefined;
+  onPersistentFailure?: (() => void | Promise<void>) | undefined;
+  getKnownPaths?: (() => Readonly<Record<string, WorkspacePathType>>) | undefined;
+  /** Git mode only, root node only. Nested nodes and fs mode ignore it. */
+  readRootSnapshot?: GitRootSnapshotReader | undefined;
 };
 
 export type WorkspaceChangeSource = WorkspaceFsWatcherHandle;

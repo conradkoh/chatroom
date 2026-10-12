@@ -20,6 +20,15 @@ const DEFAULT_POLL_INTERVAL_MS = 3000;
 const MAX_BACKOFF_MS = 30_000;
 const PERSISTENT_FAILURE_THRESHOLD = 3;
 
+/**
+ * Reads the root node's HEAD and status in one call. Injected when a caller already holds a
+ * shared git status snapshot, so the root node does not spawn its own git commands.
+ */
+export type GitRootSnapshotReader = () => Promise<{
+  head: GitHeadState;
+  entries: GitPorcelainEntry[];
+}>;
+
 export type GitWorkspaceChangeSourceOptions = WorkspaceChangeSourceOptions & {
   hierarchy: GitWorkspaceHierarchy;
   pollIntervalMs?: number | undefined;
@@ -62,15 +71,27 @@ export function computeBackoff(
   return Math.min(backoff, maxBackoffMs);
 }
 
+async function readNodeGitState(node: GitRepoNode): Promise<{
+  head: GitHeadState;
+  entries: GitPorcelainEntry[];
+}> {
+  const [head, entries] = await Promise.all([
+    readGitHead(node.workTree),
+    readGitPorcelainStatus(node),
+  ]);
+  return { head, entries };
+}
+
 async function pollGitWorkspaceNode(args: {
   options: GitWorkspaceChangeSourceOptions & { hierarchy: GitWorkspaceHierarchy };
   node: GitRepoNode;
   prev: NodePollState;
 }): Promise<PollNodeResult> {
-  const [nextHead, nextEntries] = await Promise.all([
-    readGitHead(args.node.workTree),
-    readGitPorcelainStatus(args.node),
-  ]);
+  const readRoot =
+    args.node === args.options.hierarchy.root ? args.options.readRootSnapshot : undefined;
+  const { head: nextHead, entries: nextEntries } = readRoot
+    ? await readRoot()
+    : await readNodeGitState(args.node);
 
   let needsReconcile = false;
   const events: WorkspaceFsEvent[] = [];

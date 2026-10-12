@@ -6,6 +6,7 @@ import type { FileTree } from '@workspace/backend/src/domain/entities/workspace-
 
 import { computeFileTreeDataHash } from './file-tree-data-hash.js';
 import { scanFileTree } from './file-tree-scanner.js';
+import type { GitRootSnapshotReader } from './git-workspace-change-source.js';
 import { GitWorkspaceCommandError } from './git-workspace-porcelain.js';
 import { normalizeWorkingDirForLookup } from './normalize-working-dir.js';
 import { createWorkspaceChangeSource } from './workspace-change-source.js';
@@ -52,8 +53,10 @@ export interface WorkspaceFileTreeCoordinatorOptions {
   changeSourcePollIntervalMs?: number | undefined;
   onDelta: (delta: WorkspacePendingDelta, baseRevision: number) => Promise<DeltaPushResult>;
   onCheckpoint: (tree: FileTree, revision: number) => Promise<{ revision: number }>;
-  onError?:( (error: unknown) => void) | undefined;
-  onReconciled?:( (correctedPathCount: number) => void) | undefined;
+  onError?: ((error: unknown) => void) | undefined;
+  onReconciled?: ((correctedPathCount: number) => void) | undefined;
+  /** Git mode only. Lets the root node read a shared status snapshot instead of spawning git. */
+  readRootSnapshot?: GitRootSnapshotReader | undefined;
 }
 
 export interface WorkspaceFileTreeCoordinator {
@@ -366,6 +369,7 @@ export async function startWorkspaceFileTreeCoordinator(
     pollIntervalMs: options.changeSourcePollIntervalMs,
     shouldIgnore: shouldIgnorePath,
     getKnownPaths: () => manifest.paths,
+    readRootSnapshot: options.readRootSnapshot,
     onEvents: handleChangeSourceEvents,
     onNeedsReconcile: () => enqueueSerial(reconcileNow),
     onError: handleChangeSourceError,
