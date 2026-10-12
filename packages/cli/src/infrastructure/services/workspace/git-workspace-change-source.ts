@@ -24,7 +24,15 @@ const PERSISTENT_FAILURE_THRESHOLD = 3;
  * Returns the root repo state from a shared probe snapshot, or `undefined` when the snapshot
  * cannot be proven equal to the direct pathspec-limited v1 read for this tick.
  * The consumer MUST then read directly (readNodeGitState) for this tick.
- * Must be called only for the root node, with the same workTree and pathspec as the consumer.
+ *
+ * Contract:
+ * - Called only for the root node, with the same workTree and pathspec as the consumer. Nothing
+ *   checks this at runtime. A mismatch scopes the root node to the wrong paths.
+ * - `undefined` is a normal answer, not an error. The snapshot declines when the pathspec has glob
+ *   metacharacters, when any rename or copy is present, or when git would skip inexact rename
+ *   detection. The consumer then reads v1 for that tick.
+ * - A rejected promise is reported through `onError`, and the root git reads are skipped for that
+ *   tick. It is not retried as a direct read.
  */
 export type GitRootSnapshotReader = () => Promise<
   | {
