@@ -11,13 +11,15 @@
 
 import { v, type Infer } from 'convex/values';
 
-const diffStatValidator = v.object({
+import type { TableNames } from '../../../convex/_generated/dataModel';
+
+export const diffStatValidator = v.object({
   filesChanged: v.number(),
   insertions: v.number(),
   deletions: v.number(),
 });
 
-const commitStatusValidator = v.object({
+export const commitStatusValidator = v.object({
   state: v.string(),
   checkRuns: v.array(
     v.object({
@@ -27,6 +29,16 @@ const commitStatusValidator = v.object({
     })
   ),
   totalCount: v.number(),
+});
+
+export const remoteValidator = v.object({ name: v.string(), url: v.string() });
+
+export const openPullRequestValidator = v.object({
+  prNumber: v.number(),
+  title: v.string(),
+  url: v.string(),
+  headRefName: v.string(),
+  state: v.string(),
 });
 
 /**
@@ -46,21 +58,10 @@ export const workspaceGitStateUnitValidator = v.union(
     commitsAhead: v.number(),
     commitsBehind: v.number(),
   }),
-  v.object({
-    kind: v.literal('remotes'),
-    remotes: v.array(v.object({ name: v.string(), url: v.string() })),
-  }),
+  v.object({ kind: v.literal('remotes'), remotes: v.array(remoteValidator) }),
   v.object({
     kind: v.literal('pullRequests'),
-    openPullRequests: v.array(
-      v.object({
-        prNumber: v.number(),
-        title: v.string(),
-        url: v.string(),
-        headRefName: v.string(),
-        state: v.string(),
-      })
-    ),
+    openPullRequests: v.array(openPullRequestValidator),
   }),
   v.object({
     kind: v.literal('checks'),
@@ -69,3 +70,17 @@ export const workspaceGitStateUnitValidator = v.union(
 );
 
 export type WorkspaceGitStateUnit = Infer<typeof workspaceGitStateUnitValidator>;
+
+/**
+ * The per-unit table that stores each git unit. `satisfies` makes a new unit kind fail to compile
+ * until it is given a table. Nothing reads or writes these tables yet.
+ */
+// fallow-ignore-next-line unused-export
+export const WORKSPACE_GIT_UNIT_TABLE = {
+  head: 'chatroom_workspaceGitHead',
+  worktree: 'chatroom_workspaceGitWorktree',
+  upstream: 'chatroom_workspaceGitUpstream',
+  remotes: 'chatroom_workspaceGitRemotes',
+  pullRequests: 'chatroom_workspaceGitPullRequests',
+  checks: 'chatroom_workspaceGitChecks',
+} as const satisfies Record<WorkspaceGitStateUnit['kind'], TableNames>;
