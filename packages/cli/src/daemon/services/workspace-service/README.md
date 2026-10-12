@@ -133,6 +133,15 @@ once per tick for the root node.
 The constraints are documented on `probeRootSnapshotReader` and `toRootChangeSourceSnapshot`
 (`infrastructure/workspace-git-probe.ts`).
 
+## Known limits
+
+- **Root file-tree lag.** The root file-tree projection can trail the working tree by up to one
+  `probeIntervalMs` (3s at the default policy). The cache is not shortened to close this gap.
+- **Rename-limit window.** A `status.renameLimit` or `diff.renameLimit` change reaches the root
+  projection within 10 probe intervals (30s at the default policy).
+
+Both are explained under [Root file-tree read](#root-file-tree-read).
+
 ## Policy
 
 All intervals come from `DEFAULT_WORKSPACE_SYNC_POLICY` in `domain/workspace-sync-policy.ts`.
