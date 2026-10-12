@@ -1,5 +1,3 @@
-// Reason: the WorkspaceService has no production caller until S5 wires it into the daemon.
-// fallow-ignore-file unused-file
 import { createRemotePollQueue, type RemotePollQueue } from './remote-poll-queue.js';
 import { createWorkspaceMonitor, type WorkspaceMonitor } from './workspace-monitor.js';
 import { normalizeWorkingDirForLookup } from '../../../../infrastructure/services/workspace/normalize-working-dir.js';

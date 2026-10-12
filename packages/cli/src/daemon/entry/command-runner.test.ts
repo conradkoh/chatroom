@@ -43,6 +43,7 @@ import {
   SIGTERM_GRACE_PERIOD_MS,
   SOFT_TIMEOUT_MS,
 } from './handlers/process/state.js';
+import { createFakeWorkspaceService } from './testing/index.js';
 import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/command-run.js';
 
 // ---------------------------------------------------------------------------
@@ -634,7 +635,7 @@ describe('process-group kill (real process tree)', () => {
       fs: {},
       agentServices: new Map(),
       events: {},
-      lastPushedGitState: new Map(),
+      workspaceService: createFakeWorkspaceService(),
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,

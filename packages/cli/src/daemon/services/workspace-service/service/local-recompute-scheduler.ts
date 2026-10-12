@@ -1,5 +1,3 @@
-// Reason: the WorkspaceService (S4b-2) is the first production consumer; S5 wires it.
-// fallow-ignore-file unused-file
 import type { LocalKind } from '../domain/workspace-state-unit.js';
 
 type TimerHandle = ReturnType<typeof setTimeout>;
@@ -34,8 +32,6 @@ export type LocalRecomputeSchedulerOptions = {
  *   request since the last run, so a continuous burst still runs at `maxWaitMs`.
  * - Empty requests are ignored and never start a timer.
  */
-// Reason: the monitor imports this, but the monitor has no production consumer until S4b-2.
-// fallow-ignore-next-line unused-export
 export function createLocalRecomputeScheduler(
   options: LocalRecomputeSchedulerOptions
 ): LocalRecomputeScheduler {

@@ -1,5 +1,3 @@
-// Reason: the WorkspaceService sync loops that read this policy are not wired until S4/S5.
-// fallow-ignore-file unused-file
 import { OBSERVATION_TTL_MS } from '@workspace/backend/config/reliability.js';
 
 import type { WorkspaceStateKind } from '../../../infrastructure/outbox/workspace-state-outbox.js';
@@ -42,8 +40,6 @@ export type WorkspaceSyncPolicy = {
   };
 };
 
-// Reason: the sync loops that read the defaults are wired in S4/S5; tests use them until then.
-// fallow-ignore-next-line unused-export
 export const DEFAULT_WORKSPACE_SYNC_POLICY: WorkspaceSyncPolicy = {
   probeIntervalMs: 3_000,
   probeMaxBackoffMs: 30_000,
@@ -83,11 +79,11 @@ export const DEFAULT_WORKSPACE_SYNC_POLICY: WorkspaceSyncPolicy = {
 };
 
 /**
- * Deep-merges overrides onto the defaults. Used by tests and by createWorkspaceService({ policy }).
+ * Deep-merges overrides onto the defaults. Used by tests to shorten individual intervals.
  * Never mutates `DEFAULT_WORKSPACE_SYNC_POLICY`; always returns a fresh object tree.
  * Constraint: the policy contains only plain objects and numbers, so arrays are not merged.
  */
-// Reason: createWorkspaceService({ policy }) is the production caller, added in S4/S5; tests use it until then.
+// Reason: test seam for shortening intervals; production passes DEFAULT_WORKSPACE_SYNC_POLICY.
 // fallow-ignore-next-line unused-export
 export function resolveWorkspaceSyncPolicy(
   overrides?: DeepPartial<WorkspaceSyncPolicy>

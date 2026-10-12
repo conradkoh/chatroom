@@ -11,7 +11,7 @@ import { Context, Effect, Layer, Ref } from 'effect';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
-import type { ConvexClient, SessionId, WorkspaceForSync } from './daemon-types.js';
+import type { ConvexClient, SessionId } from './daemon-types.js';
 import type { DaemonEventBus } from './events/event-bus.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
@@ -36,6 +36,7 @@ import type {
 } from '../services/agent-process-service/index.js';
 import type { AgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
 import type { AgentProcessManagerService, TaskService } from '../services/service-interfaces.js';
+import type { WorkspaceService } from '../services/workspace-service/index.js';
 
 export type { TaskService } from '../services/service-interfaces.js';
 
@@ -216,7 +217,7 @@ export const DaemonAgentProcessManagerCommandServiceLive = (
 /**
  * Effect service carrying daemon identity fields.
  *
- * Mutable state (lastPushedGitState, lastPushedModels, etc.) is migrating to
+ * Mutable state (lastPushedModels, etc.) is migrating to
  * DaemonMutableStateService (E5). Fields remain on this shape until E5-final.
  */
 export interface DaemonSessionServiceShape {
@@ -230,6 +231,8 @@ export interface DaemonSessionServiceShape {
   taskService: TaskService;
   /** Daemon-local agent config read model fed by the agent config inbox. */
   agentConfigRegistry: AgentConfigRegistry;
+  /** Sole owner of per-directory monitoring and workspace state sync. */
+  workspaceService: WorkspaceService;
   /** Durable daemon-to-Convex lifecycle/status outbox. */
   lifecycleOutbox?: DaemonLifecycleOutboxPort | undefined;
 
@@ -242,15 +245,11 @@ export interface DaemonSessionServiceShape {
   // ─── Shared data ──────────────────────────────────────────────────
   agentServices: Map<string, RemoteAgentService>;
   events: DaemonEventBus;
-  /** Populated by workspace-list-subscription; consumed by heartbeats. Mutable reference. */
-  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number } | undefined;
   logger?: Pick<Console, 'log' | 'warn'> | undefined;
   /** Context captured for imperative callbacks that outlive their starter effect. */
   effectContext?: Context.Context<DaemonSessionService> | undefined;
 
   // ─── Mutable state (shared reference semantics) ───────────────────
-  /** Change-detection cache for git state, keyed by `machineId::workingDir`. */
-  lastPushedGitState: Map<string, string>;
   /** Last models snapshot pushed per harness name. null = never pushed. */
   lastPushedModels: Record<string, string[]> | null;
   /** Fingerprint of harness list+versions last successfully pushed. */
@@ -272,10 +271,8 @@ export class DaemonSessionService extends Context.Service<
  * DaemonSessionService. Migrating consumers incrementally (E5-2+).
  */
 export interface DaemonMutableStateServiceShape {
-  lastPushedGitState: Ref.Ref<Map<string, string>>;
   lastPushedModels: Ref.Ref<Record<string, string[]> | null>;
   lastPushedHarnessFingerprint: Ref.Ref<string | null>;
-  workspaceListStore: Ref.Ref<{ workspaces: WorkspaceForSync[]; updatedAt: number } | undefined>;
 }
 
 export class DaemonMutableStateService extends Context.Service<
@@ -285,19 +282,15 @@ export class DaemonMutableStateService extends Context.Service<
 
 /** Build DaemonMutableStateService layer from initial values. */
 export function DaemonMutableStateServiceLive(init: {
-  lastPushedGitState: Map<string, string>;
   lastPushedModels: Record<string, string[]> | null;
   lastPushedHarnessFingerprint: string | null;
-  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number } | undefined;
 }) {
   return Layer.effect(
     DaemonMutableStateService,
     Effect.gen(function* () {
       return {
-        lastPushedGitState: yield* Ref.make(init.lastPushedGitState),
         lastPushedModels: yield* Ref.make(init.lastPushedModels),
         lastPushedHarnessFingerprint: yield* Ref.make(init.lastPushedHarnessFingerprint),
-        workspaceListStore: yield* Ref.make(init.workspaceListStore),
       };
     })
   );

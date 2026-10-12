@@ -1,5 +1,3 @@
-// Reason: the WorkspaceService (S4b-2) is the first production consumer; S5 wires it.
-// fallow-ignore-file unused-file
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { z } from 'zod';
 
@@ -65,8 +63,6 @@ function parseWorkspaceActivityRows(payload: unknown): WorkspaceActivityRow[] | 
  * Subscribes to the active workspaces of `machineId`. Each parsed snapshot is handed to the
  * caller as-is; membership and normalization are decided by the service, not here.
  */
-// Reason: the daemon constructs this source in S5, which is its first production consumer.
-// fallow-ignore-next-line unused-export
 export function createWorkspaceActivitySource(args: {
   wsClient: ConvexWsClientLike;
   sessionId: SessionId;

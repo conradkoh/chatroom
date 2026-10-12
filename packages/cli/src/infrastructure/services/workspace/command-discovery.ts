@@ -53,8 +53,6 @@ const MAX_SCRIPT_LENGTH = 4096;
  * Basenames of files that `discoverCommands` reads. A change to one of these can change the
  * discovered command set, so the workspace service uses this list to decide when to re-discover.
  */
-// Reason: the WorkspaceService commands collector (S3b/S5) consumes this to detect manifest changes; no production consumer yet.
-// fallow-ignore-next-line unused-export
 export const COMMAND_MANIFEST_BASENAMES: ReadonlySet<string> = new Set([
   'package.json',
   'turbo.json',

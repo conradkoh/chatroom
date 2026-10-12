@@ -1,5 +1,3 @@
-// Reason: the WorkspaceService monitor (S4b) is the first production consumer; S5 wires it.
-// fallow-ignore-file unused-file
 import { computeBackoff } from '../../../../infrastructure/services/workspace/git-workspace-change-source.js';
 import type { WorkspaceSyncPolicy } from '../domain/workspace-sync-policy.js';
 

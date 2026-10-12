@@ -7,7 +7,7 @@ import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from '../daemon-layers.js';
-import { createMockDaemonSessionInit } from '../testing/index.js';
+import { createFakeWorkspaceService, createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
 
 vi.mock('../../../api.js', () => ({
@@ -19,15 +19,12 @@ vi.mock('../../../api.js', () => ({
   },
 }));
 
-async function runFulfillment(deps: ReturnType<typeof createMockDaemonDeps>, workingDir: string) {
+async function runFulfillment(deps: ReturnType<typeof createMockDaemonDeps>) {
   const { fulfillFileContentRequestsEffect } = await import('./file-content-fulfillment.js');
   const layer = daemonSessionToLayers(
     createMockDaemonSessionInit({
       backend: deps.backend,
-      workspaceListStore: {
-        workspaces: [{ workingDir }],
-        updatedAt: Date.now(),
-      },
+      workspaceService: createFakeWorkspaceService(),
     })
   );
   await Effect.runPromise(fulfillFileContentRequestsEffect.pipe(Effect.provide(layer)));
@@ -48,7 +45,7 @@ describe('fulfillFileContentRequestsEffect', () => {
         { _id: 'req-1', workingDir, filePath: 'notes.md' },
       ]);
 
-      await runFulfillment(deps, workingDir);
+      await runFulfillment(deps);
 
       expect(deps.backend.mutation).toHaveBeenCalledWith(
         'mock-fulfillFileContentV2',
@@ -74,7 +71,7 @@ describe('fulfillFileContentRequestsEffect', () => {
         { _id: 'req-1', workingDir: `${workingDir}/`, filePath: 'README.md' },
       ]);
 
-      await runFulfillment(deps, workingDir);
+      await runFulfillment(deps);
 
       expect(deps.backend.mutation).toHaveBeenCalledWith(
         'mock-fulfillFileContentV2',
@@ -98,7 +95,7 @@ describe('fulfillFileContentRequestsEffect', () => {
         { _id: 'req-1', workingDir, filePath: 'notes.md' },
       ]);
 
-      await runFulfillment(deps, workingDir);
+      await runFulfillment(deps);
 
       expect(deps.backend.mutation).toHaveBeenCalledWith(
         'mock-fulfillFileContentV2',

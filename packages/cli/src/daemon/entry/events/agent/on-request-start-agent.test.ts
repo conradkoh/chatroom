@@ -11,6 +11,7 @@ import {
   DaemonAgentProcessManagerCommandService,
   DaemonSessionService,
 } from '../../daemon-services.js';
+import { createFakeWorkspaceService } from '../../testing/index.js';
 import { DaemonEventBus } from '../event-bus.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ describe('onRequestStartAgentEffect', () => {
       fs: { stat: vi.fn() } as any,
       agentServices: new Map(),
       events: new DaemonEventBus(),
-      lastPushedGitState: new Map(),
+      workspaceService: createFakeWorkspaceService(),
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,

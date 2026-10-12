@@ -13,9 +13,6 @@ import {
 import type { GitPullRequest } from '../../../infrastructure/git/types.js';
 import type { WorkspaceStateUnit } from '../../../infrastructure/outbox/workspace-state-outbox-schema.js';
 
-// Reason: S4 (workspace monitor, service/**) is the first production consumer; it is not wired yet.
-// fallow-ignore-file unused-file
-
 type UnitOf<K extends WorkspaceStateUnit['kind']> = Extract<WorkspaceStateUnit, { kind: K }>;
 type PullRequestEntry = UnitOf<'pullRequests'>['openPullRequests'][number];
 type ChecksUnitStatus = UnitOf<'checks'>['headCommitStatus'];

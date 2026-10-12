@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
 import { daemonSessionToLayers } from '../daemon-layers.js';
-import { createMockDaemonSessionInit } from '../testing/index.js';
+import { createFakeWorkspaceService, createMockDaemonSessionInit } from '../testing/index.js';
 
 vi.mock('../../../api.js', () => ({
   api: {
@@ -82,13 +82,9 @@ function createClaimAwareMutation(requests: FulfillmentRequest[]) {
 }
 
 async function runFulfillment(requests: FulfillmentRequest[]) {
-  const workingDir = requests[0]?.workingDir ?? '';
   const init = createMockDaemonSessionInit({
     machineId: 'machine-write-test',
-    workspaceListStore: {
-      workspaces: [{ workingDir }],
-      updatedAt: Date.now(),
-    },
+    workspaceService: createFakeWorkspaceService(),
     backend: {
       mutation: createClaimAwareMutation(requests),
       query: vi.fn().mockResolvedValue(requests),
@@ -159,29 +155,31 @@ describe('fulfillFileWriteRequestsEffect', () => {
     ];
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
-      workspaceListStore: {
-        workspaces: [{ workingDir }],
-        updatedAt: Date.now(),
-      },
+      workspaceService: createFakeWorkspaceService(),
       backend: {
-        mutation: vi.fn(async (apiRef: string, args: { requestId?: string | undefined; status?: string | undefined }) => {
-          if ('expectedRevision' in args) {
-            const request = pendingRequests.find((candidate) => candidate._id === args.requestId);
-            if (!request) return { status: 'stale' };
-            return {
-              status: 'claimed',
-              request: {
-                _id: request._id,
-                revision: request.revision,
-                workingDir: request.workingDir,
-                filePath: request.filePath,
-                operation: request.operation,
-              },
-            };
+        mutation: vi.fn(
+          async (
+            apiRef: string,
+            args: { requestId?: string | undefined; status?: string | undefined }
+          ) => {
+            if ('expectedRevision' in args) {
+              const request = pendingRequests.find((candidate) => candidate._id === args.requestId);
+              if (!request) return { status: 'stale' };
+              return {
+                status: 'claimed',
+                request: {
+                  _id: request._id,
+                  revision: request.revision,
+                  workingDir: request.workingDir,
+                  filePath: request.filePath,
+                  operation: request.operation,
+                },
+              };
+            }
+            if (args.requestId && args.status) completedRequestIds.push(args.requestId);
+            return undefined;
           }
-          if (args.requestId && args.status) completedRequestIds.push(args.requestId);
-          return undefined;
-        }),
+        ),
         query: vi.fn().mockImplementation((apiRef: string) => {
           if (apiRef === 'mock-getWriteRequestStorageUrl') {
             return Promise.resolve('https://storage.example/slow');
@@ -225,10 +223,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
 
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
-      workspaceListStore: {
-        workspaces: [{ workingDir }],
-        updatedAt: Date.now(),
-      },
+      workspaceService: createFakeWorkspaceService(),
       backend: {
         mutation: createClaimAwareMutation([storageRequest]),
         query: vi.fn().mockImplementation((apiRef: string) => {
@@ -281,10 +276,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
 
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
-      workspaceListStore: {
-        workspaces: [{ workingDir }],
-        updatedAt: Date.now(),
-      },
+      workspaceService: createFakeWorkspaceService(),
       backend: {
         mutation: createClaimAwareMutation([storageRequest]),
         query: vi.fn().mockImplementation((apiRef: string) => {
@@ -561,7 +553,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const request = makeRequest(workingDir, 'notes.md', 'create', 'hi');
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
-      workspaceListStore: { workspaces: [], updatedAt: Date.now() },
+      workspaceService: createFakeWorkspaceService({ isRegistered: vi.fn(() => false) }),
       backend: {
         mutation: createClaimAwareMutation([request]),
         query: vi.fn().mockResolvedValue([request]),
@@ -589,10 +581,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
 
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
-      workspaceListStore: {
-        workspaces: [{ workingDir }],
-        updatedAt: Date.now(),
-      },
+      workspaceService: createFakeWorkspaceService(),
       backend: {
         mutation: vi
           .fn()
@@ -649,10 +638,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
 
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
-      workspaceListStore: {
-        workspaces: [{ workingDir }],
-        updatedAt: Date.now(),
-      },
+      workspaceService: createFakeWorkspaceService(),
       backend: {
         mutation: createClaimAwareMutation([storageRequest]),
         query: vi.fn().mockResolvedValue([storageRequest]),
@@ -686,10 +672,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
 
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
-      workspaceListStore: {
-        workspaces: [{ workingDir }],
-        updatedAt: Date.now(),
-      },
+      workspaceService: createFakeWorkspaceService(),
       backend: {
         mutation: createClaimAwareMutation([storageRequest]),
         query: vi.fn().mockResolvedValue([storageRequest]),

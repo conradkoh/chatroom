@@ -525,8 +525,6 @@ function errorMessage(err: unknown): string {
  *
  * Malformed items are dropped silently; only the top-level outcome is typed.
  */
-// Reason: the remote unit collector (S3c) is the first production consumer.
-// fallow-ignore-next-line unused-export
 export async function readOpenPRsForBranch(
   cwd: string,
   branch: string
@@ -610,15 +608,6 @@ function toOwnOpenPRs(items: unknown[], repoOwner: string | null): GitPullReques
       headRefName: item.headRefName,
       state: item.state,
     }));
-}
-
-/**
- * Compatibility wrapper for git-heartbeat.ts until S5 deletes it.
- * Fallback on any failure: `[]`.
- */
-export async function getOpenPRsForBranch(cwd: string, branch: string): Promise<GitPullRequest[]> {
-  const result = await readOpenPRsForBranch(cwd, branch);
-  return result.ok ? result.value : [];
 }
 
 /** Shape of a single PR item returned by `gh pr list --json ...`. */
@@ -905,8 +894,6 @@ export interface CommitStatusCheck {
  * - ok:false      — either gh call failed, or the JSON shape is unexpected.
  * - ok:true value — merged check-runs + legacy statuses, aggregated as described above.
  */
-// Reason: the remote unit collector (S3c) is the first production consumer.
-// fallow-ignore-next-line unused-export
 export async function readCommitStatusChecks(
   cwd: string,
   ref: string
@@ -1016,18 +1003,6 @@ function aggregateCheckState(entries: CommitStatusCheckRun[]): string {
   }
   if (entries.some((e) => e.status !== 'completed')) return 'pending';
   return 'success';
-}
-
-/**
- * Compatibility wrapper for git-heartbeat.ts until S5 deletes it.
- * Fallback on any failure or non-GitHub repo: `null`.
- */
-export async function getCommitStatusChecks(
-  cwd: string,
-  ref: string
-): Promise<CommitStatusCheck | null> {
-  const result = await readCommitStatusChecks(cwd, ref);
-  return result.ok ? result.value : null;
 }
 
 /**

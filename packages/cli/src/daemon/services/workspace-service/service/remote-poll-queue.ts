@@ -1,6 +1,3 @@
-// Reason: the WorkspaceService monitor (S4b) is the first production consumer; S5 wires it.
-// fallow-ignore-file unused-file
-
 export type RemotePollQueue = {
   /** Replaces any pending timer for `workingDir`; `run` starts after `delayMs`, and never sooner than `minGapMs` after that workspace's previous start. No-op after `stopAll`. */
   schedule(workingDir: string, delayMs: number): void;

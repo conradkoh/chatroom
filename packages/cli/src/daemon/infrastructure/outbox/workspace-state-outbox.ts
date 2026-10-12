@@ -22,22 +22,30 @@ export type WorkspaceStateOutboxRegistry = KeyedCoalescingStateOutboxRegistry<
  * unambiguous for any path characters, and the kind is recoverable for per-kind throttling.
  * Constraint: keys are only produced here, so `decodeWorkspaceStateKey` assumes this format.
  */
-// Reason: the daemon builds these keys once S5 wires the outbox; unit tests use it until then.
-// fallow-ignore-next-line unused-export
 export function encodeWorkspaceStateKey(workingDir: string, kind: WorkspaceStateKind): string {
   return JSON.stringify([workingDir, kind]);
 }
 
-const WORKSPACE_STATE_KINDS: ReadonlySet<string> = new Set<WorkspaceStateKind>([
-  'head',
-  'worktree',
-  'upstream',
-  'remotes',
-  'pullRequests',
-  'checks',
-  'recentCommits',
-  'commands',
-]);
+/**
+ * Typed as a `Record`, so adding a kind to `WorkspaceStateUnit` fails to compile until it is listed.
+ */
+const WORKSPACE_STATE_KIND_RECORD: Record<WorkspaceStateKind, true> = {
+  head: true,
+  worktree: true,
+  upstream: true,
+  remotes: true,
+  pullRequests: true,
+  checks: true,
+  recentCommits: true,
+  commands: true,
+};
+
+/** Every unit kind, exhaustive by construction. Used to fan a working directory out to its keys. */
+export const WORKSPACE_STATE_KINDS: readonly WorkspaceStateKind[] = Object.keys(
+  WORKSPACE_STATE_KIND_RECORD
+) as WorkspaceStateKind[];
+
+const WORKSPACE_STATE_KIND_SET: ReadonlySet<string> = new Set<string>(WORKSPACE_STATE_KINDS);
 
 /**
  * Throws on any key that `encodeWorkspaceStateKey` could not have produced, so a corrupt
@@ -66,7 +74,7 @@ function parseKeyTuple(key: string): unknown[] | null {
 }
 
 function isWorkspaceStateKind(value: unknown): value is WorkspaceStateKind {
-  return typeof value === 'string' && WORKSPACE_STATE_KINDS.has(value);
+  return typeof value === 'string' && WORKSPACE_STATE_KIND_SET.has(value);
 }
 
 /**
@@ -80,8 +88,6 @@ function isWorkspaceStatePermanentError(error: unknown): boolean {
   );
 }
 
-// Reason: the daemon constructs this registry once S5 wires the outbox; unit tests use it until then.
-// fallow-ignore-next-line unused-export
 export function createWorkspaceStateOutboxRegistry(
   machineId: string,
   createSend: (key: string) => (unit: WorkspaceStateUnit) => Promise<WorkspaceStateSendResult>,

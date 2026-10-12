@@ -12,30 +12,28 @@
  *   - `all_pull_requests` → run `getAllPRs()`, push via `upsertAllPullRequests()`
  *   - `recent_commits` → run `getRecentCommits()` with offset 0, push via `upsertRecentCommits()`
  *
- * The heartbeat loop (every 30s) is responsible for pushing incremental
- * git state (branch, isDirty, diffStat, recentCommits) when state changes.
- * This subscription is only for on-demand requests that require low latency.
+ * Steady-state git state (branch, worktree, upstream, PRs, checks, commands) is pushed by
+ * the WorkspaceService as it changes. This subscription handles on-demand requests that need
+ * low latency. After a PR action it asks the WorkspaceService to refresh the directory.
  */
 
 import { gzipSync } from 'node:zlib';
 
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 import type { Context } from 'effect';
 
-import { pushGitStateEffect, type GitStateDeps } from './git-heartbeat.js';
 import { api } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import * as gitReader from '../../infrastructure/git/git-reader.js';
 import type { GitPrAction } from '../../infrastructure/git/request-types.js';
 import { isGitContentAvailable } from '../../infrastructure/git/result-predicates.js';
 import { runGh } from '../../infrastructure/git/run-command.js';
 import { COMMITS_PER_PAGE } from '../../infrastructure/git/types.js';
-import {
-  DaemonMutableStateServiceLive,
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../daemon-services.js';
+import type { WorkspaceService } from '../../services/workspace-service/index.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
+import type { SessionId } from '../daemon-types.js';
 import { formatTimestamp } from '../daemon-utils.js';
 
 /** Timeout for PR action execAsync calls (60s) — prevents indefinite hangs. */
@@ -52,11 +50,14 @@ export interface GitSubscriptionHandle {
 
 /**
  * Flat deps required by processor functions (processFullDiff, etc.).
- * Includes lastPushedGitState (for pushGitStateEffect after PR actions) and
- * workspaceListStore (for getWorkspacesForMachine inside pushGitStateEffect).
+ * `workspaceService` refreshes git state after PR actions.
  * DaemonSessionServiceShape structurally satisfies this type.
  */
-export type GitSubscriptionDeps = GitStateDeps & {
+export type GitSubscriptionDeps = {
+  sessionId: SessionId;
+  machineId: string;
+  backend: BackendOps;
+  workspaceService: WorkspaceService;
   logger?: Pick<Console, 'log' | 'warn'> | undefined;
   effectContext: Context.Context<DaemonSessionService>;
 };
@@ -70,7 +71,7 @@ export type GitSubscriptionDeps = GitStateDeps & {
  * " 3 files changed, 45 insertions(+), 12 deletions(-)"
  * This appears before the diff hunks (which start with "diff --git").
  */
-export function extractDiffStatFromShowOutput(content: string): {
+function extractDiffStatFromShowOutput(content: string): {
   filesChanged: number;
   insertions: number;
   deletions: number;
@@ -215,29 +216,13 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
     `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
   );
 
-  // Refresh git state so the UI updates (PR list, branch, etc.)
-  Effect.runForkWith(deps.effectContext)(
-    pushGitStateEffect.pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          Layer.succeed(DaemonSessionService, deps as unknown as DaemonSessionServiceShape),
-          DaemonMutableStateServiceLive({
-            lastPushedGitState: deps.lastPushedGitState,
-            lastPushedModels: null,
-            lastPushedHarnessFingerprint: null,
-            workspaceListStore: deps.workspaceListStore,
-          })
-        )
-      ),
-      Effect.catch((err) =>
-        Effect.sync(() =>
-          console.warn(
-            `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
-          )
-        )
-      )
-    )
-  );
+  // Refresh git state so the UI updates (PR list, branch, etc.). The action already succeeded,
+  // so a refresh failure is logged rather than failing the request.
+  deps.workspaceService.refresh(req.workingDir).catch((err: unknown) => {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
+    );
+  });
 }
 
 /**

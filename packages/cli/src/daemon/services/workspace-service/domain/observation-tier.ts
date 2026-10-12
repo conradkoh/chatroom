@@ -1,5 +1,3 @@
-// Reason: the WorkspaceService sync loop that consumes these tiers is not wired until S4/S5.
-// fallow-ignore-file unused-file
 import type { WorkspaceSyncPolicy } from './workspace-sync-policy.js';
 import { normalizeWorkingDirForLookup } from '../../../../infrastructure/services/workspace/normalize-working-dir.js';
 

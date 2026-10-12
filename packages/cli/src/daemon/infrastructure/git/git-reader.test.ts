@@ -16,10 +16,8 @@ import {
   getRecentCommits,
   getCommitDetail,
   getCommitMetadata,
-  getOpenPRsForBranch,
   getCommitsAhead,
   getCommitsBehind,
-  getCommitStatusChecks,
   getDefaultBranch,
   parseDiffStatLine,
   parseRepoSlug,
@@ -28,6 +26,18 @@ import {
   readCommitStatusChecks,
 } from './git-reader.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
+
+/** Legacy view of readOpenPRsForBranch: any failure reads as no pull requests. */
+const getOpenPRsForBranch = async (cwd: string, branch: string) => {
+  const result = await readOpenPRsForBranch(cwd, branch);
+  return result.ok ? result.value : [];
+};
+
+/** Legacy view of readCommitStatusChecks: any failure reads as no checks. */
+const getCommitStatusChecks = async (cwd: string, ref: string) => {
+  const result = await readCommitStatusChecks(cwd, ref);
+  return result.ok ? result.value : null;
+};
 
 type QueuedResponse =
   { stdout: string; stderr: string } | { error: Error & { code?: number | undefined } };
@@ -1048,7 +1058,7 @@ describe('readCommitStatusChecks', () => {
   });
 });
 
-// ─── Wrapper fallbacks relied on by git-heartbeat.ts ─────────────────────────
+// ─── Legacy fallback views (failure reads as empty) ──────────────────────────
 
 describe('getOpenPRsForBranch / getCommitStatusChecks fallbacks', () => {
   test('getOpenPRsForBranch returns [] on gh error', async () => {

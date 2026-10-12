@@ -1,3 +1,5 @@
+// Reason: S5b deletes this file. Its only consumer, git-heartbeat.ts, was removed in S5a.
+// fallow-ignore-file unused-file
 import { createHash } from 'node:crypto';
 
 export interface GitStateFieldDef<

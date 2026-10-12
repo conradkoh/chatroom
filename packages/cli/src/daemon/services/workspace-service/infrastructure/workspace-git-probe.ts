@@ -17,9 +17,6 @@ import {
 } from '../../../../infrastructure/services/workspace/git-workspace-porcelain.js';
 import { LOCAL_KINDS, type LocalKind } from '../domain/workspace-state-unit.js';
 
-// Reason: the S3c collectors and the S4 monitor are the first production consumers.
-// fallow-ignore-file unused-file
-
 /** One git status read: branch header, entries, and edit fingerprints for the first entries. */
 export type ProbeSnapshot = {
   branch: GitBranchHeader;
@@ -181,6 +178,8 @@ function localKindsFor(upstreamChanged: boolean, changed: GitPorcelainEntry[]): 
  * An entry is kept when its path or its rename origin is equal to a prefix or below it.
  * An empty pathspec keeps everything.
  */
+// Reason: S6 wires this into the file-tree root seam (readRootSnapshot); no production caller until then.
+// fallow-ignore-next-line unused-export
 export function toRootChangeSourceSnapshot(
   s: ProbeSnapshot,
   rootPathspec: string[]

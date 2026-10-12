@@ -18,20 +18,10 @@ export {
   type AgentLifecycleOutboxResult,
 } from './agent-lifecycle-outbox.js';
 export { createAgentLifecycleSend } from './agent-lifecycle-send.js';
-// Reason: the workspace-state outbox has no daemon consumer until S5 wires it in.
-// fallow-ignore-next-line unused-export
-export { createWorkspaceStateOutboxRegistry } from './workspace-state-outbox.js';
-// fallow-ignore-next-line unused-export
-export { decodeWorkspaceStateKey } from './workspace-state-outbox.js';
-// fallow-ignore-next-line unused-export
-export { encodeWorkspaceStateKey } from './workspace-state-outbox.js';
-// fallow-ignore-next-line unused-type
-export type { WorkspaceStateKind } from './workspace-state-outbox.js';
-// fallow-ignore-next-line unused-type
-export type { WorkspaceStateOutboxRegistry } from './workspace-state-outbox.js';
-// fallow-ignore-next-line unused-type
-export type { WorkspaceStateSendResult } from './workspace-state-outbox.js';
-// fallow-ignore-next-line unused-export
+export {
+  createWorkspaceStateOutboxRegistry,
+  encodeWorkspaceStateKey,
+  WORKSPACE_STATE_KINDS,
+  type WorkspaceStateOutboxRegistry,
+} from './workspace-state-outbox.js';
 export { createWorkspaceStateSend } from './workspace-state-send.js';
-// fallow-ignore-next-line unused-type
-export type { WorkspaceStateUnit } from './workspace-state-outbox-schema.js';

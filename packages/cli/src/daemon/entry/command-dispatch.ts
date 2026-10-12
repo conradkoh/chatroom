@@ -5,17 +5,16 @@
 
 import { AGENT_REQUEST_DEADLINE_MS } from '@workspace/backend/config/reliability.js';
 import type { MachineCommandPayload } from '@workspace/backend/src/domain/entities/machine-command.js';
-import { Effect, Layer, Ref, type Context } from 'effect';
+import { Effect, Layer, type Context } from 'effect';
 
-import { pushSingleWorkspaceGitStateEffect } from './workspace-git/git-heartbeat.js';
 import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
-import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
-import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
+import { DaemonSessionService } from './daemon-services.js';
 import type {
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerCommandService,
+  DaemonMutableStateService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
@@ -30,7 +29,6 @@ import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
-import { makeGitStateKey } from '../infrastructure/git/types.js';
 
 /** Event shape delivered from the machine command inbox (formerly machines.getCommandEvents). */
 type CommandEvent = {
@@ -148,12 +146,8 @@ function handleGitRefreshCommandEffect(
     if (tracker.gitRefreshIds.has(eventId)) return;
     const session = yield* DaemonSessionService;
     const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitRefresh' }>;
-    const mutable = yield* DaemonMutableStateService;
-    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
-    lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
-    yield* pushSingleWorkspaceGitStateEffect(typedEvent.workingDir);
-    yield* pushSingleWorkspaceCommandsEffect(typedEvent.workingDir);
+    yield* Effect.promise(() => session.workspaceService.refresh(typedEvent.workingDir));
     tracker.gitRefreshIds.set(eventId, Date.now());
   });
 }
@@ -180,10 +174,7 @@ function handleLocalActionCommandEffect(
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
     } else if (GIT_PUSH_ACTIONS.has(typedEvent.action)) {
       const session = yield* DaemonSessionService;
-      const mutable = yield* DaemonMutableStateService;
-      const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
-      lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
-      yield* pushSingleWorkspaceGitStateEffect(typedEvent.workingDir);
+      yield* Effect.promise(() => session.workspaceService.refresh(typedEvent.workingDir));
     }
     tracker.localActionIds.set(eventId, Date.now());
   });

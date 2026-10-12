@@ -463,8 +463,6 @@ export async function readGitPorcelainStatus(node: GitRepoNode): Promise<GitPorc
 }
 
 /** Reads branch metadata and entries in one `git status` call. Throws `GitWorkspaceCommandError` on failure. */
-// Reason: the WorkspaceService probe (S3b) is the first production consumer; tests use it until then.
-// fallow-ignore-next-line unused-export
 export async function readGitStatusV2(workTree: string): Promise<{
   branch: GitBranchHeader;
   entries: GitPorcelainEntry[];

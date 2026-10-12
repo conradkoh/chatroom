@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createFakeWorkspaceService } from './testing/index.js';
+
 const registerCommandInboundHandler = vi.fn();
 const unregisterCommandInboundHandler = vi.fn();
 const registerFileInboundHandler = vi.fn();
@@ -8,6 +10,8 @@ const registerWorkspaceGitInboundHandler = vi.fn();
 const unregisterWorkspaceGitInboundHandler = vi.fn();
 const drainPendingFileTreeReleaseRequests = vi.fn().mockResolvedValue(undefined);
 const taskInboxStop = vi.fn();
+const workspaceStateOutboxFlush = vi.fn().mockResolvedValue(undefined);
+const workspaceStateOutboxStop = vi.fn().mockResolvedValue(undefined);
 const shutdownEffectStarted = vi.fn();
 const nativeDelivery = {
   dispose: vi.fn(),
@@ -51,13 +55,6 @@ vi.mock('./files/file-tree-subscription.js', async () => {
       }),
   };
 });
-vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    startWorkspaceListSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
-    reconcileWorkspaceList: vi.fn(),
-  };
-});
 vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: () => ({ stop: vi.fn() }),
 }));
@@ -85,19 +82,19 @@ describe('createDaemonRuntime', () => {
     } = await import('./daemon-services.js');
     const { createDaemonRuntime } = await import('./daemon-runtime.js');
 
+    const workspaceService = createFakeWorkspaceService();
     const session = {
       sessionId: 's1' as const,
       machineId: 'm1',
       backend: { mutation: vi.fn(), query: vi.fn() },
       convexUrl: 'https://example.com',
       agentServices: new Map(),
+      workspaceService,
     };
 
     const layers = Layer.mergeAll(
       Layer.succeed(DaemonSessionService, session as never),
-      Layer.succeed(DaemonMutableStateService, {
-        lastPushedGitState: { get: vi.fn(), set: vi.fn() },
-      } as never),
+      Layer.succeed(DaemonMutableStateService, {} as never),
       Layer.succeed(DaemonAgentProcessManagerService, {} as never),
       Layer.succeed(DaemonAgentProcessManagerCommandService, {
         runSerializedForAgent: vi.fn(),
@@ -113,6 +110,10 @@ describe('createDaemonRuntime', () => {
       wsClient: { onUpdate: vi.fn() } as never,
       agentLifecycleOutbox: {
         stopAll: vi.fn().mockResolvedValue(undefined),
+      } as never,
+      workspaceStateOutbox: {
+        flushNow: workspaceStateOutboxFlush,
+        stopAll: workspaceStateOutboxStop,
       } as never,
       agentProcessManagerService: {
         stopProcessing: vi.fn().mockResolvedValue(undefined),
@@ -130,6 +131,7 @@ describe('createDaemonRuntime', () => {
     expect(onNativeDeliveryReady).toHaveBeenCalledWith(nativeDelivery);
     expect(registerFileInboundHandler).toHaveBeenCalledBefore(drainPendingFileTreeReleaseRequests);
     expect(drainPendingFileTreeReleaseRequests).toHaveBeenCalledTimes(1);
+    expect(workspaceService.start).toHaveBeenCalledTimes(1);
 
     let resolveTaskInboxStop!: () => void;
     taskInboxStop.mockImplementation(
@@ -143,6 +145,9 @@ describe('createDaemonRuntime', () => {
     await shutdownPromise;
     await runPromise;
 
+    // Monitors stop before the workspace-state outbox is flushed and stopped.
+    expect(workspaceService.stopAll).toHaveBeenCalledBefore(workspaceStateOutboxFlush);
+    expect(workspaceStateOutboxFlush).toHaveBeenCalledBefore(workspaceStateOutboxStop);
     expect(unregisterCommandInboundHandler).toHaveBeenCalled();
     expect(unregisterFileInboundHandler).toHaveBeenCalled();
     expect(unregisterWorkspaceGitInboundHandler).toHaveBeenCalled();

@@ -13,6 +13,7 @@ import { handleStatusEffect } from './status.js';
 import { DaemonSessionService } from '../daemon-services.js';
 import type { MachineConfig, ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
+import { createFakeWorkspaceService } from '../testing/index.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -49,7 +50,7 @@ function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<Daem
     fs: { stat: vi.fn() } as any,
     agentServices: new Map(),
     events: new DaemonEventBus(),
-    lastPushedGitState: new Map(),
+    workspaceService: createFakeWorkspaceService(),
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
     logEvent: async () => undefined,

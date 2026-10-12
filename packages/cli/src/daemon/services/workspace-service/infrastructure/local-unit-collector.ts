@@ -28,9 +28,6 @@ import {
 import type { WorkspaceStateUnit } from '../../../infrastructure/outbox/workspace-state-outbox-schema.js';
 import type { LocalKind } from '../domain/workspace-state-unit.js';
 
-// Reason: S4 (workspace monitor, service/**) is the first production consumer; it is not wired yet.
-// fallow-ignore-file unused-file
-
 type UnitOf<K extends WorkspaceStateUnit['kind']> = Extract<WorkspaceStateUnit, { kind: K }>;
 type CommitEntry = UnitOf<'recentCommits'>['commits'][number];
 type CommandEntry = UnitOf<'commands'>['commands'][number];

@@ -83,8 +83,6 @@ async function deliverUnit(
  * directory are serialized in enqueue order (kinds share one workspace); different
  * working directories run concurrently.
  */
-// Reason: the daemon wires this send adapter in S5; unit tests use it until then.
-// fallow-ignore-next-line unused-export
 export function createWorkspaceStateSend(
   deps: WorkspaceStateSendDeps
 ): (key: string) => (unit: WorkspaceStateUnit) => Promise<WorkspaceStateSendResult> {

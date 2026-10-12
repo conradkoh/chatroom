@@ -1,5 +1,3 @@
-// Reason: the WorkspaceService domain is consumed by the S3b probe/collectors and S4 sync loop, which are not wired yet.
-// fallow-ignore-file unused-file
 import { createHash } from 'node:crypto';
 
 import type { WorkspaceStateUnit } from '../../../infrastructure/outbox/workspace-state-outbox-schema.js';
@@ -17,10 +15,6 @@ export const LOCAL_KINDS = [
   'commands',
 ] as const;
 export type LocalKind = (typeof LOCAL_KINDS)[number];
-
-/** Kinds read from the GitHub API. */
-export const REMOTE_KINDS = ['pullRequests', 'checks'] as const;
-export type RemoteKind = (typeof REMOTE_KINDS)[number];
 
 type UnitOfKind<K extends WorkspaceStateUnit['kind']> = Extract<WorkspaceStateUnit, { kind: K }>;
 
@@ -87,8 +81,9 @@ function compareCommands(a: Command, b: Command): number {
  * Canonical form of a unit for hashing and comparison. Array-valued fields are sorted so that
  * order-only differences from the source do not register as a change. Never mutates the input.
  */
-// Reason: one switch arm per unit kind is the exhaustive dispatch; splitting it would only move the arms.
-// fallow-ignore-next-line complexity
+// Reason: exported so the sort order is tested directly; production reaches it through hashUnit.
+// One switch arm per unit kind is the exhaustive dispatch; splitting it would only move the arms.
+// fallow-ignore-next-line unused-export complexity
 export function normalizeUnit(u: WorkspaceStateUnit): WorkspaceStateUnit {
   switch (u.kind) {
     case 'checks':

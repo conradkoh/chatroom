@@ -26,7 +26,7 @@ import {
   DaemonSpawningServiceLive,
 } from './daemon-services.js';
 import type { ConvexClient } from './daemon-types.js';
-import { createMockDaemonSessionInit } from './testing/index.js';
+import { createFakeWorkspaceService, createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 
 // ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ describe('DaemonSessionService', () => {
       fs: { stat: vi.fn() } as any,
       agentServices: new Map(),
       events: {} as any,
-      lastPushedGitState: new Map(),
+      workspaceService: createFakeWorkspaceService(),
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,
@@ -203,7 +203,7 @@ describe('DaemonSessionService', () => {
       fs: fsMock,
       agentServices: new Map(),
       events: {} as any,
-      lastPushedGitState: new Map(),
+      workspaceService: createFakeWorkspaceService(),
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,
@@ -222,9 +222,8 @@ describe('DaemonSessionService', () => {
     expect(fs).toBe(fsMock);
   });
 
-  it('exposes mutable state maps with shared reference semantics', () => {
-    const lastPushedGitState = new Map<string, string>();
-    lastPushedGitState.set('key', 'value');
+  it('exposes the workspace service it was given', () => {
+    const workspaceService = createFakeWorkspaceService();
 
     const layer = Layer.succeed(DaemonSessionService, {
       sessionId: 'sess-e3b',
@@ -236,7 +235,7 @@ describe('DaemonSessionService', () => {
       fs: { stat: vi.fn() } as any,
       agentServices: new Map(),
       events: {} as any,
-      lastPushedGitState,
+      workspaceService,
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
       logEvent: async () => undefined,
@@ -247,11 +246,11 @@ describe('DaemonSessionService', () => {
     const result = Effect.runSync(
       Effect.gen(function* () {
         const svc = yield* DaemonSessionService;
-        return svc.lastPushedGitState.get('key');
+        return svc.workspaceService;
       }).pipe(Effect.provide(layer))
     );
 
-    expect(result).toBe('value');
+    expect(result).toBe(workspaceService);
   });
 });
 
@@ -325,27 +324,26 @@ describe('daemonSessionToLayers', () => {
     expect(fs).toBe(deps.fs);
   });
 
-  it('populates lastPushedGitState with same reference as init (shared mutation)', async () => {
+  it('passes the init workspace service through by reference', async () => {
     const deps = createMockDaemonDeps();
-    const lastPushedGitState = new Map<string, string>([['k', 'v']]);
+    const workspaceService = createFakeWorkspaceService();
     const init = createMockDaemonSessionInit({
       backend: deps.backend,
       fs: deps.fs,
       machine: deps.machine,
       spawning: deps.spawning,
       agentProcessManager: deps.agentProcessManager,
-      lastPushedGitState,
+      workspaceService,
     });
 
     const layer = daemonSessionToLayers(init);
-    const map = await Effect.runPromise(
+    const service = await Effect.runPromise(
       Effect.gen(function* () {
         const svc = yield* DaemonSessionService;
-        return svc.lastPushedGitState;
+        return svc.workspaceService;
       }).pipe(Effect.provide(layer))
     );
 
-    expect(map).toBe(lastPushedGitState);
-    expect(map.get('k')).toBe('v');
+    expect(service).toBe(workspaceService);
   });
 });

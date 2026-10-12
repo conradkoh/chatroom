@@ -5,7 +5,7 @@ import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon
 import type { DaemonSessionInit, ConvexClient } from './daemon-types.js';
 import type { Id } from '../../api.js';
 import { registerEventListenersEffect } from './events/register-listeners.js';
-import { createMockDaemonSessionInit } from './testing/index.js';
+import { createFakeWorkspaceService, createMockDaemonSessionInit } from './testing/index.js';
 import { OpenCodeAgentService } from '../infrastructure/local/harness/services/opencode/index.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
@@ -48,7 +48,7 @@ function registerListeners(
         fs: {} as any,
         agentServices: new Map(),
         events: init.events,
-        lastPushedGitState: new Map(),
+        workspaceService: createFakeWorkspaceService(),
         lastPushedModels: null,
         lastPushedHarnessFingerprint: null,
         logEvent: async () => undefined,
