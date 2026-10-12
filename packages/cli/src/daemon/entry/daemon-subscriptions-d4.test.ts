@@ -49,7 +49,6 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
-  OBSERVATION_TTL_MS: 30_000,
   NATIVE_DELIVERY_RECONCILE_MS: 10_000,
   HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));

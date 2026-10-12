@@ -18,7 +18,11 @@ import { promisify } from 'node:util';
 import { getFunctionName } from 'convex/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createWorkspaceService, type WorkspaceService } from './workspace-service.js';
+import {
+  createWorkspaceService,
+  type WorkspaceService,
+  type WorkspaceServiceDeps,
+} from './workspace-service.js';
 import { api } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import type { SessionId } from '../../../entry/daemon-types.js';
@@ -30,13 +34,11 @@ import {
   type WorkspaceStateOutboxRegistry,
 } from '../../../infrastructure/outbox/index.js';
 import type { WorkspaceStateKind } from '../../../infrastructure/outbox/workspace-state-outbox.js';
-import type { WorkspaceActivityRow } from '../domain/observation-tier.js';
 import type { WorkspaceStateUnit } from '../domain/workspace-state-unit.js';
 import {
   resolveWorkspaceSyncPolicy,
   type WorkspaceSyncPolicy,
 } from '../domain/workspace-sync-policy.js';
-import type { WorkspaceActivitySource } from '../infrastructure/workspace-activity-source.js';
 
 // The GitHub readers shell out to `gh`. Stub only those two; the git readers stay real.
 vi.mock('../../../infrastructure/git/git-reader.js', async (importOriginal) => ({
@@ -105,13 +107,23 @@ function createFakeBackend(): FakeBackend {
   };
 }
 
-/** Reports the repository as observed right now, so it is in the observed tier. */
-function observedActivitySource(workingDir: string): WorkspaceActivitySource {
+/**
+ * One member directory with one present agent in it, so the directory starts active. This is the
+ * state the old observation gate produced for a freshly observed repository.
+ */
+function activeMembership(
+  workingDir: string
+): Pick<WorkspaceServiceDeps, 'membershipSource' | 'agentPresence'> {
   return {
-    subscribe(onRows) {
-      const rows: WorkspaceActivityRow[] = [{ workingDir, lastObservedAt: Date.now() }];
-      onRows(rows);
-      return () => undefined;
+    membershipSource: {
+      subscribe(onWorkingDirs) {
+        onWorkingDirs([workingDir]);
+        return () => undefined;
+      },
+    },
+    agentPresence: {
+      list: () => [{ chatroomId: 'chatroom-integration', role: 'builder', workingDir }],
+      subscribe: () => () => undefined,
     },
   };
 }
@@ -138,7 +150,7 @@ function startHarness(workingDir: string, fake: FakeBackend): Harness {
     }
   );
   const service = createWorkspaceService({
-    activitySource: observedActivitySource(workingDir),
+    ...activeMembership(workingDir),
     outbox: {
       enqueue: (dir, unit) => {
         registry.enqueue(encodeWorkspaceStateKey(dir, unit.kind), unit).catch(() => undefined);

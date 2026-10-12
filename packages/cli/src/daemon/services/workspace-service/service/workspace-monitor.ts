@@ -4,7 +4,7 @@ import {
 } from './local-recompute-scheduler.js';
 import { isRemoteResultCurrent, nextRemotePollDelayMs } from './remote-cadence.js';
 import { computeBackoff } from '../../../../infrastructure/services/workspace/git-workspace-change-source.js';
-import type { ObservationTier } from '../domain/observation-tier.js';
+import type { WorkspaceActivity } from '../domain/workspace-activity.js';
 import {
   hashUnit,
   LOCAL_KINDS,
@@ -42,12 +42,14 @@ export type WorkspaceMonitorDeps = {
 
 export type WorkspaceMonitor = {
   /**
-   * Idempotent. `observed`: runs a full local recompute, starts the probe loop if the last full
-   * recompute saw a git repo, and schedules an immediate remote poll. `idle`: stops the probe loop,
-   * cancels pending local and remote work, and leaves hashes in place. Monitors stay alive.
+   * Idempotent: a value equal to the current one is ignored. `active`: runs a full local recompute,
+   * starts the probe loop if the last full recompute saw a git repo, and schedules an immediate
+   * remote poll. `idle`: stops the probe loop, cancels pending local and remote work, runs one final
+   * local recompute, and schedules one remote poll that does not reschedule. Hashes are kept, and
+   * the monitor stays alive.
    */
-  setTier(tier: ObservationTier): void;
-  /** Clears all unit hashes, recomputes every local unit, and schedules an immediate remote poll. Resolves when the local recompute has finished. Works in any tier. */
+  setActivity(activity: WorkspaceActivity): void;
+  /** Clears all unit hashes, recomputes every local unit, and schedules an immediate remote poll. Resolves when the local recompute has finished. Works in any activity. */
   refresh(): Promise<void>;
   /** Invoked by the remote queue. Resolves when the poll is applied, discarded, or failed. */
   runRemotePoll(): Promise<void>;
@@ -73,8 +75,9 @@ type RemoteOk = Extract<RemoteCollectResult, { ok: true }>;
  *   never break the chain.
  * - Hash dedup lives here: a unit is enqueued only when its hash differs from the last one this
  *   monitor emitted for its kind. `refresh` clears the hashes.
- * - The probe loop runs only in the `observed` tier. The monitor is the only probe consumer.
- * - Remote polls reschedule only while `observed`. A poll that was already queued runs once in `idle`.
+ * - The probe loop runs only while `active`. The monitor is the only probe consumer.
+ * - Remote polls reschedule only while `active`. A poll that was already queued runs once in `idle`.
+ * - Activity is set by the service from agent presence. The monitor does not decide it.
  * - All I/O arrives through `deps`, so the monitor needs no git, gh, Convex, or outbox at test time.
  */
 export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMonitor {
@@ -82,7 +85,7 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
   const setTimer: (fn: () => void, ms: number) => TimerHandle = deps.setTimer ?? setTimeout;
   const clearTimer: (handle: TimerHandle) => void = deps.clearTimer ?? clearTimeout;
 
-  let tier: ObservationTier = 'idle';
+  let activity: WorkspaceActivity = 'idle';
   let stopped = false;
   let chain: Promise<void> = Promise.resolve();
 
@@ -120,9 +123,9 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
     return chain;
   }
 
-  /** True while the monitor is observing and not shutting down. Gates every reschedule. */
-  function isObserving(): boolean {
-    return tier === 'observed' && !stopped;
+  /** True while the monitor is active and not shutting down. Gates every reschedule. */
+  function isActive(): boolean {
+    return activity === 'active' && !stopped;
   }
 
   function emit(unit: WorkspaceStateUnit): void {
@@ -142,7 +145,7 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
     applyLocalResult(await deps.collectLocal(workingDir, kinds));
   }
 
-  // ---- Probe loop (observed tier only) ----
+  // ---- Probe loop (active only) ----
 
   function armProbe(delayMs: number): void {
     const loop: ProbeLoop = {
@@ -196,7 +199,7 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
     const isBaseline = lastSnapshot === null;
     const { localKinds, remoteTrigger } = diffProbeSnapshots(lastSnapshot, snap);
     lastSnapshot = snap;
-    // The first snapshot after tier-up is a baseline. tierUp already scheduled the remote poll,
+    // The first snapshot after activation is a baseline. tierUp already scheduled the remote poll,
     // so the baseline must not schedule a second one.
     if (remoteTrigger && !isBaseline) {
       lastTriggerAt = now();
@@ -208,7 +211,7 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
   // ---- Remote polls ----
 
   function rescheduleRemote(): void {
-    if (!isObserving()) return;
+    if (!isActive()) return;
     deps.scheduleRemote(
       nextRemotePollDelayMs({
         now: now(),
@@ -258,7 +261,8 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
   async function applyIfCurrent(target: PollTarget, result: RemoteOk): Promise<void> {
     const current = refOf(await probe.readSnapshot({ maxAgeMs: 0 }));
     if (!isRemoteResultCurrent(target, current)) {
-      if (!stopped) deps.scheduleRemote(0);
+      // A stale result reruns the poll at once, but only while active. An idle monitor does not reschedule.
+      if (isActive()) deps.scheduleRemote(0);
       return;
     }
     applyRemoteResult(result);
@@ -291,11 +295,11 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
    * last completed recompute reported no git repo.
    */
   async function tierUp(): Promise<void> {
-    if (!isObserving()) return;
+    if (!isActive()) return;
     try {
       await localRecompute(new Set(LOCAL_KINDS));
     } finally {
-      if (isObserving()) {
+      if (isActive()) {
         if (gitAvailable !== false) startProbeLoop();
         lastTriggerAt = now();
         deps.scheduleRemote(0);
@@ -303,17 +307,32 @@ export function createWorkspaceMonitor(deps: WorkspaceMonitorDeps): WorkspaceMon
     }
   }
 
+  /**
+   * The last sync before idle. Runs on the serial chain after the synchronous stop steps in
+   * `setActivity`. It is skipped when the monitor became active again before it ran, because the
+   * queued `tierUp` covers that. Its remote poll does not reschedule, because `isActive` is false.
+   */
+  async function finalFlush(): Promise<void> {
+    if (activity !== 'idle') return;
+    try {
+      await localRecompute(new Set(LOCAL_KINDS));
+    } finally {
+      if (!stopped && activity === 'idle') deps.scheduleRemote(0);
+    }
+  }
+
   return {
-    setTier(next) {
-      if (stopped || next === tier) return;
-      tier = next;
-      if (next === 'observed') {
+    setActivity(next) {
+      if (stopped || next === activity) return;
+      activity = next;
+      if (next === 'active') {
         void serial(tierUp);
         return;
       }
       stopProbeLoop();
       localScheduler.cancel();
       deps.cancelRemote();
+      void serial(finalFlush);
     },
 
     refresh() {

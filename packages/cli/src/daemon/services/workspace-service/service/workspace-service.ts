@@ -7,12 +7,12 @@ import { createWorkspaceMonitor, type WorkspaceMonitor } from './workspace-monit
 import type { GitRootSnapshotReader } from '../../../../infrastructure/services/workspace/git-workspace-change-source.js';
 import { normalizeWorkingDirForLookup } from '../../../../infrastructure/services/workspace/normalize-working-dir.js';
 import type { DaemonSessionServiceShape } from '../../../entry/daemon-services.js';
+import type { AgentWorkspacePresence } from '../../agent-process-service/domain/entities/agent-process.js';
 import {
-  createObservationTracker,
-  type ObservationTier,
-  type ObservationTracker,
-  type WorkspaceActivityRow,
-} from '../domain/observation-tier.js';
+  activeWorkingDirs,
+  diffMembership,
+  type WorkspaceActivity,
+} from '../domain/workspace-activity.js';
 import type { LocalKind, WorkspaceStateUnit } from '../domain/workspace-state-unit.js';
 import {
   DEFAULT_WORKSPACE_SYNC_POLICY,
@@ -26,13 +26,13 @@ import {
   collectRemoteUnits,
   type RemoteCollectResult,
 } from '../infrastructure/remote-unit-collector.js';
-import type { WorkspaceActivitySource } from '../infrastructure/workspace-activity-source.js';
 import {
   createWorkspaceGitProbe,
   readGitRenameLimit,
   toRootChangeSourceSnapshot,
   type WorkspaceGitProbe,
 } from '../infrastructure/workspace-git-probe.js';
+import type { WorkspaceMembershipSource } from '../infrastructure/workspace-membership-source.js';
 
 /** The part of the workspace-state outbox this service drives. Keys are per working directory. */
 export type WorkspaceServiceOutbox = {
@@ -41,16 +41,28 @@ export type WorkspaceServiceOutbox = {
   stopKeys(workingDir: string): void;
 };
 
+/**
+ * The agent service's view of which agents run where. Implemented by `AgentProcessManager`.
+ * `list` is the full snapshot. `subscribe` fires after any change, with no payload.
+ */
+export type WorkspaceAgentPresenceSource = {
+  list(): readonly AgentWorkspacePresence[];
+  subscribe(onChange: () => void): () => void;
+};
+
 /** The daemon session identity that file-tree sync acts for. */
 type FileTreeSessionDeps = Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>;
 
 type OptionalDeps = Omit<
   WorkspaceServiceDeps,
-  keyof FileTreeSessionDeps | 'activitySource' | 'outbox'
+  keyof FileTreeSessionDeps | 'membershipSource' | 'agentPresence' | 'outbox'
 >;
 
 export type WorkspaceServiceDeps = FileTreeSessionDeps & {
-  activitySource: WorkspaceActivitySource;
+  /** Which directories are members. The service keeps one monitor per member. */
+  membershipSource: WorkspaceMembershipSource;
+  /** Which agents run where. A member with a present agent in its directory is active. */
+  agentPresence: WorkspaceAgentPresenceSource;
   outbox: WorkspaceServiceOutbox;
   /** Default `DEFAULT_WORKSPACE_SYNC_POLICY`. Use `resolveWorkspaceSyncPolicy` for partial overrides. */
   policy?: WorkspaceSyncPolicy;
@@ -72,7 +84,7 @@ export type WorkspaceRefreshReason = 'command' | 'local-action' | 'pr-action';
 export type WorkspaceService = {
   /** Per-directory file-tree sync. Stopped by `stopAll`. */
   readonly fileTree: WorkspaceFileTreeHost;
-  /** Subscribes to the activity source. Idempotent. No-op after `stopAll`. */
+  /** Subscribes to membership and agent presence, then reconciles activity once. Idempotent. No-op after `stopAll`. */
   start(): void;
   /**
    * Clears the monitor's hashes, recomputes every local unit, and schedules a remote poll.
@@ -96,8 +108,8 @@ type MonitorEntry = {
   monitor: WorkspaceMonitor;
   /** The probe the monitor reads. The root snapshot reader shares it, so one git read serves both. */
   probe: WorkspaceGitProbe;
-  /** The tier last passed to `monitor.setTier`. Only a change is forwarded. */
-  tier: ObservationTier;
+  /** The activity last passed to `monitor.setActivity`. Only a change is forwarded. */
+  activity: WorkspaceActivity;
   /** Stops this entry's callbacks from reaching the outbox and the remote queue. */
   retire(): void;
 };
@@ -105,17 +117,18 @@ type MonitorEntry = {
 type ServiceState = {
   deps: ResolvedDeps;
   outbox: WorkspaceServiceOutbox;
-  tracker: ObservationTracker;
+  agentPresence: WorkspaceAgentPresenceSource;
   monitors: Map<string, MonitorEntry>;
   /** Removals whose monitor is still winding down. `stopAll` waits for them. */
   pendingStops: Set<Promise<void>>;
   queue: RemotePollQueue;
-  transitionTimer: TimerHandle | null;
+  /** True while a presence reconcile is queued as a microtask. Coalesces signals in one tick. */
+  activityReconcileQueued: boolean;
   stopped: boolean;
 };
 
 /**
- * Owns workspace membership for the machine. Each active workingDir has exactly one monitor.
+ * Owns workspace membership for the machine. Each member directory has exactly one monitor.
  *
  * Constraints:
  * - Membership changes are synchronous. A removed directory leaves the map before any await, so
@@ -124,8 +137,10 @@ type ServiceState = {
  *   workspace produces no outbox writes after `stopKeys`.
  * - One global remote queue serializes remote polls. Each workspace's timer is separate, so
  *   scheduling one workspace never delays another.
- * - Tier decay is driven by the tracker's `nextTransitionAt`, so an observed workspace goes idle
- *   on time with no new activity snapshot.
+ * - Activity is decided by agent presence alone. A member is active while a present agent runs in
+ *   its directory. Only active monitors probe and poll. Going idle runs a final flush.
+ * - Activity is level-triggered. Each reconcile re-reads the full presence snapshot, so no counter
+ *   can drift. Signals in one tick coalesce into one reconcile.
  * - Intervals come only from `policy`. No `Date.now()` is read here. Clock is `now`.
  */
 export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceService {
@@ -138,14 +153,19 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
       state.deps.now
     ),
   });
-  let unsubscribe: (() => void) | null = null;
+  let unsubscribeMembership: (() => void) | null = null;
+  let unsubscribePresence: (() => void) | null = null;
 
   return {
     fileTree,
 
     start() {
-      if (state.stopped || unsubscribe !== null) return;
-      unsubscribe = deps.activitySource.subscribe((rows) => applySnapshot(state, rows));
+      if (state.stopped || unsubscribeMembership !== null) return;
+      unsubscribeMembership = deps.membershipSource.subscribe((workingDirs) =>
+        applyMembership(state, workingDirs)
+      );
+      unsubscribePresence = deps.agentPresence.subscribe(() => scheduleActivityReconcile(state));
+      reconcileActivity(state);
     },
 
     async refresh(workingDir, reason) {
@@ -159,8 +179,10 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
     },
 
     async stopAll() {
-      unsubscribe?.();
-      unsubscribe = null;
+      unsubscribeMembership?.();
+      unsubscribeMembership = null;
+      unsubscribePresence?.();
+      unsubscribePresence = null;
       // Stop order: unsubscribe, monitors, file tree, remote queue. A file-tree failure is logged
       // so the remote queue still stops and the daemon's shutdown sequence continues.
       await stopAllMembers(state);
@@ -284,11 +306,11 @@ function createServiceState(deps: WorkspaceServiceDeps): ServiceState {
   return {
     deps: resolved,
     outbox: deps.outbox,
-    tracker: createObservationTracker(resolved.policy.observation, resolved.now),
+    agentPresence: deps.agentPresence,
     monitors,
     pendingStops: new Set(),
     queue,
-    transitionTimer: null,
+    activityReconcileQueued: false,
     stopped: false,
   };
 }
@@ -320,7 +342,7 @@ function createEntry(state: ServiceState, workingDir: string): MonitorEntry {
   return {
     monitor,
     probe,
-    tier: 'idle',
+    activity: 'idle',
     retire: () => {
       live = false;
     },
@@ -346,49 +368,67 @@ function trackStop(state: ServiceState, stopping: Promise<void>): void {
   void stopping.then(settle, settle);
 }
 
-/** Forwards each monitor's tier when it differs from the last one forwarded. */
-function reconcileTiers(state: ServiceState): void {
+/**
+ * Reconciles membership with the registered directories. Removals and additions are synchronous.
+ * Then activity is re-derived, so a new member with a running agent becomes active at once.
+ */
+function applyMembership(state: ServiceState, workingDirs: readonly string[]): void {
+  if (state.stopped) return;
+  const { added, removed } = diffMembership(state.monitors.keys(), workingDirs);
+  for (const workingDir of removed) removeMember(state, workingDir);
+  for (const workingDir of added) state.monitors.set(workingDir, createEntry(state, workingDir));
+  reconcileActivity(state);
+}
+
+/** Coalesces presence signals in one tick into one reconcile, run as a microtask. */
+function scheduleActivityReconcile(state: ServiceState): void {
+  if (state.stopped || state.activityReconcileQueued) return;
+  state.activityReconcileQueued = true;
+  queueMicrotask(() => {
+    state.activityReconcileQueued = false;
+    reconcileActivity(state);
+  });
+}
+
+/**
+ * Level-triggered: re-reads the full presence snapshot and forwards each member's activity when it
+ * differs from the last one forwarded. A presence for a directory that is not a member is ignored,
+ * so no monitor is created for it.
+ */
+function reconcileActivity(state: ServiceState): void {
+  // After stop, `stopAllMembers` has cleared the map, so the loop below does nothing.
+  const active = readActiveWorkingDirs(state);
+  if (active === null) return;
   for (const [workingDir, entry] of state.monitors) {
-    const tier = state.tracker.tierOf(workingDir);
-    if (tier === entry.tier) continue;
-    entry.tier = tier;
-    entry.monitor.setTier(tier);
+    setMemberActivity(workingDir, entry, active);
   }
 }
 
-function cancelTransition(state: ServiceState): void {
-  if (state.transitionTimer === null) return;
-  state.deps.clearTimer(state.transitionTimer);
-  state.transitionTimer = null;
+/** The directories with a present agent, or null when the presence read fails. Logged, not thrown. */
+function readActiveWorkingDirs(state: ServiceState): ReadonlySet<string> | null {
+  try {
+    return activeWorkingDirs(state.agentPresence.list());
+  } catch (error) {
+    console.warn('[workspace-service] agent presence read failed', error);
+    return null;
+  }
 }
 
-/** Arms one timer for the next observed-to-idle decay, or none when no key is observed. */
-function armTransition(state: ServiceState): void {
-  cancelTransition(state);
-  if (state.stopped) return;
-  const at = state.tracker.nextTransitionAt();
-  if (at === null) return;
-  state.transitionTimer = state.deps.setTimer(() => onTransitionDue(state), at - state.deps.now());
-}
-
-function onTransitionDue(state: ServiceState): void {
-  state.transitionTimer = null;
-  reconcileTiers(state);
-  armTransition(state);
-}
-
-function applySnapshot(state: ServiceState, rows: readonly WorkspaceActivityRow[]): void {
-  if (state.stopped) return;
-  const { added, removed } = state.tracker.apply(rows);
-  for (const workingDir of removed) removeMember(state, workingDir);
-  for (const workingDir of added) state.monitors.set(workingDir, createEntry(state, workingDir));
-  reconcileTiers(state);
-  armTransition(state);
+/** Forwards the member's activity to its monitor only when it differs from the last one forwarded. */
+function setMemberActivity(
+  workingDir: string,
+  entry: MonitorEntry,
+  active: ReadonlySet<string>
+): void {
+  const next: WorkspaceActivity = active.has(workingDir) ? 'active' : 'idle';
+  if (next === entry.activity) return;
+  entry.activity = next;
+  console.log(`[workspace-service] ${workingDir} ${next}`);
+  entry.monitor.setActivity(next);
 }
 
 async function stopAllMembers(state: ServiceState): Promise<void> {
   state.stopped = true;
-  cancelTransition(state);
   const entries = [...state.monitors.values()];
   state.monitors.clear();
   for (const entry of entries) entry.retire();

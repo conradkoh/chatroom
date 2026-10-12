@@ -73,10 +73,11 @@ import { createAgentConfigRegistry } from '../services/chatroom-workspace-config
 import { createTaskService } from '../services/service-interfaces.js';
 import { createTaskHandoffRepository } from '../services/task-service/index.js';
 import {
-  createWorkspaceActivitySource,
+  createWorkspaceMembershipSource,
   createWorkspaceService,
   DEFAULT_WORKSPACE_SYNC_POLICY,
   type ConvexWsClientLike,
+  type WorkspaceAgentPresenceSource,
   type WorkspaceService,
   type WorkspaceServiceOutbox,
 } from '../services/workspace-service/index.js';
@@ -390,16 +391,20 @@ function warnOnRejection(label: string, pending: Promise<unknown>): void {
 }
 
 /**
- * Builds the workspace-state outbox and the WorkspaceService that feeds it. The activity source
- * subscribes on `wsClient`, the same singleton the runtime uses.
+ * Builds the workspace-state outbox and the WorkspaceService that feeds it. Membership subscribes
+ * on `wsClient`, the same singleton the runtime uses. Activity comes from the agent process manager.
  */
 function createWorkspaceSync(args: {
   wsClient: ConvexWsClientLike;
   sessionId: SessionId;
   machineId: string;
   backend: DaemonDeps['backend'];
+  agentProcessManager: Pick<
+    AgentProcessManager,
+    'listWorkspacePresences' | 'subscribeAgentPresenceChanged'
+  >;
 }): { workspaceService: WorkspaceService; workspaceStateOutbox: WorkspaceStateOutboxRegistry } {
-  const { wsClient, sessionId, machineId, backend } = args;
+  const { wsClient, sessionId, machineId, backend, agentProcessManager } = args;
   const { outbox: outboxPolicy } = DEFAULT_WORKSPACE_SYNC_POLICY;
   const workspaceStateOutbox = createWorkspaceStateOutboxRegistry(
     machineId,
@@ -426,11 +431,15 @@ function createWorkspaceSync(args: {
     },
   };
   const workspaceService = createWorkspaceService({
-    activitySource: createWorkspaceActivitySource({
+    membershipSource: createWorkspaceMembershipSource({
       wsClient,
       sessionId: asConvexSessionId(sessionId),
       machineId,
     }),
+    agentPresence: {
+      list: () => agentProcessManager.listWorkspacePresences(),
+      subscribe: (onChange) => agentProcessManager.subscribeAgentPresenceChanged(onChange),
+    } satisfies WorkspaceAgentPresenceSource,
     outbox,
     sessionId,
     machineId,
@@ -508,6 +517,7 @@ function assembleDaemonSessionInit(args: {
     sessionId: typedSessionId,
     machineId,
     backend: deps.backend,
+    agentProcessManager: deps.agentProcessManager,
   });
 
   return {

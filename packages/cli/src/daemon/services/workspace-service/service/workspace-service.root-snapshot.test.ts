@@ -27,18 +27,17 @@ import {
 } from '../../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
 import { clearWorkspaceSyncStateForTests } from '../../../../infrastructure/services/workspace/workspace-sync-state.js';
 import type * as RunCommandModule from '../../../infrastructure/git/run-command.js';
-import type { WorkspaceActivityRow } from '../domain/observation-tier.js';
 import {
   DEFAULT_WORKSPACE_SYNC_POLICY,
   resolveWorkspaceSyncPolicy,
   type DeepPartial,
   type WorkspaceSyncPolicy,
 } from '../domain/workspace-sync-policy.js';
-import type { WorkspaceActivitySource } from '../infrastructure/workspace-activity-source.js';
 import {
   createWorkspaceGitProbe,
   type WorkspaceGitProbe,
 } from '../infrastructure/workspace-git-probe.js';
+import type { WorkspaceMembershipSource } from '../infrastructure/workspace-membership-source.js';
 
 type ReaderFactory = (workingDir: string) => Promise<GitRootSnapshotReader | undefined>;
 
@@ -81,22 +80,22 @@ type RootView = {
   entries: { xy: string; path: string; fromPath: string | undefined }[];
 };
 
-/** Fake activity source: the service subscribes once and the test pushes rows. */
-function fakeActivitySource() {
-  let onRows: ((rows: readonly WorkspaceActivityRow[]) => void) | null = null;
-  const source: WorkspaceActivitySource = {
+/** Fake membership source: the service subscribes once and the test pushes the registered directories. */
+function fakeMembership() {
+  let onWorkingDirs: ((workingDirs: readonly string[]) => void) | null = null;
+  const source: WorkspaceMembershipSource = {
     subscribe: (cb) => {
-      onRows = cb;
+      onWorkingDirs = cb;
       return () => {
-        onRows = null;
+        onWorkingDirs = null;
       };
     },
   };
   return {
     source,
-    push(rows: WorkspaceActivityRow[]) {
-      if (onRows === null) throw new Error('activity source is not subscribed');
-      onRows(rows);
+    push(workingDirs: string[]) {
+      if (onWorkingDirs === null) throw new Error('membership source is not subscribed');
+      onWorkingDirs(workingDirs);
     },
   };
 }
@@ -120,10 +119,12 @@ async function startService(
   options: StartOptions = {}
 ): Promise<ReaderFactory> {
   wiredHost.getRootSnapshotReader = undefined;
-  const activity = fakeActivitySource();
+  const membership = fakeMembership();
   const now = options.now ?? Date.now;
   const service = createWorkspaceService({
-    activitySource: activity.source,
+    membershipSource: membership.source,
+    // No agent is present, so every member stays idle. These tests cover the root read, not activity.
+    agentPresence: { list: () => [], subscribe: () => () => undefined },
     outbox: { enqueue: vi.fn(), stopKeys: vi.fn() },
     policy: resolveWorkspaceSyncPolicy(options.policy),
     now,
@@ -142,12 +143,7 @@ async function startService(
   });
   services.push(service);
   service.start();
-  activity.push(
-    workingDirs.map((workingDir) => ({
-      workingDir: normalizeWorkingDirForLookup(workingDir),
-      lastObservedAt: null,
-    }))
-  );
+  membership.push(workingDirs.map((workingDir) => normalizeWorkingDirForLookup(workingDir)));
   if (!wiredHost.getRootSnapshotReader) throw new Error('the service did not wire a reader');
   return wiredHost.getRootSnapshotReader;
 }

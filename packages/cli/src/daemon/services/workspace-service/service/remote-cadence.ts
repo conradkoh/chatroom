@@ -3,7 +3,7 @@ import type { WorkspaceSyncPolicy } from '../domain/workspace-sync-policy.js';
 
 export type RemoteCadenceInput = {
   now: number;
-  /** Epoch ms of the most recent local, tier-up, refresh, or command trigger; null if none. */
+  /** Epoch ms of the most recent local, activation, refresh, or command trigger; null if none. */
   lastTriggerAt: number | null;
   /** Aggregate checks state from the last applied `checks` result; null when there are no runs. */
   checksState: string | null;

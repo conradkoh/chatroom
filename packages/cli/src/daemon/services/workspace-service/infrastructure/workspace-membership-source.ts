@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-file
-// Unused until slice 5b wires it into the WorkspaceService. Remove this line when it is wired.
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { z } from 'zod';
 

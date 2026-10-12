@@ -7,7 +7,7 @@ import type {
   GitBranchHeader,
   GitPorcelainEntry,
 } from '../../../../infrastructure/services/workspace/git-workspace-porcelain.js';
-import type { ObservationTier } from '../domain/observation-tier.js';
+import type { WorkspaceActivity } from '../domain/workspace-activity.js';
 import {
   LOCAL_KINDS,
   type LocalKind,
@@ -190,8 +190,8 @@ function setup(overrides: DeepPartial<WorkspaceSyncPolicy> = {}) {
     advance(ms: number) {
       return vi.advanceTimersByTimeAsync(ms).then(() => undefined);
     },
-    setTier(tier: ObservationTier) {
-      monitor.setTier(tier);
+    setActivity(activity: WorkspaceActivity) {
+      monitor.setActivity(activity);
     },
   };
 }
@@ -237,7 +237,7 @@ describe('createWorkspaceMonitor', () => {
   it('runs one full local recompute on tier-up and emits every local unit', async () => {
     const h = setup();
 
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
 
     expect(h.collectLocal).toHaveBeenCalledTimes(1);
@@ -250,7 +250,7 @@ describe('createWorkspaceMonitor', () => {
     const h = setup();
     h.collectLocal.mockRejectedValueOnce(new Error('collect failed'));
 
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
     expect(h.scheduleRemote).toHaveBeenLastCalledWith(0);
 
@@ -262,12 +262,12 @@ describe('createWorkspaceMonitor', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const h = setup();
     h.repo.headAvailable = false;
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
-    h.setTier('idle');
+    h.setActivity('idle');
     h.collectLocal.mockRejectedValueOnce(new Error('collect failed'));
 
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(PROBE);
 
     expect(h.scheduleRemote).toHaveBeenLastCalledWith(0);
@@ -276,7 +276,7 @@ describe('createWorkspaceMonitor', () => {
 
   it('emits nothing when a later recompute finds no changed unit', async () => {
     const h = setup();
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
     const emittedOnTierUp = h.enqueue.mock.calls.length;
 
@@ -289,7 +289,7 @@ describe('createWorkspaceMonitor', () => {
 
   it('enqueues only worktree for a worktree-only change and skips remote', async () => {
     const h = setup();
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(PROBE + SETTLE); // baseline tick and its recompute
     h.enqueue.mockClear();
     h.collectRemote.mockClear();
@@ -304,7 +304,7 @@ describe('createWorkspaceMonitor', () => {
 
   it('emits local kinds and polls remote after triggerSettleMs on a head move', async () => {
     const h = setup();
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(PROBE + SETTLE); // baseline tick and its recompute
     h.enqueue.mockClear();
     h.collectRemote.mockClear();
@@ -328,7 +328,7 @@ describe('createWorkspaceMonitor', () => {
     const h = setup();
     const gate = deferred<RemoteCollectResult>();
     h.collectRemote.mockImplementationOnce(() => gate.promise);
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
     expect(h.collectRemote).toHaveBeenCalledTimes(1);
     h.enqueue.mockClear();
@@ -358,7 +358,7 @@ describe('createWorkspaceMonitor', () => {
   it('keeps last-known values on a failed remote read and backs off by nextRemotePollDelayMs', async () => {
     const h = setup();
     h.collectRemote.mockResolvedValue({ ok: false, error: 'gh unavailable' });
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
 
     expect(remoteKindsEnqueued(h)).toEqual([]);
@@ -402,7 +402,7 @@ describe('createWorkspaceMonitor', () => {
     const h = setup();
     mutate(h.repo);
 
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
 
     expect(h.collectRemote).not.toHaveBeenCalled();
@@ -410,15 +410,17 @@ describe('createWorkspaceMonitor', () => {
     expect(h.enqueue).toHaveBeenCalledWith({ kind: 'checks', headCommitStatus: null });
   });
 
-  it('stops probe reads and cancels remote work on observed to idle', async () => {
+  it('stops probe reads and cancels remote work on active to idle', async () => {
     const h = setup();
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(PROBE + SETTLE);
+
+    h.setActivity('idle');
+    expect(h.cancelRemote).toHaveBeenCalled();
+    // The final flush schedules one remote poll that runs at once. Take the baseline once it settles.
+    await h.advance(0);
     const readsBeforeIdle = h.probe.readSnapshot.mock.calls.length;
     const remoteBeforeIdle = h.collectRemote.mock.calls.length;
-
-    h.setTier('idle');
-    expect(h.cancelRemote).toHaveBeenCalled();
     h.repo.entries = [{ xy: ' M', path: 'a.ts' }];
     await h.advance(60_000);
 
@@ -428,20 +430,84 @@ describe('createWorkspaceMonitor', () => {
 
   it('runs an already-queued remote poll once in idle without rescheduling', async () => {
     const h = setup();
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
-    h.setTier('idle');
+    h.setActivity('idle');
+    await h.advance(0);
     h.scheduleRemote.mockClear();
+    const remoteBefore = h.collectRemote.mock.calls.length;
 
     await h.monitor.runRemotePoll();
 
-    expect(h.collectRemote).toHaveBeenCalledTimes(2);
+    expect(h.collectRemote.mock.calls.length - remoteBefore).toBe(1);
     expect(h.scheduleRemote).not.toHaveBeenCalled();
+  });
+
+  it('active to idle cancels a pending recompute, runs one full recompute, and schedules one remote poll', async () => {
+    const h = setup();
+    h.setActivity('active');
+    await h.advance(0);
+    // A probe tick sees a change, and the local recompute it requests is still pending when idle begins.
+    h.repo.entries = [{ xy: ' M', path: 'a.ts' }];
+    await h.advance(PROBE + SETTLE / 2);
+    h.collectLocal.mockClear();
+    h.scheduleRemote.mockClear();
+
+    h.setActivity('idle');
+    await h.advance(SETTLE * 3);
+
+    expect(h.collectLocal).toHaveBeenCalledTimes(1);
+    expect(h.collectLocal).toHaveBeenCalledWith(WORKING_DIR, new Set(LOCAL_KINDS));
+    expect(h.scheduleRemote).toHaveBeenCalledTimes(1);
+    expect(h.scheduleRemote).toHaveBeenCalledWith(0);
+
+    const readsAfterFlush = h.probe.readSnapshot.mock.calls.length;
+    await h.advance(10 * 60_000);
+    expect(h.probe.readSnapshot).toHaveBeenCalledTimes(readsAfterFlush);
+  });
+
+  it('a flip to idle and back to active in one tick runs one full recompute and skips the stale final flush', async () => {
+    const h = setup();
+    h.setActivity('active');
+    await h.advance(0);
+    h.collectLocal.mockClear();
+    h.scheduleRemote.mockClear();
+
+    h.setActivity('idle');
+    h.setActivity('active');
+    await h.advance(0);
+
+    expect(h.collectLocal).toHaveBeenCalledTimes(1);
+    expect(h.collectLocal).toHaveBeenCalledWith(WORKING_DIR, new Set(LOCAL_KINDS));
+    // Only the activation's immediate poll (delay 0). The poll it runs reschedules the cadence, which is expected.
+    expect(h.scheduleRemote.mock.calls.filter(([delay]) => delay === 0)).toHaveLength(1);
+  });
+
+  it('a flip to active and back to idle in one tick skips the stale activation and runs one final flush', async () => {
+    const h = setup();
+    h.setActivity('active');
+    h.setActivity('idle');
+    await h.advance(0);
+
+    expect(h.collectLocal).toHaveBeenCalledTimes(1);
+    expect(h.collectLocal).toHaveBeenCalledWith(WORKING_DIR, new Set(LOCAL_KINDS));
+  });
+
+  it('keeps hashes across idle, so an unchanged final flush enqueues nothing', async () => {
+    const h = setup();
+    h.setActivity('active');
+    await h.advance(PROBE + SETTLE);
+    const enqueuedBeforeIdle = h.enqueue.mock.calls.length;
+
+    h.setActivity('idle');
+    await h.advance(SETTLE * 3);
+
+    expect(h.enqueue.mock.calls.length).toBe(enqueuedBeforeIdle);
   });
 
   it('refresh re-emits units that were already sent', async () => {
     const h = setup();
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
     h.enqueue.mockClear();
 
@@ -463,7 +529,7 @@ describe('createWorkspaceMonitor', () => {
   it('retries failed probe reads with backoff and runs one head recompute at the threshold', async () => {
     const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const h = setup();
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
     h.collectLocal.mockClear();
     h.readTimes.length = 0; // drop the remote eligibility read from tier-up
@@ -484,7 +550,7 @@ describe('createWorkspaceMonitor', () => {
     const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     // Keep remote polls out of the window: a failing probe would also fail their eligibility read.
     const h = setup({ probeMaxBackoffMs: 8_000, remote: { hotIntervalMs: 600_000 } });
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
     h.readTimes.length = 0;
     h.setProbeFails(true);
@@ -507,7 +573,7 @@ describe('createWorkspaceMonitor', () => {
     h.repo.headAvailable = false;
     h.repo.hasRemote = false;
 
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(PROBE * 5);
 
     expect(h.probe.readSnapshot).not.toHaveBeenCalled();
@@ -518,7 +584,7 @@ describe('createWorkspaceMonitor', () => {
     const h = setup();
     const gate = deferred<LocalCollectResult>();
     h.collectLocal.mockImplementationOnce(() => gate.promise);
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
 
     let stopped = false;
@@ -537,7 +603,7 @@ describe('createWorkspaceMonitor', () => {
 
   it('stop clears the probe loop and remote timers', async () => {
     const h = setup();
-    h.setTier('observed');
+    h.setActivity('active');
     await h.advance(0);
     expect(vi.getTimerCount()).toBeGreaterThan(0);
 
@@ -551,7 +617,7 @@ describe('createWorkspaceMonitor', () => {
     await h.monitor.stop();
     h.collectLocal.mockClear();
 
-    h.setTier('observed');
+    h.setActivity('active');
     await h.monitor.refresh();
     await h.monitor.runRemotePoll();
 

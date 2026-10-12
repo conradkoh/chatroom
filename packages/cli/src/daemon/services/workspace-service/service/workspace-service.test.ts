@@ -4,10 +4,11 @@ import type * as QueueModule from './remote-poll-queue.js';
 import type * as MonitorModule from './workspace-monitor.js';
 import {
   createWorkspaceService,
+  type WorkspaceAgentPresenceSource,
   type WorkspaceService,
   type WorkspaceServiceDeps,
 } from './workspace-service.js';
-import type { WorkspaceActivityRow } from '../domain/observation-tier.js';
+import type { AgentWorkspacePresence } from '../../agent-process-service/domain/entities/agent-process.js';
 import {
   LOCAL_KINDS,
   type LocalKind,
@@ -21,8 +22,8 @@ import {
 } from '../domain/workspace-sync-policy.js';
 import type { LocalCollectResult } from '../infrastructure/local-unit-collector.js';
 import type { RemoteCollectResult } from '../infrastructure/remote-unit-collector.js';
-import type { WorkspaceActivitySource } from '../infrastructure/workspace-activity-source.js';
 import type { ProbeSnapshot, WorkspaceGitProbe } from '../infrastructure/workspace-git-probe.js';
+import type { WorkspaceMembershipSource } from '../infrastructure/workspace-membership-source.js';
 
 /**
  * Ordered record of the stop path. The monitor and queue mocks below are passthroughs that only
@@ -69,9 +70,6 @@ const DIR_A = '/repo-a';
 const DIR_B = '/repo-b';
 const PROBE = DEFAULT_WORKSPACE_SYNC_POLICY.probeIntervalMs;
 const MIN_GAP = DEFAULT_WORKSPACE_SYNC_POLICY.remote.minGapMs;
-const IDLE_AFTER =
-  DEFAULT_WORKSPACE_SYNC_POLICY.observation.ttlMs +
-  DEFAULT_WORKSPACE_SYNC_POLICY.observation.graceMs;
 const HOT = DEFAULT_WORKSPACE_SYNC_POLICY.remote.hotIntervalMs;
 
 /** Mutable state of one fake git repository. Tests change it to simulate git activity. */
@@ -85,6 +83,11 @@ const OK_REMOTE: RemoteCollectResult = {
   ],
   checksState: null,
 };
+
+/** One present agent in `workingDir`. The role only matters for counting agents in one directory. */
+function agent(workingDir: string, role = 'builder'): AgentWorkspacePresence {
+  return { chatroomId: 'chatroom-test', role, workingDir };
+}
 
 function localResult(repo: FakeRepo, kinds: ReadonlySet<LocalKind>): LocalCollectResult {
   const units: WorkspaceStateUnit[] = [{ kind: 'head', status: 'available', branch: 'main' }];
@@ -125,25 +128,60 @@ function snapshotOf(repo: FakeRepo): ProbeSnapshot {
   };
 }
 
-/** Pushes snapshots to the service. Throws when the service is not subscribed. */
-function fakeActivitySource() {
-  let onRows: ((rows: readonly WorkspaceActivityRow[]) => void) | null = null;
+/** Sets the member directories. Throws when the service is not subscribed. */
+function fakeMembership() {
+  let onWorkingDirs: ((workingDirs: readonly string[]) => void) | null = null;
   const unsubscribe = vi.fn(() => {
     stopOrder.push('unsubscribe');
-    onRows = null;
+    onWorkingDirs = null;
   });
-  const source: WorkspaceActivitySource = {
-    subscribe: vi.fn((cb: (rows: readonly WorkspaceActivityRow[]) => void) => {
-      onRows = cb;
+  const source: WorkspaceMembershipSource = {
+    subscribe: vi.fn((cb: (workingDirs: readonly string[]) => void) => {
+      onWorkingDirs = cb;
       return unsubscribe;
     }),
   };
   return {
     source,
     unsubscribe,
-    push(rows: WorkspaceActivityRow[]) {
-      if (onRows === null) throw new Error('activity source is not subscribed');
-      onRows(rows);
+    set(workingDirs: readonly string[]) {
+      if (onWorkingDirs === null) throw new Error('membership source is not subscribed');
+      onWorkingDirs(workingDirs);
+    },
+  };
+}
+
+/**
+ * Sets the present agents and fires every subscriber, as the agent process manager does on each
+ * transition. `list` is a spy so tests can count presence reads.
+ */
+function fakePresence() {
+  let presences: AgentWorkspacePresence[] = [];
+  let listFails = false;
+  const subscribers = new Set<() => void>();
+  const list = vi.fn((): readonly AgentWorkspacePresence[] => {
+    if (listFails) throw new Error('presence read failed');
+    return presences;
+  });
+  const source: WorkspaceAgentPresenceSource = {
+    list,
+    subscribe: vi.fn((onChange: () => void) => {
+      subscribers.add(onChange);
+      return () => {
+        subscribers.delete(onChange);
+      };
+    }),
+  };
+  return {
+    source,
+    list,
+    subscriberCount: () => subscribers.size,
+    set(next: AgentWorkspacePresence[]) {
+      presences = next;
+      for (const onChange of [...subscribers]) onChange();
+    },
+    setListFails(value: boolean) {
+      listFails = value;
     },
   };
 }
@@ -162,7 +200,8 @@ function setup(overrides?: DeepPartial<WorkspaceSyncPolicy>) {
   const probeReads = new Map<string, number>();
   const remoteCalls: { workingDir: string; at: number }[] = [];
 
-  const activity = fakeActivitySource();
+  const membership = fakeMembership();
+  const presence = fakePresence();
   const outbox = {
     enqueue: vi.fn<(workingDir: string, unit: WorkspaceStateUnit) => void>(),
     stopKeys: vi.fn<(workingDir: string) => void>(),
@@ -187,7 +226,8 @@ function setup(overrides?: DeepPartial<WorkspaceSyncPolicy>) {
   );
 
   const service: WorkspaceService = createWorkspaceService({
-    activitySource: activity.source,
+    membershipSource: membership.source,
+    agentPresence: presence.source,
     outbox,
     policy,
     createProbe,
@@ -201,14 +241,23 @@ function setup(overrides?: DeepPartial<WorkspaceSyncPolicy>) {
   return {
     service,
     policy,
-    activity,
+    membership,
+    presence,
     outbox,
     createProbe,
     collectLocal,
     repoOf,
     probeReads,
     remoteCalls,
-    push: (rows: WorkspaceActivityRow[]) => activity.push(rows),
+    /** Sets the member directories. Members with no present agent stay idle. */
+    members: (...dirs: string[]) => membership.set(dirs),
+    /** Replaces the present agents. */
+    agents: (...entries: AgentWorkspacePresence[]) => presence.set(entries),
+    /** Makes `dirs` the members, each with one present agent, so each one starts active. */
+    activate: (...dirs: string[]) => {
+      presence.set(dirs.map((dir) => agent(dir)));
+      membership.set(dirs);
+    },
     /** Advances fake time and lets the promise chains settle between timers. */
     advance: async (ms: number) => {
       await vi.advanceTimersByTimeAsync(ms);
@@ -217,11 +266,6 @@ function setup(overrides?: DeepPartial<WorkspaceSyncPolicy>) {
 }
 
 type Harness = ReturnType<typeof setup>;
-
-/** Rows that are observed at the current fake time for each directory. */
-function observedNow(...workingDirs: string[]): WorkspaceActivityRow[] {
-  return workingDirs.map((workingDir) => ({ workingDir, lastObservedAt: Date.now() }));
-}
 
 function enqueuedFor(h: Harness, workingDir: string): WorkspaceStateUnit[] {
   return h.outbox.enqueue.mock.calls.filter(([dir]) => dir === workingDir).map(([, unit]) => unit);
@@ -243,52 +287,99 @@ describe('createWorkspaceService', () => {
     vi.restoreAllMocks();
   });
 
-  it('creates one monitor per active directory and emits head for each', async () => {
+  it('creates one monitor per member, and an idle member runs nothing', async () => {
     const h = setup();
     h.service.start();
 
-    h.push(observedNow(DIR_A, DIR_B));
+    h.members(DIR_A, DIR_B);
     await h.advance(0);
 
     expect(h.service.isRegistered(DIR_A)).toBe(true);
     expect(h.service.isRegistered(DIR_B)).toBe(true);
     expect(h.createProbe).toHaveBeenCalledTimes(2);
+    expect(h.collectLocal).not.toHaveBeenCalled();
+    expect(h.outbox.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('emits head for each member that has a present agent', async () => {
+    const h = setup();
+    h.service.start();
+
+    h.activate(DIR_A, DIR_B);
+    await h.advance(0);
+
     for (const dir of [DIR_A, DIR_B]) {
       expect(enqueuedFor(h, dir).map((unit) => unit.kind)).toContain('head');
     }
   });
 
-  it('runs a full recompute and arms the probe when observed, then stops both when idle', async () => {
+  it('a member with no present agent gets no probe reads, local recomputes, or remote polls', async () => {
     const h = setup();
     h.service.start();
-    h.push(observedNow(DIR_A));
-    await h.advance(0);
+    h.members(DIR_A);
 
+    await h.advance(10 * PROBE);
+
+    expect(h.service.isRegistered(DIR_A)).toBe(true);
+    expect(h.probeReads.get(DIR_A)).toBeUndefined();
+    expect(h.collectLocal).not.toHaveBeenCalled();
+    expect(h.remoteCalls).toEqual([]);
+    expect(h.outbox.enqueue).not.toHaveBeenCalled();
+
+    // An explicit refresh still works on an idle member.
+    await h.service.refresh(DIR_A, 'command');
     expect(h.collectLocal).toHaveBeenCalledWith(DIR_A, new Set(LOCAL_KINDS));
-    await h.advance(PROBE);
-    expect(h.probeReads.get(DIR_A)).toBeGreaterThan(0);
-
-    // No new snapshot arrives. The observation decays on its own at the transition time.
-    await h.advance(IDLE_AFTER);
-    const readsAtIdle = h.probeReads.get(DIR_A);
-    const enqueuesAtIdle = h.outbox.enqueue.mock.calls.length;
-    h.repoOf(DIR_A).dirty = 3;
-    await h.advance(10 * 60_000);
-
-    expect(h.probeReads.get(DIR_A)).toBe(readsAtIdle);
-    expect(h.outbox.enqueue).toHaveBeenCalledTimes(enqueuesAtIdle);
   });
 
-  it('re-observes a decayed directory when a newer snapshot arrives', async () => {
+  it('a present agent makes a member active with one full recompute and one remote poll', async () => {
     const h = setup();
     h.service.start();
-    h.push(observedNow(DIR_A));
+    h.members(DIR_A);
     await h.advance(0);
-    await h.advance(IDLE_AFTER);
+
+    h.agents(agent(DIR_A));
+    await h.advance(0);
+
+    expect(h.collectLocal).toHaveBeenCalledTimes(1);
+    expect(h.collectLocal).toHaveBeenCalledWith(DIR_A, new Set(LOCAL_KINDS));
+    expect(remoteTimesFor(h, DIR_A)).toHaveLength(1);
+  });
+
+  it('the last agent leaving runs one final flush, then one remote poll that does not reschedule', async () => {
+    const h = setup();
+    h.service.start();
+    h.activate(DIR_A);
+    await h.advance(PROBE + 1_000);
+    const recomputesWhileActive = h.collectLocal.mock.calls.length;
+    const remoteWhileActive = remoteTimesFor(h, DIR_A).length;
+
+    h.agents();
+    await h.advance(0);
+
+    expect(h.collectLocal.mock.calls.length - recomputesWhileActive).toBe(1);
+    expect(h.collectLocal).toHaveBeenLastCalledWith(DIR_A, new Set(LOCAL_KINDS));
+    await h.advance(MIN_GAP);
+    expect(remoteTimesFor(h, DIR_A).length - remoteWhileActive).toBe(1);
+
+    // Idle: no probe reads and no further remote polls, however long we wait.
+    const readsAtIdle = h.probeReads.get(DIR_A) ?? 0;
+    const remoteAtIdle = remoteTimesFor(h, DIR_A).length;
+    await h.advance(10 * 60_000);
+    expect(h.probeReads.get(DIR_A) ?? 0).toBe(readsAtIdle);
+    expect(remoteTimesFor(h, DIR_A)).toHaveLength(remoteAtIdle);
+  });
+
+  it('an idle member becomes active again when an agent appears, with one full recompute', async () => {
+    const h = setup();
+    h.service.start();
+    h.activate(DIR_A);
+    await h.advance(PROBE);
+    h.agents();
+    await h.advance(0);
     const recomputesWhileIdle = h.collectLocal.mock.calls.length;
     const readsWhileIdle = h.probeReads.get(DIR_A) ?? 0;
 
-    h.push(observedNow(DIR_A));
+    h.agents(agent(DIR_A));
     await h.advance(0);
     expect(h.collectLocal.mock.calls.length - recomputesWhileIdle).toBe(1);
     expect(h.collectLocal).toHaveBeenLastCalledWith(DIR_A, new Set(LOCAL_KINDS));
@@ -300,10 +391,10 @@ describe('createWorkspaceService', () => {
   it('stops a removed directory: cancels its remote timer, drops its keys, and emits nothing later', async () => {
     const h = setup();
     h.service.start();
-    h.push(observedNow(DIR_A, DIR_B));
+    h.activate(DIR_A, DIR_B);
     await h.advance(0);
 
-    h.push(observedNow(DIR_B));
+    h.activate(DIR_B);
     await h.advance(0);
     expect(h.service.isRegistered(DIR_A)).toBe(false);
     expect(h.outbox.stopKeys).toHaveBeenCalledWith(DIR_A);
@@ -333,10 +424,10 @@ describe('createWorkspaceService', () => {
       return localResult(h.repoOf(workingDir), kinds);
     });
     h.service.start();
-    h.push(observedNow(DIR_A));
+    h.activate(DIR_A);
     await h.advance(0);
 
-    h.push([]);
+    h.activate();
     await h.advance(0);
     release();
     await h.advance(0);
@@ -359,7 +450,7 @@ describe('createWorkspaceService', () => {
   it('refresh on a registered directory re-enqueues every local unit and schedules one remote poll', async () => {
     const h = setup();
     h.service.start();
-    h.push(observedNow(DIR_A));
+    h.activate(DIR_A);
     await h.advance(0);
     const remoteBefore = remoteTimesFor(h, DIR_A).length;
     h.outbox.enqueue.mockClear();
@@ -376,19 +467,35 @@ describe('createWorkspaceService', () => {
     expect(remoteTimesFor(h, DIR_A).length - remoteBefore).toBe(1);
   });
 
-  it('stopAll unsubscribes, leaves no timers pending, and ignores later snapshots', async () => {
+  it('stopAll unsubscribes, leaves no timers pending, and ignores later membership', async () => {
     const h = setup();
     h.service.start();
-    h.push(observedNow(DIR_A, DIR_B));
+    h.activate(DIR_A, DIR_B);
     await h.advance(PROBE + 1_000);
     expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     await h.service.stopAll();
 
-    expect(h.activity.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(h.membership.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(h.presence.subscriberCount()).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
     expect(h.service.isRegistered(DIR_A)).toBe(false);
-    expect(() => h.push(observedNow(DIR_A))).toThrow('not subscribed');
+    expect(() => h.members(DIR_A)).toThrow('not subscribed');
+  });
+
+  it('stopAll unsubscribes both sources, so later presence signals do nothing', async () => {
+    const h = setup();
+    h.service.start();
+    h.activate(DIR_A);
+    await h.advance(0);
+
+    await h.service.stopAll();
+    const readsBeforeSignal = h.presence.list.mock.calls.length;
+    h.agents(agent(DIR_A));
+    await h.advance(0);
+
+    expect(h.presence.list.mock.calls.length).toBe(readsBeforeSignal);
+    expect(h.collectLocal).toHaveBeenCalledTimes(1);
   });
 
   /**
@@ -407,7 +514,7 @@ describe('createWorkspaceService', () => {
   it('stopAll unsubscribes first, then stops every monitor, then the file tree, then the remote queue', async () => {
     const h = setup();
     h.service.start();
-    h.push(observedNow(DIR_A, DIR_B));
+    h.activate(DIR_A, DIR_B);
     await h.advance(0);
     recordFileTreeStop(h);
 
@@ -424,7 +531,7 @@ describe('createWorkspaceService', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const h = setup();
     h.service.start();
-    h.push(observedNow(DIR_A));
+    h.activate(DIR_A);
     await h.advance(0);
     recordFileTreeStop(h, new Error('file-tree stop failed'));
 
@@ -438,19 +545,20 @@ describe('createWorkspaceService', () => {
     );
   });
 
-  it('start subscribes only once', () => {
+  it('start subscribes to membership and presence only once', () => {
     const h = setup();
 
     h.service.start();
     h.service.start();
 
-    expect(h.activity.source.subscribe).toHaveBeenCalledTimes(1);
+    expect(h.membership.source.subscribe).toHaveBeenCalledTimes(1);
+    expect(h.presence.source.subscribe).toHaveBeenCalledTimes(1);
   });
 
   it('keeps one remote timer per workspace: refreshing A does not move B', async () => {
     const h = setup();
     h.service.start();
-    h.push(observedNow(DIR_A, DIR_B));
+    h.activate(DIR_A, DIR_B);
     await h.advance(0);
     const bStart = remoteTimesFor(h, DIR_B)[0];
 
@@ -466,14 +574,95 @@ describe('createWorkspaceService', () => {
   it('uses the policy passed to createWorkspaceService', async () => {
     const h = setup({ probeIntervalMs: 500 });
     h.service.start();
-    h.push(observedNow(DIR_A));
+    h.activate(DIR_A);
     await h.advance(0);
 
-    // The tier-up remote poll reads the probe too, so count from the post-tier-up baseline.
+    // Activation's remote poll reads the probe too, so count from that baseline.
     const baseline = h.probeReads.get(DIR_A) ?? 0;
     await h.advance(499);
     expect(h.probeReads.get(DIR_A) ?? 0).toBe(baseline);
     await h.advance(1);
     expect(h.probeReads.get(DIR_A) ?? 0).toBeGreaterThan(baseline);
+  });
+
+  it('a present agent in a non-member directory creates no monitor, and a membership update activates it at once', async () => {
+    const h = setup();
+    h.service.start();
+    h.agents(agent(DIR_A));
+    await h.advance(0);
+
+    expect(h.service.isRegistered(DIR_A)).toBe(false);
+    expect(h.createProbe).not.toHaveBeenCalled();
+
+    h.members(DIR_A);
+    await h.advance(0);
+
+    expect(h.service.isRegistered(DIR_A)).toBe(true);
+    expect(h.collectLocal).toHaveBeenCalledWith(DIR_A, new Set(LOCAL_KINDS));
+  });
+
+  it('matches a present agent to a member when the agent reports a trailing slash', async () => {
+    const h = setup();
+    h.service.start();
+    h.members(DIR_A);
+    await h.advance(0);
+
+    h.agents(agent(`${DIR_A}/`));
+    await h.advance(0);
+
+    expect(h.collectLocal).toHaveBeenCalledTimes(1);
+    expect(h.collectLocal).toHaveBeenCalledWith(DIR_A, new Set(LOCAL_KINDS));
+  });
+
+  it('several presence signals in one tick cause one presence read', async () => {
+    const h = setup();
+    h.service.start();
+    h.members(DIR_A);
+    await h.advance(0);
+    h.presence.list.mockClear();
+
+    for (let i = 0; i < 5; i++) h.agents(agent(DIR_A));
+    await h.advance(0);
+
+    expect(h.presence.list).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failing presence read is logged and leaves every member activity unchanged', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const h = setup();
+    h.service.start();
+    h.members(DIR_A);
+    await h.advance(0);
+
+    h.presence.setListFails(true);
+    h.agents(agent(DIR_A));
+    await h.advance(0);
+
+    expect(warn).toHaveBeenCalledWith(
+      '[workspace-service] agent presence read failed',
+      expect.any(Error)
+    );
+    expect(h.collectLocal).not.toHaveBeenCalled();
+    expect(h.service.isRegistered(DIR_A)).toBe(true);
+  });
+
+  it('two agents in one directory keep it active until the last one leaves', async () => {
+    const h = setup();
+    h.service.start();
+    h.activate(DIR_A);
+    await h.advance(0);
+    const recomputesWhileActive = h.collectLocal.mock.calls.length;
+
+    // One of two agents stops. The directory is still active, so nothing changes.
+    h.agents(agent(DIR_A, 'builder'), agent(DIR_A, 'reviewer'));
+    h.agents(agent(DIR_A, 'reviewer'));
+    await h.advance(0);
+    expect(h.collectLocal.mock.calls.length).toBe(recomputesWhileActive);
+    expect(h.service.isRegistered(DIR_A)).toBe(true);
+
+    // The last agent stops. The directory goes idle and runs its final flush.
+    h.agents();
+    await h.advance(0);
+    expect(h.collectLocal.mock.calls.length - recomputesWhileActive).toBe(1);
   });
 });

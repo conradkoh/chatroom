@@ -1,5 +1,3 @@
-import { OBSERVATION_TTL_MS } from '@workspace/backend/config/reliability.js';
-
 import type { WorkspaceStateKind } from '../../../infrastructure/outbox/workspace-state-outbox.js';
 
 /** Recursively optional view of `T`, used for policy overrides. */
@@ -27,11 +25,6 @@ export type WorkspaceSyncPolicy = {
     triggerSettleMs: number;
     errorBackoffMaxMs: number;
   };
-  observation: {
-    ttlMs: number;
-    graceMs: number;
-    initialSkewAllowanceMs: number;
-  };
   outbox: {
     minIntervalMsByKind: Record<WorkspaceStateKind, number>;
     retryDelayMs: number;
@@ -55,11 +48,6 @@ export const DEFAULT_WORKSPACE_SYNC_POLICY: WorkspaceSyncPolicy = {
     minGapMs: 10_000,
     triggerSettleMs: 1_500,
     errorBackoffMaxMs: 600_000,
-  },
-  observation: {
-    ttlMs: OBSERVATION_TTL_MS,
-    graceMs: 15_000,
-    initialSkewAllowanceMs: 60_000,
   },
   outbox: {
     minIntervalMsByKind: {

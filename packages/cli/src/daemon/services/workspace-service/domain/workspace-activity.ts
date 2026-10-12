@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-file
-// Unused until slice 5b wires it into the WorkspaceService. Remove this line when it is wired.
 import { normalizeWorkingDirForLookup } from '../../../../infrastructure/services/workspace/normalize-working-dir.js';
 import type { AgentWorkspacePresence } from '../../agent-process-service/domain/entities/agent-process.js';
 

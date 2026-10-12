@@ -36,22 +36,22 @@ After `stopKeys(workingDir)` the outbox gets no more writes for that directory (
 
 ## Modules
 
-| Path                                          | Role                                                                                                                                                   |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `index.ts`                                    | Public exports: `createWorkspaceService`, the activity source, and `DEFAULT_WORKSPACE_SYNC_POLICY`.                                                    |
-| `service/workspace-service.ts`                | Membership map, tier reconciliation, `refresh`, `stopAll`, and the root snapshot reader (`probeRootSnapshotReader`).                                   |
-| `service/workspace-monitor.ts`                | One monitor per directory: probe loop, local recompute, remote polls, hash dedup.                                                                      |
-| `service/workspace-file-tree-host.ts`         | Per-directory file-tree coordinators (`ensure`, `stop`, `disable`, `oneShot`, `stopAll`) and their outbox registries.                                  |
-| `service/local-recompute-scheduler.ts`        | Trailing-debounced local recomputes with a max wait.                                                                                                   |
-| `service/remote-poll-queue.ts`                | One global serial queue for remote polls, with a per-workspace minimum gap.                                                                            |
-| `service/remote-cadence.ts`                   | Pure remote poll delay and the stale-result guard (I4).                                                                                                |
-| `domain/observation-tier.ts`                  | Derives `observed` / `idle` from the activity rows.                                                                                                    |
-| `domain/workspace-state-unit.ts`              | Unit kinds, canonical ordering, `hashUnit`.                                                                                                            |
-| `domain/workspace-sync-policy.ts`             | `DEFAULT_WORKSPACE_SYNC_POLICY` and `resolveWorkspaceSyncPolicy`.                                                                                      |
-| `infrastructure/workspace-git-probe.ts`       | Single `git status` poll per monitor; `diffProbeSnapshots` decides what changed; `toRootChangeSourceSnapshot` projects a snapshot for the root reader. |
-| `infrastructure/local-unit-collector.ts`      | Reads local units. Does not throw on git failures.                                                                                                     |
-| `infrastructure/remote-unit-collector.ts`     | Reads pull requests and checks through `gh`.                                                                                                           |
-| `infrastructure/workspace-activity-source.ts` | Subscribes to `listWorkspaceActivityForMachine` and validates each snapshot.                                                                           |
+| Path                                            | Role                                                                                                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `index.ts`                                      | Public exports: `createWorkspaceService`, the membership source, and `DEFAULT_WORKSPACE_SYNC_POLICY`.                                                  |
+| `service/workspace-service.ts`                  | Membership map, activity reconciliation from agent presence, `refresh`, `stopAll`, and the root snapshot reader (`probeRootSnapshotReader`).           |
+| `service/workspace-monitor.ts`                  | One monitor per directory: probe loop, local recompute, remote polls, hash dedup.                                                                      |
+| `service/workspace-file-tree-host.ts`           | Per-directory file-tree coordinators (`ensure`, `stop`, `disable`, `oneShot`, `stopAll`) and their outbox registries.                                  |
+| `service/local-recompute-scheduler.ts`          | Trailing-debounced local recomputes with a max wait.                                                                                                   |
+| `service/remote-poll-queue.ts`                  | One global serial queue for remote polls, with a per-workspace minimum gap.                                                                            |
+| `service/remote-cadence.ts`                     | Pure remote poll delay and the stale-result guard (I4).                                                                                                |
+| `domain/workspace-activity.ts`                  | Pure `activeWorkingDirs` (present agents to directories) and `diffMembership`.                                                                         |
+| `domain/workspace-state-unit.ts`                | Unit kinds, canonical ordering, `hashUnit`.                                                                                                            |
+| `domain/workspace-sync-policy.ts`               | `DEFAULT_WORKSPACE_SYNC_POLICY` and `resolveWorkspaceSyncPolicy`.                                                                                      |
+| `infrastructure/workspace-git-probe.ts`         | Single `git status` poll per monitor; `diffProbeSnapshots` decides what changed; `toRootChangeSourceSnapshot` projects a snapshot for the root reader. |
+| `infrastructure/local-unit-collector.ts`        | Reads local units. Does not throw on git failures.                                                                                                     |
+| `infrastructure/remote-unit-collector.ts`       | Reads pull requests and checks through `gh`.                                                                                                           |
+| `infrastructure/workspace-membership-source.ts` | Subscribes to `listRegisteredWorkingDirsForMachine` and validates each snapshot.                                                                       |
 
 ## Units and outbox keys
 
@@ -74,25 +74,33 @@ Local kinds come from `LOCAL_KINDS`. The remote kinds are `pullRequests` and `ch
 A unit is enqueued only when its hash differs from the last hash the monitor emitted for its kind. `refresh`
 clears the hashes (`service/workspace-monitor.ts`, `emit`).
 
-## Tiers
+## Activity
 
-- **Observed**: the probe loop runs, and remote polls follow `nextRemotePollDelayMs` (pending-checks,
-  hot, or idle cadence). A workspace becomes observed when an activity row is recent enough.
+A member directory is **active** while the daemon holds at least one present agent in it. The agent
+process manager publishes presence (`listWorkspacePresences`) and notifies on each change. Only active
+workspaces get automatic sync. Membership and presence can arrive in either order. A presence for a
+directory that is not a member creates no monitor.
+
+- **Active**: the probe loop runs, and remote polls follow `nextRemotePollDelayMs` (pending-checks,
+  hot, or idle cadence).
 - **Idle**: the probe loop stops, and pending local recomputes and queued remote polls are cancelled.
   Hashes are kept, so a unit that is unchanged when the workspace returns is not sent again. The
   monitor stays registered, so `isRegistered` is true. `refresh` still works: it recomputes every
   local unit and runs one remote poll. A remote poll already in flight finishes, and it does not
   reschedule while idle, except for the immediate retry after a stale result (I4). The root file-tree
   read is not a monitor loop, so idle does not stop it (see Root file-tree read).
-- **Idle → observed** runs a full local recompute of every local kind. It then schedules an immediate
+- **Idle → active** runs a full local recompute of every local kind. It then schedules an immediate
   remote poll, and arms the probe unless the recompute found no git repo.
+- **Active → idle** runs a final flush. It cancels pending local and remote work, runs one full local
+  recompute (hash-deduped, so an unchanged state sends nothing), and schedules one remote poll that does
+  not reschedule.
 
-Tier decay is driven by `nextTransitionAt`, so an observed workspace goes idle on time even when no
-new activity row arrives.
+Activity is level-triggered. Each presence signal re-reads the full snapshot, and signals in one tick
+coalesce into one reconcile, so no counter can drift.
 
 ## Triggers
 
-1. **Probe fingerprint change.** The probe runs every `probeIntervalMs` while observed. `diffProbeSnapshots`
+1. **Probe fingerprint change.** The probe runs every `probeIntervalMs` while active. `diffProbeSnapshots`
    maps the change to local kinds. A HEAD move recomputes every local kind. An upstream move or a
    HEAD move also triggers a remote poll.
 2. **`refresh`** from `daemon.gitRefresh` (`packages/cli/src/daemon/entry/command-dispatch.ts`). It clears all hashes,
@@ -102,8 +110,8 @@ new activity row arrives.
 4. **PR actions** (`packages/cli/src/daemon/entry/workspace-git/git-subscription.ts`). After a PR action, the service is asked to
    `refresh` the directory.
 
-Activity rows from the Convex subscription decide membership and tier. An idle → observed change
-runs a full recompute (see Tiers). At most one remote poll is in flight across all workspaces. Each
+Registered working directories from the Convex subscription decide membership. Agent presence decides
+activity. An idle → active change runs a full recompute (see Activity). At most one remote poll is in flight across all workspaces. Each
 workspace has its own timer, so scheduling one never delays another (`service/remote-poll-queue.ts`).
 
 `refresh` failures are handled at the call site: `command-dispatch.ts` logs them and the command
@@ -171,7 +179,7 @@ The labels below are the architect's design invariants. The source cites I4 and 
 - **I5: No write without a change.** The backend writes nothing when values are unchanged and nothing for
   inactive workspaces. (`services/backend/src/domain/usecase/workspace/patch-workspace-git-state.ts`,
   `patchWorkspaceGitState`: the `unchanged` and `workspace_inactive` results)
-- **I6: One serial chain per monitor.** All monitor state transitions (local recompute, remote apply, tier
+- **I6: One serial chain per monitor.** All monitor state transitions (local recompute, remote apply, activity
   change, refresh, stop) run on one per-monitor serial promise chain. An error is logged and never breaks
   the chain. (`service/workspace-monitor.ts`, `serial`)
 
