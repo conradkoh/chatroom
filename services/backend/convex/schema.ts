@@ -1453,9 +1453,7 @@ export default defineSchema({
    * Stores branch, dirty status, diff stats, and recent commits.
    * Keyed by machineId + workingDir (workspace-level, not chatroom-level).
    *
-   * @deprecated Superseded by the per-unit tables named in WORKSPACE_GIT_UNIT_TABLE
-   * (domain/entities/workspace-git-state-unit.ts). Still written and read until the per-unit
-   * writers and the reader migration land. Do not add fields here.
+   * @deprecated legacy aggregate; still written during the unit-table transition; unit tables are canonical
    */
   chatroom_workspaceGitState: defineTable({
     // Identity: unique workspace
@@ -1886,8 +1884,7 @@ export default defineSchema({
   // Persistent record of workspaces (machine + working directory pairs) where
   // agents operate. These rows persist daemon-observed capability data.
   // independently of agent lifecycle.
-  // Git state is not stored on this row. It lives in chatroom_workspaceGitState and the per-unit
-  // git tables (WORKSPACE_GIT_UNIT_TABLE), all keyed by machineId + workingDir.
+  // Identity and configuration only. Read by machine-level list subscriptions; never add high-frequency fields.
   chatroom_workspaces: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     machineId: v.string(),
