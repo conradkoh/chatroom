@@ -1,5 +1,6 @@
 export {
   createWorkspaceService,
+  type WorkspaceRefreshReason,
   type WorkspaceService,
   type WorkspaceServiceOutbox,
 } from './service/workspace-service.js';

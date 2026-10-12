@@ -218,7 +218,7 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
 
   // Refresh git state so the UI updates (PR list, branch, etc.). The action already succeeded,
   // so a refresh failure is logged rather than failing the request.
-  deps.workspaceService.refresh(req.workingDir).catch((err: unknown) => {
+  deps.workspaceService.refresh(req.workingDir, 'pr-action').catch((err: unknown) => {
     console.warn(
       `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
     );

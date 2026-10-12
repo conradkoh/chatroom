@@ -298,7 +298,7 @@ describe('createWorkspaceService', () => {
     const h = setup();
     h.service.start();
 
-    await h.service.refresh('/not-registered');
+    await h.service.refresh('/not-registered', 'command');
 
     expect(h.createProbe).not.toHaveBeenCalled();
     expect(h.collectLocal).not.toHaveBeenCalled();
@@ -314,7 +314,7 @@ describe('createWorkspaceService', () => {
     h.outbox.enqueue.mockClear();
 
     // A trailing slash normalizes to the registered key.
-    await h.service.refresh(`${DIR_A}/`);
+    await h.service.refresh(`${DIR_A}/`, 'command');
     await h.advance(MIN_GAP);
 
     const localKinds = new Set<string>(LOCAL_KINDS);
@@ -358,7 +358,7 @@ describe('createWorkspaceService', () => {
 
     // A's refresh schedules A on the shared queue. B's own timer must keep its cadence.
     await h.advance(5_000);
-    await h.service.refresh(DIR_A);
+    await h.service.refresh(DIR_A, 'command');
     await h.advance(HOT);
 
     const bTimes = remoteTimesFor(h, DIR_B).map((at) => at - bStart);

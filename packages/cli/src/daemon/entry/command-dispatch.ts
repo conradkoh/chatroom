@@ -18,8 +18,6 @@ import type {
   DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
-import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
-import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
@@ -28,8 +26,11 @@ import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-a
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
 import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
+import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
+import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
+import type { WorkspaceRefreshReason } from '../services/workspace-service/index.js';
 
 /** Event shape delivered from the machine command inbox (formerly machines.getCommandEvents). */
 type CommandEvent = {
@@ -141,10 +142,11 @@ function handlePingCommandEffect(
 /** Refreshes a workspace's monitor. A failure is logged and never fails the command. */
 function refreshWorkspaceEffect(
   session: DaemonSessionServiceShape,
-  workingDir: string
+  workingDir: string,
+  reason: WorkspaceRefreshReason
 ): Effect.Effect<void> {
   return Effect.promise(() =>
-    session.workspaceService.refresh(workingDir).catch((error: unknown) => {
+    session.workspaceService.refresh(workingDir, reason).catch((error: unknown) => {
       console.warn(
         `[${formatTimestamp()}] ⚠️  Workspace refresh failed for ${workingDir}: ${getErrorMessage(error)}`
       );
@@ -162,7 +164,7 @@ function handleGitRefreshCommandEffect(
     const session = yield* DaemonSessionService;
     const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitRefresh' }>;
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
-    yield* refreshWorkspaceEffect(session, typedEvent.workingDir);
+    yield* refreshWorkspaceEffect(session, typedEvent.workingDir, 'command');
     tracker.gitRefreshIds.set(eventId, Date.now());
   });
 }
@@ -189,7 +191,7 @@ function handleLocalActionCommandEffect(
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
     } else if (GIT_PUSH_ACTIONS.has(typedEvent.action)) {
       const session = yield* DaemonSessionService;
-      yield* refreshWorkspaceEffect(session, typedEvent.workingDir);
+      yield* refreshWorkspaceEffect(session, typedEvent.workingDir, 'local-action');
     }
     tracker.localActionIds.set(eventId, Date.now());
   });

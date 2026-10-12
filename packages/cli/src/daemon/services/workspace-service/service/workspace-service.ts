@@ -52,6 +52,9 @@ export type WorkspaceServiceDeps = {
   clearTimer?: (handle: TimerHandle) => void;
 };
 
+/** Why a caller asked for a refresh. Logged with the refresh; it does not change what runs. */
+export type WorkspaceRefreshReason = 'command' | 'local-action' | 'pr-action';
+
 export type WorkspaceService = {
   /** Subscribes to the activity source. Idempotent. No-op after `stopAll`. */
   start(): void;
@@ -59,7 +62,7 @@ export type WorkspaceService = {
    * Clears the monitor's hashes, recomputes every local unit, and schedules a remote poll.
    * No-op for a directory that is not registered. Never creates a monitor.
    */
-  refresh(workingDir: string): Promise<void>;
+  refresh(workingDir: string, reason: WorkspaceRefreshReason): Promise<void>;
   /** True while the directory is a member, which means it has a live monitor. */
   isRegistered(workingDir: string): boolean;
   /** Unsubscribes, stops every monitor, and resolves when all in-flight work has settled. */
@@ -117,7 +120,8 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
       unsubscribe = deps.activitySource.subscribe((rows) => applySnapshot(state, rows));
     },
 
-    async refresh(workingDir) {
+    async refresh(workingDir, reason) {
+      console.log(`[workspace-service] refresh ${workingDir} (reason: ${reason})`);
       const entry = state.monitors.get(normalizeWorkingDirForLookup(workingDir));
       if (entry) await entry.monitor.refresh();
     },

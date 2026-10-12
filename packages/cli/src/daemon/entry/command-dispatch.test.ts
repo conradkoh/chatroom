@@ -432,7 +432,7 @@ describe('dispatchCommandEventEffect daemon.gitRefresh', () => {
     );
 
     expect(workspaceService.refresh).toHaveBeenCalledTimes(1);
-    expect(workspaceService.refresh).toHaveBeenCalledWith('/tmp/repo-refresh');
+    expect(workspaceService.refresh).toHaveBeenCalledWith('/tmp/repo-refresh', 'command');
     expect(tracker.gitRefreshIds.has('evt-git-refresh-1')).toBe(true);
   });
 
