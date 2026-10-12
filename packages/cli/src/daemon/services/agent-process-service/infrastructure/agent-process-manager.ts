@@ -59,6 +59,7 @@ import {
 import {
   AGENT_SLOT_STATE,
   AGENT_START_DISPOSITION,
+  isAgentSlotPresent,
   isAgentSlotStarted,
 } from '../../../domain/entities/agent-slot.js';
 import { AgentStopError } from '../../../domain/entities/agent-stop.js';
@@ -88,6 +89,7 @@ import type {
 import type { TurnCompletionResult } from '../../../infrastructure/local/harness/services/turn-completion.js';
 import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type {
+  AgentPresenceChangedHandler,
   AgentProcessSlotState,
   AgentSessionLostEvent,
   AgentSessionLostHandler,
@@ -96,6 +98,7 @@ import type {
   AgentTurnEndedHandler,
   AgentTurnProgressEvent,
   AgentTurnProgressHandler,
+  AgentWorkspacePresence,
 } from '../domain/entities/agent-process.js';
 import {
   defaultNativeTurnPhase,
@@ -282,6 +285,7 @@ export class AgentProcessManager {
   private agentTurnEndedSequence = 0;
   private readonly agentStartedHandlers = new Set<AgentStartedHandler>();
   private readonly agentSessionLostHandlers = new Set<AgentSessionLostHandler>();
+  private readonly agentPresenceChangedHandlers = new Set<AgentPresenceChangedHandler>();
   /** PIDs whose current in-flight turn already produced a typed terminal result. */
   private readonly typedCompletionSeenPids = new Set<number>();
   /** Shared per-agent serialization boundary for public and internal operations. */
@@ -387,6 +391,47 @@ export class AgentProcessManager {
     return () => this.agentTurnProgressHandlers.delete(handler);
   }
 
+  subscribeAgentPresenceChanged(handler: AgentPresenceChangedHandler): () => void {
+    this.agentPresenceChangedHandlers.add(handler);
+    return () => this.agentPresenceChangedHandlers.delete(handler);
+  }
+
+  /**
+   * Present agents with a workingDir, derived from the current slots on every call.
+   *
+   * A running or stopping slot is excluded when its pid is dead, so a slot that exited without
+   * an onExit callback does not count as present.
+   */
+  listWorkspacePresences(): AgentWorkspacePresence[] {
+    const presences: AgentWorkspacePresence[] = [];
+    for (const [key, slot] of this.slots) {
+      const identity = parseAgentKey(key);
+      const workingDir = identity.workingDir ?? slot.workingDir;
+      if (!workingDir || !isAgentSlotPresent(slot)) continue;
+      if (slot.state !== AGENT_SLOT_STATE.SPAWNING) {
+        if (slot.pid === undefined || !isProcessAlive(this.deps.processes.kill, slot.pid)) continue;
+      }
+      presences.push({ chatroomId: identity.chatroomId, role: identity.role, workingDir });
+    }
+    return presences;
+  }
+
+  /**
+   * Notify every presence handler. A throwing handler is logged and does not stop the others
+   * or the caller. Call only as the last statement after a synchronous slot mutation.
+   */
+  private notifyAgentPresenceChanged(): void {
+    for (const handler of this.agentPresenceChangedHandlers) {
+      try {
+        handler();
+      } catch (error) {
+        console.warn(
+          `[AgentProcessManager] presence handler failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+  }
+
   private emitAgentTurnProgress(event: AgentTurnProgressEvent): void {
     for (const handler of this.agentTurnProgressHandlers) {
       try {
@@ -413,6 +458,7 @@ export class AgentProcessManager {
     slot.stopCommandId = undefined;
     slot.stopTargetKey = undefined;
     slot.nativeTurnPhase = undefined;
+    this.notifyAgentPresenceChanged();
   }
 
   private bumpStopGeneration(slot: AgentSlot): number {
@@ -711,6 +757,7 @@ export class AgentProcessManager {
     if (!pid) {
       slot.state = AGENT_SLOT_STATE.IDLE;
       slot.pendingOperation = undefined;
+      this.notifyAgentPresenceChanged();
       return { success: true };
     }
 
@@ -955,6 +1002,7 @@ export class AgentProcessManager {
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
     slot.nativeTurnPhase = undefined;
+    this.notifyAgentPresenceChanged();
   }
 
   private emitExitEvent(slot: AgentSlot, opts: HandleExitOpts, ctx: ExitContext): Promise<void> {
@@ -1214,6 +1262,7 @@ export class AgentProcessManager {
       const identity = parseAgentKey(key);
       if (matchesScope(identity.chatroomId, identity.role)) this.slots.delete(key);
     }
+    this.notifyAgentPresenceChanged();
     await this.lifecycle.runPromise(
       Effect.gen(function* () {
         const svc = yield* AgentLifecycleService;
@@ -1490,6 +1539,7 @@ export class AgentProcessManager {
   private resetSlotIdle(slot: AgentSlot): void {
     slot.state = AGENT_SLOT_STATE.IDLE;
     slot.pendingOperation = undefined;
+    this.notifyAgentPresenceChanged();
   }
 
   private checkRateLimitGate(opts: EnsureRunningOpts, slot: AgentSlot): OperationResult | null {
@@ -1625,6 +1675,7 @@ export class AgentProcessManager {
     slot.pendingOperation = undefined;
     slot.recentLogLines = [];
     slot.providerUnavailableEmitted = false;
+    this.notifyAgentPresenceChanged();
   }
 
   private emitSpawnedAgentUpdate(
@@ -1879,6 +1930,7 @@ export class AgentProcessManager {
     opts: EnsureRunningOpts
   ): Promise<OperationResult> {
     slot.state = AGENT_SLOT_STATE.SPAWNING;
+    this.notifyAgentPresenceChanged();
     const rateLimit = this.checkRateLimitGate(opts, slot);
     if (rateLimit) return rateLimit;
 
@@ -1962,6 +2014,7 @@ export class AgentProcessManager {
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
     slot.stoppingSince = undefined;
+    this.notifyAgentPresenceChanged();
   }
 
   private async forceClearStuckStoppingSlot(

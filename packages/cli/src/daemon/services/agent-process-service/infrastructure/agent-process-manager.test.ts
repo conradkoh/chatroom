@@ -1911,3 +1911,186 @@ describe('AgentProcessManager', () => {
     });
   });
 });
+
+describe('workspace presence', () => {
+  let deps: AgentProcessManagerDeps;
+  let manager: AgentProcessManager;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    deps = createDeps();
+    manager = new AgentProcessManager(deps);
+  });
+
+  const presentBuilder = [{ chatroomId: CHATROOM_ID, role: ROLE, workingDir: '/tmp/test' }];
+
+  function serviceMock(method: 'spawn' | 'stop') {
+    return deps.agentServices.get('opencode')![method] as ReturnType<typeof vi.fn>;
+  }
+
+  function killWithDead(): { markDead: (pid: number) => void } {
+    return deps.processes.kill as unknown as { markDead: (pid: number) => void };
+  }
+
+  /** A promise the test resolves by hand, to hold a spawn or stop open. */
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  describe('listWorkspacePresences', () => {
+    test('includes a running slot with a live pid', async () => {
+      await manager.ensureRunning(createOpts());
+
+      expect(manager.listWorkspacePresences()).toEqual(presentBuilder);
+    });
+
+    test('includes a spawning slot before its spawn resolves', async () => {
+      const spawn = deferred<unknown>();
+      serviceMock('spawn').mockImplementationOnce(() => spawn.promise);
+
+      const starting = manager.ensureRunning(createOpts());
+      await vi.waitFor(() => expect(manager.listWorkspacePresences()).toEqual(presentBuilder));
+
+      spawn.resolve({ pid: PID, onExit: vi.fn(), onOutput: vi.fn(), onAgentEnd: vi.fn() });
+      await starting;
+    });
+
+    test('includes a stopping slot with a live pid', async () => {
+      await manager.ensureRunning(createOpts());
+      const stop = deferred<undefined>();
+      serviceMock('stop').mockImplementationOnce(() => stop.promise);
+
+      const stopping = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+      await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
+      expect(manager.listWorkspacePresences()).toEqual(presentBuilder);
+
+      killWithDead().markDead(PID);
+      stop.resolve(undefined);
+      await stopping;
+    });
+
+    test('excludes a running slot whose pid is dead', async () => {
+      await manager.ensureRunning(createOpts());
+      killWithDead().markDead(PID);
+
+      expect(manager.listWorkspacePresences()).toEqual([]);
+    });
+
+    test('excludes an idle slot after stop completes', async () => {
+      await manager.ensureRunning(createOpts());
+      await manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+      expect(manager.listWorkspacePresences()).toEqual([]);
+    });
+
+    test('excludes a slot with no workingDir', async () => {
+      // The public type requires workingDir, but the runtime accepts a missing one. Cast to reach that path.
+      const legacyOpts = { ...createOpts(), workingDir: undefined } as unknown as EnsureRunningOpts;
+      await manager.ensureRunning(legacyOpts);
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('running');
+      expect(manager.listWorkspacePresences()).toEqual([]);
+    });
+  });
+
+  describe('subscribeAgentPresenceChanged', () => {
+    test('fires on a successful ensureRunning, and the handler sees the new snapshot', async () => {
+      const seenCounts: number[] = [];
+      const handler = vi.fn(() => seenCounts.push(manager.listWorkspacePresences().length));
+      manager.subscribeAgentPresenceChanged(handler);
+
+      await manager.ensureRunning(createOpts());
+
+      expect(handler).toHaveBeenCalled();
+      expect(seenCounts.at(-1)).toBe(1);
+    });
+
+    test('fires on process exit', async () => {
+      await manager.ensureRunning(createOpts());
+      const handler = vi.fn();
+      manager.subscribeAgentPresenceChanged(handler);
+
+      await manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      expect(handler).toHaveBeenCalled();
+    });
+
+    test('fires on stop, and the handler sees the slot idle', async () => {
+      await manager.ensureRunning(createOpts());
+      const seenCounts: number[] = [];
+      manager.subscribeAgentPresenceChanged(() =>
+        seenCounts.push(manager.listWorkspacePresences().length)
+      );
+
+      await manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+
+      expect(seenCounts.length).toBeGreaterThan(0);
+      expect(seenCounts.at(-1)).toBe(0);
+    });
+
+    test('fires on reset', async () => {
+      await manager.ensureRunning(createOpts());
+      const handler = vi.fn();
+      manager.subscribeAgentPresenceChanged(handler);
+
+      await manager.reset({ scope: 'chatroom', chatroomId: CHATROOM_ID });
+
+      expect(handler).toHaveBeenCalled();
+      expect(manager.listWorkspacePresences()).toEqual([]);
+    });
+
+    test('does not fire on the running to stopping transition', async () => {
+      await manager.ensureRunning(createOpts());
+      const handler = vi.fn();
+      manager.subscribeAgentPresenceChanged(handler);
+      const stop = deferred<undefined>();
+      serviceMock('stop').mockImplementationOnce(() => stop.promise);
+
+      const stopping = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+      await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
+      expect(handler).not.toHaveBeenCalled();
+
+      killWithDead().markDead(PID);
+      stop.resolve(undefined);
+      await stopping;
+    });
+
+    test('an unsubscribed handler is not called', async () => {
+      const handler = vi.fn();
+      const unsubscribe = manager.subscribeAgentPresenceChanged(handler);
+      unsubscribe();
+
+      await manager.ensureRunning(createOpts());
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    test('a throwing handler does not stop other handlers or the caller', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const thrower = vi.fn(() => {
+        throw new Error('presence handler boom');
+      });
+      const survivor = vi.fn();
+      manager.subscribeAgentPresenceChanged(thrower);
+      manager.subscribeAgentPresenceChanged(survivor);
+
+      await expect(manager.ensureRunning(createOpts())).resolves.toMatchObject({ success: true });
+
+      expect(thrower).toHaveBeenCalled();
+      expect(survivor).toHaveBeenCalled();
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
+});

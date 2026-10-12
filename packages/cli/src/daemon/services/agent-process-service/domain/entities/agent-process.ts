@@ -62,3 +62,17 @@ export interface AgentTurnProgressEvent {
 }
 
 export type AgentTurnProgressHandler = (event: AgentTurnProgressEvent) => void;
+
+/** One agent the daemon holds as present in a working directory. */
+export interface AgentWorkspacePresence {
+  readonly chatroomId: string;
+  readonly role: string;
+  /** As spawned; consumers normalize. */
+  readonly workingDir: string;
+}
+
+/**
+ * Fired after any slot transition that may change presence. Carries no payload: re-read
+ * listWorkspacePresences() for the full snapshot.
+ */
+export type AgentPresenceChangedHandler = () => void;
