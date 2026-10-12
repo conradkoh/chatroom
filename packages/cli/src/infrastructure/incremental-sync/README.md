@@ -335,12 +335,12 @@ Prove: cursor exclusivity, no blob in incremental path, signal omitted fields do
 
 ## Related patterns in the repo
 
-| Pattern                             | Location                                                                            |
-| ----------------------------------- | ----------------------------------------------------------------------------------- |
-| Cursor-pinned message tail (webapp) | `services/backend/.../messageList.ts` — `subscribeNewMessages`                      |
-| Reactive pending work (small set)   | `packages/cli/src/commands/machine/daemon-start/dir-listing-subscription.ts`        |
-| Subscribe + reconcile poll (legacy) | `packages/cli/src/commands/machine/daemon-start/observed-sync.ts`                   |
-| Daemon de-duplication ledger        | `packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts` — `seenShas` |
+| Pattern                             | Location                                                                                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cursor-pinned message tail (webapp) | `services/backend/.../messageList.ts` — `subscribeNewMessages`                                                                                  |
+| Reactive pending work (small set)   | `packages/cli/src/commands/machine/daemon-start/dir-listing-subscription.ts`                                                                    |
+| Subscribe + reconcile poll (legacy) | `packages/cli/src/commands/machine/daemon-start/observed-sync.ts`                                                                               |
+| Daemon de-duplication ledger        | Removed. `commit-detail-sync.ts` (`seenShas`) was deleted with the workspace service (S5b); commit-detail dedup is no longer a separate ledger. |
 
 ---
 
