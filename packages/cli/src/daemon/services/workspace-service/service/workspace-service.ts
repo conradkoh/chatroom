@@ -133,7 +133,9 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
   const fileTree = createWorkspaceFileTreeHost({
     session: { sessionId: deps.sessionId, machineId: deps.machineId, backend: deps.backend },
     getRootSnapshotReader: probeRootSnapshotReader(
-      (workingDir) => state.monitors.get(normalizeWorkingDirForLookup(workingDir))?.probe
+      (workingDir) => state.monitors.get(normalizeWorkingDirForLookup(workingDir))?.probe,
+      state.deps.policy,
+      state.deps.now
     ),
   });
   let unsubscribe: (() => void) | null = null;
@@ -184,21 +186,43 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps): WorkspaceSer
  * - A probe or config read rejects: the rejection reaches the change source, which reports it
  *   through `onError` and skips the root git reads for that tick. It is not retried as a direct read.
  *
- * `maxAgeMs: 0` makes every tick read git. A read already in flight is shared, not restarted.
+ * Sharing the monitor's probe: a snapshot up to one probe interval old is reused, so the root
+ * file-tree poll and the monitor tick share one `git status`. A snapshot older than that is re-read.
+ * Each projection equals v1 as of the snapshot's `readAt`, so a reused snapshot can lag the working
+ * tree by up to one probe interval.
+ *
+ * Rename limit: read with `readGitRenameLimit` and cached for `RENAME_LIMIT_TTL_MULTIPLE` probe
+ * intervals. A `status.renameLimit` or `diff.renameLimit` change applies to the root projection
+ * within that window, which is 30s at the default policy. The cache is never unbounded.
  */
 function probeRootSnapshotReader(
-  probeFor: (workingDir: string) => WorkspaceGitProbe | undefined
+  probeFor: (workingDir: string) => WorkspaceGitProbe | undefined,
+  policy: WorkspaceSyncPolicy,
+  now: () => number
 ): (workingDir: string) => Promise<GitRootSnapshotReader | undefined> {
   return async (workingDir) => {
     const probe = probeFor(workingDir);
     if (!probe) return undefined;
+    const renameLimits = new Map<string, { limit: number; readAt: number }>();
+    const renameLimitTtlMs = RENAME_LIMIT_TTL_MULTIPLE * policy.probeIntervalMs;
+    const renameLimitFor = async (workTree: string): Promise<number> => {
+      const readAt = now();
+      const cached = renameLimits.get(workTree);
+      if (cached && readAt - cached.readAt <= renameLimitTtlMs) return cached.limit;
+      const limit = await readGitRenameLimit(workTree);
+      renameLimits.set(workTree, { limit, readAt });
+      return limit;
+    };
     return async (rootPathspec) => {
-      const snapshot = await probe.readSnapshot({ maxAgeMs: 0 });
-      const renameLimit = await readGitRenameLimit(probe.workTree);
+      const snapshot = await probe.readSnapshot({ maxAgeMs: policy.probeIntervalMs });
+      const renameLimit = await renameLimitFor(probe.workTree);
       return toRootChangeSourceSnapshot(snapshot, rootPathspec, renameLimit);
     };
   };
 }
+
+/** The rename-limit cache lives this many probe intervals. See `probeRootSnapshotReader`. */
+const RENAME_LIMIT_TTL_MULTIPLE = 10;
 
 /** Fills every optional dependency with its production default. */
 function resolveDeps(deps: WorkspaceServiceDeps): ResolvedDeps {

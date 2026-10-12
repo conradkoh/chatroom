@@ -26,7 +26,14 @@ import {
   type WorkspaceFileTreeCoordinator,
 } from '../../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
 import { clearWorkspaceSyncStateForTests } from '../../../../infrastructure/services/workspace/workspace-sync-state.js';
+import type * as RunCommandModule from '../../../infrastructure/git/run-command.js';
 import type { WorkspaceActivityRow } from '../domain/observation-tier.js';
+import {
+  DEFAULT_WORKSPACE_SYNC_POLICY,
+  resolveWorkspaceSyncPolicy,
+  type DeepPartial,
+  type WorkspaceSyncPolicy,
+} from '../domain/workspace-sync-policy.js';
 import type { WorkspaceActivitySource } from '../infrastructure/workspace-activity-source.js';
 import {
   createWorkspaceGitProbe,
@@ -34,6 +41,21 @@ import {
 } from '../infrastructure/workspace-git-probe.js';
 
 type ReaderFactory = (workingDir: string) => Promise<GitRootSnapshotReader | undefined>;
+
+/** The argument list of every git process spawned through `runGit`, in spawn order. */
+const gitSpawns = vi.hoisted(() => [] as string[][]);
+
+// Passthrough spy on the one git runner. Every probe read and rename-limit read goes through it.
+vi.mock('../../../infrastructure/git/run-command.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof RunCommandModule>();
+  return {
+    ...actual,
+    runGit: (...args: Parameters<typeof actual.runGit>) => {
+      gitSpawns.push(args[0]);
+      return actual.runGit(...args);
+    },
+  };
+});
 
 // The real host is kept; the mock only records the `getRootSnapshotReader` the service wired in.
 const wiredHost = vi.hoisted(() => ({
@@ -81,21 +103,39 @@ function fakeActivitySource() {
 
 const services: { stopAll(): Promise<void> }[] = [];
 
+type StartOptions = {
+  /** Default: a real probe per directory. */
+  createProbe?: (workingDir: string) => WorkspaceGitProbe;
+  policy?: DeepPartial<WorkspaceSyncPolicy>;
+  /** Default `Date.now`. Shared by the service and the default probe. */
+  now?: () => number;
+};
+
 /**
  * Starts a service that registers `workingDirs` and returns the reader factory it wired into the
- * file-tree host. `createProbe` defaults to a real probe that the test can spy on.
+ * file-tree host.
  */
 async function startService(
   workingDirs: string[],
-  createProbe: (workingDir: string) => WorkspaceGitProbe = (workingDir) =>
-    createWorkspaceGitProbe({ workTree: workingDir, rootPathspec: [], dirtyStatCap: 500 })
+  options: StartOptions = {}
 ): Promise<ReaderFactory> {
   wiredHost.getRootSnapshotReader = undefined;
   const activity = fakeActivitySource();
+  const now = options.now ?? Date.now;
   const service = createWorkspaceService({
     activitySource: activity.source,
     outbox: { enqueue: vi.fn(), stopKeys: vi.fn() },
-    createProbe,
+    policy: resolveWorkspaceSyncPolicy(options.policy),
+    now,
+    createProbe:
+      options.createProbe ??
+      ((workingDir) =>
+        createWorkspaceGitProbe({
+          workTree: workingDir,
+          rootPathspec: [],
+          dirtyStatCap: 500,
+          now,
+        })),
     sessionId: 'root-snapshot-test-session' as WorkspaceServiceDeps['sessionId'],
     machineId: 'root-snapshot-test',
     backend: { mutation: vi.fn(async () => undefined), query: vi.fn(async () => null) },
@@ -241,19 +281,103 @@ describe('root snapshot reader wired by createWorkspaceService', () => {
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'init');
     const readStatus = vi.fn(readGitStatusV2);
-    const getReader = await startService([repo], (workingDir) =>
-      createWorkspaceGitProbe({
-        workTree: workingDir,
-        rootPathspec: [],
-        dirtyStatCap: 500,
-        readStatus,
-      })
-    );
+    const getReader = await startService([repo], {
+      createProbe: (workingDir) =>
+        createWorkspaceGitProbe({
+          workTree: workingDir,
+          rootPathspec: [],
+          dirtyStatCap: 500,
+          readStatus,
+        }),
+    });
 
     const reader = await readerFor(getReader, repo);
     await reader([]);
 
     expect(readStatus).toHaveBeenCalledWith(repo);
+  });
+});
+
+describe('root tick shares the monitor probe', () => {
+  const INTERVAL = DEFAULT_WORKSPACE_SYNC_POLICY.probeIntervalMs;
+  const START = 1_000_000;
+  /** Fake clock shared by the service and its probe, so ages are exact. */
+  let clock = START;
+  const now = (): number => clock;
+
+  beforeEach(() => {
+    clock = START;
+    gitSpawns.length = 0;
+  });
+
+  /** How many git processes with this subcommand were spawned since the last reset. */
+  const spawnsOf = (subcommand: string): number =>
+    gitSpawns.filter((args) => args[0] === subcommand).length;
+
+  /**
+   * A repo with one dirty file, and a reader wired through the probe the service owns. The probe
+   * is returned so a test can make the monitor's own tick call on it.
+   */
+  async function setup(): Promise<{ probe: WorkspaceGitProbe; reader: GitRootSnapshotReader }> {
+    const dir = await initRepo('probe-sharing');
+    await write(dir, 'a.ts', 'a1\n');
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'init');
+    await write(dir, 'a.ts', 'a2\n');
+    const probe = createWorkspaceGitProbe({
+      workTree: dir,
+      rootPathspec: [],
+      dirtyStatCap: 500,
+      now,
+    });
+    const getReader = await startService([dir], { now, createProbe: () => probe });
+    return { probe, reader: await readerFor(getReader, dir) };
+  }
+
+  it('a root tick inside the probe interval adds no git status spawn', async () => {
+    const { probe, reader } = await setup();
+
+    // The monitor's probe tick. An observed monitor makes this call on every tick.
+    await probe.readSnapshot({ maxAgeMs: 0 });
+    expect(spawnsOf('status')).toBe(1);
+    expect(spawnsOf('config')).toBe(0);
+
+    await reader([]);
+    expect(spawnsOf('status')).toBe(1);
+    // The first root tick reads the rename limit once.
+    expect(spawnsOf('config')).toBe(1);
+
+    clock += 1_000;
+    await reader([]);
+    expect(spawnsOf('status')).toBe(1);
+    expect(spawnsOf('config')).toBe(1);
+  });
+
+  it('re-reads git once the snapshot is older than one probe interval', async () => {
+    const { probe, reader } = await setup();
+    await probe.readSnapshot({ maxAgeMs: 0 });
+
+    clock += INTERVAL; // exactly one interval old: still reused
+    await reader([]);
+    expect(spawnsOf('status')).toBe(1);
+
+    clock += 1; // older than one interval: re-read
+    await reader([]);
+    expect(spawnsOf('status')).toBe(2);
+  });
+
+  it('re-reads the rename limit once it is older than ten probe intervals', async () => {
+    const { reader } = await setup();
+    await reader([]);
+    expect(spawnsOf('config')).toBe(1);
+
+    clock += 10 * INTERVAL; // exactly ten intervals old: still cached
+    await reader([]);
+    expect(spawnsOf('config')).toBe(1);
+
+    clock += 1;
+    await reader([]);
+    expect(spawnsOf('config')).toBe(2);
   });
 });
 
@@ -373,14 +497,17 @@ describe('file-tree coordinator with the probe-backed root reader', () => {
     const probeRepo = await seed('events-probe');
     const probeDir = path.join(probeRepo, 'packages/cli');
     const readStatus = vi.fn(readGitStatusV2);
-    const getReader = await startService([probeDir], (workingDir) =>
-      createWorkspaceGitProbe({
-        workTree: workingDir,
-        rootPathspec: [],
-        dirtyStatCap: 500,
-        readStatus,
-      })
-    );
+    const getReader = await startService([probeDir], {
+      // Short probe interval: a reused snapshot must not hold up the edit sequence for seconds.
+      policy: { probeIntervalMs: 50 },
+      createProbe: (workingDir) =>
+        createWorkspaceGitProbe({
+          workTree: workingDir,
+          rootPathspec: [],
+          dirtyStatCap: 500,
+          readStatus,
+        }),
+    });
     const inner = await readerFor(getReader, probeDir);
     const decisions: ('accepted' | 'declined')[] = [];
     const readRootSnapshot: GitRootSnapshotReader = async (rootPathspec) => {
