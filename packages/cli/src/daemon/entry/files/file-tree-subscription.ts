@@ -2,8 +2,8 @@
  * File Tree Subscription — request and lease adapter for workspace file-tree synchronization.
  *
  * Reads pending file-tree requests and release requests from the backend, then drives the
- * per-directory file-tree host owned by `WorkspaceService.fileTree`. The host owns coordinators
- * and outbox registries; this adapter only decides which host call a request needs.
+ * per-directory file-tree host owned by `WorkspaceService.fileTree`. The host owns each directory's
+ * sync state and the outbox registries; this adapter only decides which host call a request needs.
  */
 
 import { Effect } from 'effect';
