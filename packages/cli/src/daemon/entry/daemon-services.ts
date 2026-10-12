@@ -164,6 +164,10 @@ export interface DaemonAgentProcessManagerServiceShape {
   subscribeAgentStarted: (handler: AgentStartedHandler) => () => void;
   subscribeAgentSessionLost: (handler: AgentSessionLostHandler) => () => void;
   subscribeAgentTurnProgress: (handler: AgentTurnProgressHandler) => () => void;
+  /** Starts the periodic reap of agents whose process died without onExit. Idempotent. */
+  startLivenessSweep: () => void;
+  /** Stops the periodic reap. Idempotent. Owned by the daemon runtime, not the manager's own stop. */
+  stopLivenessSweep: () => void;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Service<
@@ -195,6 +199,8 @@ export const DaemonAgentProcessManagerServiceLive = (
       processManagerService.subscribeAgentSessionLost(handler),
     subscribeAgentTurnProgress: (handler) =>
       processManagerService.subscribeAgentTurnProgress(handler),
+    startLivenessSweep: () => mgr.startLivenessSweep(),
+    stopLivenessSweep: () => mgr.stopLivenessSweep(),
   });
 
 /**

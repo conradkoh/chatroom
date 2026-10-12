@@ -17,11 +17,11 @@ import {
   registerCommandInboundHandler,
   unregisterCommandInboundHandler,
 } from './command-inbound-registry.js';
-import { DaemonSessionService } from './daemon-services.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type {
   AgentLifecycleOutboxService,
   DaemonAgentProcessManagerCommandService,
-  DaemonAgentProcessManagerService,
+  DaemonAgentProcessManagerServiceShape,
   DaemonMutableStateService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
@@ -95,6 +95,8 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
   let workspaceServiceHandle: WorkspaceService | null = null;
+  /** Owns the liveness sweep; started with the workspace service and stopped before it. */
+  let livenessSweepOwner: DaemonAgentProcessManagerServiceShape | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let taskInboxHandle: { stop: () => Promise<void>; nativeDelivery: AgentWorkManager } | null =
@@ -147,6 +149,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     agenticQueryWorkerHandle?.stop();
     deps.onNativeDeliveryReady?.(null);
     await taskInboxHandle?.stop();
+    livenessSweepOwner?.stopLivenessSweep();
     // Monitors stop before the outbox so no unit is enqueued after the final flush.
     await workspaceServiceHandle?.stopAll();
     await withTimeout(
@@ -289,6 +292,11 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
 
     taskInboxHandle = yield* startTaskInboxEffect(deps.wsClient);
     deps.onNativeDeliveryReady?.(taskInboxHandle.nativeDelivery);
+
+    // Reap agents whose process died without onExit, so they stop counting as present.
+    const agentProcessManager = yield* DaemonAgentProcessManagerService;
+    agentProcessManager.startLivenessSweep();
+    livenessSweepOwner = agentProcessManager;
 
     workspaceServiceHandle = session.workspaceService;
     yield* Effect.try({

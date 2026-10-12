@@ -3,6 +3,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import { untrackChildPid } from './adapters/orphan-process-tracker.js';
 import {
+  AGENT_LIVENESS_SWEEP_INTERVAL_MS,
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
@@ -2092,5 +2093,173 @@ describe('workspace presence', () => {
       expect(warn).toHaveBeenCalled();
       warn.mockRestore();
     });
+  });
+});
+
+describe('liveness sweep', () => {
+  let deps: AgentProcessManagerDeps;
+  let manager: AgentProcessManager;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    deps = createDeps();
+    manager = new AgentProcessManager(deps);
+  });
+
+  afterEach(() => {
+    manager.stopLivenessSweep();
+    vi.useRealTimers();
+  });
+
+  function markDead(pid: number) {
+    (deps.processes.kill as unknown as { markDead: (pid: number) => void }).markDead(pid);
+  }
+
+  function markAlive(pid: number) {
+    (deps.processes.kill as unknown as { markAlive: (pid: number) => void }).markAlive(pid);
+  }
+
+  function exitedFacts() {
+    return vi
+      .mocked(deps.lifecycleOutbox.enqueue)
+      .mock.calls.map(([fact]) => fact)
+      .filter((fact) => fact.kind === 'exited');
+  }
+
+  /** A promise the test resolves by hand, to hold a spawn or stop open. */
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  test('reaps a running slot whose pid is dead, through the exit path', async () => {
+    await manager.ensureRunning(createOpts());
+    const handler = vi.fn();
+    manager.subscribeAgentPresenceChanged(handler);
+    markDead(PID);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(1);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBeUndefined();
+    await vi.waitFor(() =>
+      expect(exitedFacts()).toEqual([
+        expect.objectContaining({ chatroomId: CHATROOM_ID, role: ROLE }),
+      ])
+    );
+    expect(handler).toHaveBeenCalled();
+  });
+
+  test('never reaps a running slot whose pid is alive', async () => {
+    await manager.ensureRunning(createOpts());
+    markAlive(PID);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('running');
+    expect(exitedFacts()).toEqual([]);
+  });
+
+  test('does not reap a stopping slot, even when its pid is dead', async () => {
+    await manager.ensureRunning(createOpts());
+    const stop = deferred<undefined>();
+    (deps.agentServices.get('opencode')!.stop as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => stop.promise
+    );
+    const stopping = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+    await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
+    markDead(PID);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(exitedFacts()).toEqual([]);
+    stop.resolve(undefined);
+    await stopping;
+  });
+
+  test('does not reap a spawning slot, which has no pid yet', async () => {
+    const spawn = deferred<unknown>();
+    (deps.agentServices.get('opencode')!.spawn as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => spawn.promise
+    );
+    const starting = manager.ensureRunning(createOpts());
+    await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('spawning'));
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('spawning');
+    spawn.resolve({ pid: PID, onExit: vi.fn(), onOutput: vi.fn(), onAgentEnd: vi.fn() });
+    await starting;
+  });
+
+  test('a failing reap is logged and does not stop the other reaps or the notification', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await manager.ensureRunning(createOpts({ chatroomId: 'chatroom-a' }));
+    await manager.ensureRunning(createOpts({ chatroomId: 'chatroom-b' }));
+    markDead(PID);
+    const handler = vi.fn();
+    manager.subscribeAgentPresenceChanged(handler);
+    // The first reap in iteration order rejects. The second must still run.
+    vi.spyOn(manager, 'handleExit').mockImplementationOnce(async () => {
+      throw new Error('reap boom');
+    });
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(1);
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('liveness reap failed'));
+    expect(manager.getSlot('chatroom-a', ROLE)?.state).toBe('running');
+    expect(manager.getSlot('chatroom-b', ROLE)?.state).toBe('idle');
+    expect(handler).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  test('notifies presence once even when the sweep reaps nothing', async () => {
+    const handler = vi.fn();
+    manager.subscribeAgentPresenceChanged(handler);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  test('startLivenessSweep is idempotent and runs one sweep per interval', async () => {
+    vi.useFakeTimers();
+    const reap = vi.spyOn(manager, 'reapDeadAgentProcesses').mockResolvedValue(0);
+
+    manager.startLivenessSweep();
+    manager.startLivenessSweep();
+    vi.advanceTimersByTime(AGENT_LIVENESS_SWEEP_INTERVAL_MS - 1);
+    expect(reap).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+
+    expect(reap).toHaveBeenCalledTimes(1);
+  });
+
+  test('stopLivenessSweep clears the timer and is idempotent', async () => {
+    vi.useFakeTimers();
+    const reap = vi.spyOn(manager, 'reapDeadAgentProcesses').mockResolvedValue(0);
+    manager.startLivenessSweep();
+
+    manager.stopLivenessSweep();
+    manager.stopLivenessSweep();
+    vi.advanceTimersByTime(AGENT_LIVENESS_SWEEP_INTERVAL_MS * 3);
+
+    expect(reap).not.toHaveBeenCalled();
+  });
+
+  test('the sweep timer is unref-ed so it never keeps the daemon alive', async () => {
+    const unref = vi.fn();
+    const setIntervalSpy = vi
+      .spyOn(globalThis, 'setInterval')
+      .mockImplementation(() => ({ unref }) as unknown as ReturnType<typeof setInterval>);
+    try {
+      manager.startLivenessSweep();
+      expect(unref).toHaveBeenCalledTimes(1);
+    } finally {
+      setIntervalSpy.mockRestore();
+    }
   });
 });

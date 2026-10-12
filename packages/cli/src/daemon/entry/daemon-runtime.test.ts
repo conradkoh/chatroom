@@ -14,6 +14,8 @@ const taskInboxStop = vi.fn();
 const workspaceStateOutboxFlush = vi.fn().mockResolvedValue(undefined);
 const workspaceStateOutboxStop = vi.fn().mockResolvedValue(undefined);
 const shutdownEffectStarted = vi.fn();
+const livenessSweepStart = vi.fn();
+const livenessSweepStop = vi.fn();
 const nativeDelivery = {
   dispose: vi.fn(),
   agentTaskState: { clearAll: vi.fn() },
@@ -99,7 +101,10 @@ describe('createDaemonRuntime', () => {
     const layers = Layer.mergeAll(
       Layer.succeed(DaemonSessionService, session as never),
       Layer.succeed(DaemonMutableStateService, {} as never),
-      Layer.succeed(DaemonAgentProcessManagerService, {} as never),
+      Layer.succeed(DaemonAgentProcessManagerService, {
+        startLivenessSweep: livenessSweepStart,
+        stopLivenessSweep: livenessSweepStop,
+      } as never),
       Layer.succeed(DaemonAgentProcessManagerCommandService, {
         runSerializedForAgent: vi.fn(),
       } as never),
@@ -162,6 +167,19 @@ describe('createDaemonRuntime', () => {
     expect(unregisterWorkspaceGitInboundHandler).toHaveBeenCalled();
     expect(onNativeDeliveryReady).toHaveBeenLastCalledWith(null);
     expect(shutdownEffectStarted).toHaveBeenCalledOnce();
+  });
+
+  it('starts the liveness sweep before the workspace service and stops it before the monitors', async () => {
+    const { runtime, runPromise, workspaceService } = await startRuntime();
+
+    expect(livenessSweepStart).toHaveBeenCalledTimes(1);
+    expect(livenessSweepStart).toHaveBeenCalledBefore(vi.mocked(workspaceService.start));
+
+    await runtime.shutdown();
+    await runPromise;
+
+    expect(livenessSweepStop).toHaveBeenCalledTimes(1);
+    expect(livenessSweepStop).toHaveBeenCalledBefore(vi.mocked(workspaceService.stopAll));
   });
 
   it('gives up on a flush that never settles after shutdownFlushTimeoutMs, then stops the outbox', async () => {

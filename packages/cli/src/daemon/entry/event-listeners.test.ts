@@ -76,6 +76,8 @@ function registerListeners(
         subscribeAgentStarted: () => () => undefined,
         subscribeAgentSessionLost: () => () => undefined,
         subscribeAgentTurnProgress: () => () => undefined,
+        startLivenessSweep: () => undefined,
+        stopLivenessSweep: () => undefined,
       })
     )
   );

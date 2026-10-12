@@ -266,6 +266,10 @@ const AGENT_EXIT_RETRY_INTERVAL_MS = 10_000;
 // fallow-ignore-next-line unused-export
 export const STOPPING_TIMEOUT_MS = 30_000;
 
+/** Interval between liveness sweeps that reap running agents whose process died without onExit. */
+// fallow-ignore-next-line unused-export
+export const AGENT_LIVENESS_SWEEP_INTERVAL_MS = 10_000;
+
 // ─── Manager ──────────────────────────────────────────────────────────────────
 
 type ResolvedAgentProcessManagerDeps = AgentProcessManagerDeps;
@@ -280,6 +284,8 @@ export class AgentProcessManager {
   private readonly exitRetryQueue: RetryQueueItem[] = [];
   /** Active retry interval timer handle, or null if queue is empty. */
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
+  /** Periodic liveness sweep handle, or null when the sweep is not running. */
+  private livenessSweepTimer: ReturnType<typeof setInterval> | null = null;
   private readonly agentTurnEndedHandlers = new Set<AgentTurnEndedHandler>();
   private readonly agentTurnProgressHandlers = new Set<AgentTurnProgressHandler>();
   private agentTurnEndedSequence = 0;
@@ -414,6 +420,64 @@ export class AgentProcessManager {
       presences.push({ chatroomId: identity.chatroomId, role: identity.role, workingDir });
     }
     return presences;
+  }
+
+  /**
+   * Reaps running agents whose process is gone, then notifies presence.
+   *
+   * Reuses handleExit, so a reap matches a real exit: the slot resets, the exited fact is
+   * enqueued, and the pid is cleared. Only running slots with a dead pid are reaped. Spawning
+   * slots have no pid yet, and stopping slots belong to the stop flow. Each reap is isolated, so
+   * one failure does not stop the sweep. Returns the number of slots that left the running state.
+   */
+  async reapDeadAgentProcesses(): Promise<number> {
+    let reaped = 0;
+    for (const [key, slot] of [...this.slots]) {
+      if (slot.state !== AGENT_SLOT_STATE.RUNNING || slot.pid === undefined) continue;
+      const pid = slot.pid;
+      if (isProcessAlive(this.deps.processes.kill, pid)) continue;
+
+      const identity = parseAgentKey(key);
+      // The key carries the workingDir the slot was registered under. Pass it so handleExit finds
+      // this exact slot instead of guessing among several workingDirs for the same role.
+      const workingDir = identity.workingDir ?? slot.workingDir;
+      try {
+        await this.handleExit({
+          chatroomId: identity.chatroomId,
+          role: identity.role,
+          workingDir,
+          pid,
+          code: null,
+          signal: null,
+        });
+        if (slot.state !== AGENT_SLOT_STATE.RUNNING || slot.pid !== pid) reaped++;
+      } catch (error) {
+        console.warn(
+          `[AgentProcessManager] liveness reap failed for ${identity.role}@${identity.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+    this.notifyAgentPresenceChanged();
+    return reaped;
+  }
+
+  /**
+   * Starts the periodic liveness sweep. Idempotent. The timer is unref'd so it never keeps the
+   * daemon alive. Only the daemon runtime starts it; stop() and reset() never do.
+   */
+  startLivenessSweep(intervalMs = AGENT_LIVENESS_SWEEP_INTERVAL_MS): void {
+    if (this.livenessSweepTimer !== null) return;
+    this.livenessSweepTimer = setInterval(() => {
+      void this.reapDeadAgentProcesses();
+    }, intervalMs);
+    this.livenessSweepTimer.unref?.();
+  }
+
+  /** Stops the periodic liveness sweep. Idempotent. */
+  stopLivenessSweep(): void {
+    if (this.livenessSweepTimer === null) return;
+    clearInterval(this.livenessSweepTimer);
+    this.livenessSweepTimer = null;
   }
 
   /**
