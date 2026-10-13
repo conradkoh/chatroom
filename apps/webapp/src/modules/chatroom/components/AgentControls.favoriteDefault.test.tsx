@@ -102,10 +102,13 @@ function Harness({
   machines,
   agentConfigs = [],
   teamConfigHarness,
+  harnessesLoading = false,
 }: {
   machines: MachineInfo[];
   agentConfigs?: AgentConfig[];
   teamConfigHarness?: AgentHarness;
+  /** Setup wizard: the machine's capabilities (harness list) have not resolved yet. */
+  harnessesLoading?: boolean;
 }) {
   const controls = useAgentControls({
     role: 'planner',
@@ -118,6 +121,7 @@ function Harness({
     // A team machine does not seed the harness, so the favourite default still applies.
     teamConfigMachineId: 'machine-a',
     teamConfigHarness,
+    harnessesLoading,
   });
   return (
     <div>
@@ -241,5 +245,53 @@ describe('favourite-based default harness and model', () => {
 
     expect(screen.getByTestId('harness').textContent).toBe('opencode-sdk');
     expect(screen.getByTestId('model').textContent).toBe('m1');
+  });
+
+  describe('when the machine harness list loads after favourites', () => {
+    it('applies the top favourite once the harnesses arrive', () => {
+      // The machine's harness list is still loading, so the machine carries no harnesses yet.
+      favoritesState = { favorites: [entry('opencode-sdk', 'm2'), entry('pi-sdk', 'p1')] };
+      const { rerender } = render(
+        <Harness machines={[mkMachine('machine-a', [])]} harnessesLoading />
+      );
+      expect(screen.getByTestId('harness').textContent).toBe('none');
+
+      rerender(
+        <Harness machines={[mkMachine('machine-a', BOTH_HARNESSES)]} harnessesLoading={false} />
+      );
+
+      expect(screen.getByTestId('harness').textContent).toBe('opencode-sdk');
+      expect(screen.getByTestId('model').textContent).toBe('m2');
+    });
+
+    it('does not let a user pick made while harnesses are loading be overwritten', () => {
+      favoritesState = { favorites: [entry('opencode-sdk', 'm2')] };
+      const { rerender } = render(
+        <Harness machines={[mkMachine('machine-a', [])]} harnessesLoading />
+      );
+
+      act(() => {
+        screen.getByText('pick-pi').click();
+      });
+      expect(screen.getByTestId('harness').textContent).toBe('pi-sdk');
+
+      rerender(
+        <Harness machines={[mkMachine('machine-a', BOTH_HARNESSES)]} harnessesLoading={false} />
+      );
+
+      expect(screen.getByTestId('harness').textContent).toBe('pi-sdk');
+    });
+  });
+
+  it('applies the top favourite when favourites load last, after capabilities', () => {
+    const machines = [mkMachine('machine-a', BOTH_HARNESSES)];
+    const { rerender } = render(<Harness machines={machines} />);
+    expect(screen.getByTestId('harness').textContent).toBe('none');
+
+    favoritesState = { favorites: [entry('opencode-sdk', 'm2'), entry('pi-sdk', 'p1')] };
+    rerender(<Harness machines={machines} />);
+
+    expect(screen.getByTestId('harness').textContent).toBe('opencode-sdk');
+    expect(screen.getByTestId('model').textContent).toBe('m2');
   });
 });

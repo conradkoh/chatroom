@@ -6,6 +6,7 @@ import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { SetupStepFooter, SetupStepLayout, setupPrimaryButtonClassName } from './SetupStepLayout';
+import { SetupWorkspaceLoadingPanel } from './SetupWorkspaceLoadingPanel';
 import type {
   MachineInfo,
   UserMachine,
@@ -78,7 +79,13 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     Map<string, { harness: AgentHarness; model: string }>
   >(() => new Map());
 
-  const { availableHarnesses, harnessVersions } = useMachineCapabilities(machineId);
+  // Harnesses are only known once the machine's capabilities load. Cards wait for them, so the
+  // favourite default and the initial selection never run against an empty harness list.
+  const {
+    availableHarnesses,
+    harnessVersions,
+    isLoading: harnessesLoading,
+  } = useMachineCapabilities(machineId);
   const lockedMachine = useMemo<MachineInfo | null>(() => {
     const base = machines.find((m) => m.machineId === machineId);
     if (!base) return null;
@@ -166,7 +173,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     <button
       type="button"
       onClick={() => void handleStartAll()}
-      disabled={isStartingAll || isLoadingMachines}
+      disabled={isStartingAll || isLoadingMachines || harnessesLoading}
       className={setupPrimaryButtonClassName}
     >
       {isStartingAll ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
@@ -222,30 +229,35 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           }}
         >
           <div className="border border-chatroom-border">
-            {persistentTeamRoles.map((role) => {
-              const participant = participants.find(
-                (p) => p.role.toLowerCase() === role.toLowerCase()
-              );
-              return (
-                <InlineAgentCard
-                  key={role}
-                  role={role}
-                  allRoles={persistentTeamRoles}
-                  lastSeenAt={participant?.lastSeenAt ?? null}
-                  statusLabel="OFFLINE"
-                  statusVariant="offline"
-                  prompt=""
-                  chatroomId={chatroomId}
-                  teamId={teamId}
-                  setupMode
-                  lockedMachineId={machineId}
-                  lockedWorkingDir={workingDir}
-                  onSetupConfigChange={(harness, model) =>
-                    handleSetupConfigChange(role, harness, model)
-                  }
-                />
-              );
-            })}
+            {harnessesLoading ? (
+              <SetupWorkspaceLoadingPanel label="Loading agent harnesses..." />
+            ) : (
+              persistentTeamRoles.map((role) => {
+                const participant = participants.find(
+                  (p) => p.role.toLowerCase() === role.toLowerCase()
+                );
+                return (
+                  <InlineAgentCard
+                    key={role}
+                    role={role}
+                    allRoles={persistentTeamRoles}
+                    lastSeenAt={participant?.lastSeenAt ?? null}
+                    statusLabel="OFFLINE"
+                    statusVariant="offline"
+                    prompt=""
+                    chatroomId={chatroomId}
+                    teamId={teamId}
+                    setupMode
+                    lockedMachineId={machineId}
+                    lockedWorkingDir={workingDir}
+                    harnessesLoading={harnessesLoading}
+                    onSetupConfigChange={(harness, model) =>
+                      handleSetupConfigChange(role, harness, model)
+                    }
+                  />
+                );
+              })
+            )}
           </div>
         </AgentControlDataProvider>
       </div>

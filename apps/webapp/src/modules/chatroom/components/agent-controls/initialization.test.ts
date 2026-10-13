@@ -219,6 +219,14 @@ describe('isReadyToInitialize', () => {
       isReadyToInitialize({ ...ready, workspaceId: 'ws-1', configurationLoading: false })
     ).toBe(true);
   });
+
+  it('waits for the machine harness list to load, so it never initializes against an empty list', () => {
+    expect(isReadyToInitialize({ ...ready, harnessesLoading: true })).toBe(false);
+  });
+
+  it('is ready once the machine harness list has loaded', () => {
+    expect(isReadyToInitialize({ ...ready, harnessesLoading: false })).toBe(true);
+  });
 });
 
 describe('resolveInitialSelection', () => {

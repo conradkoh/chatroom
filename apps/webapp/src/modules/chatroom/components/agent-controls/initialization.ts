@@ -241,15 +241,31 @@ export interface InitialSelection {
   seededFromConfig: boolean;
 }
 
-/** Initialization runs once, when machines are known and the selected config has loaded. */
+/** True while an input that the initial selection reads from has not loaded yet. */
+function isAwaitingInputs(args: {
+  workspaceId?: string;
+  configurationLoading: boolean;
+  harnessesLoading?: boolean;
+}): boolean {
+  return (
+    args.harnessesLoading === true || (args.workspaceId !== undefined && args.configurationLoading)
+  );
+}
+
+/**
+ * Initialization runs once, when machines are known, the machine's harness list has loaded, and the
+ * selected config has loaded. Harness-derived fields (saved harness, only-installed harness) are
+ * empty until the list loads, so initializing earlier would lock in the wrong harness.
+ */
 export function isReadyToInitialize(args: {
   isInitialized: boolean;
   connectedCount: number;
   workspaceId?: string;
   configurationLoading: boolean;
+  harnessesLoading?: boolean;
 }): boolean {
   if (args.isInitialized || args.connectedCount === 0) return false;
-  return !(args.workspaceId !== undefined && args.configurationLoading);
+  return !isAwaitingInputs(args);
 }
 
 function pickInitialMachine(input: InitializationInputs): string | null {

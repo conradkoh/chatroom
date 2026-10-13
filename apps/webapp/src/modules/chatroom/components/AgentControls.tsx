@@ -91,6 +91,8 @@ interface SelectionSyncArgs extends Omit<InitializationInputs, 'teamConfigHarnes
   configurationLoading: boolean;
   chatroomWorkspaces?: Workspace[];
   isInitialized: boolean;
+  /** The machine's harness list is still loading, so initialization must wait for it. */
+  harnessesLoading: boolean;
   previousTeamIdRef: RefObject<string | undefined>;
   initialTeamConfigHarnessRef: RefObject<AgentHarness | undefined>;
   harnessTouchedRef: RefObject<boolean>;
@@ -113,6 +115,7 @@ function useSelectionInitialization(args: SelectionSyncArgs): void {
     workspaceId,
     configurationLoading,
     isInitialized,
+    harnessesLoading,
     connectedMachines,
     roleConfigs,
     runningAgentConfig,
@@ -158,7 +161,7 @@ function useSelectionInitialization(args: SelectionSyncArgs): void {
     initialTeamConfigHarnessRef.current = teamConfigHarness;
   }
 
-  // Fires exactly once — when machines first become available.
+  // Fires exactly once — when machines first become available and their harness list has loaded.
   // The "last used" config is derived solely from the persisted launch snapshot (roleConfigs).
   useEffect(() => {
     if (
@@ -167,6 +170,7 @@ function useSelectionInitialization(args: SelectionSyncArgs): void {
         connectedCount: connectedMachines.length,
         workspaceId,
         configurationLoading,
+        harnessesLoading,
       })
     )
       return;
@@ -187,11 +191,14 @@ function useSelectionInitialization(args: SelectionSyncArgs): void {
     // favourite default must not run for it.
     if (init.seededFromConfig) favoriteDefaultAppliedForRef.current = init.machineId;
     setSelectedMachineId(init.machineId);
-    setSelectedHarness(init.harness);
+    // An explicit harness pick made before initialization is the user's choice and must not be
+    // replaced by the derived one.
+    if (!harnessTouchedRef.current) setSelectedHarness(init.harness);
     setWorkingDir(init.workingDir);
     setIsInitialized(true);
   }, [
     isInitialized,
+    harnessesLoading,
     connectedMachines,
     roleConfigs,
     runningAgentConfig,
@@ -216,6 +223,8 @@ interface FavoriteDefaultArgs {
   roleConfigs: AgentConfig[];
   runningAgentConfig: AgentConfig | undefined;
   availableHarnessesForMachine: AgentHarness[];
+  /** The machine's harness list is still loading. The one-shot default must wait for it. */
+  harnessesLoading: boolean;
   harnessTouchedRef: RefObject<boolean>;
   favoriteDefaultAppliedForRef: RefObject<string | null>;
   setSelectedHarness: Dispatch<SetStateAction<AgentHarness | null>>;
@@ -226,6 +235,9 @@ interface FavoriteDefaultArgs {
  * favourites (same scope as RemoteTabContent, so the query is shared) pick the top usable harness.
  * Persisted snapshots, running agents, seeded team config and explicit user choices always win.
  * Returns the favourites so the model options can use them.
+ *
+ * CONSTRAINT: the one-shot ref is consumed only once the harness list is loaded. Consuming it
+ * against an empty list would drop the default for good, because the list fills in later.
  */
 function useFavoriteHarnessDefault(args: FavoriteDefaultArgs): readonly MachineConfigEntry[] {
   const {
@@ -237,6 +249,7 @@ function useFavoriteHarnessDefault(args: FavoriteDefaultArgs): readonly MachineC
     roleConfigs,
     runningAgentConfig,
     availableHarnessesForMachine,
+    harnessesLoading,
     harnessTouchedRef,
     favoriteDefaultAppliedForRef,
     setSelectedHarness,
@@ -252,10 +265,14 @@ function useFavoriteHarnessDefault(args: FavoriteDefaultArgs): readonly MachineC
   const { favorites: defaultFavorites, isLoading: defaultFavoritesLoading } =
     useMachineConfigFavorites(defaultsFavoriteScope);
 
-  // Ready once the machine is initialized and its favourites have loaded. Until then the default
-  // is not decided, so a late load can still apply it.
+  // Ready once the machine is initialized, its harness list and its favourites have loaded. Until
+  // then the default is not decided, so a late load can still apply it.
   const favoriteDefaultReady =
-    isInitialized && !!selectedMachineId && !!defaultsFavoriteScope && !defaultFavoritesLoading;
+    isInitialized &&
+    !!selectedMachineId &&
+    !!defaultsFavoriteScope &&
+    !defaultFavoritesLoading &&
+    !harnessesLoading;
 
   useEffect(() => {
     if (!favoriteDefaultReady || favoriteDefaultAppliedForRef.current === selectedMachineId) return;
@@ -298,6 +315,7 @@ export function useAgentControls({
   lockedMachineId,
   lockedWorkingDir,
   teamId,
+  harnessesLoading = false,
 }: {
   role: string;
   chatroomId: string;
@@ -314,6 +332,9 @@ export function useAgentControls({
   teamConfigMachineId?: string | null;
   /** The selected workspace's last configuration is still loading. */
   configurationLoading?: boolean;
+  /** The machine's harness list (capabilities) is still loading. Initialization and the favourite
+   *  default wait for it, so they never run against an empty list. */
+  harnessesLoading?: boolean;
   /** Team ID for role/team-specific defaults. */
   teamId?: string;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
@@ -374,6 +395,7 @@ export function useAgentControls({
     teamConfigHarness,
     workspaceId,
     configurationLoading,
+    harnessesLoading,
     connectedMachines,
     roleConfigs,
     runningAgentConfig,
@@ -405,6 +427,7 @@ export function useAgentControls({
     roleConfigs,
     runningAgentConfig,
     availableHarnessesForMachine,
+    harnessesLoading,
     harnessTouchedRef,
     favoriteDefaultAppliedForRef,
     setSelectedHarness,
