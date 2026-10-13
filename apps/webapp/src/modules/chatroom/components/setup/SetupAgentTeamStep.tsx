@@ -3,8 +3,9 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { Loader2, Play } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode, type Ref } from 'react';
 
+import { SetupStepFooter, SetupStepLayout, setupPrimaryButtonClassName } from './SetupStepLayout';
 import type {
   MachineInfo,
   UserMachine,
@@ -43,6 +44,11 @@ interface SetupAgentTeamStepProps {
   onBack?: () => void;
   /** Called after every agent in the batch started without error. */
   onStartRequested?: () => void;
+  /** Rendered first in the body, above the workspace card. */
+  bodyStart?: ReactNode;
+  /** Left side of the footer, for example "Open chatroom". */
+  footerSecondary?: ReactNode;
+  bodyRef?: Ref<HTMLDivElement>;
 }
 
 // fallow-ignore-next-line complexity
@@ -61,6 +67,9 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   onAllAgentsStarted,
   onBack,
   onStartRequested,
+  bodyStart,
+  footerSecondary,
+  bodyRef,
 }: SetupAgentTeamStepProps) {
   const [isStartingAll, setIsStartingAll] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -152,8 +161,25 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     onStartRequested,
   ]);
 
+  const startButton = !allJoined ? (
+    <button
+      type="button"
+      onClick={() => void handleStartAll()}
+      disabled={isStartingAll || isLoadingMachines}
+      className={setupPrimaryButtonClassName}
+    >
+      {isStartingAll ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+      Start Agents
+    </button>
+  ) : undefined;
+  const footer =
+    footerSecondary || !allJoined ? (
+      <SetupStepFooter secondary={footerSecondary} primary={startButton} />
+    ) : undefined;
+
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <SetupStepLayout bodyRef={bodyRef} footer={footer}>
+      {bodyStart}
       <div className="flex items-start justify-between gap-4 p-4 border border-chatroom-border bg-chatroom-bg-surface">
         <div className="min-w-0 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
@@ -225,20 +251,6 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
 
       {startError && <p className="text-xs text-chatroom-status-error">{startError}</p>}
 
-      {!allJoined && (
-        <div className="flex justify-end pt-2">
-          <button
-            type="button"
-            onClick={() => void handleStartAll()}
-            disabled={isStartingAll || isLoadingMachines}
-            className="flex items-center gap-2 px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
-          >
-            {isStartingAll ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-            Start Agents
-          </button>
-        </div>
-      )}
-
       {allJoined && (
         <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
           <p className="text-sm font-bold uppercase tracking-widest text-chatroom-status-success">
@@ -247,6 +259,6 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           <p className="text-xs text-chatroom-text-muted">Closing setup...</p>
         </div>
       )}
-    </div>
+    </SetupStepLayout>
   );
 });

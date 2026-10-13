@@ -250,3 +250,27 @@ describe('CloneRepoForm', () => {
     expect(urlInput()).toBeDisabled();
   });
 });
+
+describe('CloneRepoForm shared footer', () => {
+  it('keeps Clone in the step footer and starts the clone through the form attribute', async () => {
+    const user = userEvent.setup();
+    const clone = makeClone({ kind: 'idle' });
+    renderForm(clone);
+
+    await user.type(urlInput(), REPO_URL);
+    await user.type(cloneToInput(), CLONE_TO);
+    const submit = cloneButton();
+
+    expect(submit.closest('[data-slot="setup-step-footer"]')).not.toBeNull();
+    await user.click(submit);
+    expect(clone.start).toHaveBeenCalledWith('machine-1', REPO_URL, CLONE_TO);
+  });
+
+  it('keeps Back in the step footer, disabled while a clone is locked', () => {
+    renderForm(makeClone({ kind: 'cloning', phase: 'Receiving objects', percent: 10 }, REQUEST_ID));
+
+    const back = screen.getByRole('button', { name: 'Back' });
+    expect(back.closest('[data-slot="setup-step-footer"]')).not.toBeNull();
+    expect(back).toBeDisabled();
+  });
+});

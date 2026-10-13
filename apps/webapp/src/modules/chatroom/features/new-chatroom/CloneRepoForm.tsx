@@ -1,7 +1,7 @@
 'use client';
 
 import { validateGitCloneUrl } from '@workspace/shared/domain/git-clone';
-import { useEffect, useRef, type FormEvent } from 'react';
+import { useEffect, useId, useRef, type FormEvent } from 'react';
 
 import { CloneFields } from './CloneFields';
 import { CloneStatusPanel } from './CloneStatusPanel';
@@ -9,6 +9,12 @@ import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
 import { useCloneTarget } from './useCloneTarget';
 import { useFocusFirstControl } from './useFocusFirstControl';
 import type { UseGitCloneRequestResult } from './useGitCloneRequest';
+import {
+  SetupStepFooter,
+  SetupStepLayout,
+  setupPrimaryButtonClassName,
+  setupSecondaryButtonClassName,
+} from '../../components/setup/SetupStepLayout';
 import type { UserMachine } from '../../types/machine';
 
 interface CloneRepoFormProps {
@@ -82,7 +88,7 @@ function CreateChatroomButton({
       type="button"
       onClick={() => onCreate(clonedPath)}
       disabled={isCreating}
-      className="px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
+      className={setupPrimaryButtonClassName}
     >
       {isCreating ? 'Creating…' : 'Create chatroom'}
     </button>
@@ -118,8 +124,9 @@ export function CloneRepoForm({
   onWorkspaceReady,
   onBack,
 }: CloneRepoFormProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  useFocusFirstControl(containerRef);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useFocusFirstControl(bodyRef);
+  const formId = useId();
 
   const target = useCloneTarget(machine);
   const viewState = clone.viewState;
@@ -139,8 +146,42 @@ export function CloneRepoForm({
   };
 
   return (
-    <div ref={containerRef} className="flex flex-col gap-4 min-h-[18rem]">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <SetupStepLayout
+      bodyRef={bodyRef}
+      footer={
+        <SetupStepFooter
+          secondary={
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={locked}
+              className={setupSecondaryButtonClassName}
+            >
+              Back
+            </button>
+          }
+          primary={
+            completedPath === null ? (
+              <button
+                type="submit"
+                form={formId}
+                disabled={!canClone}
+                className={setupPrimaryButtonClassName}
+              >
+                Clone
+              </button>
+            ) : (
+              <CreateChatroomButton
+                clonedPath={completedPath}
+                isCreating={isCreating}
+                onCreate={onWorkspaceReady}
+              />
+            )
+          }
+        />
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
         <CloneFields
           repoUrl={target.repoUrl}
           cloneTo={target.cloneTo}
@@ -159,33 +200,7 @@ export function CloneRepoForm({
         <CloneStatusPanel state={viewState} machineName={machine.hostname} onRetry={clone.reset} />
 
         <CreateRetryAlert clonedPath={completedPath} createError={createError} />
-
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            disabled={locked}
-            className="px-4 py-2 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50"
-          >
-            Back
-          </button>
-          {completedPath === null ? (
-            <button
-              type="submit"
-              disabled={!canClone}
-              className="px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
-            >
-              Clone
-            </button>
-          ) : (
-            <CreateChatroomButton
-              clonedPath={completedPath}
-              isCreating={isCreating}
-              onCreate={onWorkspaceReady}
-            />
-          )}
-        </div>
       </form>
-    </div>
+    </SetupStepLayout>
   );
 }

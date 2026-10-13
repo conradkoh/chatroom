@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useFocusFirstControl } from './useFocusFirstControl';
 import {
@@ -12,6 +12,12 @@ import {
   filterPickerItems,
 } from '../../components/picker';
 import { SetupFolderPickerField } from '../../components/setup/SetupFolderPickerField';
+import {
+  SetupStepFooter,
+  SetupStepLayout,
+  setupPrimaryButtonClassName,
+  setupSecondaryButtonClassName,
+} from '../../components/setup/SetupStepLayout';
 import { useSetupWorkspaceFolderPicker } from '../../components/setup/useSetupWorkspaceFolderPicker';
 import type { UserMachine } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
@@ -77,34 +83,41 @@ function FolderListBody({
   );
 }
 
-/** Back and Create. The label changes while the chatroom is being created. */
-function CreateFolderActions({
+/** Back and the submit that creates the chatroom. The submit reaches the form by id. */
+function FolderFormFooter({
+  formId,
   canCreate,
   isCreating,
   onBack,
 }: {
+  formId: string;
   canCreate: boolean;
   isCreating: boolean;
   onBack: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <button
-        type="button"
-        onClick={onBack}
-        disabled={isCreating}
-        className="px-4 py-2 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50"
-      >
-        Back
-      </button>
-      <button
-        type="submit"
-        disabled={!canCreate}
-        className="px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
-      >
-        {isCreating ? 'Creating…' : 'Create chatroom'}
-      </button>
-    </div>
+    <SetupStepFooter
+      secondary={
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={isCreating}
+          className={setupSecondaryButtonClassName}
+        >
+          Back
+        </button>
+      }
+      primary={
+        <button
+          type="submit"
+          form={formId}
+          disabled={!canCreate}
+          className={setupPrimaryButtonClassName}
+        >
+          {isCreating ? 'Creating…' : 'Create chatroom'}
+        </button>
+      }
+    />
   );
 }
 
@@ -119,8 +132,9 @@ export function ExistingFolderForm({
   onSubmit,
   onBack,
 }: ExistingFolderFormProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  useFocusFirstControl(containerRef);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useFocusFirstControl(bodyRef);
+  const formId = useId();
 
   const [selectedPath, setSelectedPath] = useState('');
   const [search, setSearch] = useState('');
@@ -154,7 +168,17 @@ export function ExistingFolderForm({
   );
 
   return (
-    <div ref={containerRef} className="flex flex-col gap-6 min-h-[18rem]">
+    <SetupStepLayout
+      bodyRef={bodyRef}
+      footer={
+        <FolderFormFooter
+          formId={formId}
+          canCreate={canCreate}
+          isCreating={isCreating}
+          onBack={onBack}
+        />
+      }
+    >
       <section>
         <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
           Folders on this machine
@@ -173,7 +197,7 @@ export function ExistingFolderForm({
         </div>
       </section>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
         <SetupFolderPickerField
           selectedPath={selectedPath}
           onPathChange={setSelectedPath}
@@ -191,9 +215,7 @@ export function ExistingFolderForm({
         />
 
         {pickerError && <p className="text-xs text-chatroom-status-error">{pickerError}</p>}
-
-        <CreateFolderActions canCreate={canCreate} isCreating={isCreating} onBack={onBack} />
       </form>
-    </div>
+    </SetupStepLayout>
   );
 }

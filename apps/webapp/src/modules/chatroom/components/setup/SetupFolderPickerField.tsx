@@ -44,7 +44,7 @@ function BrowseButton({
       type="button"
       onClick={onBrowse}
       disabled={blocked || isPending}
-      className="flex items-center gap-2 px-3 py-2 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50"
+      className="flex h-10 shrink-0 items-center gap-2 px-3 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 sm:h-9"
     >
       <BrowseIcon isPending={isPending} />
       Browse
@@ -107,7 +107,7 @@ export const SetupFolderPickerField = memo(function SetupFolderPickerField({
 }: SetupFolderPickerFieldProps) {
   return (
     <div>
-      <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-2">
         Workspace Folder
       </h3>
       <div className="flex flex-col gap-3">
@@ -119,7 +119,7 @@ export const SetupFolderPickerField = memo(function SetupFolderPickerField({
             onChange={(e) => onPathChange(e.target.value)}
             placeholder={placeholder}
             disabled={disabled || isPending}
-            className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-sm font-mono text-chatroom-text-primary px-3 py-2 focus:outline-none focus:border-chatroom-accent disabled:opacity-50"
+            className="min-w-0 h-10 sm:h-9 flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-sm font-mono text-chatroom-text-primary px-3 focus:outline-none focus:border-chatroom-accent disabled:opacity-50"
           />
           <BrowseButton
             onBrowse={onBrowse}

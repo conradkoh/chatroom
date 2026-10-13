@@ -95,11 +95,25 @@ vi.mock('@/hooks/useIsDesktop', () => ({ useIsDesktop: () => true }));
 vi.mock('../../components/setup/SetupAgentTeamStep', async () => {
   const ReactModule = await import('react');
   return {
-    SetupAgentTeamStep: (props: { machineId: string; workingDir: string; onBack?: unknown }) =>
+    SetupAgentTeamStep: (props: {
+      machineId: string;
+      workingDir: string;
+      onBack?: unknown;
+      footerSecondary?: unknown;
+    }) =>
       ReactModule.createElement(
-        'div',
-        { 'data-testid': 'agents-step' },
-        `${props.machineId} ${props.workingDir} ${props.onBack ? 'back' : 'no-back'}`
+        ReactModule.Fragment,
+        null,
+        ReactModule.createElement(
+          'div',
+          { 'data-testid': 'agents-step' },
+          `${props.machineId} ${props.workingDir} ${props.onBack ? 'back' : 'no-back'}`
+        ),
+        ReactModule.createElement(
+          'div',
+          { 'data-slot': 'setup-step-footer' },
+          props.footerSecondary as React.ReactNode
+        )
       ),
   };
 });
@@ -339,7 +353,7 @@ describe('NewChatroomWizard leaving during a clone', () => {
 
       await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
       expect(onCancel).not.toHaveBeenCalled();
-      expect(screen.getByRole('tab', { name: 'From Git repository' })).toBeTruthy();
+      expect(screen.getByRole('tab', { name: 'Git repository' })).toBeTruthy();
     }
   );
 
@@ -427,5 +441,64 @@ describe('NewChatroomWizard leaving during a clone', () => {
 
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(onCancel).not.toHaveBeenCalled();
+  });
+});
+
+/** The shared step footer that contains an action, or null when the action is outside a footer. */
+function footerOf(element: HTMLElement): HTMLElement | null {
+  return element.closest<HTMLElement>('[data-slot="setup-step-footer"]');
+}
+
+describe('NewChatroomWizard shared footer', () => {
+  it('keeps Continue, Clone and Create chatroom in the step footer', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    expect(footerOf(screen.getByRole('button', { name: 'Continue' }))).not.toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(footerOf(screen.getByRole('button', { name: 'Clone' }))).not.toBeNull();
+
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
+    await user.click(screen.getByRole('option', { name: FOLDER }));
+    expect(footerOf(screen.getByRole('button', { name: 'Create chatroom' }))).not.toBeNull();
+  });
+
+  it('keeps Open chatroom in the agents step footer', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
+    await user.click(screen.getByRole('option', { name: FOLDER }));
+    await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
+
+    await waitFor(() => expect(screen.getByTestId('agents-step')).toBeTruthy());
+    expect(footerOf(screen.getByRole('button', { name: 'Open chatroom' }))).not.toBeNull();
+  });
+
+  it('Enter in the folder search does not create a chatroom', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
+    await user.type(screen.getByPlaceholderText('Search folders…'), 'app{Enter}');
+
+    expect(mocks.createWithWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('the footer Create chatroom submits the existing-folder form', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
+    await user.click(screen.getByRole('option', { name: FOLDER }));
+    await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
+
+    await waitFor(() => expect(mocks.createWithWorkspace).toHaveBeenCalledTimes(1));
+    expect(mocks.createWithWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ workingDir: FOLDER })
+    );
   });
 });

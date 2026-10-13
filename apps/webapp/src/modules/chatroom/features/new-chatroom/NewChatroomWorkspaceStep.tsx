@@ -47,7 +47,7 @@ function SourceTab({
       aria-selected={selected}
       disabled={disabled}
       onClick={onSelect}
-      className={`flex-1 px-4 py-2 text-xs font-bold uppercase tracking-wider border-chatroom-border disabled:opacity-50 ${
+      className={`flex min-h-10 flex-1 items-center justify-center px-2 py-2 text-center text-xs font-bold uppercase leading-tight tracking-wider border-chatroom-border disabled:opacity-50 sm:px-4 ${
         selected
           ? 'bg-chatroom-bg-hover text-chatroom-text-primary'
           : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
@@ -74,7 +74,7 @@ function SourceTabs({
       className="flex border-2 border-chatroom-border"
     >
       <SourceTab selected={source === 'clone'} disabled={false} onSelect={() => onSelect('clone')}>
-        From Git repository
+        Git repository
       </SourceTab>
       <SourceTab
         selected={source === 'existing'}
@@ -93,6 +93,11 @@ function SourceTabs({
  */
 function showsTopCreateError(createError: string | null, state: GitCloneViewState): boolean {
   return createError !== null && state.kind !== 'completed';
+}
+
+/** Class for a tab panel. The active panel fills the step; the inactive one is hidden. */
+function panelClassName(active: boolean): string {
+  return active ? 'flex min-h-0 flex-1 flex-col' : 'hidden';
 }
 
 /** The confirm for leaving an unsaved clone. Rendered only while it is open. */
@@ -131,30 +136,36 @@ export function NewChatroomWorkspaceStep({
   const escape = useWorkspaceEscape({ viewState: clone.viewState, isCreating, onCancel });
 
   return (
-    <div className="flex flex-col gap-4">
-      {!isMachineConnected && (
-        <p
-          role="status"
-          className="border border-chatroom-status-warning p-3 text-xs text-chatroom-text-secondary"
-        >
-          {machine.hostname} is offline. Browse and Clone are unavailable until the daemon
-          reconnects.
-        </p>
-      )}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 flex-col gap-3 px-4 pt-4 sm:px-6 sm:pt-5">
+        {!isMachineConnected && (
+          <p
+            role="status"
+            className="border border-chatroom-status-warning p-3 text-xs text-chatroom-text-secondary"
+          >
+            {machine.hostname} is offline. Browse and Clone are unavailable until the daemon
+            reconnects.
+          </p>
+        )}
 
-      {showsTopCreateError(createError, clone.viewState) && (
-        <p role="alert" className="text-xs text-chatroom-status-error">
-          {createError}
-        </p>
-      )}
+        {showsTopCreateError(createError, clone.viewState) && (
+          <p role="alert" className="text-xs text-chatroom-status-error">
+            {createError}
+          </p>
+        )}
 
-      <SourceTabs
-        source={source}
-        cloneInFlight={isCloneInFlight(clone.viewState)}
-        onSelect={setSource}
-      />
+        <SourceTabs
+          source={source}
+          cloneInFlight={isCloneInFlight(clone.viewState)}
+          onSelect={setSource}
+        />
+      </div>
 
-      <div role="tabpanel" hidden={source !== 'clone'}>
+      <div
+        role="tabpanel"
+        hidden={source !== 'clone'}
+        className={panelClassName(source === 'clone')}
+      >
         <CloneRepoForm
           machine={machine}
           isMachineConnected={isMachineConnected}
@@ -166,7 +177,11 @@ export function NewChatroomWorkspaceStep({
         />
       </div>
 
-      <div role="tabpanel" hidden={source !== 'existing'}>
+      <div
+        role="tabpanel"
+        hidden={source !== 'existing'}
+        className={panelClassName(source === 'existing')}
+      >
         <ExistingFolderForm
           machine={machine}
           isMachineConnected={isMachineConnected}

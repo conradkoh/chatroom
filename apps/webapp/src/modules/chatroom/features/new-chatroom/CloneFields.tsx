@@ -4,7 +4,7 @@ import { validateGitCloneUrl } from '@workspace/shared/domain/git-clone';
 import { FolderOpen } from 'lucide-react';
 
 const INPUT_CLASS =
-  'flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-sm font-mono text-chatroom-text-primary px-3 py-2 focus:outline-none focus:border-chatroom-accent disabled:opacity-50';
+  'min-w-0 flex-1 h-10 sm:h-9 bg-chatroom-bg-tertiary border border-chatroom-border text-sm font-mono text-chatroom-text-primary px-3 focus:outline-none focus:border-chatroom-accent disabled:opacity-50';
 
 function RepoUrlHint({ repoUrl }: { repoUrl: string }) {
   const result = validateGitCloneUrl(repoUrl);
@@ -100,7 +100,7 @@ function CloneToField({
           type="button"
           onClick={onBrowse}
           disabled={browseDisabled}
-          className="flex items-center gap-2 px-3 py-2 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50"
+          className="flex h-10 shrink-0 items-center gap-2 px-3 py-2 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 sm:h-9"
         >
           <FolderOpen size={14} />
           Browse

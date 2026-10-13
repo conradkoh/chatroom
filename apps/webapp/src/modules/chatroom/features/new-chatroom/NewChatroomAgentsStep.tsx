@@ -10,6 +10,7 @@ import {
   teamConfigToUpdateArgs,
 } from '../../components/AgentPanel/TeamSelectorDropdown';
 import { SetupAgentTeamStep } from '../../components/setup/SetupAgentTeamStep';
+import { setupSecondaryButtonClassName } from '../../components/setup/SetupStepLayout';
 import { SetupWorkspaceLoadingPanel } from '../../components/setup/SetupWorkspaceLoadingPanel';
 import { useTeamConfigs, type TeamConfigEntry } from '../../hooks/use-team-configs';
 import { useAgentCommandSender } from '../../hooks/useAgentCommandSender';
@@ -37,8 +38,8 @@ function AgentsStepContent({
   connectedMachines,
   onDone,
 }: NewChatroomAgentsStepProps & { team: ChatroomTeamState }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  useFocusFirstControl(containerRef);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useFocusFirstControl(bodyRef);
 
   const { configs: agentConfigs } = useAgentConfigs(chatroomId, { enabled: true });
   const sendCommand = useAgentCommandSender();
@@ -53,41 +54,36 @@ function AgentsStepContent({
   );
 
   return (
-    <div ref={containerRef} className="flex flex-col gap-4 min-h-[18rem]">
-      <TeamSelectorDropdown
-        teamName={team.teamName ?? ''}
-        teamId={team.teamId}
-        defaultTeamId={defaultTeamId}
-        teams={teams}
-        onTeamChange={handleTeamChange}
-      />
-
-      <SetupAgentTeamStep
-        chatroomId={chatroomId}
-        teamId={team.teamId}
-        teamRoles={team.teamRoles}
-        teamEntryPoint={team.entryPoint}
-        participants={[]}
-        machineId={machineId}
-        workingDir={workingDir}
-        machines={connectedMachines}
-        isLoadingMachines={false}
-        agentConfigs={agentConfigs}
-        sendCommand={sendCommand}
-        onAllAgentsStarted={onDone}
-        onStartRequested={onDone}
-      />
-
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onDone}
-          className="px-4 py-2 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover"
-        >
+    <SetupAgentTeamStep
+      bodyRef={bodyRef}
+      bodyStart={
+        <TeamSelectorDropdown
+          teamName={team.teamName ?? ''}
+          teamId={team.teamId}
+          defaultTeamId={defaultTeamId}
+          teams={teams}
+          onTeamChange={handleTeamChange}
+        />
+      }
+      footerSecondary={
+        <button type="button" onClick={onDone} className={setupSecondaryButtonClassName}>
           Open chatroom
         </button>
-      </div>
-    </div>
+      }
+      chatroomId={chatroomId}
+      teamId={team.teamId}
+      teamRoles={team.teamRoles}
+      teamEntryPoint={team.entryPoint}
+      participants={[]}
+      machineId={machineId}
+      workingDir={workingDir}
+      machines={connectedMachines}
+      isLoadingMachines={false}
+      agentConfigs={agentConfigs}
+      sendCommand={sendCommand}
+      onAllAgentsStarted={onDone}
+      onStartRequested={onDone}
+    />
   );
 }
 
@@ -98,7 +94,7 @@ function AgentsStepContent({
 export function NewChatroomAgentsStep(props: NewChatroomAgentsStepProps) {
   const team = useChatroomTeam(props.chatroomId);
   if (team.isLoading) {
-    return <SetupWorkspaceLoadingPanel />;
+    return <SetupWorkspaceLoadingPanel label="Loading team..." />;
   }
   return <AgentsStepContent {...props} team={team} />;
 }

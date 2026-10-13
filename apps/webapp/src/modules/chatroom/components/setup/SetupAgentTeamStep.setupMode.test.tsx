@@ -201,3 +201,39 @@ describe('SetupAgentTeamStep setup mode harness selection', () => {
     expect(screen.getAllByText(label, { exact: false }).length).toBeGreaterThan(0);
   });
 });
+
+describe('SetupAgentTeamStep shared footer', () => {
+  it('keeps Start Agents in the step footer', async () => {
+    renderSetupStep();
+
+    const start = await screen.findByRole('button', { name: 'Start Agents' });
+    expect(start.closest('[data-slot="setup-step-footer"]')).not.toBeNull();
+  });
+
+  it('renders the secondary action before Start Agents in the same footer', async () => {
+    renderSetupStep({ footerSecondary: <button type="button">Open chatroom</button> });
+
+    const start = await screen.findByRole('button', { name: 'Start Agents' });
+    const secondary = screen.getByRole('button', { name: 'Open chatroom' });
+    const footer = start.closest('[data-slot="setup-step-footer"]') as HTMLElement;
+    expect(footer).toContainElement(secondary);
+    expect(
+      secondary.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('has no primary action once every agent has joined', async () => {
+    renderSetupStep({
+      teamRoles: ['planner', 'builder'],
+      participants: [
+        { role: 'planner', lastSeenAt: Date.now() },
+        { role: 'builder', lastSeenAt: Date.now() },
+      ],
+      footerSecondary: <button type="button">Open chatroom</button>,
+    });
+
+    await waitFor(() => expect(screen.getByText('All Agents Ready')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Start Agents' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open chatroom' })).toBeTruthy();
+  });
+});
