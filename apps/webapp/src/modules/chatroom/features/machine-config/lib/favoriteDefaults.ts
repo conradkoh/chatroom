@@ -1,4 +1,4 @@
-import type { AgentHarness } from '../../../types/machine';
+import type { AgentConfig, AgentHarness } from '../../../types/machine';
 import type { MachineConfigEntry } from '../types/machineConfig';
 
 /**
@@ -38,4 +38,13 @@ export function pickFavoriteModelForHarness(
 ): string | undefined {
   return favorites.find((f) => f.agentHarness === harness && visibleModels.includes(f.model))
     ?.model;
+}
+
+/** The favourite default is blocked by an explicit choice, a running agent, or a saved snapshot. */
+export function favoriteDefaultBlocked(
+  harnessTouched: boolean,
+  runningAgentConfig: AgentConfig | undefined,
+  hasSnapshot: boolean
+): boolean {
+  return harnessTouched || !!runningAgentConfig || hasSnapshot;
 }

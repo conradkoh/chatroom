@@ -5,7 +5,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { pickFavoriteModelForHarness } from '../../features/machine-config/lib/pickFavoriteDefault';
+import { pickFavoriteModelForHarness } from '../../features/machine-config/lib/favoriteDefaults';
 import type { MachineConfigEntry } from '../../features/machine-config/types/machineConfig';
 import {
   getMachineDisplayName,
@@ -51,15 +51,6 @@ export function deriveRehomeLabels(
 function displayNameOr(connectedMachines: MachineInfo[], machineId: string): string {
   const machine = connectedMachines.find((m) => m.machineId === machineId);
   return machine ? getMachineDisplayName(machine) : machineId;
-}
-
-/** The favourite default is blocked by an explicit choice, a running agent, or a saved snapshot. */
-export function favoriteDefaultBlocked(
-  harnessTouched: boolean,
-  runningAgentConfig: AgentConfig | undefined,
-  hasSnapshot: boolean
-): boolean {
-  return harnessTouched || !!runningAgentConfig || hasSnapshot;
 }
 
 // ─── Model ──────────────────────────────────────────────────────────

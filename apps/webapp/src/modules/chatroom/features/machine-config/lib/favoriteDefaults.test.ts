@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'vitest';
 
-import { favoriteHarnessDefault, pickFavoriteModelForHarness } from './pickFavoriteDefault';
-import type { AgentHarness } from '../../../types/machine';
+import {
+  favoriteDefaultBlocked,
+  favoriteHarnessDefault,
+  pickFavoriteModelForHarness,
+} from './favoriteDefaults';
+import type { AgentConfig, AgentHarness } from '../../../types/machine';
 import type { MachineConfigEntry } from '../types/machineConfig';
 
 const OPENCODE = 'opencode-sdk' as AgentHarness;
@@ -75,5 +79,33 @@ describe('pickFavoriteModelForHarness', () => {
 
   test('ignores favourites for other harnesses', () => {
     expect(pickFavoriteModelForHarness([entry(PI, 'm2')], OPENCODE, ['m2'])).toBeUndefined();
+  });
+});
+
+describe('favoriteDefaultBlocked', () => {
+  const running = {
+    machineId: 'a',
+    hostname: 'host-a',
+    role: 'builder',
+    agentType: 'cursor',
+    availableHarnesses: ['cursor'],
+    workingDir: '/p',
+    updatedAt: 1,
+  } as AgentConfig;
+
+  test('is blocked by an explicit harness choice', () => {
+    expect(favoriteDefaultBlocked(true, undefined, false)).toBe(true);
+  });
+
+  test('is blocked by a running agent', () => {
+    expect(favoriteDefaultBlocked(false, running, false)).toBe(true);
+  });
+
+  test('is blocked by a saved snapshot', () => {
+    expect(favoriteDefaultBlocked(false, undefined, true)).toBe(true);
+  });
+
+  test('is not blocked when none of the three applies', () => {
+    expect(favoriteDefaultBlocked(false, undefined, false)).toBe(false);
   });
 });

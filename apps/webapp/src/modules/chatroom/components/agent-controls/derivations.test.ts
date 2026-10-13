@@ -6,7 +6,6 @@ import {
   deriveRehomeLabels,
   deriveRunningAgentConfig,
   deriveSelectedModel,
-  favoriteDefaultBlocked,
   isRehomeNeeded,
   restartModelFor,
   saveChoiceOf,
@@ -82,24 +81,6 @@ describe('deriveRehomeLabels', () => {
       previous: 'gone',
       next: 'host-b',
     });
-  });
-});
-
-describe('favoriteDefaultBlocked', () => {
-  it('is blocked by an explicit harness choice', () => {
-    expect(favoriteDefaultBlocked(true, undefined, false)).toBe(true);
-  });
-
-  it('is blocked by a running agent', () => {
-    expect(favoriteDefaultBlocked(false, mkConfig(), false)).toBe(true);
-  });
-
-  it('is blocked by a saved snapshot', () => {
-    expect(favoriteDefaultBlocked(false, undefined, true)).toBe(true);
-  });
-
-  it('is not blocked when none of the three applies', () => {
-    expect(favoriteDefaultBlocked(false, undefined, false)).toBe(false);
   });
 });
 

@@ -13,11 +13,7 @@ import {
   type SetStateAction,
 } from 'react';
 
-import {
-  deriveAgentStatus,
-  deriveRehomeLabels,
-  favoriteDefaultBlocked,
-} from './agent-controls/derivations';
+import { deriveAgentStatus, deriveRehomeLabels } from './agent-controls/derivations';
 import {
   isReadyToInitialize,
   resolveInitialSelection,
@@ -35,8 +31,11 @@ import { CopyButton } from './CopyButton';
 import type { MachineConnectivity } from '../../../hooks/useDaemonConnectivity';
 import { useMachineConfigFavorites } from '../features/machine-config/hooks/useMachineConfigFavorites';
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
+import {
+  favoriteDefaultBlocked,
+  favoriteHarnessDefault,
+} from '../features/machine-config/lib/favoriteDefaults';
 import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
-import { favoriteHarnessDefault } from '../features/machine-config/lib/pickFavoriteDefault';
 import type { MachineConfigEntry } from '../features/machine-config/types/machineConfig';
 import { useAgentStop } from '../hooks/useAgentStop';
 import type { AgentConfig, AgentHarness, MachineInfo, SendCommandFn } from '../types/machine';
