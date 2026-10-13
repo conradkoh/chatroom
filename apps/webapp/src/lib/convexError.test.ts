@@ -23,4 +23,16 @@ describe('getErrorMessage', () => {
   it('returns the fallback for a value that is not an Error', () => {
     expect(getErrorMessage('boom', 'Fallback')).toBe('Fallback');
   });
+
+  it('returns a ConvexError string payload as is', () => {
+    const error = new ConvexError('Too many commands (max 50)');
+
+    expect(getErrorMessage(error, 'Fallback')).toBe('Too many commands (max 50)');
+  });
+
+  it('falls back for an empty ConvexError string payload', () => {
+    const error = new ConvexError('');
+
+    expect(getErrorMessage(error, 'Fallback')).toBe('Fallback');
+  });
 });
