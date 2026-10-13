@@ -18,6 +18,7 @@ import type {
   DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
+import { runGitCloneJob, type GitCloneJobDeps } from './git-clone-job.js';
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
@@ -49,6 +50,7 @@ export interface DedupTracker {
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
+  gitCloneIds: Map<string, number>;
 }
 
 /** Union of services required to dispatch any command event. */
@@ -72,6 +74,7 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
+  evictStaleEntries(tracker.gitCloneIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 
@@ -83,6 +86,7 @@ export function createDedupTracker(): DedupTracker {
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
+    gitCloneIds: new Map<string, number>(),
   };
 }
 
@@ -236,6 +240,66 @@ function handlePickFolderCommandEffect(
   });
 }
 
+/**
+ * Clone targets with a job in flight, keyed by target path. The value is the owning request id.
+ * A second request for the same folder fails immediately instead of racing the first clone.
+ */
+const inFlightCloneTargets = new Map<string, string>();
+
+function logGitCloneWarning(error: unknown): void {
+  console.warn(`[${formatTimestamp()}] ⚠️  Git clone failed: ${getErrorMessage(error)}`);
+}
+
+function handleGitCloneCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.gitCloneIds.has(eventId)) return;
+    tracker.gitCloneIds.set(eventId, Date.now());
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitClone' }>;
+    const { requestId, targetPath, repoUrl } = typedEvent;
+    const session = yield* DaemonSessionService;
+    const base = { sessionId: session.sessionId, machineId: session.machineId, requestId };
+    const deps: GitCloneJobDeps = {
+      reportProgress: (p) =>
+        session.backend.mutation(api.gitCloneRequests.reportProgress, {
+          ...base,
+          phase: p.phase,
+          percent: p.percent,
+        }),
+      reportResult: (r) =>
+        session.backend.mutation(api.gitCloneRequests.reportResult, { ...base, ...r }),
+    };
+
+    const owner = inFlightCloneTargets.get(targetPath);
+    if (owner === requestId) return; // Same request redelivered while its clone still runs.
+    if (owner !== undefined) {
+      void deps
+        .reportResult({
+          status: 'failed',
+          errorCode: 'target_not_empty',
+          errorMessage: 'A clone into this folder is already in progress',
+        })
+        .catch(logGitCloneWarning);
+      return;
+    }
+
+    inFlightCloneTargets.set(targetPath, requestId);
+    console.log(`[${formatTimestamp()}] 📥 Git clone requested → ${targetPath}`);
+    // Fire-and-forget. MUST NOT be awaited: the inbox serializes MACHINE_COMMAND_KEY work and
+    // acks only after this handler returns, so awaiting a long clone would stall every command.
+    void runGitCloneJob(deps, { repoUrl, targetPath })
+      .catch(logGitCloneWarning)
+      .finally(() => {
+        if (inFlightCloneTargets.get(targetPath) === requestId) {
+          inFlightCloneTargets.delete(targetPath);
+        }
+      });
+  });
+}
+
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -293,6 +357,7 @@ const commandEventHandlers: {
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,
   'daemon.pickFolder': handlePickFolderCommandEffect,
+  'daemon.gitClone': handleGitCloneCommandEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
 };
 
