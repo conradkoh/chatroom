@@ -118,7 +118,7 @@ function useMachineStepEscape(step: WizardStep, onCancel: () => void) {
 
 function WizardHeader({ step }: { step: WizardStep }) {
   return (
-    <div className="p-6 border-b-2 border-chatroom-border">
+    <div className="flex shrink-0 items-baseline justify-between gap-3 border-b-2 border-chatroom-border px-4 py-3 sm:px-6 sm:py-4">
       <h2 className="text-sm font-bold uppercase tracking-widest text-chatroom-text-primary m-0">
         New Chatroom
       </h2>
@@ -284,9 +284,9 @@ export function NewChatroomWizard({ onCreated, onCancel }: NewChatroomWizardProp
   }, [clearError]);
 
   return (
-    <div className="bg-chatroom-bg-surface backdrop-blur-xl border-2 border-chatroom-border-strong w-full max-w-3xl mx-auto">
+    <div className="flex h-dvh w-full flex-col bg-chatroom-bg-surface backdrop-blur-xl sm:h-[min(40rem,calc(100dvh-6rem))] sm:max-w-2xl sm:border-2 sm:border-chatroom-border-strong">
       <WizardHeader step={step} />
-      <div className="p-6 min-h-[24rem]">
+      <div className="flex min-h-0 flex-1 flex-col">
         <WizardStepBody
           step={step}
           machines={machines}
