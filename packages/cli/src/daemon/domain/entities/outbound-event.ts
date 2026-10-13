@@ -43,20 +43,6 @@ export type OutboundEvent =
       availableHarnesses: readonly string[];
       harnessVersions: Record<string, unknown>;
     }
-  | { type: 'command.result.ping'; pingEventId: string }
-  | {
-      type: 'command.result.folder-picker';
-      requestId: string;
-      status: 'completed' | 'cancelled' | 'failed';
-      selectedPath?: string | undefined;
-      errorMessage?: string | undefined;
-    }
-  | {
-      type: 'command.result.capabilities-refresh';
-      batchId: string;
-      status: 'completed' | 'skipped_no_changes' | 'failed';
-      errorMessage?: string | undefined;
-    }
   | { type: 'heartbeat'; machineId: string }
   | { type: 'workspace.commands'; workingDir: string; commands: unknown[] }
   | {

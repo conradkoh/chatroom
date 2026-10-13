@@ -1,6 +1,5 @@
 import type { OutboundEvent } from '../domain/entities/outbound-event.js';
 import { createAssignedTaskStatusPublisher } from '../infrastructure/convex/publishers/assigned-task-status.js';
-import { createCommandResultPublisher } from '../infrastructure/convex/publishers/command-result.js';
 import { createDaemonHeartbeatPublisher } from '../infrastructure/convex/publishers/daemon-heartbeat.js';
 import { createHarnessFingerprintPublisher } from '../infrastructure/convex/publishers/harness-fingerprint.js';
 import { createModelsPublisher } from '../infrastructure/convex/publishers/models.js';
@@ -28,7 +27,6 @@ function createConvexPublishers(deps: ConvexPublisherDeps) {
     assignedTaskStatus: createAssignedTaskStatusPublisher(deps),
     models: createModelsPublisher(deps),
     harnessFingerprint: createHarnessFingerprintPublisher(deps),
-    commandResult: createCommandResultPublisher(deps),
     workspaceCommands: createWorkspaceCommandsPublisher(deps),
   };
 }
@@ -46,10 +44,6 @@ function routeConvexEvent(
       return publishers.models.publish(event);
     case 'harness.fingerprint.updated':
       return publishers.harnessFingerprint.publish(event);
-    case 'command.result.ping':
-    case 'command.result.folder-picker':
-    case 'command.result.capabilities-refresh':
-      return publishers.commandResult.publish(event);
     case 'workspace.commands':
       return publishers.workspaceCommands.publish(event);
     default:
