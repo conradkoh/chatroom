@@ -22,6 +22,7 @@ import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { normalizeWorkingDir } from './workspacePathSecurity';
 import { workspaceGitStateUnitValidator } from '../src/domain/entities/workspace-git-state-unit';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { chatroomSessionArgs } from '../src/domain/usecase/chatroom/chatroom-query-args';
 import { getPrimaryWorkspaceForChatroom as getPrimaryWorkspaceForChatroomUseCase } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listRegisteredWorkingDirsForMachine as listRegisteredWorkingDirsForMachineUseCase } from '../src/domain/usecase/workspace/list-registered-working-dirs-for-machine';
@@ -272,10 +273,7 @@ export const listWorkspacesForMachine = query({
  * Called by the frontend to display workspace information.
  */
 export const listWorkspacesForChatroom = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
+  args: chatroomSessionArgs,
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];

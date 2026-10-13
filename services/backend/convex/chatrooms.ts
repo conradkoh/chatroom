@@ -8,12 +8,18 @@ import { getSession, requireSession } from './auth/session';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
+import { chatroomSessionArgs } from '../src/domain/usecase/chatroom/chatroom-query-args';
 import { insertChatroomWithTeam } from '../src/domain/usecase/chatroom/create-chatroom';
 import { createChatroomWithWorkspace } from '../src/domain/usecase/chatroom/create-chatroom-with-workspace';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
 } from '../src/domain/usecase/chatroom/lifecycle-impacts';
+import { listChatroomParticipants } from '../src/domain/usecase/chatroom/list-chatroom-participants';
+import {
+  listOwnedChatrooms,
+  sortByLastActivity,
+} from '../src/domain/usecase/chatroom/list-owned-chatrooms';
 import {
   clearChatroomUnread,
   markChatroomUnread,
@@ -114,19 +120,7 @@ export const listByUser = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
 
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
-      .collect();
-
-    // Sort by lastActivityAt (most recent first), falling back to _creationTime
-    chatrooms.sort((a, b) => {
-      const aTime = a.lastActivityAt ?? a._creationTime;
-      const bTime = b.lastActivityAt ?? b._creationTime;
-      return bTime - aTime;
-    });
-
-    return chatrooms;
+    return sortByLastActivity(await listOwnedChatrooms(ctx, auth.userId));
   },
 });
 
@@ -140,18 +134,8 @@ export const listByUserWithStatus = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
 
-    // Fetch chatrooms - we'll sort by lastActivityAt after fetching
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
-      .collect();
-
-    // Sort by lastActivityAt (most recent first), falling back to _creationTime
-    chatrooms.sort((a, b) => {
-      const aTime = a.lastActivityAt ?? a._creationTime;
-      const bTime = b.lastActivityAt ?? b._creationTime;
-      return bTime - aTime;
-    });
+    // Fetch chatrooms, most recent activity first
+    const chatrooms = sortByLastActivity(await listOwnedChatrooms(ctx, auth.userId));
 
     const now = Date.now();
 
@@ -430,12 +414,15 @@ export const isFavorite = query({
 /** Skip cursor writes when already fresh — reduces OCC conflicts on hot paths. */
 const MARK_AS_READ_MIN_INTERVAL_MS = 20_000;
 
+/** Args for mutations that act on one chatroom for the signed-in user. */
+const chatroomScopedArgs = {
+  sessionId: v.string(),
+  chatroomId: v.id('chatroom_rooms'),
+};
+
 /** Updates the user's read cursor for a chatroom to the current timestamp. */
 export const markAsRead = mutation({
-  args: {
-    sessionId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
-  },
+  args: chatroomScopedArgs,
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -473,10 +460,7 @@ export const markAsRead = mutation({
 
 /** Marks a chatroom as unread for the owner (e.g. sidebar "Mark as Unread"). Does not change read cursor. */
 export const markAsUnread = mutation({
-  args: {
-    sessionId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
-  },
+  args: chatroomScopedArgs,
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     await markChatroomUnread(ctx, args.chatroomId, session.userId, false);
@@ -586,17 +570,11 @@ export const listParticipantPresence = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
 
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
-      .collect();
+    const chatrooms = await listOwnedChatrooms(ctx, auth.userId);
 
     const presence = await Promise.all(
       chatrooms.map(async (chatroom) => {
-        const participants = await ctx.db
-          .query('chatroom_participants')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-          .collect();
+        const participants = await listChatroomParticipants(ctx, chatroom._id);
 
         return participants.map((p) => toParticipantPresence(chatroom._id as string, p));
       })
@@ -608,18 +586,12 @@ export const listParticipantPresence = query({
 
 /** Returns participant presence for a single chatroom. Per-chatroom subscription reduces blast radius. */
 export const getPresenceForChatroom = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
+  args: chatroomSessionArgs,
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
 
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+    const participants = await listChatroomParticipants(ctx, args.chatroomId);
 
     return participants.map((p) => toParticipantPresence(args.chatroomId as string, p));
   },
