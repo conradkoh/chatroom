@@ -3,11 +3,13 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession, requireSession } from './auth/session';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { insertChatroomWithTeam } from '../src/domain/usecase/chatroom/create-chatroom';
+import { createChatroomWithWorkspace } from '../src/domain/usecase/chatroom/create-chatroom-with-workspace';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
@@ -47,6 +49,29 @@ export const create = mutation({
     return insertChatroomWithTeam(ctx, {
       ownerId: auth.userId,
       teamStructureId: structure.teamStructureId,
+    });
+  },
+});
+
+/**
+ * Creates a chatroom and registers its first workspace in one transaction.
+ * Validates team, machine ownership and working dir before any write.
+ */
+export const createWithWorkspace = mutation({
+  args: {
+    ...SessionIdArg,
+    teamStructureId: v.string(),
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Checks the session and that the caller owns the machine.
+    const auth = await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return createChatroomWithWorkspace(ctx, {
+      ownerId: auth.userId,
+      teamStructureId: args.teamStructureId,
+      machineId: args.machineId,
+      workingDir: args.workingDir,
     });
   },
 });
