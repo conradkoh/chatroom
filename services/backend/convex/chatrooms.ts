@@ -5,7 +5,6 @@ import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession, requireSession } from './auth/session';
-import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { insertChatroomWithTeam } from '../src/domain/usecase/chatroom/create-chatroom';
@@ -18,6 +17,7 @@ import {
   listOwnedChatrooms,
   sortByLastActivity,
 } from '../src/domain/usecase/chatroom/list-owned-chatrooms';
+import { planObservationWrite } from '../src/domain/usecase/chatroom/plan-observation-write';
 import {
   clearChatroomUnread,
   markChatroomUnread,
@@ -624,31 +624,13 @@ export const recordChatroomObservation = mutation({
       .withIndex('by_chatroomId', (q) => q.eq('chatroomId', args.chatroomId))
       .first();
 
+    const plan = planObservationWrite(existing, now, args.refresh === true);
+    if (plan === null) return;
+
     if (existing) {
-      const isRefresh = args.refresh === true;
-      const lastObservedStale =
-        now - existing.lastObservedAt >= OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS;
-
-      // Regular heartbeats: skip redundant writes that would invalidate daemon subscriptions.
-      // Refresh calls always write (lastRefreshedAt must be updated).
-      if (!isRefresh && !lastObservedStale) {
-        return;
-      }
-
-      const patch: { lastObservedAt: number; lastRefreshedAt?: number | undefined } = {
-        lastObservedAt: now,
-      };
-      if (isRefresh) {
-        patch.lastRefreshedAt = now;
-      }
-      await ctx.db.patch('chatroom_observation', existing._id, patch);
+      await ctx.db.patch('chatroom_observation', existing._id, plan);
     } else {
-      // Create new observation record
-      await ctx.db.insert('chatroom_observation', {
-        chatroomId: args.chatroomId,
-        lastObservedAt: now,
-        ...(args.refresh ? { lastRefreshedAt: now } : {}),
-      });
+      await ctx.db.insert('chatroom_observation', { chatroomId: args.chatroomId, ...plan });
     }
   },
 });
