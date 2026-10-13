@@ -107,7 +107,9 @@ export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) 
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-initialize-state -- intentional: the stored theme is unavailable during SSR; read after mount to keep hydration output identical
     _setTheme(readStoredTheme());
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-initialize-state -- intentional: children are gated on isThemeReady so they never render with an unresolved theme
     setIsThemeReady(true);
   }, []);
 

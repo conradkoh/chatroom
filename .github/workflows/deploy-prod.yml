@@ -5,33 +5,139 @@ on:
     branches:
       - master
     paths:
+      - '.github/workflows/deploy-prod.yml'
+      - 'apps/webapp/**'
+      - 'packages/shared/**'
       - 'services/backend/**'
       - 'scripts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
   workflow_dispatch:
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22'
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-      - name: Install pnpm
+      - name: Discover deployment tests
+        id: discover
+        shell: bash
+        run: |
+          workspace_tests=false
+          script_tests=false
+
+          if find apps/webapp services/backend packages/shared \
+            -type f \
+            \( -name '*.test.*' -o -name '*.spec.*' \) \
+            -not -path '*/node_modules/*' \
+            -not -path '*/.git/*' \
+            -not -path '*/.next/*' \
+            -not -path '*/dist/*' \
+            -not -path '*/coverage/*' \
+            -not -path '*/convex/_generated/*' \
+            -print -quit | grep -q .; then
+            workspace_tests=true
+          fi
+
+          if find scripts \
+            -type f \
+            \( -name '*.test.*' -o -name '*.spec.*' \) \
+            -not -path '*/node_modules/*' \
+            -not -path '*/.git/*' \
+            -print -quit | grep -q .; then
+            script_tests=true
+          fi
+
+          echo "has_workspace_tests=${workspace_tests}" >> "$GITHUB_OUTPUT"
+          echo "has_script_tests=${script_tests}" >> "$GITHUB_OUTPUT"
+
+          if [[ "$workspace_tests" == true ]]; then
+            echo "[deploy] Workspace test files found."
+          else
+            echo "::notice::No workspace test files found; skipping workspace tests."
+          fi
+
+          if [[ "$script_tests" == true ]]; then
+            echo "[deploy] Script test files found."
+          else
+            echo "::notice::No script test files found; skipping script tests."
+          fi
+
+          if [[ "$workspace_tests" == false && "$script_tests" == false ]]; then
+            echo "::notice::No applicable deployment tests found; test gate will succeed without running tests."
+          fi
+
+      - name: Set up pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Deploy Backend to Convex
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PROD }}
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run workspace tests
+        if: steps.discover.outputs.has_workspace_tests == 'true'
+        run: pnpm test
+
+      - name: Run script tests
+        if: steps.discover.outputs.has_script_tests == 'true'
+        run: pnpm test:scripts
+
+  deploy_backend:
+    needs: tests
+    if: github.event_name != 'workflow_dispatch' || inputs.deploy_backend
+    runs-on: ubuntu-latest
+    env:
+      CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PROD }}
+
+    steps:
+      - name: Check backend deploy secret
+        shell: bash
+        run: |
+          if [[ -z "${CONVEX_DEPLOY_KEY}" ]]; then
+            echo "::error::Missing required GitHub Actions secret: CONVEX_DEPLOY_KEY_PROD"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy backend to Convex
         run: pnpm --filter @workspace/backend run deploy
 
   migrate:

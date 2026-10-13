@@ -21,7 +21,9 @@ export function PwaInstallProvider({ children }: { children: React.ReactNode }) 
       maxTouchPoints: navigator.maxTouchPoints,
       isStandalone: isStandaloneMode(),
     });
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-initialize-state -- intentional: platform depends on navigator and display-mode, which are unavailable during SSR
     setPlatform(detected);
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-initialize-state -- intentional: readiness marks that browser-only platform detection has completed
     setIsReady(true);
 
     const onBeforeInstallPrompt = (event: Event) => {

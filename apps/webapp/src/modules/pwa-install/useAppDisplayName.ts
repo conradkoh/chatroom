@@ -13,6 +13,7 @@ export function useAppDisplayName(): string {
       .querySelector('meta[name="application-name"]')
       ?.getAttribute('content')
       ?.trim();
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-initialize-state -- intentional: the name lives in the layout meta tag, readable only from the DOM after mount; SSR keeps DEFAULT_APP_NAME
     if (content) setName(content);
   }, []);
 

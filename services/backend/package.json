@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "CONVEX_NON_INTERACTIVE=true DOCUMENT_RETENTION_DELAY=1 INDEX_RETENTION_DELAY=1 RETENTION_DELETE_FREQUENCY=10 bun ../../scripts/start-convex-dev.ts",
-    "codegen": "CONVEX_NON_INTERACTIVE=true convex codegen --typecheck disable",
+    "dev": "bun ../../scripts/start-convex-dev.ts",
+    "codegen": "bun ../../scripts/convex-codegen.ts",
     "deploy": "convex deploy",
     "typecheck": "tsc --build",
     "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",

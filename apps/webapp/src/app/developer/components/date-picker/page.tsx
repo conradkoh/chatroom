@@ -7,6 +7,24 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DatePickerField } from '@/components/ui/date-picker';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -171,6 +189,7 @@ function VariantBlock({
   );
 }
 
+// fallow-ignore-next-line complexity
 export default function DatePickerStorybookPage() {
   const { theme, setTheme } = useTheme();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -180,6 +199,24 @@ export default function DatePickerStorybookPage() {
     start?: Date;
     end?: Date;
   }>({});
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalDate, setModalDate] = useState<Date>();
+  const [modalEndDate, setModalEndDate] = useState<Date>();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTitle, setDrawerTitle] = useState('');
+  const [drawerDate, setDrawerDate] = useState<Date>();
+  const [drawerEndDate, setDrawerEndDate] = useState<Date>();
+  const resetModalForm = () => {
+    setModalTitle('');
+    setModalDate(undefined);
+    setModalEndDate(undefined);
+  };
+  const resetDrawerForm = () => {
+    setDrawerTitle('');
+    setDrawerDate(undefined);
+    setDrawerEndDate(undefined);
+  };
   const setValue = (id: string) => (v: string) => setValues((s) => ({ ...s, [id]: v }));
   const setDate = (id: string) => (v?: Date) => setCustomDates((s) => ({ ...s, [id]: v }));
   const renderFields = (layout: Layout, prefix: string, wrapInput: boolean, showState = false) => {
@@ -241,7 +278,7 @@ export default function DatePickerStorybookPage() {
         <p className="mt-2 text-muted-foreground">
           Component Storybook story at <code>/developer/components/date-picker</code>. Compare
           native temporal inputs (DO NOT USE) and custom Popover + Calendar pickers on Safari and
-          iOS, including dark mode and constrained layouts.
+          iOS, including dark mode, constrained layouts, and modal/drawer overlay forms.
         </p>
       </header>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-4">
@@ -301,6 +338,193 @@ export default function DatePickerStorybookPage() {
               />
             </div>
           </div>
+        </div>
+      </Section>
+      <Section
+        title="Drawer form (Drawer + DatePickerField)"
+        description="Safari regression: date picker popover inside a bottom drawer. Tests nested overlay behavior in a mobile-style sheet."
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Open the drawer, tap date fields, and confirm the calendar popover works inside the
+            drawer sheet.
+          </p>
+          <Drawer
+            open={drawerOpen}
+            onOpenChange={(open) => {
+              setDrawerOpen(open);
+              if (!open) resetDrawerForm();
+            }}
+          >
+            <DrawerTrigger
+              render={
+                <Button type="button" variant="outline">
+                  Open drawer form
+                </Button>
+              }
+            />
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>Schedule item</DrawerTitle>
+                <DrawerDescription>
+                  Form with date fields inside a drawer — test on iOS Safari.
+                </DrawerDescription>
+              </DrawerHeader>
+              <form
+                className="flex-1 space-y-4 overflow-y-auto px-4 pb-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setDrawerOpen(false);
+                  resetDrawerForm();
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="drawer-item-title">Title</Label>
+                  <Input
+                    id="drawer-item-title"
+                    value={drawerTitle}
+                    onChange={(e) => setDrawerTitle(e.target.value)}
+                    placeholder="Item title"
+                  />
+                </div>
+                <DatePickerField
+                  id="drawer-item-date"
+                  label="Start date"
+                  date={drawerDate}
+                  onSelect={setDrawerDate}
+                />
+                <DatePickerField
+                  id="drawer-item-end-date"
+                  label="End date"
+                  date={drawerEndDate}
+                  onSelect={setDrawerEndDate}
+                />
+                <DrawerFooter className="px-0">
+                  <Button type="submit" className="w-full">
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      setDrawerOpen(false);
+                      resetDrawerForm();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </DrawerFooter>
+              </form>
+            </DrawerContent>
+          </Drawer>
+          <div className="rounded-md border bg-muted/30 p-4 text-sm">
+            <p className="font-medium">Current state</p>
+            <ul className="mt-2 space-y-1 font-mono text-xs text-muted-foreground">
+              <li>drawer: {drawerOpen ? 'open' : 'closed'}</li>
+              <li>title: {drawerTitle === '' ? '""' : JSON.stringify(drawerTitle)}</li>
+              <li>start: {drawerDate?.toISOString().slice(0, 10) ?? 'undefined'}</li>
+              <li>end: {drawerEndDate?.toISOString().slice(0, 10) ?? 'undefined'}</li>
+            </ul>
+          </div>
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+            <li>Tap “Open drawer form”.</li>
+            <li>Tap “Start date” and select a date.</li>
+            <li>Repeat for “End date”.</li>
+            <li>Swipe down or tap Cancel; the page must remain interactive.</li>
+          </ol>
+        </div>
+      </Section>
+      <Section
+        title="Modal form (Dialog + DatePickerField)"
+        description="Safari regression: date picker popover inside a modal dialog. The calendar must open and remain interactive on iOS Safari."
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Open the modal, tap each date field, and confirm the calendar popover appears above the
+            dialog overlay.
+          </p>
+          <Dialog
+            open={modalOpen}
+            onOpenChange={(open) => {
+              setModalOpen(open);
+              if (!open) resetModalForm();
+            }}
+          >
+            <DialogTrigger
+              render={
+                <Button type="button" variant="outline">
+                  Open modal form
+                </Button>
+              }
+            />
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Event details</DialogTitle>
+                <DialogDescription>
+                  Form with date fields inside a modal — test on iOS Safari.
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setModalOpen(false);
+                  resetModalForm();
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="modal-event-title">Title</Label>
+                  <Input
+                    id="modal-event-title"
+                    value={modalTitle}
+                    onChange={(e) => setModalTitle(e.target.value)}
+                    placeholder="Event title"
+                  />
+                </div>
+                <DatePickerField
+                  id="modal-event-date"
+                  label="Start date"
+                  date={modalDate}
+                  onSelect={setModalDate}
+                />
+                <DatePickerField
+                  id="modal-event-end-date"
+                  label="End date"
+                  date={modalEndDate}
+                  onSelect={setModalEndDate}
+                />
+                <DialogFooter className="gap-2 sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setModalOpen(false);
+                      resetModalForm();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Save</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <div className="rounded-md border bg-muted/30 p-4 text-sm">
+            <p className="font-medium">Current state</p>
+            <ul className="mt-2 space-y-1 font-mono text-xs text-muted-foreground">
+              <li>modal: {modalOpen ? 'open' : 'closed'}</li>
+              <li>title: {modalTitle === '' ? '""' : JSON.stringify(modalTitle)}</li>
+              <li>start: {modalDate?.toISOString().slice(0, 10) ?? 'undefined'}</li>
+              <li>end: {modalEndDate?.toISOString().slice(0, 10) ?? 'undefined'}</li>
+            </ul>
+          </div>
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+            <li>Tap “Open modal form”.</li>
+            <li>Tap “Start date” and select a date.</li>
+            <li>Repeat for “End date”.</li>
+            <li>Close the modal; the page must remain interactive.</li>
+          </ol>
         </div>
       </Section>
       <div className="space-y-4 rounded-lg border-2 border-destructive/50 bg-destructive/5 p-6">

@@ -10,6 +10,8 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
+import { applyConvexDevEnvDefaults } from './convex-dev-env';
+
 const repoRoot = resolve(dirname(import.meta.path), '..');
 const backendDir = resolve(repoRoot, 'services/backend');
 const configPath = resolve(backendDir, '.convex/local/default/config.json');
@@ -99,6 +101,7 @@ async function readBackendVersion(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  applyConvexDevEnvDefaults();
   const backendEnv = await readBackendEnv();
   const convexUrl =
     process.env.VITE_CONVEX_URL || process.env.CONVEX_URL || backendEnv.VITE_CONVEX_URL;

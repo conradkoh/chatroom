@@ -83,9 +83,11 @@ export function useMarkdownEditor({
     }
     const normalized = normalize(content);
     if (normalized !== getNormalizedEditorMarkdown(editor, normalize)) {
+      // eslint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- intentional: pushes controlled content into the Tiptap editor (an external imperative API), not a parent callback
       editor.commands.setContent(normalized, { contentType: 'markdown', emitUpdate: false });
       if (normalized !== content.trim()) {
         internal.current = true;
+        // eslint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- intentional: reports the editor-normalized markdown only when it differs from the caller's content; that value is only known while syncing the editor here
         onUpdate(normalized);
       }
     }

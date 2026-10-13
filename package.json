@@ -27,7 +27,7 @@
     "typecheck:scripts": "tsc --project scripts/tsconfig.json",
     "find-deadcode": "fallow dead-code --baseline .fallow/baseline.json",
     "code-audit": "fallow audit --dead-code-baseline .fallow/baseline.json",
-    "code-quality": "fallow",
+    "code-quality": "fallow dead-code --baseline .fallow/baseline.json && fallow dupes --baseline .fallow/dupes-baseline.json && fallow health --baseline .fallow/health-baseline.json --min-score 80",
     "code-quality:fix": "fallow fix --dry-run",
     "e2e": "turbo run e2e",
     "prepare": "husky",
@@ -59,7 +59,8 @@
     "lint-staged": "^15.5.0",
     "prettier": "^3.9.5",
     "turbo": "^2.10.5",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vercel": "59.10.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

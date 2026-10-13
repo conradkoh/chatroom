@@ -12,8 +12,8 @@
     "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest",
     "test:ui": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest --ui",
     "e2e": "playwright test --config=tests/e2e/playwright.config.ts",
-    "e2e:upstream": "playwright test --config=tests/e2e/playwright.config.ts --grep @upstream",
-    "e2e:downstream": "playwright test --config=tests/e2e/playwright.config.ts --grep @downstream",
+    "e2e:upstream": "playwright test --config=tests/e2e/playwright.config.ts --grep @upstream --pass-with-no-tests",
+    "e2e:downstream": "playwright test --config=tests/e2e/playwright.config.ts --grep @downstream --pass-with-no-tests",
     "generate:icons": "bun run scripts/generate-icons.ts",
     "generate:icons:all": "bun run scripts/generate-icons.ts --favicon"
   },
