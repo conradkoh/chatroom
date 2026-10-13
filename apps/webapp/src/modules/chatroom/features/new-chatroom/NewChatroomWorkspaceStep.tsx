@@ -2,10 +2,12 @@
 
 import { useState, type ReactNode } from 'react';
 
+import { CloneLeaveDialog, type CloneLeaveGuard } from './CloneLeaveDialog';
 import { CloneRepoForm } from './CloneRepoForm';
 import { ExistingFolderForm } from './ExistingFolderForm';
 import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
 import { useGitCloneRequest } from './useGitCloneRequest';
+import { useWorkspaceEscape } from './useWorkspaceEscape';
 import type { UserMachine } from '../../types/machine';
 
 type WorkspaceSource = 'clone' | 'existing';
@@ -17,6 +19,8 @@ interface NewChatroomWorkspaceStepProps {
   /** Shown above the actions. The user stays on this step when creation fails. */
   createError: string | null;
   onBack: () => void;
+  /** Escape cancels the wizard here, unless a clone is unsaved and the user confirms first. */
+  onCancel: () => void;
   onWorkspaceReady: (workingDir: string) => void;
 }
 
@@ -84,6 +88,32 @@ function SourceTabs({
 }
 
 /**
+ * The generic create error. A completed clone shows its own error next to its retry instead, so
+ * the message appears once.
+ */
+function showsTopCreateError(createError: string | null, state: GitCloneViewState): boolean {
+  return createError !== null && state.kind !== 'completed';
+}
+
+/** The confirm for leaving an unsaved clone. Rendered only while it is open. */
+function LeaveCloneConfirm({
+  dialogGuard,
+  hostname,
+  onKeep,
+  onLeave,
+}: {
+  dialogGuard: CloneLeaveGuard | null;
+  hostname: string;
+  onKeep: () => void;
+  onLeave: () => void;
+}) {
+  if (dialogGuard === null) return null;
+  return (
+    <CloneLeaveDialog guard={dialogGuard} hostname={hostname} onKeep={onKeep} onLeave={onLeave} />
+  );
+}
+
+/**
  * Step 2: choose the chatroom's folder. Either clone a git repository onto the machine, or use a
  * folder that already exists. Both forms stay mounted so typed inputs survive a tab switch.
  */
@@ -93,12 +123,12 @@ export function NewChatroomWorkspaceStep({
   isCreating,
   createError,
   onBack,
+  onCancel,
   onWorkspaceReady,
 }: NewChatroomWorkspaceStepProps) {
   const [source, setSource] = useState<WorkspaceSource>('clone');
   const clone = useGitCloneRequest({ isMachineConnected });
-  // A completed clone shows its own create error next to the retry, so the generic alert is skipped.
-  const showTopCreateError = createError !== null && clone.viewState.kind !== 'completed';
+  const escape = useWorkspaceEscape({ viewState: clone.viewState, isCreating, onCancel });
 
   return (
     <div className="flex flex-col gap-4">
@@ -112,7 +142,7 @@ export function NewChatroomWorkspaceStep({
         </p>
       )}
 
-      {showTopCreateError && (
+      {showsTopCreateError(createError, clone.viewState) && (
         <p role="alert" className="text-xs text-chatroom-status-error">
           {createError}
         </p>
@@ -145,6 +175,13 @@ export function NewChatroomWorkspaceStep({
           onBack={onBack}
         />
       </div>
+
+      <LeaveCloneConfirm
+        dialogGuard={escape.dialogGuard}
+        hostname={machine.hostname}
+        onKeep={escape.closeDialog}
+        onLeave={onCancel}
+      />
     </div>
   );
 }

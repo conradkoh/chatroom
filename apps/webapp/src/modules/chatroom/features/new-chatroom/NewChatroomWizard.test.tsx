@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConvexError } from 'convex/values';
 import React from 'react';
@@ -306,5 +306,126 @@ describe('NewChatroomWizard clone recovery', () => {
     expect(mocks.createWithWorkspace).toHaveBeenCalledTimes(2);
     resolveRetry({ chatroomId: CHATROOM_ID, workspaceId: 'ws-1' });
     await waitFor(() => expect(screen.getByTestId('agents-step')).toBeTruthy());
+  });
+});
+
+describe('NewChatroomWizard leaving during a clone', () => {
+  it.each<[string, GitCloneViewState]>([
+    ['cloning', { kind: 'cloning', phase: 'Receiving objects', percent: 10 }],
+    ['waiting', { kind: 'waiting', offline: false }],
+    ['stalled', { kind: 'stalled' }],
+  ])(
+    'Escape while %s asks before leaving, and Keep waiting keeps the wizard open',
+    async (_label, viewState) => {
+      const user = userEvent.setup();
+      mocks.clone.viewState = viewState;
+      mocks.clone.requestId = 'req-1';
+      const { onCancel } = renderWizard();
+      await openWorkspaceStep(user);
+
+      await user.keyboard('{Escape}');
+
+      const dialog = await screen.findByRole('alertdialog');
+      expect(within(dialog).getByText('Stop waiting for this clone?')).toBeTruthy();
+      // Focus moves into the dialog after it mounts, so wait for it rather than checking once.
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          within(dialog).getByRole('button', { name: 'Keep waiting' })
+        )
+      );
+      expect(onCancel).not.toHaveBeenCalled();
+
+      await user.click(within(dialog).getByRole('button', { name: 'Keep waiting' }));
+
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+      expect(onCancel).not.toHaveBeenCalled();
+      expect(screen.getByRole('tab', { name: 'From Git repository' })).toBeTruthy();
+    }
+  );
+
+  it('Leave cancels the wizard', async () => {
+    const user = userEvent.setup();
+    mocks.clone.viewState = { kind: 'stalled' };
+    mocks.clone.requestId = 'req-1';
+    const { onCancel } = renderWizard();
+    await openWorkspaceStep(user);
+
+    await user.keyboard('{Escape}');
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' })
+    );
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('a second Escape closes the confirm and keeps the wizard open', async () => {
+    const user = userEvent.setup();
+    mocks.clone.viewState = { kind: 'stalled' };
+    mocks.clone.requestId = 'req-1';
+    const { onCancel } = renderWizard();
+    await openWorkspaceStep(user);
+
+    await user.keyboard('{Escape}');
+    await screen.findByRole('alertdialog');
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, GitCloneViewState]>([
+    ['idle', { kind: 'idle' }],
+    ['failed', { kind: 'failed', errorCode: 'auth', message: 'Authentication failed.' }],
+    ['timed out', { kind: 'timed_out' }],
+  ])('Escape while %s cancels straight away, with no confirm', async (_label, viewState) => {
+    const user = userEvent.setup();
+    mocks.clone.viewState = viewState;
+    const { onCancel } = renderWizard();
+    await openWorkspaceStep(user);
+
+    await user.keyboard('{Escape}');
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('Escape after a completed clone asks with the completed wording', async () => {
+    const user = userEvent.setup();
+    mocks.clone.viewState = COMPLETED_CLONE;
+    mocks.clone.requestId = 'req-1';
+    mocks.createWithWorkspace.mockRejectedValueOnce(new Error('boom'));
+    const { onCancel } = renderWizard();
+    await openWorkspaceStep(user);
+    await screen.findByRole('alert');
+
+    await user.keyboard('{Escape}');
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Leave before creating the chatroom?')).toBeTruthy();
+    expect(
+      within(dialog).getByText(
+        'The cloned folder stays on disk, but no chatroom will be created from it.'
+      )
+    ).toBeTruthy();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Stay' }));
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('Escape while the chatroom is being created does nothing', async () => {
+    const user = userEvent.setup();
+    mocks.clone.viewState = COMPLETED_CLONE;
+    mocks.clone.requestId = 'req-1';
+    mocks.createWithWorkspace.mockImplementationOnce(() => new Promise(() => {}));
+    const { onCancel } = renderWizard();
+    await openWorkspaceStep(user);
+    await waitFor(() => expect(mocks.createWithWorkspace).toHaveBeenCalledTimes(1));
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });

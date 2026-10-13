@@ -41,6 +41,7 @@ function WorkspaceStepView({
   isCreating,
   createError,
   onBack,
+  onCancel,
   onWorkspaceReady,
 }: {
   machine: UserMachine | null;
@@ -48,6 +49,7 @@ function WorkspaceStepView({
   isCreating: boolean;
   createError: string | null;
   onBack: () => void;
+  onCancel: () => void;
   onWorkspaceReady: (workingDir: string) => void;
 }) {
   if (!machine) return null;
@@ -58,6 +60,7 @@ function WorkspaceStepView({
       isCreating={isCreating}
       createError={createError}
       onBack={onBack}
+      onCancel={onCancel}
       onWorkspaceReady={onWorkspaceReady}
     />
   );
@@ -121,10 +124,10 @@ export function NewChatroomWizard({ onCreated, onCancel }: NewChatroomWizardProp
     chosenMachineId ?? (connectedMachines.length === 1 ? connectedMachines[0].machineId : null);
   const activeMachine = machines.find((machine) => machine.machineId === activeMachineId) ?? null;
 
-  // Escape cancels on the machine and workspace steps. Once the chatroom exists there is nothing
-  // to cancel, so the agents step ignores Escape.
+  // Escape cancels on the machine step only. The workspace step handles its own Escape, because it
+  // owns the clone state that decides whether leaving needs a confirm. The agents step ignores it.
   useEffect(() => {
-    if (step === 'agents') return;
+    if (step !== 'machine') return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onCancel();
     };
@@ -187,6 +190,7 @@ export function NewChatroomWizard({ onCreated, onCancel }: NewChatroomWizardProp
           isCreating={isCreating}
           createError={createError}
           onBack={handleBackToMachine}
+          onCancel={onCancel}
           onWorkspaceReady={handleWorkspaceReady}
         />
       );
