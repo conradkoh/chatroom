@@ -7,10 +7,11 @@ import { CheckCircle, MoreVertical } from 'lucide-react';
 import React, { memo, useCallback, useState } from 'react';
 
 import { ChatroomFavoriteButton } from './ChatroomFavoriteButton';
-import { chatroomDisplayName, isChatroomShownInTab, type TabType } from './chatroomSelectorModel';
+import { isChatroomShownInTab, type TabType } from './chatroomSelectorModel';
 import { ChatroomStatusIndicator } from './ChatroomStatusIndicator';
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
 import { useChatroomStatus } from '../../hooks/useChatroomStatus';
+import { getChatroomDisplayName } from '../../viewModels/chatroomViewModel';
 import { createChatroomSelectKeyDown } from '../chatroom-select-keydown';
 import { LifecycleConfirmDialog } from '../LifecycleConfirmDialog';
 
@@ -111,7 +112,7 @@ export const ChatroomCard = memo(function ChatroomCard({
             <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
               <ChatroomStatusIndicator activityStatus={activityStatus} />
               <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
-                {chatroomDisplayName(chatroom)}
+                {getChatroomDisplayName(chatroom)}
               </span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">

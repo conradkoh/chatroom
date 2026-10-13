@@ -7,10 +7,10 @@ import { CheckCircle, MoreVertical } from 'lucide-react';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
 import { ChatroomFavoriteButton } from './ChatroomFavoriteButton';
-import { chatroomDisplayName, isChatroomShownInTab, type TabType } from './chatroomSelectorModel';
+import { isChatroomShownInTab, type TabType } from './chatroomSelectorModel';
 import { ChatroomStatusIndicator } from './ChatroomStatusIndicator';
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
-import { isChatroomCompleted } from '../../viewModels/chatroomViewModel';
+import { getChatroomDisplayName, isChatroomCompleted } from '../../viewModels/chatroomViewModel';
 import { LifecycleConfirmDialog } from '../LifecycleConfirmDialog';
 
 import {
@@ -104,7 +104,7 @@ function ChatroomTableRow({
       {/* Name */}
       <div className="flex items-center min-w-0">
         <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
-          {chatroomDisplayName(chatroom)}
+          {getChatroomDisplayName(chatroom)}
         </span>
       </div>
       {/* Status */}

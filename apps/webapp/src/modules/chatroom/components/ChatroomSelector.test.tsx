@@ -86,6 +86,15 @@ describe('ChatroomSelector browser', () => {
     expect(screen.queryByText('Beta room')).toBeNull();
   });
 
+  it('names an unnamed chatroom Chatroom', () => {
+    const unnamed = { ...chatroom('room-unnamed', ''), teamName: undefined } as ChatroomWithStatus;
+    mocks.listing.chatrooms = [unnamed];
+    render(<ChatroomSelector onSelect={vi.fn()} />);
+
+    expect(screen.getByText('Chatroom')).toBeTruthy();
+    expect(screen.queryByText('Team')).toBeNull();
+  });
+
   it('renders the empty state when there are no chatrooms', () => {
     mocks.listing.chatrooms = [];
     render(<ChatroomSelector onSelect={vi.fn()} />);

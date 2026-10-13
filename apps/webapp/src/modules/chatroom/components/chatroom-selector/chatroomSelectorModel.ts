@@ -22,13 +22,6 @@ export function filterChatrooms(
   );
 }
 
-/** Custom name when set, otherwise the team name, otherwise 'Team'. */
-export function chatroomDisplayName(
-  chatroom: Pick<ChatroomWithStatus, 'name' | 'teamName'>
-): string {
-  return chatroom.name || chatroom.teamName || 'Team';
-}
-
 /** The Current tab shows chatrooms that are not completed. The Complete tab shows the rest. */
 export function isChatroomShownInTab(
   chatroom: Pick<ChatroomWithStatus, 'status'>,
