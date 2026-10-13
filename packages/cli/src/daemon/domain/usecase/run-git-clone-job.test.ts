@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
+  createGitCloneJobRunner,
   runGitCloneJob,
   type GitCloneJobDeps,
   type GitCloneResultReport,
-} from './git-clone-job.js';
+} from './run-git-clone-job.js';
 import type {
   GitCloneOutcome,
   GitCloneProgress,
-} from '../../infrastructure/local-actions/git-clone.js';
+} from '../../../infrastructure/local-actions/git-clone.js';
 
 /** Spec values for throttling and keepalive. */
 const PROGRESS_MIN_INTERVAL_MS = 1500;
@@ -282,5 +283,54 @@ describe('runGitCloneJob result reporting', () => {
 
     // One initial attempt plus three retries.
     expect(deps.reportResult).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('createGitCloneJobRunner', () => {
+  const RUNNER_INPUT = { requestId: 'req-1', repoUrl: INPUT.repoUrl, targetPath: INPUT.targetPath };
+
+  it('starts a job on a fresh target', () => {
+    const runner = createGitCloneJobRunner();
+    const deps = makeDeps({ runClone: vi.fn(() => new Promise<GitCloneOutcome>(() => {})) });
+
+    expect(runner.start(deps, RUNNER_INPUT)).toBe('started');
+    expect(deps.reportProgress).toHaveBeenCalledWith({ phase: 'Starting' });
+  });
+
+  it('returns duplicate for the same requestId while its clone is running', () => {
+    const runner = createGitCloneJobRunner();
+    const runClone = vi.fn(() => new Promise<GitCloneOutcome>(() => {}));
+
+    expect(runner.start(makeDeps({ runClone }), RUNNER_INPUT)).toBe('started');
+    expect(runner.start(makeDeps({ runClone }), RUNNER_INPUT)).toBe('duplicate');
+    expect(runClone).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns busy for a different requestId on the same target', () => {
+    const runner = createGitCloneJobRunner();
+    const runClone = vi.fn(() => new Promise<GitCloneOutcome>(() => {}));
+
+    expect(runner.start(makeDeps({ runClone }), RUNNER_INPUT)).toBe('started');
+    expect(runner.start(makeDeps({ runClone }), { ...RUNNER_INPUT, requestId: 'req-2' })).toBe(
+      'busy'
+    );
+    expect(runClone).toHaveBeenCalledTimes(1);
+  });
+
+  it('frees the target once the job settles, so a later start succeeds', async () => {
+    const runner = createGitCloneJobRunner();
+    const first = makeDeps({ runClone: cloneThat(() => {}) });
+
+    expect(runner.start(first, RUNNER_INPUT)).toBe('started');
+    await vi.waitFor(() => expect(first.reportResult).toHaveBeenCalledTimes(1));
+    // Let the runner's settle handler run after the result report resolves.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(
+      runner.start(makeDeps({ runClone: cloneThat(() => {}) }), {
+        ...RUNNER_INPUT,
+        requestId: 'req-2',
+      })
+    ).toBe('started');
   });
 });

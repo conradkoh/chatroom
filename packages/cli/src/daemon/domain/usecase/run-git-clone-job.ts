@@ -1,19 +1,19 @@
 /**
- * Background job for a `daemon.gitClone` command.
+ * Background use case for a `daemon.gitClone` command.
  *
- * Owns progress throttling, keepalive, and result reporting. Command dispatch starts this job
- * without awaiting it, so a long clone never blocks the machine command chain.
+ * Owns progress throttling, keepalive, result reporting, and the in-flight registry. Command
+ * dispatch starts the job through the runner without awaiting it, so a long clone never blocks
+ * the machine command chain.
  */
 
 import type { GitCloneErrorCode } from '@workspace/shared/domain/git-clone';
 
-import { formatTimestamp } from './daemon-utils.js';
 import {
   runGitClone,
   type GitCloneOutcome,
   type GitCloneProgress,
-} from '../../infrastructure/local-actions/git-clone.js';
-import { getErrorMessage } from '../../utils/convex-error.js';
+} from '../../../infrastructure/local-actions/git-clone.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 
 export type GitCloneResultReport =
   | { status: 'completed'; clonedPath: string }
@@ -35,6 +35,11 @@ const GIT_CLONE_PROGRESS_MIN_INTERVAL_MS = 1500;
 const GIT_CLONE_KEEPALIVE_MS = 30_000;
 /** Wait before each result-report retry. One initial attempt plus one retry per entry. */
 const RESULT_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
+
+/** Same format as the entry layer's `formatTimestamp`. Domain code does not import from entry. */
+function formatTimestamp(): string {
+  return new Date().toISOString().replace('T', ' ').substring(0, 19);
+}
 
 function warn(message: string): void {
   console.warn(`[${formatTimestamp()}] ⚠️  ${message}`);
@@ -128,6 +133,8 @@ async function cloneOrUnknown(
  * Clones `input` and reports progress and the final result. Never rejects.
  * The keepalive timer is cleared before the result is reported.
  */
+// Exported for the job tests. Command dispatch reaches the job only through the runner.
+// fallow-ignore-next-line unused-export
 export async function runGitCloneJob(
   deps: GitCloneJobDeps,
   input: { repoUrl: string; targetPath: string }
@@ -148,4 +155,38 @@ export async function runGitCloneJob(
   ).finally(() => clearInterval(keepalive));
 
   await reportResultWithRetry(deps, toResultReport(outcome));
+}
+
+export type StartGitCloneOutcome = 'started' | 'duplicate' | 'busy';
+
+export interface GitCloneJobRunner {
+  /**
+   * Starts the clone without awaiting it. `duplicate` when the same request is already running,
+   * `busy` when a different request owns the target, otherwise `started`.
+   */
+  start(
+    deps: GitCloneJobDeps,
+    input: { requestId: string; repoUrl: string; targetPath: string }
+  ): StartGitCloneOutcome;
+}
+
+/** Owns the in-flight registry. One clone per target path; the same requestId never starts twice. */
+export function createGitCloneJobRunner(): GitCloneJobRunner {
+  /** Clone targets with a job in flight, keyed by target path. The value is the owning request id. */
+  const inFlight = new Map<string, string>();
+  return {
+    start(deps, { requestId, repoUrl, targetPath }) {
+      const owner = inFlight.get(targetPath);
+      if (owner === requestId) return 'duplicate';
+      if (owner !== undefined) return 'busy';
+
+      inFlight.set(targetPath, requestId);
+      void runGitCloneJob(deps, { repoUrl, targetPath })
+        .catch((error: unknown) => warn(`Git clone failed: ${getErrorMessage(error)}`))
+        .finally(() => {
+          if (inFlight.get(targetPath) === requestId) inFlight.delete(targetPath);
+        });
+      return 'started';
+    },
+  };
 }

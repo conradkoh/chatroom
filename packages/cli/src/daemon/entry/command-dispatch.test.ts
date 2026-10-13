@@ -79,9 +79,10 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
   HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));
 
-// The clone job never settles, so a dispatch that awaited it would hang the test.
-vi.mock('./git-clone-job.js', () => ({
-  runGitCloneJob: vi.fn(() => new Promise<void>(() => {})),
+// The clone never settles, so a dispatch that awaited the job would hang the test. The clone is
+// mocked here, not the job module: a module mock cannot intercept the job's own internal calls.
+vi.mock('../../infrastructure/local-actions/git-clone.js', () => ({
+  runGitClone: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock('../../infrastructure/local-actions/pick-folder.js', () => ({
@@ -507,23 +508,22 @@ describe('dispatchCommandEventEffect daemon.gitClone', () => {
 
   it('resolves while the clone job is still pending, so the command chain is not blocked', async () => {
     const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
-    const { runGitCloneJob } = await import('./git-clone-job.js');
+    const { runGitClone } = await import('../../infrastructure/local-actions/git-clone.js');
     const deps = createMockDaemonDeps();
     const tracker = createDedupTracker();
     const event = gitCloneEvent('evt-gc-nonblocking', 'req-gc-nonblocking', '/tmp/gc-nonblocking');
 
     await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
 
-    expect(runGitCloneJob).toHaveBeenCalledWith(expect.anything(), {
-      repoUrl: REPO_URL,
-      targetPath: '/tmp/gc-nonblocking',
-    });
+    expect(runGitClone).toHaveBeenCalledWith(
+      expect.objectContaining({ repoUrl: REPO_URL, targetPath: '/tmp/gc-nonblocking' })
+    );
     expect(tracker.gitCloneIds.has('evt-gc-nonblocking')).toBe(true);
   });
 
   it('starts one job when the same event id is dispatched twice', async () => {
     const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
-    const { runGitCloneJob } = await import('./git-clone-job.js');
+    const { runGitClone } = await import('../../infrastructure/local-actions/git-clone.js');
     const deps = createMockDaemonDeps();
     const tracker = createDedupTracker();
     const event = gitCloneEvent('evt-gc-dedupe', 'req-gc-dedupe', '/tmp/gc-dedupe');
@@ -531,12 +531,12 @@ describe('dispatchCommandEventEffect daemon.gitClone', () => {
     await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
     await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
 
-    expect(runGitCloneJob).toHaveBeenCalledTimes(1);
+    expect(runGitClone).toHaveBeenCalledTimes(1);
   });
 
   it('fails a second request for the same target while the first is in flight', async () => {
     const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
-    const { runGitCloneJob } = await import('./git-clone-job.js');
+    const { runGitClone } = await import('../../infrastructure/local-actions/git-clone.js');
     const deps = createMockDaemonDeps();
     const tracker = createDedupTracker();
     const first = gitCloneEvent('evt-gc-first', 'req-gc-first', '/tmp/gc-inflight');
@@ -545,7 +545,7 @@ describe('dispatchCommandEventEffect daemon.gitClone', () => {
     await runDispatch(dispatchCommandEventEffect(first, tracker, nativeDelivery), withDeps(deps));
     await runDispatch(dispatchCommandEventEffect(second, tracker, nativeDelivery), withDeps(deps));
 
-    expect(runGitCloneJob).toHaveBeenCalledTimes(1);
+    expect(runGitClone).toHaveBeenCalledTimes(1);
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'mock-gitCloneReportResult',
       expect.objectContaining({

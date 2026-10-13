@@ -9,6 +9,7 @@ import { Effect, Layer, type Context } from 'effect';
 
 import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
+import { createGitCloneJobDeps } from './bridge/git-clone-bridge.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
 import { DaemonSessionService } from './daemon-services.js';
 import type {
@@ -18,8 +19,6 @@ import type {
   DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
-import { runGitCloneJob, type GitCloneJobDeps } from './git-clone-job.js';
-import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 import type { AgentWorkManager } from '../services/service-interfaces.js';
@@ -29,8 +28,10 @@ import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
+import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
+import { createGitCloneJobRunner } from '../domain/usecase/run-git-clone-job.js';
 import type { WorkspaceRefreshReason } from '../services/workspace-service/index.js';
 
 /** Event shape delivered from the machine command inbox (formerly machines.getCommandEvents). */
@@ -240,11 +241,8 @@ function handlePickFolderCommandEffect(
   });
 }
 
-/**
- * Clone targets with a job in flight, keyed by target path. The value is the owning request id.
- * A second request for the same folder fails immediately instead of racing the first clone.
- */
-const inFlightCloneTargets = new Map<string, string>();
+/** Owns the clone in-flight registry for this daemon. Dedup by event id stays on the tracker. */
+const gitCloneRunner = createGitCloneJobRunner();
 
 function logGitCloneWarning(error: unknown): void {
   console.warn(`[${formatTimestamp()}] ⚠️  Git clone failed: ${getErrorMessage(error)}`);
@@ -261,21 +259,13 @@ function handleGitCloneCommandEffect(
     const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitClone' }>;
     const { requestId, targetPath, repoUrl } = typedEvent;
     const session = yield* DaemonSessionService;
-    const base = { sessionId: session.sessionId, machineId: session.machineId, requestId };
-    const deps: GitCloneJobDeps = {
-      reportProgress: (p) =>
-        session.backend.mutation(api.gitCloneRequests.reportProgress, {
-          ...base,
-          phase: p.phase,
-          percent: p.percent,
-        }),
-      reportResult: (r) =>
-        session.backend.mutation(api.gitCloneRequests.reportResult, { ...base, ...r }),
-    };
+    const deps = createGitCloneJobDeps(session, requestId);
 
-    const owner = inFlightCloneTargets.get(targetPath);
-    if (owner === requestId) return; // Same request redelivered while its clone still runs.
-    if (owner !== undefined) {
+    // The job must NOT be awaited: the inbox serializes MACHINE_COMMAND_KEY work and acks only
+    // after this handler returns, so awaiting a long clone would stall every command.
+    const outcome = gitCloneRunner.start(deps, { requestId, repoUrl, targetPath });
+    if (outcome === 'duplicate') return; // Same request redelivered while its clone still runs.
+    if (outcome === 'busy') {
       void deps
         .reportResult({
           status: 'failed',
@@ -285,18 +275,7 @@ function handleGitCloneCommandEffect(
         .catch(logGitCloneWarning);
       return;
     }
-
-    inFlightCloneTargets.set(targetPath, requestId);
     console.log(`[${formatTimestamp()}] 📥 Git clone requested → ${targetPath}`);
-    // Fire-and-forget. MUST NOT be awaited: the inbox serializes MACHINE_COMMAND_KEY work and
-    // acks only after this handler returns, so awaiting a long clone would stall every command.
-    void runGitCloneJob(deps, { repoUrl, targetPath })
-      .catch(logGitCloneWarning)
-      .finally(() => {
-        if (inFlightCloneTargets.get(targetPath) === requestId) {
-          inFlightCloneTargets.delete(targetPath);
-        }
-      });
   });
 }
 
