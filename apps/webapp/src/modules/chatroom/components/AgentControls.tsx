@@ -42,6 +42,10 @@ import { useMachineConfigFavorites } from '../features/machine-config/hooks/useM
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
 import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
 import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
+import {
+  pickFavoriteDefault,
+  pickFavoriteModelForHarness,
+} from '../features/machine-config/lib/pickFavoriteDefault';
 import { useAgentStop } from '../hooks/useAgentStop';
 import type {
   AgentHarness,
@@ -145,6 +149,25 @@ export function deriveInitialMachineId(
   );
 }
 
+/**
+ * True when deriveInitialHarness takes its harness from the persisted snapshot or the team config,
+ * rather than from the fallbacks. Used so the favourite default never overrides those choices.
+ * Mirrors the first two branches of deriveInitialHarness.
+ */
+function isHarnessSeededFromConfig(
+  machineId: string | null,
+  connectedMachines: MachineInfo[],
+  roleConfigs: AgentConfig[],
+  teamConfigHarness?: AgentHarness
+): boolean {
+  if (!machineId) return false;
+  const available =
+    connectedMachines.find((m) => m.machineId === machineId)?.availableHarnesses ?? [];
+  const config = roleConfigs.find((c) => c.machineId === machineId);
+  if (config && available.includes(config.agentType)) return true;
+  return !!teamConfigHarness && available.includes(teamConfigHarness);
+}
+
 function deriveInitialHarness(
   machineId: string | null,
   connectedMachines: MachineInfo[],
@@ -243,6 +266,10 @@ export function useAgentControls({
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
   const previousTeamIdRef = useRef(teamId);
+  // Favourite-based default (one-shot per machine). harnessTouchedRef blocks it after any explicit
+  // harness or model choice. favoriteDefaultAppliedForRef records the machine it was decided for.
+  const harnessTouchedRef = useRef(false);
+  const favoriteDefaultAppliedForRef = useRef<string | null>(null);
 
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
@@ -269,6 +296,8 @@ export function useAgentControls({
     setUserModelByHarness({});
     setWorkingDir('');
     setIsInitialized(false);
+    harnessTouchedRef.current = false;
+    favoriteDefaultAppliedForRef.current = null;
   }, [teamId, teamConfigHarness]);
 
   // Update the ref if it's still unset and teamConfigHarness arrives before initialization.
@@ -357,6 +386,18 @@ export function useAgentControls({
     );
     const wd =
       lockedWorkingDir ?? deriveInitialWorkingDir(machine, roleConfigs, initializationWorkspaces);
+    // The persisted snapshot or team config already chose this machine's harness, so the
+    // favourite default must not run for it.
+    if (
+      isHarnessSeededFromConfig(
+        machine,
+        connectedMachines,
+        roleConfigs,
+        initialTeamConfigHarnessRef.current
+      )
+    ) {
+      favoriteDefaultAppliedForRef.current = machine;
+    }
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
@@ -376,6 +417,41 @@ export function useAgentControls({
     lockedWorkingDir,
     teamConfigMachineId,
     preferredWorkspace,
+  ]);
+
+  // ── Favourite-based default harness ──────────────────────────────
+  // Runs once per machine, after initialization. The machine's favourites (same scope as
+  // RemoteTabContent, so the query is shared) pick the top usable harness. Persisted snapshots,
+  // running agents, seeded team config and explicit user choices always win.
+  const defaultsFavoriteScope = useMemo(
+    () =>
+      selectedMachineId && teamId
+        ? { machineId: selectedMachineId, chatroomId, teamId, role }
+        : undefined,
+    [selectedMachineId, chatroomId, teamId, role]
+  );
+  const { favorites: defaultFavorites, isLoading: defaultFavoritesLoading } =
+    useMachineConfigFavorites(defaultsFavoriteScope);
+
+  useEffect(() => {
+    if (!isInitialized || !selectedMachineId || !defaultsFavoriteScope || defaultFavoritesLoading)
+      return;
+    if (favoriteDefaultAppliedForRef.current === selectedMachineId) return;
+    favoriteDefaultAppliedForRef.current = selectedMachineId;
+    if (harnessTouchedRef.current || runningAgentConfig) return;
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-pass-live-state-to-parent, react-you-might-not-need-an-effect/no-pass-data-to-parent -- intentional: one-shot default seeded from the favourites query once it loads; the effect is the only place the query result can be applied after async load
+    if (roleConfigs.some((c) => c.machineId === selectedMachineId)) return;
+    const favorite = pickFavoriteDefault(defaultFavorites, availableHarnessesForMachine);
+    if (favorite) setSelectedHarness(favorite.agentHarness);
+  }, [
+    isInitialized,
+    selectedMachineId,
+    defaultsFavoriteScope,
+    defaultFavoritesLoading,
+    defaultFavorites,
+    availableHarnessesForMachine,
+    roleConfigs,
+    runningAgentConfig,
   ]);
 
   // Available models from the selected machine filtered by selected harness
@@ -422,6 +498,9 @@ export function useAgentControls({
       userChoice: selectedHarness ? userModelByHarness[selectedHarness] : undefined,
       machineConfigModel: config?.model ?? undefined,
       teamConfigModel,
+      preferenceModel: selectedHarness
+        ? pickFavoriteModelForHarness(defaultFavorites, selectedHarness, visibleModels)
+        : undefined,
     });
   }, [
     modelSelectionReady,
@@ -433,6 +512,7 @@ export function useAgentControls({
     selectedMachineId,
     workspaceId,
     teamConfigModel,
+    defaultFavorites,
   ]);
 
   const isAgentRunning = !!displayAgentConfig;
@@ -635,6 +715,9 @@ export function useAgentControls({
       setSelectedMachineId(machineId);
       setSelectedHarness(null);
       setUserModelByHarness({});
+      // A new machine gets its own one-shot favourite default.
+      harnessTouchedRef.current = false;
+      favoriteDefaultAppliedForRef.current = null;
       const wd = deriveInitialWorkingDir(machineId, roleConfigs, chatroomWorkspaces);
       setWorkingDir(wd);
     },
@@ -642,7 +725,9 @@ export function useAgentControls({
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
+  // Marks the harness as explicitly chosen so a late favourites load cannot override it.
   const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
+    harnessTouchedRef.current = true;
     setSelectedHarness(harness);
   }, []);
 
@@ -651,6 +736,7 @@ export function useAgentControls({
     (model: string | null, harnessOverride?: AgentHarness | null) => {
       const harness = harnessOverride ?? selectedHarness;
       if (!harness) return;
+      harnessTouchedRef.current = true;
       if (model) {
         setUserModelByHarness((prev) => ({ ...prev, [harness]: model }));
       } else {
