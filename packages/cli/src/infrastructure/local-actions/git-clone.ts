@@ -34,8 +34,6 @@ export interface RunGitCloneOptions {
   onProgress: (progress: GitCloneProgress) => void;
   /** Kill the clone (SIGTERM) after this long. Defaults to 30 minutes. */
   timeoutMs?: number | undefined;
-  /** Value for GIT_ALLOW_PROTOCOL. Defaults to GIT_CLONE_ALLOWED_PROTOCOLS. */
-  allowProtocols?: string | undefined;
   /** Test seam. Defaults to child_process.spawn. */
   spawnFn?: typeof spawn | undefined;
 }
@@ -139,13 +137,16 @@ function createStderrReader(onProgress: (progress: GitCloneProgress) => void) {
   };
 }
 
-/** Environment for the git child. Forces English output and blocks interactive prompts. */
-function gitCloneEnv(allowProtocols: string): NodeJS.ProcessEnv {
+/**
+ * Environment for the git child. Forces English output, blocks interactive prompts, and limits
+ * transports to GIT_CLONE_ALLOWED_PROTOCOLS.
+ */
+function gitCloneEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
     LC_ALL: 'C',
     GIT_TERMINAL_PROMPT: '0',
-    GIT_ALLOW_PROTOCOL: allowProtocols,
+    GIT_ALLOW_PROTOCOL: GIT_CLONE_ALLOWED_PROTOCOLS,
     GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes',
   };
 }
@@ -157,7 +158,6 @@ function spawnGitClone(
 ): Promise<GitCloneOutcome> {
   const spawnFn = opts.spawnFn ?? spawn;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const allowProtocols = opts.allowProtocols ?? GIT_CLONE_ALLOWED_PROTOCOLS;
 
   return new Promise((resolve) => {
     let settled = false;
@@ -165,7 +165,7 @@ function spawnGitClone(
 
     const child = spawnFn('git', ['clone', '--progress', '--', repoUrl, cloneTarget], {
       stdio: ['ignore', 'ignore', 'pipe'],
-      env: gitCloneEnv(allowProtocols),
+      env: gitCloneEnv(),
     });
 
     const timer = setTimeout(() => {
