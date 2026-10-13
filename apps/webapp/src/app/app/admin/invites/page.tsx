@@ -7,10 +7,10 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
-import { getErrorMessage } from '@/app/app/admin/convexError';
 import { CreateInviteCard } from '@/app/app/admin/invites/CreateInviteCard';
 import { DeleteInviteDialog } from '@/app/app/admin/invites/DeleteInviteDialog';
 import { InviteListCard } from '@/app/app/admin/invites/InviteListCard';
+import { getErrorMessage } from '@/lib/convexError';
 
 export default function InvitesPage() {
   const invites = useSessionQuery(api.admin.invites.listInvites);

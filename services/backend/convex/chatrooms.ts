@@ -3,19 +3,25 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession, requireSession } from './auth/session';
-import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
+import { insertChatroomWithTeam } from '../src/domain/usecase/chatroom/create-chatroom';
+import { createChatroomWithWorkspace } from '../src/domain/usecase/chatroom/create-chatroom-with-workspace';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
 } from '../src/domain/usecase/chatroom/lifecycle-impacts';
 import {
+  listOwnedChatrooms,
+  sortByLastActivity,
+} from '../src/domain/usecase/chatroom/list-owned-chatrooms';
+import { planObservationWrite } from '../src/domain/usecase/chatroom/plan-observation-write';
+import {
   clearChatroomUnread,
   markChatroomUnread,
 } from '../src/domain/usecase/chatroom/unread-status';
-import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 import {
   getActiveTeamStructure,
   upsertActiveTeamStructure,
@@ -44,17 +50,33 @@ export const create = mutation({
       teamId: args.teamStructureId ?? (args.teamId === 'solo' ? 'solo@1' : 'duo@1'),
     });
 
-    const chatroomId = await ctx.db.insert('chatroom_rooms', {
-      status: 'active',
+    return insertChatroomWithTeam(ctx, {
       ownerId: auth.userId,
-    });
-    await upsertActiveTeamStructure(ctx, {
-      chatroomId,
       teamStructureId: structure.teamStructureId,
-      updatedBy: auth.userId,
     });
-    await ensureMessageReadModelState(ctx, chatroomId);
-    return chatroomId;
+  },
+});
+
+/**
+ * Creates a chatroom and registers its first workspace in one transaction.
+ * Validates team, machine ownership and working dir before any write.
+ */
+export const createWithWorkspace = mutation({
+  args: {
+    ...SessionIdArg,
+    teamStructureId: v.string(),
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Checks the session and that the caller owns the machine.
+    const auth = await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return createChatroomWithWorkspace(ctx, {
+      ownerId: auth.userId,
+      teamStructureId: args.teamStructureId,
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+    });
   },
 });
 
@@ -96,19 +118,7 @@ export const listByUser = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
 
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
-      .collect();
-
-    // Sort by lastActivityAt (most recent first), falling back to _creationTime
-    chatrooms.sort((a, b) => {
-      const aTime = a.lastActivityAt ?? a._creationTime;
-      const bTime = b.lastActivityAt ?? b._creationTime;
-      return bTime - aTime;
-    });
-
-    return chatrooms;
+    return sortByLastActivity(await listOwnedChatrooms(ctx, auth.userId));
   },
 });
 
@@ -122,18 +132,8 @@ export const listByUserWithStatus = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
 
-    // Fetch chatrooms - we'll sort by lastActivityAt after fetching
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
-      .collect();
-
-    // Sort by lastActivityAt (most recent first), falling back to _creationTime
-    chatrooms.sort((a, b) => {
-      const aTime = a.lastActivityAt ?? a._creationTime;
-      const bTime = b.lastActivityAt ?? b._creationTime;
-      return bTime - aTime;
-    });
+    // Fetch chatrooms, most recent activity first
+    const chatrooms = sortByLastActivity(await listOwnedChatrooms(ctx, auth.userId));
 
     const now = Date.now();
 
@@ -508,10 +508,7 @@ export const listUnreadStatus = query({
 
     // Fallback: compute from message scans (migration safety)
     const [chatrooms, readCursors] = await Promise.all([
-      ctx.db
-        .query('chatroom_rooms')
-        .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
-        .collect(),
+      listOwnedChatrooms(ctx, auth.userId),
       ctx.db
         .query('chatroom_read_cursors')
         .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
@@ -568,10 +565,7 @@ export const listParticipantPresence = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
 
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
-      .collect();
+    const chatrooms = await listOwnedChatrooms(ctx, auth.userId);
 
     const presence = await Promise.all(
       chatrooms.map(async (chatroom) => {
@@ -630,31 +624,13 @@ export const recordChatroomObservation = mutation({
       .withIndex('by_chatroomId', (q) => q.eq('chatroomId', args.chatroomId))
       .first();
 
+    const plan = planObservationWrite(existing, now, args.refresh === true);
+    if (plan === null) return;
+
     if (existing) {
-      const isRefresh = args.refresh === true;
-      const lastObservedStale =
-        now - existing.lastObservedAt >= OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS;
-
-      // Regular heartbeats: skip redundant writes that would invalidate daemon subscriptions.
-      // Refresh calls always write (lastRefreshedAt must be updated).
-      if (!isRefresh && !lastObservedStale) {
-        return;
-      }
-
-      const patch: { lastObservedAt: number; lastRefreshedAt?: number | undefined } = {
-        lastObservedAt: now,
-      };
-      if (isRefresh) {
-        patch.lastRefreshedAt = now;
-      }
-      await ctx.db.patch('chatroom_observation', existing._id, patch);
+      await ctx.db.patch('chatroom_observation', existing._id, plan);
     } else {
-      // Create new observation record
-      await ctx.db.insert('chatroom_observation', {
-        chatroomId: args.chatroomId,
-        lastObservedAt: now,
-        ...(args.refresh ? { lastRefreshedAt: now } : {}),
-      });
+      await ctx.db.insert('chatroom_observation', { chatroomId: args.chatroomId, ...plan });
     }
   },
 });

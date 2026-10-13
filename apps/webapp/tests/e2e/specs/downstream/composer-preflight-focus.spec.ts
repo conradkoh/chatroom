@@ -1,7 +1,20 @@
-import { expect, test, type ConsoleMessage, type Response } from '@playwright/test';
+import { expect, test, type ConsoleMessage, type Page, type Response } from '@playwright/test';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { ConvexHttpClient } from 'convex/browser';
+import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { LoginPage } from '../../pages/login.page';
+import { getConvexUrl } from '../../support/env';
 import { TAG_DOWNSTREAM } from '../../support/tags';
+
+async function dismissSetupWorkspace(page: Page): Promise<void> {
+  const setupWorkspaceDialog = page.getByRole('dialog');
+  await expect(
+    setupWorkspaceDialog.getByRole('heading', { name: 'Setup Workspace' })
+  ).toBeVisible();
+  await setupWorkspaceDialog.getByRole('button', { name: 'Close' }).click();
+  await expect(setupWorkspaceDialog).toHaveCount(0);
+}
 
 /**
  * Composer preflight shortcut focus (downstream Chromium smoke).
@@ -102,15 +115,18 @@ test.describe('Composer preflight new-session shortcut focus', { tag: [TAG_DOWNS
     page.off('console', onConsole);
     page.off('response', onResponse);
 
-    // Enter a real chatroom: create one through the production selector UI.
-    // Intentionally uncaught: a missing/renamed control or broken route must fail.
-    const createEntry = page.getByRole('button', { name: 'Create New Chatroom' });
-    await expect(createEntry.first()).toBeVisible({ timeout: 15_000 });
-    await createEntry.first().click();
-    const submit = page.getByRole('button', { name: 'Create Chatroom' });
-    await expect(submit).toBeVisible({ timeout: 10_000 });
-    await submit.click();
-    await page.waitForURL('**/app/chatroom**', { timeout: 15_000 });
+    // Enter a real chatroom. The new-chatroom wizard needs a connected machine, which this spec
+    // does not provide, so the room is created through the backend and the test enters it by URL.
+    // Intentionally uncaught: a failed login or backend error must fail the test.
+    const rawSessionId = await page.evaluate(() => localStorage.getItem('sessionId'));
+    expect(rawSessionId, 'anonymous login should persist a session').toBeTruthy();
+    const client = new ConvexHttpClient(getConvexUrl());
+    const chatroomId = await client.mutation(api.chatrooms.create, {
+      sessionId: rawSessionId as SessionId,
+      teamStructureId: 'duo@1',
+    });
+    await page.goto(`/app/chatroom?id=${chatroomId}`);
+    await dismissSetupWorkspace(page);
 
     // Required product surfaces: missing composer or preflight bar must fail.
     const preflightBar = page.getByTestId('composer-preflight-bar');

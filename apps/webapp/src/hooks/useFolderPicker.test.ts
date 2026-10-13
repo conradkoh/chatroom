@@ -13,9 +13,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    machines: {
-      requestFolderPicker: 'machines:requestFolderPicker',
-      getFolderPickerRequest: 'machines:getFolderPickerRequest',
+    folderPickerRequests: {
+      request: 'folderPickerRequests:request',
+      get: 'folderPickerRequests:get',
     },
   },
 }));

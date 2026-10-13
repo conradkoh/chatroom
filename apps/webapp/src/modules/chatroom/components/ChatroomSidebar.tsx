@@ -11,14 +11,15 @@ import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { ChatroomSidebarAgentActions } from './ChatroomSidebarAgentActions';
 import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
-import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
-import { useChatroomStatus, useChatroomStatusMap } from '../hooks/useChatroomStatus';
+import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { useChatroomListingStatuses } from '../hooks/useChatroomListingStatuses';
+import { useChatroomStatus } from '../hooks/useChatroomStatus';
 import {
   getChatroomActivityIndicatorClasses,
   getChatroomActivityIndicatorLoadingClasses,
 } from '../utils/activityStatusDisplay';
 import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
-import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
+import { getChatroomDisplayName, isChatroomCompleted } from '../viewModels/chatroomViewModel';
 
 import {
   ContextMenu,
@@ -176,7 +177,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     }
   }, [chatroom.hasUnread, chatroom._id, markAsRead, markAsUnread]);
 
-  const isCompleted = chatroomStatus?.state === 'completed' || chatroom.status === 'completed';
+  const isCompleted = isChatroomCompleted(chatroom, chatroomStatus?.state);
 
   const showStartButton =
     chatroom.status !== 'completed' &&
@@ -403,10 +404,8 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   activeChatroomId,
 }: ChatroomSidebarProps) {
   const router = useRouter();
-  const { chatrooms, isLoading } = useChatroomListing();
+  const { chatrooms, isLoading, statuses } = useChatroomListingStatuses();
   const [completedExpanded, setCompletedExpanded] = useState(false);
-  const chatroomIds = useMemo(() => chatrooms?.map((chatroom) => chatroom._id) ?? [], [chatrooms]);
-  const { statuses } = useChatroomStatusMap(chatroomIds);
 
   // Compute sections
   const { activeChatrooms, recentByRecency, completed } = useMemo(() => {

@@ -1,73 +1,45 @@
 'use client';
-/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-adjust-state-on-prop-change, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-derived-state */
+/* eslint-disable react-hooks/exhaustive-deps -- useAgentControls syncs async Convex data and team changes into local state on purpose; the refactor is tracked as tech debt. */
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { FileText } from 'lucide-react';
 import {
-  Play,
-  Square,
-  RotateCw,
-  Loader2,
-  AlertCircle,
-  ChevronDown,
-  FileText,
-  Star,
-  Save,
-} from 'lucide-react';
-import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
+  useState,
+  useMemo,
+  memo,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from 'react';
 
-import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
+import { deriveAgentStatus, deriveRehomeLabels } from './agent-controls/derivations';
+import {
+  isReadyToInitialize,
+  resolveInitialSelection,
+  type InitializationInputs,
+} from './agent-controls/initialization';
+import { LoadingNotice, NoMachinesNotice, RemoteTabBody } from './agent-controls/RemoteTabParts';
+import { useAgentDerivations } from './agent-controls/useAgentDerivations';
+import { useAgentRunActions } from './agent-controls/useAgentRunActions';
+import { useAgentSaveAction } from './agent-controls/useAgentSaveAction';
+import { useModelOptions } from './agent-controls/useModelOptions';
+import { useRemoteTabModel } from './agent-controls/useRemoteTabModel';
+import { useSelectionHandlers } from './agent-controls/useSelectionHandlers';
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
-import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
-import {
-  ModelFilterButton,
-  ModelPickerField,
-  ModelPickerMeta,
-  useHarnessModelPicker,
-  useMachineModelFilter,
-} from './model-selection';
-import {
-  ResponsivePickerShell,
-  PickerSearch,
-  PickerScrollBody,
-  PickerOptionRow,
-  usePickerSearchState,
-  filterPickerItems,
-} from './picker';
 import type { MachineConnectivity } from '../../../hooks/useDaemonConnectivity';
-import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useMachineConfigFavorites } from '../features/machine-config/hooks/useMachineConfigFavorites';
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
-import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
-import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
-import { useAgentStop } from '../hooks/useAgentStop';
-import type {
-  AgentHarness,
-  HarnessVersionInfo,
-  MachineInfo,
-  AgentConfig,
-  SendCommandFn,
-} from '../types/machine';
-import { formatHarnessLabel, getModelDisplayLabel, getMachineDisplayName } from '../types/machine';
-import type { Workspace } from '../types/workspace';
-import { dispatchStartAgent } from '../utils/agentStart';
-import { isModelHidden, selectModel } from '../utils/modelSelection';
-import { pickSetupWorkspace } from '../utils/pickSetupWorkspace';
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
-
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { cn } from '@/lib/utils';
+  favoriteDefaultBlocked,
+  favoriteHarnessDefault,
+} from '../features/machine-config/lib/favoriteDefaults';
+import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
+import type { MachineConfigEntry } from '../features/machine-config/types/machineConfig';
+import { useAgentStop } from '../hooks/useAgentStop';
+import type { AgentConfig, AgentHarness, MachineInfo, SendCommandFn } from '../types/machine';
+import type { Workspace } from '../types/workspace';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -106,92 +78,225 @@ export interface AgentControlsProps {
 // ───────────────
 // `selectedModel` is DERIVED (useMemo), not state. Per-harness user choices
 // are stored in `userModelByHarness` so switching harness never loses context.
+//
+// The pure rules live in ./agent-controls/. This file keeps the two sync hooks, which copy async
+// Convex data into local state, and composes the rest.
 
-// ─── Pure helpers for initialization ────────────────────────────────
+// ─── Sync hooks ─────────────────────────────────────────────────────
 
-/** Exported for unit tests — deterministic machine pick; never falls back to arbitrary first online machine. */
-export function deriveInitialMachineId(
-  connectedMachines: MachineInfo[],
-  roleConfigs: AgentConfig[],
-  runningAgentConfig: AgentConfig | undefined,
-  teamConfigMachineId?: string | null,
-  chatroomWorkspaces?: Workspace[]
-): string | null {
-  if (connectedMachines.length === 0) return null;
-  // Priority: running agent > existing config machine
-  if (runningAgentConfig) return runningAgentConfig.machineId;
-  const configMachine = connectedMachines.find((m) =>
-    roleConfigs.some((c) => c.machineId === m.machineId)
+interface SelectionSyncArgs extends Omit<InitializationInputs, 'teamConfigHarness'> {
+  teamId?: string;
+  teamConfigHarness?: AgentHarness;
+  workspaceId?: string;
+  configurationLoading: boolean;
+  chatroomWorkspaces?: Workspace[];
+  isInitialized: boolean;
+  /** The machine's harness list is still loading, so initialization must wait for it. */
+  harnessesLoading: boolean;
+  previousTeamIdRef: RefObject<string | undefined>;
+  initialTeamConfigHarnessRef: RefObject<AgentHarness | undefined>;
+  harnessTouchedRef: RefObject<boolean>;
+  favoriteDefaultAppliedForRef: RefObject<string | null>;
+  setSelectedMachineId: Dispatch<SetStateAction<string | null>>;
+  setSelectedHarness: Dispatch<SetStateAction<AgentHarness | null>>;
+  setUserModelByHarness: Dispatch<SetStateAction<Partial<Record<AgentHarness, string>>>>;
+  setWorkingDir: Dispatch<SetStateAction<string>>;
+  setIsInitialized: Dispatch<SetStateAction<boolean>>;
+}
+
+/**
+ * Resets the selection when the team changes, and initializes it once from the persisted state.
+ * Both effects copy async data into local state on purpose (see the file-level directive).
+ */
+function useSelectionInitialization(args: SelectionSyncArgs): void {
+  const {
+    teamId,
+    teamConfigHarness,
+    workspaceId,
+    configurationLoading,
+    isInitialized,
+    harnessesLoading,
+    connectedMachines,
+    roleConfigs,
+    runningAgentConfig,
+    teamConfigMachineId,
+    chatroomWorkspaces,
+    chatroomWorkspacesLoading,
+    initializationWorkspaces,
+    preferredWorkspace,
+    lockedMachineId,
+    lockedWorkingDir,
+    previousTeamIdRef,
+    initialTeamConfigHarnessRef,
+    harnessTouchedRef,
+    favoriteDefaultAppliedForRef,
+    setSelectedMachineId,
+    setSelectedHarness,
+    setUserModelByHarness,
+    setWorkingDir,
+    setIsInitialized,
+  } = args;
+
+  useEffect(() => {
+    if (previousTeamIdRef.current === teamId) return;
+    previousTeamIdRef.current = teamId;
+    initialTeamConfigHarnessRef.current = teamConfigHarness;
+    setSelectedMachineId(null);
+    setSelectedHarness(null);
+    setUserModelByHarness({});
+    setWorkingDir('');
+    setIsInitialized(false);
+    harnessTouchedRef.current = false;
+    favoriteDefaultAppliedForRef.current = null;
+  }, [teamId, teamConfigHarness]);
+
+  // Update the ref if it's still unset and teamConfigHarness arrives before initialization.
+  // Safe to do in render: runs only before initialization, is a one-way undefined→defined
+  // transition, and setting a ref does not trigger re-renders.
+  if (
+    !isInitialized &&
+    initialTeamConfigHarnessRef.current === undefined &&
+    teamConfigHarness !== undefined
+  ) {
+    initialTeamConfigHarnessRef.current = teamConfigHarness;
+  }
+
+  // Fires exactly once — when machines first become available and their harness list has loaded.
+  // The "last used" config is derived solely from the persisted launch snapshot (roleConfigs).
+  useEffect(() => {
+    if (
+      !isReadyToInitialize({
+        isInitialized,
+        connectedCount: connectedMachines.length,
+        workspaceId,
+        configurationLoading,
+        harnessesLoading,
+      })
+    )
+      return;
+    const init = resolveInitialSelection({
+      connectedMachines,
+      roleConfigs,
+      runningAgentConfig,
+      teamConfigMachineId,
+      teamConfigHarness: initialTeamConfigHarnessRef.current,
+      initializationWorkspaces,
+      preferredWorkspace,
+      chatroomWorkspacesLoading,
+      lockedMachineId,
+      lockedWorkingDir,
+    });
+    if (!init) return;
+    // The persisted snapshot or team config already chose this machine's harness, so the
+    // favourite default must not run for it.
+    if (init.seededFromConfig) favoriteDefaultAppliedForRef.current = init.machineId;
+    setSelectedMachineId(init.machineId);
+    // An explicit harness pick made before initialization is the user's choice and must not be
+    // replaced by the derived one.
+    if (!harnessTouchedRef.current) setSelectedHarness(init.harness);
+    setWorkingDir(init.workingDir);
+    setIsInitialized(true);
+  }, [
+    isInitialized,
+    harnessesLoading,
+    connectedMachines,
+    roleConfigs,
+    runningAgentConfig,
+    chatroomWorkspaces,
+    initializationWorkspaces,
+    chatroomWorkspacesLoading,
+    configurationLoading,
+    workspaceId,
+    lockedMachineId,
+    lockedWorkingDir,
+    teamConfigMachineId,
+    preferredWorkspace,
+  ]);
+}
+
+interface FavoriteDefaultArgs {
+  isInitialized: boolean;
+  selectedMachineId: string | null;
+  chatroomId: string;
+  teamId?: string;
+  role: string;
+  roleConfigs: AgentConfig[];
+  runningAgentConfig: AgentConfig | undefined;
+  availableHarnessesForMachine: AgentHarness[];
+  /** The machine's harness list is still loading. The one-shot default must wait for it. */
+  harnessesLoading: boolean;
+  harnessTouchedRef: RefObject<boolean>;
+  favoriteDefaultAppliedForRef: RefObject<string | null>;
+  setSelectedHarness: Dispatch<SetStateAction<AgentHarness | null>>;
+}
+
+/**
+ * Favourite-based default harness. Runs once per machine, after initialization. The machine's
+ * favourites (same scope as RemoteTabContent, so the query is shared) pick the top usable harness.
+ * Persisted snapshots, running agents, seeded team config and explicit user choices always win.
+ * Returns the favourites so the model options can use them.
+ *
+ * CONSTRAINT: the one-shot ref is consumed only once the harness list is loaded. Consuming it
+ * against an empty list would drop the default for good, because the list fills in later.
+ */
+function useFavoriteHarnessDefault(args: FavoriteDefaultArgs): readonly MachineConfigEntry[] {
+  const {
+    isInitialized,
+    selectedMachineId,
+    chatroomId,
+    teamId,
+    role,
+    roleConfigs,
+    runningAgentConfig,
+    availableHarnessesForMachine,
+    harnessesLoading,
+    harnessTouchedRef,
+    favoriteDefaultAppliedForRef,
+    setSelectedHarness,
+  } = args;
+
+  const defaultsFavoriteScope = useMemo(
+    () =>
+      selectedMachineId && teamId
+        ? { machineId: selectedMachineId, chatroomId, teamId, role }
+        : undefined,
+    [selectedMachineId, chatroomId, teamId, role]
   );
-  if (configMachine) return configMachine.machineId;
-  if (teamConfigMachineId && connectedMachines.some((m) => m.machineId === teamConfigMachineId)) {
-    return teamConfigMachineId;
-  }
-  const candidates =
-    chatroomWorkspaces?.filter(
-      (ws) =>
-        ws.machineId &&
-        ws.workingDir?.trim() &&
-        connectedMachines.some((m) => m.machineId === ws.machineId)
-    ) ?? [];
-  return (
-    pickSetupWorkspace(
-      candidates.map((ws) => ({
-        machineId: ws.machineId ?? '',
-        workingDir: ws.workingDir,
-        registeredAt: ws.registeredAt,
-      }))
-    )?.machineId ?? null
-  );
+  const { favorites: defaultFavorites, isLoading: defaultFavoritesLoading } =
+    useMachineConfigFavorites(defaultsFavoriteScope);
+
+  // Ready once the machine is initialized, its harness list and its favourites have loaded. Until
+  // then the default is not decided, so a late load can still apply it.
+  const favoriteDefaultReady =
+    isInitialized &&
+    !!selectedMachineId &&
+    !!defaultsFavoriteScope &&
+    !defaultFavoritesLoading &&
+    !harnessesLoading;
+
+  useEffect(() => {
+    if (!favoriteDefaultReady || favoriteDefaultAppliedForRef.current === selectedMachineId) return;
+    favoriteDefaultAppliedForRef.current = selectedMachineId;
+    const hasSnapshot = roleConfigs.some((c) => c.machineId === selectedMachineId);
+    const harness = favoriteHarnessDefault({
+      favorites: defaultFavorites,
+      availableHarnesses: availableHarnessesForMachine,
+      blocked: favoriteDefaultBlocked(harnessTouchedRef.current, runningAgentConfig, hasSnapshot),
+    });
+    if (harness) setSelectedHarness(harness);
+  }, [
+    favoriteDefaultReady,
+    selectedMachineId,
+    defaultFavorites,
+    availableHarnessesForMachine,
+    roleConfigs,
+    runningAgentConfig,
+  ]);
+
+  return defaultFavorites;
 }
 
-function deriveInitialHarness(
-  machineId: string | null,
-  connectedMachines: MachineInfo[],
-  roleConfigs: AgentConfig[],
-  teamConfigHarness?: AgentHarness
-): AgentHarness | null {
-  if (!machineId) return null;
-  const machine = connectedMachines.find((m) => m.machineId === machineId);
-  const available = machine?.availableHarnesses ?? [];
-  // Priority: existing config harness > team config harness > only option
-  const config = roleConfigs.find((c) => c.machineId === machineId);
-  if (config && available.includes(config.agentType)) return config.agentType;
-  if (teamConfigHarness && available.includes(teamConfigHarness)) return teamConfigHarness;
-  if (available.length === 1) return available[0];
-  return null;
-}
-
-export function deriveInitialWorkingDir(
-  machineId: string | null,
-  roleConfigs: AgentConfig[],
-  chatroomWorkspaces?: Workspace[]
-): string {
-  if (machineId) {
-    const config = roleConfigs.find((c) => c.machineId === machineId);
-    if (config?.workingDir) return config.workingDir;
-    if (chatroomWorkspaces) {
-      const ws = chatroomWorkspaces.find((w) => w.machineId === machineId);
-      if (ws?.workingDir) return ws.workingDir;
-    }
-  }
-  if (roleConfigs.length > 0) {
-    const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
-    if (latest.workingDir) return latest.workingDir;
-  }
-  return '';
-}
-
-/** Wait for workspaces when they may supply the machine or its working directory. */
-export function shouldDeferInitUntilWorkspacesLoad(
-  machineId: string | null,
-  roleConfigs: AgentConfig[],
-  preferredWorkspace?: Workspace
-): boolean {
-  if (!machineId) return true;
-  const config = roleConfigs.find((c) => c.machineId === machineId);
-  return !config?.workingDir && !preferredWorkspace?.workingDir;
-}
+// ─── Composition ────────────────────────────────────────────────────
 
 export function useAgentControls({
   role,
@@ -210,6 +315,7 @@ export function useAgentControls({
   lockedMachineId,
   lockedWorkingDir,
   teamId,
+  harnessesLoading = false,
 }: {
   role: string;
   chatroomId: string;
@@ -226,6 +332,9 @@ export function useAgentControls({
   teamConfigMachineId?: string | null;
   /** The selected workspace's last configuration is still loading. */
   configurationLoading?: boolean;
+  /** The machine's harness list (capabilities) is still loading. Initialization and the favourite
+   *  default wait for it, so they never run against an empty list. */
+  harnessesLoading?: boolean;
   /** Team ID for role/team-specific defaults. */
   teamId?: string;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
@@ -239,10 +348,13 @@ export function useAgentControls({
   lockedWorkingDir?: string;
 }) {
   const { requestAgentStop } = useAgentStop();
-  const saveAgentConfig = useSessionMutation(api.agents.saveConfig);
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
   const previousTeamIdRef = useRef(teamId);
+  // Favourite-based default (one-shot per machine). harnessTouchedRef blocks it after any explicit
+  // harness or model choice. favoriteDefaultAppliedForRef records the machine it was decided for.
+  const harnessTouchedRef = useRef(false);
+  const favoriteDefaultAppliedForRef = useRef<string | null>(null);
 
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
@@ -260,418 +372,156 @@ export function useAgentControls({
   // Guards initialization — fires exactly once when machines become available
   const [isInitialized, setIsInitialized] = useState(false);
 
-  useEffect(() => {
-    if (previousTeamIdRef.current === teamId) return;
-    previousTeamIdRef.current = teamId;
-    initialTeamConfigHarnessRef.current = teamConfigHarness;
-    setSelectedMachineId(null);
-    setSelectedHarness(null);
-    setUserModelByHarness({});
-    setWorkingDir('');
-    setIsInitialized(false);
-  }, [teamId, teamConfigHarness]);
+  const {
+    roleConfigs,
+    preferredWorkspace,
+    initializationWorkspaces,
+    runningAgentConfig,
+    displayAgentConfig,
+    availableHarnessesForMachine,
+    harnessVersionsForMachine,
+  } = useAgentDerivations({
+    role,
+    agentConfigs,
+    workspaceId,
+    chatroomWorkspaces,
+    connectedMachines,
+    runtimeIsRunning,
+    selectedMachineId,
+  });
 
-  // Update the ref if it's still unset and teamConfigHarness arrives before initialization.
-  // Safe to do in render: runs only before initialization, is a one-way undefined→defined
-  // transition, and setting a ref does not trigger re-renders.
-  if (
-    !isInitialized &&
-    initialTeamConfigHarnessRef.current === undefined &&
-    teamConfigHarness !== undefined
-  ) {
-    initialTeamConfigHarnessRef.current = teamConfigHarness;
-  }
-
-  // Get configs for this role
-  const roleConfigs = useMemo(() => {
-    return agentConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
-  }, [agentConfigs, role]);
-  const preferredWorkspace = useMemo(
-    () => chatroomWorkspaces?.find((workspace) => workspace._registryId === workspaceId),
-    [chatroomWorkspaces, workspaceId]
-  );
-  const initializationWorkspaces = useMemo(
-    () => (preferredWorkspace ? [preferredWorkspace] : chatroomWorkspaces),
-    [chatroomWorkspaces, preferredWorkspace]
-  );
-
-  // Check if there's a running agent on a connected machine
-  const runningAgentConfig = useMemo(() => {
-    const pidBackedConfig = roleConfigs.find(
-      (c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId)
-    );
-    if (pidBackedConfig) return pidBackedConfig;
-    if (!runtimeIsRunning) return undefined;
-    return roleConfigs.find((c) => connectedMachines.some((m) => m.machineId === c.machineId));
-  }, [roleConfigs, connectedMachines, runtimeIsRunning]);
-
-  const displayAgentConfig = runningAgentConfig;
-
-  // Get available harnesses for selected machine
-  const availableHarnessesForMachine = useMemo(() => {
-    if (!selectedMachineId) return [];
-    const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return machine?.availableHarnesses || [];
-  }, [selectedMachineId, connectedMachines]);
-
-  // Get harness versions for selected machine
-  const harnessVersionsForMachine = useMemo(() => {
-    if (!selectedMachineId) return {} as Partial<Record<AgentHarness, HarnessVersionInfo>>;
-    const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return machine?.harnessVersions || {};
-  }, [selectedMachineId, connectedMachines]);
-
-  // ── Single initialize-once effect ────────────────────────────────
-  // Fires exactly once — when machines first become available.
-  // The "last used" config is derived solely from the persisted launch snapshot.
-  // (roleConfigs).
-  useEffect(() => {
-    if (
-      isInitialized ||
-      connectedMachines.length === 0 ||
-      (workspaceId !== undefined && configurationLoading)
-    )
-      return;
-
-    // Single source of truth for "last used": the persisted launch snapshot.
-    const machine =
-      lockedMachineId ??
-      deriveInitialMachineId(
-        connectedMachines,
-        roleConfigs,
-        runningAgentConfig,
-        teamConfigMachineId,
-        initializationWorkspaces
-      );
-    if (
-      chatroomWorkspacesLoading &&
-      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, preferredWorkspace)
-    ) {
-      return;
-    }
-    const harness = deriveInitialHarness(
-      machine,
-      connectedMachines,
-      roleConfigs,
-      initialTeamConfigHarnessRef.current
-    );
-    const wd =
-      lockedWorkingDir ?? deriveInitialWorkingDir(machine, roleConfigs, initializationWorkspaces);
-
-    setSelectedMachineId(machine);
-    setSelectedHarness(harness);
-    setWorkingDir(wd);
-    setIsInitialized(true);
-  }, [
-    isInitialized,
+  useSelectionInitialization({
+    teamId,
+    teamConfigHarness,
+    workspaceId,
+    configurationLoading,
+    harnessesLoading,
     connectedMachines,
     roleConfigs,
     runningAgentConfig,
+    teamConfigMachineId,
     chatroomWorkspaces,
-    initializationWorkspaces,
     chatroomWorkspacesLoading,
-    configurationLoading,
-    workspaceId,
+    initializationWorkspaces,
+    preferredWorkspace,
     lockedMachineId,
     lockedWorkingDir,
-    teamConfigMachineId,
-    preferredWorkspace,
-  ]);
+    isInitialized,
+    previousTeamIdRef,
+    initialTeamConfigHarnessRef,
+    harnessTouchedRef,
+    favoriteDefaultAppliedForRef,
+    setSelectedMachineId,
+    setSelectedHarness,
+    setUserModelByHarness,
+    setWorkingDir,
+    setIsInitialized,
+  });
 
-  // Available models from the selected machine filtered by selected harness
-  const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
-    selectedMachineId ?? undefined
-  );
-  const availableModelsForHarness = useMemo(
-    () => (selectedMachineId && selectedHarness ? (machineModels[selectedHarness] ?? []) : []),
-    [machineModels, selectedMachineId, selectedHarness]
-  );
-
-  // Machine-level model filter — used to exclude blacklisted models from
-  // automatic selection and the model combobox.
-  const modelFilter = useMachineModelFilter(selectedMachineId, selectedHarness);
-  const machineModelFilter = modelFilter.filter ?? null;
-  const machineModelFilterLoading = modelFilter.enabled && modelFilter.filter === undefined;
-
-  // Wait for async machine models + filter before deriving selection — avoids flashing
-  // a stale model label when switching machines or harnesses.
-  const modelSelectionReady =
-    !!selectedMachineId && !!selectedHarness && !machineModelsLoading && !machineModelFilterLoading;
-
-  // Visible models = available models minus those hidden by the filter.
-  // The combobox and automatic model selection use this list.
-  const visibleModels = useMemo(
-    () => availableModelsForHarness.filter((m) => !isModelHidden(m, machineModelFilter)),
-    [availableModelsForHarness, machineModelFilter]
-  );
-
-  // ── Derived model selection ──────────────────────────────────────
-  // selectedModel is a pure derivation — no useEffect, no setState.
-  // Uses the extracted selectModel utility for testability.
-  const selectedModel = useMemo((): string | null => {
-    if (!modelSelectionReady) return null;
-    // Machine config model — only if it's saved under the same harness type
-    const config = roleConfigs.find(
-      (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
-    );
-
-    return selectModel({
-      selectedHarness,
-      availableModels: availableModelsForHarness,
-      visibleModels,
-      userChoice: selectedHarness ? userModelByHarness[selectedHarness] : undefined,
-      machineConfigModel: config?.model ?? undefined,
-      teamConfigModel,
-    });
-  }, [
-    modelSelectionReady,
-    selectedHarness,
-    availableModelsForHarness,
-    visibleModels,
-    userModelByHarness,
-    roleConfigs,
+  const defaultFavorites = useFavoriteHarnessDefault({
+    isInitialized,
     selectedMachineId,
-    workspaceId,
-    teamConfigModel,
-  ]);
+    chatroomId,
+    teamId,
+    role,
+    roleConfigs,
+    runningAgentConfig,
+    availableHarnessesForMachine,
+    harnessesLoading,
+    harnessTouchedRef,
+    favoriteDefaultAppliedForRef,
+    setSelectedHarness,
+  });
+
+  const { availableModelsForHarness, visibleModels, machineModelFilter, selectedModel } =
+    useModelOptions({
+      selectedMachineId,
+      selectedHarness,
+      roleConfigs,
+      teamConfigModel,
+      userModelByHarness,
+      defaultFavorites,
+    });
 
   const isAgentRunning = !!displayAgentConfig;
-  const isStopping = isStopSubmitting;
-  const stopFailed = false;
-  const isBusy = isStarting || isSaving || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
-  const canStart =
-    !!selectedMachineId &&
-    !!selectedHarness &&
-    (!hasModels || selectedModel) &&
-    workingDir.trim() &&
-    !isStarting &&
-    !isAgentRunning &&
-    !success;
-  const canSave =
-    !!workspaceId &&
-    !!selectedMachineId &&
-    !!selectedHarness &&
-    !!selectedModel &&
-    !!workingDir.trim() &&
-    !isSaving &&
-    !isStarting &&
-    !isStopping &&
-    !isAgentRunning;
+  const status = deriveAgentStatus({
+    selectedMachineId,
+    selectedHarness,
+    selectedModel,
+    hasModels,
+    workingDir,
+    workspaceId,
+    isStarting,
+    isSaving,
+    isStopSubmitting,
+    isAgentRunning,
+    success,
+  });
 
-  const rehomeDialogLabels = useMemo(() => {
-    if (!teamConfigMachineId || !selectedMachineId) return null;
-    const prevM = connectedMachines.find((m) => m.machineId === teamConfigMachineId);
-    const nextM = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return {
-      previous: prevM ? getMachineDisplayName(prevM) : teamConfigMachineId,
-      next: nextM ? getMachineDisplayName(nextM) : selectedMachineId,
-    };
-  }, [teamConfigMachineId, selectedMachineId, connectedMachines]);
-  const canStop = isAgentRunning && !isStopping && !success;
-  const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
+  const rehomeDialogLabels = useMemo(
+    () => deriveRehomeLabels(teamConfigMachineId, selectedMachineId, connectedMachines),
+    [teamConfigMachineId, selectedMachineId, connectedMachines]
+  );
 
   const machineConfigScopeKeyForControls = useMemo(
     () =>
       selectedMachineId && teamId
         ? buildMachineConfigScopeKey(selectedMachineId, teamId, role)
         : undefined,
-    [selectedMachineId, chatroomId, teamId, role]
+    [selectedMachineId, teamId, role]
   );
   const { recordUsage: recordMachineConfigUsage } = useMachineConfigUsage(
     machineConfigScopeKeyForControls
   );
 
-  const executeStartAgent = useCallback(
-    async (allowNewMachine?: boolean) => {
-      if (!selectedMachineId || !selectedHarness) return;
-      setIsStarting(true);
-      setError(null);
-      try {
-        await dispatchStartAgent(sendCommand, {
-          machineId: selectedMachineId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          ...(workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : {}),
-          role,
-          model: selectedModel || undefined,
-          agentHarness: selectedHarness,
-          workingDir: workingDir.trim() || undefined,
-          allowNewMachine,
-        });
-        if (selectedHarness && selectedModel) {
-          recordMachineConfigUsage({
-            agentHarness: selectedHarness,
-            model: selectedModel,
-          });
-        }
-        setSuccess('Start command sent!');
-        setTimeout(() => setSuccess(null), 2000);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to start agent');
-      } finally {
-        setIsStarting(false);
-      }
-    },
-    [
-      selectedMachineId,
-      selectedHarness,
-      selectedModel,
-      workingDir,
-      sendCommand,
-      chatroomId,
-      workspaceId,
-      role,
-      recordMachineConfigUsage,
-    ]
-  );
-
-  const handleStartAgent = useCallback(() => {
-    if (!selectedMachineId || !selectedHarness) return;
-    const isRehome = teamConfigMachineId != null && selectedMachineId !== teamConfigMachineId;
-    if (isRehome) {
-      setRehomeConfirmOpen(true);
-      return;
-    }
-    void executeStartAgent();
-  }, [selectedMachineId, selectedHarness, teamConfigMachineId, executeStartAgent]);
-
-  const handleConfirmRehomeStart = useCallback(() => {
-    setRehomeConfirmOpen(false);
-    void executeStartAgent(true);
-  }, [executeStartAgent]);
-
-  const handleSaveConfig = useCallback(async () => {
-    if (!canSave || !workspaceId || !selectedMachineId || !selectedHarness || !selectedModel) {
-      return;
-    }
-    setIsSaving(true);
-    setError(null);
-    try {
-      await saveAgentConfig({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        workspaceId: workspaceId as Id<'chatroom_workspaces'>,
-        role,
-        machineId: selectedMachineId,
-        agentHarness: selectedHarness,
-        model: selectedModel,
-        workingDir: workingDir.trim(),
-      });
-      setSuccess('Configuration saved!');
-      setTimeout(() => setSuccess(null), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save configuration');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [
-    canSave,
+  const runActions = useAgentRunActions({
+    chatroomId,
     workspaceId,
+    role,
     selectedMachineId,
     selectedHarness,
     selectedModel,
-    saveAgentConfig,
-    chatroomId,
-    role,
     workingDir,
-  ]);
+    displayAgentConfig,
+    teamConfigMachineId,
+    sendCommand,
+    requestAgentStop,
+    recordMachineConfigUsage,
+    setIsStarting,
+    setError,
+    setSuccess,
+    setIsStopSubmitting,
+    setRehomeConfirmOpen,
+  });
 
-  const handleCancelRehomeStart = useCallback(() => {
-    setRehomeConfirmOpen(false);
-  }, []);
+  const handleSaveConfig = useAgentSaveAction({
+    chatroomId,
+    workspaceId,
+    role,
+    selectedMachineId,
+    selectedHarness,
+    selectedModel,
+    workingDir,
+    canSave: status.canSave,
+    setIsSaving,
+    setError,
+    setSuccess,
+  });
 
-  const handleStopAgent = useCallback(async () => {
-    if (!displayAgentConfig) return;
-    setError(null);
-    try {
-      setIsStopSubmitting(true);
-      await requestAgentStop({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        machineId: displayAgentConfig.machineId,
-        role,
-        workingDir: displayAgentConfig.workingDir,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to stop agent');
-    } finally {
-      setIsStopSubmitting(false);
-    }
-  }, [displayAgentConfig, requestAgentStop, chatroomId, role]);
-
-  const handleRestartAgent = useCallback(async () => {
-    if (!displayAgentConfig) return;
-    const model = displayAgentConfig.model ?? selectedModel;
-    if (!model) {
-      setError('Cannot restart agent: model is required');
-      return;
-    }
-    setIsStarting(true);
-    setError(null);
-    try {
-      await sendCommand({
-        machineId: displayAgentConfig.machineId,
-        type: 'restart-agent',
-        payload: {
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          ...(workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : {}),
-          role,
-          model,
-          agentHarness: displayAgentConfig.agentType,
-          workingDir: displayAgentConfig.workingDir,
-        },
-      });
-      setSuccess('Restart command sent!');
-      setTimeout(() => setSuccess(null), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to restart agent');
-    } finally {
-      setIsStarting(false);
-    }
-  }, [displayAgentConfig, selectedModel, sendCommand, chatroomId, workspaceId, role]);
-
-  // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
-  const handleMachineChange = useCallback(
-    (machineId: string | null) => {
-      if (lockedMachineId) return;
-      setSelectedMachineId(machineId);
-      setSelectedHarness(null);
-      setUserModelByHarness({});
-      const wd = deriveInitialWorkingDir(machineId, roleConfigs, chatroomWorkspaces);
-      setWorkingDir(wd);
-    },
-    [roleConfigs, chatroomWorkspaces, lockedMachineId]
-  );
-
-  // Wrapper for harness change — does NOT clear other harnesses' model memory.
-  const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
-    setSelectedHarness(harness);
-  }, []);
-
-  // Wrapper for user manually selecting a model — stored per harness
-  const handleModelChange = useCallback(
-    (model: string | null, harnessOverride?: AgentHarness | null) => {
-      const harness = harnessOverride ?? selectedHarness;
-      if (!harness) return;
-      if (model) {
-        setUserModelByHarness((prev) => ({ ...prev, [harness]: model }));
-      } else {
-        setUserModelByHarness((prev) => {
-          const next = { ...prev };
-          delete next[harness];
-          return next;
-        });
-      }
-    },
-    [selectedHarness]
-  );
-
-  // Wrapper for user manually changing working directory
-  const handleWorkingDirChange = useCallback(
-    (dir: string) => {
-      if (lockedWorkingDir) return;
-      setWorkingDir(dir);
-    },
-    [lockedWorkingDir]
-  );
+  const selectionHandlers = useSelectionHandlers({
+    lockedMachineId,
+    lockedWorkingDir,
+    roleConfigs,
+    chatroomWorkspaces,
+    selectedHarness,
+    harnessTouchedRef,
+    favoriteDefaultAppliedForRef,
+    setSelectedMachineId,
+    setSelectedHarness,
+    setUserModelByHarness,
+    setWorkingDir,
+  });
 
   return {
     workspaceId,
@@ -681,8 +531,8 @@ export function useAgentControls({
     workingDir,
     isStarting,
     isSaving,
-    isStopping,
-    stopFailed,
+    isStopping: status.isStopping,
+    stopFailed: false,
     error,
     success,
     roleConfigs,
@@ -694,31 +544,32 @@ export function useAgentControls({
     visibleModels,
     machineModelFilter,
     isAgentRunning,
-    isBusy,
+    isBusy: status.isBusy,
     hasModels,
-    canStart,
-    canSave,
-    canStop,
-    canRestart,
-    handleStartAgent,
+    canStart: status.canStart,
+    canSave: status.canSave,
+    canStop: status.canStop,
+    canRestart: status.canRestart,
+    handleStartAgent: runActions.handleStartAgent,
     handleSaveConfig,
-    handleStopAgent,
-    handleRestartAgent,
-    handleMachineChange,
-    handleHarnessChange,
-    handleModelChange,
-    handleWorkingDirChange,
+    handleStopAgent: runActions.handleStopAgent,
+    handleRestartAgent: runActions.handleRestartAgent,
+    handleMachineChange: selectionHandlers.handleMachineChange,
+    handleHarnessChange: selectionHandlers.handleHarnessChange,
+    handleModelChange: selectionHandlers.handleModelChange,
+    handleWorkingDirChange: selectionHandlers.handleWorkingDirChange,
     rehomeConfirmOpen,
     rehomeDialogLabels,
-    handleConfirmRehomeStart,
-    handleCancelRehomeStart,
+    handleConfirmRehomeStart: runActions.handleConfirmRehomeStart,
+    handleCancelRehomeStart: runActions.handleCancelRehomeStart,
     teamId,
   };
 }
 
 // ─── Component: RemoteTabContent ────────────────────────────────────
 // The "Remote" tab UI: machine selection, harness, model, working dir,
-// start/stop/restart buttons.
+// start/stop/restart buttons. The state lives in useRemoteTabModel and the rows in
+// ./agent-controls/RemoteTabParts.
 
 interface RemoteTabContentProps {
   controls: ReturnType<typeof useAgentControls>;
@@ -741,671 +592,34 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   daemonStartCommand,
   chatroomId,
   role,
-  linkedMachineIds: linkedMachineIdsProp,
+  linkedMachineIds,
   setupMode = false,
 }: RemoteTabContentProps) {
-  const {
-    selectedMachineId,
-    selectedHarness,
-    selectedModel,
-    workingDir,
-    isStarting,
-    isSaving,
-    isStopping,
-    stopFailed,
-    availableHarnessesForMachine,
-    harnessVersionsForMachine,
-    availableModelsForHarness,
-    displayAgentConfig,
-    isAgentRunning,
-    isBusy,
-    teamId,
-    hasModels,
-    canStart,
-    canSave,
-    canStop,
-    canRestart,
-    handleStartAgent,
-    handleSaveConfig,
-    handleStopAgent,
-    handleRestartAgent,
-    handleMachineChange,
-    handleHarnessChange,
-    handleModelChange,
-    handleWorkingDirChange,
-    rehomeConfirmOpen,
-    rehomeDialogLabels,
-    handleConfirmRehomeStart,
-    handleCancelRehomeStart,
-  } = controls;
-
-  // When an agent is running, display values come exclusively from runningAgentConfig.
-  // Internal form state is preserved so it's ready again when the agent stops.
-  const runningConfig = isAgentRunning ? displayAgentConfig : undefined;
-  const displayMachineId = runningConfig?.machineId ?? selectedMachineId;
-  const displayHarness = runningConfig?.agentType ?? selectedHarness;
-  const displayModel = runningConfig?.model ?? selectedModel;
-  const displayWorkingDir = runningConfig?.workingDir ?? workingDir;
-  // Machine config favorites + recommendations (scoped by machine+team+role)
-  const favoriteScope = useMemo(() => {
-    if (!displayMachineId || !teamId) return undefined;
-    return { machineId: displayMachineId, chatroomId, teamId, role };
-  }, [displayMachineId, chatroomId, teamId, role]);
-
-  const machineConfigScopeKey = useMemo(
-    () =>
-      favoriteScope
-        ? buildMachineConfigScopeKey(
-            favoriteScope.machineId,
-            favoriteScope.teamId,
-            favoriteScope.role
-          )
-        : undefined,
-    [favoriteScope]
-  );
-
-  const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
-    useMachineConfigFavorites(favoriteScope);
-
-  const {
-    usageForScope: machineConfigUsage,
-    recordUsage: recordMachineConfigUsageOnApply,
-    clearUsage: clearMachineConfigUsage,
-  } = useMachineConfigUsage(machineConfigScopeKey);
-
-  const recommended = useMemo(() => {
-    if (!machineConfigScopeKey) return [];
-    const usage = machineConfigUsage;
-    const candidates: { agentHarness: AgentHarness; model: string }[] = [];
-
-    // Build candidates from favorites + current selection + available harnesses/models
-    for (const fav of favorites) {
-      if (availableHarnessesForMachine.includes(fav.agentHarness as AgentHarness)) {
-        candidates.push(fav);
-      }
-    }
-    if (displayHarness && displayModel) {
-      candidates.push({ agentHarness: displayHarness, model: displayModel });
-    }
-    // Add from usage keys that are still valid
-    for (const key of usage.keys()) {
-      const [harness, model] = key.split('|');
-      if (harness && model && availableHarnessesForMachine.includes(harness as AgentHarness)) {
-        candidates.push({ agentHarness: harness as AgentHarness, model });
-      }
-    }
-
-    return computeRecommendedMachineConfigs(usage, favorites, candidates);
-  }, [
-    machineConfigScopeKey,
-    machineConfigUsage,
-    displayHarness,
-    displayModel,
-    favorites,
-    availableHarnessesForMachine,
-  ]);
-
-  const currentMachineConfigEntry = useMemo(() => {
-    if (!displayHarness || !displayModel) return null;
-    return { agentHarness: displayHarness, model: displayModel };
-  }, [displayHarness, displayModel]);
-
-  const currentMachineConfigIsFavorite =
-    currentMachineConfigEntry != null && isFavorite(currentMachineConfigEntry);
-
-  const handleApplyMachineConfig = useCallback(
-    (entry: { agentHarness: AgentHarness; model: string }) => {
-      handleHarnessChange(entry.agentHarness);
-      handleModelChange(entry.model, entry.agentHarness);
-      recordMachineConfigUsageOnApply(entry);
-    },
-    [handleHarnessChange, handleModelChange, recordMachineConfigUsageOnApply]
-  );
-
-  const handleDismissRecommended = useCallback(
-    (entry: { agentHarness: AgentHarness; model: string }) => {
-      clearMachineConfigUsage(entry);
-    },
-    [clearMachineConfigUsage]
-  );
-
-  // Harness version lookup must use `displayMachineId` — when an agent is running,
-  // `selectedMachineId` (form state) may still point to the same machine, but
-  // `runningAgentConfig.machineId` is authoritative and may differ. Using
-  // `displayMachineId` ensures the version label is always consistent with the
-  // harness shown in the button.
-  const displayHarnessVersionsForMachine = useMemo(() => {
-    if (!displayMachineId) return {} as Partial<Record<AgentHarness, HarnessVersionInfo>>;
-    const machine = connectedMachines.find((m) => m.machineId === displayMachineId);
-    return machine?.harnessVersions ?? {};
-  }, [displayMachineId, connectedMachines]);
-
-  const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
-
-  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId, {
-    skip: linkedMachineIdsProp !== undefined,
+  const model = useRemoteTabModel({
+    controls,
+    connectedMachines,
+    isLoadingMachines,
+    chatroomId,
+    role,
+    linkedMachineIdsProp: linkedMachineIds,
   });
-  const linkedMachineIds = useMemo(() => {
-    if (linkedMachineIdsProp !== undefined) return linkedMachineIdsProp;
-    const s = new Set<string>();
-    for (const ws of chatroomWorkspaces) {
-      if (ws.machineId) s.add(ws.machineId);
-    }
-    return s;
-  }, [linkedMachineIdsProp, chatroomWorkspaces]);
-
-  const [machinePopoverOpen, setMachinePopoverOpen] = useState(false);
-  const [harnessPopoverOpen, setHarnessPopoverOpen] = useState(false);
-  const {
-    searchTerm: machineSearch,
-    setSearchTerm: setMachineSearch,
-    handleOpenChange: handleMachineOpenChange,
-  } = usePickerSearchState(setMachinePopoverOpen);
-  const {
-    searchTerm: harnessSearch,
-    setSearchTerm: setHarnessSearch,
-    handleOpenChange: handleHarnessOpenChange,
-  } = usePickerSearchState(setHarnessPopoverOpen);
-
-  const filteredMachines = useMemo(
-    () => filterPickerItems(connectedMachines, machineSearch, (m) => getMachineDisplayName(m)),
-    [connectedMachines, machineSearch]
-  );
-
-  const filteredHarnesses = useMemo(
-    () =>
-      filterPickerItems(availableHarnessesForMachine, harnessSearch, (harness) =>
-        formatHarnessLabel(harness, harnessVersionsForMachine[harness])
-      ),
-    [availableHarnessesForMachine, harnessSearch, harnessVersionsForMachine]
-  );
-
-  // Machine-level model filter for the displayed machine + harness
-  const { modelFilter, isSelectedModelHidden } = useHarnessModelPicker({
-    machineId: displayMachineId,
-    harness: displayHarness,
-    availableModels: availableModelsForHarness,
-    selectedModel: displayModel,
-  });
-  const modelUnavailable = !displayMachineId || !displayHarness || !hasModels;
 
   return (
     <div className="space-y-2">
       {isLoadingMachines ? (
-        <div className="flex items-center justify-center py-1">
-          <Loader2 size={14} className="animate-spin text-chatroom-text-muted" />
-          <span className="ml-2 text-[10px] text-chatroom-text-muted">Loading machines...</span>
-        </div>
-      ) : hasNoMachines ? (
-        <div className="space-y-2 py-1">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={12} className="text-chatroom-status-warning flex-shrink-0" />
-            <span className="text-[10px] text-chatroom-text-secondary">
-              No machines registered. Run:
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 text-[10px] font-mono text-chatroom-status-success bg-chatroom-bg-tertiary px-2 py-1.5 border border-chatroom-border break-all">
-              {daemonStartCommand}
-            </code>
-            <CopyButton
-              text={daemonStartCommand}
-              label="Copy"
-              copiedLabel="Copied!"
-              variant="compact"
-            />
-          </div>
-        </div>
+        <LoadingNotice />
+      ) : model.hasNoMachines ? (
+        <NoMachinesNotice daemonStartCommand={daemonStartCommand} />
       ) : (
-        <>
-          {/* Row 1: Machine + Harness */}
-          <div className="flex items-start gap-2">
-            {!setupMode && (
-              <div className="flex-1 min-w-0">
-                {isAgentRunning ? (
-                  <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
-                    {displayMachineId
-                      ? (() => {
-                          const m = connectedMachines.find((m) => m.machineId === displayMachineId);
-                          return m ? getMachineDisplayName(m) : displayMachineId;
-                        })()
-                      : 'Machine...'}
-                  </div>
-                ) : (
-                  <ResponsivePickerShell
-                    open={machinePopoverOpen}
-                    onOpenChange={handleMachineOpenChange}
-                    disabled={isBusy}
-                    title="Select machine"
-                    align="start"
-                    contentClassName="w-72"
-                    trigger={
-                      <button
-                        disabled={isBusy}
-                        className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                        title="Select Machine"
-                      >
-                        <span className="truncate">
-                          {displayMachineId
-                            ? (() => {
-                                const m = connectedMachines.find(
-                                  (m) => m.machineId === displayMachineId
-                                );
-                                return m ? getMachineDisplayName(m) : displayMachineId;
-                              })()
-                            : 'Machine...'}
-                        </span>
-                        <ChevronDown
-                          size={10}
-                          className="ml-1 flex-shrink-0 text-chatroom-text-muted"
-                        />
-                      </button>
-                    }
-                  >
-                    <PickerSearch
-                      value={machineSearch}
-                      onChange={setMachineSearch}
-                      placeholder="Search machines…"
-                    />
-                    <PickerScrollBody maxHeightClassName="max-h-60">
-                      {filteredMachines.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-chatroom-text-muted">
-                          No machines found.
-                        </p>
-                      ) : (
-                        filteredMachines.map((machine) => (
-                          <PickerOptionRow
-                            key={machine.machineId}
-                            selected={displayMachineId === machine.machineId}
-                            onSelect={() => {
-                              handleMachineChange(machine.machineId);
-                              handleMachineOpenChange(false);
-                            }}
-                          >
-                            {getMachineDisplayName(machine)}
-                          </PickerOptionRow>
-                        ))
-                      )}
-                    </PickerScrollBody>
-                  </ResponsivePickerShell>
-                )}
-              </div>
-            )}
-            <div className="flex-1 min-w-0 flex items-stretch gap-1">
-              <div className="min-w-0 flex-1">
-                {isAgentRunning ? (
-                  <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
-                    {displayHarness
-                      ? formatHarnessLabel(
-                          displayHarness,
-                          displayHarnessVersionsForMachine[displayHarness]
-                        )
-                      : 'Harness...'}
-                  </div>
-                ) : (
-                  <ResponsivePickerShell
-                    open={harnessPopoverOpen}
-                    onOpenChange={handleHarnessOpenChange}
-                    disabled={
-                      isBusy || !displayMachineId || availableHarnessesForMachine.length === 0
-                    }
-                    title="Select harness"
-                    align="start"
-                    contentClassName="w-72"
-                    trigger={
-                      <button
-                        disabled={
-                          isBusy || !displayMachineId || availableHarnessesForMachine.length === 0
-                        }
-                        className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                        title="Select Harness"
-                      >
-                        <span className="truncate flex items-center min-w-0">
-                          {displayHarness
-                            ? formatHarnessLabel(
-                                displayHarness,
-                                displayHarnessVersionsForMachine[displayHarness]
-                              )
-                            : 'Harness...'}
-                        </span>
-                        <ChevronDown
-                          size={10}
-                          className="ml-1 flex-shrink-0 text-chatroom-text-muted"
-                        />
-                      </button>
-                    }
-                  >
-                    <PickerSearch
-                      value={harnessSearch}
-                      onChange={setHarnessSearch}
-                      placeholder="Search harnesses…"
-                    />
-                    <PickerScrollBody maxHeightClassName="max-h-60">
-                      {filteredHarnesses.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-chatroom-text-muted">
-                          No harnesses found.
-                        </p>
-                      ) : (
-                        filteredHarnesses.map((harness) => {
-                          const label = formatHarnessLabel(
-                            harness,
-                            harnessVersionsForMachine[harness]
-                          );
-                          return (
-                            <PickerOptionRow
-                              key={harness}
-                              selected={displayHarness === harness}
-                              onSelect={() => {
-                                handleHarnessChange(harness);
-                                handleHarnessOpenChange(false);
-                              }}
-                            >
-                              {label}
-                            </PickerOptionRow>
-                          );
-                        })
-                      )}
-                    </PickerScrollBody>
-                  </ResponsivePickerShell>
-                )}
-              </div>
-              {displayMachineId ? (
-                <MachineCapabilitiesRefreshButton
-                  chatroomId={chatroomId}
-                  machineId={displayMachineId}
-                  daemonConnected={daemonConnectivity?.get(displayMachineId)?.connected === true}
-                  linkedToChatroom={linkedMachineIds.has(displayMachineId)}
-                />
-              ) : null}
-            </div>
-          </div>
-
-          {/* Row 2: Working Directory */}
-          {!setupMode && (
-            <div className="flex items-center gap-1">
-              <input
-                type="text"
-                value={displayWorkingDir}
-                onChange={(e) => handleWorkingDirChange(e.target.value)}
-                placeholder="/path/to/project"
-                disabled={isBusy || isAgentRunning}
-                className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Working directory for agent (absolute path on remote machine)"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-              />
-              {displayWorkingDir.trim() && (
-                <CopyButton
-                  text={displayWorkingDir.trim()}
-                  label="Copy Path"
-                  copiedLabel="Copied!"
-                  variant="compact"
-                />
-              )}
-            </div>
-          )}
-
-          {!setupMode &&
-            !isAgentRunning &&
-            !selectedMachineId &&
-            connectedMachines.length > 0 &&
-            !isLoadingMachines && (
-              <p className="text-[10px] text-muted-foreground">
-                Select a machine to start this agent.
-              </p>
-            )}
-
-          {/* Row 3: Model + Start/Stop */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 flex-1 min-w-0">
-              {isAgentRunning ? (
-                <div className="flex-1 min-w-0">
-                  <div
-                    className={cn(
-                      'w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 flex items-center justify-between',
-                      !modelUnavailable && isSelectedModelHidden && 'text-chatroom-status-warning'
-                    )}
-                  >
-                    <span className="truncate">
-                      {modelUnavailable
-                        ? 'No models available'
-                        : displayModel
-                          ? getModelDisplayLabel(displayModel)
-                          : 'Model...'}
-                    </span>
-                    {!modelUnavailable && (
-                      <ModelPickerMeta
-                        isSelectedModelHidden={isSelectedModelHidden}
-                        filter={modelFilter.filter}
-                      />
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 min-w-0">
-                  <ModelPickerField
-                    machineId={displayMachineId}
-                    harness={displayHarness}
-                    availableModels={availableModelsForHarness}
-                    value={modelUnavailable ? '' : (displayModel ?? '')}
-                    onValueChange={(m) => handleModelChange(m || null)}
-                    disabled={isBusy || modelUnavailable}
-                    triggerVariant="chatroom"
-                    allowDeselect={false}
-                    placeholder="Model..."
-                    className="gap-1"
-                  />
-                </div>
-              )}
-            </div>
-
-            {displayMachineId && currentMachineConfigEntry && (
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (currentMachineConfigIsFavorite) {
-                    void removeFavorite(currentMachineConfigEntry);
-                  } else {
-                    void addFavorite(currentMachineConfigEntry);
-                  }
-                }}
-                aria-label={
-                  currentMachineConfigIsFavorite
-                    ? 'Remove current config from favorites'
-                    : 'Add current config to favorites'
-                }
-                title={
-                  currentMachineConfigIsFavorite
-                    ? 'Remove current config from favorites'
-                    : 'Add current config to favorites'
-                }
-                className="shrink-0 h-7 w-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-status-warning focus-visible:outline focus-visible:outline-2 focus-visible:outline-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Star
-                  size={14}
-                  className={
-                    currentMachineConfigIsFavorite
-                      ? 'fill-chatroom-status-warning text-chatroom-status-warning'
-                      : ''
-                  }
-                />
-              </button>
-            )}
-
-            {displayMachineId && displayHarness && (
-              <ModelFilterButton
-                filter={modelFilter}
-                availableModels={availableModelsForHarness}
-                disabled={isBusy}
-                variant="chatroom"
-              />
-            )}
-
-            {/* Action Buttons */}
-            {!setupMode && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {!isAgentRunning && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleSaveConfig();
-                    }}
-                    disabled={!canSave}
-                    aria-label="Save Configuration"
-                    className={`w-7 h-7 flex items-center justify-center transition-all ${
-                      canSave
-                        ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
-                        : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
-                    }`}
-                    title="Save configuration"
-                  >
-                    {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                  </button>
-                )}
-                {isAgentRunning ? (
-                  <>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStopAgent();
-                      }}
-                      disabled={!canStop}
-                      aria-busy={isStopping}
-                      aria-label={stopFailed ? 'Retry stopping agent' : 'Stop Agent'}
-                      className={`w-7 h-7 flex items-center justify-center transition-all ${
-                        canStop
-                          ? 'text-chatroom-status-error hover:bg-chatroom-status-error/10'
-                          : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
-                      }`}
-                      title="Stop Agent"
-                    >
-                      {isStopping ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Square size={14} />
-                      )}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRestartAgent();
-                      }}
-                      disabled={!canRestart}
-                      aria-label="Restart Agent"
-                      className={`w-7 h-7 flex items-center justify-center transition-all ${
-                        canRestart
-                          ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
-                          : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
-                      }`}
-                      title="Restart Agent"
-                    >
-                      {isStarting ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <RotateCw size={14} />
-                      )}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStartAgent();
-                    }}
-                    disabled={!canStart}
-                    aria-label="Start Agent"
-                    className={`w-7 h-7 flex items-center justify-center transition-all ${
-                      canStart
-                        ? 'text-chatroom-status-success hover:bg-chatroom-status-success/10'
-                        : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
-                    }`}
-                    title="Start Agent"
-                  >
-                    {isStarting ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Play size={14} />
-                    )}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="text-[10px]" aria-live="polite">
-            {controls.error ? (
-              <p role="alert" className="text-chatroom-status-error">
-                {controls.error}
-              </p>
-            ) : stopFailed ? (
-              <p role="alert" className="text-chatroom-status-error">
-                Stop failed. Try again.
-              </p>
-            ) : isStopping ? (
-              <p role="status" className="text-chatroom-text-secondary">
-                Stopping…
-              </p>
-            ) : null}
-          </div>
-
-          {displayMachineId && (
-            <MachineConfigQuickPick
-              favorites={favorites}
-              recommended={recommended}
-              currentHarness={displayHarness}
-              currentModel={displayModel}
-              disabled={isBusy}
-              onApply={handleApplyMachineConfig}
-              onToggleFavorite={(entry) => {
-                if (isFavorite(entry)) {
-                  void removeFavorite(entry);
-                } else {
-                  void addFavorite(entry);
-                }
-              }}
-              onRemoveFavorite={(entry) => void removeFavorite(entry)}
-              onMoveFavorite={(from, to) => void moveFavorite(from, to)}
-              onDismissRecommended={handleDismissRecommended}
-            />
-          )}
-
-          <AlertDialog
-            open={rehomeConfirmOpen}
-            onOpenChange={(open) => {
-              if (!open) handleCancelRehomeStart();
-            }}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Move agent to another machine?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {rehomeDialogLabels ? (
-                    <>
-                      Starting this agent will move the role from{' '}
-                      <span className="font-semibold text-chatroom-text-primary">
-                        {rehomeDialogLabels.previous}
-                      </span>{' '}
-                      to{' '}
-                      <span className="font-semibold text-chatroom-text-primary">
-                        {rehomeDialogLabels.next}
-                      </span>
-                      . Existing work on the old machine will continue until it exits. Continue?
-                    </>
-                  ) : (
-                    'Existing work on the old machine will continue until it exits. Continue?'
-                  )}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel onClick={handleCancelRehomeStart}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmRehomeStart}>Continue</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
+        <RemoteTabBody
+          controls={controls}
+          model={model}
+          connectedMachines={connectedMachines}
+          isLoadingMachines={isLoadingMachines}
+          setupMode={setupMode}
+          daemonConnectivity={daemonConnectivity}
+          chatroomId={chatroomId}
+        />
       )}
     </div>
   );

@@ -1,10 +1,12 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
+import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import { Loader2, Play } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { SetupStepFooter, SetupStepLayout, setupPrimaryButtonClassName } from './SetupStepLayout';
+import { SetupWorkspaceLoadingPanel } from './SetupWorkspaceLoadingPanel';
 import type {
   MachineInfo,
   UserMachine,
@@ -39,7 +41,16 @@ interface SetupAgentTeamStepProps {
   agentConfigs: AgentConfig[];
   sendCommand: SendCommandFn;
   onAllAgentsStarted: () => void;
-  onBack: () => void;
+  /** Omit when the step cannot go back (for example, the chatroom already exists). */
+  onBack?: () => void;
+  /** Called after every agent in the batch started without error. */
+  onStartRequested?: () => void;
+  /** Rendered first in the body, above the workspace card. */
+  bodyStart?: ReactNode;
+  /** Left side of the footer, for example "Open chatroom". */
+  footerSecondary?: ReactNode;
+  /** Passed to the layout. True focuses the first control on mount. */
+  autoFocusFirstControl: boolean;
 }
 
 // fallow-ignore-next-line complexity
@@ -57,6 +68,10 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   sendCommand,
   onAllAgentsStarted,
   onBack,
+  onStartRequested,
+  bodyStart,
+  footerSecondary,
+  autoFocusFirstControl,
 }: SetupAgentTeamStepProps) {
   const [isStartingAll, setIsStartingAll] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -64,7 +79,13 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     Map<string, { harness: AgentHarness; model: string }>
   >(() => new Map());
 
-  const { availableHarnesses, harnessVersions } = useMachineCapabilities(machineId);
+  // Harnesses are only known once the machine's capabilities load. Cards wait for them, so the
+  // favourite default and the initial selection never run against an empty harness list.
+  const {
+    availableHarnesses,
+    harnessVersions,
+    isLoading: harnessesLoading,
+  } = useMachineCapabilities(machineId);
   const lockedMachine = useMemo<MachineInfo | null>(() => {
     const base = machines.find((m) => m.machineId === machineId);
     if (!base) return null;
@@ -73,7 +94,24 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
 
   const machine = lockedMachine;
 
-  const persistentTeamRoles = useMemo(() => getPermanentRoleNames(teamRoles), [teamRoles]);
+  // Readiness (joinedCount, allJoined, the Start gate) is computed from permanent roles only.
+  // Ephemeral roles get cards and start when configured, but never block the wizard.
+  // `user` is not a team agent. getPermanentRoleNames would treat an unknown name as permanent,
+  // so it is excluded explicitly. Retired roles are already dropped by getPermanentRoleNames,
+  // and isEphemeralAgentRole is false for both `user` and retired names.
+  const persistentTeamRoles = useMemo(
+    () => getPermanentRoleNames(teamRoles).filter((role) => role !== 'user'),
+    [teamRoles]
+  );
+  const ephemeralTeamRoles = useMemo(
+    () => teamRoles.filter((role) => isEphemeralAgentRole(role)),
+    [teamRoles]
+  );
+  // Permanent cards first, then ephemeral cards (mirrors AgentPanel).
+  const rolesToShow = useMemo(
+    () => [...persistentTeamRoles, ...ephemeralTeamRoles],
+    [persistentTeamRoles, ephemeralTeamRoles]
+  );
 
   const joinedCount = useMemo(
     () => countJoinedRoles(persistentTeamRoles, participants),
@@ -110,12 +148,16 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
       return;
     }
 
+    // Ephemeral roles start only when configured. An unconfigured ephemeral role is skipped.
+    // Permanent roles are all configured at this point, so the filter keeps every one of them.
+    const rolesToStart = rolesToShow.filter((role) => roleConfigs.has(role.toLowerCase()));
+
     setIsStartingAll(true);
     setStartError(null);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
 
     const results = await startAgentsBatch(
-      persistentTeamRoles,
+      rolesToStart,
       (role) => {
         const config = roleConfigs.get(role.toLowerCase());
         if (!config) return null;
@@ -132,14 +174,42 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     );
 
     setIsStartingAll(false);
-    const failed = getFailedAgentRoles(results, persistentTeamRoles);
+    const failed = getFailedAgentRoles(results, rolesToStart);
     if (failed.length > 0) {
       setStartError(`Failed to start: ${failed.join(', ')}`);
+      return;
     }
-  }, [persistentTeamRoles, roleConfigs, sendCommand, machineId, workingDir, chatroomId]);
+    onStartRequested?.();
+  }, [
+    persistentTeamRoles,
+    rolesToShow,
+    roleConfigs,
+    sendCommand,
+    machineId,
+    workingDir,
+    chatroomId,
+    onStartRequested,
+  ]);
+
+  const startButton = !allJoined ? (
+    <button
+      type="button"
+      onClick={() => void handleStartAll()}
+      disabled={isStartingAll || isLoadingMachines || harnessesLoading}
+      className={setupPrimaryButtonClassName}
+    >
+      {isStartingAll ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+      Start Agents
+    </button>
+  ) : undefined;
+  const footer =
+    footerSecondary || !allJoined ? (
+      <SetupStepFooter secondary={footerSecondary} primary={startButton} />
+    ) : undefined;
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <SetupStepLayout autoFocusFirstControl={autoFocusFirstControl} footer={footer}>
+      {bodyStart}
       <div className="flex items-start justify-between gap-4 p-4 border border-chatroom-border bg-chatroom-bg-surface">
         <div className="min-w-0 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
@@ -150,14 +220,16 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           </p>
           <p className="text-xs font-mono text-chatroom-text-secondary truncate">{workingDir}</p>
         </div>
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={isStartingAll}
-          className="text-[10px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary disabled:opacity-50"
-        >
-          Change
-        </button>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={isStartingAll}
+            className="text-[10px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary disabled:opacity-50"
+          >
+            Change
+          </button>
+        )}
       </div>
 
       <div>
@@ -179,49 +251,42 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           }}
         >
           <div className="border border-chatroom-border">
-            {persistentTeamRoles.map((role) => {
-              const participant = participants.find(
-                (p) => p.role.toLowerCase() === role.toLowerCase()
-              );
-              return (
-                <InlineAgentCard
-                  key={role}
-                  role={role}
-                  allRoles={persistentTeamRoles}
-                  lastSeenAt={participant?.lastSeenAt ?? null}
-                  statusLabel="OFFLINE"
-                  statusVariant="offline"
-                  prompt=""
-                  chatroomId={chatroomId}
-                  teamId={teamId}
-                  setupMode
-                  lockedMachineId={machineId}
-                  lockedWorkingDir={workingDir}
-                  onSetupConfigChange={(harness, model) =>
-                    handleSetupConfigChange(role, harness, model)
-                  }
-                />
-              );
-            })}
+            {harnessesLoading ? (
+              <SetupWorkspaceLoadingPanel label="Loading agent harnesses..." />
+            ) : (
+              rolesToShow.map((role) => {
+                const participant = participants.find(
+                  (p) => p.role.toLowerCase() === role.toLowerCase()
+                );
+                return (
+                  <InlineAgentCard
+                    key={role}
+                    role={role}
+                    // The restart stats modal selects the tab by this card's own role, so every
+                    // rendered role must be listed here (matches AgentPanel's rolesToShow).
+                    allRoles={rolesToShow}
+                    lastSeenAt={participant?.lastSeenAt ?? null}
+                    statusLabel="OFFLINE"
+                    statusVariant="offline"
+                    prompt=""
+                    chatroomId={chatroomId}
+                    teamId={teamId}
+                    setupMode
+                    lockedMachineId={machineId}
+                    lockedWorkingDir={workingDir}
+                    harnessesLoading={harnessesLoading}
+                    onSetupConfigChange={(harness, model) =>
+                      handleSetupConfigChange(role, harness, model)
+                    }
+                  />
+                );
+              })
+            )}
           </div>
         </AgentControlDataProvider>
       </div>
 
       {startError && <p className="text-xs text-chatroom-status-error">{startError}</p>}
-
-      {!allJoined && (
-        <div className="flex justify-end pt-2">
-          <button
-            type="button"
-            onClick={() => void handleStartAll()}
-            disabled={isStartingAll || isLoadingMachines}
-            className="flex items-center gap-2 px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
-          >
-            {isStartingAll ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-            Start Agents
-          </button>
-        </div>
-      )}
 
       {allJoined && (
         <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
@@ -231,6 +296,6 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           <p className="text-xs text-chatroom-text-muted">Closing setup...</p>
         </div>
       )}
-    </div>
+    </SetupStepLayout>
   );
 });

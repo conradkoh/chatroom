@@ -6,6 +6,10 @@ import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
 import { workspaceAgentConfigInboxEventValidator } from '../src/domain/entities/chatroom-workspace-agent-config-inbox';
 import { workspaceTaskInboxEventValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
+import {
+  gitCloneErrorCodeValidator,
+  gitCloneStatusValidator,
+} from '../src/domain/entities/git-clone-request';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
 import {
@@ -1357,6 +1361,27 @@ export default defineSchema({
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
   }).index('by_userId_created', ['userId', 'createdAt']),
+
+  /**
+   * Git clone requests initiated from the New Chatroom wizard.
+   * The daemon is the sole writer of progress/result fields.
+   * Read only by id from the initiating tab. Never add list queries or indexes here:
+   * progress fields are high-frequency writes and a list would be invalidated on every update.
+   */
+  chatroom_gitCloneRequests: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    repoUrl: v.string(),
+    targetPath: v.string(), // normalized absolute path
+    status: gitCloneStatusValidator,
+    progressPhase: v.optional(v.string()),
+    progressPercent: v.optional(v.number()),
+    errorCode: v.optional(gitCloneErrorCodeValidator),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }),
 
   // ============================================================================
   // EVENT STREAM TABLE

@@ -1,3 +1,13 @@
+/**
+ * Claimed machine commands are queued by concurrency key, then run and acknowledged in order.
+ *
+ * - Agent commands (those with chatroomId, role and workingDir) serialize per chatroom, role and
+ *   workingDir. They also wait for the machine-wide tail, so a running machine command blocks them.
+ * - Every other command runs on one machine-wide tail, and waits for all workspace tails.
+ *
+ * A command is acknowledged after `onClaimed` resolves. Its lease renewal runs until then.
+ */
+
 import { MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 

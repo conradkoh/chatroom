@@ -9,6 +9,7 @@ import { Effect, Layer, type Context } from 'effect';
 
 import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
+import { createGitCloneJobDeps } from './bridge/git-clone-bridge.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
 import { DaemonSessionService } from './daemon-services.js';
 import type {
@@ -18,7 +19,6 @@ import type {
   DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
-import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 import type { AgentWorkManager } from '../services/service-interfaces.js';
@@ -28,8 +28,10 @@ import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
+import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
+import { createGitCloneJobRunner } from '../domain/usecase/run-git-clone-job.js';
 import type { WorkspaceRefreshReason } from '../services/workspace-service/index.js';
 
 /** Event shape delivered from the machine command inbox (formerly machines.getCommandEvents). */
@@ -49,6 +51,7 @@ export interface DedupTracker {
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
+  gitCloneIds: Map<string, number>;
 }
 
 /** Union of services required to dispatch any command event. */
@@ -72,6 +75,7 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
+  evictStaleEntries(tracker.gitCloneIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 
@@ -83,6 +87,7 @@ export function createDedupTracker(): DedupTracker {
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
+    gitCloneIds: new Map<string, number>(),
   };
 }
 
@@ -211,7 +216,7 @@ function handlePickFolderCommandEffect(
     const status = result.success ? 'completed' : result.cancelled ? 'cancelled' : 'failed';
     yield* Effect.tryPromise({
       try: () =>
-        session.backend.mutation(api.machines.reportFolderPickerResult, {
+        session.backend.mutation(api.folderPickerRequests.reportResult, {
           sessionId: session.sessionId,
           requestId: typedEvent.requestId,
           machineId: session.machineId,
@@ -233,6 +238,44 @@ function handlePickFolderCommandEffect(
       console.warn(`[${formatTimestamp()}] ⚠️  Folder picker failed: ${result.error}`);
     }
     tracker.pickFolderIds.set(eventId, Date.now());
+  });
+}
+
+/** Owns the clone in-flight registry for this daemon. Dedup by event id stays on the tracker. */
+const gitCloneRunner = createGitCloneJobRunner();
+
+function logGitCloneWarning(error: unknown): void {
+  console.warn(`[${formatTimestamp()}] ⚠️  Git clone failed: ${getErrorMessage(error)}`);
+}
+
+function handleGitCloneCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.gitCloneIds.has(eventId)) return;
+    tracker.gitCloneIds.set(eventId, Date.now());
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitClone' }>;
+    const { requestId, targetPath, repoUrl } = typedEvent;
+    const session = yield* DaemonSessionService;
+    const deps = createGitCloneJobDeps(session, requestId);
+
+    // The job must NOT be awaited: the inbox serializes MACHINE_COMMAND_KEY work and acks only
+    // after this handler returns, so awaiting a long clone would stall every command.
+    const outcome = gitCloneRunner.start(deps, { requestId, repoUrl, targetPath });
+    if (outcome === 'duplicate') return; // Same request redelivered while its clone still runs.
+    if (outcome === 'busy') {
+      void deps
+        .reportResult({
+          status: 'failed',
+          errorCode: 'target_not_empty',
+          errorMessage: 'A clone into this folder is already in progress',
+        })
+        .catch(logGitCloneWarning);
+      return;
+    }
+    console.log(`[${formatTimestamp()}] 📥 Git clone requested → ${targetPath}`);
   });
 }
 
@@ -293,6 +336,7 @@ const commandEventHandlers: {
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,
   'daemon.pickFolder': handlePickFolderCommandEffect,
+  'daemon.gitClone': handleGitCloneCommandEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
 };
 

@@ -29,10 +29,18 @@ vi.mock('../../context/ChatroomWorkspaceContext', () => ({
   }),
 }));
 
+// Roles that receive the favourite default (which auto-configures their card). null means all roles.
+const favoriteRoles = vi.hoisted(() => ({ current: null as readonly string[] | null }));
+
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
   useSessionQuery: (query: unknown, args: unknown) => {
     if (query === 'machineConfigFavorites:getMachineConfigFavorites' && args !== 'skip') {
+      const { teamRoleKey } = args as { teamRoleKey: string };
+      const allowed = favoriteRoles.current;
+      if (allowed && !allowed.some((role) => teamRoleKey.endsWith(`#role_${role}`))) {
+        return { favorites: [] };
+      }
       return {
         favorites: [{ agentHarness: 'cursor-sdk', model: 'cursor-sdk/claude-sonnet' }],
       };
@@ -137,6 +145,7 @@ function renderSetupStep(overrides?: Partial<React.ComponentProps<typeof SetupAg
       sendCommand={sendCommand}
       onAllAgentsStarted={onAllAgentsStarted}
       onBack={onBack}
+      autoFocusFirstControl={false}
       {...overrides}
     />
   );
@@ -199,5 +208,128 @@ describe('SetupAgentTeamStep setup mode harness selection', () => {
 
     // After clicking, verify the same model label is still rendered
     expect(screen.getAllByText(label, { exact: false }).length).toBeGreaterThan(0);
+  });
+});
+
+describe('SetupAgentTeamStep shared footer', () => {
+  it('keeps Start Agents in the step footer', async () => {
+    renderSetupStep();
+
+    const start = await screen.findByRole('button', { name: 'Start Agents' });
+    expect(start.closest('[data-slot="setup-step-footer"]')).not.toBeNull();
+  });
+
+  it('renders the secondary action before Start Agents in the same footer', async () => {
+    renderSetupStep({ footerSecondary: <button type="button">Open chatroom</button> });
+
+    const start = await screen.findByRole('button', { name: 'Start Agents' });
+    const secondary = screen.getByRole('button', { name: 'Open chatroom' });
+    const footer = start.closest('[data-slot="setup-step-footer"]') as HTMLElement;
+    expect(footer).toContainElement(secondary);
+    expect(
+      secondary.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('has no primary action once every agent has joined', async () => {
+    renderSetupStep({
+      teamRoles: ['planner', 'builder'],
+      participants: [
+        { role: 'planner', lastSeenAt: Date.now() },
+        { role: 'builder', lastSeenAt: Date.now() },
+      ],
+      footerSecondary: <button type="button">Open chatroom</button>,
+    });
+
+    await waitFor(() => expect(screen.getByText('All Agents Ready')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Start Agents' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open chatroom' })).toBeTruthy();
+  });
+});
+
+describe('SetupAgentTeamStep ephemeral roles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+    favoriteRoles.current = null;
+  });
+
+  /** Sends Start and resolves once the batch has dispatched every command it will send. */
+  async function clickStartAgents() {
+    const start = await screen.findByRole('button', { name: 'Start Agents' });
+    await userEvent.click(start);
+  }
+
+  function startedRoles(sendCommand: SendCommandFn): string[] {
+    const mock = sendCommand as unknown as ReturnType<typeof vi.fn>;
+    return mock.mock.calls.map(([args]) => (args as { payload: { role: string } }).payload.role);
+  }
+
+  it('renders an ephemeral card after the permanent cards', async () => {
+    renderSetupStep({ teamRoles: ['planner', 'builder', 'architect'] });
+
+    await waitFor(() => expect(screen.getByText('architect')).toBeTruthy());
+    const [planner, builder, architect] = ['planner', 'builder', 'architect'].map((role) =>
+      screen.getByText(role)
+    );
+    expect(
+      planner!.compareDocumentPosition(builder!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      builder!.compareDocumentPosition(architect!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('never renders user or retired roles', async () => {
+    renderSetupStep({ teamRoles: ['planner', 'user', 'enhancer', 'architect'] });
+
+    await waitFor(() => expect(screen.getByText('architect')).toBeTruthy());
+    expect(screen.queryByText('user')).toBeNull();
+    expect(screen.queryByText('enhancer')).toBeNull();
+    expect(screen.getByText('planner')).toBeTruthy();
+  });
+
+  it('starts a configured ephemeral role in the same batch as the permanent roles', async () => {
+    const { sendCommand } = renderSetupStep({ teamRoles: ['planner', 'builder', 'architect'] });
+
+    await clickStartAgents();
+
+    await waitFor(() => expect(startedRoles(sendCommand)).toHaveLength(3));
+    expect(startedRoles(sendCommand)).toEqual(['planner', 'builder', 'architect']);
+  });
+
+  it('starts only configured roles and does not block Start on an unconfigured ephemeral role', async () => {
+    favoriteRoles.current = ['planner', 'builder'];
+    const { sendCommand } = renderSetupStep({ teamRoles: ['planner', 'builder', 'architect'] });
+
+    await clickStartAgents();
+
+    await waitFor(() => expect(startedRoles(sendCommand)).toHaveLength(2));
+    expect(startedRoles(sendCommand)).toEqual(['planner', 'builder']);
+    expect(screen.queryByText(/Select harness and model for/)).toBeNull();
+  });
+
+  it('still blocks Start on an unconfigured permanent role and names only permanent roles', async () => {
+    favoriteRoles.current = ['architect'];
+    const { sendCommand } = renderSetupStep({ teamRoles: ['planner', 'architect'] });
+
+    await clickStartAgents();
+
+    expect(await screen.findByText('Select harness and model for: planner')).toBeTruthy();
+    expect(sendCommand).not.toHaveBeenCalled();
+  });
+
+  it('completes on permanent roles alone when an ephemeral role has not joined', async () => {
+    renderSetupStep({
+      teamRoles: ['planner', 'builder', 'architect'],
+      participants: [
+        { role: 'planner', lastSeenAt: Date.now() },
+        { role: 'builder', lastSeenAt: Date.now() },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByText('All Agents Ready')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Start Agents' })).toBeNull();
+    expect(screen.getByText('2 of 2 ready')).toBeTruthy();
   });
 });

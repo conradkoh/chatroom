@@ -1,10 +1,11 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
+import { pickDefaultMachineId } from './pickDefaultMachineId';
 import { SetupFolderPickerField } from './SetupFolderPickerField';
-import { SetupMachinePicker } from './SetupMachinePicker';
-import { SetupWorkspaceConfirmButton } from './SetupWorkspaceConfirmButton';
+import { SetupMachineSection } from './SetupMachineSection';
+import { SetupStepFooter, SetupStepLayout, setupPrimaryButtonClassName } from './SetupStepLayout';
 import { SetupWorkspaceLoadingPanel } from './SetupWorkspaceLoadingPanel';
 import { SetupWorkspacePrerequisitesPanel } from './SetupWorkspacePrerequisitesPanel';
 import { useSetupWorkspaceFolderPicker } from './useSetupWorkspaceFolderPicker';
@@ -12,7 +13,8 @@ import type { UserMachine } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 
 import { useMachineCapabilities } from '@/hooks/useMachineCapabilities';
-import { getAuthLoginCommand, getDaemonStartCommand } from '@/lib/environment';
+import { getErrorMessage } from '@/lib/convexError';
+import { getAuthLoginCommandForCurrentOrigin, getDaemonStartCommand } from '@/lib/environment';
 
 interface SetupWorkspaceStepProps {
   connectedMachines: UserMachine[];
@@ -25,14 +27,25 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   isLoadingMachines,
   onConfirm,
 }: SetupWorkspaceStepProps) {
-  const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
+  const [chosenMachineId, setChosenMachineId] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [isConfirming, setIsConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const daemonStartCommand = getDaemonStartCommand();
-  const authLoginCommand = getAuthLoginCommand(
-    typeof window !== 'undefined' ? window.location.origin : ''
+  const authLoginCommand = getAuthLoginCommandForCurrentOrigin();
+
+  // A single connected machine is selected by default. Once a machine is chosen, by the user or by
+  // this default, it stays chosen, so a second machine connecting later does not clear it. The
+  // default is latched during render rather than in an effect.
+  const defaultMachineId = pickDefaultMachineId(connectedMachines, chosenMachineId);
+  if (chosenMachineId === null && defaultMachineId !== null) {
+    setChosenMachineId(defaultMachineId);
+  }
+  const selectedMachineId = chosenMachineId ?? defaultMachineId;
+  const connectedMachineIds = useMemo(
+    () => new Set(connectedMachines.map((m) => m.machineId)),
+    [connectedMachines]
   );
 
   const selectedMachine = useMemo(
@@ -45,32 +58,17 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   const harnessDone = detectedHarnesses.length > 0;
   const daemonDone = connectedMachines.length > 0;
 
-  const {
-    requestId,
-    isPending,
-    isTimedOut,
-    handleBrowse,
-    handleRetryAfterTimeout,
-    reset: resetFolderPicker,
-    machineDisplayName,
-  } = useSetupWorkspaceFolderPicker({
+  const { picker, reset: resetFolderPicker } = useSetupWorkspaceFolderPicker({
     selectedMachineId,
     selectedMachine,
     onPathSelected: setSelectedPath,
-    setError,
   });
-
-  useEffect(() => {
-    if (connectedMachines.length === 1 && !selectedMachineId) {
-      setSelectedMachineId(connectedMachines[0].machineId);
-    }
-  }, [connectedMachines, selectedMachineId]);
 
   const handleSelectMachine = useCallback(
     (machineId: string) => {
-      setSelectedMachineId(machineId);
+      setChosenMachineId(machineId);
       setSelectedPath('');
-      setError(null);
+      setConfirmError(null);
       resetFolderPicker();
     },
     [resetFolderPicker]
@@ -79,15 +77,15 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   const handleConfirm = useCallback(async () => {
     const path = selectedPath.trim();
     if (!selectedMachineId || !path) {
-      setError('Select a machine and workspace folder');
+      setConfirmError('Select a machine and workspace folder');
       return;
     }
     setIsConfirming(true);
-    setError(null);
+    setConfirmError(null);
     try {
       await onConfirm(selectedMachineId, path);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create workspace');
+      setConfirmError(getErrorMessage(err, 'Failed to create workspace'));
     } finally {
       setIsConfirming(false);
     }
@@ -99,7 +97,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
 
   if (connectedMachines.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto p-6 space-y-4">
+      <SetupStepLayout autoFocusFirstControl={false}>
         <SetupWorkspacePrerequisitesPanel
           daemonDone={false}
           harnessDone={false}
@@ -107,7 +105,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
           authLoginCommand={authLoginCommand}
           daemonStartCommand={daemonStartCommand}
         />
-      </div>
+      </SetupStepLayout>
     );
   }
 
@@ -115,41 +113,55 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
     ? `Select a folder on ${getMachineDisplayName(selectedMachine)}`
     : 'Select a machine first';
 
+  const confirmDisabled =
+    !selectedMachineId || !selectedPath.trim() || isConfirming || picker.isPending;
+
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <SetupStepLayout
+      autoFocusFirstControl={false}
+      footer={
+        <SetupStepFooter
+          primary={
+            <button
+              type="button"
+              onClick={() => void handleConfirm()}
+              disabled={confirmDisabled}
+              className={setupPrimaryButtonClassName}
+            >
+              {isConfirming ? 'Creating...' : 'Confirm Workspace'}
+            </button>
+          }
+        />
+      }
+    >
       <SetupWorkspacePrerequisitesPanel
         daemonDone={daemonDone}
         harnessDone={harnessDone}
         detectedHarnesses={detectedHarnesses}
       />
 
-      <SetupMachinePicker
+      <SetupMachineSection
         machines={connectedMachines}
+        connectedMachineIds={connectedMachineIds}
         selectedMachineId={selectedMachineId}
         onSelectMachine={handleSelectMachine}
+        detectedHarnesses={detectedHarnesses}
       />
 
       <SetupFolderPickerField
-        selectedPath={selectedPath}
-        onPathChange={setSelectedPath}
+        variant="setup"
+        heading="Workspace Folder"
+        inputAriaLabel="Workspace Folder"
+        waitingText={`Waiting for folder selection on ${picker.machineDisplayName ?? 'machine'}...`}
+        value={selectedPath}
+        onChange={setSelectedPath}
         placeholder={folderPlaceholder}
-        disabled={!selectedMachineId}
-        isPending={isPending}
-        isConfirming={isConfirming}
-        isTimedOut={isTimedOut}
-        requestId={requestId}
-        machineDisplayName={machineDisplayName}
-        onBrowse={() => void handleBrowse()}
-        onRetryAfterTimeout={handleRetryAfterTimeout}
+        inputDisabled={!selectedMachineId || picker.isPending}
+        browseDisabled={!selectedMachineId || isConfirming}
+        picker={picker}
       />
 
-      {error && <p className="text-xs text-chatroom-status-error">{error}</p>}
-
-      <SetupWorkspaceConfirmButton
-        disabled={!selectedMachineId || !selectedPath.trim() || isConfirming || isPending}
-        isConfirming={isConfirming}
-        onConfirm={() => void handleConfirm()}
-      />
-    </div>
+      {confirmError && <p className="text-xs text-chatroom-status-error">{confirmError}</p>}
+    </SetupStepLayout>
   );
 });

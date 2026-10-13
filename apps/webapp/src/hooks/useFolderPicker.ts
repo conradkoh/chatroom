@@ -10,14 +10,11 @@ const FOLDER_PICKER_TIMEOUT_MS = 5 * 60_000;
 
 // fallow-ignore-next-line complexity
 export function useFolderPicker() {
-  const requestFolderPicker = useSessionMutation(api.machines.requestFolderPicker);
+  const requestPicker = useSessionMutation(api.folderPickerRequests.request);
   const [requestId, setRequestId] = useState<Id<'chatroom_folderPickerRequests'> | null>(null);
   const [isTimedOut, setIsTimedOut] = useState(false);
 
-  const request = useSessionQuery(
-    api.machines.getFolderPickerRequest,
-    requestId ? { requestId } : 'skip'
-  );
+  const request = useSessionQuery(api.folderPickerRequests.get, requestId ? { requestId } : 'skip');
 
   useEffect(() => {
     if (!requestId || !request || request.status !== 'pending') {
@@ -39,11 +36,11 @@ export function useFolderPicker() {
   const pickFolder = useCallback(
     async (machineId: string) => {
       setIsTimedOut(false);
-      const result = await requestFolderPicker({ machineId });
+      const result = await requestPicker({ machineId });
       setRequestId(result.requestId);
       return result.requestId;
     },
-    [requestFolderPicker]
+    [requestPicker]
   );
 
   const reset = useCallback(() => {

@@ -23,7 +23,7 @@ import { BACKEND_ERROR_CODES } from '../../config/errorCodes';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const BACKEND_ROOT = path.resolve(__dirname, '..');
+const BACKEND_ROOT = path.resolve(__dirname, '../..');
 const SOURCE_DIRS = ['convex', 'src'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -52,6 +52,10 @@ function getAllTsFiles(root: string, dirs: string[]): string[] {
 describe('Error codes registry enforcement', () => {
   const allFiles = getAllTsFiles(BACKEND_ROOT, SOURCE_DIRS);
   const registeredCodes = new Set(Object.values(BACKEND_ERROR_CODES));
+
+  it('scans real backend source, so the checks below cannot pass on an empty scan', () => {
+    expect(allFiles.length).toBeGreaterThan(0);
+  });
 
   it('every code used in a structured ConvexError throw is registered', () => {
     // Regex for { code: 'SOME_CODE', message: ... } or { code: 'SOME_CODE', ... }
