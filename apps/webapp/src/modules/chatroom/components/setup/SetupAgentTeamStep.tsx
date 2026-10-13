@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
+import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
@@ -94,7 +94,24 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
 
   const machine = lockedMachine;
 
-  const persistentTeamRoles = useMemo(() => getPermanentRoleNames(teamRoles), [teamRoles]);
+  // Readiness (joinedCount, allJoined, the Start gate) is computed from permanent roles only.
+  // Ephemeral roles get cards and start when configured, but never block the wizard.
+  // `user` is not a team agent. getPermanentRoleNames would treat an unknown name as permanent,
+  // so it is excluded explicitly. Retired roles are already dropped by getPermanentRoleNames,
+  // and isEphemeralAgentRole is false for both `user` and retired names.
+  const persistentTeamRoles = useMemo(
+    () => getPermanentRoleNames(teamRoles).filter((role) => role !== 'user'),
+    [teamRoles]
+  );
+  const ephemeralTeamRoles = useMemo(
+    () => teamRoles.filter((role) => isEphemeralAgentRole(role)),
+    [teamRoles]
+  );
+  // Permanent cards first, then ephemeral cards (mirrors AgentPanel).
+  const rolesToShow = useMemo(
+    () => [...persistentTeamRoles, ...ephemeralTeamRoles],
+    [persistentTeamRoles, ephemeralTeamRoles]
+  );
 
   const joinedCount = useMemo(
     () => countJoinedRoles(persistentTeamRoles, participants),
@@ -131,12 +148,16 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
       return;
     }
 
+    // Ephemeral roles start only when configured. An unconfigured ephemeral role is skipped.
+    // Permanent roles are all configured at this point, so the filter keeps every one of them.
+    const rolesToStart = rolesToShow.filter((role) => roleConfigs.has(role.toLowerCase()));
+
     setIsStartingAll(true);
     setStartError(null);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
 
     const results = await startAgentsBatch(
-      persistentTeamRoles,
+      rolesToStart,
       (role) => {
         const config = roleConfigs.get(role.toLowerCase());
         if (!config) return null;
@@ -153,7 +174,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     );
 
     setIsStartingAll(false);
-    const failed = getFailedAgentRoles(results, persistentTeamRoles);
+    const failed = getFailedAgentRoles(results, rolesToStart);
     if (failed.length > 0) {
       setStartError(`Failed to start: ${failed.join(', ')}`);
       return;
@@ -161,6 +182,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     onStartRequested?.();
   }, [
     persistentTeamRoles,
+    rolesToShow,
     roleConfigs,
     sendCommand,
     machineId,
@@ -232,7 +254,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
             {harnessesLoading ? (
               <SetupWorkspaceLoadingPanel label="Loading agent harnesses..." />
             ) : (
-              persistentTeamRoles.map((role) => {
+              rolesToShow.map((role) => {
                 const participant = participants.find(
                   (p) => p.role.toLowerCase() === role.toLowerCase()
                 );
@@ -240,7 +262,9 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
                   <InlineAgentCard
                     key={role}
                     role={role}
-                    allRoles={persistentTeamRoles}
+                    // The restart stats modal selects the tab by this card's own role, so every
+                    // rendered role must be listed here (matches AgentPanel's rolesToShow).
+                    allRoles={rolesToShow}
                     lastSeenAt={participant?.lastSeenAt ?? null}
                     statusLabel="OFFLINE"
                     statusVariant="offline"
