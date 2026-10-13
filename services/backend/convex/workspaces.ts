@@ -28,6 +28,7 @@ import { listRegisteredWorkingDirsForMachine as listRegisteredWorkingDirsForMach
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { patchWorkspaceGitState as patchWorkspaceGitStateUseCase } from '../src/domain/usecase/workspace/patch-workspace-git-state';
+import { toWorkspaceGitStateView } from '../src/domain/usecase/workspace/project-workspace-git-state';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
 
@@ -399,40 +400,7 @@ export const getWorkspaceGitState = query({
       )
       .first();
 
-    if (!row) {
-      return { status: 'loading' };
-    }
-
-    if (row.status === 'available') {
-      return {
-        status: 'available',
-        branch: row.branch ?? 'HEAD',
-        isDirty: row.isDirty ?? false,
-        diffStat: row.diffStat ?? { filesChanged: 0, insertions: 0, deletions: 0 },
-        openPullRequests: (row.openPullRequests ?? []).map((pr) => ({
-          ...pr,
-          prNumber: pr.prNumber ?? pr.number ?? 0,
-        })),
-        remotes: row.remotes ?? [],
-        commitsAhead: row.commitsAhead ?? 0,
-        commitsBehind: row.commitsBehind ?? 0,
-        defaultBranch: row.defaultBranch ?? null,
-        headCommitStatus: row.headCommitStatus ?? null,
-        defaultBranchStatus: row.defaultBranchStatus ?? null,
-        updatedAt: row.updatedAt,
-      };
-    }
-
-    if (row.status === 'not_found') {
-      return { status: 'not_found', updatedAt: row.updatedAt };
-    }
-
-    // status === 'error'
-    return {
-      status: 'error',
-      message: row.errorMessage ?? 'Unknown error',
-      updatedAt: row.updatedAt,
-    };
+    return toWorkspaceGitStateView(row);
   },
 });
 
