@@ -79,6 +79,8 @@ function machineFromWorkspaces(
  * Exported for unit tests. Deterministic machine pick. Never falls back to an arbitrary first
  * online machine.
  */
+// Exported for initialization.test.ts. Components reach these through resolveInitialSelection.
+// fallow-ignore-next-line unused-export
 export function deriveInitialMachineId(
   connectedMachines: MachineInfo[],
   roleConfigs: AgentConfig[],
@@ -207,6 +209,8 @@ function configWorkingDir(roleConfigs: AgentConfig[], machineId: string): string
 }
 
 /** Wait for workspaces when they may supply the machine or its working directory. */
+// Exported for initialization.test.ts. Components reach these through resolveInitialSelection.
+// fallow-ignore-next-line unused-export
 export function shouldDeferInitUntilWorkspacesLoad(
   machineId: string | null,
   roleConfigs: AgentConfig[],
