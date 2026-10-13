@@ -1,16 +1,21 @@
-import type { Agent } from '@opencode-ai/sdk';
+import type { AgentInfo } from '@opencode/client';
 import { describe, it, expect } from 'vitest';
 
 import { selectAgent } from './select-agent';
 
-const createAgent = (name: string, mode: 'subagent' | 'primary' | 'all'): Agent => ({
-  name,
-  mode,
-  builtIn: false,
-  permission: { edit: 'allow', bash: {} },
-  tools: {},
-  options: {},
-});
+const createAgent = (
+  name: string,
+  mode: 'subagent' | 'primary' | 'all',
+  hidden = false
+): AgentInfo =>
+  ({
+    id: name,
+    name,
+    mode,
+    hidden,
+    request: {},
+    permissions: [],
+  }) as unknown as AgentInfo;
 
 describe('selectAgent', () => {
   it('returns the build agent when present among primaries', () => {
@@ -27,6 +32,12 @@ describe('selectAgent', () => {
 
   it('filters out mode === subagent entries even if named build', () => {
     const agents = [createAgent('build', 'subagent'), createAgent('planner', 'primary')];
+    const result = selectAgent(agents);
+    expect(result.name).toBe('planner');
+  });
+
+  it('filters out hidden maintenance agents', () => {
+    const agents = [createAgent('title', 'primary', true), createAgent('planner', 'primary')];
     const result = selectAgent(agents);
     expect(result.name).toBe('planner');
   });

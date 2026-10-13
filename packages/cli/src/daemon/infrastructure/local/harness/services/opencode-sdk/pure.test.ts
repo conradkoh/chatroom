@@ -85,7 +85,7 @@ describe('isInfoLine', () => {
     ).toBe(false);
   });
 
-  it('returns false for structured level=INFO line (suppressed via --log-level WARN at spawn)', () => {
+  it('returns false for structured level=INFO line (suppressed via --log-level warn at spawn)', () => {
     expect(
       isInfoLine(
         'timestamp=2026-07-11T08:20:28.536Z level=INFO run=c792c273 message="llm runtime selected"'

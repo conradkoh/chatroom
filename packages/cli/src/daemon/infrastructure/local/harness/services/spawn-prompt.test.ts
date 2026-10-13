@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { CHATROOM_PROMPT_SEPARATOR } from './opencode-sdk/compose-system-prompt.js';
 import { createSpawnPrompt, DEFAULT_TRIGGER_PROMPT, type SpawnPrompt } from './spawn-prompt';
-
-// Reference an unrelated value-object constant to confirm imports compose cleanly
-// across siblings without coupling. Cheap sanity check; not a behavioural assertion.
-void CHATROOM_PROMPT_SEPARATOR;
 
 describe('createSpawnPrompt', () => {
   it('returns DEFAULT_TRIGGER_PROMPT when input is undefined', () => {

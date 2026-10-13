@@ -37,14 +37,14 @@ function createAdapter<T>(factory: (emit: LogEmitter) => T) {
 
 type FixtureOpenCodeEvent = {
   type: string;
-  properties?: Record<string, unknown>;
+  data?: Record<string, unknown>;
 };
 
 function readOpenCodeFixture(name: string): FixtureOpenCodeEvent[] {
   return readFixture(name).map((event) => ({
     type: String(event.type),
-    ...(event.properties && typeof event.properties === 'object'
-      ? { properties: event.properties as Record<string, unknown> }
+    ...(event.data && typeof event.data === 'object'
+      ? { data: event.data as Record<string, unknown> }
       : {}),
   }));
 }
@@ -183,7 +183,7 @@ describe('raw harness behavior fixtures', () => {
       for (const event of events) yield event;
     }
     const client: SessionEventForwarderClient = {
-      event: { subscribe: async () => ({ stream: stream() }) },
+      event: { subscribe: () => stream() },
     };
     const handle = startSessionEventForwarder(client, {
       sessionId: 'opencode-session-1',
@@ -210,7 +210,7 @@ describe('raw harness behavior fixtures', () => {
       for (const event of events) yield event;
     }
     const client: SessionEventForwarderClient = {
-      event: { subscribe: async () => ({ stream: stream() }) },
+      event: { subscribe: () => stream() },
     };
     const handle = startSessionEventForwarder(client, {
       sessionId: 'opencode-session-2',

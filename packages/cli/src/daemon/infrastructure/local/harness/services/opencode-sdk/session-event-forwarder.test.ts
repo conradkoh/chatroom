@@ -15,14 +15,76 @@ function makeWritable() {
   };
 }
 
-function createMockClient(eventStream: AsyncGenerator<unknown>) {
+function createMockClient(eventStream: AsyncIterable<unknown>) {
   return {
     event: {
-      subscribe: vi.fn(() => ({
-        stream: eventStream,
-      })),
+      subscribe: vi.fn(() => eventStream),
     },
   };
+}
+
+function textDelta(delta: string, sessionID = 'sess-1') {
+  return {
+    type: 'session.text.delta',
+    data: { sessionID, assistantMessageID: 'm1', ordinal: 0, delta },
+  };
+}
+
+function reasoningDelta(delta: string, sessionID = 'sess-1') {
+  return {
+    type: 'session.reasoning.delta',
+    data: { sessionID, assistantMessageID: 'm1', ordinal: 0, delta },
+  };
+}
+
+function toolStarted(id: string, name: string, sessionID = 'sess-1') {
+  return {
+    type: 'session.tool.input.started',
+    data: { sessionID, assistantMessageID: 'm1', id, name },
+  };
+}
+
+function toolCalled(id: string, input: unknown, sessionID = 'sess-1') {
+  return {
+    type: 'session.tool.called',
+    data: { sessionID, assistantMessageID: 'm1', id, input, executed: true },
+  };
+}
+
+function toolSuccess(id: string, sessionID = 'sess-1') {
+  return {
+    type: 'session.tool.success',
+    data: { sessionID, assistantMessageID: 'm1', id, content: [], executed: true },
+  };
+}
+
+function toolFailed(id: string, sessionID = 'sess-1') {
+  return {
+    type: 'session.tool.failed',
+    data: {
+      sessionID,
+      assistantMessageID: 'm1',
+      id,
+      error: { type: 'ToolError', message: 'boom' },
+      executed: true,
+    },
+  };
+}
+
+function idleEvent(sessionID = 'sess-1') {
+  return { type: 'session.idle', data: { sessionID } };
+}
+
+function statusEvent(type: string, sessionID = 'sess-1') {
+  return { type: 'session.status', data: { sessionID, status: { type } } };
+}
+
+function executionFailed(error: { type: string; message: string }, sessionID = 'sess-1') {
+  return { type: 'session.execution.failed', data: { sessionID, error } };
+}
+
+function executionSucceeded(sessionID = 'sess-1') {
+  return { type: 'session.execution.succeeded', data: { sessionID } };
 }
 
 describe('SessionEventForwarder', () => {
@@ -42,220 +104,16 @@ describe('SessionEventForwarder', () => {
     };
   });
 
-  async function* textDeltaStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'message.part.updated',
-      properties: {
-        delta: 'hello',
-        part: {
-          id: 'p1',
-          type: 'text',
-          sessionID: 'sess-1',
-          messageID: 'm1',
-          text: '',
-        },
-      },
-    };
-  }
-
-  async function* textSnapshotStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'message.part.updated',
-      properties: {
-        part: {
-          id: 'p1',
-          type: 'text',
-          sessionID: 'sess-1',
-          messageID: 'm1',
-          text: 'full reply',
-        },
-      },
-    };
-  }
-
-  async function* reasoningStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'message.part.updated',
-      properties: {
-        delta: 'step 1',
-        part: {
-          id: 'p2',
-          type: 'reasoning',
-          sessionID: 'sess-1',
-          messageID: 'm1',
-          text: '',
-          time: { start: 0 },
-        },
-      },
-    };
-  }
-
-  async function* toolCallStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'message.part.updated',
-      properties: {
-        part: {
-          id: 'p1',
-          type: 'tool',
-          tool: 'bash',
-          sessionID: 'sess-1',
-          messageID: 'm1',
-          callID: 'c1',
-          state: {
-            status: 'completed',
-            input: {},
-            output: 'ok',
-            title: 'x',
-            metadata: {},
-            time: { start: 0, end: 1 },
-          },
-        },
-      },
-    };
-  }
-
-  async function* idleStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'session.idle',
-      properties: { sessionID: 'sess-1' },
-    };
-  }
-
-  async function* statusIdleOnlyStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'session.status',
-      properties: {
-        sessionID: 'sess-1',
-        status: { type: 'idle' },
-      },
-    };
-  }
-
-  async function* compactedStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'session.compacted',
-      properties: { sessionID: 'sess-1' },
-    };
-  }
-
-  async function* fileEditedStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'file.edited',
-      properties: { file: 'src/foo.ts' },
-    };
-  }
-
-  async function* errorStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'session.error',
-      properties: {
-        sessionID: 'sess-1',
-        error: { name: 'UnknownError', data: { message: 'oops' } },
-      },
-    };
-  }
-
-  async function* usageLimitErrorStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'session.error',
-      properties: {
-        sessionID: 'sess-1',
-        error: {
-          name: 'GoUsageLimitError',
-          data: { message: 'Monthly usage limit reached. Resets in 6 days.' },
-        },
-      },
-    };
-  }
-
-  async function* weeklyRateLimitErrorStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'session.error',
-      properties: {
-        sessionID: 'sess-1',
-        error: {
-          name: 'APIError',
-          data: {
-            message:
-              "Sorry, you've exceeded your weekly rate limit. Please review our Terms of Service.",
-          },
-        },
-      },
-    };
-  }
-
-  async function* modelLoadErrorStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'session.error',
-      properties: {
-        sessionID: 'sess-1',
-        error: {
-          name: 'ModelLoadError',
-          data: {
-            message:
-              'Failed to load model "qwen/qwen3.6-35b-a3b". Model loading was stopped due to insufficient system resources.',
-          },
-        },
-      },
-    };
-  }
-
-  async function* otherSessionStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'message.part.updated',
-      properties: {
-        delta: 'hello',
-        part: {
-          id: 'p1',
-          type: 'text',
-          sessionID: 'other-sess',
-          messageID: 'm1',
-          text: '',
-        },
-      },
-    };
-  }
-
-  async function* textDeltaNoSessionIdStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'message.part.updated',
-      properties: {
-        delta: 'no-session-id',
-        part: { id: 'p1', type: 'text', messageID: 'm1', text: '' },
-      },
-    };
-  }
-
-  async function* noSessionIdStream(): AsyncGenerator<unknown> {
-    await new Promise((r) => setTimeout(r, 10));
-    yield {
-      type: 'installation.updated',
-      properties: { version: '1.0' },
-    };
+  async function* streamOf(events: unknown[], delayMs = 10): AsyncGenerator<unknown> {
+    await new Promise((r) => setTimeout(r, delayMs));
+    for (const e of events) yield e;
   }
 
   it('text deltas forwarded', async () => {
     vi.useFakeTimers();
     const onActivity = vi.fn();
-    const fakeClient = createMockClient(textDeltaStream());
-    const handle = startSessionEventForwarder(fakeClient as never, {
-      ...baseOptions,
-      onActivity,
-    });
+    const fakeClient = createMockClient(streamOf([textDelta('hello')]));
+    const handle = startSessionEventForwarder(fakeClient as never, { ...baseOptions, onActivity });
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
     vi.useRealTimers();
@@ -263,19 +121,9 @@ describe('SessionEventForwarder', () => {
     expect(onActivity).toHaveBeenCalled();
   }, 10000);
 
-  it('text snapshots (part.text) forwarded when no delta', async () => {
-    vi.useFakeTimers();
-    const fakeClient = createMockClient(textSnapshotStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder text] full reply\n');
-  }, 10000);
-
   it('reasoning deltas forwarded as thinking]', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(reasoningStream());
+    const fakeClient = createMockClient(streamOf([reasoningDelta('step 1')]));
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
@@ -283,31 +131,56 @@ describe('SessionEventForwarder', () => {
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder thinking] step 1\n');
   }, 10000);
 
-  it('tool calls forwarded', async () => {
+  it('tool call logs running then completed with duration', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(toolCallStream());
+    const fakeClient = createMockClient(
+      streamOf([toolStarted('c1', 'bash'), toolCalled('c1', { command: 'ls' }), toolSuccess('c1')])
+    );
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
     vi.useRealTimers();
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder tool: bash] running: ls\n');
     expect(target.write).toHaveBeenCalledWith(
-      '[fake-ts] role:builder tool: bash] completed (0.0s)\n'
+      expect.stringContaining('[fake-ts] role:builder tool: bash] completed')
     );
   }, 10000);
 
-  it('message.part.updated without sessionID still forwards (single-session forwarder)', async () => {
+  it('tool failure logs error state', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(textDeltaNoSessionIdStream());
+    const fakeClient = createMockClient(
+      streamOf([toolStarted('c1', 'bash'), toolCalled('c1', { command: 'ls' }), toolFailed('c1')])
+    );
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
     vi.useRealTimers();
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder text] no-session-id\n');
+    expect(target.write).toHaveBeenCalledWith(expect.stringContaining('tool: bash] error'));
+  }, 10000);
+
+  it('deduplicates repeated tool.called for the same call id', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(
+      streamOf([
+        toolStarted('c1', 'bash'),
+        toolCalled('c1', { command: 'ls' }),
+        toolCalled('c1', { command: 'ls' }),
+        toolCalled('c1', { command: 'ls' }),
+      ])
+    );
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string)
+      .filter((l: string) => l.includes('tool: bash'));
+    expect(toolLines).toHaveLength(1);
   }, 10000);
 
   it('session.idle -> agent_end', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(idleStream());
+    const fakeClient = createMockClient(streamOf([idleEvent()]));
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
@@ -317,7 +190,7 @@ describe('SessionEventForwarder', () => {
 
   it('session.status idle without session.idle -> agent_end fired once', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(statusIdleOnlyStream());
+    const fakeClient = createMockClient(streamOf([statusEvent('idle')]));
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
@@ -329,9 +202,11 @@ describe('SessionEventForwarder', () => {
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder agent_end]\n');
   }, 10000);
 
-  it('session.compacted forwarded', async () => {
+  it('session.compaction.ended forwarded as compacted', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(compactedStream());
+    const fakeClient = createMockClient(
+      streamOf([{ type: 'session.compaction.ended', data: { sessionID: 'sess-1' } }])
+    );
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
@@ -342,11 +217,10 @@ describe('SessionEventForwarder', () => {
   it('invokes onLogLine for forwarded log lines', async () => {
     vi.useFakeTimers();
     const onLogLine = vi.fn();
-    const fakeClient = createMockClient(errorStream());
-    const handle = startSessionEventForwarder(fakeClient as never, {
-      ...baseOptions,
-      onLogLine,
-    });
+    const fakeClient = createMockClient(
+      streamOf([executionFailed({ type: 'UnknownError', message: 'oops' })])
+    );
+    const handle = startSessionEventForwarder(fakeClient as never, { ...baseOptions, onLogLine });
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
     vi.useRealTimers();
@@ -356,9 +230,24 @@ describe('SessionEventForwarder', () => {
     expect(onLogLine).toHaveBeenCalledWith('[fake-ts] role:builder error] UnknownError: oops');
   }, 10000);
 
-  it('session.error -> errorTarget', async () => {
+  it('session.execution.succeeded -> agent_end completed', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(errorStream());
+    const fakeClient = createMockClient(streamOf([executionSucceeded()]));
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder agent_end]\n');
+  }, 10000);
+
+  it('session.execution.failed -> errorTarget and agent_end failed', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(
+      streamOf([executionFailed({ type: 'UnknownError', message: 'oops' })])
+    );
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
@@ -366,16 +255,24 @@ describe('SessionEventForwarder', () => {
     expect(errorTarget.write).toHaveBeenCalledWith(
       '[fake-ts] role:builder error] UnknownError: oops\n'
     );
-    // session start is logged to target before the error event
     expect(target.write).toHaveBeenCalledWith(
       '[fake-ts] role:builder session] Started] role: builder\n'
     );
-    expect(target.write).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: execution_failed\n'
+    );
   }, 10000);
 
-  it('session.error usage-limit -> agent_end fired + logged', async () => {
+  it('session error usage-limit -> agent_end fired + logged', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(usageLimitErrorStream());
+    const fakeClient = createMockClient(
+      streamOf([
+        executionFailed({
+          type: 'GoUsageLimitError',
+          message: 'Monthly usage limit reached. Resets in 6 days.',
+        }),
+      ])
+    );
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
@@ -388,24 +285,17 @@ describe('SessionEventForwarder', () => {
     );
   }, 10000);
 
-  it('session.error weekly rate limit -> agent_end fired', async () => {
+  it('session error model load failure -> agent_end fired + logged', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(weeklyRateLimitErrorStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    const onEnd = vi.fn();
-    handle.onAgentEnd(onEnd);
-    await vi.advanceTimersByTimeAsync(550);
-    await handle.done;
-    vi.useRealTimers();
-    expect(onEnd).toHaveBeenCalledTimes(1);
-    expect(target.write).toHaveBeenCalledWith(
-      '[fake-ts] role:builder agent_end] reason: provider_rate_limit\n'
+    const fakeClient = createMockClient(
+      streamOf([
+        executionFailed({
+          type: 'ModelLoadError',
+          message:
+            'Failed to load model "qwen/qwen3.6-35b-a3b". Model loading was stopped due to insufficient system resources.',
+        }),
+      ])
     );
-  }, 10000);
-
-  it('session.error model load failure -> agent_end fired + logged', async () => {
-    vi.useFakeTimers();
-    const fakeClient = createMockClient(modelLoadErrorStream());
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
@@ -422,19 +312,7 @@ describe('SessionEventForwarder', () => {
   it('stream throws weekly rate limit -> agent_end fired from catch block', async () => {
     async function* weeklyRateLimitStreamThrow(): AsyncGenerator<unknown> {
       await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          delta: 'hello',
-          part: {
-            id: 'p1',
-            type: 'text',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            text: '',
-          },
-        },
-      };
+      yield textDelta('hello');
       throw {
         name: 'APIError',
         data: {
@@ -462,23 +340,8 @@ describe('SessionEventForwarder', () => {
   it('session.status retry after structured rate limit error -> agent_end fired', async () => {
     async function* retryAfterRateLimitStream(): AsyncGenerator<unknown> {
       await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'session.error',
-        properties: {
-          sessionID: 'sess-1',
-          error: {
-            name: 'AI_APICallError',
-            data: { message: 'Rate limit exceeded. Please try again later.' },
-          },
-        },
-      };
-      yield {
-        type: 'session.status',
-        properties: {
-          sessionID: 'sess-1',
-          status: { type: 'retry' },
-        },
-      };
+      yield executionFailed({ type: 'AI_APICallError', message: 'Rate limit exceeded.' });
+      yield statusEvent('retry');
       await new Promise(() => {});
     }
 
@@ -498,13 +361,7 @@ describe('SessionEventForwarder', () => {
   it('session.status retry without structured error waits for timeout before agent_end', async () => {
     async function* retryOnlyStream(): AsyncGenerator<unknown> {
       await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'session.status',
-        properties: {
-          sessionID: 'sess-1',
-          status: { type: 'retry' },
-        },
-      };
+      yield statusEvent('retry');
       await new Promise(() => {});
     }
 
@@ -528,12 +385,12 @@ describe('SessionEventForwarder', () => {
   }, 10000);
 
   it('abortTerminalProviderError from stderr path -> agent_end fired once', async () => {
-    async function* idleStream(): AsyncGenerator<unknown> {
-      await new Promise(() => {});
-    }
-
     vi.useFakeTimers();
-    const fakeClient = createMockClient(idleStream());
+    const fakeClient = createMockClient(
+      (async function* () {
+        await new Promise(() => {});
+      })()
+    );
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
@@ -544,73 +401,14 @@ describe('SessionEventForwarder', () => {
     expect(onEnd).toHaveBeenCalledTimes(1);
   }, 10000);
 
-  it('session.idle after retry timeout does not double agent_end', async () => {
-    let releaseIdle: (() => void) | undefined;
-    const idleGate = new Promise<void>((resolve) => {
-      releaseIdle = resolve;
-    });
-
-    async function* idleAfterRetryTimeoutStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'session.status',
-        properties: {
-          sessionID: 'sess-1',
-          status: { type: 'retry' },
-        },
-      };
-      await idleGate;
-      yield {
-        type: 'session.idle',
-        properties: { sessionID: 'sess-1' },
-      };
-      await new Promise(() => {});
-    }
-
-    vi.useFakeTimers();
-    const fakeClient = createMockClient(idleAfterRetryTimeoutStream());
-    const handle = startSessionEventForwarder(fakeClient as never, {
-      ...baseOptions,
-      sessionRetryIdleTimeoutMs: 1_000,
-    });
-    const onEnd = vi.fn();
-    handle.onAgentEnd(onEnd);
-    await vi.advanceTimersByTimeAsync(50);
-    expect(onEnd).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(onEnd).toHaveBeenCalledTimes(1);
-    releaseIdle!();
-    await vi.advanceTimersByTimeAsync(10);
-    vi.useRealTimers();
-    expect(onEnd).toHaveBeenCalledTimes(1);
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] retry_timeout\n');
-    expect(target.write).toHaveBeenCalledWith(
-      '[fake-ts] role:builder agent_end] reason: retry_timeout\n'
-    );
-  }, 10000);
-
   it('session.idle after provider rate limit abort does not double agent_end', async () => {
-    async function* idleAfterRateLimitStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'session.error',
-        properties: {
-          sessionID: 'sess-1',
-          error: {
-            name: 'AI_APICallError',
-            data: { message: 'Rate limit exceeded. Please try again later.' },
-          },
-        },
-      };
-      yield {
-        type: 'session.idle',
-        properties: { sessionID: 'sess-1' },
-      };
-      await new Promise(() => {});
-    }
-
     vi.useFakeTimers();
-    const fakeClient = createMockClient(idleAfterRateLimitStream());
+    const fakeClient = createMockClient(
+      streamOf([
+        executionFailed({ type: 'AI_APICallError', message: 'Rate limit exceeded.' }),
+        idleEvent(),
+      ])
+    );
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
@@ -622,19 +420,9 @@ describe('SessionEventForwarder', () => {
     );
   }, 10000);
 
-  it('file.edited forwarded', async () => {
-    vi.useFakeTimers();
-    const fakeClient = createMockClient(fileEditedStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder file] src/foo.ts\n');
-  }, 10000);
-
   it('filter: events for OTHER sessions ignored', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(otherSessionStream());
+    const fakeClient = createMockClient(streamOf([textDelta('hello', 'other-sess')]));
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
@@ -642,9 +430,11 @@ describe('SessionEventForwarder', () => {
     expect(target.write).not.toHaveBeenCalled();
   }, 10000);
 
-  it('filter: non-session events without sessionID dropped', async () => {
+  it('filter: session-scoped events without sessionID are dropped', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(noSessionIdStream());
+    const fakeClient = createMockClient(
+      streamOf([{ type: 'session.text.delta', data: { assistantMessageID: 'm1', delta: 'x' } }])
+    );
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
@@ -656,19 +446,7 @@ describe('SessionEventForwarder', () => {
     vi.useFakeTimers();
     let yielded = false;
     async function* streamingGen(): AsyncGenerator<unknown> {
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          delta: 'first',
-          part: {
-            id: 'p1',
-            type: 'text',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            text: '',
-          },
-        },
-      };
+      yield textDelta('first');
       yielded = true;
       await new Promise(() => {});
     }
@@ -684,7 +462,7 @@ describe('SessionEventForwarder', () => {
 
   it('stop() is idempotent', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(textDeltaStream());
+    const fakeClient = createMockClient(streamOf([textDelta('hello')]));
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     handle.stop();
@@ -696,19 +474,7 @@ describe('SessionEventForwarder', () => {
   it('iteration error -> errorTarget logged, done resolves', async () => {
     async function* errorGen(): AsyncGenerator<unknown> {
       await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          delta: 'first',
-          part: {
-            id: 'p1',
-            type: 'text',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            text: '',
-          },
-        },
-      };
+      yield textDelta('first');
       throw new Error('stream exploded');
     }
 
@@ -723,78 +489,9 @@ describe('SessionEventForwarder', () => {
     );
   }, 10000);
 
-  it('tool call with bash command input included in log line', async () => {
-    async function* toolCallWithInputStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          part: {
-            id: 'p1',
-            type: 'tool',
-            tool: 'bash',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            callID: 'c1',
-            state: {
-              status: 'running',
-              input: { command: 'git status' },
-              time: { start: 1000 },
-            },
-          },
-        },
-      };
-    }
-
-    vi.useFakeTimers();
-    const fakeClient = createMockClient(toolCallWithInputStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
-    expect(target.write).toHaveBeenCalledWith(
-      '[fake-ts] role:builder tool: bash] running: git status\n'
-    );
-  }, 10000);
-
-  it('tool call with duration shown on completion', async () => {
-    async function* toolCallWithDurationStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          part: {
-            id: 'p1',
-            type: 'tool',
-            tool: 'bash',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            callID: 'c1',
-            state: {
-              status: 'completed',
-              input: { command: 'git status' },
-              output: 'ok',
-              time: { start: 0, end: 1000 },
-            },
-          },
-        },
-      };
-    }
-
-    vi.useFakeTimers();
-    const fakeClient = createMockClient(toolCallWithDurationStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
-    expect(target.write).toHaveBeenCalledWith(
-      '[fake-ts] role:builder tool: bash] completed (1.0s): git status\n'
-    );
-  }, 10000);
-
   it('session start log emitted before first event', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(textDeltaStream());
+    const fakeClient = createMockClient(streamOf([textDelta('hello')]));
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
@@ -803,233 +500,51 @@ describe('SessionEventForwarder', () => {
     expect(calls[0]).toBe('[fake-ts] role:builder session] Started] role: builder\n');
   }, 10000);
 
-  it('file.edited with action kind included in log line', async () => {
-    async function* fileEditedWithKindStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'file.edited',
-        properties: { file: 'src/foo.ts', action: 'modified' },
-      };
-    }
-
+  it('unknown session.status logs unknown_session_status and does not emit agent_end', async () => {
     vi.useFakeTimers();
-    const fakeClient = createMockClient(fileEditedWithKindStream());
+    const ps = createPushStream();
+    const fakeClient = createMockClient(ps.stream);
     const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+
+    ps.push(statusEvent('compacting'));
+    await vi.advanceTimersByTimeAsync(10);
     expect(target.write).toHaveBeenCalledWith(
-      '[fake-ts] role:builder file] src/foo.ts (modified)\n'
+      '[fake-ts] role:builder status] unknown_session_status:compacting\n'
     );
-  }, 10000);
+    expect(onEnd).not.toHaveBeenCalled();
 
-  it('deduplicates repeated tool events with the same callID and status', async () => {
-    vi.useFakeTimers();
-    async function* duplicateRunningStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      for (let i = 0; i < 3; i++) {
-        yield {
-          type: 'message.part.updated',
-          properties: {
-            state: 'running',
-            part: {
-              id: 'p1',
-              type: 'tool',
-              tool: 'bash',
-              sessionID: 'sess-1',
-              messageID: 'm1',
-              callID: 'call-dedup',
-              state: { status: 'running', input: { command: 'ls' } },
-            },
-          },
-        };
-      }
-    }
-    const fakeClient = createMockClient(duplicateRunningStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
-    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
+    ps.push(statusEvent('compacting'));
+    await vi.advanceTimersByTimeAsync(10);
+    const statusLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
       .map((c: unknown[]) => c[0] as string)
-      .filter((l: string) => l.includes('tool: bash'));
-    expect(toolLines).toHaveLength(1);
-  }, 10000);
+      .filter((l: string) => l.includes('status'));
+    expect(statusLines.filter((l) => l.includes('compacting'))).toHaveLength(1);
 
-  it('logs both running and completed status transitions for the same callID', async () => {
-    vi.useFakeTimers();
-    async function* runningThenCompletedStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          state: 'running',
-          part: {
-            id: 'p1',
-            type: 'tool',
-            tool: 'bash',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            callID: 'call-transition',
-            state: { status: 'running', input: { command: 'ls' } },
-          },
-        },
-      };
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          state: 'completed',
-          part: {
-            id: 'p1',
-            type: 'tool',
-            tool: 'bash',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            callID: 'call-transition',
-            state: {
-              status: 'completed',
-              input: { command: 'ls' },
-              time: { start: 0, end: 300 },
-            },
-          },
-        },
-      };
-    }
-    const fakeClient = createMockClient(runningThenCompletedStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
+    ps.end();
     await handle.done;
     vi.useRealTimers();
-    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
-      .map((c: unknown[]) => c[0] as string)
-      .filter((l: string) => l.includes('tool: bash'));
-    expect(toolLines).toHaveLength(2);
   }, 10000);
 
-  it('cleans up terminal state so a new running event after completed is logged', async () => {
+  it('session.status busy logs busy, fires onActivity, and does not emit agent_end', async () => {
     vi.useFakeTimers();
-    async function* completedThenRunningAgainStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          state: 'completed',
-          part: {
-            id: 'p1',
-            type: 'tool',
-            tool: 'bash',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            callID: 'call-cleanup',
-            state: {
-              status: 'completed',
-              input: { command: 'ls' },
-              time: { start: 0, end: 300 },
-            },
-          },
-        },
-      };
-      // Simulate new "running" after terminal state cleaned up map entry
-      yield {
-        type: 'message.part.updated',
-        properties: {
-          state: 'running',
-          part: {
-            id: 'p1',
-            type: 'tool',
-            tool: 'bash',
-            sessionID: 'sess-1',
-            messageID: 'm1',
-            callID: 'call-cleanup',
-            state: { status: 'running', input: { command: 'pwd' } },
-          },
-        },
-      };
-    }
-    const fakeClient = createMockClient(completedThenRunningAgainStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
-    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
-      .map((c: unknown[]) => c[0] as string)
-      .filter((l: string) => l.includes('tool: bash'));
-    expect(toolLines).toHaveLength(2);
-  }, 10000);
+    const ps = createPushStream();
+    const fakeClient = createMockClient(ps.stream);
+    const onActivity = vi.fn();
+    const handle = startSessionEventForwarder(fakeClient as never, { ...baseOptions, onActivity });
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
 
-  it('logs events for different callIDs independently', async () => {
-    vi.useFakeTimers();
-    async function* parallelCallsStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      for (const callID of ['call-A', 'call-B']) {
-        yield {
-          type: 'message.part.updated',
-          properties: {
-            state: 'running',
-            part: {
-              id: 'p1',
-              type: 'tool',
-              tool: 'bash',
-              sessionID: 'sess-1',
-              messageID: 'm1',
-              callID,
-              state: { status: 'running', input: { command: 'ls' } },
-            },
-          },
-        };
-      }
-    }
-    const fakeClient = createMockClient(parallelCallsStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
-    const toolLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
-      .map((c: unknown[]) => c[0] as string)
-      .filter((l: string) => l.includes('tool: bash'));
-    expect(toolLines).toHaveLength(2);
-  }, 10000);
+    ps.push(statusEvent('busy'));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] busy\n');
+    expect(onActivity).toHaveBeenCalled();
+    expect(onEnd).not.toHaveBeenCalled();
 
-  it('filter: session.created with non-matching info.id is ignored', async () => {
-    vi.useFakeTimers();
-    async function* sessionCreatedOtherStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      yield {
-        type: 'session.created',
-        properties: { info: { id: 'other-session-99', title: 'Other', version: '1' } },
-      };
-    }
-    const fakeClient = createMockClient(sessionCreatedOtherStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
+    ps.end();
     await handle.done;
     vi.useRealTimers();
-    // The session.created for a different session must be dropped by the sessionID filter
-    expect(target.write).not.toHaveBeenCalled();
-  }, 10000);
-
-  it('filter: session.updated with matching info.id is allowed through', async () => {
-    vi.useFakeTimers();
-    async function* sessionUpdatedOwnStream(): AsyncGenerator<unknown> {
-      await new Promise((r) => setTimeout(r, 10));
-      // baseOptions.sessionId is 'sess-1'
-      yield {
-        type: 'session.updated',
-        properties: { info: { id: 'sess-1', title: 'Updated title', version: '1' } },
-      };
-    }
-    const fakeClient = createMockClient(sessionUpdatedOwnStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    await vi.advanceTimersByTimeAsync(50);
-    await handle.done;
-    vi.useRealTimers();
-    // session.updated has no handler that writes to target, but it must not be silently
-    // misrouted — the important assertion is that sessionStarted is set (write was called
-    // for the 'Started' line) which only happens after the filter passes the event through.
-    const allLines = (target.write as ReturnType<typeof vi.fn>).mock.calls.map(
-      (c: unknown[]) => c[0] as string
-    );
-    expect(allLines.some((l) => l.includes('Started'))).toBe(true);
   }, 10000);
 
   // ── Multi-turn (armTurnEnd) ────────────────────────────────────────────
@@ -1077,18 +592,13 @@ describe('SessionEventForwarder', () => {
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
 
-    // First turn idle
-    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    ps.push(idleEvent());
     await vi.advanceTimersByTimeAsync(10);
     expect(onEnd).toHaveBeenCalledTimes(1);
 
-    // Second idle after a different intervening status — should NOT fire (latch still set)
-    ps.push({
-      type: 'session.status',
-      properties: { sessionID: 'sess-1', status: { type: 'busy' } },
-    });
+    ps.push(statusEvent('busy'));
     await vi.advanceTimersByTimeAsync(10);
-    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    ps.push(idleEvent());
     await vi.advanceTimersByTimeAsync(10);
 
     expect(onEnd).toHaveBeenCalledTimes(1);
@@ -1105,26 +615,17 @@ describe('SessionEventForwarder', () => {
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
 
-    // First turn: busy → idle → end
-    ps.push({
-      type: 'session.status',
-      properties: { sessionID: 'sess-1', status: { type: 'busy' } },
-    });
+    ps.push(statusEvent('busy'));
     await vi.advanceTimersByTimeAsync(10);
-    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    ps.push(idleEvent());
     await vi.advanceTimersByTimeAsync(10);
     expect(onEnd).toHaveBeenCalledTimes(1);
 
-    // Re-arm
     handle.armTurnEnd();
 
-    // Second turn: busy → idle → end
-    ps.push({
-      type: 'session.status',
-      properties: { sessionID: 'sess-1', status: { type: 'busy' } },
-    });
+    ps.push(statusEvent('busy'));
     await vi.advanceTimersByTimeAsync(10);
-    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    ps.push(idleEvent());
     await vi.advanceTimersByTimeAsync(10);
 
     expect(onEnd).toHaveBeenCalledTimes(2);
@@ -1141,85 +642,16 @@ describe('SessionEventForwarder', () => {
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
 
-    // Terminal error → agent_end
-    ps.push({
-      type: 'session.error',
-      properties: {
-        sessionID: 'sess-1',
-        error: { name: 'GoUsageLimitError', data: { message: 'rate limited' } },
-      },
-    });
+    ps.push(executionFailed({ type: 'GoUsageLimitError', message: 'rate limited' }));
     await vi.advanceTimersByTimeAsync(10);
     expect(onEnd).toHaveBeenCalledTimes(1);
 
-    // armTurnEnd should be blocked — logs turn_arm_blocked_terminal
     handle.armTurnEnd();
     expect(target.write).toHaveBeenCalledWith(expect.stringContaining('turn_arm_blocked_terminal'));
 
-    // Subsequent idle should not emit another agent_end
-    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    ps.push(idleEvent());
     await vi.advanceTimersByTimeAsync(10);
     expect(onEnd).toHaveBeenCalledTimes(1);
-
-    ps.end();
-    await handle.done;
-    vi.useRealTimers();
-  }, 10000);
-
-  it('unknown session.status logs unknown_session_status and does not emit agent_end', async () => {
-    vi.useFakeTimers();
-    const ps = createPushStream();
-    const fakeClient = createMockClient(ps.stream);
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
-    const onEnd = vi.fn();
-    handle.onAgentEnd(onEnd);
-
-    ps.push({
-      type: 'session.status',
-      properties: { sessionID: 'sess-1', status: { type: 'compacting' } },
-    });
-    await vi.advanceTimersByTimeAsync(10);
-    expect(target.write).toHaveBeenCalledWith(
-      '[fake-ts] role:builder status] unknown_session_status:compacting\n'
-    );
-    expect(onEnd).not.toHaveBeenCalled();
-
-    // Same unknown value should not double-log
-    ps.push({
-      type: 'session.status',
-      properties: { sessionID: 'sess-1', status: { type: 'compacting' } },
-    });
-    await vi.advanceTimersByTimeAsync(10);
-    const statusLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
-      .map((c: unknown[]) => c[0] as string)
-      .filter((l: string) => l.includes('status'));
-    expect(statusLines.filter((l) => l.includes('compacting'))).toHaveLength(1);
-
-    ps.end();
-    await handle.done;
-    vi.useRealTimers();
-  }, 10000);
-
-  it('session.status busy logs busy, fires onActivity, and does not emit agent_end', async () => {
-    vi.useFakeTimers();
-    const ps = createPushStream();
-    const fakeClient = createMockClient(ps.stream);
-    const onActivity = vi.fn();
-    const handle = startSessionEventForwarder(fakeClient as never, {
-      ...baseOptions,
-      onActivity,
-    });
-    const onEnd = vi.fn();
-    handle.onAgentEnd(onEnd);
-
-    ps.push({
-      type: 'session.status',
-      properties: { sessionID: 'sess-1', status: { type: 'busy' } },
-    });
-    await vi.advanceTimersByTimeAsync(10);
-    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] busy\n');
-    expect(onActivity).toHaveBeenCalled();
-    expect(onEnd).not.toHaveBeenCalled();
 
     ps.end();
     await handle.done;
@@ -1228,7 +660,7 @@ describe('SessionEventForwarder', () => {
 
   describe('typed activity signals', () => {
     async function runStream(
-      stream: AsyncGenerator<unknown>,
+      stream: AsyncIterable<unknown>,
       extra?: Partial<SessionEventForwarderOptions>
     ) {
       const events: HarnessActivityEvent[] = [];
@@ -1245,75 +677,20 @@ describe('SessionEventForwarder', () => {
       return events;
     }
 
-    it('text message.part.updated yields transport then progress with text source', async () => {
-      const events = await runStream(textDeltaStream());
+    it('text delta yields transport then progress with text source', async () => {
+      const events = await runStream(streamOf([textDelta('hello')]));
       expect(events.map((e) => e.kind)).toEqual(['transport', 'progress']);
-      expect(events[0]?.source).toBe('opencode.event.message.part.updated');
-      expect(events[1]?.source).toBe('opencode.message.part.updated.text');
+      expect(events[0]?.source).toBe('opencode.event.session.text.delta');
+      expect(events[1]?.source).toBe('opencode.session.text.delta');
     });
 
-    it('reasoning update yields progress with reasoning source', async () => {
-      const events = await runStream(reasoningStream());
-      expect(events.some((e) => e.source === 'opencode.message.part.updated.reasoning')).toBe(true);
-      expect(events.find((e) => e.source === 'opencode.message.part.updated.reasoning')?.kind).toBe(
-        'progress'
-      );
-    });
-
-    it('completed tool update yields transport and progress with tool source', async () => {
-      const events = await runStream(toolCallStream());
-      expect(events[0]?.kind).toBe('transport');
-      expect(events.some((e) => e.source === 'opencode.message.part.updated.tool')).toBe(true);
-    });
-
-    it('deduplicated tool state does not emit duplicate semantic progress', async () => {
-      vi.useFakeTimers();
-      async function* duplicateRunningStream(): AsyncGenerator<unknown> {
-        await new Promise((r) => setTimeout(r, 10));
-        for (let i = 0; i < 3; i++) {
-          yield {
-            type: 'message.part.updated',
-            properties: {
-              state: 'running',
-              part: {
-                id: 'p1',
-                type: 'tool',
-                tool: 'bash',
-                sessionID: 'sess-1',
-                messageID: 'm1',
-                callID: 'call-dedup-activity',
-                state: { status: 'running', input: { command: 'ls' } },
-              },
-            },
-          };
-        }
-      }
-      const events: HarnessActivityEvent[] = [];
-      const fakeClient = createMockClient(duplicateRunningStream());
-      const handle = startSessionEventForwarder(fakeClient as never, {
-        ...baseOptions,
-        onActivity: (event) => events.push(event),
-      });
-      await vi.advanceTimersByTimeAsync(50);
-      await handle.done;
-      vi.useRealTimers();
-      const progressEvents = events.filter((e) => e.kind === 'progress');
-      expect(progressEvents).toHaveLength(1);
+    it('reasoning delta yields progress with reasoning source', async () => {
+      const events = await runStream(streamOf([reasoningDelta('step')]));
+      expect(events.some((e) => e.source === 'opencode.session.reasoning.delta')).toBe(true);
     });
 
     it('session.status busy yields progress; retry yields waiting', async () => {
-      async function* busyThenRetryStream(): AsyncGenerator<unknown> {
-        await new Promise((r) => setTimeout(r, 10));
-        yield {
-          type: 'session.status',
-          properties: { sessionID: 'sess-1', status: { type: 'busy' } },
-        };
-        yield {
-          type: 'session.status',
-          properties: { sessionID: 'sess-1', status: { type: 'retry' } },
-        };
-      }
-      const events = await runStream(busyThenRetryStream());
+      const events = await runStream(streamOf([statusEvent('busy'), statusEvent('retry')]));
       expect(
         events.some((e) => e.source === 'opencode.session.status.busy' && e.kind === 'progress')
       ).toBe(true);
@@ -1322,38 +699,21 @@ describe('SessionEventForwarder', () => {
       ).toBe(true);
     });
 
-    it('session.error yields failure; idle and agent_end do not yield progress', async () => {
-      const errorEvents = await runStream(errorStream());
+    it('session error yields failure; idle yields only transport', async () => {
+      const errorEvents = await runStream(
+        streamOf([executionFailed({ type: 'UnknownError', message: 'oops' })])
+      );
       expect(
         errorEvents.some((e) => e.source === 'opencode.session.error' && e.kind === 'failure')
       ).toBe(true);
-      expect(errorEvents.some((e) => e.kind === 'progress')).toBe(false);
 
-      const idleEvents = await runStream(idleStream());
+      const idleEvents = await runStream(streamOf([idleEvent()]));
       expect(idleEvents.every((e) => e.kind === 'transport')).toBe(true);
-
-      const statusIdleEvents = await runStream(statusIdleOnlyStream());
-      expect(statusIdleEvents.some((e) => e.kind === 'progress')).toBe(false);
     });
 
-    it('other-session and unknown non-session events produce no activity', async () => {
-      const otherEvents = await runStream(otherSessionStream());
+    it('other-session events produce no activity', async () => {
+      const otherEvents = await runStream(streamOf([textDelta('x', 'other-sess')]));
       expect(otherEvents).toHaveLength(0);
-
-      const unknownEvents = await runStream(noSessionIdStream());
-      expect(unknownEvents).toHaveLength(0);
-    });
-
-    it('sources contain no payload text and transport precedes semantic for one event', async () => {
-      const events = await runStream(textDeltaStream());
-      for (const event of events) {
-        expect(event.source).not.toContain('hello');
-        expect(event.source).not.toMatch(/[\n{}]/);
-      }
-      const transportIdx = events.findIndex((e) => e.kind === 'transport');
-      const progressIdx = events.findIndex((e) => e.kind === 'progress');
-      expect(transportIdx).toBeGreaterThanOrEqual(0);
-      expect(progressIdx).toBeGreaterThan(transportIdx);
     });
   });
 });

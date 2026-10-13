@@ -7,7 +7,7 @@ export interface SessionMetadata {
   machineId: string;
   chatroomId: string;
   role: string;
-  /** OpenCode agent name used for session.promptAsync (required for resumeTurn). */
+  /** OpenCode agent id selected at spawn (required for session re-creation fallback). */
   agentName: string;
   /** Model id string passed at spawn, if any (e.g. provider/model). */
   model?: string | undefined;
@@ -18,6 +18,8 @@ export interface SessionMetadata {
   pid: number;
   createdAt: string;
   baseUrl: string;
+  /** Basic-auth password for the spawned `opencode serve`, when printed. */
+  password?: string | undefined;
 }
 
 export interface SessionMetadataStore {
