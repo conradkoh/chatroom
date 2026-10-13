@@ -137,6 +137,7 @@ function renderSetupStep(overrides?: Partial<React.ComponentProps<typeof SetupAg
       sendCommand={sendCommand}
       onAllAgentsStarted={onAllAgentsStarted}
       onBack={onBack}
+      autoFocusFirstControl={false}
       {...overrides}
     />
   );

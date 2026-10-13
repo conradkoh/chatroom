@@ -1,12 +1,12 @@
-import { render } from '@testing-library/react';
-import { createRef, type ReactNode, type Ref } from 'react';
+import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { SetupStepFooter, SetupStepLayout } from './SetupStepLayout';
 
-function renderStep(footer?: ReactNode, bodyRef?: Ref<HTMLDivElement>) {
+function renderStep(footer?: ReactNode, autoFocusFirstControl = false) {
   return render(
-    <SetupStepLayout bodyRef={bodyRef} footer={footer}>
+    <SetupStepLayout autoFocusFirstControl={autoFocusFirstControl} footer={footer}>
       <p>Body content</p>
     </SetupStepLayout>
   );
@@ -50,11 +50,28 @@ describe('SetupStepLayout', () => {
     expect(footer?.textContent).toBe('Continue');
   });
 
-  it('attaches bodyRef to the scrolling body element', () => {
-    const bodyRef = createRef<HTMLDivElement>();
-    const { container } = renderStep(undefined, bodyRef);
+  it('focuses the first enabled control on mount when autoFocusFirstControl is set', () => {
+    const { container } = render(
+      <SetupStepLayout autoFocusFirstControl>
+        <button type="button" disabled>
+          Disabled
+        </button>
+        <input type="text" aria-label="Path" />
+        <button type="button">Browse</button>
+      </SetupStepLayout>
+    );
 
-    expect(bodyRef.current).toBe(container.querySelector('[data-slot="setup-step-body"]'));
+    expect(document.activeElement).toBe(container.querySelector('input'));
+  });
+
+  it('leaves focus alone when autoFocusFirstControl is false', () => {
+    render(
+      <SetupStepLayout autoFocusFirstControl={false}>
+        <input type="text" aria-label="Path" />
+      </SetupStepLayout>
+    );
+
+    expect(document.activeElement).not.toBe(screen.getByLabelText('Path'));
   });
 
   it('renders no footer when none is given', () => {

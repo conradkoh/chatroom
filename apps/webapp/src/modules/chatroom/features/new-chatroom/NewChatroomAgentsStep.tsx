@@ -2,9 +2,8 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 
-import { useFocusFirstControl } from './useFocusFirstControl';
 import {
   TeamSelectorDropdown,
   teamConfigToUpdateArgs,
@@ -38,9 +37,6 @@ function AgentsStepContent({
   connectedMachines,
   onDone,
 }: NewChatroomAgentsStepProps & { team: ChatroomTeamState }) {
-  const bodyRef = useRef<HTMLDivElement>(null);
-  useFocusFirstControl(bodyRef);
-
   const { configs: agentConfigs } = useAgentConfigs(chatroomId, { enabled: true });
   const sendCommand = useAgentCommandSender();
   const { teams, defaultTeamId } = useTeamConfigs();
@@ -55,7 +51,7 @@ function AgentsStepContent({
 
   return (
     <SetupAgentTeamStep
-      bodyRef={bodyRef}
+      autoFocusFirstControl={true}
       bodyStart={
         <TeamSelectorDropdown
           teamName={team.teamName ?? ''}

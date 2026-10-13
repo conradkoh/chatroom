@@ -7,7 +7,6 @@ import { CloneFields } from './CloneFields';
 import { CloneStatusPanel } from './CloneStatusPanel';
 import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
 import { useCloneTarget } from './useCloneTarget';
-import { useFocusFirstControl } from './useFocusFirstControl';
 import type { UseGitCloneRequestResult } from './useGitCloneRequest';
 import {
   SetupStepFooter,
@@ -124,8 +123,6 @@ export function CloneRepoForm({
   onWorkspaceReady,
   onBack,
 }: CloneRepoFormProps) {
-  const bodyRef = useRef<HTMLDivElement>(null);
-  useFocusFirstControl(bodyRef);
   const formId = useId();
 
   const target = useCloneTarget(machine);
@@ -147,7 +144,7 @@ export function CloneRepoForm({
 
   return (
     <SetupStepLayout
-      bodyRef={bodyRef}
+      autoFocusFirstControl={true}
       footer={
         <SetupStepFooter
           secondary={

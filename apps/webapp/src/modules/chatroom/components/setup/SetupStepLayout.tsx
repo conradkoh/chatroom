@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode, Ref } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 /** Secondary action (Back, Cancel). Full width on mobile, fixed width from sm up. */
 export const setupSecondaryButtonClassName =
@@ -14,15 +14,23 @@ interface SetupStepLayoutProps {
   children: ReactNode;
   /** Pinned to the bottom of the step. Usually a `SetupStepFooter`. */
   footer?: ReactNode;
-  /** Attached to the scrolling body, so focus logic can find the step's content. */
-  bodyRef?: Ref<HTMLDivElement>;
+  /** Focuses the first enabled input or button in the body when the step mounts. */
+  autoFocusFirstControl: boolean;
 }
 
 /**
  * The shell every setup step shares: a body that scrolls, and a footer pinned below it. The footer
  * never moves with the content, so the actions sit in the same place on every step.
  */
-export function SetupStepLayout({ children, footer, bodyRef }: SetupStepLayoutProps) {
+export function SetupStepLayout({ children, footer, autoFocusFirstControl }: SetupStepLayoutProps) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!autoFocusFirstControl) return;
+    bodyRef.current
+      ?.querySelector<HTMLElement>('input:not([disabled]), button:not([disabled])')
+      ?.focus();
+  }, [autoFocusFirstControl]);
+
   return (
     <div data-slot="setup-step" className="flex min-h-0 flex-1 flex-col">
       <div

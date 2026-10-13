@@ -2,9 +2,8 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useId, useMemo, useState, type FormEvent } from 'react';
 
-import { useFocusFirstControl } from './useFocusFirstControl';
 import {
   PickerOptionRow,
   PickerScrollBody,
@@ -132,8 +131,6 @@ export function ExistingFolderForm({
   onSubmit,
   onBack,
 }: ExistingFolderFormProps) {
-  const bodyRef = useRef<HTMLDivElement>(null);
-  useFocusFirstControl(bodyRef);
   const formId = useId();
 
   const [selectedPath, setSelectedPath] = useState('');
@@ -169,7 +166,7 @@ export function ExistingFolderForm({
 
   return (
     <SetupStepLayout
-      bodyRef={bodyRef}
+      autoFocusFirstControl={true}
       footer={
         <FolderFormFooter
           formId={formId}

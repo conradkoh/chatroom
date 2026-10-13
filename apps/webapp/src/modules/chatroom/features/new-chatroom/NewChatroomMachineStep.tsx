@@ -1,8 +1,7 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 
-import { useFocusFirstControl } from './useFocusFirstControl';
 import { SetupMachinePicker } from '../../components/setup/SetupMachinePicker';
 import {
   SetupStepFooter,
@@ -71,9 +70,6 @@ function MachineStepContent({
   onContinue,
   onCancel,
 }: MachineStepContentProps) {
-  const bodyRef = useRef<HTMLDivElement>(null);
-  useFocusFirstControl(bodyRef);
-
   const offlineMachineIds = useMemo(
     () =>
       new Set(
@@ -87,7 +83,7 @@ function MachineStepContent({
 
   return (
     <SetupStepLayout
-      bodyRef={bodyRef}
+      autoFocusFirstControl={true}
       footer={
         <SetupStepFooter
           secondary={

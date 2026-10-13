@@ -3,7 +3,7 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { Loader2, Play } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState, type ReactNode, type Ref } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { SetupStepFooter, SetupStepLayout, setupPrimaryButtonClassName } from './SetupStepLayout';
 import type {
@@ -48,7 +48,8 @@ interface SetupAgentTeamStepProps {
   bodyStart?: ReactNode;
   /** Left side of the footer, for example "Open chatroom". */
   footerSecondary?: ReactNode;
-  bodyRef?: Ref<HTMLDivElement>;
+  /** Passed to the layout. True focuses the first control on mount. */
+  autoFocusFirstControl: boolean;
 }
 
 // fallow-ignore-next-line complexity
@@ -69,7 +70,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   onStartRequested,
   bodyStart,
   footerSecondary,
-  bodyRef,
+  autoFocusFirstControl,
 }: SetupAgentTeamStepProps) {
   const [isStartingAll, setIsStartingAll] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -178,7 +179,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     ) : undefined;
 
   return (
-    <SetupStepLayout bodyRef={bodyRef} footer={footer}>
+    <SetupStepLayout autoFocusFirstControl={autoFocusFirstControl} footer={footer}>
       {bodyStart}
       <div className="flex items-start justify-between gap-4 p-4 border border-chatroom-border bg-chatroom-bg-surface">
         <div className="min-w-0 space-y-1">

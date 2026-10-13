@@ -99,7 +99,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
 
   if (connectedMachines.length === 0) {
     return (
-      <SetupStepLayout>
+      <SetupStepLayout autoFocusFirstControl={false}>
         <SetupWorkspacePrerequisitesPanel
           daemonDone={false}
           harnessDone={false}
@@ -119,6 +119,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
 
   return (
     <SetupStepLayout
+      autoFocusFirstControl={false}
       footer={
         <SetupStepFooter
           primary={

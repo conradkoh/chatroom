@@ -216,6 +216,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
                   sendCommand={sendCommand}
                   onAllAgentsStarted={handleAllAgentsStarted}
                   onBack={handleBackToWorkspace}
+                  autoFocusFirstControl={false}
                 />
               ) : null}
             </FixedModalBody>
