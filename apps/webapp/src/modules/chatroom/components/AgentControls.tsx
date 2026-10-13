@@ -43,7 +43,7 @@ import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachi
 import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
 import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
 import {
-  pickFavoriteDefault,
+  favoriteHarnessDefault,
   pickFavoriteModelForHarness,
 } from '../features/machine-config/lib/pickFavoriteDefault';
 import { useAgentStop } from '../hooks/useAgentStop';
@@ -433,21 +433,25 @@ export function useAgentControls({
   const { favorites: defaultFavorites, isLoading: defaultFavoritesLoading } =
     useMachineConfigFavorites(defaultsFavoriteScope);
 
+  // Ready once the machine is initialized and its favourites have loaded. Until then the default
+  // is not decided, so a late load can still apply it.
+  const favoriteDefaultReady =
+    isInitialized && !!selectedMachineId && !!defaultsFavoriteScope && !defaultFavoritesLoading;
+
   useEffect(() => {
-    if (!isInitialized || !selectedMachineId || !defaultsFavoriteScope || defaultFavoritesLoading)
-      return;
-    if (favoriteDefaultAppliedForRef.current === selectedMachineId) return;
+    if (!favoriteDefaultReady || favoriteDefaultAppliedForRef.current === selectedMachineId) return;
     favoriteDefaultAppliedForRef.current = selectedMachineId;
-    if (harnessTouchedRef.current || runningAgentConfig) return;
-    // eslint-disable-next-line react-you-might-not-need-an-effect/no-pass-live-state-to-parent, react-you-might-not-need-an-effect/no-pass-data-to-parent -- intentional: one-shot default seeded from the favourites query once it loads; the effect is the only place the query result can be applied after async load
-    if (roleConfigs.some((c) => c.machineId === selectedMachineId)) return;
-    const favorite = pickFavoriteDefault(defaultFavorites, availableHarnessesForMachine);
-    if (favorite) setSelectedHarness(favorite.agentHarness);
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-pass-live-state-to-parent, react-you-might-not-need-an-effect/no-pass-data-to-parent -- intentional: the one-shot default is seeded from the favourites query, which only resolves after this effect runs, so the effect is the only place to apply it
+    const hasSnapshot = roleConfigs.some((c) => c.machineId === selectedMachineId);
+    const harness = favoriteHarnessDefault({
+      favorites: defaultFavorites,
+      availableHarnesses: availableHarnessesForMachine,
+      blocked: harnessTouchedRef.current || !!runningAgentConfig || hasSnapshot,
+    });
+    if (harness) setSelectedHarness(harness);
   }, [
-    isInitialized,
+    favoriteDefaultReady,
     selectedMachineId,
-    defaultsFavoriteScope,
-    defaultFavoritesLoading,
     defaultFavorites,
     availableHarnessesForMachine,
     roleConfigs,

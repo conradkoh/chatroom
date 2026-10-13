@@ -2,19 +2,29 @@ import type { AgentHarness } from '../../../types/machine';
 import type { MachineConfigEntry } from '../types/machineConfig';
 
 /**
- * Pure helpers that turn machine favourites into agent defaults.
+ * Pure helpers that turn machine favourites into agent defaults. No React or Convex imports.
  * Favourites are ordered: index 0 is the top favourite.
  */
 
+export interface FavoriteHarnessDefaultInput {
+  favorites: readonly MachineConfigEntry[];
+  availableHarnesses: readonly AgentHarness[];
+  /**
+   * True when a higher-priority source already decides the harness: the user explicitly chose a
+   * harness or model on this machine, a running agent exists, or a persisted snapshot or team
+   * config seeded it. The favourite default never applies in that case.
+   */
+  blocked: boolean;
+}
+
 /**
- * First favourite (in rank order) whose harness is installed on the machine.
- * Returns null when none is usable.
+ * Harness the favourite default should set. Returns the first favourite (in rank order) whose
+ * harness is installed on the machine, or null when blocked or when no favourite is usable.
  */
-export function pickFavoriteDefault(
-  favorites: readonly MachineConfigEntry[],
-  availableHarnesses: readonly AgentHarness[]
-): MachineConfigEntry | null {
-  return favorites.find((f) => availableHarnesses.includes(f.agentHarness)) ?? null;
+export function favoriteHarnessDefault(input: FavoriteHarnessDefaultInput): AgentHarness | null {
+  if (input.blocked) return null;
+  const usable = input.favorites.find((f) => input.availableHarnesses.includes(f.agentHarness));
+  return usable ? usable.agentHarness : null;
 }
 
 /**

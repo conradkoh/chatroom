@@ -1,39 +1,60 @@
 import { describe, expect, test } from 'vitest';
 
-import { pickFavoriteDefault, pickFavoriteModelForHarness } from './pickFavoriteDefault';
+import { favoriteHarnessDefault, pickFavoriteModelForHarness } from './pickFavoriteDefault';
 import type { AgentHarness } from '../../../types/machine';
 import type { MachineConfigEntry } from '../types/machineConfig';
 
 const OPENCODE = 'opencode-sdk' as AgentHarness;
-const CLAUDE = 'claude' as AgentHarness;
+const PI = 'pi-sdk' as AgentHarness;
+const CURSOR = 'cursor-sdk' as AgentHarness;
 
 function entry(agentHarness: AgentHarness, model: string): MachineConfigEntry {
   return { agentHarness, model };
 }
 
-describe('pickFavoriteDefault', () => {
-  test('returns the top-ranked favourite whose harness is installed', () => {
-    const favorites = [entry(OPENCODE, 'm2'), entry(CLAUDE, 'm1')];
-    expect(pickFavoriteDefault(favorites, [OPENCODE, CLAUDE])).toEqual(entry(OPENCODE, 'm2'));
+describe('favoriteHarnessDefault', () => {
+  const favorites = [entry(OPENCODE, 'm2'), entry(PI, 'p1')];
+  const installed = [OPENCODE, PI];
+
+  test('returns the top-ranked favourite harness that is installed', () => {
+    expect(
+      favoriteHarnessDefault({ favorites, availableHarnesses: installed, blocked: false })
+    ).toBe(OPENCODE);
   });
 
   test('skips a favourite whose harness is not installed', () => {
-    const favorites = [entry(OPENCODE, 'm2'), entry(CLAUDE, 'm1')];
-    expect(pickFavoriteDefault(favorites, [CLAUDE])).toEqual(entry(CLAUDE, 'm1'));
+    const ordered = [entry(CURSOR, 'c1'), entry(PI, 'p1')];
+    expect(
+      favoriteHarnessDefault({ favorites: ordered, availableHarnesses: installed, blocked: false })
+    ).toBe(PI);
   });
 
   test('returns null when no favourite harness is installed', () => {
-    expect(pickFavoriteDefault([entry(OPENCODE, 'm2')], [CLAUDE])).toBeNull();
+    expect(
+      favoriteHarnessDefault({
+        favorites: [entry(CURSOR, 'c1')],
+        availableHarnesses: installed,
+        blocked: false,
+      })
+    ).toBeNull();
   });
 
   test('returns null for an empty favourites list', () => {
-    expect(pickFavoriteDefault([], [OPENCODE, CLAUDE])).toBeNull();
+    expect(
+      favoriteHarnessDefault({ favorites: [], availableHarnesses: installed, blocked: false })
+    ).toBeNull();
+  });
+
+  test('returns null when blocked, even with a usable favourite', () => {
+    expect(
+      favoriteHarnessDefault({ favorites, availableHarnesses: installed, blocked: true })
+    ).toBeNull();
   });
 });
 
 describe('pickFavoriteModelForHarness', () => {
   test('returns the first favourite model for the harness that is visible', () => {
-    const favorites = [entry(CLAUDE, 'c1'), entry(OPENCODE, 'hidden'), entry(OPENCODE, 'm2')];
+    const favorites = [entry(PI, 'p1'), entry(OPENCODE, 'hidden'), entry(OPENCODE, 'm2')];
     expect(pickFavoriteModelForHarness(favorites, OPENCODE, ['m2', 'm3'])).toBe('m2');
   });
 
@@ -53,6 +74,6 @@ describe('pickFavoriteModelForHarness', () => {
   });
 
   test('ignores favourites for other harnesses', () => {
-    expect(pickFavoriteModelForHarness([entry(CLAUDE, 'm2')], OPENCODE, ['m2'])).toBeUndefined();
+    expect(pickFavoriteModelForHarness([entry(PI, 'm2')], OPENCODE, ['m2'])).toBeUndefined();
   });
 });
