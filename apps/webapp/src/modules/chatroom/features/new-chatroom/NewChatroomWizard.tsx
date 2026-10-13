@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { messageFromError } from './lib/errorMessage';
 import { NewChatroomAgentsStep } from './NewChatroomAgentsStep';
@@ -12,8 +12,7 @@ import { pickDefaultMachineId } from '../../components/setup/pickDefaultMachineI
 import { TEAMS_CONFIG } from '../../config/teams';
 import type { UserMachine } from '../../types/machine';
 
-import { useDaemonConnectivity } from '@/hooks/useDaemonConnectivity';
-import { useUserMachines } from '@/hooks/useUserMachines';
+import { useConnectedMachines } from '@/hooks/useConnectedMachines';
 
 export interface NewChatroomWizardProps {
   onCreated: (chatroomId: string) => void;
@@ -33,27 +32,6 @@ interface CreatedChatroom {
   chatroomId: string;
   machineId: string;
   workingDir: string;
-}
-
-/** The connected machines. The machine step lists offline machines too, but they cannot be picked. */
-function useConnectedMachines(
-  machines: UserMachine[],
-  connectivity: ReadonlyMap<string, { connected: boolean }>
-) {
-  const connectedMachineIds = useMemo(
-    () =>
-      new Set(
-        machines
-          .filter((machine) => connectivity.get(machine.machineId)?.connected === true)
-          .map((machine) => machine.machineId)
-      ),
-    [machines, connectivity]
-  );
-  const connectedMachines = useMemo(
-    () => machines.filter((machine) => connectedMachineIds.has(machine.machineId)),
-    [machines, connectedMachineIds]
-  );
-  return { connectedMachineIds, connectedMachines };
 }
 
 /**
@@ -261,9 +239,8 @@ export function NewChatroomWizard({ onCreated, onCancel }: NewChatroomWizardProp
   const [step, setStep] = useState<WizardStep>('machine');
   const [chosenMachineId, setChosenMachineId] = useState<string | null>(null);
 
-  const { machines, isLoading } = useUserMachines();
-  const connectivity = useDaemonConnectivity();
-  const { connectedMachineIds, connectedMachines } = useConnectedMachines(machines, connectivity);
+  // The machine step lists offline machines too, but only connected machines can be picked.
+  const { machines, isLoading, connectedMachines, connectedMachineIds } = useConnectedMachines();
 
   // Exactly one connected machine is selected automatically. Derived, so no effect is needed.
   const activeMachineId = pickDefaultMachineId(connectedMachines, chosenMachineId);

@@ -23,7 +23,7 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-import { useDaemonConnectivity } from '@/hooks/useDaemonConnectivity';
+import { useConnectedMachines } from '@/hooks/useConnectedMachines';
 import { useUserMachines } from '@/hooks/useUserMachines';
 
 interface Participant {
@@ -46,21 +46,15 @@ interface SetupChecklistModalProps {
 type SetupStep = 'workspace' | 'agents';
 
 interface SetupMachineConnectivityProps {
-  machines: UserMachine[];
   children: (connectedMachines: UserMachine[]) => React.ReactNode;
 }
 
 // Keep this helper beneath FixedModal so Base UI unmounts the connectivity subscription
 // with the closed dialog instead of keeping it alive on the chatroom page.
 const SetupMachineConnectivity = memo(function SetupMachineConnectivity({
-  machines,
   children,
 }: SetupMachineConnectivityProps) {
-  const connectivity = useDaemonConnectivity();
-  const connectedMachines = useMemo(
-    () => machines.filter((machine) => connectivity.get(machine.machineId)?.connected === true),
-    [machines, connectivity]
-  );
+  const { connectedMachines } = useConnectedMachines();
 
   return <>{children(connectedMachines)}</>;
 });
@@ -93,7 +87,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   const [setupWorkingDir, setSetupWorkingDir] = useState<string | null>(null);
 
   const registerWorkspace = useSessionMutation(api.workspaces.registerWorkspace);
-  const { machines: userMachines, isLoading: isLoadingMachines } = useUserMachines();
+  const { isLoading: isLoadingMachines } = useUserMachines();
   const { configs: machineConfigs, isLoading: isLoadingConfigs } = useAgentConfigs(chatroomId, {
     enabled: true,
   });
@@ -167,7 +161,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
-      <SetupMachineConnectivity machines={userMachines}>
+      <SetupMachineConnectivity>
         {/* fallow-ignore-next-line complexity */}
         {(connectedMachines) => (
           <FixedModalContent>
