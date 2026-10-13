@@ -39,7 +39,10 @@ interface SetupAgentTeamStepProps {
   agentConfigs: AgentConfig[];
   sendCommand: SendCommandFn;
   onAllAgentsStarted: () => void;
-  onBack: () => void;
+  /** Omit when the step cannot go back (for example, the chatroom already exists). */
+  onBack?: () => void;
+  /** Called after every agent in the batch started without error. */
+  onStartRequested?: () => void;
 }
 
 // fallow-ignore-next-line complexity
@@ -57,6 +60,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   sendCommand,
   onAllAgentsStarted,
   onBack,
+  onStartRequested,
 }: SetupAgentTeamStepProps) {
   const [isStartingAll, setIsStartingAll] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -135,8 +139,18 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     const failed = getFailedAgentRoles(results, persistentTeamRoles);
     if (failed.length > 0) {
       setStartError(`Failed to start: ${failed.join(', ')}`);
+      return;
     }
-  }, [persistentTeamRoles, roleConfigs, sendCommand, machineId, workingDir, chatroomId]);
+    onStartRequested?.();
+  }, [
+    persistentTeamRoles,
+    roleConfigs,
+    sendCommand,
+    machineId,
+    workingDir,
+    chatroomId,
+    onStartRequested,
+  ]);
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
@@ -150,14 +164,16 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           </p>
           <p className="text-xs font-mono text-chatroom-text-secondary truncate">{workingDir}</p>
         </div>
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={isStartingAll}
-          className="text-[10px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary disabled:opacity-50"
-        >
-          Change
-        </button>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={isStartingAll}
+            className="text-[10px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary disabled:opacity-50"
+          >
+            Change
+          </button>
+        )}
       </div>
 
       <div>
