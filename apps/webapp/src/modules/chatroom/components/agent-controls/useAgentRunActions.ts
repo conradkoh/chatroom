@@ -3,17 +3,13 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
 
-import {
-  errorMessageOr,
-  isRehomeNeeded,
-  restartModelFor,
-  startCommandOf,
-  workspaceField,
-} from './derivations';
+import { isRehomeNeeded, restartModelFor, startCommandOf, workspaceField } from './derivations';
 import type { useMachineConfigUsage } from '../../features/machine-config/hooks/useMachineConfigUsage';
 import type { useAgentStop } from '../../hooks/useAgentStop';
 import type { AgentConfig, AgentHarness, SendCommandFn } from '../../types/machine';
 import { dispatchStartAgent } from '../../utils/agentStart';
+
+import { getErrorMessage } from '@/lib/convexError';
 
 const FEEDBACK_MS = 2000;
 
@@ -91,7 +87,7 @@ export function useAgentRunActions(inputs: AgentRunActionInputs) {
         setSuccess('Start command sent!');
         setTimeout(() => setSuccess(null), FEEDBACK_MS);
       } catch (err) {
-        setError(errorMessageOr(err, 'Failed to start agent'));
+        setError(getErrorMessage(err, 'Failed to start agent'));
       } finally {
         setIsStarting(false);
       }
@@ -148,7 +144,7 @@ export function useAgentRunActions(inputs: AgentRunActionInputs) {
         workingDir: displayAgentConfig.workingDir,
       });
     } catch (err) {
-      setError(errorMessageOr(err, 'Failed to stop agent'));
+      setError(getErrorMessage(err, 'Failed to stop agent'));
     } finally {
       setIsStopSubmitting(false);
     }
@@ -179,7 +175,7 @@ export function useAgentRunActions(inputs: AgentRunActionInputs) {
       setSuccess('Restart command sent!');
       setTimeout(() => setSuccess(null), FEEDBACK_MS);
     } catch (err) {
-      setError(errorMessageOr(err, 'Failed to restart agent'));
+      setError(getErrorMessage(err, 'Failed to restart agent'));
     } finally {
       setIsStarting(false);
     }

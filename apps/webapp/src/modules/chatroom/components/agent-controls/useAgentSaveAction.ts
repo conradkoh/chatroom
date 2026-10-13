@@ -5,8 +5,10 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
 
-import { errorMessageOr, saveChoiceOf, saveScopeOf } from './derivations';
+import { saveChoiceOf, saveScopeOf } from './derivations';
 import type { AgentHarness } from '../../types/machine';
+
+import { getErrorMessage } from '@/lib/convexError';
 
 const FEEDBACK_MS = 2000;
 
@@ -57,7 +59,7 @@ export function useAgentSaveAction({
       setSuccess('Configuration saved!');
       setTimeout(() => setSuccess(null), FEEDBACK_MS);
     } catch (err) {
-      setError(errorMessageOr(err, 'Failed to save configuration'));
+      setError(getErrorMessage(err, 'Failed to save configuration'));
     } finally {
       setIsSaving(false);
     }

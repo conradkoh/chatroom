@@ -81,11 +81,6 @@ export function favoriteDefaultBlocked(
   return harnessTouched || !!runningAgentConfig || hasSnapshot;
 }
 
-/** The message of a thrown error, or the fallback when it is not an Error. */
-export function errorMessageOr(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
-}
-
 // ─── Model ──────────────────────────────────────────────────────────
 
 /** Model selection waits for the machine, harness, models, and filter to be known. */

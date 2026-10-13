@@ -4,7 +4,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { messageFromError } from './lib/errorMessage';
 import { NewChatroomAgentsStep } from './NewChatroomAgentsStep';
 import { NewChatroomMachineStep } from './NewChatroomMachineStep';
 import { NewChatroomWorkspaceStep } from './NewChatroomWorkspaceStep';
@@ -13,6 +12,7 @@ import { TEAMS_CONFIG } from '../../config/teams';
 import type { UserMachine } from '../../types/machine';
 
 import { useConnectedMachines } from '@/hooks/useConnectedMachines';
+import { getErrorMessage } from '@/lib/convexError';
 
 export interface NewChatroomWizardProps {
   onCreated: (chatroomId: string) => void;
@@ -67,7 +67,7 @@ function useCreateChatroom({
         setCreated({ chatroomId: result.chatroomId, machineId: activeMachineId, workingDir });
         onCreated();
       } catch (error) {
-        setCreateError(messageFromError(error));
+        setCreateError(getErrorMessage(error, 'Failed to create chatroom'));
       } finally {
         creatingRef.current = false;
         setIsCreating(false);

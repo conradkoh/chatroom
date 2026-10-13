@@ -5,7 +5,6 @@ import { Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
-import { getErrorMessage } from '@/app/app/admin/convexError';
 import { CreateInviteForm, type ExpiryMode } from '@/app/app/admin/invites/CreateInviteForm';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +24,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { getErrorMessage } from '@/lib/convexError';
 
 export type CreateInviteInput = {
   inviteeName: string;

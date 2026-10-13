@@ -13,6 +13,7 @@ import type { UserMachine } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 
 import { useMachineCapabilities } from '@/hooks/useMachineCapabilities';
+import { getErrorMessage } from '@/lib/convexError';
 import { getAuthLoginCommandForCurrentOrigin, getDaemonStartCommand } from '@/lib/environment';
 
 interface SetupWorkspaceStepProps {
@@ -84,7 +85,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
     try {
       await onConfirm(selectedMachineId, path);
     } catch (err) {
-      setConfirmError(err instanceof Error ? err.message : 'Failed to create workspace');
+      setConfirmError(getErrorMessage(err, 'Failed to create workspace'));
     } finally {
       setIsConfirming(false);
     }

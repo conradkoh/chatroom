@@ -7,7 +7,8 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { useCallback, useEffect, useState } from 'react';
 
 import { deriveGitCloneViewState, type GitCloneViewState } from './lib/deriveGitCloneViewState';
-import { messageFromError } from './lib/errorMessage';
+
+import { getErrorMessage } from '@/lib/convexError';
 
 /** How often the view re-evaluates timeouts while a request is still active. */
 const GIT_CLONE_TICK_MS = 5_000;
@@ -82,7 +83,7 @@ export function useGitCloneRequest({
         const result = await requestClone({ machineId, repoUrl, targetPath });
         setRequestId(result.requestId);
       } catch (error) {
-        setStartError(messageFromError(error, GIT_CLONE_ERROR_MESSAGES.invalid_request));
+        setStartError(getErrorMessage(error, GIT_CLONE_ERROR_MESSAGES.invalid_request));
       }
     },
     [requestClone, refresh]

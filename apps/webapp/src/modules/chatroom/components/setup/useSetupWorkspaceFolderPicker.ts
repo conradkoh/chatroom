@@ -6,6 +6,7 @@ import type { FolderPickerState } from './SetupFolderPickerField';
 import { getMachineDisplayName } from '../../types/machine';
 
 import { useFolderPicker } from '@/hooks/useFolderPicker';
+import { getErrorMessage } from '@/lib/convexError';
 
 type FolderPickerRequest = NonNullable<ReturnType<typeof useFolderPicker>['request']>;
 
@@ -69,7 +70,7 @@ export function useSetupWorkspaceFolderPicker({
     try {
       await pickFolder(selectedMachineId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to open folder picker');
+      setError(getErrorMessage(err, 'Failed to open folder picker'));
     }
   }, [pickFolder, selectedMachineId]);
 

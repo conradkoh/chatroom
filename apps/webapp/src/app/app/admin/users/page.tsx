@@ -8,7 +8,6 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 import { AdminListSkeleton } from '@/app/app/admin/AdminListSkeleton';
-import { getErrorMessage } from '@/app/app/admin/convexError';
 import { SYSTEM_ADMIN_ACCESS_PERMISSION, useHasPermission } from '@/application/auth';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { getErrorMessage } from '@/lib/convexError';
 
 type EffectiveRole = 'standard_user' | 'admin' | 'system_admin';
 
