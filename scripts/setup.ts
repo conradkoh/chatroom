@@ -6,16 +6,30 @@ import { dirname, join } from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+import {
+  formatDeploymentEnv,
+  getProductionConvexUrl,
+  readVercelProjectConfig,
+} from './deployment-config';
 import { generateRandomDevPort } from './devPort';
-import { TEMPLATE_REPO_URL, parseGitHubOwnerRepo } from './template-repo';
+import { bumpMinorAndSyncAll } from './package-versions';
+import {
+  getOriginRemoteUrl,
+  parseGitHubOwnerRepo,
+  shouldSkipGitHubRepoSetup,
+} from './setup-github-repo';
+import { TEMPLATE_REPO_URL } from './template-repo';
 import { updateCliConfig } from './update-cli-config';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const backendEnvPath = join(scriptDir, '..', 'services', 'backend', '.env.local');
+const backendDirectory = join(scriptDir, '..', 'services', 'backend');
+const backendEnvPath = join(backendDirectory, '.env.local');
 const webappEnvPath = join(scriptDir, '..', 'apps', 'webapp', '.env.local');
+const vercelRepoPath = join(scriptDir, '..', '.vercel', 'repo.json');
 
 type CliArgs = {
   skipBranding: boolean;
+  skipGitHubRepo: boolean;
   nonInteractive: boolean;
   appName: string | null;
   appShortName: string | null;
@@ -51,6 +65,7 @@ type BrandingStatus = {
 const args = process.argv.slice(2);
 const cliArgs: CliArgs = {
   skipBranding: args.includes('--skip-branding'),
+  skipGitHubRepo: args.includes('--skip-github-repo'),
   nonInteractive: args.includes('--non-interactive') || args.includes('-y'),
   appName: getArgValue(args, '--app-name'),
   appShortName: getArgValue(args, '--app-short-name'),
@@ -83,6 +98,7 @@ configures application branding.
 OPTIONS:
   --help, -h                    Show this help message
   --skip-branding               Skip branding setup entirely
+  --skip-github-repo             Skip GitHub repository setup (auto-skipped for configured origins)
   --non-interactive, -y         Run in non-interactive mode (skip prompts)
   --repo-url <url>              GitHub repository URL (e.g. https://github.com/owner/repo)
   
@@ -115,6 +131,7 @@ NOTES:
   - The script is idempotent and safe to run multiple times
   - In non-interactive mode without branding options, branding setup is skipped
   - Branding is only updated if template values are detected
+  - Branding updates also bump the minor version across all workspace packages
 `);
 }
 
@@ -210,6 +227,80 @@ function setupWebappEnv(convexUrl: string): void {
   }
 
   writeFileSync(webappEnvPath, envContent);
+}
+
+function linkVercelProject(): boolean {
+  console.log('\n▲ Starting Vercel project setup...');
+  const result = spawnSync('pnpm', ['exec', 'vercel', 'link', '--repo'], {
+    cwd: join(scriptDir, '..'),
+    stdio: 'inherit',
+  });
+
+  if (result.status === 0) return true;
+
+  console.error('❌ Vercel project setup did not complete.');
+  return false;
+}
+
+function readLinkedVercelProject(): ReturnType<typeof readVercelProjectConfig> {
+  return readVercelProjectConfig(vercelRepoPath, 'apps/webapp');
+}
+
+function acceptedPrompt(answer: string): boolean {
+  return ['y', 'yes'].includes(answer.toLowerCase());
+}
+
+async function getVercelProjectForDeployment(
+  nonInteractive: boolean
+): Promise<ReturnType<typeof readVercelProjectConfig>> {
+  const existingProject = readLinkedVercelProject();
+  if (existingProject) return existingProject;
+
+  return offerVercelProjectSetup(nonInteractive);
+}
+
+async function offerVercelProjectSetup(
+  nonInteractive: boolean
+): Promise<ReturnType<typeof readVercelProjectConfig>> {
+  if (nonInteractive) return null;
+
+  const answer = await promptUser(
+    'Would you like to set up this project for production deployment with Vercel? (y/n)',
+    'y'
+  );
+  if (!acceptedPrompt(answer)) return null;
+
+  if (!linkVercelProject()) return null;
+  return readLinkedVercelProject();
+}
+
+async function showDeploymentEnv(nonInteractive: boolean): Promise<void> {
+  const vercelProject = await getVercelProjectForDeployment(nonInteractive);
+
+  console.log('\n📋 GitHub Actions deployment configuration');
+  if (!vercelProject) {
+    console.log(
+      '   Vercel is not linked. Run this command when you are ready to configure deployment:'
+    );
+    console.log('   pnpm exec vercel link --repo');
+    return;
+  }
+
+  console.log('   Resolving the production Convex deployment URL...');
+  const productionConvexUrl = getProductionConvexUrl(backendDirectory);
+  if (!productionConvexUrl) {
+    console.log('   Could not read the production Convex URL. Check your Convex login and retry.');
+    console.log('   No deployment configuration block was printed.');
+    return;
+  }
+
+  console.log('   Copy this block into a UI that supports importing environment variables:');
+  console.log('');
+  console.log(formatDeploymentEnv(productionConvexUrl, vercelProject));
+  console.log('');
+  console.log(
+    '   If enabling the optional Vercel GitHub Actions path, set the GitHub Actions repository variable VERCEL_USER_EMAIL to an email address associated with a Vercel team member.'
+  );
 }
 
 function addUpstreamRemote(): void {
@@ -323,12 +414,36 @@ function configureGhDefaultRepo(ownerRepo: string): void {
   );
 }
 
+function skipConfiguredGitHubRepo(originUrl: string | null): void {
+  console.log(`✅ Origin remote already configured (${originUrl}). Skipping GitHub repo setup.`);
+  const parsed = originUrl ? parseGitHubOwnerRepo(originUrl) : null;
+  if (parsed) {
+    configureGhDefaultRepo(`${parsed.owner}/${parsed.repo}`);
+  }
+  console.log('');
+}
+
+function skipGitHubRepoSetup(skipFlag: boolean, originUrl: string | null): void {
+  if (skipFlag) {
+    console.log('⏭️  Skipping GitHub repo configuration (--skip-github-repo flag).\n');
+    return;
+  }
+  skipConfiguredGitHubRepo(originUrl);
+}
+
 async function configureGitHubRepo(
   nonInteractive = false,
-  repoUrl: string | null = null
+  repoUrl: string | null = null,
+  skipGitHubRepo = false
 ): Promise<void> {
   console.log('\n🐙 GitHub Repository Setup');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  const originUrl = getOriginRemoteUrl();
+  if (shouldSkipGitHubRepoSetup(originUrl, repoUrl, skipGitHubRepo)) {
+    skipGitHubRepoSetup(skipGitHubRepo, originUrl);
+    return;
+  }
 
   const githubRepoUrl = await resolveGitHubRepoUrl(nonInteractive, repoUrl);
   if (!githubRepoUrl) {
@@ -596,7 +711,7 @@ async function setupBranding(
 
   const branding = await resolveBrandingValues(nonInteractive, brandingOptions);
   if (!branding) {
-    return;
+    return false;
   }
 
   const { appName, appShortName, appDescription, landingPageTitle, packageName } = branding;
@@ -619,7 +734,11 @@ async function setupBranding(
     updatePackageJson(packageName);
     console.log('✅ Updated package.json');
 
+    const newVersion = bumpMinorAndSyncAll(join(scriptDir, '..'));
+    console.log(`✅ Bumped minor version to ${newVersion} across all workspace packages`);
+
     console.log('\n✅ Branding setup completed successfully!');
+    return true;
   } catch (error) {
     console.error('\n❌ Error updating branding:', getErrorMessage(error));
     throw error;
@@ -717,12 +836,12 @@ async function setup(): Promise<void> {
   await checkBranding();
   ensureBackendEnv();
   addUpstreamRemote();
-  await configureGitHubRepo(cliArgs.nonInteractive, cliArgs.repoUrl);
+  await configureGitHubRepo(cliArgs.nonInteractive, cliArgs.repoUrl, cliArgs.skipGitHubRepo);
   disableNextTelemetry();
-  continueSetup();
+  await continueSetup();
 }
 
-function continueSetup(): void {
+async function continueSetup(): Promise<void> {
   console.log('📄 Extracting CONVEX_URL from backend .env.local...');
   const convexUrl = getConvexUrl();
   console.log(`✅ Found CONVEX_URL: ${convexUrl}`);
@@ -733,6 +852,7 @@ function continueSetup(): void {
 
   // Update CLI config with webapp URL
   updateCliConfig(webappEnvPath);
+  await showDeploymentEnv(cliArgs.nonInteractive);
 
   console.log('\n🎉 Setup completed successfully!');
   console.log('You can now run "pnpm run dev" to start both the frontend and backend services.');

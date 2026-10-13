@@ -131,6 +131,8 @@ Run the setup script without any flags to use interactive mode with prompts:
 pnpm run setup
 ```
 
+When `origin` already points to a non-template GitHub repository, GitHub repository setup is skipped automatically; the existing repository is still configured as the `gh` CLI default when available.
+
 ### Non-Interactive Mode
 
 For CI/CD pipelines or automated setups, use non-interactive mode:
@@ -156,6 +158,7 @@ bun scripts/setup.ts -y
 ```
 --help, -h                    Show help message
 --skip-branding               Skip branding setup entirely
+--skip-github-repo             Skip GitHub repository setup entirely
 --non-interactive, -y         Run in non-interactive mode
 --app-name <name>             Full application name
 --app-short-name <name>       Short application name

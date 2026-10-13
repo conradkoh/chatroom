@@ -1,7 +1,11 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   // Migrated from knip.jsonc
+  // Entry points fallow cannot resolve: package.json scripts reach these through `../../scripts/`.
+  "entry": ["scripts/convex-codegen.ts"],
   "ignoreDependencies": [
+    // Run through `pnpm exec vercel` in the deployment docs and the optional Vercel Actions path.
+    "vercel",
     "husky",
     "lint-staged",
     "eslint",
@@ -133,6 +137,20 @@
       "file": "**/WorkspaceFileExplorerVirtualizedTree.tsx",
       "exports": ["EXPLORER_TREE_ROW_HEIGHT"],
     },
+    // Exported for package-versions.spec.ts. Spec files are not analysis entries.
+    {
+      "file": "scripts/package-versions.ts",
+      "exports": [
+        "WORKSPACE_PACKAGE_JSON_RELATIVE_PATHS",
+        "ROOT_PACKAGE_JSON_RELATIVE_PATH",
+        "parseSemver",
+        "bumpMinorVersion",
+        "readPackageJson",
+        "writePackageJson",
+        "readRootVersion",
+        "syncAllPackageVersions",
+      ],
+    },
   ],
   "duplicates": {
     "ignore": [
@@ -164,6 +182,8 @@
       "apps/webapp/src/app/app/system-admin/**",
       // Markdown viewer mirrors mdx-components.tsx styling intentionally (not shared to avoid MDX hook coupling)
       "apps/webapp/src/components/markdown-editor/markdown-components.tsx",
+      // Developer storybook: the drawer and modal Safari regression sections repeat the same checklist markup on purpose.
+      "apps/webapp/src/app/developer/components/date-picker/page.tsx",
     ],
   },
   "health": {

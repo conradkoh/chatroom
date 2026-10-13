@@ -20,6 +20,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Discover selected E2E suite
+        id: discover
+        shell: bash
+        run: |
+          if [[ "${{ github.repository }}" == "conradkoh/next-convex-starter-app" ]]; then
+            suite=upstream
+          else
+            suite=downstream
+          fi
+
+          suite_dir="apps/webapp/tests/e2e/specs/${suite}"
+          if find "$suite_dir" -type f -name '*.spec.*' -print -quit | grep -q .; then
+            has_tests=true
+            echo "[e2e] Found ${suite} specs; running suite."
+          else
+            has_tests=false
+            echo "::notice::No ${suite} E2E tests found; skipping E2E infrastructure and execution."
+          fi
+
+          echo "suite=${suite}" >> "$GITHUB_OUTPUT"
+          echo "has_tests=${has_tests}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -32,6 +54,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Start self-hosted Convex backend
+        if: steps.discover.outputs.has_tests == 'true'
         run: |
           docker run --detach \
             --name convex-backend \
@@ -67,25 +90,27 @@ jobs:
           echo "CONVEX_SELF_HOSTED_ADMIN_KEY=$admin_key" >> "$GITHUB_ENV"
 
       - name: Deploy Convex backend
+        if: steps.discover.outputs.has_tests == 'true'
         run: |
           pnpm --filter @workspace/backend exec convex deploy --typecheck enable --yes
           pnpm --filter @workspace/backend exec convex env set E2E_SEEDING_ENABLED true
 
       - name: Install Playwright browsers
+        if: steps.discover.outputs.has_tests == 'true'
         run: pnpm --filter @workspace/webapp exec playwright install --with-deps
 
       - name: Run upstream E2E tests
-        if: github.repository == 'conradkoh/next-convex-starter-app'
+        if: steps.discover.outputs.has_tests == 'true' && github.repository == 'conradkoh/next-convex-starter-app'
         run: pnpm --filter @workspace/webapp e2e:upstream
 
       - name: Run downstream E2E tests
-        if: github.repository != 'conradkoh/next-convex-starter-app'
+        if: steps.discover.outputs.has_tests == 'true' && github.repository != 'conradkoh/next-convex-starter-app'
         run: pnpm --filter @workspace/webapp e2e:downstream
 
       - name: Show Convex logs on failure
-        if: failure()
+        if: failure() && steps.discover.outputs.has_tests == 'true'
         run: docker logs convex-backend || true
 
       - name: Stop self-hosted Convex backend
-        if: always()
+        if: always() && steps.discover.outputs.has_tests == 'true'
         run: docker rm --force convex-backend || true

@@ -489,6 +489,40 @@ pnpm test
 
 ---
 
+### 10. Keeping the migration branch in sync with master
+
+**Problem:** A long-lived `feat/shadcn-base-ui-migration` branch diverges from `master`. New features merged to `master` after the branch was cut may use Radix patterns (especially `asChild`) that TypeScript rejects on Base UI components — even when the app still runs at runtime.
+
+**When:** After every `git merge master` (or rebase) into the migration branch.
+
+**Audit commands:**
+
+```bash
+cd apps/webapp
+rg 'asChild' src/                         # must return zero after fixes
+rg '@radix-ui/react-' src/ package.json   # must return zero on migration branch
+pnpm typecheck                            # catches API surface breaks (pre-push gate)
+pnpm test                                 # RTL component tests
+pnpm e2e                                  # root turbo e2e — run in CI or manually
+```
+
+**Prerequisite for admin e2e:** `E2E_SEEDING_ENABLED=true` on the Convex deployment matching `NEXT_PUBLIC_CONVEX_URL`. See `apps/webapp/tests/e2e/README.md#e2e-admin-seeding`.
+
+**Common post-merge breaks:**
+
+| Symptom                                               | Cause                                            | Fix                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------- |
+| `Property 'asChild' does not exist` on Trigger/Button | New master code using Radix `asChild`            | Apply Pattern B (§1): `buttonVariants()` on trigger, remove `asChild` |
+| E2e passes but typecheck fails                        | TS catches removed props; runtime may still work | Always fix typecheck — `.husky/pre-push` blocks on it                 |
+| E2e `getByRole('heading')` fails on card titles       | ShadCN `CardTitle` renders `<div>`, not heading  | Use `getByText(..., { exact: true })`                                 |
+| New admin/mobile UI uses Radix dropdown pattern       | Feature landed on master while branch was stale  | Migrate trigger per §1 Pattern B                                      |
+
+**Real example (this repo):** Merging master into `feat/shadcn-base-ui-migration` brought `admin/layout.tsx` mobile module switcher (`<DropdownMenuTrigger asChild><Button>…</Button></DropdownMenuTrigger>`). Fixed by applying `buttonVariants()` on the trigger directly.
+
+**Regression gate:** The upstream e2e suite (`apps/webapp/tests/e2e/specs/upstream/`, 11 specs including `admin-interactions.spec.ts`) is the end-to-end regression baseline for the Base UI migration. It is validated in CI and can be run manually with root `pnpm e2e`; the local pre-push gate runs only `pnpm typecheck`.
+
+---
+
 ## Cleanup
 
 Once all components are verified and stable, remove the legacy Radix packages:
