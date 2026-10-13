@@ -7,6 +7,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { BACKEND_ERROR_CODES } from '../../config/errorCodes';
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
@@ -97,7 +98,6 @@ describe('chatrooms.createWithWorkspace', () => {
     ['relative path', 'relative/path/my-app'],
     ['shell metacharacter', '/Users/test/my-app;rm'],
     ['tilde', '~/src/my-app'],
-    ['filesystem root', '/'],
   ])('rejects a %s working dir and creates nothing', async (_label, workingDir) => {
     const key = `test-cw-bad-dir-${_label.replace(/\W+/g, '-')}`;
     const { sessionId, machineId } = await setupMachine(key, `machine-${key}`);
@@ -109,13 +109,26 @@ describe('chatrooms.createWithWorkspace', () => {
     expect(await getInboxCommandsForMachine(machineId, 'daemon.gitRefresh')).toHaveLength(0);
   });
 
+  test('rejects the filesystem root with INVALID_WORKING_DIR and creates nothing', async () => {
+    const key = 'test-cw-bad-dir-root';
+    const { sessionId, machineId } = await setupMachine(key, `machine-${key}`);
+    const before = await roomCount(sessionId);
+
+    await expect(
+      createWithWorkspace(sessionId, machineId, { workingDir: '/' })
+    ).rejects.toMatchObject({ data: { code: BACKEND_ERROR_CODES.INVALID_WORKING_DIR } });
+
+    expect(await roomCount(sessionId)).toBe(before);
+    expect(await getInboxCommandsForMachine(machineId, 'daemon.gitRefresh')).toHaveLength(0);
+  });
+
   test('rejects an unknown team structure and creates nothing', async () => {
     const { sessionId, machineId } = await setupMachine('test-cw-bad-team', 'machine-cw-bad-team');
     const before = await roomCount(sessionId);
 
     await expect(
       createWithWorkspace(sessionId, machineId, { teamStructureId: 'nope@9' })
-    ).rejects.toMatchObject({ data: { code: 'UNKNOWN_TEAM_STRUCTURE' } });
+    ).rejects.toMatchObject({ data: { code: BACKEND_ERROR_CODES.UNKNOWN_TEAM_STRUCTURE } });
 
     expect(await roomCount(sessionId)).toBe(before);
     expect(await getInboxCommandsForMachine(machineId, 'daemon.gitRefresh')).toHaveLength(0);
@@ -138,7 +151,7 @@ describe('chatrooms.createWithWorkspace', () => {
 
     // requireMachineOwner runs first, so an unknown machine fails the owner check.
     await expect(createWithWorkspace(sessionId, 'machine-does-not-exist')).rejects.toMatchObject({
-      data: { code: 'NOT_AUTHORIZED_MACHINE' },
+      data: { code: BACKEND_ERROR_CODES.NOT_AUTHORIZED_MACHINE },
     });
 
     expect(await roomCount(sessionId)).toBe(before);

@@ -18,6 +18,7 @@ import { mutation, query } from './_generated/server';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { normalizeWorkingDir } from './workspacePathSecurity';
+import { BACKEND_ERROR_CODES } from '../config/errorCodes';
 import { gitCloneErrorCodeValidator } from '../src/domain/entities/git-clone-request';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 
@@ -40,10 +41,16 @@ async function getRequestForMachine(
 ): Promise<GitCloneRequestRow> {
   const row = await ctx.db.get('chatroom_gitCloneRequests', requestId);
   if (!row) {
-    throw new Error('Git clone request not found');
+    throw new ConvexError({
+      code: BACKEND_ERROR_CODES.GIT_CLONE_REQUEST_NOT_FOUND,
+      message: 'Git clone request not found',
+    });
   }
   if (row.machineId !== machineId) {
-    throw new Error('Git clone request does not belong to this machine');
+    throw new ConvexError({
+      code: BACKEND_ERROR_CODES.NOT_AUTHORIZED_MACHINE,
+      message: 'Git clone request does not belong to this machine',
+    });
   }
   return row;
 }
@@ -57,7 +64,10 @@ function normalizeProgressPercent(percent: number | undefined): number | undefin
 /** A completed clone must have landed exactly at the requested target path. */
 function assertClonedPathMatchesTarget(clonedPath: string | undefined, targetPath: string): void {
   if (!clonedPath || normalizeWorkingDir(clonedPath) !== targetPath) {
-    throw new Error('Cloned path does not match the requested target path');
+    throw new ConvexError({
+      code: BACKEND_ERROR_CODES.GIT_CLONE_PATH_MISMATCH,
+      message: 'Cloned path does not match the requested target path',
+    });
   }
 }
 
@@ -104,14 +114,11 @@ export const request = mutation({
 
     const url = validateGitCloneUrl(args.repoUrl);
     if (!url.ok) {
-      throw new ConvexError({ code: 'INVALID_REPO_URL', message: url.reason });
+      throw new ConvexError({ code: BACKEND_ERROR_CODES.INVALID_REPO_URL, message: url.reason });
     }
 
-    // Throws on relative paths and `~`. Stripping trailing slashes can leave '' for '/'.
+    // Throws on relative paths, `~`, and the filesystem root.
     const targetPath = normalizeWorkingDir(args.targetPath);
-    if (targetPath === '') {
-      throw new Error('Clone target cannot be the filesystem root');
-    }
 
     const now = Date.now();
     const requestId = await ctx.db.insert('chatroom_gitCloneRequests', {

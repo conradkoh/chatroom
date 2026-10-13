@@ -7,6 +7,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { BACKEND_ERROR_CODES } from '../../config/errorCodes';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
@@ -95,7 +96,7 @@ describe('git clone requests', () => {
     );
 
     await expect(requestClone(sessionId, machineId, { repoUrl })).rejects.toMatchObject({
-      data: { code: 'INVALID_REPO_URL' },
+      data: { code: BACKEND_ERROR_CODES.INVALID_REPO_URL },
     });
 
     expect(await getInboxCommandsForMachine(machineId, 'daemon.gitClone')).toHaveLength(0);
@@ -104,7 +105,6 @@ describe('git clone requests', () => {
   test.each([
     ['relative target', 'relative/path/repo'],
     ['tilde target', '~/src/my-repo'],
-    ['filesystem root', '/'],
   ])('request rejects a %s', async (_label, targetPath) => {
     const key = slug(_label);
     const { sessionId, machineId } = await setupMachine(
@@ -113,6 +113,16 @@ describe('git clone requests', () => {
     );
 
     await expect(requestClone(sessionId, machineId, { targetPath })).rejects.toThrow();
+
+    expect(await getInboxCommandsForMachine(machineId, 'daemon.gitClone')).toHaveLength(0);
+  });
+
+  test('request rejects the filesystem root with INVALID_WORKING_DIR', async () => {
+    const { sessionId, machineId } = await setupMachine('test-gc-root', 'machine-gc-root');
+
+    await expect(requestClone(sessionId, machineId, { targetPath: '/' })).rejects.toMatchObject({
+      data: { code: BACKEND_ERROR_CODES.INVALID_WORKING_DIR },
+    });
 
     expect(await getInboxCommandsForMachine(machineId, 'daemon.gitClone')).toHaveLength(0);
   });

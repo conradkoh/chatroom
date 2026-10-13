@@ -143,6 +143,14 @@ export type BackendErrorCode =
   | 'INVALID_MESSAGE'
   | 'MESSAGE_NOT_FOUND'
 
+  // ── Git clone & workspace ─────────────────────────────────────────
+  | 'INVALID_REPO_URL'
+  | 'INVALID_WORKING_DIR'
+  | 'UNKNOWN_TEAM_STRUCTURE'
+  | 'MACHINE_NOT_FOUND'
+  | 'GIT_CLONE_REQUEST_NOT_FOUND'
+  | 'GIT_CLONE_PATH_MISMATCH'
+
   // ── Conflict ──────────────────────────────────────────────────────
   | 'CONFLICT';
 
@@ -347,6 +355,20 @@ export const BACKEND_ERROR_CODES = {
   /** Message not found */
   MESSAGE_NOT_FOUND: 'MESSAGE_NOT_FOUND',
 
+  // ── Git clone & workspace ─────────────────────────────────────────
+  /** Git repository URL failed validation */
+  INVALID_REPO_URL: 'INVALID_REPO_URL',
+  /** Working directory failed validation (not absolute, unsafe characters, or the root) */
+  INVALID_WORKING_DIR: 'INVALID_WORKING_DIR',
+  /** Team structure id is not a known preset */
+  UNKNOWN_TEAM_STRUCTURE: 'UNKNOWN_TEAM_STRUCTURE',
+  /** Machine is not registered */
+  MACHINE_NOT_FOUND: 'MACHINE_NOT_FOUND',
+  /** Git clone request not found */
+  GIT_CLONE_REQUEST_NOT_FOUND: 'GIT_CLONE_REQUEST_NOT_FOUND',
+  /** Reported clone path does not match the requested target path */
+  GIT_CLONE_PATH_MISMATCH: 'GIT_CLONE_PATH_MISMATCH',
+
   // ── Conflict ────────────────────────────────────────────────────────
   /** Conflict (e.g. duplicate) */
   CONFLICT: 'CONFLICT',
@@ -462,6 +484,14 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.COMMAND_TYPE_IMMUTABLE,
   BACKEND_ERROR_CODES.NOT_AUTHORIZED_MACHINE,
   BACKEND_ERROR_CODES.ATTENDANCE_DELETE_UNAUTHORIZED,
+
+  // Git clone & workspace
+  BACKEND_ERROR_CODES.INVALID_REPO_URL,
+  BACKEND_ERROR_CODES.INVALID_WORKING_DIR,
+  BACKEND_ERROR_CODES.UNKNOWN_TEAM_STRUCTURE,
+  BACKEND_ERROR_CODES.MACHINE_NOT_FOUND,
+  BACKEND_ERROR_CODES.GIT_CLONE_REQUEST_NOT_FOUND,
+  BACKEND_ERROR_CODES.GIT_CLONE_PATH_MISMATCH,
 
   // Conflict
   BACKEND_ERROR_CODES.CONFLICT,

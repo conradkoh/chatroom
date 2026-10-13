@@ -9,6 +9,7 @@
 import { ConvexError } from 'convex/values';
 
 import { insertChatroomWithTeam } from './create-chatroom';
+import { BACKEND_ERROR_CODES } from '../../../../config/errorCodes';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
@@ -40,23 +41,23 @@ export async function createChatroomWithWorkspace(
   // getTeamStructure falls back for unknown ids, so check the preset explicitly.
   if (!getTeamPreset(input.teamStructureId)) {
     throw new ConvexError({
-      code: 'UNKNOWN_TEAM_STRUCTURE',
+      code: BACKEND_ERROR_CODES.UNKNOWN_TEAM_STRUCTURE,
       message: `Unknown team structure: ${input.teamStructureId}`,
     });
   }
 
-  // Throws on relative paths, '~' and shell metacharacters.
+  // Throws on relative paths, '~', shell metacharacters, and the filesystem root.
   const workingDir = normalizeWorkingDir(input.workingDir);
-  if (workingDir === '') {
-    throw new Error('Workspace path cannot be the filesystem root');
-  }
 
   const machine = await ctx.db
     .query('chatroom_machines')
     .withIndex('by_machineId', (q) => q.eq('machineId', input.machineId))
     .first();
   if (!machine) {
-    throw new ConvexError({ code: 'MACHINE_NOT_FOUND', message: 'Machine not found' });
+    throw new ConvexError({
+      code: BACKEND_ERROR_CODES.MACHINE_NOT_FOUND,
+      message: 'Machine not found',
+    });
   }
 
   // ── Writes (one transaction) ──

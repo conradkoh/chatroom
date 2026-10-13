@@ -1,3 +1,6 @@
+import { ConvexError } from 'convex/values';
+
+import { BACKEND_ERROR_CODES } from '../config/errorCodes';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 
 const MAX_FILE_PATH_LENGTH = 1024;
@@ -42,11 +45,21 @@ export function validateWorkingDir(workingDir: string): void {
   }
 }
 
-/** Canonical workspace root path for registry keys and daemon requests. */
+/**
+ * Canonical workspace root path for registry keys and daemon requests. The only path normalizer.
+ * Rejects the filesystem root, which is what remains after trailing slashes are stripped.
+ */
 export function normalizeWorkingDir(workingDir: string): string {
   const trimmed = workingDir.trim();
   validateWorkingDir(trimmed);
-  return trimmed.replace(/[/\\]+$/, '');
+  const normalized = trimmed.replace(/[/\\]+$/, '');
+  if (normalized === '') {
+    throw new ConvexError({
+      code: BACKEND_ERROR_CODES.INVALID_WORKING_DIR,
+      message: 'Working directory cannot be the filesystem root',
+    });
+  }
+  return normalized;
 }
 
 /**
