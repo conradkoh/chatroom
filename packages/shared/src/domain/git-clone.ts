@@ -40,13 +40,6 @@ const SCP_LIKE_PATTERN = /^[A-Za-z0-9._-]+@[A-Za-z0-9][A-Za-z0-9.-]*:(?!-)\S+$/;
 /** Whitespace, ASCII control characters (including NUL) and DEL. */
 const WHITESPACE_OR_CONTROL_PATTERN = /[\s\x00-\x1f\x7f]/;
 
-/**
- * Validates a git repository URL before it is enqueued for a daemon clone.
- * Accepts https://, http://, ssh://, git:// URLs and scp-like user@host:path.
- * Rejects: empty, > GIT_CLONE_MAX_URL_LENGTH, whitespace/control chars/NUL, leading '-',
- * '::' transports (ext::, fd::), file://, bare local paths.
- * Returns the trimmed url on success.
- */
 /** Hard rejections, checked in order against the trimmed URL. The first match wins. */
 const GIT_CLONE_URL_REJECTIONS: readonly {
   matches: (url: string) => boolean;
@@ -73,6 +66,13 @@ const GIT_CLONE_URL_REJECTIONS: readonly {
   },
 ];
 
+/**
+ * Validates a git repository URL before it is enqueued for a daemon clone.
+ * Accepts https://, http://, ssh://, git:// URLs and scp-like user@host:path.
+ * Rejects: empty, > GIT_CLONE_MAX_URL_LENGTH, whitespace/control chars/NUL, leading '-',
+ * '::' transports (ext::, fd::), file://, bare local paths.
+ * Returns the trimmed url on success.
+ */
 export function validateGitCloneUrl(raw: string): GitCloneUrlValidation {
   const url = raw.trim();
   const rejection = GIT_CLONE_URL_REJECTIONS.find((rule) => rule.matches(url));
