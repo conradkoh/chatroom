@@ -86,3 +86,34 @@ export function isModelHidden(modelId: string, filter: ModelFilter | null | unde
   // Provider is visible; hiddenModels contains models to hide
   return hasExplicitOverride;
 }
+
+// ─── pruneHiddenFavorites ───────────────────────────────────────────
+
+interface FavoriteEntry {
+  agentHarness: string;
+  model: string;
+}
+
+/**
+ * Removes favourites of `harness` whose model is hidden by `filter`.
+ * Favourites for other harnesses, and visible favourites, keep their order.
+ *
+ * Returns the same array instance when nothing is removed, so callers can skip the write
+ * with a reference check.
+ *
+ * Constraint: the model key is normalized with the same `::` → `/` rule the picker applies
+ * before checking hidden state, so a favourite the UI shows as hidden is always pruned.
+ */
+export function pruneHiddenFavorites<T extends FavoriteEntry>(
+  favorites: T[],
+  harness: string,
+  filter: ModelFilter
+): T[] {
+  const effectiveFilter = normalizeModelFilter(filter);
+  const kept = favorites.filter(
+    (favorite) =>
+      favorite.agentHarness !== harness ||
+      !isModelHidden(favorite.model.replace('::', '/'), effectiveFilter)
+  );
+  return kept.length === favorites.length ? favorites : kept;
+}

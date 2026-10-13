@@ -24,6 +24,10 @@ import {
   machineCommandTypeValidator,
   type AgentHarness,
 } from '../src/domain/entities/agent';
+import {
+  pruneHiddenFavorites,
+  type ModelFilter,
+} from '../src/domain/entities/harness/model-filter';
 import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
@@ -1254,6 +1258,30 @@ export const upsertMachineModelFilters = mutation({
         hiddenProviders: args.hiddenProviders,
         updatedAt: now,
       });
+    }
+
+    // A favourite must never name a model this filter hides. Prune every row this user has
+    // for the machine, across all team+role scopes. Other users' rows and other machines are
+    // not touched because the index is scoped to (userId, machineId).
+    const filter: ModelFilter = {
+      hiddenModels: args.hiddenModels,
+      hiddenProviders: args.hiddenProviders,
+    };
+    const userFavoriteRows = await ctx.db
+      .query('chatroom_machineConfigFavorites')
+      .withIndex('by_user_machine_teamRole', (q) =>
+        q.eq('userId', auth.userId).eq('machineId', args.machineId)
+      )
+      .collect();
+    for (const row of userFavoriteRows) {
+      const pruned = pruneHiddenFavorites(row.favorites, args.agentHarness, filter);
+      // Reference check: pruneHiddenFavorites returns the input array when nothing is removed.
+      if (pruned !== row.favorites) {
+        await ctx.db.patch('chatroom_machineConfigFavorites', row._id, {
+          favorites: pruned,
+          updatedAt: now,
+        });
+      }
     }
   },
 });
