@@ -14,6 +14,8 @@ import type { UserMachine } from '../../types/machine';
 interface CloneRepoFormProps {
   machine: UserMachine;
   isMachineConnected: boolean;
+  /** The wizard is creating the chatroom. Disables the retry while it runs. */
+  isCreating: boolean;
   /** The clone request state. The workspace step owns it so a tab switch cannot lose it. */
   clone: UseGitCloneRequestResult;
   /** Called exactly once per completed clone, with the cloned path. */
@@ -68,6 +70,7 @@ function useCloneCompletionHandoff(
 export function CloneRepoForm({
   machine,
   isMachineConnected,
+  isCreating,
   clone,
   onWorkspaceReady,
   onBack,
@@ -84,6 +87,7 @@ export function CloneRepoForm({
     cloneTo: target.cloneTo,
     isMachineConnected,
   });
+  const completedPath = completedPathOf(viewState, clone.requestId);
   useCloneCompletionHandoff(viewState, clone.requestId, onWorkspaceReady);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -120,13 +124,25 @@ export function CloneRepoForm({
           >
             Back
           </button>
-          <button
-            type="submit"
-            disabled={!canClone}
-            className="px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
-          >
-            Clone
-          </button>
+          {completedPath === null ? (
+            <button
+              type="submit"
+              disabled={!canClone}
+              className="px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
+            >
+              Clone
+            </button>
+          ) : (
+            // The chatroom is created from the cloned folder. This is the retry after a failed create.
+            <button
+              type="button"
+              onClick={() => onWorkspaceReady(completedPath)}
+              disabled={isCreating}
+              className="px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
+            >
+              Create chatroom
+            </button>
+          )}
         </div>
       </form>
     </div>

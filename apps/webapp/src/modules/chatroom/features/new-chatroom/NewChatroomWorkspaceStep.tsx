@@ -126,6 +126,7 @@ export function NewChatroomWorkspaceStep({
         <CloneRepoForm
           machine={machine}
           isMachineConnected={isMachineConnected}
+          isCreating={isCreating}
           clone={clone}
           onWorkspaceReady={onWorkspaceReady}
           onBack={onBack}

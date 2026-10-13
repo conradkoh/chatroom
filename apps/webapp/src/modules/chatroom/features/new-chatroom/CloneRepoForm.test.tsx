@@ -44,13 +44,14 @@ function makeClone(
   };
 }
 
-function renderForm(clone: FakeClone, { isMachineConnected = true } = {}) {
+function renderForm(clone: FakeClone, { isMachineConnected = true, isCreating = false } = {}) {
   const onWorkspaceReady = vi.fn();
   const onBack = vi.fn();
   const element = (c: FakeClone) => (
     <CloneRepoForm
       machine={machine}
       isMachineConnected={isMachineConnected}
+      isCreating={isCreating}
       clone={c}
       onWorkspaceReady={onWorkspaceReady}
       onBack={onBack}
@@ -157,6 +158,27 @@ describe('CloneRepoForm', () => {
     rerenderWith(makeClone(completed, REQUEST_ID));
 
     expect(onWorkspaceReady).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers Create chatroom after a completed clone, so a failed creation can be retried', async () => {
+    const user = userEvent.setup();
+    const { onWorkspaceReady } = renderForm(
+      makeClone({ kind: 'completed', clonedPath: CLONE_TO }, REQUEST_ID)
+    );
+    expect(onWorkspaceReady).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
+
+    expect(onWorkspaceReady).toHaveBeenCalledTimes(2);
+    expect(onWorkspaceReady).toHaveBeenLastCalledWith(CLONE_TO);
+  });
+
+  it('disables Create chatroom while the wizard is creating', () => {
+    renderForm(makeClone({ kind: 'completed', clonedPath: CLONE_TO }, REQUEST_ID), {
+      isCreating: true,
+    });
+
+    expect(screen.getByRole('button', { name: 'Create chatroom' })).toBeDisabled();
   });
 
   it('does not hand off a path before the clone completes', () => {
