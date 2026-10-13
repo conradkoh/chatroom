@@ -23,7 +23,7 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-import { useDaemonConnectivity } from '@/hooks/useDaemonConnectivity';
+import { useConnectedMachines } from '@/hooks/useConnectedMachines';
 import { useUserMachines } from '@/hooks/useUserMachines';
 
 interface Participant {
@@ -46,21 +46,15 @@ interface SetupChecklistModalProps {
 type SetupStep = 'workspace' | 'agents';
 
 interface SetupMachineConnectivityProps {
-  machines: UserMachine[];
   children: (connectedMachines: UserMachine[]) => React.ReactNode;
 }
 
 // Keep this helper beneath FixedModal so Base UI unmounts the connectivity subscription
 // with the closed dialog instead of keeping it alive on the chatroom page.
 const SetupMachineConnectivity = memo(function SetupMachineConnectivity({
-  machines,
   children,
 }: SetupMachineConnectivityProps) {
-  const connectivity = useDaemonConnectivity();
-  const connectedMachines = useMemo(
-    () => machines.filter((machine) => connectivity.get(machine.machineId)?.connected === true),
-    [machines, connectivity]
-  );
+  const { connectedMachines } = useConnectedMachines();
 
   return <>{children(connectedMachines)}</>;
 });
@@ -93,7 +87,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   const [setupWorkingDir, setSetupWorkingDir] = useState<string | null>(null);
 
   const registerWorkspace = useSessionMutation(api.workspaces.registerWorkspace);
-  const { machines: userMachines, isLoading: isLoadingMachines } = useUserMachines();
+  const { isLoading: isLoadingMachines } = useUserMachines();
   const { configs: machineConfigs, isLoading: isLoadingConfigs } = useAgentConfigs(chatroomId, {
     enabled: true,
   });
@@ -166,8 +160,8 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     step === 'workspace' ? 'Step 1 of 2' : `${joinedCount} of ${teamRoles.length} agents ready`;
 
   return (
-    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl">
-      <SetupMachineConnectivity machines={userMachines}>
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
+      <SetupMachineConnectivity>
         {/* fallow-ignore-next-line complexity */}
         {(connectedMachines) => (
           <FixedModalContent>
@@ -183,13 +177,13 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
               </div>
             </FixedModalHeader>
 
-            <div className="flex-shrink-0 px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-tertiary min-h-[3.25rem] flex items-center">
+            <div className="flex shrink-0 items-center border-b-2 border-chatroom-border bg-chatroom-bg-tertiary px-4 py-2 sm:px-6">
               <p className="text-xs text-chatroom-text-secondary">{description}</p>
             </div>
 
-            <FixedModalBody>
+            <FixedModalBody className="flex flex-col overflow-hidden">
               {isLoadingWorkspaces ? (
-                <div className="flex items-center justify-center py-12 text-chatroom-text-muted">
+                <div className="flex flex-1 items-center justify-center py-12 text-chatroom-text-muted">
                   <Loader2 size={18} className="animate-spin mr-2" />
                   <span className="text-sm">Loading workspace...</span>
                 </div>
@@ -216,6 +210,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
                   sendCommand={sendCommand}
                   onAllAgentsStarted={handleAllAgentsStarted}
                   onBack={handleBackToWorkspace}
+                  autoFocusFirstControl={false}
                 />
               ) : null}
             </FixedModalBody>

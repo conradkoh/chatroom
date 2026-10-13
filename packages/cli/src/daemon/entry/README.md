@@ -22,6 +22,9 @@ Task inbox startup is composed in `entry/task-inbox-runtime.ts` and registers ac
 | `subscriber-registry.ts` | Start/stop all 13 Convex subscribers                                                             |
 | `publisher-registry.ts`  | Route `OutboundEvent` → publishers; appends to persistence; fans `harness.stream` to `streamHub` |
 | `deps.ts`                | Dependency bag for use cases (publishers, persistence, streamHub)                                |
+| `bridge/`                | Adapters from the daemon session to domain ports. Argument mapping only, no logic                |
+
+Command handlers are acked when they return. They run on the machine command chain (`MACHINE_COMMAND_KEY`) or a per-agent chain, see `infrastructure/convex/subscribers/machine-command-inbox.ts`. Long work, for example `daemon.gitClone`, must start a domain use case without awaiting it, and that use case owns its own dedup.
 
 ## Does not belong here
 

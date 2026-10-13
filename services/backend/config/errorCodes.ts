@@ -143,6 +143,55 @@ export type BackendErrorCode =
   | 'INVALID_MESSAGE'
   | 'MESSAGE_NOT_FOUND'
 
+  // ── Git clone & workspace ─────────────────────────────────────────
+  | 'INVALID_REPO_URL'
+  | 'INVALID_WORKING_DIR'
+  | 'UNKNOWN_TEAM_STRUCTURE'
+  | 'MACHINE_NOT_FOUND'
+  | 'GIT_CLONE_REQUEST_NOT_FOUND'
+  | 'GIT_CLONE_PATH_MISMATCH'
+
+  // ── Folder picker ─────────────────────────────────────────────────
+  | 'FOLDER_PICKER_REQUEST_NOT_FOUND'
+
+  // ── Messages & chatrooms ──────────────────────────────────────────
+  | 'CHATROOM_ID_REQUIRED'
+  | 'CHATROOM_NOT_ACTIVE'
+  | 'DUPLICATE_SNIPPET_REFERENCE'
+  | 'EMPTY_CONTENT'
+  | 'INVALID_SNIPPET_REFERENCE'
+  | 'INVALID_TARGET_ROLE'
+  | 'INVALID_TASK_ENVELOPE'
+  | 'TOO_MANY_ATTACHMENTS'
+  | 'INVALID_ANCHOR'
+
+  // ── Scheduled prompts & standing instructions ─────────────────────
+  | 'CONTENT_TOO_LONG'
+  | 'EMPTY_PROMPT'
+  | 'INVALID_SCHEDULE'
+  | 'LIFECYCLE_DISABLED'
+  | 'TITLE_REQUIRED'
+  | 'TITLE_TOO_LONG'
+
+  // ── Agentic queries & harnesses ───────────────────────────────────
+  | 'HARNESS_SESSION_ALREADY_ASSOCIATED'
+  | 'INVALID_HARNESS'
+  | 'INVALID_RESULT'
+  | 'INVALID_STATUS'
+  | 'UNSUPPORTED_HARNESS_TYPE'
+
+  // ── Machine commands & logs ───────────────────────────────────────
+  | 'LOG_OBSERVER_NOT_ACTIVE'
+  | 'TAIL_TOO_LARGE'
+  | 'NOT_AUTHORIZED'
+
+  // ── Admin, invites & sign-up ──────────────────────────────────────
+  | 'INVALID_INPUT'
+  | 'INTERNAL_ERROR'
+  | 'INVITE_INVALID'
+  | 'INVITE_EMAIL_MISMATCH'
+  | 'SIGNUP_DISABLED'
+
   // ── Conflict ──────────────────────────────────────────────────────
   | 'CONFLICT';
 
@@ -347,6 +396,90 @@ export const BACKEND_ERROR_CODES = {
   /** Message not found */
   MESSAGE_NOT_FOUND: 'MESSAGE_NOT_FOUND',
 
+  // ── Git clone & workspace ─────────────────────────────────────────
+  /** Git repository URL failed validation */
+  INVALID_REPO_URL: 'INVALID_REPO_URL',
+  /** Working directory failed validation (not absolute, unsafe characters, or the root) */
+  INVALID_WORKING_DIR: 'INVALID_WORKING_DIR',
+  /** Team structure id is not a known preset */
+  UNKNOWN_TEAM_STRUCTURE: 'UNKNOWN_TEAM_STRUCTURE',
+  /** Machine is not registered */
+  MACHINE_NOT_FOUND: 'MACHINE_NOT_FOUND',
+  /** Git clone request not found */
+  GIT_CLONE_REQUEST_NOT_FOUND: 'GIT_CLONE_REQUEST_NOT_FOUND',
+  /** Reported clone path does not match the requested target path */
+  GIT_CLONE_PATH_MISMATCH: 'GIT_CLONE_PATH_MISMATCH',
+
+  // ── Folder picker ─────────────────────────────────────────────────
+  /** Folder picker request not found */
+  FOLDER_PICKER_REQUEST_NOT_FOUND: 'FOLDER_PICKER_REQUEST_NOT_FOUND',
+
+  // ── Messages & chatrooms ──────────────────────────────────────────
+  /** Chatroom id is required for this scope change */
+  CHATROOM_ID_REQUIRED: 'CHATROOM_ID_REQUIRED',
+  /** The chatroom is not active, so it cannot take this message */
+  CHATROOM_NOT_ACTIVE: 'CHATROOM_NOT_ACTIVE',
+  /** The same snippet reference appears more than once in a message */
+  DUPLICATE_SNIPPET_REFERENCE: 'DUPLICATE_SNIPPET_REFERENCE',
+  /** Message content is empty */
+  EMPTY_CONTENT: 'EMPTY_CONTENT',
+  /** A snippet reference does not resolve to a valid snippet */
+  INVALID_SNIPPET_REFERENCE: 'INVALID_SNIPPET_REFERENCE',
+  /** The target role is not a valid role for this message */
+  INVALID_TARGET_ROLE: 'INVALID_TARGET_ROLE',
+  /** The task envelope is malformed */
+  INVALID_TASK_ENVELOPE: 'INVALID_TASK_ENVELOPE',
+  /** The message has more attachments than allowed */
+  TOO_MANY_ATTACHMENTS: 'TOO_MANY_ATTACHMENTS',
+  /** The anchor message is not a user message */
+  INVALID_ANCHOR: 'INVALID_ANCHOR',
+
+  // ── Scheduled prompts & standing instructions ─────────────────────
+  /** Content exceeds the maximum length */
+  CONTENT_TOO_LONG: 'CONTENT_TOO_LONG',
+  /** Scheduled prompt text is empty */
+  EMPTY_PROMPT: 'EMPTY_PROMPT',
+  /** The schedule is invalid, for example an interval below the minimum */
+  INVALID_SCHEDULE: 'INVALID_SCHEDULE',
+  /** The item was disabled by a lifecycle event (for example archive) and cannot be changed */
+  LIFECYCLE_DISABLED: 'LIFECYCLE_DISABLED',
+  /** A title is required */
+  TITLE_REQUIRED: 'TITLE_REQUIRED',
+  /** The title exceeds the maximum length */
+  TITLE_TOO_LONG: 'TITLE_TOO_LONG',
+
+  // ── Agentic queries & harnesses ───────────────────────────────────
+  /** The run already has a harness session, so it cannot be associated again */
+  HARNESS_SESSION_ALREADY_ASSOCIATED: 'HARNESS_SESSION_ALREADY_ASSOCIATED',
+  /** The harness name is invalid */
+  INVALID_HARNESS: 'INVALID_HARNESS',
+  /** The agentic query result failed validation */
+  INVALID_RESULT: 'INVALID_RESULT',
+  /** The query status does not allow this action */
+  INVALID_STATUS: 'INVALID_STATUS',
+  /** The harness type is not supported for this operation */
+  UNSUPPORTED_HARNESS_TYPE: 'UNSUPPORTED_HARNESS_TYPE',
+
+  // ── Machine commands & logs ───────────────────────────────────────
+  /** Log tail sync needs an active log observer on the machine */
+  LOG_OBSERVER_NOT_ACTIVE: 'LOG_OBSERVER_NOT_ACTIVE',
+  /** The requested log tail exceeds the maximum number of lines */
+  TAIL_TOO_LARGE: 'TAIL_TOO_LARGE',
+  /** The caller does not hold the claim on this command */
+  NOT_AUTHORIZED: 'NOT_AUTHORIZED',
+
+  // ── Admin, invites & sign-up ──────────────────────────────────────
+  /** The request input is invalid */
+  INVALID_INPUT: 'INVALID_INPUT',
+  /** An unexpected internal error occurred */
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  /** The invite code is no longer valid */
+  INVITE_INVALID: 'INVITE_INVALID',
+  /** The signed-in email does not match the invited email address */
+  INVITE_EMAIL_MISMATCH: 'INVITE_EMAIL_MISMATCH',
+  /** Self-signup is not enabled */
+  SIGNUP_DISABLED: 'SIGNUP_DISABLED',
+
   // ── Conflict ────────────────────────────────────────────────────────
   /** Conflict (e.g. duplicate) */
   CONFLICT: 'CONFLICT',
@@ -396,6 +529,8 @@ export const FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.USER_TYPE_MISMATCH,
   BACKEND_ERROR_CODES.INVALID_USER_TYPE,
   BACKEND_ERROR_CODES.FEATURE_DISABLED,
+  // Sign-up is closed. No input changes that until an admin reopens it.
+  BACKEND_ERROR_CODES.SIGNUP_DISABLED,
 ] as const;
 
 /**
@@ -462,6 +597,54 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.COMMAND_TYPE_IMMUTABLE,
   BACKEND_ERROR_CODES.NOT_AUTHORIZED_MACHINE,
   BACKEND_ERROR_CODES.ATTENDANCE_DELETE_UNAUTHORIZED,
+
+  // Git clone & workspace
+  BACKEND_ERROR_CODES.INVALID_REPO_URL,
+  BACKEND_ERROR_CODES.INVALID_WORKING_DIR,
+  BACKEND_ERROR_CODES.UNKNOWN_TEAM_STRUCTURE,
+  BACKEND_ERROR_CODES.MACHINE_NOT_FOUND,
+  BACKEND_ERROR_CODES.GIT_CLONE_REQUEST_NOT_FOUND,
+  BACKEND_ERROR_CODES.GIT_CLONE_PATH_MISMATCH,
+
+  // Folder picker
+  BACKEND_ERROR_CODES.FOLDER_PICKER_REQUEST_NOT_FOUND,
+
+  // Messages & chatrooms
+  BACKEND_ERROR_CODES.CHATROOM_ID_REQUIRED,
+  BACKEND_ERROR_CODES.CHATROOM_NOT_ACTIVE,
+  BACKEND_ERROR_CODES.DUPLICATE_SNIPPET_REFERENCE,
+  BACKEND_ERROR_CODES.EMPTY_CONTENT,
+  BACKEND_ERROR_CODES.INVALID_SNIPPET_REFERENCE,
+  BACKEND_ERROR_CODES.INVALID_TARGET_ROLE,
+  BACKEND_ERROR_CODES.INVALID_TASK_ENVELOPE,
+  BACKEND_ERROR_CODES.TOO_MANY_ATTACHMENTS,
+  BACKEND_ERROR_CODES.INVALID_ANCHOR,
+
+  // Scheduled prompts & standing instructions
+  BACKEND_ERROR_CODES.CONTENT_TOO_LONG,
+  BACKEND_ERROR_CODES.EMPTY_PROMPT,
+  BACKEND_ERROR_CODES.INVALID_SCHEDULE,
+  BACKEND_ERROR_CODES.LIFECYCLE_DISABLED,
+  BACKEND_ERROR_CODES.TITLE_REQUIRED,
+  BACKEND_ERROR_CODES.TITLE_TOO_LONG,
+
+  // Agentic queries & harnesses
+  BACKEND_ERROR_CODES.HARNESS_SESSION_ALREADY_ASSOCIATED,
+  BACKEND_ERROR_CODES.INVALID_HARNESS,
+  BACKEND_ERROR_CODES.INVALID_RESULT,
+  BACKEND_ERROR_CODES.INVALID_STATUS,
+  BACKEND_ERROR_CODES.UNSUPPORTED_HARNESS_TYPE,
+
+  // Machine commands & logs
+  BACKEND_ERROR_CODES.LOG_OBSERVER_NOT_ACTIVE,
+  BACKEND_ERROR_CODES.TAIL_TOO_LARGE,
+  BACKEND_ERROR_CODES.NOT_AUTHORIZED,
+
+  // Admin, invites & sign-up
+  BACKEND_ERROR_CODES.INVALID_INPUT,
+  BACKEND_ERROR_CODES.INTERNAL_ERROR,
+  BACKEND_ERROR_CODES.INVITE_INVALID,
+  BACKEND_ERROR_CODES.INVITE_EMAIL_MISMATCH,
 
   // Conflict
   BACKEND_ERROR_CODES.CONFLICT,

@@ -1,122 +1,88 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
-import {
-  MessageSquare,
-  MoreVertical,
-  CheckCircle,
-  LayoutGrid,
-  List,
-  Search,
-  Star,
-  X,
-} from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
+import { useCallback } from 'react';
 
-import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
-import { CreateChatroomForm } from './CreateChatroomForm';
-import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
-import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
-import { useChatroomStatus, useChatroomStatusMap } from '../hooks/useChatroomStatus';
-import {
-  getChatroomActivityDescription,
-  getChatroomActivityIndicatorClasses,
-  getChatroomActivityIndicatorLoadingClasses,
-} from '../utils/activityStatusDisplay';
-import {
-  partitionChatroomListing,
-  flattenPartitionedCurrent,
-  RECENCY_SECTIONS,
-} from '../utils/partitionChatroomListing';
+import { ChatroomBrowser } from './chatroom-selector/ChatroomBrowser';
+import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { NewChatroomWizard } from '../features/new-chatroom/NewChatroomWizard';
+import { useChatroomListingStatuses } from '../hooks/useChatroomListingStatuses';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import type { ChatroomStatus } from '@/domain/entities/chatroom-status';
-
-type TabType = 'current' | 'complete';
-type ViewMode = 'grid' | 'table';
 
 interface ChatroomSelectorProps {
   onSelect: (chatroomId: string) => void;
 }
 
-function ChatroomStatusIndicator({ activityStatus }: { activityStatus?: ChatroomActivityStatus }) {
-  const status = activityStatus;
+function ChatroomLoadingState() {
   return (
-    <span
-      className={
-        status
-          ? getChatroomActivityIndicatorClasses(status)
-          : getChatroomActivityIndicatorLoadingClasses()
-      }
-      title={status ? getChatroomActivityDescription(status) : 'Loading agent status'}
-      aria-label={status ? getChatroomActivityDescription(status) : 'Loading agent status'}
-    />
-  );
-}
-
-function StopClickPropagation({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={className}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-      }}
-      role="button"
-      tabIndex={-1}
-    >
-      {children}
+    <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
+      <div className="flex flex-col items-center justify-center gap-4 py-12">
+        <ChatroomLoader size="md" />
+        <span className="text-chatroom-text-muted text-sm">Loading chatrooms...</span>
+      </div>
     </div>
   );
 }
 
-// ─── Filtering ────────────────────────────────────────────────────────────────
+/** Shown when the user has no chatrooms yet. */
+function ChatroomEmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
+      {/* Header */}
+      <div className="mb-8 border-b-2 border-chatroom-border pb-6">
+        <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Welcome</h1>
+        <p className="text-chatroom-text-muted text-sm">
+          Create your first chatroom to get started
+        </p>
+      </div>
+      {/* Empty State */}
+      <div className="flex flex-col items-center justify-center py-16 text-chatroom-text-muted">
+        <span className="text-5xl mb-6">
+          <MessageSquare size={48} />
+        </span>
+        <button
+          className="bg-chatroom-accent text-chatroom-bg-primary px-6 py-3 font-bold text-sm uppercase tracking-widest cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
+          onClick={onCreate}
+        >
+          Create New Chatroom
+        </button>
+      </div>
+    </div>
+  );
+}
 
-/**
- * Filters chatrooms by a search query.
- * Matches against chatroom name, team name, and ID (case-insensitive).
- */
-function filterChatrooms(chatrooms: ChatroomWithStatus[], query: string): ChatroomWithStatus[] {
-  const lower = query.toLowerCase().trim();
-  if (!lower) return chatrooms;
-
-  return chatrooms.filter((c) => {
-    const name = (c.name || '').toLowerCase();
-    const teamName = (c.teamName || '').toLowerCase();
-    const id = c._id.toLowerCase();
-    return name.includes(lower) || teamName.includes(lower) || id.includes(lower);
-  });
+function ChatroomListOrEmpty({
+  chatrooms,
+  statuses,
+  onSelect,
+  onCreate,
+}: {
+  chatrooms: ChatroomWithStatus[] | undefined;
+  statuses: ReadonlyMap<string, ChatroomStatus>;
+  onSelect: (chatroomId: string) => void;
+  onCreate: () => void;
+}) {
+  if (!chatrooms || chatrooms.length === 0) {
+    return <ChatroomEmptyState onCreate={onCreate} />;
+  }
+  return (
+    <ChatroomBrowser
+      chatrooms={chatrooms}
+      statuses={statuses}
+      onSelect={onSelect}
+      onCreate={onCreate}
+    />
+  );
 }
 
 export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showCreateForm = searchParams.get('create') === 'true';
-  const [activeTab, setActiveTab] = useState<TabType>('current');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Use context for chatroom data - single source of truth
-  const { chatrooms, isLoading } = useChatroomListing();
-  const chatroomIds = useMemo(() => chatrooms?.map((chatroom) => chatroom._id) ?? [], [chatrooms]);
-  const { statuses } = useChatroomStatusMap(chatroomIds);
+  const { chatrooms, statuses, isLoading } = useChatroomListingStatuses();
 
   const handleOpenCreateForm = useCallback(() => {
     router.push('/app?create=true');
@@ -126,559 +92,24 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
     router.back();
   }, [router]);
 
-  const handleCreated = useCallback(
-    (chatroomId: string) => {
-      onSelect(chatroomId);
-    },
-    [onSelect]
-  );
-
-  // Filter chatrooms by search query, then group into priority sections
-  const filtered = useMemo(() => {
-    if (!chatrooms) return undefined;
-    return filterChatrooms(chatrooms, searchQuery);
-  }, [chatrooms, searchQuery]);
-
-  const partitioned = useMemo(() => {
-    if (!filtered) {
-      return partitionChatroomListing([], statuses);
-    }
-    return partitionChatroomListing(filtered, statuses);
-  }, [filtered, statuses]);
-
-  const orderedCurrent = useMemo(() => flattenPartitionedCurrent(partitioned), [partitioned]);
-
-  // Compute favorite chatrooms
-  const favorites = useMemo(() => {
-    if (!filtered) return [];
-    return filtered.filter((c) => c.isFavorite);
-  }, [filtered]);
-
-  const handleClearSearch = useCallback(() => {
-    setSearchQuery('');
-    searchInputRef.current?.focus();
-  }, []);
-
   if (isLoading) {
-    return (
-      <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
-        <div className="flex flex-col items-center justify-center gap-4 py-12">
-          <ChatroomLoader size="md" />
-          <span className="text-chatroom-text-muted text-sm">Loading chatrooms...</span>
-        </div>
-      </div>
-    );
+    return <ChatroomLoadingState />;
   }
 
   if (showCreateForm) {
     return (
-      <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6 flex items-start justify-center pt-20">
-        <CreateChatroomForm onCreated={handleCreated} onCancel={handleCancelCreateForm} />
-      </div>
-    );
-  }
-
-  if (!chatrooms || chatrooms.length === 0) {
-    return (
-      <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
-        {/* Header */}
-        <div className="mb-8 border-b-2 border-chatroom-border pb-6">
-          <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Welcome</h1>
-          <p className="text-chatroom-text-muted text-sm">
-            Create your first chatroom to get started
-          </p>
-        </div>
-        {/* Empty State */}
-        <div className="flex flex-col items-center justify-center py-16 text-chatroom-text-muted">
-          <span className="text-5xl mb-6">
-            <MessageSquare size={48} />
-          </span>
-          <button
-            className="bg-chatroom-accent text-chatroom-bg-primary px-6 py-3 font-bold text-sm uppercase tracking-widest cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
-            onClick={handleOpenCreateForm}
-          >
-            Create New Chatroom
-          </button>
-        </div>
+      <div className="chatroom-root flex min-h-dvh items-start justify-center bg-chatroom-bg-primary text-chatroom-text-primary sm:p-6 sm:pt-12">
+        <NewChatroomWizard onCreated={onSelect} onCancel={handleCancelCreateForm} />
       </div>
     );
   }
 
   return (
-    <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
-      {/* Header */}
-      <div className="flex justify-between items-start mb-6 border-b-2 border-chatroom-border pb-6">
-        <div>
-          <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Chatrooms</h1>
-          <p className="text-chatroom-text-muted text-sm">Select a chatroom or create a new one</p>
-        </div>
-        <button
-          className="bg-chatroom-accent text-chatroom-bg-primary px-4 py-2 font-bold text-xs uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
-          onClick={handleOpenCreateForm}
-        >
-          + New
-        </button>
-      </div>
-
-      {/* Search Input */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted"
-          />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search chatrooms..."
-            className="w-full bg-chatroom-bg-surface border-2 border-chatroom-border text-chatroom-text-primary pl-9 pr-9 py-2 text-xs font-mono placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={handleClearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-              title="Clear search"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Favorites Section */}
-      {favorites.length > 0 && activeTab === 'current' && !searchQuery && (
-        <div className="mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3 flex items-center gap-2">
-            <Star size={12} className="text-yellow-500" fill="currentColor" />
-            Favorites
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {favorites.map((chatroom) => (
-              <ChatroomCard
-                key={chatroom._id}
-                chatroom={chatroom}
-                onSelect={onSelect}
-                activeTab={activeTab}
-                showInFavorites
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Tabs and View Toggle */}
-      <div className="flex justify-between items-center mb-6 border-b-2 border-chatroom-border">
-        <div className="flex gap-0">
-          <button
-            className={`px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-100 border-b-2 -mb-0.5 ${
-              activeTab === 'current'
-                ? 'text-chatroom-accent border-chatroom-accent'
-                : 'text-chatroom-text-muted border-transparent hover:text-chatroom-text-secondary'
-            }`}
-            onClick={() => setActiveTab('current')}
-          >
-            Current
-          </button>
-          <button
-            className={`px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-100 border-b-2 -mb-0.5 ${
-              activeTab === 'complete'
-                ? 'text-chatroom-accent border-chatroom-accent'
-                : 'text-chatroom-text-muted border-transparent hover:text-chatroom-text-secondary'
-            }`}
-            onClick={() => setActiveTab('complete')}
-          >
-            Complete
-          </button>
-        </div>
-        {/* View Toggle */}
-        <div className="flex gap-1 -mb-0.5 pb-2">
-          <button
-            className={`w-8 h-8 flex items-center justify-center transition-all duration-100 border-2 ${
-              viewMode === 'grid'
-                ? 'bg-chatroom-accent text-chatroom-bg-primary border-chatroom-accent'
-                : 'bg-transparent text-chatroom-text-muted border-chatroom-border hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
-            }`}
-            onClick={() => setViewMode('grid')}
-            title="Grid view"
-          >
-            <LayoutGrid size={14} />
-          </button>
-          <button
-            className={`w-8 h-8 flex items-center justify-center transition-all duration-100 border-2 ${
-              viewMode === 'table'
-                ? 'bg-chatroom-accent text-chatroom-bg-primary border-chatroom-accent'
-                : 'bg-transparent text-chatroom-text-muted border-chatroom-border hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
-            }`}
-            onClick={() => setViewMode('table')}
-            title="Table view"
-          >
-            <List size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Chatroom List — ordered: active → recency buckets */}
-      {activeTab === 'current' ? (
-        viewMode === 'grid' ? (
-          orderedCurrent.length > 0 ? (
-            <div className="space-y-6">
-              {/* Active Section */}
-              {partitioned.active.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <span className="w-1.5 h-1.5 bg-chatroom-status-success flex-shrink-0" />
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted">
-                      Active
-                    </h2>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {partitioned.active.map((chatroom) => (
-                      <ChatroomCard
-                        key={chatroom._id}
-                        chatroom={chatroom}
-                        onSelect={onSelect}
-                        activeTab={activeTab}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {RECENCY_SECTIONS.map(({ key, label }) => {
-                const items = partitioned.recentByRecency[key];
-                if (items.length === 0) return null;
-                return (
-                  <div key={key}>
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
-                      {label}
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {items.map((chatroom) => (
-                        <ChatroomCard
-                          key={chatroom._id}
-                          chatroom={chatroom}
-                          onSelect={onSelect}
-                          activeTab={activeTab}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-chatroom-text-muted">
-              {searchQuery ? 'No chatrooms match your search' : 'No current chatrooms'}
-            </div>
-          )
-        ) : (
-          <ChatroomTable
-            chatrooms={orderedCurrent}
-            statuses={statuses}
-            onSelect={onSelect}
-            activeTab={activeTab}
-          />
-        )
-      ) : viewMode === 'grid' ? (
-        partitioned.completed.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {partitioned.completed.map((chatroom) => (
-              <ChatroomCard
-                key={chatroom._id}
-                chatroom={chatroom}
-                onSelect={onSelect}
-                activeTab={activeTab}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 text-chatroom-text-muted">
-            {searchQuery ? 'No completed chatrooms match your search' : 'No completed chatrooms'}
-          </div>
-        )
-      ) : (
-        <ChatroomTable
-          chatrooms={partitioned.completed}
-          statuses={statuses}
-          onSelect={onSelect}
-          activeTab={activeTab}
-        />
-      )}
-    </div>
+    <ChatroomListOrEmpty
+      chatrooms={chatrooms}
+      statuses={statuses}
+      onSelect={onSelect}
+      onCreate={handleOpenCreateForm}
+    />
   );
 }
-
-interface ChatroomCardProps {
-  chatroom: ChatroomWithStatus;
-  onSelect: (chatroomId: string) => void;
-  activeTab: TabType;
-  showInFavorites?: boolean;
-}
-
-const ChatroomCard = memo(function ChatroomCard({
-  chatroom,
-  onSelect,
-  activeTab,
-}: ChatroomCardProps) {
-  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
-  const { status } = useChatroomStatus(chatroom._id);
-
-  const handleToggleFavorite = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent card click
-      try {
-        await toggleFavorite({
-          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-        });
-      } catch (error) {
-        console.error('Failed to toggle favorite:', error);
-      }
-    },
-    [toggleFavorite, chatroom._id]
-  );
-
-  const handleArchive = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
-    setArchiveDialogOpen(true);
-  }, []);
-
-  const activityStatus = status?.activityStatus;
-  const state = status?.state;
-
-  // Filter based on the strict high-level state.
-  const isCompleted = state === 'completed' || chatroom.status === 'completed';
-  const shouldShow = activeTab === 'current' ? !isCompleted : isCompleted;
-
-  if (!shouldShow) {
-    return null;
-  }
-
-  const teamName = chatroom.teamName || 'Team';
-  // Use custom name if set, otherwise show team name
-  const displayName = chatroom.name || teamName;
-
-  return (
-    <>
-      <div className="relative">
-        <div
-          role="button"
-          tabIndex={0}
-          className="bg-chatroom-bg-surface border-2 border-chatroom-border p-2 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
-          onClick={() => onSelect(chatroom._id)}
-          onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
-          data-chat-status={activityStatus ?? 'loading'}
-        >
-          {/* Card Main */}
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
-              <ChatroomStatusIndicator activityStatus={activityStatus} />
-              <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
-                {displayName}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Favorite Star Button */}
-              <button
-                onClick={handleToggleFavorite}
-                className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
-                  chatroom.isFavorite
-                    ? 'text-yellow-500 hover:text-yellow-400'
-                    : 'text-chatroom-text-muted hover:text-yellow-500'
-                }`}
-                title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-              >
-                <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
-              </button>
-              {/* Action Menu - only show for non-completed chatrooms */}
-              {state !== 'completed' && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    type="button"
-                    className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all duration-100"
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label="Chatroom actions"
-                  >
-                    <MoreVertical size={14} />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-[140px]">
-                    <DropdownMenuItem onClick={handleArchive}>
-                      <CheckCircle size={14} className="mr-2" />
-                      Archive Chat
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <LifecycleConfirmDialog
-        open={archiveDialogOpen}
-        onOpenChange={setArchiveDialogOpen}
-        chatroomId={chatroom._id as Id<'chatroom_rooms'>}
-        action="archive"
-      />
-    </>
-  );
-});
-
-/**
- * Table view for chatrooms - more compact, data-dense display
- */
-interface ChatroomTableProps {
-  chatrooms: ChatroomWithStatus[];
-  statuses: ReadonlyMap<string, ChatroomStatus>;
-  onSelect: (chatroomId: string) => void;
-  activeTab: TabType;
-}
-
-const ChatroomTable = memo(function ChatroomTable({
-  chatrooms,
-  statuses,
-  onSelect,
-  activeTab,
-}: ChatroomTableProps) {
-  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const [pendingArchiveChatroomId, setPendingArchiveChatroomId] = useState<string | null>(null);
-  const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
-
-  const handleToggleFavorite = useCallback(
-    async (e: React.MouseEvent, chatroomId: string) => {
-      e.stopPropagation();
-      try {
-        await toggleFavorite({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        });
-      } catch (error) {
-        console.error('Failed to toggle favorite:', error);
-      }
-    },
-    [toggleFavorite]
-  );
-
-  const handleArchive = useCallback((e: React.MouseEvent, chatroomId: string) => {
-    e.stopPropagation();
-    setPendingArchiveChatroomId(chatroomId);
-    setArchiveDialogOpen(true);
-  }, []);
-
-  // Filter chatrooms based on active tab
-  const filteredChatrooms = useMemo(() => {
-    return chatrooms.filter((chatroom) => {
-      const shouldShow =
-        activeTab === 'current'
-          ? chatroom.status !== 'completed' && statuses.get(chatroom._id)?.state !== 'completed'
-          : chatroom.status === 'completed' || statuses.get(chatroom._id)?.state === 'completed';
-      return shouldShow;
-    });
-  }, [chatrooms, activeTab, statuses]);
-
-  if (filteredChatrooms.length === 0) {
-    return (
-      <div className="text-center py-12 text-chatroom-text-muted">
-        No chatrooms found in this tab
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="border-2 border-chatroom-border overflow-hidden">
-        {/* Table Header */}
-        <div className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-            Name
-          </span>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-            Status
-          </span>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
-        </div>
-        {/* Table Rows */}
-        {filteredChatrooms.map((chatroom) => {
-          const teamName = chatroom.teamName || 'Team';
-          const displayName = chatroom.name || teamName;
-
-          return (
-            <div
-              role="button"
-              tabIndex={0}
-              key={chatroom._id}
-              className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
-              onClick={() => onSelect(chatroom._id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelect(chatroom._id);
-                }
-              }}
-            >
-              {/* Favorite Star */}
-              <StopClickPropagation className="flex items-center justify-center">
-                <button
-                  onClick={(e) => handleToggleFavorite(e, chatroom._id)}
-                  className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
-                    chatroom.isFavorite
-                      ? 'text-yellow-500 hover:text-yellow-400'
-                      : 'text-chatroom-text-muted hover:text-yellow-500'
-                  }`}
-                  title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                >
-                  <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
-                </button>
-              </StopClickPropagation>
-              {/* Name */}
-              <div className="flex items-center min-w-0">
-                <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
-                  {displayName}
-                </span>
-              </div>
-              {/* Status */}
-              <div className="flex items-center min-w-[120px]">
-                <ChatroomStatusIndicator
-                  activityStatus={statuses.get(chatroom._id)?.activityStatus}
-                />
-              </div>
-              {/* Actions */}
-              <StopClickPropagation className="flex items-center justify-center">
-                {chatroom.status !== 'completed' &&
-                  statuses.get(chatroom._id)?.state !== 'completed' && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        type="button"
-                        className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary transition-all duration-100"
-                        aria-label="Chatroom actions"
-                      >
-                        <MoreVertical size={14} />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-[140px]">
-                        <DropdownMenuItem onClick={(e) => handleArchive(e, chatroom._id)}>
-                          <CheckCircle size={14} className="mr-2" />
-                          Archive Chat
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-              </StopClickPropagation>
-            </div>
-          );
-        })}
-      </div>
-
-      <LifecycleConfirmDialog
-        open={archiveDialogOpen}
-        onOpenChange={(open) => {
-          setArchiveDialogOpen(open);
-          if (!open) setPendingArchiveChatroomId(null);
-        }}
-        chatroomId={(pendingArchiveChatroomId ?? chatrooms[0]?._id) as Id<'chatroom_rooms'>}
-        action="archive"
-      />
-    </>
-  );
-});

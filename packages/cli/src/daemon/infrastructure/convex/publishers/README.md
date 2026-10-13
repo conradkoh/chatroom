@@ -21,7 +21,6 @@
 | ------------------------- | ------------------------------ |
 | `assigned-task-status.ts` | `task.status`                  |
 | `capabilities.ts`         | `capabilities.updated`         |
-| `command-result.ts`       | `command.result`               |
 | `daemon-heartbeat.ts`     | `heartbeat`                    |
 | `harness-fingerprint.ts`  | harness metadata               |
 | `models.ts`               | `models.updated`               |

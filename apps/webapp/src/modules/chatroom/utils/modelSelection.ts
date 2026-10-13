@@ -1,18 +1,19 @@
 /**
  * Model selection utilities.
  *
- * Pure functions for determining model visibility (filter/blacklist)
- * and deriving the best model to auto-select.
+ * Pure functions for deriving the best model to auto-select.
+ * Model visibility (filter/blacklist) is defined in the backend domain and re-exported here.
  */
 
-import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant';
+export {
+  UNPREFIXED_PROVIDER_KEY,
+  getBaseModelId,
+  getModelProviderKey,
+  isModelHidden,
+  normalizeModelFilter,
+} from '@workspace/backend/src/domain/entities/harness/model-filter';
 
 // ─── Types ──────────────────────────────────────────────────────────
-
-export interface ModelFilter {
-  hiddenModels: string[];
-  hiddenProviders: string[];
-}
 
 export interface ModelSelectionInput {
   /** Currently selected harness (null = no harness selected) */
@@ -29,71 +30,6 @@ export interface ModelSelectionInput {
   teamConfigModel?: string;
   /** Model from saved user preference */
   preferenceModel?: string;
-}
-
-// ─── Provider grouping ─────────────────────────────────────────────
-
-/** Sentinel key for legacy filters that hid the unprefixed "Models" bucket. */
-export const UNPREFIXED_PROVIDER_KEY = '__unprefixed__';
-
-export function normalizeModelFilter(filter: ModelFilter | null | undefined): ModelFilter | null {
-  if (!filter) return null;
-  return {
-    hiddenModels: filter.hiddenModels,
-    hiddenProviders: filter.hiddenProviders.filter((p) => p !== UNPREFIXED_PROVIDER_KEY),
-  };
-}
-
-/** Strip variant suffix for grouping/filtering; returns input on parse failure. */
-export function getBaseModelId(modelId: string): string {
-  try {
-    return decodeModelVariant(modelId).model;
-  } catch {
-    return modelId;
-  }
-}
-
-/**
- * Provider key used for filter grouping and hide-all semantics.
- * Variant models group under their base model id; prefixed models use the segment before `/`.
- */
-export function getModelProviderKey(modelId: string): string {
-  const base = getBaseModelId(modelId);
-  const slashIndex = base.indexOf('/');
-  if (slashIndex === -1) return base;
-  return base.slice(0, slashIndex);
-}
-
-// ─── isModelHidden ──────────────────────────────────────────────────
-
-/**
- * Returns true if the given model should be hidden based on the machine-level filter.
- *
- * Filter semantics:
- * - `hiddenProviders`: provider keys from {@link getModelProviderKey} to hide
- * - `hiddenModels`: when the provider IS hidden, these are **exceptions** (models to UN-hide);
- *   when the provider is NOT hidden, these are models to hide individually.
- */
-export function isModelHidden(modelId: string, filter: ModelFilter | null | undefined): boolean {
-  if (!filter) return false;
-  const baseId = getBaseModelId(modelId);
-  const provider = getModelProviderKey(modelId);
-  const unprefixedBucketHidden =
-    baseId.indexOf('/') === -1 && filter.hiddenProviders.includes(UNPREFIXED_PROVIDER_KEY);
-  const providerHidden = filter.hiddenProviders.includes(provider) || unprefixedBucketHidden;
-  const hasExactMatch = filter.hiddenModels.includes(modelId);
-  // Base-ID matching is only for exceptions to a hidden provider; individual
-  // model hides must match the complete model ID, including any variant.
-  const hasBaseException =
-    providerHidden && baseId !== modelId && filter.hiddenModels.includes(baseId);
-  const hasExplicitOverride = hasExactMatch || hasBaseException;
-
-  if (providerHidden) {
-    // Provider is hidden; hiddenModels contains exceptions (models to UN-hide)
-    return !hasExplicitOverride;
-  }
-  // Provider is visible; hiddenModels contains models to hide
-  return hasExplicitOverride;
 }
 
 // ─── selectModel ────────────────────────────────────────────────────

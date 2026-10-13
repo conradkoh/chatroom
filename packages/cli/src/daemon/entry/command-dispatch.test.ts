@@ -41,7 +41,13 @@ vi.mock('../../api.js', () => ({
       register: 'mock-register',
       daemonHeartbeat: 'mock-daemonHeartbeat',
       refreshCapabilities: 'mock-refreshCapabilities',
-      reportFolderPickerResult: 'mock-reportFolderPickerResult',
+    },
+    folderPickerRequests: {
+      reportResult: 'mock-folderPickerReportResult',
+    },
+    gitCloneRequests: {
+      reportProgress: 'mock-gitCloneReportProgress',
+      reportResult: 'mock-gitCloneReportResult',
     },
     workspaces: {
       upsertWorkspaceGitState: 'mock-upsertWorkspaceGitState',
@@ -73,6 +79,12 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
   AGENT_REQUEST_DEADLINE_MS: 60_000,
   NATIVE_DELIVERY_RECONCILE_MS: 10_000,
   HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
+}));
+
+// The clone never settles, so a dispatch that awaited the job would hang the test. The clone is
+// mocked here, not the job module: a module mock cannot intercept the job's own internal calls.
+vi.mock('../../infrastructure/local-actions/git-clone.js', () => ({
+  runGitClone: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock('../../infrastructure/local-actions/pick-folder.js', () => ({
@@ -235,6 +247,7 @@ function createDedupTracker() {
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
+    gitCloneIds: new Map<string, number>(),
   };
 }
 
@@ -375,7 +388,7 @@ describe('dispatchCommandEventEffect', () => {
 
     expect(pickFolderDialog).toHaveBeenCalled();
     expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'mock-reportFolderPickerResult',
+      'mock-folderPickerReportResult',
       expect.objectContaining({
         sessionId: 'test-session-id',
         machineId: 'test-machine-id',
@@ -403,7 +416,7 @@ describe('dispatchCommandEventEffect', () => {
 
     expect(pickFolderDialog).not.toHaveBeenCalled();
     expect(deps.backend.mutation).not.toHaveBeenCalledWith(
-      'mock-reportFolderPickerResult',
+      'mock-folderPickerReportResult',
       expect.anything()
     );
   });
@@ -475,5 +488,99 @@ describe('dispatchCommandEventEffect daemon.gitRefresh', () => {
 
     await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
     expect(workspaceService.refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F. daemon.gitClone (background job, never blocks the command chain)
+// ---------------------------------------------------------------------------
+
+describe('dispatchCommandEventEffect daemon.gitClone', () => {
+  const REPO_URL = 'https://github.com/acme/my-repo.git';
+
+  function gitCloneEvent(id: string, requestId: string, targetPath: string) {
+    return {
+      _id: id,
+      type: 'daemon.gitClone',
+      requestId,
+      repoUrl: REPO_URL,
+      targetPath,
+    } as any;
+  }
+
+  it('resolves while the clone job is still pending, so the command chain is not blocked', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const { runGitClone } = await import('../../infrastructure/local-actions/git-clone.js');
+    const deps = createMockDaemonDeps();
+    const tracker = createDedupTracker();
+    const event = gitCloneEvent('evt-gc-nonblocking', 'req-gc-nonblocking', '/tmp/gc-nonblocking');
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
+
+    expect(runGitClone).toHaveBeenCalledWith(
+      expect.objectContaining({ repoUrl: REPO_URL, targetPath: '/tmp/gc-nonblocking' })
+    );
+    expect(tracker.gitCloneIds.has('evt-gc-nonblocking')).toBe(true);
+  });
+
+  it('starts one job when the same event id is dispatched twice', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const { runGitClone } = await import('../../infrastructure/local-actions/git-clone.js');
+    const deps = createMockDaemonDeps();
+    const tracker = createDedupTracker();
+    const event = gitCloneEvent('evt-gc-dedupe', 'req-gc-dedupe', '/tmp/gc-dedupe');
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
+
+    expect(runGitClone).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails a second request for the same target while the first is in flight', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const { runGitClone } = await import('../../infrastructure/local-actions/git-clone.js');
+    const deps = createMockDaemonDeps();
+    const tracker = createDedupTracker();
+    const first = gitCloneEvent('evt-gc-first', 'req-gc-first', '/tmp/gc-inflight');
+    const second = gitCloneEvent('evt-gc-second', 'req-gc-second', '/tmp/gc-inflight');
+
+    await runDispatch(dispatchCommandEventEffect(first, tracker, nativeDelivery), withDeps(deps));
+    await runDispatch(dispatchCommandEventEffect(second, tracker, nativeDelivery), withDeps(deps));
+
+    expect(runGitClone).toHaveBeenCalledTimes(1);
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      'mock-gitCloneReportResult',
+      expect.objectContaining({
+        requestId: 'req-gc-second',
+        status: 'failed',
+        errorCode: 'target_not_empty',
+      })
+    );
+    expect(deps.backend.mutation).not.toHaveBeenCalledWith(
+      'mock-gitCloneReportResult',
+      expect.objectContaining({ requestId: 'req-gc-first' })
+    );
+  });
+
+  it('does not fail a redelivered event for the request whose clone is already running', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const deps = createMockDaemonDeps();
+    const tracker = createDedupTracker();
+    const original = gitCloneEvent('evt-gc-orig', 'req-gc-redeliver', '/tmp/gc-redeliver');
+    const redelivered = gitCloneEvent('evt-gc-redeliver', 'req-gc-redeliver', '/tmp/gc-redeliver');
+
+    await runDispatch(
+      dispatchCommandEventEffect(original, tracker, nativeDelivery),
+      withDeps(deps)
+    );
+    await runDispatch(
+      dispatchCommandEventEffect(redelivered, tracker, nativeDelivery),
+      withDeps(deps)
+    );
+
+    expect(deps.backend.mutation).not.toHaveBeenCalledWith(
+      'mock-gitCloneReportResult',
+      expect.anything()
+    );
   });
 });

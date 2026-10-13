@@ -11,6 +11,7 @@ import {
   normalizeStandingInstructionContent,
   standingInstructionContentKey,
 } from '../src/domain/entities/standing-instructions';
+import { listOwnedChatrooms } from '../src/domain/usecase/chatroom/list-owned-chatrooms';
 
 const MAX_CONTENT_LENGTH = 10_000;
 const MAX_TITLE_LENGTH = 120;
@@ -246,10 +247,7 @@ async function propagateHistoryUpdate(
   content: string,
   title: string
 ): Promise<void> {
-  const ownedRooms = await ctx.db
-    .query('chatroom_rooms')
-    .withIndex('by_ownerId', (q) => q.eq('ownerId', ownerId))
-    .collect();
+  const ownedRooms = await listOwnedChatrooms(ctx, ownerId);
 
   for (const room of ownedRooms) {
     const roomContent = room.standingInstructions?.trim() ?? '';

@@ -20,14 +20,13 @@ import { CommandDialogContent, CommandDialogRoot } from './shared/CommandDialogC
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
-import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
 import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
 import {
   getChatroomSwitcherOpen,
   subscribeActiveContextManagedDialog,
 } from '@/modules/chatroom/context/contextManagedDialogsController';
-import { useChatroomStatusMap } from '@/modules/chatroom/hooks/useChatroomStatus';
+import { useChatroomListingStatuses } from '@/modules/chatroom/hooks/useChatroomListingStatuses';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { requestComposerFocusAfterNavigation } from '@/modules/chatroom/utils/pendingComposerFocus';
@@ -68,9 +67,7 @@ export function ChatroomSwitcher() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeChatroomId = pathname === '/app/chatroom' ? searchParams.get('id') : null;
-  const { chatrooms } = useChatroomListing();
-  const chatroomIds = useMemo(() => chatrooms?.map((chatroom) => chatroom._id) ?? [], [chatrooms]);
-  const { statuses } = useChatroomStatusMap(chatroomIds);
+  const { chatrooms, statuses } = useChatroomListingStatuses();
   const switcherChatrooms = useMemo(() => {
     if (!chatrooms) return undefined;
     const activeChatrooms = chatrooms.filter(

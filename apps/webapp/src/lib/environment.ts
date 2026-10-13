@@ -60,6 +60,8 @@ export function getLocalManagerUrl(): string | null {
  * Returns the chatroom auth login command with env vars for this environment.
  * @param webUrl - The web URL (window.location.origin). Required in local/dev environments.
  */
+// Exported for environment.test.ts. Components call getAuthLoginCommandForCurrentOrigin.
+// fallow-ignore-next-line unused-export
 export function getAuthLoginCommand(webUrl: string): string {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!convexUrl || convexUrl === PRODUCTION_CONVEX_URL) {
@@ -73,4 +75,9 @@ export function getAuthLoginCommand(webUrl: string): string {
     );
   }
   return `CHATROOM_WEB_URL=${webUrl} \\\nCHATROOM_CONVEX_URL=${convexUrl} \\\nchatroom auth login`;
+}
+
+/** The login command for the origin this page is served from. */
+export function getAuthLoginCommandForCurrentOrigin(): string {
+  return getAuthLoginCommand(typeof window !== 'undefined' ? window.location.origin : '');
 }

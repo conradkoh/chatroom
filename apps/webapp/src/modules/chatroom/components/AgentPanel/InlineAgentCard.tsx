@@ -59,6 +59,8 @@ export interface InlineAgentCardProps {
   setupMode?: boolean;
   lockedMachineId?: string;
   lockedWorkingDir?: string;
+  /** Setup wizard: the locked machine's harness list is still loading. */
+  harnessesLoading?: boolean;
   onSetupConfigChange?: (harness: AgentHarness | null, model: string | null) => void;
   teamId?: string;
 }
@@ -138,6 +140,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   setupMode = false,
   lockedMachineId,
   lockedWorkingDir,
+  harnessesLoading,
   onSetupConfigChange,
   teamId,
 }: InlineAgentCardProps) {
@@ -204,6 +207,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     chatroomWorkspacesLoading,
     lockedMachineId,
     lockedWorkingDir,
+    harnessesLoading,
     teamId,
   });
 
