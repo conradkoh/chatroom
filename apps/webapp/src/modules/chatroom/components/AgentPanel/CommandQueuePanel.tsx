@@ -55,6 +55,8 @@ function getCommandTitle(command: QueueCommandPayload): string {
       return `Local action: ${command.action}`;
     case 'daemon.pickFolder':
       return 'Pick workspace folder';
+    case 'daemon.gitClone':
+      return 'Clone repository';
     case 'daemon.ping':
       return 'Daemon ping';
     default:
@@ -71,6 +73,8 @@ function getCommandDetail(command: QueueCommandPayload): string | null {
       return command.workingDir;
     case 'daemon.localAction':
       return command.workingDir;
+    case 'daemon.gitClone':
+      return command.targetPath;
     default:
       return null;
   }
