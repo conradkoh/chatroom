@@ -17,11 +17,11 @@ import {
   registerCommandInboundHandler,
   unregisterCommandInboundHandler,
 } from './command-inbound-registry.js';
-import { DaemonSessionService } from './daemon-services.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type {
   AgentLifecycleOutboxService,
   DaemonAgentProcessManagerCommandService,
-  DaemonAgentProcessManagerService,
+  DaemonAgentProcessManagerServiceShape,
   DaemonMutableStateService,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
@@ -37,20 +37,10 @@ import {
 import { drainPendingFileWriteRequests } from './files/file-write-subscription.js';
 import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
-import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
-import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
-import { startTaskInboxEffect } from './task-inbox-runtime.js';
-import {
-  startGitRequestSubscriptionEffect,
-  type GitSubscriptionHandle,
-} from './workspace-git/git-subscription.js';
-import { api } from '../../api.js';
-import { startWorkspaceListSubscriptionEffect } from './workspace-git/workspace-list-subscription.js';
 import {
   registerWorkspaceGitInboundHandler,
   unregisterWorkspaceGitInboundHandler,
 } from './workspace-git-inbound-registry.js';
-import { releaseLock } from '../../commands/machine/pid.js';
 import { onDaemonShutdownEffect } from '../../events/lifecycle/on-daemon-shutdown.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import type { BoundHarness } from '../domain/entities/bound-harness.js';
@@ -60,6 +50,20 @@ import type {
   AgentWorkManager,
   AgentProcessManagerService,
 } from '../services/service-interfaces.js';
+import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
+import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
+import { startTaskInboxEffect } from './task-inbox-runtime.js';
+import {
+  startGitRequestSubscriptionEffect,
+  type GitSubscriptionHandle,
+} from './workspace-git/git-subscription.js';
+import { api } from '../../api.js';
+import { releaseLock } from '../../commands/machine/pid.js';
+import type { WorkspaceStateOutboxRegistry } from '../infrastructure/outbox/workspace-state-outbox.js';
+import {
+  DEFAULT_WORKSPACE_SYNC_POLICY,
+  type WorkspaceService,
+} from '../services/workspace-service/index.js';
 
 const PROCESS_KILL_TIMEOUT_MS = 6_000;
 const CLOSE_TIMEOUT_MS = 3_000;
@@ -72,6 +76,8 @@ export type DaemonRuntimeHandle = {
 
 export type DaemonRuntimeDeps = {
   agentLifecycleOutbox: AgentLifecycleOutboxRegistry;
+  /** Flushed and stopped on shutdown, after the workspace service has stopped. */
+  workspaceStateOutbox: WorkspaceStateOutboxRegistry;
   agentProcessManagerService: AgentProcessManagerService;
   wsClient: ConvexClient;
   layers: Layer.Layer<
@@ -88,7 +94,9 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
-  let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
+  let workspaceServiceHandle: WorkspaceService | null = null;
+  /** Owns the liveness sweep; started with the workspace service and stopped before it. */
+  let livenessSweepOwner: DaemonAgentProcessManagerServiceShape | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let taskInboxHandle: { stop: () => Promise<void>; nativeDelivery: AgentWorkManager } | null =
@@ -136,13 +144,19 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     unregisterFileInboundHandler();
     unregisterWorkspaceGitInboundHandler();
     gitSubscriptionHandle?.stop();
-    fileTreeSubscriptionHandle?.stop();
-    workspaceListSubscriptionHandle?.stop();
     agentConfigRegistryHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     agenticQueryWorkerHandle?.stop();
     deps.onNativeDeliveryReady?.(null);
     await taskInboxHandle?.stop();
+    livenessSweepOwner?.stopLivenessSweep();
+    // Monitors stop before the outbox so no unit is enqueued after the final flush.
+    await workspaceServiceHandle?.stopAll();
+    await withTimeout(
+      deps.workspaceStateOutbox.flushNow(),
+      DEFAULT_WORKSPACE_SYNC_POLICY.outbox.shutdownFlushTimeoutMs
+    );
+    await deps.workspaceStateOutbox.stopAll().catch(() => undefined);
   };
 
   // fallow-ignore-next-line complexity
@@ -268,8 +282,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       );
     });
 
-    workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect();
-
     registerWorkspaceGitInboundHandler(async (event) => {
       switch (event.type) {
         case 'git.request':
@@ -280,6 +292,24 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
 
     taskInboxHandle = yield* startTaskInboxEffect(deps.wsClient);
     deps.onNativeDeliveryReady?.(taskInboxHandle.nativeDelivery);
+
+    // Reap agents whose process died without onExit, so they stop counting as present.
+    const agentProcessManager = yield* DaemonAgentProcessManagerService;
+    agentProcessManager.startLivenessSweep();
+    livenessSweepOwner = agentProcessManager;
+
+    workspaceServiceHandle = session.workspaceService;
+    yield* Effect.try({
+      try: () => session.workspaceService.start(),
+      catch: (error) => error,
+    }).pipe(
+      Effect.catch((error) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Workspace service start failed: ${getErrorMessage(error)}`
+        );
+        return Effect.void;
+      })
+    );
 
     agentConfigRegistryHandle = session.agentConfigRegistry;
     yield* Effect.tryPromise({

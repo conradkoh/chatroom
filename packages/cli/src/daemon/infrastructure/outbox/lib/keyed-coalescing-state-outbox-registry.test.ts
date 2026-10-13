@@ -42,6 +42,40 @@ describe('keyed coalescing state outbox registry', () => {
     await registry.stopAll();
   });
 
+  it('throttles each key by its resolved minimum interval', async () => {
+    vi.useFakeTimers();
+    const sends: string[] = [];
+    const registry = createKeyedCoalescingStateOutboxRegistry<string, string>({
+      createSend: (key) => async (state) => {
+        sends.push(`${key}:${state}`);
+        return state;
+      },
+      resolveMinIntervalMs: (key) => (key === 'fast' ? 0 : 1000),
+    });
+
+    const fast1 = registry.enqueueAndWait('fast', '1');
+    const slow1 = registry.enqueueAndWait('slow', '1');
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(fast1).resolves.toBe('1');
+    await expect(slow1).resolves.toBe('1');
+    expect(sends).toEqual(['fast:1', 'slow:1']);
+
+    const fast2 = registry.enqueueAndWait('fast', '2');
+    const slow2 = registry.enqueueAndWait('slow', '2');
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(fast2).resolves.toBe('2');
+    expect(sends).toEqual(['fast:1', 'slow:1', 'fast:2']);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(sends).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(slow2).resolves.toBe('2');
+    expect(sends).toEqual(['fast:1', 'slow:1', 'fast:2', 'slow:2']);
+
+    await registry.stopAll();
+    vi.useRealTimers();
+  });
+
   it('backs off retries independently per workspace key', async () => {
     vi.useFakeTimers();
     const sendByKey = {

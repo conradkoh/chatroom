@@ -15,12 +15,14 @@ import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
+import type { WorkspaceStateOutboxRegistry } from '../infrastructure/outbox/workspace-state-outbox.js';
 import type { AgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
 import type {
   AgentProcessManager,
   AgentProcessManagerService,
   TaskService,
 } from '../services/service-interfaces.js';
+import type { WorkspaceService } from '../services/workspace-service/index.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
 /**
@@ -99,11 +101,6 @@ export interface CommandResult {
   failed: boolean;
 }
 
-/** Minimal workspace row used by daemon sync paths. */
-export interface WorkspaceForSync {
-  workingDir: string;
-}
-
 /** Convex client type used throughout the daemon (an HTTP client). */
 export type ConvexClient = ConvexHttpClient;
 
@@ -134,18 +131,17 @@ export interface DaemonSessionInit {
   taskService: TaskService;
   agentConfigRegistry: AgentConfigRegistry;
   agentLifecycleOutbox: AgentLifecycleOutboxRegistry;
+  /** Sole owner of per-directory monitoring and workspace state sync. */
+  workspaceService: WorkspaceService;
+  /** Durable workspace-state outbox behind `workspaceService`. The runtime flushes it on shutdown. */
+  workspaceStateOutbox: WorkspaceStateOutboxRegistry;
 
   // ─── Shared data ──────────────────────────────────────────────────
   events: DaemonEventBus;
   agentServices: Map<string, RemoteAgentService>;
-  workspaceListStore?: {
-    workspaces: WorkspaceForSync[];
-    updatedAt: number;
-  };
   logger?: Pick<Console, 'log' | 'warn'> | undefined;
 
   // ─── Mutable state (shared reference semantics) ───────────────────
-  lastPushedGitState: Map<string, string>;
   lastPushedModels: Record<string, string[]> | null;
   lastPushedHarnessFingerprint: string | null;
 

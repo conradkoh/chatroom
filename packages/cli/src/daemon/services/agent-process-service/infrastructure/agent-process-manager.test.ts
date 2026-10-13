@@ -3,6 +3,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import { untrackChildPid } from './adapters/orphan-process-tracker.js';
 import {
+  AGENT_LIVENESS_SWEEP_INTERVAL_MS,
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
@@ -1909,5 +1910,534 @@ describe('AgentProcessManager', () => {
       // 2 additional retry calls were made
       expect(logEvent.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeRetry + 2);
     });
+  });
+});
+
+describe('workspace presence', () => {
+  let deps: AgentProcessManagerDeps;
+  let manager: AgentProcessManager;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    deps = createDeps();
+    manager = new AgentProcessManager(deps);
+  });
+
+  const presentBuilder = [{ chatroomId: CHATROOM_ID, role: ROLE, workingDir: '/tmp/test' }];
+
+  function serviceMock(method: 'spawn' | 'stop') {
+    return deps.agentServices.get('opencode')![method] as ReturnType<typeof vi.fn>;
+  }
+
+  function killWithDead(): { markDead: (pid: number) => void } {
+    return deps.processes.kill as unknown as { markDead: (pid: number) => void };
+  }
+
+  /** A promise the test resolves by hand, to hold a spawn or stop open. */
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  describe('listWorkspacePresences', () => {
+    test('includes a running slot with a live pid', async () => {
+      await manager.ensureRunning(createOpts());
+
+      expect(manager.listWorkspacePresences()).toEqual(presentBuilder);
+    });
+
+    test('includes a spawning slot before its spawn resolves', async () => {
+      const spawn = deferred<unknown>();
+      serviceMock('spawn').mockImplementationOnce(() => spawn.promise);
+
+      const starting = manager.ensureRunning(createOpts());
+      await vi.waitFor(() => expect(manager.listWorkspacePresences()).toEqual(presentBuilder));
+
+      spawn.resolve({ pid: PID, onExit: vi.fn(), onOutput: vi.fn(), onAgentEnd: vi.fn() });
+      await starting;
+    });
+
+    test('includes a stopping slot with a live pid', async () => {
+      await manager.ensureRunning(createOpts());
+      const stop = deferred<undefined>();
+      serviceMock('stop').mockImplementationOnce(() => stop.promise);
+
+      const stopping = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+      await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
+      expect(manager.listWorkspacePresences()).toEqual(presentBuilder);
+
+      killWithDead().markDead(PID);
+      stop.resolve(undefined);
+      await stopping;
+    });
+
+    test('excludes a running slot whose pid is dead', async () => {
+      await manager.ensureRunning(createOpts());
+      killWithDead().markDead(PID);
+
+      expect(manager.listWorkspacePresences()).toEqual([]);
+    });
+
+    test('excludes an idle slot after stop completes', async () => {
+      await manager.ensureRunning(createOpts());
+      await manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+      expect(manager.listWorkspacePresences()).toEqual([]);
+    });
+
+    test('excludes a slot with no workingDir', async () => {
+      // The public type requires workingDir, but the runtime accepts a missing one. Cast to reach that path.
+      const legacyOpts = { ...createOpts(), workingDir: undefined } as unknown as EnsureRunningOpts;
+      await manager.ensureRunning(legacyOpts);
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('running');
+      expect(manager.listWorkspacePresences()).toEqual([]);
+    });
+  });
+
+  describe('subscribeAgentPresenceChanged', () => {
+    test('fires on a successful ensureRunning, and the handler sees the new snapshot', async () => {
+      const seenCounts: number[] = [];
+      const handler = vi.fn(() => seenCounts.push(manager.listWorkspacePresences().length));
+      manager.subscribeAgentPresenceChanged(handler);
+
+      await manager.ensureRunning(createOpts());
+
+      expect(handler).toHaveBeenCalled();
+      expect(seenCounts.at(-1)).toBe(1);
+    });
+
+    test('fires on process exit', async () => {
+      await manager.ensureRunning(createOpts());
+      const handler = vi.fn();
+      manager.subscribeAgentPresenceChanged(handler);
+
+      await manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      expect(handler).toHaveBeenCalled();
+    });
+
+    test('fires on stop, and the handler sees the slot idle', async () => {
+      await manager.ensureRunning(createOpts());
+      const seenCounts: number[] = [];
+      manager.subscribeAgentPresenceChanged(() =>
+        seenCounts.push(manager.listWorkspacePresences().length)
+      );
+
+      await manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+
+      expect(seenCounts.length).toBeGreaterThan(0);
+      expect(seenCounts.at(-1)).toBe(0);
+    });
+
+    test('fires on reset', async () => {
+      await manager.ensureRunning(createOpts());
+      const handler = vi.fn();
+      manager.subscribeAgentPresenceChanged(handler);
+
+      await manager.reset({ scope: 'chatroom', chatroomId: CHATROOM_ID });
+
+      expect(handler).toHaveBeenCalled();
+      expect(manager.listWorkspacePresences()).toEqual([]);
+    });
+
+    test('does not fire on the running to stopping transition', async () => {
+      await manager.ensureRunning(createOpts());
+      const handler = vi.fn();
+      manager.subscribeAgentPresenceChanged(handler);
+      const stop = deferred<undefined>();
+      serviceMock('stop').mockImplementationOnce(() => stop.promise);
+
+      const stopping = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+      await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
+      expect(handler).not.toHaveBeenCalled();
+
+      killWithDead().markDead(PID);
+      stop.resolve(undefined);
+      await stopping;
+    });
+
+    test('an unsubscribed handler is not called', async () => {
+      const handler = vi.fn();
+      const unsubscribe = manager.subscribeAgentPresenceChanged(handler);
+      unsubscribe();
+
+      await manager.ensureRunning(createOpts());
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    test('a throwing handler does not stop other handlers or the caller', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const thrower = vi.fn(() => {
+        throw new Error('presence handler boom');
+      });
+      const survivor = vi.fn();
+      manager.subscribeAgentPresenceChanged(thrower);
+      manager.subscribeAgentPresenceChanged(survivor);
+
+      await expect(manager.ensureRunning(createOpts())).resolves.toMatchObject({ success: true });
+
+      expect(thrower).toHaveBeenCalled();
+      expect(survivor).toHaveBeenCalled();
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
+});
+
+describe('liveness sweep', () => {
+  let deps: AgentProcessManagerDeps;
+  let manager: AgentProcessManager;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    deps = createDeps();
+    manager = new AgentProcessManager(deps);
+  });
+
+  afterEach(() => {
+    manager.stopLivenessSweep();
+    vi.useRealTimers();
+  });
+
+  function markDead(pid: number) {
+    (deps.processes.kill as unknown as { markDead: (pid: number) => void }).markDead(pid);
+  }
+
+  function markAlive(pid: number) {
+    (deps.processes.kill as unknown as { markAlive: (pid: number) => void }).markAlive(pid);
+  }
+
+  function exitedFacts() {
+    return vi
+      .mocked(deps.lifecycleOutbox.enqueue)
+      .mock.calls.map(([fact]) => fact)
+      .filter((fact) => fact.kind === 'exited');
+  }
+
+  /** A promise the test resolves by hand, to hold a spawn or stop open. */
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  test('reaps a running slot whose pid is dead, through the exit path', async () => {
+    await manager.ensureRunning(createOpts());
+    const handler = vi.fn();
+    manager.subscribeAgentPresenceChanged(handler);
+    markDead(PID);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(1);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBeUndefined();
+    await vi.waitFor(() =>
+      expect(exitedFacts()).toEqual([
+        expect.objectContaining({ chatroomId: CHATROOM_ID, role: ROLE }),
+      ])
+    );
+    expect(handler).toHaveBeenCalled();
+  });
+
+  test('never reaps a running slot whose pid is alive', async () => {
+    await manager.ensureRunning(createOpts());
+    markAlive(PID);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('running');
+    expect(exitedFacts()).toEqual([]);
+  });
+
+  test('does not reap a stopping slot, even when its pid is dead', async () => {
+    await manager.ensureRunning(createOpts());
+    const stop = deferred<undefined>();
+    (deps.agentServices.get('opencode')!.stop as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => stop.promise
+    );
+    const stopping = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
+    await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
+    markDead(PID);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(exitedFacts()).toEqual([]);
+    stop.resolve(undefined);
+    await stopping;
+  });
+
+  test('does not reap a spawning slot, which has no pid yet', async () => {
+    const spawn = deferred<unknown>();
+    (deps.agentServices.get('opencode')!.spawn as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => spawn.promise
+    );
+    const starting = manager.ensureRunning(createOpts());
+    await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('spawning'));
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('spawning');
+    spawn.resolve({ pid: PID, onExit: vi.fn(), onOutput: vi.fn(), onAgentEnd: vi.fn() });
+    await starting;
+  });
+
+  test('a failing reap is logged and does not stop the other reaps or the notification', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await manager.ensureRunning(createOpts({ chatroomId: 'chatroom-a' }));
+    await manager.ensureRunning(createOpts({ chatroomId: 'chatroom-b' }));
+    markDead(PID);
+    const handler = vi.fn();
+    manager.subscribeAgentPresenceChanged(handler);
+    // The first reap in iteration order rejects. The second must still run.
+    vi.spyOn(manager, 'handleExit').mockImplementationOnce(async () => {
+      throw new Error('reap boom');
+    });
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(1);
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('liveness reap failed'));
+    expect(manager.getSlot('chatroom-a', ROLE)?.state).toBe('running');
+    expect(manager.getSlot('chatroom-b', ROLE)?.state).toBe('idle');
+    expect(handler).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  test('notifies presence once even when the sweep reaps nothing', async () => {
+    const handler = vi.fn();
+    manager.subscribeAgentPresenceChanged(handler);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  test('startLivenessSweep is idempotent and runs one sweep per interval', async () => {
+    vi.useFakeTimers();
+    const reap = vi.spyOn(manager, 'reapDeadAgentProcesses').mockResolvedValue(0);
+
+    manager.startLivenessSweep();
+    manager.startLivenessSweep();
+    vi.advanceTimersByTime(AGENT_LIVENESS_SWEEP_INTERVAL_MS - 1);
+    expect(reap).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+
+    expect(reap).toHaveBeenCalledTimes(1);
+  });
+
+  test('stopLivenessSweep clears the timer and is idempotent', async () => {
+    vi.useFakeTimers();
+    const reap = vi.spyOn(manager, 'reapDeadAgentProcesses').mockResolvedValue(0);
+    manager.startLivenessSweep();
+
+    manager.stopLivenessSweep();
+    manager.stopLivenessSweep();
+    vi.advanceTimersByTime(AGENT_LIVENESS_SWEEP_INTERVAL_MS * 3);
+
+    expect(reap).not.toHaveBeenCalled();
+  });
+
+  test('the sweep timer is unref-ed so it never keeps the daemon alive', async () => {
+    const unref = vi.fn();
+    const setIntervalSpy = vi
+      .spyOn(globalThis, 'setInterval')
+      .mockImplementation(() => ({ unref }) as unknown as ReturnType<typeof setInterval>);
+    try {
+      manager.startLivenessSweep();
+      expect(unref).toHaveBeenCalledTimes(1);
+    } finally {
+      setIntervalSpy.mockRestore();
+    }
+  });
+});
+
+describe('stopping slots in the liveness sweep', () => {
+  let deps: AgentProcessManagerDeps;
+  let manager: AgentProcessManager;
+  let nowMs: number;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    deps = createDeps();
+    nowMs = 1_000_000;
+    // The manager holds the same clock object, so this controls stoppingSince and the timeout.
+    deps.clock.now = () => nowMs;
+    manager = new AgentProcessManager(deps);
+  });
+
+  function serviceStop(): ReturnType<typeof vi.fn> {
+    return deps.agentServices.get('opencode')!.stop as ReturnType<typeof vi.fn>;
+  }
+
+  function serviceSpawn(): ReturnType<typeof vi.fn> {
+    return deps.agentServices.get('opencode')!.spawn as ReturnType<typeof vi.fn>;
+  }
+
+  function markDead(pid: number): void {
+    (deps.processes.kill as unknown as { markDead: (pid: number) => void }).markDead(pid);
+  }
+
+  /** Exited lifecycle facts enqueued since the last clear. */
+  function exitedFacts(): Record<string, unknown>[] {
+    return vi
+      .mocked(deps.lifecycleOutbox.enqueue)
+      .mock.calls.map(([fact]) => fact as unknown as Record<string, unknown>)
+      .filter((fact) => fact.kind === 'exited');
+  }
+
+  /** A promise the test resolves by hand. */
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  /** Starts the agent, then starts a stop whose harness call never resolves. The slot is stopping. */
+  async function startHungStop() {
+    await manager.ensureRunning(createOpts());
+    const hung = deferred<undefined>();
+    serviceStop().mockImplementationOnce(() => hung.promise);
+    const stopping = manager.stop({
+      chatroomId: CHATROOM_ID,
+      role: ROLE,
+      reason: 'user.stop',
+      workingDir: '/tmp/test',
+    });
+    await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
+    vi.mocked(deps.lifecycleOutbox.enqueue).mockClear();
+    return { hung, stopping };
+  }
+
+  test('a dead pid past the timeout is cleared: one exited fact, idle slot, presence notified', async () => {
+    await startHungStop();
+    const handler = vi.fn();
+    manager.subscribeAgentPresenceChanged(handler);
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS;
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(1);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.pid).toBeUndefined();
+    expect(manager.listWorkspacePresences()).toEqual([]);
+    expect(exitedFacts()).toEqual([
+      expect.objectContaining({ kind: 'exited', pid: PID, stopReason: 'daemon.stop_timeout' }),
+    ]);
+    expect(handler).toHaveBeenCalled();
+  });
+
+  test('a hung stop that resolves after the sweep enqueues nothing more and resolves success', async () => {
+    const { hung, stopping } = await startHungStop();
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS;
+    await manager.reapDeadAgentProcesses();
+
+    hung.resolve(undefined);
+
+    await expect(stopping).resolves.toEqual({ success: true });
+    expect(exitedFacts()).toHaveLength(1);
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+  });
+
+  test('a hung stop that resolves after a new run started does not touch the new run', async () => {
+    const { hung, stopping } = await startHungStop();
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS;
+    await manager.reapDeadAgentProcesses();
+
+    // A new run starts with a different pid. The old stop must leave it alone.
+    serviceSpawn().mockImplementationOnce(async () => ({
+      pid: PID + 1,
+      onExit: vi.fn(),
+      onOutput: vi.fn(),
+      onAgentEnd: vi.fn(),
+    }));
+    await manager.ensureRunning(createOpts());
+    vi.mocked(deps.persistence.clearAgentPid).mockClear();
+    vi.mocked(deps.lifecycleOutbox.enqueue).mockClear();
+
+    hung.resolve(undefined);
+    await stopping;
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)).toMatchObject({ state: 'running', pid: PID + 1 });
+    expect(exitedFacts()).toEqual([]);
+    expect(deps.persistence.clearAgentPid).not.toHaveBeenCalled();
+  });
+
+  test('a dead pid under the timeout is untouched: no fact, no kill, state stopping', async () => {
+    const { hung, stopping } = await startHungStop();
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS - 1;
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping');
+    expect(exitedFacts()).toEqual([]);
+    expect(deps.processes.kill).not.toHaveBeenCalledWith(-PID, 'SIGKILL');
+    hung.resolve(undefined);
+    await stopping;
+  });
+
+  test('a live pid past the timeout is untouched: no fact, no kill, state stopping', async () => {
+    const { hung, stopping } = await startHungStop();
+    nowMs += STOPPING_TIMEOUT_MS * 2;
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping');
+    expect(exitedFacts()).toEqual([]);
+    expect(deps.processes.kill).not.toHaveBeenCalledWith(-PID, 'SIGKILL');
+    // Mark the process dead before the stop resolves, so the stop's own confirmation returns.
+    markDead(PID);
+    hung.resolve(undefined);
+    await stopping;
+  });
+
+  test('a stop that completes emits exactly one exited fact, and a later sweep does nothing', async () => {
+    await manager.ensureRunning(createOpts());
+    serviceStop().mockImplementationOnce(async (pid: number) => {
+      markDead(pid);
+    });
+
+    await expect(
+      manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+        workingDir: '/tmp/test',
+      })
+    ).resolves.toEqual({ success: true });
+    expect(exitedFacts()).toHaveLength(1);
+    expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('idle');
+
+    nowMs += STOPPING_TIMEOUT_MS;
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+    expect(exitedFacts()).toHaveLength(1);
+  });
+
+  test('a second sweep after the clear resolves 0 and enqueues nothing more', async () => {
+    await startHungStop();
+    markDead(PID);
+    nowMs += STOPPING_TIMEOUT_MS;
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(1);
+
+    await expect(manager.reapDeadAgentProcesses()).resolves.toBe(0);
+
+    expect(exitedFacts()).toHaveLength(1);
   });
 });

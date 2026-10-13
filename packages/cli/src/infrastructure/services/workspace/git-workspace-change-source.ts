@@ -20,10 +20,33 @@ const DEFAULT_POLL_INTERVAL_MS = 3000;
 const MAX_BACKOFF_MS = 30_000;
 const PERSISTENT_FAILURE_THRESHOLD = 3;
 
+/**
+ * Returns the root repo state from a shared probe snapshot, or `undefined` when the snapshot
+ * cannot be proven equal to the direct pathspec-limited v1 read for this tick.
+ * The consumer MUST then read directly (readNodeGitState) for this tick.
+ *
+ * Contract:
+ * - Called only for the root node. `rootPathspec` is that node's pathspec, the same array the
+ *   consumer passes to its own direct read. The reader must project onto this argument and must not
+ *   derive a pathspec of its own. A second derivation could disagree with the consumer's node.
+ * - `undefined` is a normal answer, not an error. The snapshot declines when the pathspec has glob
+ *   metacharacters, when any rename or copy is present, or when git would skip inexact rename
+ *   detection. The consumer then reads v1 for that tick.
+ * - A rejected promise is reported through `onError`, and the root git reads are skipped for that
+ *   tick. It is not retried as a direct read.
+ */
+export type GitRootSnapshotReader = (rootPathspec: string[]) => Promise<
+  | {
+      head: GitHeadState;
+      entries: GitPorcelainEntry[];
+    }
+  | undefined
+>;
+
 export type GitWorkspaceChangeSourceOptions = WorkspaceChangeSourceOptions & {
   hierarchy: GitWorkspaceHierarchy;
   pollIntervalMs?: number | undefined;
-  onNeedsReconcile?:( () => void | Promise<void>) | undefined;
+  onNeedsReconcile?: (() => void | Promise<void>) | undefined;
 };
 
 function flattenGitRepoNodes(root: GitRepoNode): GitRepoNode[] {
@@ -46,10 +69,31 @@ type PollNodeResult = {
   nextState: NodePollState;
 };
 
-function computeBackoff(failures: number, pollIntervalMs: number): number {
+/**
+ * Exponential retry delay: `pollIntervalMs` after no failures, doubling per failure up to a
+ * 2^`maxExponent` multiplier (default 2^5), then capped at `maxBackoffMs` (defaults to the 30s
+ * change-source cap).
+ */
+export function computeBackoff(
+  failures: number,
+  pollIntervalMs: number,
+  maxBackoffMs = MAX_BACKOFF_MS,
+  maxExponent = 5
+): number {
   if (failures <= 0) return pollIntervalMs;
-  const backoff = pollIntervalMs * 2 ** Math.min(failures - 1, 5);
-  return Math.min(backoff, MAX_BACKOFF_MS);
+  const backoff = pollIntervalMs * 2 ** Math.min(failures - 1, maxExponent);
+  return Math.min(backoff, maxBackoffMs);
+}
+
+async function readNodeGitState(node: GitRepoNode): Promise<{
+  head: GitHeadState;
+  entries: GitPorcelainEntry[];
+}> {
+  const [head, entries] = await Promise.all([
+    readGitHead(node.workTree),
+    readGitPorcelainStatus(node),
+  ]);
+  return { head, entries };
 }
 
 async function pollGitWorkspaceNode(args: {
@@ -57,10 +101,11 @@ async function pollGitWorkspaceNode(args: {
   node: GitRepoNode;
   prev: NodePollState;
 }): Promise<PollNodeResult> {
-  const [nextHead, nextEntries] = await Promise.all([
-    readGitHead(args.node.workTree),
-    readGitPorcelainStatus(args.node),
-  ]);
+  const snapshot =
+    args.node === args.options.hierarchy.root && args.options.readRootSnapshot
+      ? await args.options.readRootSnapshot(args.node.pathspec)
+      : undefined;
+  const { head: nextHead, entries: nextEntries } = snapshot ?? (await readNodeGitState(args.node));
 
   let needsReconcile = false;
   const events: WorkspaceFsEvent[] = [];

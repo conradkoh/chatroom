@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { GitRootSnapshotReader } from './git-workspace-change-source.js';
 import type { GitWorkspaceHierarchy } from './git-workspace-hierarchy.js';
 
 const mockPorcelain = vi.hoisted(() => ({
@@ -474,6 +475,170 @@ describe('git-workspace-change-source', () => {
     await vi.waitFor(() => {});
     expect(mockPorcelain.readGitPorcelainStatus).toHaveBeenCalledTimes(4);
     expect(mockPorcelain.readGitHead).toHaveBeenCalledTimes(4);
+
+    await source.stop();
+  });
+});
+
+describe('git-workspace-change-source: injected root snapshot', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockPorcelain.readGitHead.mockReset();
+    mockPorcelain.readGitPorcelainStatus.mockReset();
+    mockPorcelain.diffPorcelainSnapshots.mockReset();
+    mockPorcelain.headChanged.mockReset();
+    mockPorcelain.porcelainPathsLeftSnapshot.mockReset();
+    mockPorcelain.headChanged.mockReturnValue(false);
+    mockPorcelain.porcelainPathsLeftSnapshot.mockReturnValue([]);
+  });
+
+  afterEach(async () => {
+    vi.useRealTimers();
+  });
+
+  it('diffs the root node against the injected entries and emits its events', async () => {
+    const onEvents = vi.fn();
+    const readRootSnapshot = vi
+      .fn<GitRootSnapshotReader>()
+      .mockResolvedValueOnce({ head: { head: 'abc' }, entries: [] })
+      .mockResolvedValueOnce({ head: { head: 'abc' }, entries: [{ xy: '??', path: 'new.txt' }] });
+    mockPorcelain.diffPorcelainSnapshots.mockReturnValue([{ kind: 'add', path: 'new.txt' }]);
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace',
+      hierarchy,
+      pollIntervalMs: 1000,
+      onEvents,
+      readRootSnapshot,
+    });
+    await source.ready;
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() => {
+      expect(onEvents).toHaveBeenCalledWith([{ kind: 'add', path: 'new.txt' }]);
+    });
+    expect(mockPorcelain.diffPorcelainSnapshots).toHaveBeenLastCalledWith(
+      expect.objectContaining({ next: [{ xy: '??', path: 'new.txt' }] })
+    );
+
+    await source.stop();
+  });
+
+  it('spawns no git process for the root node, but still polls the nested child', async () => {
+    const readRootSnapshot = vi.fn(async () => ({ head: { head: 'abc' }, entries: [] }));
+    mockPorcelain.readGitHead.mockResolvedValue({ head: 'abc' });
+    mockPorcelain.readGitPorcelainStatus.mockResolvedValue([]);
+    mockPorcelain.diffPorcelainSnapshots.mockReturnValue([]);
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace',
+      hierarchy: nestedHierarchy,
+      pollIntervalMs: 1000,
+      onEvents: vi.fn(),
+      readRootSnapshot,
+    });
+    await source.ready;
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() => {
+      expect(readRootSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockPorcelain.readGitHead).toHaveBeenCalledTimes(2);
+    expect(mockPorcelain.readGitHead).not.toHaveBeenCalledWith('/workspace');
+    expect(mockPorcelain.readGitPorcelainStatus).toHaveBeenCalledTimes(2);
+    expect(mockPorcelain.readGitPorcelainStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ workTree: '/workspace/vendor/lib' })
+    );
+
+    await source.stop();
+  });
+
+  it('passes the root node pathspec to readRootSnapshot', async () => {
+    const scopedHierarchy: GitWorkspaceHierarchy = {
+      workspaceRoot: '/workspace/packages/cli',
+      root: {
+        workTree: '/workspace',
+        gitDir: '/workspace/.git',
+        relativePath: '',
+        pathspec: ['packages/cli'],
+        children: [],
+      },
+    };
+    const readRootSnapshot = vi.fn<GitRootSnapshotReader>(async () => ({
+      head: { head: 'abc' },
+      entries: [],
+    }));
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace/packages/cli',
+      hierarchy: scopedHierarchy,
+      pollIntervalMs: 1000,
+      onEvents: vi.fn(),
+      readRootSnapshot,
+    });
+    await source.ready;
+
+    expect(readRootSnapshot).toHaveBeenCalledWith(['packages/cli']);
+
+    await source.stop();
+  });
+
+  it('routes a rejected readRootSnapshot through onError and skips the root git reads', async () => {
+    const onError = vi.fn();
+    const failure = new Error('snapshot unavailable');
+    const readRootSnapshot = vi.fn<GitRootSnapshotReader>().mockRejectedValue(failure);
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace',
+      hierarchy,
+      pollIntervalMs: 1000,
+      onEvents: vi.fn(),
+      onError,
+      readRootSnapshot,
+    });
+    await source.ready;
+
+    expect(onError).toHaveBeenCalledWith(failure);
+    expect(mockPorcelain.readGitPorcelainStatus).not.toHaveBeenCalled();
+    expect(mockPorcelain.readGitHead).not.toHaveBeenCalled();
+
+    await source.stop();
+  });
+
+  it('reads the root node directly when the reader returns undefined, with the same events', async () => {
+    const onEvents = vi.fn();
+    const readRootSnapshot = vi.fn<GitRootSnapshotReader>().mockResolvedValue(undefined);
+    mockPorcelain.readGitHead.mockResolvedValue({ head: 'abc' });
+    mockPorcelain.readGitPorcelainStatus
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ xy: '??', path: 'new.txt' }]);
+    mockPorcelain.diffPorcelainSnapshots.mockReturnValue([{ kind: 'add', path: 'new.txt' }]);
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace',
+      hierarchy,
+      pollIntervalMs: 1000,
+      onEvents,
+      readRootSnapshot,
+    });
+    await source.ready;
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() => {
+      expect(onEvents).toHaveBeenCalledWith([{ kind: 'add', path: 'new.txt' }]);
+    });
+
+    expect(readRootSnapshot).toHaveBeenCalledTimes(2);
+    expect(mockPorcelain.readGitHead).toHaveBeenCalledTimes(2);
+    expect(mockPorcelain.readGitHead).toHaveBeenCalledWith('/workspace');
+    expect(mockPorcelain.readGitPorcelainStatus).toHaveBeenCalledTimes(2);
+    expect(mockPorcelain.readGitPorcelainStatus).toHaveBeenLastCalledWith(
+      expect.objectContaining({ workTree: '/workspace' })
+    );
+    expect(mockPorcelain.diffPorcelainSnapshots).toHaveBeenLastCalledWith(
+      expect.objectContaining({ next: [{ xy: '??', path: 'new.txt' }] })
+    );
 
     await source.stop();
   });

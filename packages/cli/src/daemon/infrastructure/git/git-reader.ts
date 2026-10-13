@@ -22,7 +22,11 @@ import { FULL_DIFF_MAX_BYTES } from './types.js';
 function runGit(
   args: string[],
   cwd: string,
-  options?: { timeout?: number | undefined; maxBuffer?: number | undefined; successExitCodes?: number[] | undefined }
+  options?: {
+    timeout?: number | undefined;
+    maxBuffer?: number | undefined;
+    successExitCodes?: number[] | undefined;
+  }
 ): Promise<CommandResult> {
   return runGitCommand(cwd ? args : args, cwd, { ...options, readOnly: true });
 }
@@ -503,87 +507,107 @@ export async function getOriginRepoSlug(cwd: string): Promise<string | null> {
 }
 
 /**
- * Get open pull requests for the given branch using `gh pr list`.
- *
- * Returns an empty array if:
- * - The `gh` CLI is not installed
- * - The user is not authenticated with `gh`
- * - There are no open PRs for the branch
- * - Any error occurs (graceful degradation)
+ * Outcome of a GitHub CLI read. `ok: false` means the read itself failed and says
+ * nothing about the remote state, so callers can keep their last-known value.
  */
-export async function getOpenPRsForBranch(cwd: string, branch: string): Promise<GitPullRequest[]> {
-  // Resolve the origin repo slug to target the correct repository
-  const repoSlug = await getOriginRepoSlug(cwd);
-  const repoOwner = repoSlug?.split('/')[0] ?? null;
+export type GhReadResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-  const result = await runGh(
-    [
-      'pr',
-      'list',
-      '--head',
-      branch,
-      '--state',
-      'open',
-      '--author',
-      '@me',
-      '--json',
-      'number,title,url,headRefName,state,headRepositoryOwner',
-      '--limit',
-      '5',
-      ...repoArgs(repoSlug),
-    ],
-    cwd
-  );
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
-  if ('error' in result) {
-    // gh not installed, not authenticated, or other failure — degrade gracefully
-    return [];
-  }
-
-  const output = result.stdout.trim();
-  if (!output) return [];
-
+/**
+ * Open PRs for `branch` (own PRs only, same-owner filter kept), via `gh pr list`.
+ *
+ * Contract:
+ * - ok:true []  — gh succeeded and there are no open PRs, or stdout is empty.
+ * - ok:false    — gh failed, stdout is not valid JSON, or the JSON is not an array.
+ *
+ * Malformed items are dropped silently; only the top-level outcome is typed.
+ */
+export async function readOpenPRsForBranch(
+  cwd: string,
+  branch: string
+): Promise<GhReadResult<GitPullRequest[]>> {
   try {
-    const parsed: unknown = JSON.parse(output);
-    if (!Array.isArray(parsed)) return [];
+    // Resolve the origin repo slug to target the correct repository
+    const repoSlug = await getOriginRepoSlug(cwd);
+    const repoOwner = repoSlug?.split('/')[0] ?? null;
 
-    return parsed
-      .filter(
-        (
-          item: unknown
-        ): item is {
-          number: number;
-          title: string;
-          url: string;
-          headRefName: string;
-          state: string;
-          headRepositoryOwner?: { login?: string | undefined } | undefined;
-        } =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof (item as Record<string, unknown>).number === 'number' &&
-          typeof (item as Record<string, unknown>).title === 'string' &&
-          typeof (item as Record<string, unknown>).url === 'string' &&
-          typeof (item as Record<string, unknown>).headRefName === 'string' &&
-          typeof (item as Record<string, unknown>).state === 'string'
-      )
-      .filter((item) => {
-        // Filter out cross-fork PRs: only include PRs from the same repo owner
-        // This prevents PRs from forks (e.g., fork's main → upstream's main) from showing
-        if (!repoOwner || !item.headRepositoryOwner?.login) return true;
-        return item.headRepositoryOwner.login === repoOwner;
-      })
-      .map((item) => ({
-        prNumber: item.number,
-        title: item.title,
-        url: item.url,
-        headRefName: item.headRefName,
-        state: item.state,
-      }));
-  } catch {
-    // JSON parse failure — degrade gracefully
-    return [];
+    const result = await runGh(
+      [
+        'pr',
+        'list',
+        '--head',
+        branch,
+        '--state',
+        'open',
+        '--author',
+        '@me',
+        '--json',
+        'number,title,url,headRefName,state,headRepositoryOwner',
+        '--limit',
+        '5',
+        ...repoArgs(repoSlug),
+      ],
+      cwd
+    );
+
+    if ('error' in result) {
+      return { ok: false, error: result.error.message };
+    }
+
+    const output = result.stdout.trim();
+    if (!output) return { ok: true, value: [] };
+
+    const parsed: unknown = JSON.parse(output);
+    if (!Array.isArray(parsed)) {
+      return { ok: false, error: 'gh pr list returned a non-array JSON value' };
+    }
+    return { ok: true, value: toOwnOpenPRs(parsed, repoOwner) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
   }
+}
+
+type OpenPRItem = {
+  number: number;
+  title: string;
+  url: string;
+  headRefName: string;
+  state: string;
+  headRepositoryOwner?: { login?: string | undefined } | undefined;
+};
+
+function isOpenPRItem(item: unknown): item is OpenPRItem {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    typeof (item as Record<string, unknown>).number === 'number' &&
+    typeof (item as Record<string, unknown>).title === 'string' &&
+    typeof (item as Record<string, unknown>).url === 'string' &&
+    typeof (item as Record<string, unknown>).headRefName === 'string' &&
+    typeof (item as Record<string, unknown>).state === 'string'
+  );
+}
+
+/** Keeps well-formed items and drops cross-fork PRs (head owner differs from the repo owner). */
+function toOwnOpenPRs(items: unknown[], repoOwner: string | null): GitPullRequest[] {
+  return items
+    .filter(isOpenPRItem)
+    .filter((item) => {
+      // Filter out cross-fork PRs: only include PRs from the same repo owner
+      // This prevents PRs from forks (e.g., fork's main → upstream's main) from showing
+      if (!repoOwner || !item.headRepositoryOwner?.login) return true;
+      return item.headRepositoryOwner.login === repoOwner;
+    })
+    .map((item) => ({
+      prNumber: item.number,
+      title: item.title,
+      url: item.url,
+      headRefName: item.headRefName,
+      state: item.state,
+    }));
 }
 
 /** Shape of a single PR item returned by `gh pr list --json ...`. */
@@ -865,16 +889,19 @@ export interface CommitStatusCheck {
  *   - 'failure' | 'error' → status='completed', conclusion='failure'
  *   - 'pending' → status='in_progress', conclusion=null
  *
- * Returns null if `gh` is unavailable or any error occurs (non-blocking).
+ * Contract (see `GhReadResult`):
+ * - ok:true null  — no origin repo slug (not a GitHub repo).
+ * - ok:false      — either gh call failed, or the JSON shape is unexpected.
+ * - ok:true value — merged check-runs + legacy statuses, aggregated as described above.
  */
-export async function getCommitStatusChecks(
+export async function readCommitStatusChecks(
   cwd: string,
   ref: string
-): Promise<CommitStatusCheck | null> {
-  const repoSlug = await getOriginRepoSlug(cwd);
-  if (!repoSlug) return null;
-
+): Promise<GhReadResult<CommitStatusCheck | null>> {
   try {
+    const repoSlug = await getOriginRepoSlug(cwd);
+    if (!repoSlug) return { ok: true, value: null };
+
     // Fetch modern check-runs and legacy statuses list in parallel
     const [checkRunsResult, legacyStatusesResult] = await Promise.all([
       runGh(
@@ -897,72 +924,85 @@ export async function getCommitStatusChecks(
       ),
     ]);
 
-    if ('error' in checkRunsResult || 'error' in legacyStatusesResult) return null;
-
-    const checkRunsData = JSON.parse(checkRunsResult.stdout.trim()) as {
-      check_runs: { name: string; status: string; conclusion: string | null }[];
-      total_count: number;
-    };
-
-    const legacyStatuses = JSON.parse(legacyStatusesResult.stdout.trim()) as {
-      context: string;
-      state: string;
-      target_url: string | null;
-    }[];
-
-    // Normalize modern check-runs
-    const modernEntries: CommitStatusCheckRun[] = checkRunsData.check_runs.map((cr) => ({
-      name: cr.name,
-      status: cr.status,
-      conclusion: cr.conclusion,
-    }));
-
-    // Normalize legacy statuses
-    const legacyEntries: CommitStatusCheckRun[] = legacyStatuses.map((s) => {
-      let status: string;
-      let conclusion: string | null;
-      switch (s.state) {
-        case 'success':
-          status = 'completed';
-          conclusion = 'success';
-          break;
-        case 'failure':
-        case 'error':
-          status = 'completed';
-          conclusion = 'failure';
-          break;
-        default: // 'pending'
-          status = 'in_progress';
-          conclusion = null;
-      }
-      return {
-        name: s.context,
-        status,
-        conclusion,
-      };
-    });
-
-    const merged = [...modernEntries, ...legacyEntries];
-
-    // Aggregation: failure wins
-    const FAILURE_CONCLUSIONS = new Set(['failure', 'timed_out', 'cancelled', 'error']);
-    let state: string;
-    if (merged.some((e) => e.conclusion !== null && FAILURE_CONCLUSIONS.has(e.conclusion))) {
-      state = 'failure';
-    } else if (merged.some((e) => e.status !== 'completed')) {
-      state = 'pending';
-    } else {
-      state = 'success';
+    if ('error' in checkRunsResult) {
+      return { ok: false, error: `check-runs: ${checkRunsResult.error.message}` };
+    }
+    if ('error' in legacyStatusesResult) {
+      return { ok: false, error: `statuses: ${legacyStatusesResult.error.message}` };
     }
 
+    const checkRuns = parseCheckRunsPayload(checkRunsResult.stdout);
+    if (!checkRuns.ok) return checkRuns;
+    const legacyStatuses = parseLegacyStatusesPayload(legacyStatusesResult.stdout);
+    if (!legacyStatuses.ok) return legacyStatuses;
+
+    // Merge both sources: the two APIs are orthogonal on GitHub, so both must be read
+    const merged: CommitStatusCheckRun[] = [
+      ...checkRuns.value.map((cr) => ({
+        name: cr.name,
+        status: cr.status,
+        conclusion: cr.conclusion,
+      })),
+      ...legacyStatuses.value.map(legacyStatusToCheckRun),
+    ];
+
     return {
-      state,
-      checkRuns: merged,
-      totalCount: merged.length,
+      ok: true,
+      value: {
+        state: aggregateCheckState(merged),
+        checkRuns: merged,
+        totalCount: merged.length,
+      },
     };
-  } catch {
-    return null;
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
   }
+}
+
+type RawCheckRun = { name: string; status: string; conclusion: string | null };
+type RawLegacyStatus = { context: string; state: string; target_url: string | null };
+
+/** Parses the check-runs `--jq` output. Requires a `check_runs` array. */
+function parseCheckRunsPayload(stdout: string): GhReadResult<RawCheckRun[]> {
+  const data: unknown = JSON.parse(stdout.trim());
+  const checkRuns =
+    typeof data === 'object' && data !== null
+      ? (data as { check_runs?: unknown }).check_runs
+      : undefined;
+  if (!Array.isArray(checkRuns)) {
+    return { ok: false, error: 'check-runs response has no check_runs array' };
+  }
+  return { ok: true, value: checkRuns as RawCheckRun[] };
+}
+
+/** Parses the statuses `--jq` output. Requires a top-level array. */
+function parseLegacyStatusesPayload(stdout: string): GhReadResult<RawLegacyStatus[]> {
+  const data: unknown = JSON.parse(stdout.trim());
+  if (!Array.isArray(data)) return { ok: false, error: 'statuses response is not an array' };
+  return { ok: true, value: data as RawLegacyStatus[] };
+}
+
+/** Legacy status `state` → check-run (status, conclusion), per the mapping documented above. */
+function legacyStatusToCheckRun(s: RawLegacyStatus): CommitStatusCheckRun {
+  switch (s.state) {
+    case 'success':
+      return { name: s.context, status: 'completed', conclusion: 'success' };
+    case 'failure':
+    case 'error':
+      return { name: s.context, status: 'completed', conclusion: 'failure' };
+    default: // 'pending'
+      return { name: s.context, status: 'in_progress', conclusion: null };
+  }
+}
+
+/** Failure wins; otherwise pending while anything is still running; otherwise success. */
+function aggregateCheckState(entries: CommitStatusCheckRun[]): string {
+  const FAILURE_CONCLUSIONS = new Set(['failure', 'timed_out', 'cancelled', 'error']);
+  if (entries.some((e) => e.conclusion !== null && FAILURE_CONCLUSIONS.has(e.conclusion))) {
+    return 'failure';
+  }
+  if (entries.some((e) => e.status !== 'completed')) return 'pending';
+  return 'success';
 }
 
 /**

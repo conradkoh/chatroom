@@ -34,6 +34,7 @@ import { ProcessServiceLive } from '../../infrastructure/services/process.js';
  *   - DaemonSpawningService wrapping init.spawning
  *   - DaemonAgentProcessManagerService wrapping init.agentProcessManager
  *   - DaemonMutableStateService  wrapping mutable state in Effect.Ref
+ *   - WorkspaceService carried on DaemonSessionService (sole owner of workspace sync)
  *   - DaemonSessionService  carrying sessionId, machineId, config, agentServices, events
  */
 export function daemonSessionToLayers(init: DaemonSessionInit) {
@@ -51,10 +52,8 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
     DaemonAgentProcessManagerServiceLive(init.agentProcessManager, init.agentProcessManagerService),
     DaemonAgentProcessManagerCommandServiceLive(init.agentProcessManagerService),
     DaemonMutableStateServiceLive({
-      lastPushedGitState: init.lastPushedGitState,
       lastPushedModels: init.lastPushedModels,
       lastPushedHarnessFingerprint: init.lastPushedHarnessFingerprint,
-      workspaceListStore: init.workspaceListStore,
     }),
     Layer.succeed(DaemonSessionService, {
       sessionId: init.sessionId,
@@ -66,14 +65,13 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
       fs: init.fs,
       agentServices: init.agentServices,
       events: init.events,
-      workspaceListStore: init.workspaceListStore,
       logger: init.logger,
-      lastPushedGitState: init.lastPushedGitState,
       lastPushedModels: init.lastPushedModels,
       lastPushedHarnessFingerprint: init.lastPushedHarnessFingerprint,
       logEvent: init.logEvent,
       taskService: init.taskService,
       agentConfigRegistry: init.agentConfigRegistry,
+      workspaceService: init.workspaceService,
       lifecycleOutbox: {
         enqueue: (fact) =>
           enqueueAgentLifecycleFact(init.agentLifecycleOutbox, init.machineId, fact),

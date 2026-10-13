@@ -5,7 +5,7 @@
  * no-existing-row handling for on-demand recent commits fetching.
  */
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
@@ -198,5 +198,44 @@ describe('recentCommits on-demand APIs', () => {
     });
 
     expect(result).toBeNull();
+  });
+
+  test('upsertRecentCommits with identical commits does not patch (updatedAt and _id unchanged)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_800_000_000_000);
+      const { sessionId } = await createTestSession('recent-commits-noop');
+      const machineId = 'recent-commits-noop-machine';
+      await registerMachineWithDaemon(sessionId, machineId);
+      const upsert = (hasMoreCommits: boolean) =>
+        t.mutation(api.workspaces.upsertRecentCommits, {
+          sessionId: sessionId as any,
+          machineId,
+          workingDir: WORKING_DIR,
+          commits: TEST_COMMITS,
+          hasMoreCommits,
+        });
+      const readRow = () =>
+        t.run(async (ctx) =>
+          ctx.db
+            .query('chatroom_workspaceRecentCommits')
+            .withIndex('by_machine_workingDir', (q) =>
+              q.eq('machineId', machineId).eq('workingDir', WORKING_DIR)
+            )
+            .first()
+        );
+
+      await upsert(true);
+      const before = await readRow();
+
+      vi.setSystemTime(1_800_000_060_000);
+      await upsert(true);
+      const after = await readRow();
+
+      expect(after!._id).toBe(before!._id);
+      expect(after!.updatedAt).toBe(before!.updatedAt);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

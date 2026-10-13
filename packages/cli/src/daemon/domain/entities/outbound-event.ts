@@ -30,11 +30,6 @@ export type OutboundEvent =
       outcome: 'delivered' | 'delivery_failed';
       error?: string | undefined;
     }
-  | {
-      type: 'git.state';
-      workingDir: string;
-      payload: Record<string, unknown>;
-    }
   | { type: 'capabilities.updated'; capabilities: MachineCapabilities }
   | {
       type: 'models.updated';

@@ -3,13 +3,13 @@
  *
  * Tests for the Effect twins of subscription starter functions, all migrated
  * to DaemonSessionService (E4.1–E4.4):
- *   startWorkspaceListSubscriptionEffect  (E4.1)
  *   startFileContentSubscriptionEffect    (E4.2)
  *   startGitRequestSubscriptionEffect     (E4.3)
  *   processRequestsEffect                 (E4.3)
  */
 
-import { Effect, Layer } from 'effect';
+import type { Layer } from 'effect';
+import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
@@ -30,7 +30,6 @@ vi.mock('../../api.js', () => ({
       fulfillFileContentV2: 'mock-fulfillFileContentV2',
     },
     workspaces: {
-      listRecentlyObservedWorkspacesForMachine: 'mock-listRecentlyObservedWorkspacesForMachine',
       getPendingRequests: 'mock-getPendingRequests',
       resetProcessingRequests: 'mock-resetProcessingRequests',
       updateRequestStatus: 'mock-updateRequestStatus',
@@ -49,7 +48,6 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
-  OBSERVATION_TTL_MS: 30_000,
   NATIVE_DELIVERY_RECONCILE_MS: 10_000,
   HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));
@@ -67,10 +65,6 @@ vi.mock('../infrastructure/git/git-reader.js', () => ({
   getOpenPRsForBranch: vi.fn().mockResolvedValue([]),
   getAllPRs: vi.fn().mockResolvedValue([]),
   getCommitStatusChecks: vi.fn().mockResolvedValue(null),
-}));
-
-vi.mock('./workspace-git/workspace-cache.js', () => ({
-  getWorkspacesForMachine: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../infrastructure/services/workspace/command-discovery.js', () => ({
@@ -173,71 +167,6 @@ describe('startFileContentSubscriptionEffect', () => {
     expect(wsClient.onUpdate).not.toHaveBeenCalled();
   });
 });
-
-// ---------------------------------------------------------------------------
-// C. workspace-list-subscription Effect twin (E4.1 — DaemonSessionService)
-// ---------------------------------------------------------------------------
-
-describe('startWorkspaceListSubscriptionEffect', () => {
-  it('returns a handle with a stop() method', async () => {
-    const { startWorkspaceListSubscriptionEffect } =
-      await import('./workspace-git/workspace-list-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.query).mockResolvedValue([]);
-
-    const handle = await runWithSession(startWorkspaceListSubscriptionEffect(), withDeps(deps));
-
-    expect(handle).toHaveProperty('stop');
-    expect(typeof handle.stop).toBe('function');
-    handle.stop();
-  });
-
-  it('does not open a legacy WS subscription (v2 subscriber is sole listener)', async () => {
-    const { startWorkspaceListSubscriptionEffect } =
-      await import('./workspace-git/workspace-list-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.query).mockResolvedValue([]);
-    const wsClient = makeMockWsClient();
-
-    const handle = await runWithSession(
-      startWorkspaceListSubscriptionEffect(),
-      withDeps(deps, { sessionId: 'session-ws-list', machineId: 'machine-ws-list' })
-    );
-
-    expect(wsClient.onUpdate).not.toHaveBeenCalled();
-    handle.stop();
-  });
-
-  it('initializes workspaceListStore on the session object (start)', async () => {
-    const { startWorkspaceListSubscriptionEffect } =
-      await import('./workspace-git/workspace-list-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.query).mockResolvedValue([]);
-
-    let capturedSession: any;
-    const layer = Layer.effect(
-      DaemonSessionService,
-      Effect.gen(function* () {
-        const init = createMockDaemonSessionInit({ backend: deps.backend });
-        capturedSession = init;
-        return init as any;
-      })
-    );
-
-    const handle = await Effect.runPromise(
-      startWorkspaceListSubscriptionEffect().pipe(Effect.provide(layer))
-    );
-
-    expect(capturedSession.workspaceListStore).toBeDefined();
-
-    handle.stop();
-    expect(capturedSession.workspaceListStore).toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// D. git-subscription Effect twins (E4.3 — DaemonSessionService)
-// ---------------------------------------------------------------------------
 
 describe('startGitRequestSubscriptionEffect', () => {
   it('returns a handle with a stop() method', async () => {

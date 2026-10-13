@@ -20,7 +20,7 @@ export function buildBlobSnapshotPayload(tree: FileTree, dataHash: string): Blob
 }
 
 export async function publishBlobSnapshot(
-  session: DaemonSessionServiceShape,
+  session: Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>,
   workingDir: string,
   payload: BlobSnapshotPayload
 ): Promise<FileTreeSnapshotRef> {

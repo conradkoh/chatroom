@@ -31,7 +31,11 @@ import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
 import { resolveTaskHandoffRepositoryPath } from './task-handoff-repository-path.js';
 import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
-import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
+import {
+  getConvexUrl,
+  getConvexClient,
+  getConvexWsClient,
+} from '../../infrastructure/convex/client.js';
 import { formatConvexUrlMismatchWarning } from '../../infrastructure/convex/spawn-env.js';
 import type { AgentLogSink } from '../../infrastructure/log-server/index.js';
 import {
@@ -55,12 +59,28 @@ import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js
 import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import {
+  createWorkspaceStateOutboxRegistry,
+  createWorkspaceStateSend,
+  encodeWorkspaceStateKey,
+  WORKSPACE_STATE_KINDS,
+  type WorkspaceStateOutboxRegistry,
+} from '../infrastructure/outbox/index.js';
+import {
   AgentProcessManager,
   createAgentProcessService,
 } from '../services/agent-process-service/index.js';
 import { createAgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
 import { createTaskService } from '../services/service-interfaces.js';
 import { createTaskHandoffRepository } from '../services/task-service/index.js';
+import {
+  createWorkspaceMembershipSource,
+  createWorkspaceService,
+  DEFAULT_WORKSPACE_SYNC_POLICY,
+  type ConvexWsClientLike,
+  type WorkspaceAgentPresenceSource,
+  type WorkspaceService,
+  type WorkspaceServiceOutbox,
+} from '../services/workspace-service/index.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -363,8 +383,74 @@ const connectOnceEffect = (
 let activeLogSink: AgentLogSink | undefined;
 let activeLogEvent: ((event: Record<string, unknown>) => Promise<void>) | undefined;
 
+/** Logs a rejected outbox call. The outbox keeps its own retry policy, so this only reports. */
+function warnOnRejection(label: string, pending: Promise<unknown>): void {
+  pending.catch((error: unknown) => {
+    console.warn(`[${formatTimestamp()}] ⚠️  ${label}: ${getErrorMessage(error)}`);
+  });
+}
+
+/**
+ * Builds the workspace-state outbox and the WorkspaceService that feeds it. Membership subscribes
+ * on `wsClient`, the same singleton the runtime uses. Activity comes from the agent process manager.
+ */
+function createWorkspaceSync(args: {
+  wsClient: ConvexWsClientLike;
+  sessionId: SessionId;
+  machineId: string;
+  backend: DaemonDeps['backend'];
+  agentProcessManager: Pick<
+    AgentProcessManager,
+    'listWorkspacePresences' | 'subscribeAgentPresenceChanged'
+  >;
+}): { workspaceService: WorkspaceService; workspaceStateOutbox: WorkspaceStateOutboxRegistry } {
+  const { wsClient, sessionId, machineId, backend, agentProcessManager } = args;
+  const { outbox: outboxPolicy } = DEFAULT_WORKSPACE_SYNC_POLICY;
+  const workspaceStateOutbox = createWorkspaceStateOutboxRegistry(
+    machineId,
+    createWorkspaceStateSend({ sessionId, machineId, backend }),
+    {
+      minIntervalMsByKind: outboxPolicy.minIntervalMsByKind,
+      retryDelayMs: outboxPolicy.retryDelayMs,
+      maxRetryDelayMs: outboxPolicy.maxRetryDelayMs,
+    }
+  );
+  const outbox: WorkspaceServiceOutbox = {
+    enqueue: (workingDir, unit) =>
+      warnOnRejection(
+        `workspace-state enqueue failed for ${workingDir}`,
+        workspaceStateOutbox.enqueue(encodeWorkspaceStateKey(workingDir, unit.kind), unit)
+      ),
+    stopKeys: (workingDir) => {
+      for (const kind of WORKSPACE_STATE_KINDS) {
+        warnOnRejection(
+          `workspace-state stop failed for ${workingDir}`,
+          workspaceStateOutbox.stop(encodeWorkspaceStateKey(workingDir, kind))
+        );
+      }
+    },
+  };
+  const workspaceService = createWorkspaceService({
+    membershipSource: createWorkspaceMembershipSource({
+      wsClient,
+      sessionId: asConvexSessionId(sessionId),
+      machineId,
+    }),
+    agentPresence: {
+      list: () => agentProcessManager.listWorkspacePresences(),
+      subscribe: (onChange) => agentProcessManager.subscribeAgentPresenceChanged(onChange),
+    } satisfies WorkspaceAgentPresenceSource,
+    outbox,
+    sessionId,
+    machineId,
+    backend,
+  });
+  return { workspaceService, workspaceStateOutbox };
+}
+
 function assembleDaemonSessionInit(args: {
   client: ConvexHttpClient;
+  wsClient: ConvexWsClientLike;
   typedSessionId: SessionId;
   machineId: string;
   config: MachineConfig;
@@ -375,6 +461,7 @@ function assembleDaemonSessionInit(args: {
 }): DaemonSessionInit {
   const {
     client,
+    wsClient,
     typedSessionId,
     machineId,
     config,
@@ -425,6 +512,13 @@ function assembleDaemonSessionInit(args: {
     handoffRepository: createTaskHandoffRepository(resolveTaskHandoffRepositoryPath(machineId)),
     logEvent: activeLogEvent ?? (async () => undefined),
   });
+  const { workspaceService, workspaceStateOutbox } = createWorkspaceSync({
+    wsClient,
+    sessionId: typedSessionId,
+    machineId,
+    backend: deps.backend,
+    agentProcessManager: deps.agentProcessManager,
+  });
 
   return {
     client,
@@ -441,9 +535,10 @@ function assembleDaemonSessionInit(args: {
     taskService,
     agentConfigRegistry,
     agentLifecycleOutbox,
+    workspaceService,
+    workspaceStateOutbox,
     events: new DaemonEventBus(),
     agentServices,
-    lastPushedGitState: new Map(),
     lastPushedModels: Object.keys(cachedModels).length > 0 ? cachedModels : null,
     lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
       config.availableHarnesses,
@@ -634,12 +729,18 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
       try: () => getConvexClient(),
       catch: (e) => e,
     });
+    // Same singleton that startDaemon hands to the runtime; the workspace activity source subscribes on it.
+    const wsClient = yield* Effect.tryPromise({
+      try: () => getConvexWsClient(),
+      catch: (e) => e,
+    });
 
     const { typedSessionId, config, machineId, agentServices, cachedModels } =
       yield* connectWithRetryEffect(client, sessionId, convexUrl);
 
     const init = assembleDaemonSessionInit({
       client,
+      wsClient,
       typedSessionId,
       machineId,
       config,

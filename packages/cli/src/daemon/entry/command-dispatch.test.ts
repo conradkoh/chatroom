@@ -25,7 +25,7 @@ import type {
   DaemonSessionService,
 } from './daemon-services.js';
 import type { DaemonSessionInit } from './daemon-types.js';
-import { createMockDaemonSessionInit } from './testing/index.js';
+import { createFakeWorkspaceService, createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,6 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
   // Keep short in tests — production DAEMON_HEARTBEAT_INTERVAL_MS is 5 min.
   DAEMON_HEARTBEAT_INTERVAL_MS: 30_000,
   AGENT_REQUEST_DEADLINE_MS: 60_000,
-  OBSERVATION_TTL_MS: 30_000,
   NATIVE_DELIVERY_RECONCILE_MS: 10_000,
   HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));
@@ -84,10 +83,6 @@ vi.mock('../infrastructure/git/git-reader.js', () => ({
   isGitRepo: vi.fn().mockResolvedValue(false),
   getBranch: vi.fn().mockResolvedValue({ status: 'not_found' }),
   getRecentCommits: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('./workspace-git/workspace-cache.js', () => ({
-  getWorkspacesForMachine: vi.fn().mockResolvedValue([]),
 }));
 
 // refreshModels internals — intercepted because the Effect twin calls the
@@ -105,27 +100,6 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
     harnessVersions: {},
   }),
 }));
-
-// startCommandLoop startup helpers — errors are swallowed with .catch(()=>{})
-// but mocking keeps tests fast and avoids real I/O.
-vi.mock('./workspace-git/git-heartbeat.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    pushGitState: vi.fn().mockResolvedValue(undefined),
-    pushSingleWorkspaceGitState: vi.fn().mockResolvedValue(undefined),
-    pushGitStateEffect: Effect.void,
-    pushSingleWorkspaceGitStateEffect: vi.fn().mockReturnValue(Effect.void),
-  };
-});
-
-vi.mock('./command-sync-heartbeat.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    pushCommands: vi.fn().mockResolvedValue(undefined),
-    pushCommandsEffect: Effect.void,
-    pushSingleWorkspaceCommandsEffect: vi.fn().mockReturnValue(Effect.void),
-  };
-});
 
 vi.mock('./workspace-git/commit-detail-sync.js', async () => {
   const { Effect } = await import('effect');
@@ -155,13 +129,6 @@ vi.mock('./files/file-tree-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startFileTreeSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
-  };
-});
-
-vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    startWorkspaceListSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
 
@@ -439,5 +406,74 @@ describe('dispatchCommandEventEffect', () => {
       'mock-reportFolderPickerResult',
       expect.anything()
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E. daemon.gitRefresh (S5a — routed to WorkspaceService.refresh)
+// ---------------------------------------------------------------------------
+
+describe('dispatchCommandEventEffect daemon.gitRefresh', () => {
+  it('asks the workspace service to refresh the requested working directory', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const deps = createMockDaemonDeps();
+    const workspaceService = createFakeWorkspaceService();
+    const event = {
+      _id: 'evt-git-refresh-1',
+      type: 'daemon.gitRefresh',
+      workingDir: '/tmp/repo-refresh',
+    } as any;
+    const tracker = createDedupTracker();
+
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
+      withDeps(deps, { workspaceService })
+    );
+
+    expect(workspaceService.refresh).toHaveBeenCalledTimes(1);
+    expect(workspaceService.refresh).toHaveBeenCalledWith('/tmp/repo-refresh', 'command');
+    expect(tracker.gitRefreshIds.has('evt-git-refresh-1')).toBe(true);
+  });
+
+  it('refreshes once when the same gitRefresh event is delivered twice', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const deps = createMockDaemonDeps();
+    const workspaceService = createFakeWorkspaceService();
+    const event = {
+      _id: 'evt-git-refresh-dup',
+      type: 'daemon.gitRefresh',
+      workingDir: '/tmp/repo-dup',
+    } as any;
+    const tracker = createDedupTracker();
+    const overrides = withDeps(deps, { workspaceService });
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(workspaceService.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a failed refresh, completes the command, and still dedups the event', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const deps = createMockDaemonDeps();
+    const workspaceService = createFakeWorkspaceService({
+      refresh: vi.fn().mockRejectedValue(new Error('git exploded')),
+    });
+    const event = {
+      _id: 'evt-git-refresh-fail',
+      type: 'daemon.gitRefresh',
+      workingDir: '/tmp/repo-fail',
+    } as any;
+    const tracker = createDedupTracker();
+    const overrides = withDeps(deps, { workspaceService });
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    expect(tracker.gitRefreshIds.has('evt-git-refresh-fail')).toBe(true);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Workspace refresh failed for /tmp/repo-fail: git exploded')
+    );
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    expect(workspaceService.refresh).toHaveBeenCalledTimes(1);
   });
 });

@@ -46,6 +46,19 @@ export function isAgentSlotActive(slot: AgentSlotSnapshot): boolean {
   return isAgentSlotStarted(slot) || isAgentSlotStartInFlight(slot);
 }
 
+/**
+ * A slot keeps its workspace present while its agent is starting, running, or stopping.
+ * Mirrors isChatroomAgentActivityOnline (starting | waiting | working | stopping).
+ * Spawning has no pid yet; running and stopping need a pid. Liveness is the caller's job.
+ */
+export function isAgentSlotPresent(slot: AgentSlotSnapshot): boolean {
+  if (slot.state === AGENT_SLOT_STATE.SPAWNING) return true;
+  return (
+    (slot.state === AGENT_SLOT_STATE.RUNNING || slot.state === AGENT_SLOT_STATE.STOPPING) &&
+    slot.pid !== undefined
+  );
+}
+
 const AGENT_KEY_SEPARATOR = '\u0000';
 
 /** Stable identity for one role in one chatroom workspace. */

@@ -18,3 +18,10 @@ export {
   type AgentLifecycleOutboxResult,
 } from './agent-lifecycle-outbox.js';
 export { createAgentLifecycleSend } from './agent-lifecycle-send.js';
+export {
+  createWorkspaceStateOutboxRegistry,
+  encodeWorkspaceStateKey,
+  WORKSPACE_STATE_KINDS,
+  type WorkspaceStateOutboxRegistry,
+} from './workspace-state-outbox.js';
+export { createWorkspaceStateSend } from './workspace-state-send.js';

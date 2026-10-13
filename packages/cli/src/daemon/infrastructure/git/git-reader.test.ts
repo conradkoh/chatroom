@@ -16,18 +16,31 @@ import {
   getRecentCommits,
   getCommitDetail,
   getCommitMetadata,
-  getOpenPRsForBranch,
   getCommitsAhead,
   getCommitsBehind,
-  getCommitStatusChecks,
   getDefaultBranch,
   parseDiffStatLine,
   parseRepoSlug,
   getOriginRepoSlug,
+  readOpenPRsForBranch,
+  readCommitStatusChecks,
 } from './git-reader.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
 
-type QueuedResponse = { stdout: string; stderr: string } | { error: Error & { code?: number | undefined } };
+/** Legacy view of readOpenPRsForBranch: any failure reads as no pull requests. */
+const getOpenPRsForBranch = async (cwd: string, branch: string) => {
+  const result = await readOpenPRsForBranch(cwd, branch);
+  return result.ok ? result.value : [];
+};
+
+/** Legacy view of readCommitStatusChecks: any failure reads as no checks. */
+const getCommitStatusChecks = async (cwd: string, ref: string) => {
+  const result = await readCommitStatusChecks(cwd, ref);
+  return result.ok ? result.value : null;
+};
+
+type QueuedResponse =
+  { stdout: string; stderr: string } | { error: Error & { code?: number | undefined } };
 
 const responseQueue: QueuedResponse[] = [];
 
@@ -890,6 +903,178 @@ describe('getCommitStatusChecks', () => {
     expect(result).toBeNull();
   });
 });
+// ─── readOpenPRsForBranch (result-typed) ─────────────────────────────────────
+
+describe('readOpenPRsForBranch', () => {
+  const prItem = (overrides: Record<string, unknown> = {}) => ({
+    number: 7,
+    title: 'Own PR',
+    url: 'https://github.com/user/repo/pull/7',
+    headRefName: 'feat/x',
+    state: 'OPEN',
+    headRepositoryOwner: { login: 'user' },
+    ...overrides,
+  });
+
+  test('gh error → ok:false with the gh message', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
+    mockFailure('gh: not logged in');
+    const result = await readOpenPRsForBranch('/repo', 'feat/x');
+    expect(result).toEqual({ ok: false, error: 'gh: not logged in' });
+  });
+
+  test('empty stdout → ok:true with empty array', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
+    mockSuccess('');
+    const result = await readOpenPRsForBranch('/repo', 'feat/x');
+    expect(result).toEqual({ ok: true, value: [] });
+  });
+
+  test('invalid JSON → ok:false', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
+    mockSuccess('not valid json');
+    const result = await readOpenPRsForBranch('/repo', 'feat/x');
+    expect(result.ok).toBe(false);
+  });
+
+  test('non-array JSON → ok:false', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
+    mockSuccess('{"number": 42}');
+    const result = await readOpenPRsForBranch('/repo', 'feat/x');
+    expect(result.ok).toBe(false);
+  });
+
+  test('valid PR list → ok:true with mapped GitPullRequest[]', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
+    mockSuccess(JSON.stringify([prItem()]));
+    const result = await readOpenPRsForBranch('/repo', 'feat/x');
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        {
+          prNumber: 7,
+          title: 'Own PR',
+          url: 'https://github.com/user/repo/pull/7',
+          headRefName: 'feat/x',
+          state: 'OPEN',
+        },
+      ],
+    });
+  });
+
+  test('cross-fork PR is filtered out', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
+    mockSuccess(
+      JSON.stringify([
+        prItem({ number: 1 }),
+        prItem({ number: 2, headRepositoryOwner: { login: 'forker' } }),
+      ])
+    );
+    const result = await readOpenPRsForBranch('/repo', 'feat/x');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((pr) => pr.prNumber)).toEqual([1]);
+  });
+});
+
+// ─── readCommitStatusChecks (result-typed) ───────────────────────────────────
+
+describe('readCommitStatusChecks', () => {
+  test('no repo slug → ok:true with null', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await readCommitStatusChecks('/repo', 'main');
+    expect(result).toEqual({ ok: true, value: null });
+  });
+
+  test('check-runs gh call errors → ok:false', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockFailure('gh: rate limited');
+    mockSuccess('[]');
+    const result = await readCommitStatusChecks('/repo', 'main');
+    expect(result.ok).toBe(false);
+  });
+
+  test('statuses gh call errors → ok:false', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess(JSON.stringify({ check_runs: [], total_count: 0 }));
+    mockFailure('gh: rate limited');
+    const result = await readCommitStatusChecks('/repo', 'main');
+    expect(result.ok).toBe(false);
+  });
+
+  test('malformed JSON → ok:false', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess('not json');
+    mockSuccess('[]');
+    const result = await readCommitStatusChecks('/repo', 'main');
+    expect(result.ok).toBe(false);
+  });
+
+  test('check-runs without a check_runs array → ok:false', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess(JSON.stringify({ total_count: 0 }));
+    mockSuccess('[]');
+    const result = await readCommitStatusChecks('/repo', 'main');
+    expect(result.ok).toBe(false);
+  });
+
+  test('statuses that are not an array → ok:false', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess(JSON.stringify({ check_runs: [], total_count: 0 }));
+    mockSuccess('{"context":"x"}');
+    const result = await readCommitStatusChecks('/repo', 'main');
+    expect(result.ok).toBe(false);
+  });
+
+  test('all green → ok:true with state success', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess(
+      JSON.stringify({
+        check_runs: [{ name: 'build', status: 'completed', conclusion: 'success' }],
+        total_count: 1,
+      })
+    );
+    mockSuccess(JSON.stringify([{ context: 'deploy', state: 'success', target_url: null }]));
+    const result = await readCommitStatusChecks('/repo', 'main');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value?.state).toBe('success');
+    expect(result.value?.totalCount).toBe(2);
+  });
+
+  test('one failing legacy status → ok:true with state failure', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockSuccess(
+      JSON.stringify({
+        check_runs: [{ name: 'build', status: 'completed', conclusion: 'success' }],
+        total_count: 1,
+      })
+    );
+    mockSuccess(JSON.stringify([{ context: 'Vercel', state: 'failure', target_url: null }]));
+    const result = await readCommitStatusChecks('/repo', 'main');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value?.state).toBe('failure');
+  });
+});
+
+// ─── Legacy fallback views (failure reads as empty) ──────────────────────────
+
+describe('getOpenPRsForBranch / getCommitStatusChecks fallbacks', () => {
+  test('getOpenPRsForBranch returns [] on gh error', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
+    mockFailure('gh: not logged in');
+    expect(await getOpenPRsForBranch('/repo', 'main')).toEqual([]);
+  });
+
+  test('getCommitStatusChecks returns null on gh error', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    mockFailure('gh: not found');
+    mockFailure('gh: not found');
+    expect(await getCommitStatusChecks('/repo', 'main')).toBeNull();
+  });
+});
+
 // ─── getDefaultBranch ───────────────────────────────────────────────────────
 
 describe('getDefaultBranch', () => {

@@ -157,4 +157,24 @@ describe('listWorkspacesForMachine (recency filter)', () => {
     const dirs = result.map((w) => w.workingDir).sort();
     expect(dirs).toEqual(['/tmp/ws1', '/tmp/ws2']);
   });
+
+  // Ported from the retired activity-query spec. The recency query shares its per-chatroom
+  // observation lookup, so a shared workingDir must resolve to the observed chatroom.
+  test('returns only the observed chatroom for a shared workingDir', async () => {
+    const { sessionId } = await createSession('shared-1');
+    const observed = await createChatroom(sessionId);
+    const unobserved = await createChatroom(sessionId);
+    const machineId = 'shared-machine';
+    await registerMachine(sessionId, machineId);
+    await registerWorkspace(sessionId, unobserved, machineId, '/tmp/shared');
+    await registerWorkspace(sessionId, observed, machineId, '/tmp/shared');
+    await t.mutation(api.chatrooms.recordChatroomObservation, {
+      sessionId,
+      chatroomId: observed,
+    });
+
+    const result = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));
+
+    expect(result.map((ws) => ws.chatroomId)).toEqual([observed]);
+  });
 });

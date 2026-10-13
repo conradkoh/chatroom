@@ -2,7 +2,6 @@ import type { OutboundEvent } from '../domain/entities/outbound-event.js';
 import { createAssignedTaskStatusPublisher } from '../infrastructure/convex/publishers/assigned-task-status.js';
 import { createCommandResultPublisher } from '../infrastructure/convex/publishers/command-result.js';
 import { createDaemonHeartbeatPublisher } from '../infrastructure/convex/publishers/daemon-heartbeat.js';
-import { createGitStatePublisher } from '../infrastructure/convex/publishers/git-state.js';
 import { createHarnessFingerprintPublisher } from '../infrastructure/convex/publishers/harness-fingerprint.js';
 import { createModelsPublisher } from '../infrastructure/convex/publishers/models.js';
 import type { ConvexPublisherDeps } from '../infrastructure/convex/publishers/publisher-deps.js';
@@ -27,7 +26,6 @@ function createConvexPublishers(deps: ConvexPublisherDeps) {
   return {
     heartbeat: createDaemonHeartbeatPublisher(deps),
     assignedTaskStatus: createAssignedTaskStatusPublisher(deps),
-    gitState: createGitStatePublisher(deps),
     models: createModelsPublisher(deps),
     harnessFingerprint: createHarnessFingerprintPublisher(deps),
     commandResult: createCommandResultPublisher(deps),
@@ -44,8 +42,6 @@ function routeConvexEvent(
       return publishers.heartbeat.publish(event);
     case 'task.status':
       return publishers.assignedTaskStatus.publish(event);
-    case 'git.state':
-      return publishers.gitState.publish(event);
     case 'models.updated':
       return publishers.models.publish(event);
     case 'harness.fingerprint.updated':

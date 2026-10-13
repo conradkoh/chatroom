@@ -203,6 +203,7 @@ export async function startDaemon(): Promise<void> {
     wsClient,
     layers,
     agentLifecycleOutbox: init.agentLifecycleOutbox,
+    workspaceStateOutbox: init.workspaceStateOutbox,
     agentProcessManagerService: init.agentProcessManagerService,
     onNativeDeliveryReady: (manager) => {
       nativeDelivery = manager;

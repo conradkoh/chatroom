@@ -44,6 +44,22 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
     mutation: vi.fn().mockImplementation(defaultMutationMock),
     query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1', userName: 'Test User' }),
   }),
+  getConvexWsClient: vi.fn().mockResolvedValue({
+    onUpdate: vi.fn().mockReturnValue(vi.fn()),
+  }),
+}));
+
+// The workspace-state outbox opens a durable SQLite file under HOME. Tests only need the
+// registry shape, so it is replaced with an in-memory no-op.
+vi.mock('../infrastructure/outbox/workspace-state-outbox.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  createWorkspaceStateOutboxRegistry: () => ({
+    enqueue: async () => undefined,
+    enqueueAndWait: async () => ({ applied: true }),
+    flushNow: async () => undefined,
+    stop: async () => undefined,
+    stopAll: async () => undefined,
+  }),
 }));
 
 vi.mock('../../infrastructure/machine/index.js', () => ({

@@ -59,6 +59,7 @@ import {
 import {
   AGENT_SLOT_STATE,
   AGENT_START_DISPOSITION,
+  isAgentSlotPresent,
   isAgentSlotStarted,
 } from '../../../domain/entities/agent-slot.js';
 import { AgentStopError } from '../../../domain/entities/agent-stop.js';
@@ -88,6 +89,7 @@ import type {
 import type { TurnCompletionResult } from '../../../infrastructure/local/harness/services/turn-completion.js';
 import type { AgentLifecycleOutboxResult } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type {
+  AgentPresenceChangedHandler,
   AgentProcessSlotState,
   AgentSessionLostEvent,
   AgentSessionLostHandler,
@@ -96,6 +98,7 @@ import type {
   AgentTurnEndedHandler,
   AgentTurnProgressEvent,
   AgentTurnProgressHandler,
+  AgentWorkspacePresence,
 } from '../domain/entities/agent-process.js';
 import {
   defaultNativeTurnPhase,
@@ -263,6 +266,10 @@ const AGENT_EXIT_RETRY_INTERVAL_MS = 10_000;
 // fallow-ignore-next-line unused-export
 export const STOPPING_TIMEOUT_MS = 30_000;
 
+/** Interval between liveness sweeps that reap running agents whose process died without onExit. */
+// fallow-ignore-next-line unused-export
+export const AGENT_LIVENESS_SWEEP_INTERVAL_MS = 10_000;
+
 // ─── Manager ──────────────────────────────────────────────────────────────────
 
 type ResolvedAgentProcessManagerDeps = AgentProcessManagerDeps;
@@ -277,11 +284,14 @@ export class AgentProcessManager {
   private readonly exitRetryQueue: RetryQueueItem[] = [];
   /** Active retry interval timer handle, or null if queue is empty. */
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
+  /** Periodic liveness sweep handle, or null when the sweep is not running. */
+  private livenessSweepTimer: ReturnType<typeof setInterval> | null = null;
   private readonly agentTurnEndedHandlers = new Set<AgentTurnEndedHandler>();
   private readonly agentTurnProgressHandlers = new Set<AgentTurnProgressHandler>();
   private agentTurnEndedSequence = 0;
   private readonly agentStartedHandlers = new Set<AgentStartedHandler>();
   private readonly agentSessionLostHandlers = new Set<AgentSessionLostHandler>();
+  private readonly agentPresenceChangedHandlers = new Set<AgentPresenceChangedHandler>();
   /** PIDs whose current in-flight turn already produced a typed terminal result. */
   private readonly typedCompletionSeenPids = new Set<number>();
   /** Shared per-agent serialization boundary for public and internal operations. */
@@ -387,6 +397,155 @@ export class AgentProcessManager {
     return () => this.agentTurnProgressHandlers.delete(handler);
   }
 
+  subscribeAgentPresenceChanged(handler: AgentPresenceChangedHandler): () => void {
+    this.agentPresenceChangedHandlers.add(handler);
+    return () => this.agentPresenceChangedHandlers.delete(handler);
+  }
+
+  /**
+   * Present agents with a workingDir, derived from the current slots on every call.
+   *
+   * A running or stopping slot is excluded when its pid is dead, so a slot that exited without
+   * an onExit callback does not count as present.
+   */
+  listWorkspacePresences(): AgentWorkspacePresence[] {
+    const presences: AgentWorkspacePresence[] = [];
+    for (const [key, slot] of this.slots) {
+      const identity = parseAgentKey(key);
+      const workingDir = identity.workingDir ?? slot.workingDir;
+      if (!workingDir || !isAgentSlotPresent(slot)) continue;
+      if (slot.state !== AGENT_SLOT_STATE.SPAWNING) {
+        if (slot.pid === undefined || !isProcessAlive(this.deps.processes.kill, slot.pid)) continue;
+      }
+      presences.push({ chatroomId: identity.chatroomId, role: identity.role, workingDir });
+    }
+    return presences;
+  }
+
+  /**
+   * Reaps agents whose process is gone, then notifies presence once.
+   *
+   * - Running slots with a dead pid go through `handleExit`, so a reap matches a real exit: the
+   *   slot resets, the exited fact is enqueued, and the pid is cleared.
+   * - Stopping slots with a dead pid are cleared through `forceClearStuckStoppingSlot` once
+   *   `STOPPING_TIMEOUT_MS` has elapsed. A stop whose harness call never resolves would otherwise
+   *   keep the slot stopping forever.
+   * - Live stopping slots are never touched, at any age. Spawning slots have no pid yet and are skipped.
+   *
+   * Each reap is isolated, so one failure does not stop the sweep. Returns the number of slots
+   * reaped by either path. A sweep with nothing to reap writes nothing.
+   */
+  async reapDeadAgentProcesses(): Promise<number> {
+    let reaped = 0;
+    for (const [key, slot] of [...this.slots]) {
+      if (slot.state !== AGENT_SLOT_STATE.RUNNING || slot.pid === undefined) continue;
+      const pid = slot.pid;
+      if (isProcessAlive(this.deps.processes.kill, pid)) continue;
+
+      const identity = parseAgentKey(key);
+      // The key carries the workingDir the slot was registered under. Pass it so handleExit finds
+      // this exact slot instead of guessing among several workingDirs for the same role.
+      const workingDir = identity.workingDir ?? slot.workingDir;
+      try {
+        await this.handleExit({
+          chatroomId: identity.chatroomId,
+          role: identity.role,
+          workingDir,
+          pid,
+          code: null,
+          signal: null,
+        });
+        if (slot.state !== AGENT_SLOT_STATE.RUNNING || slot.pid !== pid) reaped++;
+      } catch (error) {
+        console.warn(
+          `[AgentProcessManager] liveness reap failed for ${identity.role}@${identity.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+    reaped += await this.reapStoppingSlotsWithDeadPids();
+    this.notifyAgentPresenceChanged();
+    return reaped;
+  }
+
+  /**
+   * Clears stopping slots whose process is gone and whose stop has timed out. Called by the sweep.
+   *
+   * Exactly-once: `forceClearStuckStoppingSlot` clears `slot.pid` before its first await. A stop that
+   * resolves later sees the cleared pid and drops its exited fact (see `doStop`). Ownership is
+   * re-checked with no await between the liveness read and the call.
+   */
+  private async reapStoppingSlotsWithDeadPids(): Promise<number> {
+    let reaped = 0;
+    for (const [key, slot] of [...this.slots]) {
+      const pid = slot.pid;
+      if (slot.state !== AGENT_SLOT_STATE.STOPPING || pid === undefined) continue;
+      if (isProcessAlive(this.deps.processes.kill, pid) || !this.isStopTimedOut(slot)) continue;
+      const identity = parseAgentKey(key);
+      try {
+        if (slot.state !== AGENT_SLOT_STATE.STOPPING || slot.pid !== pid) continue;
+        await this.forceClearStuckStoppingSlot(
+          key,
+          slot,
+          identity.chatroomId,
+          identity.role,
+          'daemon.stop_timeout'
+        );
+        reaped++;
+        console.warn(
+          `[AgentProcessManager] ⚠️ Reaped stopping slot with dead pid ${pid} for ${identity.role}@${identity.chatroomId}`
+        );
+      } catch (error) {
+        console.warn(
+          `[AgentProcessManager] stopping reap failed for ${identity.role}@${identity.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+    return reaped;
+  }
+
+  /** True once a stopping slot has been stopping for STOPPING_TIMEOUT_MS. A slot with no stoppingSince counts as timed out. */
+  private isStopTimedOut(slot: AgentSlot): boolean {
+    return (
+      slot.stoppingSince === undefined ||
+      this.deps.clock.now() - slot.stoppingSince >= STOPPING_TIMEOUT_MS
+    );
+  }
+
+  /**
+   * Starts the periodic liveness sweep. Idempotent. The timer is unref'd so it never keeps the
+   * daemon alive. Only the daemon runtime starts it; stop() and reset() never do.
+   */
+  startLivenessSweep(intervalMs = AGENT_LIVENESS_SWEEP_INTERVAL_MS): void {
+    if (this.livenessSweepTimer !== null) return;
+    this.livenessSweepTimer = setInterval(() => {
+      void this.reapDeadAgentProcesses();
+    }, intervalMs);
+    this.livenessSweepTimer.unref?.();
+  }
+
+  /** Stops the periodic liveness sweep. Idempotent. */
+  stopLivenessSweep(): void {
+    if (this.livenessSweepTimer === null) return;
+    clearInterval(this.livenessSweepTimer);
+    this.livenessSweepTimer = null;
+  }
+
+  /**
+   * Notify every presence handler. A throwing handler is logged and does not stop the others
+   * or the caller. Call only as the last statement after a synchronous slot mutation.
+   */
+  private notifyAgentPresenceChanged(): void {
+    for (const handler of this.agentPresenceChangedHandlers) {
+      try {
+        handler();
+      } catch (error) {
+        console.warn(
+          `[AgentProcessManager] presence handler failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+  }
+
   private emitAgentTurnProgress(event: AgentTurnProgressEvent): void {
     for (const handler of this.agentTurnProgressHandlers) {
       try {
@@ -413,6 +572,7 @@ export class AgentProcessManager {
     slot.stopCommandId = undefined;
     slot.stopTargetKey = undefined;
     slot.nativeTurnPhase = undefined;
+    this.notifyAgentPresenceChanged();
   }
 
   private bumpStopGeneration(slot: AgentSlot): number {
@@ -711,6 +871,7 @@ export class AgentProcessManager {
     if (!pid) {
       slot.state = AGENT_SLOT_STATE.IDLE;
       slot.pendingOperation = undefined;
+      this.notifyAgentPresenceChanged();
       return { success: true };
     }
 
@@ -955,6 +1116,7 @@ export class AgentProcessManager {
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
     slot.nativeTurnPhase = undefined;
+    this.notifyAgentPresenceChanged();
   }
 
   private emitExitEvent(slot: AgentSlot, opts: HandleExitOpts, ctx: ExitContext): Promise<void> {
@@ -1116,10 +1278,7 @@ export class AgentProcessManager {
       return false;
     }
     const key = agentKey(chatroomId, role, slot.workingDir);
-    const elapsed = slot.stoppingSince
-      ? this.deps.clock.now() - slot.stoppingSince
-      : STOPPING_TIMEOUT_MS;
-    if (elapsed < STOPPING_TIMEOUT_MS) {
+    if (!this.isStopTimedOut(slot)) {
       return false;
     }
     await this.forceClearStuckStoppingSlot(
@@ -1214,6 +1373,7 @@ export class AgentProcessManager {
       const identity = parseAgentKey(key);
       if (matchesScope(identity.chatroomId, identity.role)) this.slots.delete(key);
     }
+    this.notifyAgentPresenceChanged();
     await this.lifecycle.runPromise(
       Effect.gen(function* () {
         const svc = yield* AgentLifecycleService;
@@ -1490,6 +1650,7 @@ export class AgentProcessManager {
   private resetSlotIdle(slot: AgentSlot): void {
     slot.state = AGENT_SLOT_STATE.IDLE;
     slot.pendingOperation = undefined;
+    this.notifyAgentPresenceChanged();
   }
 
   private checkRateLimitGate(opts: EnsureRunningOpts, slot: AgentSlot): OperationResult | null {
@@ -1625,6 +1786,7 @@ export class AgentProcessManager {
     slot.pendingOperation = undefined;
     slot.recentLogLines = [];
     slot.providerUnavailableEmitted = false;
+    this.notifyAgentPresenceChanged();
   }
 
   private emitSpawnedAgentUpdate(
@@ -1879,6 +2041,7 @@ export class AgentProcessManager {
     opts: EnsureRunningOpts
   ): Promise<OperationResult> {
     slot.state = AGENT_SLOT_STATE.SPAWNING;
+    this.notifyAgentPresenceChanged();
     const rateLimit = this.checkRateLimitGate(opts, slot);
     if (rateLimit) return rateLimit;
 
@@ -1962,6 +2125,7 @@ export class AgentProcessManager {
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
     slot.stoppingSince = undefined;
+    this.notifyAgentPresenceChanged();
   }
 
   private async forceClearStuckStoppingSlot(
@@ -2040,7 +2204,17 @@ export class AgentProcessManager {
             sessionId: this.deps.sessionId,
             agentServices: this.deps.agentServices,
             processes: this.deps.processes,
-            lifecycleOutbox: this.deps.lifecycleOutbox,
+            lifecycleOutbox: {
+              // The stop owns the exited fact only while the slot still holds this pid. After a
+              // force-clear (stuck stop), the slot already emitted it. A late fact would double-project.
+              enqueue: (fact) => {
+                if (slot.pid === pid) return this.deps.lifecycleOutbox.enqueue(fact);
+                console.log(
+                  `[AgentProcessManager] dropped late exited fact for pid ${pid} (slot already cleared)`
+                );
+                return Promise.resolve({ success: true } as const);
+              },
+            },
             logEvent: this.deps.logEvent,
             clock: this.deps.clock,
             killProcessWithFallback: this.killProcessWithFallback.bind(this),

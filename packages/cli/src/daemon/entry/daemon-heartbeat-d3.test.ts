@@ -1,13 +1,8 @@
 /**
- * Daemon Heartbeat Effect Tests (Phase D3 → updated for E3)
+ * Daemon Effect Tests (Phase D3 → updated for E3, S5a)
  *
- * Tests for the Effect twins of heartbeat functions:
- *   pushGitStateEffect, pushSingleWorkspaceGitStateEffect,
- *   syncCommitDetailsEffect,
- *   pushCommandsEffect, pushSingleWorkspaceCommandsEffect,
- *   fulfillFileContentRequestsEffect.
- *
- * All heartbeat Effect twins now require DaemonSessionService (migrated in E3).
+ * Tests for fulfillFileContentRequestsEffect. The git and command heartbeat twins were removed
+ * with their modules; WorkspaceService owns workspace state sync now.
  */
 
 import type { Layer } from 'effect';
@@ -55,10 +50,6 @@ vi.mock('../infrastructure/git/git-reader.js', () => ({
   getAllPRs: vi.fn().mockResolvedValue([]),
   getCommitStatusChecks: vi.fn().mockResolvedValue(null),
   getCommitDetail: vi.fn().mockResolvedValue({ status: 'not_found' }),
-}));
-
-vi.mock('./workspace-git/workspace-cache.js', () => ({
-  getWorkspacesForMachine: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../infrastructure/services/workspace/command-discovery.js', () => ({
@@ -117,149 +108,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
-});
-
-// ---------------------------------------------------------------------------
-// A. git-heartbeat Effect twins
-// ---------------------------------------------------------------------------
-
-describe('pushGitStateEffect', () => {
-  it('completes without error when no workspaces are registered', async () => {
-    const { pushGitStateEffect } =
-      await import('../../daemon/entry/workspace-git/git-heartbeat.js');
-    await expect(runWithCtx(pushGitStateEffect)).resolves.toBeUndefined();
-  });
-
-  it('reads machineId from DaemonSessionService', async () => {
-    const { getWorkspacesForMachine } = await import('./workspace-git/workspace-cache.js');
-    const { pushGitStateEffect } =
-      await import('../../daemon/entry/workspace-git/git-heartbeat.js');
-
-    const deps = createMockDaemonDeps();
-    await runWithCtx(pushGitStateEffect, withDeps(deps, { machineId: 'machine-d3-git' }));
-
-    expect(getWorkspacesForMachine).toHaveBeenCalledWith(
-      expect.objectContaining({ machineId: 'machine-d3-git' })
-    );
-  });
-});
-
-describe('pushSingleWorkspaceGitStateEffect', () => {
-  it('calls upsertWorkspaceGitState with not_found when not a git repo', async () => {
-    const { pushSingleWorkspaceGitStateEffect } =
-      await import('../../daemon/entry/workspace-git/git-heartbeat.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-
-    await runWithCtx(
-      pushSingleWorkspaceGitStateEffect('/tmp/not-a-repo'),
-      withDeps(deps, { machineId: 'machine-d3' })
-    );
-
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ status: 'not_found', workingDir: '/tmp/not-a-repo' })
-    );
-  });
-
-  it('uses sessionId from ctx when calling backend', async () => {
-    const { pushSingleWorkspaceGitStateEffect } =
-      await import('../../daemon/entry/workspace-git/git-heartbeat.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-
-    await runWithCtx(
-      pushSingleWorkspaceGitStateEffect('/tmp/repo'),
-      withDeps(deps, { sessionId: 'session-d3' })
-    );
-
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sessionId: 'session-d3' })
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// B. commit-detail-sync Effect twin
-// ---------------------------------------------------------------------------
-
-describe('syncCommitDetailsEffect', () => {
-  it('completes without error when no workspaces are registered', async () => {
-    const { syncCommitDetailsEffect } = await import('./workspace-git/commit-detail-sync.js');
-    await expect(runWithCtx(syncCommitDetailsEffect())).resolves.toBeUndefined();
-  });
-
-  it('passes machineId from session to getWorkspacesForMachine', async () => {
-    const { getWorkspacesForMachine } = await import('./workspace-git/workspace-cache.js');
-    const { syncCommitDetailsEffect } = await import('./workspace-git/commit-detail-sync.js');
-
-    await runWithCtx(syncCommitDetailsEffect(), { machineId: 'machine-commit-d3' });
-
-    expect(getWorkspacesForMachine).toHaveBeenCalledWith(
-      expect.objectContaining({ machineId: 'machine-commit-d3' })
-    );
-  });
-
-  it('accepts an optional seenShasMap injection', async () => {
-    const { syncCommitDetailsEffect } = await import('./workspace-git/commit-detail-sync.js');
-    const injectedMap = new Map<string, Set<string>>();
-
-    // Should resolve without error with custom map
-    await expect(runWithCtx(syncCommitDetailsEffect(injectedMap))).resolves.toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// C. command-sync-heartbeat Effect twins
-// ---------------------------------------------------------------------------
-
-describe('pushCommandsEffect', () => {
-  it('completes without error when no workspaces are registered', async () => {
-    const { pushCommandsEffect } = await import('./command-sync-heartbeat.js');
-    await expect(runWithCtx(pushCommandsEffect)).resolves.toBeUndefined();
-  });
-
-  it('passes machineId from session to getWorkspacesForMachine', async () => {
-    const { getWorkspacesForMachine } = await import('./workspace-git/workspace-cache.js');
-    const { pushCommandsEffect } = await import('./command-sync-heartbeat.js');
-
-    await runWithCtx(pushCommandsEffect, { machineId: 'machine-cmds-d3' });
-
-    expect(getWorkspacesForMachine).toHaveBeenCalledWith(
-      expect.objectContaining({ machineId: 'machine-cmds-d3' })
-    );
-  });
-});
-
-describe('pushSingleWorkspaceCommandsEffect', () => {
-  it('calls discoverCommands for the given workingDir', async () => {
-    const commandDiscovery =
-      await import('../../infrastructure/services/workspace/command-discovery.js');
-    const { pushSingleWorkspaceCommandsEffect } = await import('./command-sync-heartbeat.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-
-    await runWithCtx(pushSingleWorkspaceCommandsEffect('/tmp/workspace'), withDeps(deps));
-
-    expect(commandDiscovery.discoverCommands).toHaveBeenCalledWith('/tmp/workspace');
-  });
-
-  it('calls syncCommands mutation with sessionId and machineId from session', async () => {
-    const { pushSingleWorkspaceCommandsEffect } = await import('./command-sync-heartbeat.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-
-    await runWithCtx(
-      pushSingleWorkspaceCommandsEffect('/tmp/ws'),
-      withDeps(deps, { sessionId: 'session-cmds', machineId: 'machine-cmds' })
-    );
-
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sessionId: 'session-cmds', machineId: 'machine-cmds' })
-    );
-  });
 });
 
 // ---------------------------------------------------------------------------

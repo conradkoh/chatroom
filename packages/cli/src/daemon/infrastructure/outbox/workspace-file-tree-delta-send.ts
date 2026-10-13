@@ -5,6 +5,9 @@ import type { WorkspacePendingDelta } from '../../../infrastructure/services/wor
 import { isFileTreeSyncDisabledError } from '../../../utils/convex-error.js';
 import type { DaemonSessionServiceShape } from '../../entry/daemon-services.js';
 
+/** Only the fields this adapter reads, so the service-owned host can call it without a cycle. */
+type FileTreeSendSession = Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>;
+
 function toDeltaOperations(delta: WorkspacePendingDelta) {
   return [
     ...delta.added.map((entry) => ({
@@ -26,7 +29,7 @@ function toDeltaOperations(delta: WorkspacePendingDelta) {
 
 /** One outbox delivery: maps backend resync to conflict for FIFO outbox retry. */
 export function createWorkspaceFileTreeDeltaSend(
-  session: DaemonSessionServiceShape,
+  session: FileTreeSendSession,
   normalizedWorkingDir: string,
   options?: { onSyncDisabled?: () => void | Promise<void> }
 ): (unit: WorkspaceFileTreeDeltaDeliveryUnit) => Promise<DeltaPushResult> {

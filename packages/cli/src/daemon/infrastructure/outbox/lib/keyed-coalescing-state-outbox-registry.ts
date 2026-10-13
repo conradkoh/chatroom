@@ -17,6 +17,8 @@ export type KeyedCoalescingStateOutboxRegistry<TState, TResult> = {
 export type KeyedCoalescingStateOutboxRegistryOptions<TState, TResult> = {
   createSend: (key: string) => CoalescingStateOutboxOptions<TState, TResult>['send'];
   minIntervalMs?: number | undefined;
+  /** Per-key throttle; falls back to `minIntervalMs` when it returns undefined. */
+  resolveMinIntervalMs?: ((key: string) => number | undefined) | undefined;
   retryDelayMs?: number | undefined;
   maxRetryDelayMs?: number | undefined;
   onError?: ((key: string, error: unknown) => void) | undefined;
@@ -32,13 +34,15 @@ export function createKeyedCoalescingStateOutboxRegistry<TState, TResult>(
 ): KeyedCoalescingStateOutboxRegistry<TState, TResult> {
   const outboxes = new Map<string, CoalescingStateOutbox<TState, TResult>>();
   let stopped = false;
+  const resolveMinIntervalMs = (key: string) =>
+    options.resolveMinIntervalMs?.(key) ?? options.minIntervalMs;
   const getOrCreate = (key: string) => {
     if (stopped) throw new Error('Outbox registry is stopped');
     let outbox = outboxes.get(key);
     if (!outbox) {
       outbox = createCoalescingStateOutbox({
         send: (state) => options.createSend(key)(state),
-        minIntervalMs: options.minIntervalMs,
+        minIntervalMs: resolveMinIntervalMs(key),
         retryDelayMs: options.retryDelayMs,
         maxRetryDelayMs: options.maxRetryDelayMs,
         onError: (error) => options.onError?.(key, error),

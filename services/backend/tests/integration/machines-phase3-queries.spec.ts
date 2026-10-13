@@ -187,14 +187,15 @@ describe('agents.getChatroomStatus', () => {
   });
 
   test.each([
-    ['working', 'working', 'active'],
-    ['waiting', 'active', 'active'],
-    ['starting', 'transitioning', 'attention'],
-    ['stopping', 'transitioning', 'attention'],
-    ['error', 'transitioning', 'attention'],
+    ['working', 'working', 'active', 'running'],
+    ['waiting', 'active', 'active', 'running'],
+    ['starting', 'transitioning', 'attention', 'running'],
+    ['stopping', 'transitioning', 'attention', 'running'],
+    // An error-only chatroom has no active agent, but it stays stoppable.
+    ['error', 'transitioning', 'attention', 'none'],
   ] as const)(
-    'derives %s activity as %s and state %s',
-    async (agentStatus, expectedActivity, expectedState) => {
+    'derives %s activity as %s and state %s, with remoteAgentStatus %s',
+    async (agentStatus, expectedActivity, expectedState, expectedRemoteAgentStatus) => {
       const { sessionId } = await createTestSession(`test-chatroom-status-${agentStatus}`);
       const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
@@ -215,10 +216,39 @@ describe('agents.getChatroomStatus', () => {
 
       expect(result.activityStatus).toBe(expectedActivity);
       expect(result.state).toBe(expectedState);
-      expect(result.remoteAgentStatus).toBe('running');
+      expect(result.remoteAgentStatus).toBe(expectedRemoteAgentStatus);
       expect(result.canStop).toBe(true);
     }
   );
+
+  test('reports remoteAgentStatus none when the only rows are error and offline', async () => {
+    const { sessionId } = await createTestSession('test-chatroom-status-error-offline');
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+        chatroomId,
+        role: 'builder',
+        roleKind: 'persistent',
+        status: 'error',
+        projectedAt: Date.now(),
+      });
+      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+        chatroomId,
+        role: 'planner',
+        roleKind: 'persistent',
+        status: 'offline',
+        projectedAt: Date.now(),
+      });
+    });
+
+    const result = await t.query(api.agents.getChatroomStatus, {
+      sessionId: sessionId as any,
+      chatroomId,
+    });
+
+    expect(result.remoteAgentStatus).toBe('none');
+  });
 
   test('returns completed for an archived chatroom regardless of role rows', async () => {
     const { sessionId } = await createTestSession('test-chatroom-status-completed');

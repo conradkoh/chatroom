@@ -1,34 +1,36 @@
-import type { FunctionReturnType } from 'convex/server';
-
 import { api } from '../../../../api.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
+import { createWorkspaceMembershipSource } from '../../../services/workspace-service/infrastructure/workspace-membership-source.js';
 import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 
 export interface GitRequestSubscriberHandle {
   stop(): Promise<void>;
-  refreshWorkspaces(): Promise<void>;
 }
-
-type WorkspaceForMachineView = NonNullable<
-  FunctionReturnType<typeof api.workspaces.listWorkspacesForMachine>
->[number];
 
 interface PendingGitRequest {
   _id: string | { toString(): string };
 }
+
+/**
+ * The requestId on the one drain trigger sent after the first membership snapshot. The inbound
+ * handler drains every pending request on the machine and never reads this id, so it is not a real
+ * request id.
+ */
+const STARTUP_DRAIN_REQUEST_ID = 'startup-drain';
 
 function requestId(req: PendingGitRequest): string {
   return typeof req._id === 'string' ? req._id : req._id.toString();
 }
 
 /**
- * Watches pending git diff/commit requests per workspace.
+ * Watches pending git diff/commit requests per registered workspace.
  *
- * One child subscription per active workspace (workingDir, discovered via
- * listWorkspacesForMachine and deduped) so a request in one workspace never
- * invalidates the watch for another workspace on the same machine. The
- * machine-wide getPendingRequests query remains an imperative recovery drain
- * in the legacy worker, not a WS watch.
+ * Membership comes from the registered-directory subscription, the same query the WorkspaceService
+ * uses. Each registered directory gets one child watch on its pending requests. A membership change
+ * adds or removes watches without restarting the subscriber, so a workspace is watched whether or not
+ * it was observed at daemon startup. A request in one workspace never invalidates another workspace's
+ * watch. The first membership snapshot also triggers one machine-wide drain, which serves any requests
+ * that arrived before their watch existed.
  */
 export function startGitRequestSubscriber(
   deps: ConvexSubscriberDeps,
@@ -37,8 +39,8 @@ export function startGitRequestSubscriber(
   const seen = new Set<string>();
   const watchers = new Map<string, () => void>();
   let stopped = false;
-  let refreshInFlight = false;
-  let queued = false;
+  let startupDrainSent = false;
+  let unsubscribeMembership: (() => void) | null = null;
 
   // fallow-ignore-next-line complexity
   const onPendingRequests = (requests: PendingGitRequest[] | null) => {
@@ -69,52 +71,38 @@ export function startGitRequestSubscriber(
     watchers.set(workingDir, unsub);
   };
 
-  /** Reconcile child watches against the machine's active workspaces. Idempotent + coalesced. */
-  // fallow-ignore-next-line complexity
-  const refreshWorkspaces = async (): Promise<void> => {
-    if (refreshInFlight) {
-      queued = true;
-      return;
+  /** Makes the watches match `workingDirs`: unwatch the removed directories, watch the new ones. */
+  const reconcileWatchers = (workingDirs: ReadonlySet<string>): void => {
+    for (const [workingDir, unsub] of watchers) {
+      if (workingDirs.has(workingDir)) continue;
+      unsub();
+      watchers.delete(workingDir);
     }
-    refreshInFlight = true;
-    try {
-      do {
-        queued = false;
-        const workspaces = await deps.wsClient.query(api.workspaces.listWorkspacesForMachine, {
-          sessionId: deps.sessionId,
-          machineId: deps.machineId,
-        });
-        if (stopped) return;
-        const workingDirs = [
-          ...new Set((workspaces ?? ([] as WorkspaceForMachineView[])).map((ws) => ws.workingDir)),
-        ];
-        for (const [workingDir, unsub] of watchers) {
-          if (!workingDirs.includes(workingDir)) {
-            unsub();
-            watchers.delete(workingDir);
-          }
-        }
-        for (const workingDir of workingDirs) watchWorkspace(workingDir);
-      } while (queued && !stopped);
-    } catch (error) {
-      console.warn(
-        `[daemon] git-request workspace refresh failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    } finally {
-      refreshInFlight = false;
-    }
+    for (const workingDir of workingDirs) watchWorkspace(workingDir);
   };
 
-  void refreshWorkspaces();
+  const membership = createWorkspaceMembershipSource({
+    wsClient: deps.wsClient,
+    sessionId: deps.sessionId,
+    machineId: deps.machineId,
+  });
+  unsubscribeMembership = membership.subscribe((workingDirs) => {
+    if (stopped) return;
+    reconcileWatchers(new Set(workingDirs));
+    if (!startupDrainSent) {
+      startupDrainSent = true;
+      onEvent({ type: 'git.request', requestId: STARTUP_DRAIN_REQUEST_ID });
+    }
+  });
 
   return {
     async stop() {
       stopped = true;
+      // Membership first, so no new watch can be created while the watches are torn down.
+      unsubscribeMembership?.();
+      unsubscribeMembership = null;
       for (const unsub of watchers.values()) unsub();
       watchers.clear();
     },
-    refreshWorkspaces,
   };
 }

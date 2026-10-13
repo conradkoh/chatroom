@@ -8,6 +8,12 @@ import { workspaceAgentConfigInboxEventValidator } from '../src/domain/entities/
 import { workspaceTaskInboxEventValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
+import {
+  commitStatusValidator,
+  diffStatValidator,
+  openPullRequestValidator,
+  remoteValidator,
+} from '../src/domain/entities/workspace-git-state-unit';
 
 const attachedSnippetValidator = v.object({
   reference: v.string(),
@@ -1446,6 +1452,8 @@ export default defineSchema({
    * Workspace git state pushed by the daemon on heartbeat.
    * Stores branch, dirty status, diff stats, and recent commits.
    * Keyed by machineId + workingDir (workspace-level, not chatroom-level).
+   *
+   * @deprecated legacy aggregate; still written during the unit-table transition; unit tables are canonical
    */
   chatroom_workspaceGitState: defineTable({
     // Identity: unique workspace
@@ -1586,6 +1594,65 @@ export default defineSchema({
     pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
 
     // Timestamp
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  // ─── Per-unit workspace git state ───────────────────────────────────────────
+  // One table per git unit (WORKSPACE_GIT_UNIT_TABLE). Each row holds one unit for one
+  // workspace, keyed by machineId + workingDir. Slice 1: the tables exist but nothing reads or
+  // writes them. chatroom_workspaceGitState stays the source of truth until the migration.
+
+  /** Branch of the workspace HEAD. Unit `head`. */
+  chatroom_workspaceGitHead: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    status: v.union(v.literal('available'), v.literal('not_found'), v.literal('error')),
+    /** Only when status === 'available'. */
+    branch: v.optional(v.string()),
+    /** Only when status === 'error'. */
+    errorMessage: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /** Dirty flag and diff summary of the working tree. Unit `worktree`. */
+  chatroom_workspaceGitWorktree: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    isDirty: v.boolean(),
+    diffStat: diffStatValidator,
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /** Commits ahead of and behind the upstream tracking branch. Unit `upstream`. */
+  chatroom_workspaceGitUpstream: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    commitsAhead: v.number(),
+    commitsBehind: v.number(),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /** Git remotes. Unit `remotes`. */
+  chatroom_workspaceGitRemotes: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    remotes: v.array(remoteValidator),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /** Open pull requests for the current branch. Unit `pullRequests`. */
+  chatroom_workspaceGitPullRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    openPullRequests: v.array(openPullRequestValidator),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /** CI status checks for the HEAD commit. Unit `checks`. */
+  chatroom_workspaceGitChecks: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    headCommitStatus: v.union(commitStatusValidator, v.null()),
     updatedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
@@ -1817,6 +1884,7 @@ export default defineSchema({
   // Persistent record of workspaces (machine + working directory pairs) where
   // agents operate. These rows persist daemon-observed capability data.
   // independently of agent lifecycle.
+  // Identity and configuration only. Read by machine-level list subscriptions; never add high-frequency fields.
   chatroom_workspaces: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     machineId: v.string(),

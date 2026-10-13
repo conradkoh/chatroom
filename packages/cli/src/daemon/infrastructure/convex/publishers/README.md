@@ -23,7 +23,6 @@
 | `capabilities.ts`         | `capabilities.updated`         |
 | `command-result.ts`       | `command.result`               |
 | `daemon-heartbeat.ts`     | `heartbeat`                    |
-| `git-state.ts`            | `git.state`                    |
 | `harness-fingerprint.ts`  | harness metadata               |
 | `models.ts`               | `models.updated`               |
 | `session-lifecycle.ts`    | `session.lifecycle`            |

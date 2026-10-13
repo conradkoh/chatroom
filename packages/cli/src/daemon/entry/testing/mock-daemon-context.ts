@@ -7,12 +7,35 @@
  *   const init = createMockDaemonSessionInit({ sessionId: 'my-session' });
  */
 
+import { vi } from 'vitest';
+
 import { createMockDaemonDeps } from './mock-daemon-deps.js';
-import {
-  createAgentProcessService,
-} from '../../services/service-interfaces.js';
+import { createAgentProcessService } from '../../services/service-interfaces.js';
+import type { WorkspaceService } from '../../services/workspace-service/index.js';
 import type { DaemonSessionInit, ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
+
+/** A WorkspaceService whose methods are spies. Every directory is registered by default. */
+export function createFakeWorkspaceService(
+  overrides?: Partial<WorkspaceService>
+): WorkspaceService {
+  return {
+    fileTree: {
+      ensure: vi.fn(async () => {
+        throw new Error('fileTree.ensure is not stubbed');
+      }),
+      stop: vi.fn(async () => {}),
+      disable: vi.fn(async () => {}),
+      oneShot: vi.fn(async () => {}),
+      stopAll: vi.fn(async () => {}),
+    },
+    start: vi.fn(),
+    refresh: vi.fn(async () => {}),
+    isRegistered: vi.fn(() => true),
+    stopAll: vi.fn(async () => {}),
+    ...overrides,
+  };
+}
 
 /**
  * Creates a minimal DaemonSessionInit for unit tests (flat deps shape).
@@ -41,7 +64,14 @@ export function createMockDaemonSessionInit(
     } as never,
     events: new DaemonEventBus(),
     agentServices: new Map(),
-    lastPushedGitState: new Map(),
+    workspaceService: createFakeWorkspaceService(),
+    workspaceStateOutbox: {
+      enqueueAndWait: async () => ({ applied: true }),
+      enqueue: async () => undefined,
+      flushNow: async () => undefined,
+      stop: async () => undefined,
+      stopAll: async () => undefined,
+    } as never,
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
     logEvent: async () => undefined,

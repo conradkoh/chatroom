@@ -19,6 +19,7 @@ import {
 } from './command-run-subscription.js';
 import type { api, Id } from '../../../../api.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
+import { createFakeWorkspaceService } from '../../testing/index.js';
 import { onCommandRunEffect, onCommandStopEffect } from '../command-runner.js';
 
 vi.mock('../../../../api.js', () => ({
@@ -64,7 +65,7 @@ function makeSession(): DaemonSessionServiceShape {
     fs: {} as DaemonSessionServiceShape['fs'],
     agentServices: new Map(),
     events: {} as DaemonSessionServiceShape['events'],
-    lastPushedGitState: new Map(),
+    workspaceService: createFakeWorkspaceService(),
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
     logEvent: async () => undefined,
