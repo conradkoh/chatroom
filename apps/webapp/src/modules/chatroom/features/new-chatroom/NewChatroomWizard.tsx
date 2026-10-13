@@ -1,10 +1,10 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import { ConvexError } from 'convex/values';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { messageFromError } from './lib/errorMessage';
 import { NewChatroomAgentsStep } from './NewChatroomAgentsStep';
 import { NewChatroomMachineStep } from './NewChatroomMachineStep';
 import { NewChatroomWorkspaceStep } from './NewChatroomWorkspaceStep';
@@ -32,21 +32,6 @@ interface CreatedChatroom {
   chatroomId: string;
   machineId: string;
   workingDir: string;
-}
-
-/** The server's message when a ConvexError carries one. */
-function convexErrorMessage(error: unknown): string | null {
-  if (!(error instanceof ConvexError)) return null;
-  const message = (error.data as { message?: unknown } | null)?.message;
-  return typeof message === 'string' ? message : null;
-}
-
-/** Prefers the server's ConvexError message, then a plain Error message, then a fallback. */
-function messageFromError(error: unknown): string {
-  return (
-    convexErrorMessage(error) ??
-    (error instanceof Error ? error.message : 'Failed to create chatroom')
-  );
 }
 
 /** Step 2 view. Nothing is shown until the machine is known. */

@@ -50,6 +50,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     machines: {
       getUserMachines: 'machines:getUserMachines',
     },
+    gitCloneRequests: {
+      request: 'gitCloneRequests:request',
+      get: 'gitCloneRequests:get',
+    },
   },
 }));
 
@@ -162,6 +166,7 @@ describe('NewChatroomWizard existing-folder path', () => {
     renderWizard();
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
     await user.click(screen.getByRole('option', { name: FOLDER }));
     await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
 
@@ -180,6 +185,7 @@ describe('NewChatroomWizard existing-folder path', () => {
     renderWizard();
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
     await user.type(screen.getByLabelText('Folder path'), 'relative/path');
 
     expect(screen.getByRole('button', { name: 'Create chatroom' })).toHaveProperty(
@@ -198,6 +204,7 @@ describe('NewChatroomWizard existing-folder path', () => {
     renderWizard();
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
     await user.click(screen.getByRole('option', { name: FOLDER }));
     const create = screen.getByRole('button', { name: 'Create chatroom' });
     fireEvent.click(create);
@@ -214,6 +221,7 @@ describe('NewChatroomWizard existing-folder path', () => {
     renderWizard();
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
     await user.click(screen.getByRole('option', { name: FOLDER }));
     await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
 
