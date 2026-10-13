@@ -75,3 +75,22 @@ describe('SetupWorkspaceStep shared footer', () => {
     expect(document.querySelector('[data-slot="setup-step-footer"]')).toBeNull();
   });
 });
+
+describe('SetupWorkspaceStep default machine', () => {
+  it('keeps the auto-selected machine when a second machine connects', () => {
+    const SECOND: UserMachine = {
+      machineId: 'machine-b',
+      hostname: 'desktop',
+      os: 'linux',
+      registeredAt: 2,
+    } as UserMachine;
+    const common = { isLoadingMachines: false, onConfirm: vi.fn().mockResolvedValue(undefined) };
+    const { rerender } = render(<SetupWorkspaceStep {...common} connectedMachines={[]} />);
+
+    rerender(<SetupWorkspaceStep {...common} connectedMachines={[MACHINE]} />);
+    expect(screen.getByPlaceholderText('Select a folder on laptop')).toBeInTheDocument();
+
+    rerender(<SetupWorkspaceStep {...common} connectedMachines={[MACHINE, SECOND]} />);
+    expect(screen.getByPlaceholderText('Select a folder on laptop')).toBeInTheDocument();
+  });
+});

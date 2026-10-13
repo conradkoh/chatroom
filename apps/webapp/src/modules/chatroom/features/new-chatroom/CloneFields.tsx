@@ -76,7 +76,10 @@ export function CloneFields(props: CloneFieldsProps) {
         onChange={props.onRepoUrlChange}
       />
       <SetupFolderPickerField
-        label="Clone to"
+        variant="clone"
+        heading="Clone to"
+        inputAriaLabel="Clone to"
+        waitingText={`Waiting for a folder choice on ${props.machineName}…`}
         value={props.cloneTo}
         onChange={props.onCloneToChange}
         placeholder={`A folder on ${props.machineName}`}

@@ -34,8 +34,14 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   const daemonStartCommand = getDaemonStartCommand();
   const authLoginCommand = getAuthLoginCommandForCurrentOrigin();
 
-  // A single connected machine is selected by default. Derived, so no effect is needed.
-  const selectedMachineId = pickDefaultMachineId(connectedMachines, chosenMachineId);
+  // A single connected machine is selected by default. Once a machine is chosen, by the user or by
+  // this default, it stays chosen, so a second machine connecting later does not clear it. The
+  // default is latched during render rather than in an effect.
+  const defaultMachineId = pickDefaultMachineId(connectedMachines, chosenMachineId);
+  if (chosenMachineId === null && defaultMachineId !== null) {
+    setChosenMachineId(defaultMachineId);
+  }
+  const selectedMachineId = chosenMachineId ?? defaultMachineId;
   const connectedMachineIds = useMemo(
     () => new Set(connectedMachines.map((m) => m.machineId)),
     [connectedMachines]
@@ -142,7 +148,10 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
       />
 
       <SetupFolderPickerField
-        label="Workspace Folder"
+        variant="setup"
+        heading="Workspace Folder"
+        inputAriaLabel="Workspace Folder"
+        waitingText={`Waiting for folder selection on ${picker.machineDisplayName ?? 'machine'}...`}
         value={selectedPath}
         onChange={setSelectedPath}
         placeholder={folderPlaceholder}

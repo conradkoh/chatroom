@@ -194,7 +194,10 @@ export function ExistingFolderForm({
 
       <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
         <SetupFolderPickerField
-          label="Folder path"
+          variant="setup"
+          heading="Workspace Folder"
+          inputAriaLabel="Folder path"
+          waitingText={`Waiting for folder selection on ${picker.machineDisplayName ?? 'machine'}...`}
           value={selectedPath}
           onChange={setSelectedPath}
           placeholder={`Type or browse a folder on ${machineName}`}

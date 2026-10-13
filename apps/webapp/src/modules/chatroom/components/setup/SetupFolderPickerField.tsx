@@ -15,9 +15,25 @@ export interface FolderPickerState {
   onRetryAfterTimeout: () => void;
 }
 
+/** Shown with the retry prompt when the picker timed out. */
+const PICKER_TIMEOUT_HINT =
+  'Folder picker timed out. Ensure the daemon is running on the selected machine.';
+
+type SetupFolderPickerFieldVariant = 'setup' | 'clone';
+
 interface SetupFolderPickerFieldProps {
-  /** Visible heading, and the input's accessible name. */
-  label: string;
+  /**
+   * The two layouts the field replaces. 'setup' is the wizard and checklist heading, with the status
+   * below the Browse row. 'clone' is the clone form's smaller heading, with the status above the
+   * retry prompt. The two keep their own order and copy.
+   */
+  variant: SetupFolderPickerFieldVariant;
+  /** Visible heading. */
+  heading: string;
+  /** The input's accessible name. */
+  inputAriaLabel: string;
+  /** Shown while the picker waits for the daemon. */
+  waitingText: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
@@ -28,6 +44,27 @@ interface SetupFolderPickerFieldProps {
   picker: FolderPickerState;
   /** Shown under the input row, for example a clone target hint. */
   hint?: ReactNode;
+}
+
+function FieldHeading({
+  variant,
+  children,
+}: {
+  variant: SetupFolderPickerFieldVariant;
+  children: string;
+}) {
+  if (variant === 'clone') {
+    return (
+      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+        {children}
+      </div>
+    );
+  }
+  return (
+    <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-2">
+      {children}
+    </h3>
+  );
 }
 
 function BrowseIcon({ isPending }: { isPending: boolean }) {
@@ -56,38 +93,57 @@ function BrowseButton({
   );
 }
 
-function WaitingMessage({ machineDisplayName }: { machineDisplayName: string | null }) {
-  return (
-    <p className="text-xs text-chatroom-text-muted">
-      Waiting for folder selection on {machineDisplayName ?? 'machine'}...
-    </p>
-  );
-}
+/** Picker feedback: the error, the waiting line, and the retry prompt, in the variant's order. */
+function PickerStatus({
+  variant,
+  picker,
+  waitingText,
+}: {
+  variant: SetupFolderPickerFieldVariant;
+  picker: FolderPickerState;
+  waitingText: string;
+}) {
+  const errorLine = picker.error ?? (picker.isTimedOut ? PICKER_TIMEOUT_HINT : null);
+  const error = errorLine ? (
+    <p className="text-xs text-chatroom-status-error">{errorLine}</p>
+  ) : null;
+  const waiting = picker.isPending ? (
+    <p className="text-xs text-chatroom-text-muted">{waitingText}</p>
+  ) : null;
+  const retry = picker.isTimedOut ? (
+    <button
+      type="button"
+      onClick={picker.onRetryAfterTimeout}
+      className="text-xs text-chatroom-accent hover:text-chatroom-text-primary text-left"
+    >
+      Folder picker timed out — click to try again
+    </button>
+  ) : null;
 
-/** Picker feedback: an error, waiting for the daemon, or a retry prompt after a timeout. */
-function PickerStatus({ picker }: { picker: FolderPickerState }) {
+  if (variant === 'clone') {
+    return (
+      <>
+        {error}
+        {waiting}
+        {retry}
+      </>
+    );
+  }
   return (
     <>
-      {picker.error && <p className="text-xs text-chatroom-status-error">{picker.error}</p>}
-      {picker.requestId && picker.isPending && (
-        <WaitingMessage machineDisplayName={picker.machineDisplayName} />
-      )}
-      {picker.isTimedOut && (
-        <button
-          type="button"
-          onClick={picker.onRetryAfterTimeout}
-          className="text-xs text-chatroom-accent hover:text-chatroom-text-primary text-left"
-        >
-          Folder picker timed out — click to try again
-        </button>
-      )}
+      {waiting}
+      {retry}
+      {error}
     </>
   );
 }
 
-/** The one folder-path field: a text input, a Browse button, and the picker status. */
+/** The one folder-path field: a heading, a text input, a Browse button, and the picker status. */
 export const SetupFolderPickerField = memo(function SetupFolderPickerField({
-  label,
+  variant,
+  heading,
+  inputAriaLabel,
+  waitingText,
   value,
   onChange,
   placeholder,
@@ -98,14 +154,12 @@ export const SetupFolderPickerField = memo(function SetupFolderPickerField({
 }: SetupFolderPickerFieldProps) {
   return (
     <div>
-      <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-2">
-        {label}
-      </h3>
+      <FieldHeading variant={variant}>{heading}</FieldHeading>
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <input
             type="text"
-            aria-label={label}
+            aria-label={inputAriaLabel}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
@@ -119,7 +173,7 @@ export const SetupFolderPickerField = memo(function SetupFolderPickerField({
           />
         </div>
         {hint}
-        <PickerStatus picker={picker} />
+        <PickerStatus variant={variant} picker={picker} waitingText={waitingText} />
       </div>
     </div>
   );
