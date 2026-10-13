@@ -20,7 +20,6 @@ export function useCloneTarget(machine: UserMachine) {
   const [cloneTo, setCloneTo] = useState('');
   const [cloneToTouched, setCloneToTouched] = useState(false);
   const [parentDir, setParentDir] = useState<string | null>(null);
-  const [pickerError, setPickerError] = useState<string | null>(null);
 
   const handleParentPicked = useCallback(
     (parent: string) => {
@@ -31,11 +30,10 @@ export function useCloneTarget(machine: UserMachine) {
     [repoUrl]
   );
 
-  const folderPicker = useSetupWorkspaceFolderPicker({
+  const { picker } = useSetupWorkspaceFolderPicker({
     selectedMachineId: machine.machineId,
     selectedMachine: machine,
     onPathSelected: handleParentPicked,
-    setError: setPickerError,
   });
 
   const handleRepoUrlChange = (value: string) => {
@@ -53,8 +51,7 @@ export function useCloneTarget(machine: UserMachine) {
   return {
     repoUrl,
     cloneTo,
-    pickerError,
-    folderPicker,
+    picker,
     handleRepoUrlChange,
     handleCloneToChange,
   };

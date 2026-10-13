@@ -184,14 +184,10 @@ export function CloneRepoForm({
           cloneTo={target.cloneTo}
           locked={locked}
           browseDisabled={!isMachineConnected || locked}
-          isPickingParent={target.folderPicker.isPending}
-          isPickerTimedOut={target.folderPicker.isTimedOut}
-          pickerError={target.pickerError}
           machineName={machine.hostname}
+          picker={target.picker}
           onRepoUrlChange={target.handleRepoUrlChange}
           onCloneToChange={target.handleCloneToChange}
-          onBrowse={() => void target.folderPicker.handleBrowse()}
-          onRetryBrowse={target.folderPicker.handleRetryAfterTimeout}
         />
 
         <CloneStatusPanel state={viewState} machineName={machine.hostname} onRetry={clone.reset} />

@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
+import type { FolderPickerState } from './SetupFolderPickerField';
 import { getMachineDisplayName } from '../../types/machine';
 
 import { useFolderPicker } from '@/hooks/useFolderPicker';
@@ -12,51 +13,52 @@ interface UseSetupWorkspaceFolderPickerOptions {
   selectedMachineId: string | null;
   selectedMachine: { hostname: string; alias?: string } | null;
   onPathSelected: (path: string) => void;
-  setError: (error: string | null) => void;
 }
 
 function applyFolderPickerRequestResult(
   request: FolderPickerRequest,
   onPathSelected: (path: string) => void,
   setError: (error: string | null) => void,
-  reset: () => void
+  resetPicker: () => void
 ): void {
   if (request.status === 'pending') return;
   if (request.status === 'completed' && request.selectedPath) {
     onPathSelected(request.selectedPath);
     setError(null);
-    reset();
+    resetPicker();
     return;
   }
   if (request.status === 'cancelled') {
     setError(null);
-    reset();
+    resetPicker();
     return;
   }
   if (request.status === 'failed') {
     setError(request.errorMessage ?? 'Folder picker failed');
-    reset();
+    resetPicker();
   }
 }
 
+/** Browse state for a folder path field. The error lives here, so callers keep none of their own. */
 export function useSetupWorkspaceFolderPicker({
   selectedMachineId,
   selectedMachine,
   onPathSelected,
-  setError,
 }: UseSetupWorkspaceFolderPickerOptions) {
-  const { pickFolder, request, requestId, reset, isPending, isTimedOut } = useFolderPicker();
+  const {
+    pickFolder,
+    request,
+    requestId,
+    reset: resetPicker,
+    isPending,
+    isTimedOut,
+  } = useFolderPicker();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!request) return;
-    applyFolderPickerRequestResult(request, onPathSelected, setError, reset);
-  }, [request, reset, onPathSelected, setError]);
-
-  useEffect(() => {
-    if (isTimedOut) {
-      setError('Folder picker timed out. Ensure the daemon is running on the selected machine.');
-    }
-  }, [isTimedOut, setError]);
+    applyFolderPickerRequestResult(request, onPathSelected, setError, resetPicker);
+  }, [request, resetPicker, onPathSelected]);
 
   const handleBrowse = useCallback(async () => {
     if (!selectedMachineId) {
@@ -69,20 +71,29 @@ export function useSetupWorkspaceFolderPicker({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open folder picker');
     }
-  }, [pickFolder, selectedMachineId, setError]);
+  }, [pickFolder, selectedMachineId]);
 
   const handleRetryAfterTimeout = useCallback(() => {
-    reset();
+    resetPicker();
     setError(null);
-  }, [reset, setError]);
+  }, [resetPicker]);
 
-  return {
-    requestId,
+  const reset = useCallback(() => {
+    resetPicker();
+    setError(null);
+  }, [resetPicker]);
+
+  const onBrowse = useCallback(() => void handleBrowse(), [handleBrowse]);
+
+  const picker: FolderPickerState = {
     isPending,
     isTimedOut,
-    handleBrowse,
-    handleRetryAfterTimeout,
-    reset,
+    requestId,
+    error,
     machineDisplayName: selectedMachine ? getMachineDisplayName(selectedMachine) : null,
+    onBrowse,
+    onRetryAfterTimeout: handleRetryAfterTimeout,
   };
+
+  return { picker, reset };
 }

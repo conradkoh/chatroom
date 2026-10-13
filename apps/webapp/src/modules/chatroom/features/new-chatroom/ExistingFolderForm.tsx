@@ -135,7 +135,6 @@ export function ExistingFolderForm({
 
   const [selectedPath, setSelectedPath] = useState('');
   const [search, setSearch] = useState('');
-  const [pickerError, setPickerError] = useState<string | null>(null);
 
   const folders = useSessionQuery(api.workspaces.listRegisteredWorkingDirsForMachine, {
     machineId: machine.machineId,
@@ -145,11 +144,10 @@ export function ExistingFolderForm({
     [folders, search]
   );
 
-  const folderPicker = useSetupWorkspaceFolderPicker({
+  const { picker } = useSetupWorkspaceFolderPicker({
     selectedMachineId: machine.machineId,
     selectedMachine: machine,
     onPathSelected: setSelectedPath,
-    setError: setPickerError,
   });
 
   const trimmedPath = selectedPath.trim();
@@ -196,22 +194,14 @@ export function ExistingFolderForm({
 
       <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
         <SetupFolderPickerField
-          selectedPath={selectedPath}
-          onPathChange={setSelectedPath}
+          label="Folder path"
+          value={selectedPath}
+          onChange={setSelectedPath}
           placeholder={`Type or browse a folder on ${machineName}`}
-          disabled={false}
-          isPending={folderPicker.isPending}
-          isConfirming={isCreating}
-          isTimedOut={folderPicker.isTimedOut}
-          requestId={folderPicker.requestId}
-          machineDisplayName={folderPicker.machineDisplayName}
-          onBrowse={() => void folderPicker.handleBrowse()}
-          onRetryAfterTimeout={folderPicker.handleRetryAfterTimeout}
+          inputDisabled={picker.isPending}
           browseDisabled={!isMachineConnected || isCreating}
-          inputAriaLabel="Folder path"
+          picker={picker}
         />
-
-        {pickerError && <p className="text-xs text-chatroom-status-error">{pickerError}</p>}
       </form>
     </SetupStepLayout>
   );

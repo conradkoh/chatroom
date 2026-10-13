@@ -28,7 +28,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [isConfirming, setIsConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const daemonStartCommand = getDaemonStartCommand();
   const authLoginCommand = getAuthLoginCommand(
@@ -45,19 +45,10 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   const harnessDone = detectedHarnesses.length > 0;
   const daemonDone = connectedMachines.length > 0;
 
-  const {
-    requestId,
-    isPending,
-    isTimedOut,
-    handleBrowse,
-    handleRetryAfterTimeout,
-    reset: resetFolderPicker,
-    machineDisplayName,
-  } = useSetupWorkspaceFolderPicker({
+  const { picker, reset: resetFolderPicker } = useSetupWorkspaceFolderPicker({
     selectedMachineId,
     selectedMachine,
     onPathSelected: setSelectedPath,
-    setError,
   });
 
   useEffect(() => {
@@ -70,7 +61,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
     (machineId: string) => {
       setSelectedMachineId(machineId);
       setSelectedPath('');
-      setError(null);
+      setConfirmError(null);
       resetFolderPicker();
     },
     [resetFolderPicker]
@@ -79,15 +70,15 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   const handleConfirm = useCallback(async () => {
     const path = selectedPath.trim();
     if (!selectedMachineId || !path) {
-      setError('Select a machine and workspace folder');
+      setConfirmError('Select a machine and workspace folder');
       return;
     }
     setIsConfirming(true);
-    setError(null);
+    setConfirmError(null);
     try {
       await onConfirm(selectedMachineId, path);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create workspace');
+      setConfirmError(err instanceof Error ? err.message : 'Failed to create workspace');
     } finally {
       setIsConfirming(false);
     }
@@ -115,7 +106,8 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
     ? `Select a folder on ${getMachineDisplayName(selectedMachine)}`
     : 'Select a machine first';
 
-  const confirmDisabled = !selectedMachineId || !selectedPath.trim() || isConfirming || isPending;
+  const confirmDisabled =
+    !selectedMachineId || !selectedPath.trim() || isConfirming || picker.isPending;
 
   return (
     <SetupStepLayout
@@ -148,20 +140,16 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
       />
 
       <SetupFolderPickerField
-        selectedPath={selectedPath}
-        onPathChange={setSelectedPath}
+        label="Workspace Folder"
+        value={selectedPath}
+        onChange={setSelectedPath}
         placeholder={folderPlaceholder}
-        disabled={!selectedMachineId}
-        isPending={isPending}
-        isConfirming={isConfirming}
-        isTimedOut={isTimedOut}
-        requestId={requestId}
-        machineDisplayName={machineDisplayName}
-        onBrowse={() => void handleBrowse()}
-        onRetryAfterTimeout={handleRetryAfterTimeout}
+        inputDisabled={!selectedMachineId || picker.isPending}
+        browseDisabled={!selectedMachineId || isConfirming}
+        picker={picker}
       />
 
-      {error && <p className="text-xs text-chatroom-status-error">{error}</p>}
+      {confirmError && <p className="text-xs text-chatroom-status-error">{confirmError}</p>}
     </SetupStepLayout>
   );
 });
