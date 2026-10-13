@@ -7,14 +7,10 @@ import { CheckCircle, MoreVertical } from 'lucide-react';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
 import { ChatroomFavoriteButton } from './ChatroomFavoriteButton';
-import {
-  chatroomDisplayName,
-  isChatroomCompleted,
-  isChatroomShownInTab,
-  type TabType,
-} from './chatroomSelectorModel';
+import { chatroomDisplayName, isChatroomShownInTab, type TabType } from './chatroomSelectorModel';
 import { ChatroomStatusIndicator } from './ChatroomStatusIndicator';
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
+import { isChatroomCompleted } from '../../viewModels/chatroomViewModel';
 import { LifecycleConfirmDialog } from '../LifecycleConfirmDialog';
 
 import {

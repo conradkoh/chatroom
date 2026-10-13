@@ -1,6 +1,7 @@
 import { groupChatroomsByRecency, type RecencyBucket } from './groupChatroomsByRecency';
 import type { ChatroomStatus } from '../../../domain/entities/chatroom-status';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { isChatroomCompleted } from '../viewModels/chatroomViewModel';
 
 export const RECENCY_SECTIONS: readonly { key: RecencyBucket; label: string }[] = [
   { key: 'lastDay', label: 'Last Day' },
@@ -19,9 +20,7 @@ export function partitionChatroomListing(
   chatrooms: ChatroomWithStatus[],
   statuses: ReadonlyMap<string, ChatroomStatus>
 ): PartitionedChatroomListing {
-  const completed = chatrooms.filter(
-    (c) => c.status === 'completed' || statuses.get(c._id)?.state === 'completed'
-  );
+  const completed = chatrooms.filter((c) => isChatroomCompleted(c, statuses.get(c._id)?.state));
 
   const active = chatrooms
     .filter((c) => {
@@ -32,10 +31,7 @@ export function partitionChatroomListing(
 
   const activeIds = new Set(active.map((c) => c._id));
   const remaining = chatrooms.filter(
-    (c) =>
-      !activeIds.has(c._id) &&
-      c.status !== 'completed' &&
-      statuses.get(c._id)?.state !== 'completed'
+    (c) => !activeIds.has(c._id) && !isChatroomCompleted(c, statuses.get(c._id)?.state)
   );
 
   return {

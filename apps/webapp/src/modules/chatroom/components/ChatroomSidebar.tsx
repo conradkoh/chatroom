@@ -18,7 +18,7 @@ import {
   getChatroomActivityIndicatorLoadingClasses,
 } from '../utils/activityStatusDisplay';
 import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
-import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
+import { getChatroomDisplayName, isChatroomCompleted } from '../viewModels/chatroomViewModel';
 
 import {
   ContextMenu,
@@ -176,7 +176,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     }
   }, [chatroom.hasUnread, chatroom._id, markAsRead, markAsUnread]);
 
-  const isCompleted = chatroomStatus?.state === 'completed' || chatroom.status === 'completed';
+  const isCompleted = isChatroomCompleted(chatroom, chatroomStatus?.state);
 
   const showStartButton =
     chatroom.status !== 'completed' &&

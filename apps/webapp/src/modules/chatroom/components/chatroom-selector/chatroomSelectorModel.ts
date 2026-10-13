@@ -1,4 +1,5 @@
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
+import { isChatroomCompleted } from '../../viewModels/chatroomViewModel';
 
 import type { ChatroomStatus } from '@/domain/entities/chatroom-status';
 
@@ -26,14 +27,6 @@ export function chatroomDisplayName(
   chatroom: Pick<ChatroomWithStatus, 'name' | 'teamName'>
 ): string {
   return chatroom.name || chatroom.teamName || 'Team';
-}
-
-/** Completed when either the listing or the live status says so. */
-export function isChatroomCompleted(
-  chatroom: Pick<ChatroomWithStatus, 'status'>,
-  state: ChatroomStatus['state'] | undefined
-): boolean {
-  return chatroom.status === 'completed' || state === 'completed';
 }
 
 /** The Current tab shows chatrooms that are not completed. The Complete tab shows the rest. */
