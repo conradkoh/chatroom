@@ -44,7 +44,10 @@ function makeClone(
   };
 }
 
-function renderForm(clone: FakeClone, { isMachineConnected = true, isCreating = false } = {}) {
+function renderForm(
+  clone: FakeClone,
+  { isMachineConnected = true, isCreating = false, createError = null as string | null } = {}
+) {
   const onWorkspaceReady = vi.fn();
   const onBack = vi.fn();
   const element = (c: FakeClone) => (
@@ -52,6 +55,7 @@ function renderForm(clone: FakeClone, { isMachineConnected = true, isCreating = 
       machine={machine}
       isMachineConnected={isMachineConnected}
       isCreating={isCreating}
+      createError={createError}
       clone={c}
       onWorkspaceReady={onWorkspaceReady}
       onBack={onBack}
@@ -173,12 +177,29 @@ describe('CloneRepoForm', () => {
     expect(onWorkspaceReady).toHaveBeenLastCalledWith(CLONE_TO);
   });
 
-  it('disables Create chatroom while the wizard is creating', () => {
+  it('disables the retry and labels it Creating… while the wizard is creating', () => {
     renderForm(makeClone({ kind: 'completed', clonedPath: CLONE_TO }, REQUEST_ID), {
       isCreating: true,
     });
 
-    expect(screen.getByRole('button', { name: 'Create chatroom' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled();
+  });
+
+  it('shows the clone-specific alert after a failed create, with no Try again', () => {
+    renderForm(makeClone({ kind: 'completed', clonedPath: CLONE_TO }, REQUEST_ID), {
+      createError: 'boom',
+    });
+
+    expect(screen.getByRole('alert').textContent).toBe(
+      `Cloned to ${CLONE_TO}, but the chatroom could not be created: boom. The clone is kept — select Create chatroom to try again.`
+    );
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it('shows no alert for a completed clone without a create error', () => {
+    renderForm(makeClone({ kind: 'completed', clonedPath: CLONE_TO }, REQUEST_ID));
+
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('does not hand off a path before the clone completes', () => {

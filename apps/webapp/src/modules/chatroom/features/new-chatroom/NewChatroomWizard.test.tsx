@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ConvexError } from 'convex/values';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
 import { NewChatroomWizard } from './NewChatroomWizard';
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +13,17 @@ const mocks = vi.hoisted(() => ({
   machinesLoading: false,
   connectivity: new Map<string, { connected: boolean }>(),
   folders: [] as string[],
+  // The clone hook is controlled per test, so the wizard can be driven into each clone state.
+  clone: {
+    viewState: { kind: 'idle' } as GitCloneViewState,
+    requestId: null as string | null,
+    start: vi.fn(),
+    reset: vi.fn(),
+  },
+}));
+
+vi.mock('./useGitCloneRequest', () => ({
+  useGitCloneRequest: () => mocks.clone,
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -125,7 +138,16 @@ beforeEach(() => {
   mocks.folders = [FOLDER];
   mocks.createWithWorkspace.mockReset();
   mocks.createWithWorkspace.mockResolvedValue({ chatroomId: CHATROOM_ID, workspaceId: 'ws-1' });
+  mocks.clone.viewState = { kind: 'idle' };
+  mocks.clone.requestId = null;
 });
+
+const COMPLETED_CLONE: GitCloneViewState = { kind: 'completed', clonedPath: '/tmp/x/repo' };
+
+/** Opens the wizard on the workspace step, where the clone tab is shown by default. */
+async function openWorkspaceStep(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Continue' }));
+}
 
 describe('NewChatroomWizard machine step', () => {
   it('shows the prerequisites panel and no Continue when no machine is connected', () => {
@@ -229,5 +251,60 @@ describe('NewChatroomWizard existing-folder path', () => {
     expect(screen.getByRole('alert').textContent).toContain('Working directory must be absolute');
     expect(screen.getByRole('button', { name: 'Create chatroom' })).toBeTruthy();
     expect(screen.queryByTestId('agents-step')).toBeNull();
+  });
+});
+
+describe('NewChatroomWizard clone recovery', () => {
+  it('keeps the clone when the chatroom cannot be created, and retries from Create chatroom', async () => {
+    const user = userEvent.setup();
+    mocks.clone.viewState = COMPLETED_CLONE;
+    mocks.clone.requestId = 'req-1';
+    mocks.createWithWorkspace
+      .mockRejectedValueOnce(new ConvexError({ message: 'boom' }))
+      .mockResolvedValueOnce({ chatroomId: CHATROOM_ID, workspaceId: 'ws-1' });
+    renderWizard();
+
+    await openWorkspaceStep(user);
+
+    // The completed clone hands its path over on its own. The failure shows once, next to the retry.
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe(
+      'Cloned to /tmp/x/repo, but the chatroom could not be created: boom. The clone is kept — select Create chatroom to try again.'
+    );
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
+
+    await waitFor(() => expect(screen.getByTestId('agents-step')).toBeTruthy());
+    expect(mocks.createWithWorkspace).toHaveBeenCalledTimes(2);
+    expect(mocks.createWithWorkspace).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ workingDir: '/tmp/x/repo' })
+    );
+    expect(mocks.createWithWorkspace).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ workingDir: '/tmp/x/repo' })
+    );
+  });
+
+  it('a double click on the retry makes exactly one extra call', async () => {
+    const user = userEvent.setup();
+    mocks.clone.viewState = COMPLETED_CLONE;
+    mocks.clone.requestId = 'req-1';
+    let resolveRetry: (value: { chatroomId: string; workspaceId: string }) => void = () => {};
+    mocks.createWithWorkspace
+      .mockRejectedValueOnce(new ConvexError({ message: 'boom' }))
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveRetry = resolve)));
+    renderWizard();
+
+    await openWorkspaceStep(user);
+    await screen.findByRole('alert');
+    const retry = screen.getByRole('button', { name: 'Create chatroom' });
+    fireEvent.click(retry);
+    fireEvent.click(retry);
+
+    expect(mocks.createWithWorkspace).toHaveBeenCalledTimes(2);
+    resolveRetry({ chatroomId: CHATROOM_ID, workspaceId: 'ws-1' });
+    await waitFor(() => expect(screen.getByTestId('agents-step')).toBeTruthy());
   });
 });

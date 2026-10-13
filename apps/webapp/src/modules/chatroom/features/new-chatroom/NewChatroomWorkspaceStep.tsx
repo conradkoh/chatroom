@@ -97,6 +97,8 @@ export function NewChatroomWorkspaceStep({
 }: NewChatroomWorkspaceStepProps) {
   const [source, setSource] = useState<WorkspaceSource>('clone');
   const clone = useGitCloneRequest({ isMachineConnected });
+  // A completed clone shows its own create error next to the retry, so the generic alert is skipped.
+  const showTopCreateError = createError !== null && clone.viewState.kind !== 'completed';
 
   return (
     <div className="flex flex-col gap-4">
@@ -110,7 +112,7 @@ export function NewChatroomWorkspaceStep({
         </p>
       )}
 
-      {createError && (
+      {showTopCreateError && (
         <p role="alert" className="text-xs text-chatroom-status-error">
           {createError}
         </p>
@@ -127,6 +129,7 @@ export function NewChatroomWorkspaceStep({
           machine={machine}
           isMachineConnected={isMachineConnected}
           isCreating={isCreating}
+          createError={createError}
           clone={clone}
           onWorkspaceReady={onWorkspaceReady}
           onBack={onBack}

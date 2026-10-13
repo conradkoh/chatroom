@@ -16,6 +16,8 @@ interface CloneRepoFormProps {
   isMachineConnected: boolean;
   /** The wizard is creating the chatroom. Disables the retry while it runs. */
   isCreating: boolean;
+  /** The wizard's last create error. Shown here only once the clone has completed. */
+  createError: string | null;
   /** The clone request state. The workspace step owns it so a tab switch cannot lose it. */
   clone: UseGitCloneRequestResult;
   /** Called exactly once per completed clone, with the cloned path. */
@@ -48,6 +50,45 @@ function completedPathOf(state: GitCloneViewState, requestId: string | null): st
   return state.kind === 'completed' && requestId !== null ? state.clonedPath : null;
 }
 
+/** Shown when a completed clone's chatroom could not be created. Hidden in every other case. */
+function CreateRetryAlert({
+  clonedPath,
+  createError,
+}: {
+  clonedPath: string | null;
+  createError: string | null;
+}) {
+  if (clonedPath === null || createError === null) return null;
+  return (
+    <p role="alert" className="text-xs text-chatroom-status-error">
+      Cloned to {clonedPath}, but the chatroom could not be created: {createError}. The clone is
+      kept — select Create chatroom to try again.
+    </p>
+  );
+}
+
+/** Retry for a completed clone. It reuses the single creation path through onWorkspaceReady. */
+function CreateChatroomButton({
+  clonedPath,
+  isCreating,
+  onCreate,
+}: {
+  clonedPath: string;
+  isCreating: boolean;
+  onCreate: (workingDir: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onCreate(clonedPath)}
+      disabled={isCreating}
+      className="px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
+    >
+      {isCreating ? 'Creating…' : 'Create chatroom'}
+    </button>
+  );
+}
+
 /** Hands the cloned path to the wizard once per request, however many times the view re-renders. */
 function useCloneCompletionHandoff(
   state: GitCloneViewState,
@@ -71,6 +112,7 @@ export function CloneRepoForm({
   machine,
   isMachineConnected,
   isCreating,
+  createError,
   clone,
   onWorkspaceReady,
   onBack,
@@ -115,6 +157,8 @@ export function CloneRepoForm({
 
         <CloneStatusPanel state={viewState} machineName={machine.hostname} onRetry={clone.reset} />
 
+        <CreateRetryAlert clonedPath={completedPath} createError={createError} />
+
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
@@ -133,15 +177,11 @@ export function CloneRepoForm({
               Clone
             </button>
           ) : (
-            // The chatroom is created from the cloned folder. This is the retry after a failed create.
-            <button
-              type="button"
-              onClick={() => onWorkspaceReady(completedPath)}
-              disabled={isCreating}
-              className="px-4 py-2 bg-chatroom-status-success text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
-            >
-              Create chatroom
-            </button>
+            <CreateChatroomButton
+              clonedPath={completedPath}
+              isCreating={isCreating}
+              onCreate={onWorkspaceReady}
+            />
           )}
         </div>
       </form>
