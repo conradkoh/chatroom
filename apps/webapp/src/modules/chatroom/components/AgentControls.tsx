@@ -19,9 +19,6 @@ import {
   favoriteDefaultBlocked,
 } from './agent-controls/derivations';
 import {
-  deriveInitialMachineId,
-  deriveInitialWorkingDir,
-  shouldDeferInitUntilWorkspacesLoad,
   isReadyToInitialize,
   resolveInitialSelection,
   type InitializationInputs,
@@ -44,9 +41,6 @@ import type { MachineConfigEntry } from '../features/machine-config/types/machin
 import { useAgentStop } from '../hooks/useAgentStop';
 import type { AgentConfig, AgentHarness, MachineInfo, SendCommandFn } from '../types/machine';
 import type { Workspace } from '../types/workspace';
-
-// The helpers are part of this module's public surface, so tests and callers import them from here.
-export { deriveInitialMachineId, deriveInitialWorkingDir, shouldDeferInitUntilWorkspacesLoad };
 
 // ─── Types ──────────────────────────────────────────────────────────
 
