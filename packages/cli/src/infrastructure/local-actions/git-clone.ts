@@ -5,7 +5,8 @@
  * - The URL is re-validated here even though the backend validated it.
  * - The target must be missing or an empty directory. Nothing is ever deleted, including on failure.
  * - No shell is used, and `--` separates options from the URL.
- * - `GIT_ALLOW_PROTOCOL` limits transports (blocks ext::, fd::, file) unless a caller overrides it.
+ * - `GIT_ALLOW_PROTOCOL` is always set to GIT_CLONE_ALLOWED_PROTOCOLS, which blocks ext::, fd:: and file.
+ *   No caller can override it.
  */
 
 import { spawn } from 'node:child_process';
