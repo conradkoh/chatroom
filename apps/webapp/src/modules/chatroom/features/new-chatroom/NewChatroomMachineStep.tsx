@@ -1,8 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
-
-import { SetupMachinePicker } from '../../components/setup/SetupMachinePicker';
+import { SetupMachineSection } from '../../components/setup/SetupMachineSection';
 import {
   SetupStepFooter,
   SetupStepLayout,
@@ -10,10 +8,7 @@ import {
   setupSecondaryButtonClassName,
 } from '../../components/setup/SetupStepLayout';
 import { SetupWorkspaceLoadingPanel } from '../../components/setup/SetupWorkspaceLoadingPanel';
-import { SetupWorkspacePrerequisitesPanel } from '../../components/setup/SetupWorkspacePrerequisitesPanel';
 import type { UserMachine } from '../../types/machine';
-
-import { getAuthLoginCommand, getDaemonStartCommand } from '@/lib/environment';
 
 interface NewChatroomMachineStepProps {
   machines: UserMachine[];
@@ -28,39 +23,6 @@ interface NewChatroomMachineStepProps {
 
 type MachineStepContentProps = Omit<NewChatroomMachineStepProps, 'isLoading'>;
 
-function loginCommandForThisOrigin(): string {
-  return getAuthLoginCommand(typeof window !== 'undefined' ? window.location.origin : '');
-}
-
-/** The machine list, or guidance when no machine is registered yet. */
-function MachineListOrEmpty({
-  machines,
-  selectedMachineId,
-  onSelectMachine,
-  offlineMachineIds,
-}: {
-  machines: UserMachine[];
-  selectedMachineId: string | null;
-  onSelectMachine: (machineId: string) => void;
-  offlineMachineIds: ReadonlySet<string>;
-}) {
-  if (machines.length === 0) {
-    return (
-      <p className="text-xs text-chatroom-text-muted">
-        No machines are registered yet. Start the daemon on a machine to see it here.
-      </p>
-    );
-  }
-  return (
-    <SetupMachinePicker
-      machines={machines}
-      selectedMachineId={selectedMachineId}
-      onSelectMachine={onSelectMachine}
-      disabledMachineIds={offlineMachineIds}
-    />
-  );
-}
-
 /** Mounted only after machines load, so the focus effect runs against the rendered controls. */
 function MachineStepContent({
   machines,
@@ -70,14 +32,6 @@ function MachineStepContent({
   onContinue,
   onCancel,
 }: MachineStepContentProps) {
-  const offlineMachineIds = useMemo(
-    () =>
-      new Set(
-        machines.filter((m) => !connectedMachineIds.has(m.machineId)).map((m) => m.machineId)
-      ),
-    [machines, connectedMachineIds]
-  );
-
   const hasConnectedMachine = connectedMachineIds.size > 0;
   const canContinue = selectedMachineId !== null && connectedMachineIds.has(selectedMachineId);
 
@@ -106,21 +60,12 @@ function MachineStepContent({
         />
       }
     >
-      {!hasConnectedMachine && (
-        <SetupWorkspacePrerequisitesPanel
-          daemonDone={false}
-          harnessDone={false}
-          detectedHarnesses={[]}
-          authLoginCommand={loginCommandForThisOrigin()}
-          daemonStartCommand={getDaemonStartCommand()}
-        />
-      )}
-
-      <MachineListOrEmpty
+      <SetupMachineSection
         machines={machines}
+        connectedMachineIds={connectedMachineIds}
         selectedMachineId={selectedMachineId}
         onSelectMachine={onSelectMachine}
-        offlineMachineIds={offlineMachineIds}
+        detectedHarnesses={[]}
       />
     </SetupStepLayout>
   );

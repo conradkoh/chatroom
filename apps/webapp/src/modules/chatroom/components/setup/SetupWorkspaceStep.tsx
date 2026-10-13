@@ -1,9 +1,10 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
+import { pickDefaultMachineId } from './pickDefaultMachineId';
 import { SetupFolderPickerField } from './SetupFolderPickerField';
-import { SetupMachinePicker } from './SetupMachinePicker';
+import { SetupMachineSection } from './SetupMachineSection';
 import { SetupStepFooter, SetupStepLayout, setupPrimaryButtonClassName } from './SetupStepLayout';
 import { SetupWorkspaceLoadingPanel } from './SetupWorkspaceLoadingPanel';
 import { SetupWorkspacePrerequisitesPanel } from './SetupWorkspacePrerequisitesPanel';
@@ -12,7 +13,7 @@ import type { UserMachine } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 
 import { useMachineCapabilities } from '@/hooks/useMachineCapabilities';
-import { getAuthLoginCommand, getDaemonStartCommand } from '@/lib/environment';
+import { getAuthLoginCommandForCurrentOrigin, getDaemonStartCommand } from '@/lib/environment';
 
 interface SetupWorkspaceStepProps {
   connectedMachines: UserMachine[];
@@ -25,14 +26,19 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   isLoadingMachines,
   onConfirm,
 }: SetupWorkspaceStepProps) {
-  const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
+  const [chosenMachineId, setChosenMachineId] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const daemonStartCommand = getDaemonStartCommand();
-  const authLoginCommand = getAuthLoginCommand(
-    typeof window !== 'undefined' ? window.location.origin : ''
+  const authLoginCommand = getAuthLoginCommandForCurrentOrigin();
+
+  // A single connected machine is selected by default. Derived, so no effect is needed.
+  const selectedMachineId = pickDefaultMachineId(connectedMachines, chosenMachineId);
+  const connectedMachineIds = useMemo(
+    () => new Set(connectedMachines.map((m) => m.machineId)),
+    [connectedMachines]
   );
 
   const selectedMachine = useMemo(
@@ -51,15 +57,9 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
     onPathSelected: setSelectedPath,
   });
 
-  useEffect(() => {
-    if (connectedMachines.length === 1 && !selectedMachineId) {
-      setSelectedMachineId(connectedMachines[0].machineId);
-    }
-  }, [connectedMachines, selectedMachineId]);
-
   const handleSelectMachine = useCallback(
     (machineId: string) => {
-      setSelectedMachineId(machineId);
+      setChosenMachineId(machineId);
       setSelectedPath('');
       setConfirmError(null);
       resetFolderPicker();
@@ -133,10 +133,12 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
         detectedHarnesses={detectedHarnesses}
       />
 
-      <SetupMachinePicker
+      <SetupMachineSection
         machines={connectedMachines}
+        connectedMachineIds={connectedMachineIds}
         selectedMachineId={selectedMachineId}
         onSelectMachine={handleSelectMachine}
+        detectedHarnesses={detectedHarnesses}
       />
 
       <SetupFolderPickerField

@@ -8,6 +8,7 @@ import { messageFromError } from './lib/errorMessage';
 import { NewChatroomAgentsStep } from './NewChatroomAgentsStep';
 import { NewChatroomMachineStep } from './NewChatroomMachineStep';
 import { NewChatroomWorkspaceStep } from './NewChatroomWorkspaceStep';
+import { pickDefaultMachineId } from '../../components/setup/pickDefaultMachineId';
 import { TEAMS_CONFIG } from '../../config/teams';
 import type { UserMachine } from '../../types/machine';
 
@@ -265,8 +266,7 @@ export function NewChatroomWizard({ onCreated, onCancel }: NewChatroomWizardProp
   const { connectedMachineIds, connectedMachines } = useConnectedMachines(machines, connectivity);
 
   // Exactly one connected machine is selected automatically. Derived, so no effect is needed.
-  const activeMachineId =
-    chosenMachineId ?? (connectedMachines.length === 1 ? connectedMachines[0].machineId : null);
+  const activeMachineId = pickDefaultMachineId(connectedMachines, chosenMachineId);
   const activeMachine = machines.find((machine) => machine.machineId === activeMachineId) ?? null;
 
   const handleCreated = useCallback(() => setStep('agents'), []);
