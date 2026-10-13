@@ -7,6 +7,7 @@ import { getSession, requireSession } from './auth/session';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
+import { insertChatroomWithTeam } from '../src/domain/usecase/chatroom/create-chatroom';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
@@ -15,7 +16,6 @@ import {
   clearChatroomUnread,
   markChatroomUnread,
 } from '../src/domain/usecase/chatroom/unread-status';
-import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 import {
   getActiveTeamStructure,
   upsertActiveTeamStructure,
@@ -44,17 +44,10 @@ export const create = mutation({
       teamId: args.teamStructureId ?? (args.teamId === 'solo' ? 'solo@1' : 'duo@1'),
     });
 
-    const chatroomId = await ctx.db.insert('chatroom_rooms', {
-      status: 'active',
+    return insertChatroomWithTeam(ctx, {
       ownerId: auth.userId,
-    });
-    await upsertActiveTeamStructure(ctx, {
-      chatroomId,
       teamStructureId: structure.teamStructureId,
-      updatedBy: auth.userId,
     });
-    await ensureMessageReadModelState(ctx, chatroomId);
-    return chatroomId;
   },
 });
 
