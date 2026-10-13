@@ -6,15 +6,7 @@
 import type { MachineConnectivity } from '../../../../hooks/useDaemonConnectivity';
 import { computeRecommendedMachineConfigs } from '../../features/machine-config/lib/computeRecommendedMachineConfigs';
 import type { MachineConfigEntry } from '../../features/machine-config/types/machineConfig';
-import {
-  formatHarnessLabel,
-  getMachineDisplayName,
-  getModelDisplayLabel,
-  type AgentConfig,
-  type AgentHarness,
-  type HarnessVersionInfo,
-  type MachineInfo,
-} from '../../types/machine';
+import type { AgentConfig, AgentHarness } from '../../types/machine';
 
 // ─── Display values ─────────────────────────────────────────────────
 
@@ -47,29 +39,7 @@ export function deriveDisplayValues(
   };
 }
 
-/** The machine's display name, or its id when it is not in the connected list, or a placeholder. */
-export function machineLabelFor(
-  connectedMachines: MachineInfo[],
-  machineId: string | null
-): string {
-  if (!machineId) return 'Machine...';
-  const machine = connectedMachines.find((m) => m.machineId === machineId);
-  return machine ? getMachineDisplayName(machine) : machineId;
-}
-
-export function harnessLabelFor(
-  harness: AgentHarness | null,
-  versions: Partial<Record<AgentHarness, HarnessVersionInfo>>
-): string {
-  return harness ? formatHarnessLabel(harness, versions[harness]) : 'Harness...';
-}
-
 // ─── Empty and disabled states ──────────────────────────────────────
-
-/** True when loading has finished and no machine is connected. */
-export function deriveHasNoMachines(isLoadingMachines: boolean, connectedCount: number): boolean {
-  return !isLoadingMachines && connectedCount === 0;
-}
 
 /** Model controls are unavailable without a machine, a harness, and at least one model. */
 export function deriveModelUnavailable(
@@ -96,31 +66,7 @@ export function deriveModelWarning(
   return !modelUnavailable && isSelectedModelHidden;
 }
 
-/** Label of the read-only model while an agent runs. */
-export function runningModelText(modelUnavailable: boolean, displayModel: string | null): string {
-  if (modelUnavailable) return 'No models available';
-  return displayModel ? getModelDisplayLabel(displayModel) : 'Model...';
-}
-
-/** Value of the model picker. Empty while the model is unavailable. */
-export function modelPickerValue(modelUnavailable: boolean, displayModel: string | null): string {
-  return modelUnavailable ? '' : (displayModel ?? '');
-}
-
 // ─── Visibility ─────────────────────────────────────────────────────
-
-/** The favourite button needs a machine and a current config. */
-export function showFavoriteToggle(
-  machineId: string | null,
-  entry: MachineConfigEntry | null
-): boolean {
-  return !!machineId && !!entry;
-}
-
-/** The model filter button needs a machine and a harness. */
-export function showModelFilter(machineId: string | null, harness: AgentHarness | null): boolean {
-  return !!machineId && !!harness;
-}
 
 /** A row that is not a setup-wizard row, with no agent running and no machine selected yet. */
 function isIdleAndUnselected(args: {
@@ -147,10 +93,6 @@ export function shouldShowSelectHint(args: {
 }
 
 // ─── Favourite toggle ───────────────────────────────────────────────
-
-export function favoriteToggleLabel(isFavorite: boolean): string {
-  return isFavorite ? 'Remove current config from favorites' : 'Add current config to favorites';
-}
 
 export function currentIsFavorite(
   entry: MachineConfigEntry | null,

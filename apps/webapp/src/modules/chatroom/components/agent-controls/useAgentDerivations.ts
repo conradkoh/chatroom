@@ -2,13 +2,32 @@
 
 import { useMemo } from 'react';
 
-import {
-  deriveHarnessesOf,
-  deriveHarnessVersionsOf,
-  deriveRunningAgentConfig,
-} from './derivations';
-import type { AgentConfig, MachineInfo } from '../../types/machine';
+import { deriveRunningAgentConfig } from './derivations';
+import type {
+  AgentConfig,
+  AgentHarness,
+  HarnessVersionInfo,
+  MachineInfo,
+} from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
+
+function deriveHarnessesOf(
+  connectedMachines: MachineInfo[],
+  selectedMachineId: string | null
+): AgentHarness[] {
+  if (!selectedMachineId) return [];
+  const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
+  return machine?.availableHarnesses || [];
+}
+
+function deriveHarnessVersionsOf(
+  connectedMachines: MachineInfo[],
+  selectedMachineId: string | null
+): Partial<Record<AgentHarness, HarnessVersionInfo>> {
+  if (!selectedMachineId) return {} as Partial<Record<AgentHarness, HarnessVersionInfo>>;
+  const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
+  return machine?.harnessVersions || {};
+}
 
 /** Memoized facts about the role, its configs, the running agent and the selected machine. */
 export function useAgentDerivations({

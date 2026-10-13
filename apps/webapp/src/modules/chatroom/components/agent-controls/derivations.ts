@@ -11,7 +11,6 @@ import {
   getMachineDisplayName,
   type AgentConfig,
   type AgentHarness,
-  type HarnessVersionInfo,
   type MachineInfo,
 } from '../../types/machine';
 import { selectModel } from '../../utils/modelSelection';
@@ -34,24 +33,6 @@ export function deriveRunningAgentConfig(
   if (pidBackedConfig) return pidBackedConfig;
   if (!runtimeIsRunning) return undefined;
   return roleConfigs.find((c) => isConnected(connectedMachines, c.machineId));
-}
-
-export function deriveHarnessesOf(
-  connectedMachines: MachineInfo[],
-  selectedMachineId: string | null
-): AgentHarness[] {
-  if (!selectedMachineId) return [];
-  const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-  return machine?.availableHarnesses || [];
-}
-
-export function deriveHarnessVersionsOf(
-  connectedMachines: MachineInfo[],
-  selectedMachineId: string | null
-): Partial<Record<AgentHarness, HarnessVersionInfo>> {
-  if (!selectedMachineId) return {} as Partial<Record<AgentHarness, HarnessVersionInfo>>;
-  const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-  return machine?.harnessVersions || {};
 }
 
 /** Labels for the rehome confirm: the previous and next machine names. */

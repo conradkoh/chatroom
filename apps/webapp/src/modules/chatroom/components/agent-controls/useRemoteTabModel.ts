@@ -5,7 +5,6 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   currentIsFavorite,
   deriveDisplayValues,
-  deriveHasNoMachines,
   deriveModelUnavailable,
   deriveRecommendedConfigs,
 } from './remoteTabDerivations';
@@ -24,6 +23,11 @@ import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspac
 import type { useAgentControls } from '../AgentControls';
 import { useHarnessModelPicker } from '../model-selection';
 import { usePickerSearchState, filterPickerItems } from '../picker';
+
+/** True when loading has finished and no machine is connected. */
+function deriveHasNoMachines(isLoadingMachines: boolean, connectedCount: number): boolean {
+  return !isLoadingMachines && connectedCount === 0;
+}
 
 export interface UseRemoteTabModelArgs {
   controls: ReturnType<typeof useAgentControls>;
