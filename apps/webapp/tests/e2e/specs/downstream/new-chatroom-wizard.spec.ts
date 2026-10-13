@@ -100,32 +100,12 @@ test.describe('New chatroom wizard', { tag: [TAG_DOWNSTREAM] }, () => {
   test('creates a chatroom with its workspace from an existing folder', async ({
     authenticatedPage: page,
   }) => {
-    const rawSessionId = await page.evaluate(() => localStorage.getItem('sessionId'));
-    expect(rawSessionId, 'anonymous login should persist a session').toBeTruthy();
-    const sessionId = rawSessionId as SessionId;
+    const sessionId = await readSessionId(page);
     const client = new ConvexHttpClient(getConvexUrl());
-
-    // Seed a connected machine. The wizard only lists machines whose daemon is connected.
-    const machineId = `e2e-wizard-${crypto.randomUUID()}`;
-    await client.mutation(api.machines.register, {
-      sessionId,
-      machineId,
-      hostname: 'e2e-host',
-      os: 'linux',
-      availableHarnesses: ['opencode'],
-    });
-    await client.mutation(api.machines.daemonHeartbeat, { sessionId, machineId });
-
-    await page.goto('/app?create=true');
-    await expect(page.getByRole('heading', { name: 'New Chatroom' })).toBeVisible({
-      timeout: 15_000,
-    });
-
-    // The machine row is enabled once the heartbeat registers as connected.
-    const machineRow = page.getByRole('button', { name: /e2e-host/ });
-    await expect(machineRow).toBeEnabled({ timeout: 30_000 });
-    await machineRow.click();
-    await page.getByRole('button', { name: 'Continue' }).click();
+    await seedConnectedMachine(client, sessionId);
+    await openWorkspaceStep(page);
+    // The workspace step opens on the clone tab. This test covers the existing-folder path.
+    await page.getByRole('tab', { name: 'Existing folder' }).click();
 
     await page.getByLabel('Folder path').fill(FOLDER);
     await page.getByRole('button', { name: 'Create chatroom' }).click();
