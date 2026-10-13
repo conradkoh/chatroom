@@ -8,7 +8,7 @@
     "codegen": "bun ../../scripts/convex-codegen.ts",
     "deploy": "convex deploy",
     "typecheck": "tsc --build",
-    "test": "pnpm --filter @workspace/shared run build && bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
+    "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
     "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest"
   },
   "keywords": [],
