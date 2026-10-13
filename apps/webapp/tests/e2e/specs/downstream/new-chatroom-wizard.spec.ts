@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { ConvexHttpClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -22,8 +23,78 @@ const test = authenticatedTest.extend({
 
 const FOLDER = '/tmp/e2e-wizard-existing';
 const CHATROOM_NAME = 'e2e-wizard-existing';
+const CLONE_URL = 'https://github.com/example/hello-world.git';
+const CLONE_PATH = '/tmp/e2e-wizard/hello-world';
+const CLAIM_TIMEOUT_MS = 15_000;
 
-test.describe('New chatroom wizard, existing folder', { tag: [TAG_DOWNSTREAM] }, () => {
+async function readSessionId(page: Page): Promise<SessionId> {
+  const rawSessionId = await page.evaluate(() => localStorage.getItem('sessionId'));
+  expect(rawSessionId, 'anonymous login should persist a session').toBeTruthy();
+  return rawSessionId as SessionId;
+}
+
+/** Registers a machine with a connected daemon. The wizard only lists machines that are connected. */
+async function seedConnectedMachine(
+  client: ConvexHttpClient,
+  sessionId: SessionId
+): Promise<string> {
+  const machineId = `e2e-wizard-${crypto.randomUUID()}`;
+  await client.mutation(api.machines.register, {
+    sessionId,
+    machineId,
+    hostname: 'e2e-host',
+    os: 'linux',
+    availableHarnesses: ['opencode'],
+  });
+  await client.mutation(api.machines.daemonHeartbeat, { sessionId, machineId });
+  return machineId;
+}
+
+/** Opens the wizard, picks the connected machine and moves to the workspace step. */
+async function openWorkspaceStep(page: Page): Promise<void> {
+  await page.goto('/app?create=true');
+  await expect(page.getByRole('heading', { name: 'New Chatroom' })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  // The machine row is enabled once the heartbeat registers as connected.
+  const machineRow = page.getByRole('button', { name: /e2e-host/ });
+  await expect(machineRow).toBeEnabled({ timeout: 30_000 });
+  await machineRow.click();
+  await page.getByRole('button', { name: 'Continue' }).click();
+}
+
+/**
+ * Stands in for the machine's daemon. Polls the inbox until a `daemon.gitClone` command is
+ * delivered and claims it. Any other command type is acknowledged so it cannot block the queue.
+ */
+async function claimGitCloneCommand(
+  client: ConvexHttpClient,
+  sessionId: SessionId,
+  machineId: string
+) {
+  const deadline = Date.now() + CLAIM_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const claimed = await client.mutation(api.daemon.machineCommandInbox.claimNext, {
+      sessionId,
+      machineId,
+    });
+    if (claimed?.type === 'daemon.gitClone') return claimed;
+    if (claimed) {
+      await client.mutation(api.daemon.machineCommandInbox.acknowledge, {
+        sessionId,
+        commandId: claimed.commandId,
+      });
+      continue;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(
+    `No daemon.gitClone command reached machine ${machineId} within ${CLAIM_TIMEOUT_MS} ms`
+  );
+}
+
+test.describe('New chatroom wizard', { tag: [TAG_DOWNSTREAM] }, () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
 
   test('creates a chatroom with its workspace from an existing folder', async ({
@@ -82,5 +153,72 @@ test.describe('New chatroom wizard, existing folder', { tag: [TAG_DOWNSTREAM] },
 
     await page.getByRole('button', { name: 'Open chatroom' }).click();
     await page.waitForURL('**/app/chatroom**', { timeout: 15_000 });
+  });
+
+  test('clones a repository through the daemon and continues with the cloned path', async ({
+    authenticatedPage: page,
+  }) => {
+    const sessionId = await readSessionId(page);
+    const client = new ConvexHttpClient(getConvexUrl());
+    const machineId = await seedConnectedMachine(client, sessionId);
+    await openWorkspaceStep(page);
+
+    await page.getByRole('textbox', { name: 'Repository URL' }).fill(CLONE_URL);
+    await page.getByRole('textbox', { name: 'Clone to' }).fill(CLONE_PATH);
+    await page.getByRole('button', { name: 'Clone' }).click();
+
+    const command = await claimGitCloneCommand(client, sessionId, machineId);
+    expect(command.repoUrl).toBe(CLONE_URL);
+    expect(command.targetPath).toBe(CLONE_PATH);
+
+    await client.mutation(api.gitCloneRequests.reportProgress, {
+      sessionId,
+      machineId,
+      requestId: command.requestId,
+      phase: 'Receiving objects',
+      percent: 42,
+    });
+    await expect(page.getByText('42%')).toBeVisible({ timeout: 15_000 });
+
+    await client.mutation(api.gitCloneRequests.reportResult, {
+      sessionId,
+      machineId,
+      requestId: command.requestId,
+      status: 'completed',
+      clonedPath: CLONE_PATH,
+    });
+
+    // The wizard creates the chatroom from the cloned folder and moves to the agents step.
+    await expect(page.getByText(CLONE_PATH).first()).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('shows the auth failure with a retry and keeps the repository URL', async ({
+    authenticatedPage: page,
+  }) => {
+    const sessionId = await readSessionId(page);
+    const client = new ConvexHttpClient(getConvexUrl());
+    const machineId = await seedConnectedMachine(client, sessionId);
+    await openWorkspaceStep(page);
+
+    await page.getByRole('textbox', { name: 'Repository URL' }).fill(CLONE_URL);
+    await page.getByRole('textbox', { name: 'Clone to' }).fill(CLONE_PATH);
+    await page.getByRole('button', { name: 'Clone' }).click();
+
+    const command = await claimGitCloneCommand(client, sessionId, machineId);
+    await client.mutation(api.gitCloneRequests.reportResult, {
+      sessionId,
+      machineId,
+      requestId: command.requestId,
+      status: 'failed',
+      errorCode: 'auth',
+      errorMessage: 'fatal: Authentication failed',
+    });
+
+    // The shared copy continues with "(SSH key or credential helper)"; match its stable prefix.
+    await expect(
+      page.getByText(/Authentication failed\. Check that this machine has access/)
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Repository URL' })).toHaveValue(CLONE_URL);
   });
 });
