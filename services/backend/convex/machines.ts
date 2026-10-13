@@ -8,6 +8,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { getSession, requireSession } from './auth/session';
+import { recordFolderPickerResult, reportResultArgs } from './folderPickerRequests';
 import { str } from './utils/types';
 import {
   agentActivityFactValidator,
@@ -959,94 +960,15 @@ export const sendLocalAction = mutation({
   },
 });
 
-/** Request a native folder picker on a connected machine's daemon (setup wizard). */
-export const requestFolderPicker = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new Error('Authentication required');
-    }
-    const userId = auth.userId;
-    await getOwnedMachine(ctx, args.machineId, userId);
-
-    const now = Date.now();
-    const requestId = await ctx.db.insert('chatroom_folderPickerRequests', {
-      userId,
-      machineId: args.machineId,
-      status: 'pending',
-      createdAt: now,
-    });
-
-    await enqueueMachineCommand(ctx, {
-      machineId: args.machineId,
-      now,
-      command: { type: 'daemon.pickFolder', requestId },
-    });
-
-    return { requestId };
-  },
-});
-
-/** Poll folder picker request status from the webapp. */
-export const getFolderPickerRequest = query({
-  args: {
-    ...SessionIdArg,
-    requestId: v.id('chatroom_folderPickerRequests'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return null;
-    const request = await ctx.db.get('chatroom_folderPickerRequests', args.requestId);
-    if (!request || request.userId !== auth.userId) return null;
-    return request;
-  },
-});
-
-/** Called by the CLI daemon after handling `daemon.pickFolder`. */
+/**
+ * @deprecated Use `folderPickerRequests.reportResult`. This name stays for daemons published before
+ * the folder picker moved, which still call it. The args and the handler are the same, so behaviour is
+ * identical. Remove this delegate when the minimum supported CLI version calls
+ * `folderPickerRequests.reportResult`.
+ */
 export const reportFolderPickerResult = mutation({
-  args: {
-    ...SessionIdArg,
-    requestId: v.id('chatroom_folderPickerRequests'),
-    machineId: v.string(),
-    status: v.union(v.literal('completed'), v.literal('cancelled'), v.literal('failed')),
-    selectedPath: v.optional(v.string()),
-    errorMessage: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new Error('Authentication required');
-    }
-    const machine = await getOwnedMachine(ctx, args.machineId, auth.userId);
-
-    const request = await ctx.db.get('chatroom_folderPickerRequests', args.requestId);
-    if (!request) {
-      throw new Error('Folder picker request not found');
-    }
-    if (request.machineId !== machine.machineId) {
-      throw new Error('Folder picker request does not belong to this machine');
-    }
-    if (request.status !== 'pending') {
-      return { ok: true as const, duplicate: true as const };
-    }
-
-    if (args.selectedPath) {
-      validateWorkingDir(args.selectedPath);
-    }
-
-    await ctx.db.patch('chatroom_folderPickerRequests', args.requestId, {
-      status: args.status,
-      selectedPath: args.selectedPath,
-      errorMessage: args.errorMessage,
-      completedAt: Date.now(),
-    });
-
-    return { ok: true as const };
-  },
+  args: reportResultArgs,
+  handler: recordFolderPickerResult,
 });
 
 /** Dispatches a start-agent, stop-agent, or ping command to a machine on behalf of the user. */

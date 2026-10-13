@@ -41,7 +41,9 @@ vi.mock('../../api.js', () => ({
       register: 'mock-register',
       daemonHeartbeat: 'mock-daemonHeartbeat',
       refreshCapabilities: 'mock-refreshCapabilities',
-      reportFolderPickerResult: 'mock-reportFolderPickerResult',
+    },
+    folderPickerRequests: {
+      reportResult: 'mock-folderPickerReportResult',
     },
     gitCloneRequests: {
       reportProgress: 'mock-gitCloneReportProgress',
@@ -386,7 +388,7 @@ describe('dispatchCommandEventEffect', () => {
 
     expect(pickFolderDialog).toHaveBeenCalled();
     expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'mock-reportFolderPickerResult',
+      'mock-folderPickerReportResult',
       expect.objectContaining({
         sessionId: 'test-session-id',
         machineId: 'test-machine-id',
@@ -414,7 +416,7 @@ describe('dispatchCommandEventEffect', () => {
 
     expect(pickFolderDialog).not.toHaveBeenCalled();
     expect(deps.backend.mutation).not.toHaveBeenCalledWith(
-      'mock-reportFolderPickerResult',
+      'mock-folderPickerReportResult',
       expect.anything()
     );
   });

@@ -151,6 +151,9 @@ export type BackendErrorCode =
   | 'GIT_CLONE_REQUEST_NOT_FOUND'
   | 'GIT_CLONE_PATH_MISMATCH'
 
+  // ── Folder picker ─────────────────────────────────────────────────
+  | 'FOLDER_PICKER_REQUEST_NOT_FOUND'
+
   // ── Conflict ──────────────────────────────────────────────────────
   | 'CONFLICT';
 
@@ -369,6 +372,10 @@ export const BACKEND_ERROR_CODES = {
   /** Reported clone path does not match the requested target path */
   GIT_CLONE_PATH_MISMATCH: 'GIT_CLONE_PATH_MISMATCH',
 
+  // ── Folder picker ─────────────────────────────────────────────────
+  /** Folder picker request not found */
+  FOLDER_PICKER_REQUEST_NOT_FOUND: 'FOLDER_PICKER_REQUEST_NOT_FOUND',
+
   // ── Conflict ────────────────────────────────────────────────────────
   /** Conflict (e.g. duplicate) */
   CONFLICT: 'CONFLICT',
@@ -492,6 +499,9 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.MACHINE_NOT_FOUND,
   BACKEND_ERROR_CODES.GIT_CLONE_REQUEST_NOT_FOUND,
   BACKEND_ERROR_CODES.GIT_CLONE_PATH_MISMATCH,
+
+  // Folder picker
+  BACKEND_ERROR_CODES.FOLDER_PICKER_REQUEST_NOT_FOUND,
 
   // Conflict
   BACKEND_ERROR_CODES.CONFLICT,

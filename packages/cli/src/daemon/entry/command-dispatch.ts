@@ -216,7 +216,7 @@ function handlePickFolderCommandEffect(
     const status = result.success ? 'completed' : result.cancelled ? 'cancelled' : 'failed';
     yield* Effect.tryPromise({
       try: () =>
-        session.backend.mutation(api.machines.reportFolderPickerResult, {
+        session.backend.mutation(api.folderPickerRequests.reportResult, {
           sessionId: session.sessionId,
           requestId: typedEvent.requestId,
           machineId: session.machineId,
