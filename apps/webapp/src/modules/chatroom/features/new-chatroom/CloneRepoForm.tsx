@@ -100,6 +100,7 @@ function useCloneCompletionHandoff(
   useEffect(() => {
     if (path === null || notifiedForRef.current === requestId) return;
     notifiedForRef.current = requestId;
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- completion arrives from the server subscription, not a user event, so this effect is the only point that can hand the path over.
     onWorkspaceReady(path);
   }, [path, requestId, onWorkspaceReady]);
 }
