@@ -6,7 +6,7 @@ import { GIT_CLONE_ERROR_MESSAGES } from '@workspace/shared/domain/git-clone';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
-import { deriveGitCloneViewState, type GitCloneViewState } from './lib/deriveGitCloneViewState';
+import { deriveGitCloneViewState, type GitCloneViewState } from '../lib/deriveGitCloneViewState';
 
 import { getErrorMessage } from '@/lib/convexError';
 

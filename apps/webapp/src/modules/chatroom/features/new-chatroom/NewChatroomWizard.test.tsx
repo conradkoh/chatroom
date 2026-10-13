@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('./useGitCloneRequest', () => ({
+vi.mock('./hooks/useGitCloneRequest', () => ({
   useGitCloneRequest: () => mocks.clone,
 }));
 

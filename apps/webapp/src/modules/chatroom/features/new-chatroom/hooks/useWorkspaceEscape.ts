@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
-import type { CloneLeaveGuard } from './CloneLeaveDialog';
-import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
+import type { CloneLeaveGuard } from '../CloneLeaveDialog';
+import type { GitCloneViewState } from '../lib/deriveGitCloneViewState';
 
 /** Clone states where leaving would leave unsaved work behind. Every other state cancels at once. */
 const LEAVE_GUARD_BY_KIND: Partial<Record<GitCloneViewState['kind'], CloneLeaveGuard>> = {

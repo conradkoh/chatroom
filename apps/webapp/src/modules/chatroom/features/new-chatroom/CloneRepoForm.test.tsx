@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CloneRepoForm } from './CloneRepoForm';
+import type { UseGitCloneRequestResult } from './hooks/useGitCloneRequest';
 import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
-import type { UseGitCloneRequestResult } from './useGitCloneRequest';
 import type { UserMachine } from '../../types/machine';
 
 // The folder picker is covered by its own suites. This stub keeps the Browse button inert.

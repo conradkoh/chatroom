@@ -3,8 +3,8 @@
 import { deriveRepoFolderName, joinClonePath } from '@workspace/shared/domain/git-clone';
 import { useCallback, useState } from 'react';
 
-import { useSetupWorkspaceFolderPicker } from '../../components/setup/useSetupWorkspaceFolderPicker';
-import type { UserMachine } from '../../types/machine';
+import { useSetupWorkspaceFolderPicker } from '../../../components/setup/useSetupWorkspaceFolderPicker';
+import type { UserMachine } from '../../../types/machine';
 
 /** Folder name for a repo, with a fallback when the URL has none usable. */
 function cloneFolderName(repoUrl: string): string {

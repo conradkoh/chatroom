@@ -5,9 +5,9 @@ import { useEffect, useId, useRef, type FormEvent } from 'react';
 
 import { CloneFields } from './CloneFields';
 import { CloneStatusPanel } from './CloneStatusPanel';
+import { useCloneTarget } from './hooks/useCloneTarget';
+import type { UseGitCloneRequestResult } from './hooks/useGitCloneRequest';
 import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
-import { useCloneTarget } from './useCloneTarget';
-import type { UseGitCloneRequestResult } from './useGitCloneRequest';
 import {
   SetupStepFooter,
   SetupStepLayout,

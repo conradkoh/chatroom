@@ -5,9 +5,9 @@ import { useState, type ReactNode } from 'react';
 import { CloneLeaveDialog, type CloneLeaveGuard } from './CloneLeaveDialog';
 import { CloneRepoForm } from './CloneRepoForm';
 import { ExistingFolderForm } from './ExistingFolderForm';
+import { useGitCloneRequest } from './hooks/useGitCloneRequest';
+import { useWorkspaceEscape } from './hooks/useWorkspaceEscape';
 import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
-import { useGitCloneRequest } from './useGitCloneRequest';
-import { useWorkspaceEscape } from './useWorkspaceEscape';
 import type { UserMachine } from '../../types/machine';
 
 type WorkspaceSource = 'clone' | 'existing';
