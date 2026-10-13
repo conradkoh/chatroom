@@ -1,5 +1,5 @@
 'use client';
-/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-adjust-state-on-prop-change, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-derived-state */
+/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-adjust-state-on-prop-change, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-derived-state -- useAgentControls syncs async Convex data and team changes into local state on purpose; the refactor is tracked as tech debt. */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
