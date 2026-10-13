@@ -1,15 +1,7 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useId, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useId, useState, type FormEvent } from 'react';
 
-import {
-  PickerOptionRow,
-  PickerScrollBody,
-  PickerSearch,
-  filterPickerItems,
-} from '../../components/picker';
 import { SetupFolderPickerField } from '../../components/setup/SetupFolderPickerField';
 import {
   SetupStepFooter,
@@ -28,58 +20,6 @@ interface ExistingFolderFormProps {
   /** Receives the trimmed absolute path. The wizard decides whether to create the chatroom. */
   onSubmit: (workingDir: string) => void;
   onBack: () => void;
-}
-
-function FolderListSkeleton() {
-  return (
-    <div className="flex flex-col gap-2 p-3" role="status" aria-label="Loading folders">
-      {[0, 1, 2].map((row) => (
-        <div key={row} className="h-7 bg-chatroom-bg-tertiary animate-pulse" />
-      ))}
-    </div>
-  );
-}
-
-function EmptyFolderMessage({ message }: { message: string }) {
-  return <p className="px-3 py-3 text-xs text-chatroom-text-muted">{message}</p>;
-}
-
-/** Folder rows, or the loading, empty, and no-match states. */
-function FolderListBody({
-  folders,
-  visibleFolders,
-  search,
-  trimmedPath,
-  onSelect,
-}: {
-  folders: string[] | undefined;
-  visibleFolders: string[];
-  search: string;
-  trimmedPath: string;
-  onSelect: (folder: string) => void;
-}) {
-  if (folders === undefined) return <FolderListSkeleton />;
-  if (folders.length === 0) {
-    return (
-      <EmptyFolderMessage message="No folders registered on this machine yet. Browse or type a path." />
-    );
-  }
-  if (visibleFolders.length === 0) {
-    return <EmptyFolderMessage message={`No folders match “${search}”.`} />;
-  }
-  return (
-    <>
-      {visibleFolders.map((folder) => (
-        <PickerOptionRow
-          key={folder}
-          selected={trimmedPath === folder}
-          onSelect={() => onSelect(folder)}
-        >
-          <span className="font-mono truncate">{folder}</span>
-        </PickerOptionRow>
-      ))}
-    </>
-  );
 }
 
 /** Back and the submit that creates the chatroom. The submit reaches the form by id. */
@@ -121,8 +61,8 @@ function FolderFormFooter({
 }
 
 /**
- * Existing-folder step. Lists folders already registered on the machine, or takes a typed or
- * browsed path. Creating the chatroom is the wizard's job, so this form only reports the path.
+ * Existing-folder step. Takes a folder path, typed or browsed, and reports it. The step does not
+ * list folders. Creating the chatroom is the wizard's job, so this form only reports the path.
  */
 export function ExistingFolderForm({
   machine,
@@ -134,15 +74,6 @@ export function ExistingFolderForm({
   const formId = useId();
 
   const [selectedPath, setSelectedPath] = useState('');
-  const [search, setSearch] = useState('');
-
-  const folders = useSessionQuery(api.workspaces.listRegisteredWorkingDirsForMachine, {
-    machineId: machine.machineId,
-  });
-  const visibleFolders = useMemo(
-    () => filterPickerItems(folders ?? [], search, (folder) => folder),
-    [folders, search]
-  );
 
   const { picker } = useSetupWorkspaceFolderPicker({
     selectedMachineId: machine.machineId,
@@ -174,24 +105,6 @@ export function ExistingFolderForm({
         />
       }
     >
-      <section>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
-          Folders on this machine
-        </h3>
-        <div className="border border-chatroom-border">
-          <PickerSearch value={search} onChange={setSearch} placeholder="Search folders…" />
-          <PickerScrollBody maxHeightClassName="max-h-48">
-            <FolderListBody
-              folders={folders}
-              visibleFolders={visibleFolders}
-              search={search}
-              trimmedPath={trimmedPath}
-              onSelect={setSelectedPath}
-            />
-          </PickerScrollBody>
-        </div>
-      </section>
-
       <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
         <SetupFolderPickerField
           variant="setup"

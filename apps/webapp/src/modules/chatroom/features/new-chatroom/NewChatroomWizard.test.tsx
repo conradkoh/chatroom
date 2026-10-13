@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   machines: [] as { machineId: string; hostname: string; os: string; registeredAt: number }[],
   machinesLoading: false,
   connectivity: new Map<string, { connected: boolean }>(),
-  folders: [] as string[],
   // The clone hook is controlled per test, so the wizard can be driven into each clone state.
   clone: {
     viewState: { kind: 'idle' } as GitCloneViewState,
@@ -33,7 +32,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
       : vi.fn().mockResolvedValue(undefined),
   useSessionQuery: (name: unknown, args: unknown) => {
     if (args === 'skip') return undefined;
-    if (name === 'workspaces:listRegisteredWorkingDirsForMachine') return mocks.folders;
     if (name === 'chatrooms:getTeamStructureForChatroom') {
       return {
         teamId: 'duo',
@@ -53,9 +51,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       createWithWorkspace: 'chatrooms:createWithWorkspace',
       updateTeam: 'chatrooms:updateTeam',
       getTeamStructureForChatroom: 'chatrooms:getTeamStructureForChatroom',
-    },
-    workspaces: {
-      listRegisteredWorkingDirsForMachine: 'workspaces:listRegisteredWorkingDirsForMachine',
     },
     agents: {
       listLastSentLaunchRequests: 'agents:listLastSentLaunchRequests',
@@ -149,7 +144,6 @@ beforeEach(() => {
   mocks.machines = [MACHINE_A];
   mocks.machinesLoading = false;
   mocks.connectivity = new Map([['machine-a', { connected: true }]]);
-  mocks.folders = [FOLDER];
   mocks.createWithWorkspace.mockReset();
   mocks.createWithWorkspace.mockResolvedValue({ chatroomId: CHATROOM_ID, workspaceId: 'ws-1' });
   mocks.clone.viewState = { kind: 'idle' };
@@ -203,7 +197,7 @@ describe('NewChatroomWizard existing-folder path', () => {
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
-    await user.click(screen.getByRole('option', { name: FOLDER }));
+    await user.type(screen.getByLabelText('Folder path'), FOLDER);
     await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
 
     await waitFor(() => expect(screen.getByTestId('agents-step')).toBeTruthy());
@@ -214,6 +208,19 @@ describe('NewChatroomWizard existing-folder path', () => {
       workingDir: FOLDER,
     });
     expect(screen.getByTestId('agents-step').textContent).toBe(`machine-a ${FOLDER} no-back`);
+  });
+
+  it('shows the path field only, with no folder list or search', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
+
+    expect(screen.getByLabelText('Folder path')).toBeTruthy();
+    expect(screen.queryByText('Folders on this machine')).toBeNull();
+    expect(screen.queryByPlaceholderText('Search folders…')).toBeNull();
+    expect(screen.queryByRole('option')).toBeNull();
   });
 
   it('keeps Create disabled for a path that is not absolute', async () => {
@@ -241,7 +248,7 @@ describe('NewChatroomWizard existing-folder path', () => {
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
-    await user.click(screen.getByRole('option', { name: FOLDER }));
+    await user.type(screen.getByLabelText('Folder path'), FOLDER);
     const create = screen.getByRole('button', { name: 'Create chatroom' });
     fireEvent.click(create);
     fireEvent.click(create);
@@ -258,7 +265,7 @@ describe('NewChatroomWizard existing-folder path', () => {
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
-    await user.click(screen.getByRole('option', { name: FOLDER }));
+    await user.type(screen.getByLabelText('Folder path'), FOLDER);
     await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
 
     expect(await screen.findByRole('alert')).toBeTruthy();
@@ -459,7 +466,7 @@ describe('NewChatroomWizard shared footer', () => {
     expect(footerOf(screen.getByRole('button', { name: 'Clone' }))).not.toBeNull();
 
     await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
-    await user.click(screen.getByRole('option', { name: FOLDER }));
+    await user.type(screen.getByLabelText('Folder path'), FOLDER);
     expect(footerOf(screen.getByRole('button', { name: 'Create chatroom' }))).not.toBeNull();
   });
 
@@ -469,20 +476,23 @@ describe('NewChatroomWizard shared footer', () => {
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
-    await user.click(screen.getByRole('option', { name: FOLDER }));
+    await user.type(screen.getByLabelText('Folder path'), FOLDER);
     await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
 
     await waitFor(() => expect(screen.getByTestId('agents-step')).toBeTruthy());
     expect(footerOf(screen.getByRole('button', { name: 'Open chatroom' }))).not.toBeNull();
   });
 
-  it('Enter in the folder search does not create a chatroom', async () => {
+  it('Enter in the folder path field does not create a chatroom when the path is empty or relative', async () => {
     const user = userEvent.setup();
     renderWizard();
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
-    await user.type(screen.getByPlaceholderText('Search folders…'), 'app{Enter}');
+    const pathField = screen.getByLabelText('Folder path');
+    await user.type(pathField, '{Enter}');
+    await user.clear(pathField);
+    await user.type(pathField, 'relative/path{Enter}');
 
     expect(mocks.createWithWorkspace).not.toHaveBeenCalled();
   });
@@ -493,7 +503,7 @@ describe('NewChatroomWizard shared footer', () => {
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('tab', { name: 'Existing folder' }));
-    await user.click(screen.getByRole('option', { name: FOLDER }));
+    await user.type(screen.getByLabelText('Folder path'), FOLDER);
     await user.click(screen.getByRole('button', { name: 'Create chatroom' }));
 
     await waitFor(() => expect(mocks.createWithWorkspace).toHaveBeenCalledTimes(1));
