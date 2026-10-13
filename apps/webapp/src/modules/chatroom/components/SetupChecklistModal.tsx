@@ -166,7 +166,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     step === 'workspace' ? 'Step 1 of 2' : `${joinedCount} of ${teamRoles.length} agents ready`;
 
   return (
-    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl">
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
       <SetupMachineConnectivity machines={userMachines}>
         {/* fallow-ignore-next-line complexity */}
         {(connectedMachines) => (
@@ -183,13 +183,13 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
               </div>
             </FixedModalHeader>
 
-            <div className="flex-shrink-0 px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-tertiary min-h-[3.25rem] flex items-center">
+            <div className="flex shrink-0 items-center border-b-2 border-chatroom-border bg-chatroom-bg-tertiary px-4 py-2 sm:px-6">
               <p className="text-xs text-chatroom-text-secondary">{description}</p>
             </div>
 
-            <FixedModalBody>
+            <FixedModalBody className="flex flex-col overflow-hidden">
               {isLoadingWorkspaces ? (
-                <div className="flex items-center justify-center py-12 text-chatroom-text-muted">
+                <div className="flex flex-1 items-center justify-center py-12 text-chatroom-text-muted">
                   <Loader2 size={18} className="animate-spin mr-2" />
                   <span className="text-sm">Loading workspace...</span>
                 </div>

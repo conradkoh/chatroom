@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { SetupFolderPickerField } from './SetupFolderPickerField';
 import { SetupMachinePicker } from './SetupMachinePicker';
-import { SetupWorkspaceConfirmButton } from './SetupWorkspaceConfirmButton';
+import { SetupStepFooter, SetupStepLayout, setupPrimaryButtonClassName } from './SetupStepLayout';
 import { SetupWorkspaceLoadingPanel } from './SetupWorkspaceLoadingPanel';
 import { SetupWorkspacePrerequisitesPanel } from './SetupWorkspacePrerequisitesPanel';
 import { useSetupWorkspaceFolderPicker } from './useSetupWorkspaceFolderPicker';
@@ -99,7 +99,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
 
   if (connectedMachines.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto p-6 space-y-4">
+      <SetupStepLayout>
         <SetupWorkspacePrerequisitesPanel
           daemonDone={false}
           harnessDone={false}
@@ -107,7 +107,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
           authLoginCommand={authLoginCommand}
           daemonStartCommand={daemonStartCommand}
         />
-      </div>
+      </SetupStepLayout>
     );
   }
 
@@ -115,8 +115,25 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
     ? `Select a folder on ${getMachineDisplayName(selectedMachine)}`
     : 'Select a machine first';
 
+  const confirmDisabled = !selectedMachineId || !selectedPath.trim() || isConfirming || isPending;
+
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <SetupStepLayout
+      footer={
+        <SetupStepFooter
+          primary={
+            <button
+              type="button"
+              onClick={() => void handleConfirm()}
+              disabled={confirmDisabled}
+              className={setupPrimaryButtonClassName}
+            >
+              {isConfirming ? 'Creating...' : 'Confirm Workspace'}
+            </button>
+          }
+        />
+      }
+    >
       <SetupWorkspacePrerequisitesPanel
         daemonDone={daemonDone}
         harnessDone={harnessDone}
@@ -144,12 +161,6 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
       />
 
       {error && <p className="text-xs text-chatroom-status-error">{error}</p>}
-
-      <SetupWorkspaceConfirmButton
-        disabled={!selectedMachineId || !selectedPath.trim() || isConfirming || isPending}
-        isConfirming={isConfirming}
-        onConfirm={() => void handleConfirm()}
-      />
-    </div>
+    </SetupStepLayout>
   );
 });
