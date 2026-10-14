@@ -1,9 +1,14 @@
 // fallow-ignore-file complexity
 
-import { AgentStopReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
+import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
+import {
+  AgentStopReasonEnum,
+  DaemonStartReasonCode,
+} from '@workspace/backend/src/domain/entities/agent.js';
 import { WorkspaceTaskInboxEventType } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { Effect } from 'effect';
 
+import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
 import {
   buildAgentLifecycleRevisionKey,
   buildAgentStatusFact,
@@ -437,10 +442,16 @@ export class AgentWorkManager {
         if (decision.action === 'nudge') {
           // Keep agentTaskState: it blocks redelivery while the nudge is pending.
           await this.enqueueTurnEndedWaitingFact(event);
-          this.scheduleUncoveredNudge(event, activeTask);
+          this.scheduleUncoveredAction(event, activeTask, 'nudge');
           return { kind: 'release-slot' };
         }
-        // 'restart-session' is mapped to the park action in this slice only. Slice 5 replaces it.
+        if (decision.action === 'restart-session') {
+          // Keep agentTaskState: prepareRoleRecovery clears it inside the restart.
+          await this.enqueueTurnEndedWaitingFact(event);
+          this.scheduleUncoveredAction(event, activeTask, 'restart-session');
+          return { kind: 'release-slot' };
+        }
+        // 'park'
         await this.enqueueTurnEndedWaitingFact(event);
         this.applyParkAction(event);
         return { kind: 'release-slot' };
@@ -475,12 +486,20 @@ export class AgentWorkManager {
   }
 
   /** Out-of-band, same discipline as scheduleRoleDelivery: run after the handler returns. */
-  private scheduleUncoveredNudge(event: AgentTurnEndedEvent, task: { taskId: string }): void {
+  private scheduleUncoveredAction(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string },
+    action: 'nudge' | 'restart-session'
+  ): void {
     setTimeout(() => {
       if (this.disposed) return;
-      void this.sendUncoveredNudge(event, task).catch((error: unknown) => {
+      const run =
+        action === 'nudge'
+          ? this.sendUncoveredNudge(event, task)
+          : this.restartSessionForUncoveredTask(event, task);
+      void run.catch((error: unknown) => {
         console.error(
-          `[NativeDelivery:uncovered-nudge-error] chatroom=${event.chatroomId} role=${event.role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+          `[NativeDelivery:uncovered-action-error] action=${action} chatroom=${event.chatroomId} role=${event.role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
         );
       });
     }, 0);
@@ -540,6 +559,82 @@ export class AgentWorkManager {
       this.deps.taskService.confirmNudgeSent({ chatroomId, role, taskId: task.taskId, sessionKey });
     } finally {
       deliveryState.releaseDelivery(chatroomId, role, generation);
+    }
+  }
+
+  /**
+   * Replaces the unanswered session with a fresh one, then lets the agent-started
+   * reconcile redeliver the task. Composes the same public pieces as the user restart
+   * path: prepare (closes the gate) → stop → recover (releases the task, reopens the gate)
+   * → start. Runs out of band, never inside handleAgentTurnEnded. A failure is logged and
+   * retried through the recovery gate. It never re-runs the ladder.
+   */
+  private async restartSessionForUncoveredTask(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string }
+  ): Promise<void> {
+    const { chatroomId, role, pid } = event;
+    const config = this.deps.configurationService.get(chatroomId, role);
+    const slot = this.deps.agentMgr.getSlot(chatroomId, role);
+    const harness = config?.agentHarness ?? slot?.harness;
+    const model = config?.model ?? slot?.model;
+    const workingDir = config?.workingDir ?? slot?.workingDir;
+    if (!harness || !model || !workingDir) {
+      console.error(
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} error=missing_agent_config`
+      );
+      return;
+    }
+
+    let failure: string | undefined;
+    try {
+      failure = await this.deps.runSerializedForAgent(
+        { chatroomId, role, workingDir },
+        { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
+        async (ops, context) => {
+          const current = this.deps.agentMgr.getSlot(chatroomId, role);
+          if (
+            this.deps.agentMgr.isStopRequested(chatroomId, role) ||
+            current?.pid !== pid ||
+            current?.harnessSessionId !== event.slot.harnessSessionId
+          ) {
+            console.log(
+              `[NativeDelivery:uncovered-restart-stale] chatroom=${chatroomId} role=${role} task=${task.taskId}`
+            );
+            return undefined;
+          }
+          await this.prepareRoleRecovery({ chatroomId, role });
+          await ops.stopAgent(
+            { chatroomId, role, reason: AgentStopReasonEnum['daemon.respawn'], pid, workingDir },
+            context.signal
+          );
+          await this.recoverStoppedRole({ chatroomId, role, mode: 'automatic' });
+          const started = await ops.startAgent(
+            {
+              chatroomId,
+              role,
+              agentHarness: harness as AgentHarness,
+              model,
+              workingDir,
+              reason: DaemonStartReasonCode.RESPAWN,
+              wantResume: false,
+            },
+            context.signal
+          );
+          return started.success ? undefined : (started.error ?? 'start_rejected');
+        }
+      );
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error);
+    }
+
+    if (failure === undefined) return;
+    console.error(
+      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} error=${failure}`
+    );
+    // The ladder already recorded this restart, so only the recovery gate is retried.
+    if (this.recoveryGates.has(recoveryKey(chatroomId, role))) {
+      this.scheduleRecoveryRetry(chatroomId, role);
     }
   }
 

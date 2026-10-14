@@ -44,6 +44,9 @@ function createService(
     readonly decideUncoveredTurnEnd?: ReturnType<typeof vi.fn>;
     readonly confirmNudgeSent?: ReturnType<typeof vi.fn>;
     readonly resetTurnTracking?: ReturnType<typeof vi.fn>;
+    readonly startAgent?: ReturnType<typeof vi.fn>;
+    readonly runSerializedForAgent?: ReturnType<typeof vi.fn>;
+    readonly agentConfig?: { agentHarness: string; model: string; workingDir: string };
     readonly isStopRequested?: () => boolean;
     readonly acquireNativeDeliverySlot?: ReturnType<typeof vi.fn>;
     readonly recordDeliveryFailure?: ReturnType<typeof vi.fn>;
@@ -54,7 +57,7 @@ function createService(
   const taskInboxState = options.taskInboxState ?? new TaskInboxState();
   taskInboxState.upsert(options.initialTasks ?? []);
   return new AgentWorkManager({
-    configurationService: { get: () => undefined } as never,
+    configurationService: { get: () => options.agentConfig } as never,
     agentMgr: {
       subscribeAgentTurnEnded: (handler: (event: never) => Promise<unknown>) => {
         options.onTurnEnded?.(handler);
@@ -77,11 +80,15 @@ function createService(
       resumeTurnForSlot: (args: unknown) =>
         Effect.promise(() => (options.resumeTurnForSlot ?? (async () => undefined))(args)),
     } as never,
-    runSerializedForAgent: (async (_key: never, _options: never, operation: any) =>
-      operation(
-        { startAgent: vi.fn(), stopAgent: options.stopAgent ?? vi.fn() },
-        { signal: new AbortController().signal }
-      )) as never,
+    runSerializedForAgent: (options.runSerializedForAgent ??
+      (async (_key: never, _options: never, operation: any) =>
+        operation(
+          {
+            startAgent: options.startAgent ?? vi.fn(async () => ({ success: true })),
+            stopAgent: options.stopAgent ?? vi.fn(async () => ({ success: true })),
+          },
+          { signal: new AbortController().signal }
+        ))) as never,
     acquireNativeDeliverySlot: (options.acquireNativeDeliverySlot ??
       vi.fn().mockResolvedValue({ state: 'running' })) as never,
     sessionDeps: {} as never,
@@ -392,21 +399,196 @@ describe('AgentWorkManager', () => {
     service.dispose();
   });
 
-  test('a restart-session decision maps to the park action in this slice', async () => {
+  const restartConfig = { agentHarness: 'opencode-sdk', model: 'model-1', workingDir: '/work' };
+
+  test('a restart-session decision stops, recovers, and starts in the order prepare, stop, recover, start', async () => {
+    const calls: string[] = [];
+    const runSerializedForAgent = vi.fn(async (_key: unknown, _opts: unknown, operation: any) =>
+      operation(
+        {
+          stopAgent: async (input: { reason: string; pid: number }) => {
+            calls.push(`stop:${input.reason}:${input.pid}`);
+            return { success: true };
+          },
+          startAgent: async (input: { reason: string; wantResume: boolean }) => {
+            calls.push(`start:${input.reason}:${input.wantResume}`);
+            return { success: true };
+          },
+        },
+        { signal: new AbortController().signal }
+      )
+    );
+    const service = createService({
+      runSerializedForAgent,
+      agentConfig: restartConfig,
+      getSlot: runningSlot,
+      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+      initialTasks: [pendingTask('task-1')],
+    });
+    const internals = service as unknown as {
+      prepareRoleRecovery(args: unknown): Promise<void>;
+      recoverStoppedRole(args: unknown): Promise<{ released: number }>;
+    };
+    vi.spyOn(internals, 'prepareRoleRecovery').mockImplementation(async () => {
+      calls.push('prepare');
+    });
+    vi.spyOn(internals, 'recoverStoppedRole').mockImplementation(async (args: unknown) => {
+      calls.push(`recover:${(args as { mode: string }).mode}`);
+      return { released: 1 };
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await vi.waitFor(() => expect(calls).toHaveLength(4));
+    await flushTimers();
+
+    expect(calls).toEqual([
+      'prepare',
+      'stop:daemon.respawn:42',
+      'recover:automatic',
+      'start:daemon.respawn:false',
+    ]);
+    expect(runSerializedForAgent).toHaveBeenCalledTimes(1);
+    expect(runSerializedForAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ chatroomId: 'room-1', role: 'builder' }),
+      { timeoutMs: 120_000 },
+      expect.any(Function)
+    );
+    service.dispose();
+  });
+
+  test('a restart-session decision clears active state through prepare and sends no nudge', async () => {
     const resumeTurnForSlot = vi.fn(async () => undefined);
     const service = createService({
-      initialTasks: [pendingTask('task-1')],
+      agentConfig: restartConfig,
+      getSlot: runningSlot,
       resumeTurnForSlot,
       decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+      initialTasks: [pendingTask('task-1')],
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await vi.waitFor(() =>
+      expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined()
+    );
+    await flushTimers();
+
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a restart does nothing when the slot changed before the serialized section ran', async () => {
+    const stopAgent = vi.fn(async () => ({ success: true }));
+    const startAgent = vi.fn(async () => ({ success: true }));
+    const service = createService({
+      agentConfig: restartConfig,
+      getSlot: () => ({ state: 'running', pid: 43, harnessSessionId: 'sess-1' }),
+      stopAgent,
+      startAgent,
+      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+      initialTasks: [pendingTask('task-1')],
+    });
+    const scheduleRecoveryRetry = vi.spyOn(service as never, 'scheduleRecoveryRetry');
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await flushTimers();
+
+    expect(stopAgent).not.toHaveBeenCalled();
+    expect(startAgent).not.toHaveBeenCalled();
+    expect(scheduleRecoveryRetry).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a restart does nothing when a stop was requested before the serialized section ran', async () => {
+    const stopAgent = vi.fn(async () => ({ success: true }));
+    const startAgent = vi.fn(async () => ({ success: true }));
+    const service = createService({
+      agentConfig: restartConfig,
       getSlot: runningSlot,
+      isStopRequested: () => true,
+      stopAgent,
+      startAgent,
+      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+      initialTasks: [pendingTask('task-1')],
+    });
+    const scheduleRecoveryRetry = vi.spyOn(service as never, 'scheduleRecoveryRetry');
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await flushTimers();
+
+    expect(stopAgent).not.toHaveBeenCalled();
+    expect(startAgent).not.toHaveBeenCalled();
+    expect(scheduleRecoveryRetry).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a rejected start is logged, never re-runs the ladder, and does not throw', async () => {
+    const decideUncoveredTurnEnd = vi.fn(async () => ({ action: 'restart-session' as const }));
+    const service = createService({
+      agentConfig: restartConfig,
+      getSlot: runningSlot,
+      startAgent: vi.fn(async () => ({ success: false, error: 'rate_limited' })),
+      decideUncoveredTurnEnd,
+      initialTasks: [pendingTask('task-1')],
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await expect(service.handleAgentTurnEnded(completedTurnEvent() as never)).resolves.toEqual({
+      kind: 'release-slot',
+    });
+    await flushTimers();
+
+    expect(decideUncoveredTurnEnd).toHaveBeenCalledTimes(1);
+    service.dispose();
+  });
+
+  test('a stop failure inside the restart keeps the recovery gate and schedules a retry without throwing', async () => {
+    const decideUncoveredTurnEnd = vi.fn(async () => ({ action: 'restart-session' as const }));
+    const service = createService({
+      agentConfig: restartConfig,
+      getSlot: runningSlot,
+      stopAgent: vi.fn(async () => {
+        throw new Error('stop failed');
+      }),
+      decideUncoveredTurnEnd,
+      initialTasks: [pendingTask('task-1')],
+    });
+    const scheduleRecoveryRetry = vi.spyOn(service as never, 'scheduleRecoveryRetry');
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await expect(service.handleAgentTurnEnded(completedTurnEvent() as never)).resolves.toEqual({
+      kind: 'release-slot',
+    });
+    await vi.waitFor(() => expect(scheduleRecoveryRetry).toHaveBeenCalledWith('room-1', 'builder'));
+
+    expect(decideUncoveredTurnEnd).toHaveBeenCalledTimes(1);
+    service.dispose();
+  });
+
+  test('a park decision sends no nudge and no restart', async () => {
+    const stopAgent = vi.fn(async () => ({ success: true }));
+    const runSerializedForAgent = vi.fn();
+    const resumeTurnForSlot = vi.fn(async () => undefined);
+    const service = createService({
+      agentConfig: restartConfig,
+      getSlot: runningSlot,
+      stopAgent,
+      runSerializedForAgent,
+      resumeTurnForSlot,
+      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'park' as const })),
+      initialTasks: [pendingTask('task-1')],
     });
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
     await service.handleAgentTurnEnded(completedTurnEvent() as never);
     await flushTimers();
 
-    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    expect(stopAgent).not.toHaveBeenCalled();
+    expect(runSerializedForAgent).not.toHaveBeenCalled();
     service.dispose();
   });
 
