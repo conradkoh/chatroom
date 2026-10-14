@@ -139,7 +139,7 @@ describe('TimelineUserMessage', () => {
       render(
         <TimelineUserMessage
           // Legacy payloads may still carry taskStatus; the header must ignore it.
-          message={createMessage({ taskStatus: status } as any)}
+          message={{ ...createMessage(), taskStatus: status } as unknown as Message}
           chatroomId="room-1"
         />
       );

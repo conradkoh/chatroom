@@ -22,7 +22,6 @@ export function toMessage(m: any): Message {
     acknowledgedAt: m.acknowledgedAt,
     completedAt: m.completedAt,
     taskId: m.taskId,
-    taskStatus: m.taskStatus,
     sourcePlatform: m.sourcePlatform,
     attachedTasks: m.attachedTasks,
     attachedBacklogItems: m.attachedBacklogItems,
