@@ -9,7 +9,12 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
+import {
+  createTestSession,
+  createDuoTeamChatroom,
+  createPlannerBuilderDuoChatroom,
+  joinParticipant,
+} from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,6 +90,33 @@ describe('getLatestMessages', () => {
     expect(result.messages[0]?.content).toBe('message-6');
     expect(result.messages[19]?.content).toBe('message-25');
     expect(result.tailAfterCreationTime).toBe(result.messages[0]?._creationTime);
+  });
+
+  test('user message linked to a task has no message-level taskStatus and routes to the duo entry point', async () => {
+    const { sessionId } = await createTestSession('ml-task-status-removed-1');
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId: sessionId as any,
+      chatroomId,
+      senderRole: 'user',
+      content: 'hello planner',
+      type: 'message',
+    });
+
+    const result = await t.query(api.messageList.getLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+
+    const userMessage = result.messages.find((m) => m.content === 'hello planner');
+    expect(userMessage).toBeDefined();
+    // The user message is linked to a task, so the removed taskStatus path is exercised.
+    expect(userMessage?.taskId).toBeDefined();
+    expect(userMessage).not.toHaveProperty('taskStatus');
+    // The user message routes to the duo entry point.
+    expect(userMessage?.targetRole).toBe('planner');
   });
 });
 

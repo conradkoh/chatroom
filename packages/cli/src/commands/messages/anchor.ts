@@ -34,7 +34,6 @@ type AnchorUserMessage = {
   type: string;
   content: string;
   targetRole?: string | null | undefined;
-  taskStatus?: string | null | undefined;
 };
 
 type LastUserMessageResult = {

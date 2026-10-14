@@ -4,17 +4,10 @@ import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server
 export function isTimelineMessageType(type: Doc<'chatroom_messages'>['type']): boolean {
   return type !== 'join' && type !== 'progress';
 }
-async function resolveTaskStatus(
-  ctx: MutationCtx | QueryCtx,
-  taskId: Id<'chatroom_tasks'> | undefined
-) {
-  return taskId ? (await ctx.db.get('chatroom_tasks', taskId))?.status : undefined;
-}
 export async function upsertMessageReadModel(
   ctx: MutationCtx,
   message: Doc<'chatroom_messages'>
 ): Promise<void> {
-  const taskStatus = await resolveTaskStatus(ctx, message.taskId);
   const next = {
     messageId: message._id,
     chatroomId: message.chatroomId,
@@ -22,7 +15,7 @@ export async function upsertMessageReadModel(
     senderRole: message.senderRole,
     type: message.type,
     isTimeline: isTimelineMessageType(message.type),
-    ...(message.taskId ? { taskId: message.taskId, ...(taskStatus ? { taskStatus } : {}) } : {}),
+    ...(message.taskId ? { taskId: message.taskId } : {}),
     ...(message.acknowledgedAt !== undefined ? { acknowledgedAt: message.acknowledgedAt } : {}),
   };
   const existing = await ctx.db
