@@ -145,7 +145,8 @@ export class OpencodeSdkHarness implements BoundHarness {
     return agents
       .filter((agent) => agent.hidden !== true)
       .map((agent) => ({
-        name: agent.name,
+        // V2 switchAgent/prompt take the agent id, not the display name.
+        name: agent.id,
         mode: (agent.mode as PublishedAgent['mode']) ?? 'all',
         ...(agent.description ? { description: agent.description } : {}),
       }));

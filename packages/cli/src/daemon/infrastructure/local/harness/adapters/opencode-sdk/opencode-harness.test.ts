@@ -219,6 +219,33 @@ describe('OpencodeSdkHarness', () => {
     ]);
   });
 
+  // ── listAgents() ────────────────────────────────────────────────────────────
+
+  it('listAgents publishes agent ids, not display names', async () => {
+    mockAgentList.mockResolvedValue({
+      data: [{ id: 'build', name: 'Build', mode: 'primary', hidden: false }],
+    });
+
+    const harness = createHarness();
+    const agents = await harness.listAgents();
+
+    expect(agents).toEqual([{ name: 'build', mode: 'primary' }]);
+  });
+
+  it('listAgents drops hidden agents and keeps descriptions', async () => {
+    mockAgentList.mockResolvedValue({
+      data: [
+        { id: 'build', name: 'Build', mode: 'primary', description: 'Default agent' },
+        { id: 'internal', name: 'Internal', mode: 'subagent', hidden: true },
+      ],
+    });
+
+    const harness = createHarness();
+    const agents = await harness.listAgents();
+
+    expect(agents).toEqual([{ name: 'build', mode: 'primary', description: 'Default agent' }]);
+  });
+
   // ── newSession() ────────────────────────────────────────────────────────────
 
   it('creates a new session and returns an OpencodeSdkSession', async () => {

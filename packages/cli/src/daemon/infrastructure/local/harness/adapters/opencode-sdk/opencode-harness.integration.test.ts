@@ -92,10 +92,10 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
     expect(modelIds).toContain('deepseek-v4-flash');
   });
 
-  it('lists agents', async () => {
+  it('lists agents by id, including the built-in build agent', async () => {
     const agents = await harness.listAgents();
-    // There may be zero custom agents — just confirm the call succeeds
-    expect(Array.isArray(agents)).toBe(true);
+    // Published names must be the V2 agent ids that switchAgent/prompt accept.
+    expect(agents.map((a) => a.name)).toContain(AGENT);
   });
 
   // ── Session + prompt ───────────────────────────────────────────────────────
