@@ -11,6 +11,12 @@ export interface SessionMetadata {
   agentName: string;
   /** Model id string passed at spawn, if any (e.g. provider/model). */
   model?: string | undefined;
+  /**
+   * Working directory the session was spawned in. Persisted so the resume fallback
+   * can recreate the session in the same OpenCode location after a daemon restart.
+   * Absent on metadata written by older versions.
+   */
+  workingDir?: string | undefined;
   /** Composed system prompt deferred until first resumeTurn (idle native spawn). */
   deferredSystemPrompt?: string | undefined;
   /** Display title synced from the harness (e.g. opencode session title). */

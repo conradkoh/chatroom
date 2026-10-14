@@ -527,6 +527,47 @@ describe('OpenCodeSdkAgentService', () => {
       expect(sharedPromptFn).toHaveBeenCalledTimes(3);
     });
 
+    it('resume fallback session.create passes location.directory from the spawn workingDir', async () => {
+      const sessionStore = new InMemorySessionMetadataStore();
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        sessionMetadataStore: sessionStore,
+      });
+      vi.mocked(OpenCode.make).mockImplementation(
+        () =>
+          ({
+            session: {
+              create: sharedCreateFn,
+              get: sharedGetFn,
+              interrupt: sharedInterruptFn,
+              prompt: sharedPromptFn,
+              switchAgent: sharedSwitchAgentFn,
+              switchModel: sharedSwitchModelFn,
+              instructions: { entry: { put: sharedInstructionPutFn } },
+            },
+            agent: { list: sharedAgentListFn },
+            event: { subscribe: sharedEventSubscribeFn },
+          }) as unknown as ReturnType<typeof OpenCode.make>
+      );
+      stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn({ ...spawnOptions(), workingDir: '/tmp/workspace' });
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const result = await spawnPromise;
+      expect(sessionStore.get('sess-1')?.workingDir).toBe('/tmp/workspace');
+
+      sharedCreateFn.mockClear();
+      sharedPromptFn.mockRejectedValueOnce(new Error('session not found')).mockResolvedValue({});
+      sharedCreateFn.mockResolvedValue({ id: 'sess-2' });
+
+      await service.resumeTurn(result.pid, 'resume prompt');
+
+      expect(sharedCreateFn).toHaveBeenCalledTimes(1);
+      expect(sharedCreateFn.mock.calls[0][0].location).toEqual({ directory: '/tmp/workspace' });
+    });
+
     it('proceeds with SIGTERM when no session metadata exists for the pid', async () => {
       const kill = vi
         .fn()

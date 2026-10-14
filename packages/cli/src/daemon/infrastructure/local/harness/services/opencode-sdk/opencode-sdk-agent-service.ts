@@ -182,13 +182,23 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     context: SpawnContext;
     agentName: string;
     model: string | undefined;
+    workingDir: string;
     deferredSystemPrompt?: string | undefined;
     pid: number;
     baseUrl: string;
     password?: string | undefined;
   }): SessionMetadata {
-    const { sessionId, context, agentName, model, deferredSystemPrompt, pid, baseUrl, password } =
-      args;
+    const {
+      sessionId,
+      context,
+      agentName,
+      model,
+      workingDir,
+      deferredSystemPrompt,
+      pid,
+      baseUrl,
+      password,
+    } = args;
     return {
       sessionId,
       machineId: context.machineId,
@@ -196,6 +206,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       role: context.role,
       agentName,
       ...(model ? { model } : {}),
+      workingDir,
       ...(deferredSystemPrompt ? { deferredSystemPrompt } : {}),
       pid,
       createdAt: new Date().toISOString(),
@@ -294,6 +305,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       password,
       agentName,
       model,
+      workingDir,
       logLineCallbacks,
       deferredSystemPrompt,
     } = args;
@@ -308,6 +320,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         context,
         agentName,
         model,
+        workingDir,
         deferredSystemPrompt,
         pid,
         baseUrl,
@@ -513,6 +526,8 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     context: SpawnContext;
     agentName: string;
     model: string;
+    /** Spawn working directory; passed as `location` so the fresh session matches the primary path. */
+    workingDir: string | undefined;
     prompt: string;
     oldSessionId?: string | undefined;
   }): Promise<void> {
@@ -529,6 +544,10 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         agent: args.agentName,
         ...(fallbackModel ? { model: fallbackModel } : {}),
         permissions: DISABLED_TOOL_PERMISSIONS,
+        // Constraint: must match the primary spawn() path. Without `location`, OpenCode
+        // resolves the session against the server's default directory, not the workspace.
+        // Legacy metadata written before workingDir was persisted has no value here.
+        ...(args.workingDir ? { location: { directory: args.workingDir } } : {}),
       }),
       SESSION_CREATE_TIMEOUT_MS,
       'session.create'
@@ -731,6 +750,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         context,
         agentName: meta.agentName,
         model,
+        workingDir: meta.workingDir,
         prompt,
         oldSessionId: meta.sessionId,
       });
