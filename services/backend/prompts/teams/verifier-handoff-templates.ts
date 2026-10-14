@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-export unused-type
+// fallow-ignore-file unused-type
 import { handoffCommand } from '../cli/handoff/command';
 import { getHandoffRecipientVisibilityCallout } from '../native/handoff-visibility';
 
