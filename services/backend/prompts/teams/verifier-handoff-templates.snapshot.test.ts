@@ -38,14 +38,18 @@ describe('verifier handoff template snapshots', () => {
     expect(template).toMatchSnapshot();
   });
 
-  test('planner request states the logs-only scope, claim-is-not-evidence, and mode limits', () => {
+  test('planner request states the logs-only scope, claim-is-not-evidence, and code-change rule', () => {
     const template = getEntryPointToVerifierHandoffTemplate('planner');
 
     expect(template).toContain('from chatroom logs only');
     expect(template).toContain('Requested test runs');
     expect(template).toContain('runs no test the user did not ask for');
     expect(template).toContain('a claim, not as evidence');
-    expect(template).toContain('never in `chat` mode');
+    expect(template).toContain(
+      'only when the task involved code changes, in any conversation mode'
+    );
+    expect(template).not.toContain('never in `chat` mode');
+    expect(template).toContain('<chat | code | code:enhanced>');
     expect(template).toContain('The verdict returns to `planner`');
     expect(template).toContain('next-role="verifier"');
   });

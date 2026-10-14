@@ -35,19 +35,19 @@ export function getEntryPointToVerifierHandoffTemplate(entryPointRole: string): 
 
 ## Handoff Template (${entryPoint} → verifier)
 
-The verifier judges, from chatroom logs only, whether the user's last message was achieved. It ${VERIFIER_TEST_RULE}; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only in \`code\` or \`code:enhanced\` mode, never in \`chat\` mode. The verdict returns to \`${entryPoint}\`.
+The verifier judges, from chatroom logs only, whether the user's last message was achieved. It ${VERIFIER_TEST_RULE}; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only when the task involved code changes, in any conversation mode. The verdict returns to \`${entryPoint}\`.
 
 ## Round
 <1 or 2; for 2, cite the round-1 verdict message id>
 
 ## Mode
-<code | code:enhanced>
+<chat | code | code:enhanced>
 
 ## User message id
 <id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>
 
 ## Context id
-<id from \`chatroom context read\`, or \`none\`>
+<id from \`chatroom context read\`, or \`none\` if no context was read for this task>
 
 ## Requested test runs
 <the test commands the user explicitly asked for, one per line, or exactly \`None requested.\`>
