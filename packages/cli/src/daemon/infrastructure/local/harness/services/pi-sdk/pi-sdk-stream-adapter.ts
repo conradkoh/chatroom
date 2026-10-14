@@ -13,9 +13,17 @@ import {
 } from '../agent-log-format.js';
 import { NativeStreamAdapterBase } from '../native-stream-adapter-base.js';
 
+type MessageEndEvent = Extract<AgentSessionEvent, { type: 'message_end' }>;
+
 export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
   private thinkingBuffer = '';
+  /**
+   * Provider error of the most recent assistant message, or undefined when it succeeded.
+   * The run's terminal decision is deferred to agent end because the SDK may auto-retry a
+   * retryable error and succeed; only the final assistant message decides failed vs completed.
+   */
+  private lastAssistantError: string | undefined;
 
   constructor(
     logPrefix: string,
@@ -71,18 +79,54 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
         );
         break;
       }
+      case 'message_end':
+        this.recordAssistantOutcome(event);
+        break;
       case 'agent_end':
-        this.completeTurn({ status: 'completed', source: 'pi-sdk.agent_end' });
+        // The SDK is about to retry a retryable error; a later agent_end settles the turn.
+        if (event.willRetry) break;
+        this.settleRun('pi-sdk.agent_end');
         break;
       default:
         break;
     }
   }
 
+  /** Records whether the latest assistant message failed. A provider error is logged now and settled at run end. */
+  private recordAssistantOutcome(event: MessageEndEvent): void {
+    const message = event.message;
+    if (message.role !== 'assistant') return;
+    this.lastAssistantError =
+      message.stopReason === 'error'
+        ? (message.errorMessage ?? 'unknown provider error')
+        : undefined;
+    if (this.lastAssistantError === undefined) return;
+    this.notifyFailure('pi-sdk.message_end.error');
+    this.writeLine(
+      formatAgentLogLine(this.logPrefix, 'run-error', `assistant error: ${this.lastAssistantError}`)
+    );
+  }
+
+  /**
+   * Settles the turn when the prompt promise resolves. Covers runs where no terminal agent_end
+   * settled it first. The first terminal result wins, so this never overwrites a failure.
+   */
+  settleResolvedPrompt(): void {
+    this.settleRun('pi-sdk.prompt.resolved');
+  }
+
   /** Flush buffered output after the terminal result has been recorded. */
   finish(): void {
     this.flushText();
     this.flushThinking();
+  }
+
+  private settleRun(source: string): void {
+    if (this.lastAssistantError !== undefined) {
+      this.completeTurn({ status: 'failed', source, error: this.lastAssistantError });
+    } else {
+      this.completeTurn({ status: 'completed', source });
+    }
   }
 
   private appendText(delta: string): void {

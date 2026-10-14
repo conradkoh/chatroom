@@ -4,6 +4,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { PiSdkAgentService } from './pi-sdk-agent-service.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
+import type { TurnCompletionResult } from '../turn-completion.js';
 
 const mockCreateAgentSession = vi.fn();
 const mockModelRuntimeCreate = vi.fn();
@@ -182,5 +183,51 @@ describe('PiSdkAgentService', () => {
     expect(call?.model).toEqual(
       expect.objectContaining({ provider: 'opencode', id: 'big-pickle' })
     );
+  });
+
+  it('settles a prompt that resolves after a provider error as failed, not completed', async () => {
+    const agentSession = stubAgentSession();
+    const sessionListeners: ((event: unknown) => void)[] = [];
+    agentSession.subscribe.mockImplementation((listener: (event: unknown) => void) => {
+      sessionListeners.push(listener);
+      return () => {};
+    });
+    agentSession.prompt.mockImplementation(async () => {
+      // Provider rejects the request: the assistant message ends in error, then the prompt resolves.
+      sessionListeners[0]?.({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage: 'provider 400',
+        },
+      });
+    });
+    mockCreateAgentSession.mockResolvedValue({ session: agentSession });
+    const service = new PiSdkAgentService({
+      execSync: vi.fn(),
+      spawn: vi.fn().mockReturnValue(makeFakeChild()),
+      kill: vi.fn(),
+    });
+
+    const handle = await service.spawn({
+      workingDir: '/tmp',
+      systemPrompt: 'sys',
+      prompt: createSpawnPrompt('hello'),
+      model: 'opencode/big-pickle',
+      context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+      resolvedConvexUrl: 'http://localhost:3210',
+    });
+    const results: TurnCompletionResult[] = [];
+    expect(handle.onTurnResult).toBeDefined();
+    handle.onTurnResult?.((result) => results.push(result));
+
+    await vi.waitFor(() => expect(results).toHaveLength(1));
+    expect(results[0]).toMatchObject({
+      status: 'failed',
+      source: 'pi-sdk.prompt.resolved',
+      error: 'provider 400',
+    });
   });
 });

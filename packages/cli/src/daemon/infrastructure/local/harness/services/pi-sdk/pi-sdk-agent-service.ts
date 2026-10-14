@@ -525,9 +525,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
               break;
             }
 
-            if (!adapter.turnCompletion.isComplete) {
-              adapter.completeTurn({ status: 'completed', source: 'pi-sdk.prompt.resolved' });
-            }
+            adapter.settleResolvedPrompt();
             adapter.finish();
             nextPrompt = null;
           } catch (turnErr) {

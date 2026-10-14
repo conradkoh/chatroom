@@ -61,8 +61,20 @@ function toolEndEvent(toolName: string, result: unknown, isError?: boolean): Age
   } as AgentSessionEvent;
 }
 
-function agentEndEvent(): AgentSessionEvent {
-  return { type: 'agent_end' } as AgentSessionEvent;
+function agentEndEvent(willRetry = false): AgentSessionEvent {
+  return { type: 'agent_end', willRetry } as AgentSessionEvent;
+}
+
+function assistantMessageEndEvent(stopReason: string, errorMessage?: string): AgentSessionEvent {
+  return {
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [],
+      stopReason,
+      ...(errorMessage !== undefined ? { errorMessage } : {}),
+    },
+  } as unknown as AgentSessionEvent;
 }
 
 describe('PiSdkStreamAdapter typed activity', () => {
@@ -150,5 +162,89 @@ describe('PiSdkStreamAdapter typed activity', () => {
     adapter.handleEvent(textDeltaEvent('Hello world\n'));
 
     expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello world`);
+  });
+});
+
+describe('PiSdkStreamAdapter provider errors', () => {
+  it('settles the turn as failed with the error message when an assistant error precedes agent_end', () => {
+    const { adapter } = createAdapter();
+    const onTurnResult = vi.fn();
+    adapter.onTurnResult(onTurnResult);
+
+    adapter.handleEvent(assistantMessageEndEvent('error', 'provider 400: bad model'));
+    adapter.handleEvent(agentEndEvent());
+
+    expect(adapter.turnCompletion.value).toMatchObject({
+      status: 'failed',
+      source: 'pi-sdk.agent_end',
+      error: 'provider 400: bad model',
+    });
+    expect(onTurnResult).toHaveBeenCalledTimes(1);
+    expect(onTurnResult).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }));
+  });
+
+  it('settles as completed for a successful assistant message followed by agent_end', () => {
+    const { adapter } = createAdapter();
+    adapter.handleEvent(assistantMessageEndEvent('stop'));
+    adapter.handleEvent(agentEndEvent());
+
+    expect(adapter.turnCompletion.value).toMatchObject({
+      status: 'completed',
+      source: 'pi-sdk.agent_end',
+    });
+  });
+
+  it('logs the provider error message as a run-error line', () => {
+    const { adapter, onLogLine, signals } = createAdapter();
+    adapter.handleEvent(assistantMessageEndEvent('error', 'provider 400: bad model'));
+
+    expect(onLogLine).toHaveBeenCalledWith(
+      `${LOG_PREFIX} run-error] assistant error: provider 400: bad model`
+    );
+    expect(signalKinds(signals)).toContain('failure');
+  });
+
+  it('uses a fallback message when the error carries no errorMessage', () => {
+    const { adapter } = createAdapter();
+    adapter.handleEvent(assistantMessageEndEvent('error'));
+    adapter.handleEvent(agentEndEvent());
+
+    expect(adapter.turnCompletion.value).toMatchObject({
+      status: 'failed',
+      error: 'unknown provider error',
+    });
+  });
+
+  it('defers the terminal decision while the SDK auto-retries, then completes when the retry succeeds', () => {
+    const { adapter } = createAdapter();
+    adapter.handleEvent(assistantMessageEndEvent('error', 'overloaded'));
+    adapter.handleEvent(agentEndEvent(true));
+    expect(adapter.turnCompletion.isComplete).toBe(false);
+
+    adapter.handleEvent(assistantMessageEndEvent('stop'));
+    adapter.handleEvent(agentEndEvent(false));
+
+    expect(adapter.turnCompletion.value).toMatchObject({ status: 'completed' });
+  });
+
+  it('settles as failed when the prompt resolves after an assistant error without agent_end', () => {
+    const { adapter } = createAdapter();
+    adapter.handleEvent(assistantMessageEndEvent('error', 'provider 400: bad model'));
+    adapter.settleResolvedPrompt();
+
+    expect(adapter.turnCompletion.value).toMatchObject({
+      status: 'failed',
+      source: 'pi-sdk.prompt.resolved',
+      error: 'provider 400: bad model',
+    });
+  });
+
+  it('keeps a failed turn when the prompt resolves afterwards', () => {
+    const { adapter } = createAdapter();
+    adapter.handleEvent(assistantMessageEndEvent('error', 'provider 400: bad model'));
+    adapter.handleEvent(agentEndEvent());
+    adapter.settleResolvedPrompt();
+
+    expect(adapter.turnCompletion.value).toMatchObject({ status: 'failed' });
   });
 });
