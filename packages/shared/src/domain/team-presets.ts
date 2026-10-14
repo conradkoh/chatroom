@@ -52,7 +52,7 @@ export const TEAM_PRESETS = {
     structureId: TEAM_STRUCTURE_IDS.duo,
     name: 'Duo',
     description:
-      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, and uiux-engineer roles',
+      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, uiux-engineer, and verifier roles',
     roles: getBuiltinRolesForTeam('duo'),
     entryPoint: 'planner',
   },
@@ -60,7 +60,7 @@ export const TEAM_PRESETS = {
     structureId: TEAM_STRUCTURE_IDS.solo,
     name: 'Solo',
     description:
-      'A single agent working independently, with optional ephemeral architect, triage, and uiux-engineer roles',
+      'A single agent working independently, with optional ephemeral architect, triage, uiux-engineer, and verifier roles',
     roles: getBuiltinRolesForTeam('solo'),
     entryPoint: 'solo',
   },

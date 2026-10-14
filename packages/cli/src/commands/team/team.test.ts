@@ -19,10 +19,10 @@ describe('team commands', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await listTeamPresets();
     expect(log.mock.calls.join('\n')).toContain(
-      'duo — Duo (planner, architect, researcher, triage, uiux-engineer, builder) entry: planner'
+      'duo — Duo (planner, architect, researcher, triage, uiux-engineer, verifier, builder) entry: planner'
     );
     expect(log.mock.calls.join('\n')).toContain(
-      'solo — Solo (solo, architect, triage, uiux-engineer) entry: solo'
+      'solo — Solo (solo, architect, triage, uiux-engineer, verifier) entry: solo'
     );
     log.mockRestore();
   });

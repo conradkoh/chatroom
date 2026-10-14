@@ -11,6 +11,7 @@ import {
   appendEnhanceModeGuidance,
   shouldIncludeEnhanceModeGuidance,
 } from './enhance-mode-guidance.js';
+import { appendVerifierGateGuidance, shouldIncludeVerifierGate } from './verifier-gate-guidance.js';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
@@ -178,6 +179,17 @@ export function appendTaskDeliveryHandoffSections(
     })
   ) {
     appendEnhanceModeGuidance(lines);
+  }
+
+  if (
+    shouldIncludeVerifierGate({
+      isEntryPoint: params.isEntryPoint,
+      availableHandoffTargets: activeHandoffTargets,
+    })
+  ) {
+    appendVerifierGateGuidance(lines, {
+      hasBuilder: activeHandoffTargets.some((target) => target.trim().toLowerCase() === 'builder'),
+    });
   }
 
   appendTaskDeliveryNextSteps(lines, activeParams);

@@ -10,6 +10,7 @@ import { soloArchitectHandoffContract } from './architect';
 import { soloHandoffContract } from './solo';
 import { soloTriageHandoffContract } from './triage';
 import { soloUiuxEngineerHandoffContract } from './uiux-engineer';
+import { soloVerifierHandoffContract } from './verifier';
 import type {
   BuiltinTeamHandoffCatalog,
   HandoffTemplateQuery,
@@ -19,12 +20,13 @@ import { validateBuiltinTeamRoleHandoffContracts } from '../../../cli/handoff-te
 
 export type { HandoffTemplateQuery as SoloHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned solo catalog, including ephemeral architect, triage, and UI/UX roles. */
+/** Role-owned solo catalog, including ephemeral architect, triage, UI/UX, and verifier roles. */
 export const SOLO_ROLE_HANDOFF_CATALOG = {
   solo: soloHandoffContract,
   architect: soloArchitectHandoffContract,
   'uiux-engineer': soloUiuxEngineerHandoffContract,
   triage: soloTriageHandoffContract,
+  verifier: soloVerifierHandoffContract,
 } satisfies BuiltinTeamHandoffCatalog<'solo'>;
 
 export const SOLO_ROLE_HANDOFF_CONTRACTS: readonly RoleHandoffContract[] =

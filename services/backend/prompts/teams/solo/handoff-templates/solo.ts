@@ -11,15 +11,17 @@ import { getChatToUserHandoffTemplate } from '../../../utils/chat-handoff-templa
 import { getEntryPointToArchitectHandoffTemplate } from '../../architect-handoff-templates';
 import { getEntryPointToTriageHandoffTemplate } from '../../triage-handoff-templates';
 import { getEntryPointToUiuxEngineerHandoffTemplate } from '../../uiux-engineer-handoff-templates';
+import { getEntryPointToVerifierHandoffTemplate } from '../../verifier-handoff-templates';
 
 export const soloHandoffContract = {
   role: 'solo',
-  receivesFrom: ['user', 'architect', 'uiux-engineer', 'triage'],
-  returnsTo: ['architect', 'uiux-engineer', 'triage', 'user'],
+  receivesFrom: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
+  returnsTo: ['architect', 'uiux-engineer', 'triage', 'verifier', 'user'],
   outboundTemplates: {
     architect: () => getEntryPointToArchitectHandoffTemplate('solo'),
     'uiux-engineer': () => getEntryPointToUiuxEngineerHandoffTemplate('solo'),
     triage: () => getEntryPointToTriageHandoffTemplate('solo'),
+    verifier: () => getEntryPointToVerifierHandoffTemplate('solo'),
     user: (query) =>
       query.conversationMode === 'chat'
         ? getChatToUserHandoffTemplate()

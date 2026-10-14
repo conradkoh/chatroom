@@ -49,6 +49,7 @@ ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG, { role: 'solo', teamId: 'solo
 - Write clean, maintainable, well-documented code
 - Follow established patterns and best practices from the codebase
 - Handle edge cases and error scenarios
+- **Verify before delivering:** when task delivery includes a \`<verifier-gate>\` block, follow it before handing off to \`user\`. The \`verifier\` handoff template defines the request.
 - Commit work with descriptive, atomic commit messages
 
 ${getHandoffRulesSection(SOLO_TEAM_CONFIG, nativeIntegration)}

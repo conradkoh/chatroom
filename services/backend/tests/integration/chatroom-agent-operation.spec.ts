@@ -156,7 +156,14 @@ describe('agents.requestChatroomAgentOperation', () => {
 
     expect(result.requested).toEqual([{ role: 'architect', workspaceId, machineId }]);
     expect(result.failed).toEqual([]);
-    const unconfiguredRoles = ['planner', 'builder', 'triage', 'uiux-engineer', 'researcher'];
+    const unconfiguredRoles = [
+      'planner',
+      'builder',
+      'triage',
+      'uiux-engineer',
+      'researcher',
+      'verifier',
+    ];
     expect(result.skipped).toEqual(
       expect.arrayContaining(
         unconfiguredRoles.map((role) =>

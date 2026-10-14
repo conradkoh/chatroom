@@ -146,3 +146,114 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
     expectNoEnhancerCeremony(output);
   });
 });
+
+describe('appendTaskDeliveryHandoffSections — verifier gate', () => {
+  const VERIFIER_TARGETS = ['architect', 'verifier', 'builder', 'user'];
+
+  function renderWithVerifierTarget(overrides: Partial<TaskDeliveryParams> = {}): string {
+    return renderHandoffSections({
+      role: 'planner',
+      isEntryPoint: true,
+      availableHandoffTargets: VERIFIER_TARGETS,
+      ...overrides,
+    });
+  }
+
+  test.each([
+    ['code mode, user-origin task', 'code' as const, 'user' as const],
+    ['code mode, builder-return task', 'code' as const, 'builder' as const],
+    ['code:enhanced mode, user-origin task', 'code:enhanced' as const, 'user' as const],
+    ['code:enhanced mode, builder-return task', 'code:enhanced' as const, 'builder' as const],
+  ])(
+    'entry-point planner task in %s includes the verifier gate',
+    (_label, conversationMode, senderRole) => {
+      const output = renderWithVerifierTarget({
+        conversationMode,
+        message: { _id: 'msg-id', senderRole },
+      });
+
+      expect(output).toContain('<verifier-gate>');
+      expect(output).toContain('Maximum 2 verification rounds per user message');
+    }
+  );
+
+  test('Chat mode also includes the verifier gate', () => {
+    const output = renderWithVerifierTarget({
+      conversationMode: 'chat',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).toContain('<chat-mode>');
+    expect(output).toContain('<verifier-gate>');
+    expect(output).toContain('If this task involved code changes');
+  });
+
+  test('builder role omits the verifier gate', () => {
+    const output = renderWithVerifierTarget({
+      role: 'builder',
+      isEntryPoint: false,
+      conversationMode: 'code',
+      message: { _id: 'planner-msg', senderRole: 'planner' },
+    });
+
+    expect(output).not.toContain('<verifier-gate>');
+  });
+
+  test('non-entry-point planner omits the verifier gate', () => {
+    const output = renderWithVerifierTarget({
+      isEntryPoint: false,
+      conversationMode: 'code',
+      message: { _id: 'builder-msg', senderRole: 'builder' },
+    });
+
+    expect(output).not.toContain('<verifier-gate>');
+  });
+
+  test('a target list without verifier omits the verifier gate', () => {
+    const output = renderWithVerifierTarget({
+      conversationMode: 'code',
+      availableHandoffTargets: ['architect', 'builder', 'user'],
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).not.toContain('<verifier-gate>');
+  });
+});
+
+describe('appendTaskDeliveryHandoffSections — solo verifier gate', () => {
+  // Solo has no builder, so the gate must direct the entry point to rework itself.
+  const SOLO_VERIFIER_TARGETS = ['architect', 'verifier', 'uiux-engineer', 'user'];
+
+  function renderSolo(overrides: Partial<TaskDeliveryParams> = {}): string {
+    return renderHandoffSections({
+      role: 'solo',
+      isEntryPoint: true,
+      availableHandoffTargets: SOLO_VERIFIER_TARGETS,
+      ...overrides,
+    });
+  }
+
+  test.each([['code' as const], ['code:enhanced' as const]])(
+    'solo entry point in %s includes the gate with self-rework',
+    (conversationMode) => {
+      const output = renderSolo({
+        conversationMode,
+        message: { _id: 'user-msg', senderRole: 'user' },
+      });
+
+      expect(output).toContain('<verifier-gate>');
+      expect(output).toContain('do it yourself, then request round 2');
+      expect(output).not.toContain('delegate to `builder`');
+    }
+  );
+
+  test('solo entry point in Chat mode also includes the gate', () => {
+    const output = renderSolo({
+      conversationMode: 'chat',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).toContain('<verifier-gate>');
+    expect(output).toContain('If this task involved code changes');
+  });
+});
