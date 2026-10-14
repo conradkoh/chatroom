@@ -31,6 +31,7 @@ import { patchWorkspaceGitState as patchWorkspaceGitStateUseCase } from '../src/
 import { toWorkspaceGitStateView } from '../src/domain/usecase/workspace/project-workspace-git-state';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
+import { readWorkspaceGitUnitRows } from '../src/domain/usecase/workspace/workspace-git-unit-rows';
 
 async function getPrimaryWorkspaceView(ctx: QueryCtx, chatroomId: Id<'chatroom_rooms'>) {
   const workspace = await getPrimaryWorkspaceForChatroomUseCase(ctx, chatroomId);
@@ -393,14 +394,12 @@ export const getWorkspaceGitState = query({
       return { status: 'loading' };
     }
 
-    const row = await ctx.db
-      .query('chatroom_workspaceGitState')
-      .withIndex('by_machine_workingDir', (q) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
-      )
-      .first();
+    const rows = await readWorkspaceGitUnitRows(ctx, {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+    });
 
-    return toWorkspaceGitStateView(row);
+    return toWorkspaceGitStateView(rows);
   },
 });
 
@@ -770,9 +769,10 @@ export const upsertWorkspaceGitState = mutation({
 /**
  * Applies one git-state unit (e.g. only the HEAD branch) to a workspace.
  *
- * Called by the daemon's WorkspaceService on every change. The row's `updatedAt`
- * is stamped server-side and only moves when a field owned by the unit changed.
- * Returns `workspace_inactive` if the workspace was removed; nothing is written.
+ * Called by the daemon's WorkspaceService on every change. Writes the unit's own per-unit row; only
+ * head defines `status`. The row's `updatedAt` is stamped server-side and only moves when a field
+ * owned by the unit changed. Returns `workspace_inactive` if the workspace was removed; nothing is
+ * written.
  */
 export const patchWorkspaceGitState = mutation({
   args: {

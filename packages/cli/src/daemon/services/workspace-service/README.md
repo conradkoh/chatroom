@@ -168,9 +168,9 @@ Bounds below are at the default policy (`DEFAULT_WORKSPACE_SYNC_POLICY`).
   10s, so the UI may show the agent online for up to about 40s after the hung stop began.
 - **Daemon offline.** While the daemon process is not running, the UI keeps the last statuses it received.
   When the daemon starts again, `initDaemonEffect` queues a `cleared_all_pids` lifecycle fact to clear stale pids.
-- **Per-document invalidation.** Git state is stored as one `chatroom_workspaceGitState` row per machine
-  and working directory. A change to any unit therefore re-runs `getWorkspaceGitState` for every
-  subscriber of that directory. Per-unit tables are a follow-up.
+- **Per-document invalidation.** Git state is stored as one row per unit kind per machine and working
+  directory (the six per-unit tables). A change to any unit row therefore re-runs `getWorkspaceGitState`
+  for every subscriber of that directory.
 
 ## Policy
 
@@ -191,15 +191,19 @@ The labels below are the architect's design invariants. The source cites I4 and 
 - **I2: Serialized per workingDir.** Per workingDir, sends are serialized in enqueue order by the send
   adapter's chain. Initial snapshots enqueue head first. (`packages/cli/src/daemon/infrastructure/outbox/workspace-state-send.ts`,
   `runInWorkingDirChain`; head-first order in `infrastructure/local-unit-collector.ts`, `collectLocalUnits`)
-- **I3: Only head writes `status`.** Units other than head never write `status`. When no row exists,
-  `patchWorkspaceGitState` inserts `status: 'available'`. The daemon only emits non-head git units after a
-  head `available` in the same recompute. (`infrastructure/local-unit-collector.ts`, `collectLocalUnits`;
-  `services/backend/src/domain/usecase/workspace/patch-workspace-git-state.ts`, `patchWorkspaceGitState`)
+- **I3: Only head defines `status`.** Units other than head never store `status`. `patchWorkspaceGitState`
+  no longer inserts a default `status: 'available'` for a non-head unit; a non-head row without a head row
+  is stored but invisible, so the view stays `loading` until head arrives. The daemon only emits non-head
+  git units after a head `available` in the same recompute. (`infrastructure/local-unit-collector.ts`,
+  `collectLocalUnits`; `services/backend/src/domain/usecase/workspace/workspace-git-unit-rows.ts`,
+  `writeUnitRow`; `services/backend/src/domain/usecase/workspace/patch-workspace-git-state.ts`,
+  `patchWorkspaceGitState`)
 - **I4: Remote results are checked before they apply.** A remote result is applied only when the branch
   and oid match the values captured at poll start (stale guard). Otherwise it is dropped and the poll runs
   again at once. (`service/remote-cadence.ts`, `isRemoteResultCurrent`)
-- **I5: No write without a change.** The backend writes nothing when values are unchanged and nothing for
-  inactive workspaces. (`services/backend/src/domain/usecase/workspace/patch-workspace-git-state.ts`,
+- **I5: No write without a change.** The backend writes nothing when the unit is unchanged and nothing for
+  inactive workspaces. The comparison is against the unit's own row, not the legacy blob.
+  (`services/backend/src/domain/usecase/workspace/patch-workspace-git-state.ts`,
   `patchWorkspaceGitState`: the `unchanged` and `workspace_inactive` results)
 - **I6: One serial chain per monitor.** All monitor state transitions (local recompute, remote apply, activity
   change, refresh, stop) run on one per-monitor serial promise chain. An error is logged and never breaks
@@ -222,9 +226,6 @@ skip their bodies, and then awaits the chain to drain. This gap is not yet close
 
 ## Follow-ups
 
-- **Per-unit Convex tables.** Today units are written through `patchWorkspaceGitState`,
-  `upsertRecentCommits`, and `syncCommands` (`packages/cli/src/daemon/infrastructure/outbox/workspace-state-send.ts`). The
-  follow-up gives each unit kind its own table.
 - **Remove the handoff-to-user enqueue.** `services/backend/convex/messages.ts` still calls
   `requestSyncOnHandoffToUser`, which enqueues `daemon.gitRefresh` for every active workspace on each
   handoff to the user. It is kept for older CLIs. Remove it once a minimum daemon version is enforced.

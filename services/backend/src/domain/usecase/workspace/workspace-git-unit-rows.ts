@@ -14,8 +14,8 @@
  * - Convex's typed `db` cannot narrow the table-name union produced by a
  *   generic `kind` (it resolves the query against the first table in the data
  *   model). The union is therefore erased once per function through
- *   `UnitTableStore`; those casts live only in `findUnitRow` and the delete
- *   loop.
+ *   `UnitTableStore`; those casts live only in `findUnitRow`, `writeUnitRow`,
+ *   and the delete loop.
  * - `head` is read first and short-circuits: when it is absent or not
  *   'available' the remaining units are not read at all.
  */
@@ -60,15 +60,40 @@ interface UnitTableStore {
       collect(): Promise<{ _id: Id<TableNames> }[]>;
     };
   };
+  insert(table: TableNames, value: Record<string, unknown>): Promise<Id<TableNames>>;
+  replace(table: TableNames, id: Id<TableNames>, value: Record<string, unknown>): Promise<void>;
   delete(table: TableNames, id: Id<TableNames>): Promise<void>;
 }
 
+/** The fields a unit writes, plus identity and `updatedAt`. Caller passes the unit payload minus `kind`. */
+export type WorkspaceGitUnitWrite = {
+  machineId: string;
+  workingDir: string;
+  updatedAt: number;
+} & Record<string, unknown>;
+
 /**
- * One row by (machineId, workingDir) via `by_machine_workingDir` `.first()`.
- *
- * Exported for the workspace git read path, which lands in the next slice.
+ * Inserts a new unit row (existingId null) or replaces the existing one. Replace, not patch, so
+ * optional fields the unit no longer sends are cleared.
  */
-// fallow-ignore-next-line unused-export
+export async function writeUnitRow(
+  ctx: MutationCtx,
+  kind: WorkspaceGitUnitKind,
+  existingId: Id<TableNames> | null,
+  value: WorkspaceGitUnitWrite
+): Promise<void> {
+  // Single cast: erase the table-name union so a runtime table name can be written. See the module
+  // header.
+  const db = ctx.db as unknown as UnitTableStore;
+  const table = WORKSPACE_GIT_UNIT_TABLE[kind];
+  if (existingId === null) {
+    await db.insert(table, value);
+  } else {
+    await db.replace(table, existingId, value);
+  }
+}
+
+/** One row by (machineId, workingDir) via `by_machine_workingDir` `.first()`. */
 export async function findUnitRow<K extends WorkspaceGitUnitKind>(
   ctx: QueryCtx | MutationCtx,
   kind: K,
@@ -94,10 +119,7 @@ export async function findUnitRow<K extends WorkspaceGitUnitKind>(
  * the other five reads are skipped entirely and returned as `null` — a
  * workspace without a usable HEAD has no meaningful other units, and the
  * short-circuit avoids up to five extra index scans.
- *
- * Exported for the workspace git read path, which lands in the next slice.
  */
-// fallow-ignore-next-line unused-export
 export async function readWorkspaceGitUnitRows(
   ctx: QueryCtx,
   target: WorkspaceTarget

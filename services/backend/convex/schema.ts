@@ -1625,9 +1625,10 @@ export default defineSchema({
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   // ─── Per-unit workspace git state ───────────────────────────────────────────
-  // One table per git unit (WORKSPACE_GIT_UNIT_TABLE). Each row holds one unit for one
-  // workspace, keyed by machineId + workingDir. Slice 1: the tables exist but nothing reads or
-  // writes them. chatroom_workspaceGitState stays the source of truth until the migration.
+  // One table per git unit (WORKSPACE_GIT_UNIT_TABLE). These per-unit tables are the canonical
+  // git-state store: each row holds one unit for one workspace, keyed by machineId + workingDir,
+  // and the git-state path reads and writes only these tables. `chatroom_workspaceGitState` is the
+  // legacy blob and is no longer read or written by the git-state path.
 
   /** Branch of the workspace HEAD. Unit `head`. */
   chatroom_workspaceGitHead: defineTable({
