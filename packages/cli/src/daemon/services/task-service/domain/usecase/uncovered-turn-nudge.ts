@@ -1,6 +1,3 @@
-// fallow-ignore-file unused-file
-// Temporary: this module is wired in by the next slice, feat(agent-work-manager): nudge once and park.
-// That commit removes this suppression.
 /**
  * Prompt sent once per session when a completed turn ends without a handoff for the task.
  * Constraint: must tell the agent both the completion action (handoff) and the wait action

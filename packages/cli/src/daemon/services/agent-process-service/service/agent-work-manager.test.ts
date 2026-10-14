@@ -1,4 +1,5 @@
 import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
+import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { AgentWorkManager } from './agent-work-manager.js';
@@ -9,6 +10,7 @@ import {
   createAgentLifecycleOutboxRegistry,
   agentLifecycleKey,
 } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
+import { getRoleDeliveryState } from '../../task-service/service/native-delivery/role-delivery-state.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { createAgentTaskStateService } from '../index.js';
 
@@ -35,8 +37,13 @@ function createService(
           state: 'running' | 'idle' | 'spawning' | 'stopping';
           pid?: number;
           harnessSessionId?: string;
+          nativeTurnPhase?: string;
         }
       | undefined;
+    readonly resumeTurnForSlot?: (args: unknown) => Promise<unknown>;
+    readonly decideUncoveredTurnEnd?: ReturnType<typeof vi.fn>;
+    readonly confirmNudgeSent?: ReturnType<typeof vi.fn>;
+    readonly resetTurnTracking?: ReturnType<typeof vi.fn>;
     readonly isStopRequested?: () => boolean;
     readonly acquireNativeDeliverySlot?: ReturnType<typeof vi.fn>;
     readonly recordDeliveryFailure?: ReturnType<typeof vi.fn>;
@@ -67,6 +74,8 @@ function createService(
       },
       getSlot: options.getSlot ?? (() => undefined),
       isStopRequested: options.isStopRequested ?? (() => false),
+      resumeTurnForSlot: (args: unknown) =>
+        Effect.promise(() => (options.resumeTurnForSlot ?? (async () => undefined))(args)),
     } as never,
     runSerializedForAgent: (async (_key: never, _options: never, operation: any) =>
       operation(
@@ -99,6 +108,10 @@ function createService(
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
       recordTurnFailure: options.recordTurnFailure ?? (async () => ({ exceeded: false })),
+      decideUncoveredTurnEnd:
+        options.decideUncoveredTurnEnd ?? (async () => ({ action: 'nudge' as const })),
+      confirmNudgeSent: options.confirmNudgeSent ?? vi.fn(),
+      resetTurnTracking: options.resetTurnTracking ?? vi.fn(),
       isRedeliveryExhausted: options.isRedeliveryExhausted ?? (() => false),
       clearRedeliveryTracking: options.clearRedeliveryTracking ?? (() => undefined),
       explainNativeDeliveryBlock: () => null,
@@ -136,6 +149,24 @@ function failedTurnEvent(overrides: Record<string, unknown> = {}): Record<string
   };
 }
 
+function completedTurnEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    chatroomId: 'room-1',
+    role: 'builder',
+    pid: 42,
+    harness: 'opencode-sdk',
+    slot: { state: 'running', harnessSessionId: 'sess-1', nativeTurnPhase: 'turn_in_flight' },
+    eventId: 'turn-1',
+    completion: { turnId: 'turn-1', status: 'completed', source: 'provider.result' },
+    ...overrides,
+  };
+}
+
+/** Lets the out-of-band nudge timer (setTimeout 0) and its async send run to completion. */
+const flushTimers = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 10));
+
+const runningSlot = () => ({ state: 'running' as const, pid: 42, harnessSessionId: 'sess-1' });
+
 describe('AgentWorkManager', () => {
   test('releases a completed turn while a previous lifecycle send is blocked', async () => {
     const machineId = `test-turn-outbox-${Date.now()}-${Math.random()}`;
@@ -152,7 +183,10 @@ describe('AgentWorkManager', () => {
       revisionKey: 'spawn:1',
     });
     await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
-    const service = createService({ enqueueFact: (fact) => enqueue(fact as AgentLifecycleFact) });
+    const service = createService({
+      enqueueFact: (fact) => enqueue(fact as AgentLifecycleFact),
+      getLatestHandoff: async () => ({ taskIds: ['task-1'] }),
+    });
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
     const disposition = await service.handleAgentTurnEnded(
       failedTurnEvent({
@@ -179,66 +213,217 @@ describe('AgentWorkManager', () => {
     expect(disposition).toEqual({ kind: 'release-slot' });
     service.dispose();
   });
-  test('releases an active task when a completed turn has no covering handoff', async () => {
-    const releaseTaskAfterTurnFailure = vi.fn().mockResolvedValue({
-      released: true,
-      status: 'pending',
-      updatedAt: Date.now(),
+  test('an uncovered completed turn never releases the task and keeps its active state until the nudge', async () => {
+    const releaseTaskAfterTurnFailure = vi.fn();
+    const decideUncoveredTurnEnd = vi.fn(async () => ({ action: 'nudge' as const }));
+    const resumeTurnForSlot = vi.fn(async () => undefined);
+    const service = createService({
+      initialTasks: [pendingTask('task-1')],
+      releaseTaskAfterTurnFailure,
+      decideUncoveredTurnEnd,
+      resumeTurnForSlot,
+      getSlot: runningSlot,
     });
-    const service = createService({ releaseTaskAfterTurnFailure });
-    service.recordTaskDelivered({
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    const disposition = await service.handleAgentTurnEnded(completedTurnEvent() as never);
+
+    expect(disposition).toEqual({ kind: 'release-slot' });
+    expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+    expect(decideUncoveredTurnEnd).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 'task-1', sessionKey: '42:sess-1' })
+    );
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toEqual(
+      expect.objectContaining({ taskId: 'task-1' })
+    );
+    // The nudge is scheduled out of band, never sent during the handler.
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('sends one nudge naming the task, and commits it only after the send resolves', async () => {
+    const resumeTurnForSlot = vi.fn(async () => undefined);
+    const confirmNudgeSent = vi.fn();
+    const service = createService({
+      initialTasks: [pendingTask('task-1')],
+      resumeTurnForSlot,
+      confirmNudgeSent,
+      getSlot: runningSlot,
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await vi.waitFor(() => expect(resumeTurnForSlot).toHaveBeenCalledTimes(1));
+    await flushTimers();
+
+    expect(resumeTurnForSlot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatroomId: 'room-1',
+        role: 'builder',
+        prompt: expect.stringContaining('task-1'),
+      })
+    );
+    expect(confirmNudgeSent).toHaveBeenCalledTimes(1);
+    expect(confirmNudgeSent).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'builder',
       taskId: 'task-1',
-    });
-
-    await service.handleAgentTurnEnded({
-      chatroomId: 'room-1',
-      role: 'builder',
-      pid: 42,
-      harness: 'opencode-sdk',
-      slot: { state: 'running', nativeTurnPhase: 'turn_in_flight' },
-      eventId: 'turn-no-handoff',
-      completion: { turnId: 'turn-no-handoff', status: 'completed', source: 'provider.result' },
-    } as never);
-
-    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledWith({
-      chatroomId: 'room-1',
-      role: 'builder',
-      taskId: 'task-1',
+      sessionKey: '42:sess-1',
     });
     service.dispose();
   });
 
-  test('stops releasing and parks the task once the redelivery cap is reached', async () => {
-    const releaseTaskAfterTurnFailure = vi.fn();
-    let attempts = 0;
-    const recordTurnFailure = vi.fn(async () => {
-      attempts += 1;
-      return { exceeded: attempts >= 3 };
+  test('a nudge commits nothing when the delivery mutex is busy', async () => {
+    const resumeTurnForSlot = vi.fn(async () => undefined);
+    const confirmNudgeSent = vi.fn();
+    const service = createService({
+      initialTasks: [pendingTask('task-1')],
+      resumeTurnForSlot,
+      confirmNudgeSent,
+      getSlot: runningSlot,
     });
-    const service = createService({ releaseTaskAfterTurnFailure, recordTurnFailure });
-    const turnEvent = {
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    const deliveryState = getRoleDeliveryState();
+    expect(deliveryState.tryAcquireDelivery('room-1', 'builder')).toBe(true);
+    try {
+      await service.handleAgentTurnEnded(completedTurnEvent() as never);
+      await flushTimers();
+    } finally {
+      deliveryState.releaseDelivery('room-1', 'builder');
+    }
+
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    expect(confirmNudgeSent).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a nudge commits nothing when the harness session changed before the send', async () => {
+    const resumeTurnForSlot = vi.fn(async () => undefined);
+    const confirmNudgeSent = vi.fn();
+    const service = createService({
+      initialTasks: [pendingTask('task-1')],
+      resumeTurnForSlot,
+      confirmNudgeSent,
+      getSlot: () => ({ state: 'running', pid: 43, harnessSessionId: 'sess-1' }),
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await flushTimers();
+
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    expect(confirmNudgeSent).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a nudge commits nothing when the slot is not idle before the send', async () => {
+    const resumeTurnForSlot = vi.fn(async () => undefined);
+    const confirmNudgeSent = vi.fn();
+    const service = createService({
+      initialTasks: [pendingTask('task-1')],
+      resumeTurnForSlot,
+      confirmNudgeSent,
+      getSlot: () => ({
+        state: 'running',
+        pid: 42,
+        harnessSessionId: 'sess-1',
+        nativeTurnPhase: 'turn_in_flight',
+      }),
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await flushTimers();
+
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    expect(confirmNudgeSent).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a throwing nudge escalates with nudgeUnavailable and parks the task', async () => {
+    const decideUncoveredTurnEnd = vi.fn(async (args: { nudgeUnavailable?: boolean }) =>
+      args.nudgeUnavailable ? { action: 'park' as const } : { action: 'nudge' as const }
+    );
+    const confirmNudgeSent = vi.fn();
+    const service = createService({
+      initialTasks: [pendingTask('task-1')],
+      resumeTurnForSlot: vi.fn(async () => {
+        throw new Error('send failed');
+      }),
+      decideUncoveredTurnEnd,
+      confirmNudgeSent,
+      getSlot: runningSlot,
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await vi.waitFor(() => expect(decideUncoveredTurnEnd).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined()
+    );
+
+    expect(decideUncoveredTurnEnd).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nudgeUnavailable: true, sessionKey: '42:sess-1' })
+    );
+    expect(confirmNudgeSent).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a park decision clears the active task, schedules delivery, and sends no nudge', async () => {
+    const releaseTaskAfterTurnFailure = vi.fn();
+    const resumeTurnForSlot = vi.fn(async () => undefined);
+    const service = createService({
+      initialTasks: [pendingTask('task-1')],
+      releaseTaskAfterTurnFailure,
+      resumeTurnForSlot,
+      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'park' as const })),
+      getSlot: runningSlot,
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    const scheduleRoleDelivery = vi.spyOn(service as never, 'scheduleRoleDelivery');
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await flushTimers();
+
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    expect(scheduleRoleDelivery).toHaveBeenCalledWith('room-1', 'builder');
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a restart-session decision maps to the park action in this slice', async () => {
+    const resumeTurnForSlot = vi.fn(async () => undefined);
+    const service = createService({
+      initialTasks: [pendingTask('task-1')],
+      resumeTurnForSlot,
+      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+      getSlot: runningSlot,
+    });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(completedTurnEvent() as never);
+    await flushTimers();
+
+    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  test('a failed turn records a turn failure and never consults the uncovered ladder', async () => {
+    const recordTurnFailure = vi.fn(async () => ({ exceeded: false }));
+    const decideUncoveredTurnEnd = vi.fn();
+    const service = createService({ recordTurnFailure, decideUncoveredTurnEnd });
+    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+    await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+    expect(recordTurnFailure).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'builder',
-      pid: 42,
-      harness: 'opencode-sdk',
-      slot: { state: 'running', nativeTurnPhase: 'turn_in_flight' },
-      eventId: 'turn-uncovered',
-      completion: { turnId: 'turn-uncovered', status: 'completed', source: 'provider.result' },
-    } as never;
-
-    // Each redelivery re-marks the active task (onTaskDelivered).
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-    await service.handleAgentTurnEnded(turnEvent);
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-    await service.handleAgentTurnEnded(turnEvent);
-    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
-
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-    await service.handleAgentTurnEnded(turnEvent);
-    // Cap reached: no further release; the delivery decision gate skips the task.
-    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
+      taskId: 'task-1',
+    });
+    expect(decideUncoveredTurnEnd).not.toHaveBeenCalled();
     service.dispose();
   });
 
@@ -282,9 +467,13 @@ describe('AgentWorkManager', () => {
 
   test('does not release an active task covered by the latest handoff', async () => {
     const releaseTaskAfterTurnFailure = vi.fn();
+    const decideUncoveredTurnEnd = vi.fn();
+    const resetTurnTracking = vi.fn();
     const service = createService({
       releaseTaskAfterTurnFailure,
       getLatestHandoff: async () => ({ taskIds: ['task-1'] }),
+      decideUncoveredTurnEnd,
+      resetTurnTracking,
     });
     service.recordTaskDelivered({
       chatroomId: 'room-1',
@@ -303,6 +492,12 @@ describe('AgentWorkManager', () => {
     } as never);
 
     expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+    expect(decideUncoveredTurnEnd).not.toHaveBeenCalled();
+    expect(resetTurnTracking).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      taskId: 'task-1',
+    });
     service.dispose();
   });
 
@@ -643,6 +838,7 @@ describe('AgentWorkManager', () => {
       enqueueFact: async (fact) => {
         facts.push(fact);
       },
+      getLatestHandoff: async () => ({ taskIds: ['task-1'] }),
     });
     service.recordTaskDelivered({
       chatroomId: 'room-1',

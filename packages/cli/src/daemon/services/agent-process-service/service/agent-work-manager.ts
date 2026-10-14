@@ -10,7 +10,8 @@ import {
   type AgentLifecycleFact,
 } from '../../../domain/entities/agent-lifecycle-fact.js';
 import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
-import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
+import { ACTIVE_TASK_STATUSES, type AssignedTask } from '../../../domain/entities/assigned-task.js';
+import { isSlotRunning, isTurnPhaseIdle } from '../../../domain/usecase/check-agent-slot.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
 import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
@@ -28,6 +29,7 @@ import {
   explainNativeDeliveryBlock,
   isNativeHarness,
 } from '../../task-service/domain/usecase/native-task-injector-logic.js';
+import { buildUncoveredTurnNudgePrompt } from '../../task-service/domain/usecase/uncovered-turn-nudge.js';
 import type {
   TaskServiceDeliveryConfirmation,
   TaskServiceNotification,
@@ -80,6 +82,10 @@ type RoleRecoveryGate = {
 
 const recoveryKey = (chatroomId: string, role: string): string =>
   `${chatroomId}:${role.toLowerCase()}`;
+
+/** Identifies one harness session of one agent process. A new key re-arms the uncovered-turn nudge. */
+const sessionKeyFor = (pid: number, harnessSessionId: string | undefined): string =>
+  `${pid}:${harnessSessionId ?? 'none'}`;
 
 /**
  * Per-daemon native delivery application service.
@@ -406,30 +412,53 @@ export class AgentWorkManager {
       }
       return { kind: 'release-slot' };
     }
-    // A completed turn without a durable handoff must release its active task.
-    // This replaces the backend agent.exited release while keeping the decision
-    // scoped to the task owned by this daemon/session.
+    // A completed turn without a covering handoff is never released to pending here.
+    // The ladder nudges once per session, then parks the task (see decideUncoveredTurnEnd).
     const activeTask = this.deps.agentTaskState.get({
       chatroomId: event.chatroomId,
       role: event.role,
     });
     if (activeTask) {
       const handoff = await this.deps.taskService.getLatestHandoff(event.chatroomId, event.role);
-      if (!handoff?.taskIds.includes(activeTask.taskId)) {
-        // Plan V2: consecutive uncovered turn ends are capped. At the cap the
-        // task stays in its backend status (no release), a `redelivery_exhausted`
-        // delivery failure was recorded once by the task service, and the
-        // delivery decision skips the task until fresh task activity or a
-        // user-initiated agent restart resets the cycle.
-        const recovery = await this.recoverTaskAfterTurnFailure(event, activeTask, 'turn-ended');
-        if (recovery === 'recovery-failed') {
-          return { kind: 'hold-slot', reason: 'task-recovery-failed' };
+      const covered = handoff?.taskIds.includes(activeTask.taskId) ?? false;
+      if (covered) {
+        this.deps.taskService.resetTurnTracking({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          taskId: activeTask.taskId,
+        });
+      } else {
+        const decision = await this.deps.taskService.decideUncoveredTurnEnd({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          taskId: activeTask.taskId,
+          sessionKey: sessionKeyFor(event.pid, event.slot.harnessSessionId),
+        });
+        if (decision.action === 'nudge') {
+          // Keep agentTaskState: it blocks redelivery while the nudge is pending.
+          await this.enqueueTurnEndedWaitingFact(event);
+          this.scheduleUncoveredNudge(event, activeTask);
+          return { kind: 'release-slot' };
         }
+        // 'restart-session' is mapped to the park action in this slice only. Slice 5 replaces it.
+        await this.enqueueTurnEndedWaitingFact(event);
+        this.applyParkAction(event);
+        return { kind: 'release-slot' };
       }
     }
-    // Clear after the durable handoff check/release so the next reconcile can
-    // deliver the task when needed.
+    // Covered, or no active task: clear, then continue with the waiting fact and delivery.
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+    await this.enqueueTurnEndedWaitingFact(event);
+    // The manager invokes this handler while the agent's lifecycle operation
+    // is still serialized. Schedule delivery for the next turn of the event
+    // loop so it cannot attempt to inject while that operation still owns the
+    // per-agent boundary.
+    this.scheduleRoleDelivery(event.chatroomId, event.role);
+    return { kind: 'release-slot' };
+  }
+
+  /** Persists the 'waiting' status fact for a finished turn. Failures are logged, never thrown. */
+  private async enqueueTurnEndedWaitingFact(event: AgentTurnEndedEvent): Promise<void> {
     try {
       await this.deps.lifecycleOutbox.enqueue(
         buildAgentStatusFact({
@@ -443,12 +472,104 @@ export class AgentWorkManager {
         `[NativeDelivery:turn-ended-outbox-error] chatroom=${event.chatroomId} role=${event.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
     }
-    // The manager invokes this handler while the agent's lifecycle operation
-    // is still serialized. Schedule delivery for the next turn of the event
-    // loop so it cannot attempt to inject while that operation still owns the
-    // per-agent boundary.
+  }
+
+  /** Out-of-band, same discipline as scheduleRoleDelivery: run after the handler returns. */
+  private scheduleUncoveredNudge(event: AgentTurnEndedEvent, task: { taskId: string }): void {
+    setTimeout(() => {
+      if (this.disposed) return;
+      void this.sendUncoveredNudge(event, task).catch((error: unknown) => {
+        console.error(
+          `[NativeDelivery:uncovered-nudge-error] chatroom=${event.chatroomId} role=${event.role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+        );
+      });
+    }, 0);
+  }
+
+  /**
+   * Sends the single nudge for this (task, session). Commits to the ladder only after the
+   * send succeeds. Drops silently (commits nothing) when the delivery mutex is busy or a
+   * re-check fails. The next turn end re-evaluates.
+   */
+  private async sendUncoveredNudge(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string }
+  ): Promise<void> {
+    const { chatroomId, role } = event;
+    const sessionKey = sessionKeyFor(event.pid, event.slot.harnessSessionId);
+    const deliveryState = getRoleDeliveryState();
+    if (!deliveryState.tryAcquireDelivery(chatroomId, role)) {
+      console.log(
+        `[NativeDelivery:uncovered-nudge-skipped] chatroom=${chatroomId} role=${role} task=${task.taskId} reason=delivery_busy`
+      );
+      return;
+    }
+    const generation = deliveryState.getGeneration(chatroomId, role);
+    try {
+      const skipReason = this.uncoveredNudgeSkipReason(event, task);
+      if (skipReason) {
+        console.log(
+          `[NativeDelivery:uncovered-nudge-skipped] chatroom=${chatroomId} role=${role} task=${task.taskId} reason=${skipReason}`
+        );
+        return;
+      }
+      try {
+        await Effect.runPromise(
+          this.deps.agentMgr.resumeTurnForSlot({
+            chatroomId,
+            role,
+            prompt: buildUncoveredTurnNudgePrompt({ taskId: task.taskId }),
+          })
+        );
+      } catch (error) {
+        console.error(
+          `[NativeDelivery:uncovered-nudge] chatroom=${chatroomId} role=${role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+        );
+        // The nudge could not be sent, so escalate without a nudge. In this slice every
+        // non-nudge decision runs the park action.
+        await this.deps.taskService.decideUncoveredTurnEnd({
+          chatroomId,
+          role,
+          taskId: task.taskId,
+          sessionKey,
+          nudgeUnavailable: true,
+        });
+        this.applyParkAction(event);
+        return;
+      }
+      this.deps.taskService.confirmNudgeSent({ chatroomId, role, taskId: task.taskId, sessionKey });
+    } finally {
+      deliveryState.releaseDelivery(chatroomId, role, generation);
+    }
+  }
+
+  /** Re-validates the nudge target under the delivery mutex. Returns the reason to skip, or undefined. */
+  private uncoveredNudgeSkipReason(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string }
+  ): string | undefined {
+    const { chatroomId, role } = event;
+    const slot = this.deps.agentMgr.getSlot(chatroomId, role);
+    if (!slot || !isSlotRunning(slot.state)) return 'slot_not_running';
+    if (slot.pid !== event.pid) return 'pid_changed';
+    if (slot.harnessSessionId !== event.slot.harnessSessionId) return 'session_changed';
+    if (!isTurnPhaseIdle(slot.nativeTurnPhase ?? 'idle')) return 'turn_not_idle';
+    if (this.deps.agentMgr.isStopRequested(chatroomId, role)) return 'stop_requested';
+    if (this.recoveryGates.has(recoveryKey(chatroomId, role))) return 'recovery_in_progress';
+    if (this.deps.agentTaskState.get({ chatroomId, role })?.taskId !== task.taskId) {
+      return 'task_not_active';
+    }
+    const current = this.deps.taskInboxState.getForRole(chatroomId, role, task.taskId);
+    if (!current || !(ACTIVE_TASK_STATUSES as readonly string[]).includes(current.status)) {
+      return 'task_not_in_inbox';
+    }
+    return undefined;
+  }
+
+  /** Park action: clear the active task, then let the normal delivery decision run. */
+  private applyParkAction(event: AgentTurnEndedEvent): void {
+    this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
     this.scheduleRoleDelivery(event.chatroomId, event.role);
-    return { kind: 'release-slot' };
   }
 
   private scheduleRoleDelivery(chatroomId: string, role: string): void {
