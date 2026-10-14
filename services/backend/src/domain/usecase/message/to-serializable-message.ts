@@ -9,8 +9,7 @@ export type EnrichedMessageInput = {
   type: string;
   content: string;
   taskId?: string | null | undefined;
-  taskStatus?: string | null | undefined;
-  taskContent?: string | null | undefined;
+  task?: { _id: string; status: string; content: string } | null | undefined;
   attachedTasks?:
     | {
         _id: string;
@@ -50,8 +49,7 @@ function normalizeDeliveryAttachments(
 }
 
 function normalizeTask(input: EnrichedMessageInput): SerializableMessage['task'] | undefined {
-  if (!input.taskId || input.taskStatus == null || input.taskContent == null) return undefined;
-  return { _id: input.taskId, status: input.taskStatus, content: input.taskContent };
+  return input.task ?? undefined;
 }
 
 export function toSerializableMessage(input: EnrichedMessageInput): SerializableMessage {

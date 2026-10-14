@@ -86,7 +86,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
     // Solo can hand off to user
     expect(prompt).toContain('### Handoff Options');
-    expect(prompt).toContain('Available targets: architect, triage, uiux-engineer, user');
+    expect(prompt).toContain('Available targets: architect, triage, uiux-engineer, verifier, user');
 
     // Commands reference
     expect(prompt).toContain('### Commands');
@@ -309,7 +309,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       - There is no separate builder or planner — you fill all roles
       - You hand off directly to the user when work is complete
 
-      **Team composition:** Duo team — you coordinate with \`solo\`, \`architect\`, \`triage\`, \`uiux-engineer\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`solo\`, \`architect\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -338,6 +338,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       - Write clean, maintainable, well-documented code
       - Follow established patterns and best practices from the codebase
       - Handle edge cases and error scenarios
+      - **Verify before delivering:** when task delivery includes a \`<verifier-gate>\` block, follow it before handing off to \`user\`. The \`verifier\` handoff template defines the request.
       - Commit work with descriptive, atomic commit messages
 
       **Handoff Rules:**
@@ -365,7 +366,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
 
       ### Handoff Options
-      Available targets: architect, triage, uiux-engineer, user
+      Available targets: architect, triage, uiux-engineer, verifier, user
 
       ### Commands
 

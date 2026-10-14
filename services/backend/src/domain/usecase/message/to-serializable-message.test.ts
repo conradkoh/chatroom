@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { serializeMessage } from './serialize-message';
 import { toSerializableMessage } from './to-serializable-message';
 
 const base = {
@@ -36,5 +37,22 @@ describe('toSerializableMessage', () => {
         { reference: 'src/a.ts', fileSource: 'workspace', selectedContent: 'code' },
       ],
     });
+  });
+
+  it('renders the nested task as a context-xml <task> block', () => {
+    const result = toSerializableMessage({
+      ...base,
+      task: { _id: 't1', status: 'in_progress', content: 'Do it' },
+    });
+    const xml = serializeMessage(result, { profile: 'context-xml' });
+    expect(xml).toContain('<task id="t1" status="in_progress">');
+    expect(xml).toContain('Do it');
+  });
+
+  it('omits the <task> block when there is no nested task', () => {
+    const withTaskId = toSerializableMessage({ ...base, taskId: 't1' });
+    expect(serializeMessage(withTaskId, { profile: 'context-xml' })).not.toContain('<task');
+    const withoutTask = toSerializableMessage({ ...base });
+    expect(serializeMessage(withoutTask, { profile: 'context-xml' })).not.toContain('<task');
   });
 });

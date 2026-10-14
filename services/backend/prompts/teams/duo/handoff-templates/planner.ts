@@ -13,17 +13,27 @@ import { getEntryPointToArchitectHandoffTemplate } from '../../architect-handoff
 import { getEntryPointToResearcherHandoffTemplate } from '../../researcher-handoff-templates';
 import { getEntryPointToTriageHandoffTemplate } from '../../triage-handoff-templates';
 import { getEntryPointToUiuxEngineerHandoffTemplate } from '../../uiux-engineer-handoff-templates';
+import { getEntryPointToVerifierHandoffTemplate } from '../../verifier-handoff-templates';
 
 export const duoPlannerHandoffContract = {
   role: 'planner',
-  receivesFrom: ['user', 'builder', 'architect', 'uiux-engineer', 'triage', 'researcher'],
-  returnsTo: ['builder', 'architect', 'uiux-engineer', 'triage', 'researcher', 'user'],
+  receivesFrom: [
+    'user',
+    'builder',
+    'architect',
+    'uiux-engineer',
+    'triage',
+    'researcher',
+    'verifier',
+  ],
+  returnsTo: ['builder', 'architect', 'uiux-engineer', 'triage', 'researcher', 'verifier', 'user'],
   outboundTemplates: {
     builder: () => getPlannerToBuilderHandoffTemplate(),
     architect: () => getEntryPointToArchitectHandoffTemplate('planner'),
     'uiux-engineer': () => getEntryPointToUiuxEngineerHandoffTemplate('planner'),
     triage: () => getEntryPointToTriageHandoffTemplate('planner'),
     researcher: () => getEntryPointToResearcherHandoffTemplate('planner'),
+    verifier: () => getEntryPointToVerifierHandoffTemplate('planner'),
     user: (query) =>
       query.conversationMode === 'chat'
         ? getChatToUserHandoffTemplate()

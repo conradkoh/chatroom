@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Archive, CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { memo, useState, type ReactNode } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
@@ -9,7 +9,7 @@ import { TimelineMessageFooter } from './TimelineMessageFooter';
 import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import {
   BADGE_BASE,
-  ICON_SIZE,
+  getSenderClasses,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
@@ -21,54 +21,10 @@ import { ScheduledMessageBadge } from '../../features/scheduled-prompts/componen
 import { ScheduledPromptDetailDialog } from '../../features/scheduled-prompts/components/ScheduledPromptDetailDialog';
 import type { Message } from '../../types/message';
 
-function getTaskStatusBadge(status: Message['taskStatus']) {
-  if (!status) return null;
-  switch (status) {
-    case 'pending':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
-        label: 'pending',
-        icon: <Clock size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'acknowledged':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
-        label: 'acknowledged',
-        icon: <CheckCircle2 size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'in_progress':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`,
-        label: 'in progress',
-        icon: <Loader2 size={ICON_SIZE} className="flex-shrink-0 animate-spin" />,
-      };
-    case 'completed':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
-        label: 'done',
-        icon: <CheckCircle2 size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'cancelled':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-error/15 text-chatroom-status-error`,
-        label: 'cancelled',
-        icon: <XCircle size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'backlog':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
-        label: 'backlog',
-        icon: <Archive size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    default:
-      return null;
-  }
-}
-
 interface UserMessageHeaderNavProps {
   queuedBadge: ReactNode;
   statusBadges: ReactNode;
-  taskStatusBadgeEl: ReactNode;
+  routeEl: ReactNode;
   isQueued?: boolean;
   headerNavigation: TimelineMessageHeaderNavigation;
 }
@@ -76,7 +32,7 @@ interface UserMessageHeaderNavProps {
 function UserMessageHeaderNav({
   queuedBadge,
   statusBadges,
-  taskStatusBadgeEl,
+  routeEl,
   isQueued,
   headerNavigation,
 }: UserMessageHeaderNavProps) {
@@ -86,9 +42,7 @@ function UserMessageHeaderNav({
         {isQueued ? queuedBadge : statusBadges}
       </div>
       <TimelineMessageHeaderNav {...headerNavigation} />
-      <div className="flex items-center gap-2 min-w-0 justify-self-end">
-        {!isQueued && taskStatusBadgeEl}
-      </div>
+      <div className="flex items-center gap-2 min-w-0 justify-self-end">{routeEl}</div>
     </div>
   );
 }
@@ -96,26 +50,20 @@ function UserMessageHeaderNav({
 interface UserMessageHeaderDefaultProps {
   queuedBadge: ReactNode;
   statusBadges: ReactNode;
-  taskStatusBadgeEl: ReactNode;
+  routeEl: ReactNode;
   isQueued?: boolean;
 }
 
 function UserMessageHeaderDefault({
   queuedBadge,
   statusBadges,
-  taskStatusBadgeEl,
+  routeEl,
   isQueued,
 }: UserMessageHeaderDefaultProps) {
   return (
-    <div className="flex items-center h-8 px-3 min-w-0">
-      {isQueued ? (
-        queuedBadge
-      ) : (
-        <div className="flex items-center gap-2 w-full min-w-0">
-          {statusBadges}
-          {taskStatusBadgeEl}
-        </div>
-      )}
+    <div className="flex items-center justify-between gap-2 h-8 px-3 min-w-0">
+      <div className="flex items-center gap-2 min-w-0">{isQueued ? queuedBadge : statusBadges}</div>
+      {routeEl}
     </div>
   );
 }
@@ -132,7 +80,6 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
   chatroomId: _chatroomId,
   headerNavigation,
 }: TimelineUserMessageProps) {
-  const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
   const showScheduledBadge =
     message.sourcePlatform === 'scheduled' || message.scheduledPromptId != null;
   const [detailOpen, setDetailOpen] = useState(false);
@@ -159,18 +106,25 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
     </>
   );
 
-  const taskStatusBadgeEl = taskStatusBadge ? (
-    <span className={`${taskStatusBadge.className} flex-shrink-0`}>
-      {taskStatusBadge.icon}
-      {taskStatusBadge.label}
-    </span>
-  ) : null;
+  // Route identity (sender → target) is always shown, independent of delivery
+  // state, so queued and normal rows keep an identical, stable header layout.
+  const routeEl = (
+    <div className="flex items-center gap-x-1.5 min-w-0" data-testid="timeline-message-route">
+      <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
+      {message.targetRole && (
+        <>
+          <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
+          <span className={getSenderClasses(message.targetRole)}>{message.targetRole}</span>
+        </>
+      )}
+    </div>
+  );
 
   const header = headerNavigation ? (
     <UserMessageHeaderNav
       queuedBadge={queuedBadge}
       statusBadges={statusBadges}
-      taskStatusBadgeEl={taskStatusBadgeEl}
+      routeEl={routeEl}
       isQueued={message.isQueued}
       headerNavigation={headerNavigation}
     />
@@ -178,7 +132,7 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
     <UserMessageHeaderDefault
       queuedBadge={queuedBadge}
       statusBadges={statusBadges}
-      taskStatusBadgeEl={taskStatusBadgeEl}
+      routeEl={routeEl}
       isQueued={message.isQueued}
     />
   );

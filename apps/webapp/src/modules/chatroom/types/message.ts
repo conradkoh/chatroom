@@ -50,11 +50,6 @@ export interface Message {
   /** When the origin task completed and the handoff was emitted. */
   completedAt?: number;
   taskId?: string;
-  /**
-   * Task status for UI display. Includes backend TaskStatus values plus 'cancelled'
-   * which is inferred client-side when tasks leave the active set unexpectedly.
-   */
-  taskStatus?: TaskStatus | 'cancelled';
   /** Source platform for messages from external integrations (e.g. 'telegram') */
   sourcePlatform?: string;
   /** Attached backlog tasks for context */

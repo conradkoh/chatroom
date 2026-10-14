@@ -38,7 +38,6 @@ function sinceMessages() {
       type: 'message',
       content: 'do it',
       targetRole: 'planner',
-      taskStatus: null,
     },
     {
       _id: 'msg_since_second_123456',
@@ -47,7 +46,6 @@ function sinceMessages() {
       type: 'handoff',
       content: 'done',
       targetRole: 'user',
-      taskStatus: null,
     },
   ];
 }
@@ -120,7 +118,6 @@ describe('downloadMessagesEffect with sinceMessageId', () => {
       type: 'message',
       content: `content ${i}`,
       targetRole: 'planner',
-      taskStatus: null,
     }));
     const query = makeQuery(ALL);
     const fs = createFakeFs();

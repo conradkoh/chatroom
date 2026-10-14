@@ -21,7 +21,6 @@ const MOCK_LAST_MESSAGE = {
   senderRole: 'user',
   targetRole: null as string | null,
   chatroomId: TEST_CHATROOM_ID,
-  taskStatus: null as string | null,
 };
 
 const MOCK_PRIOR_MESSAGE = {
@@ -32,7 +31,6 @@ const MOCK_PRIOR_MESSAGE = {
   senderRole: 'user',
   targetRole: null as string | null,
   chatroomId: TEST_CHATROOM_ID,
-  taskStatus: null as string | null,
 };
 
 function createMockDeps(overrides?: Partial<MessagesDeps>): MessagesDeps {
