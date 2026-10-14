@@ -1,18 +1,11 @@
 import { describe, expect, test } from 'vitest';
 
 import {
-  MAX_SESSION_RESTARTS_PER_TASK,
   decideUncoveredTurnEnd,
   withNudgeSent,
   withSessionRestart,
   type UncoveredTurnLadderEntry,
 } from './uncovered-turn-ladder.js';
-
-describe('MAX_SESSION_RESTARTS_PER_TASK', () => {
-  test('is 1, so a change to the ladder budget is a visible decision', () => {
-    expect(MAX_SESSION_RESTARTS_PER_TASK).toBe(1);
-  });
-});
 
 describe('decideUncoveredTurnEnd', () => {
   test.each<{

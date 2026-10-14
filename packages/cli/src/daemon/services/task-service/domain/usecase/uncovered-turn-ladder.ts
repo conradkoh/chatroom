@@ -9,10 +9,7 @@
  * - The restart budget is per task and is never reset by a new session key.
  * - This module holds no state. The caller stores the entry.
  */
-// Temporary: the completed-turn ladder in feat(agent-work-manager) (slice 4) consumes this
-// export. That commit removes this suppression.
-// fallow-ignore-next-line unused-export
-export const MAX_SESSION_RESTARTS_PER_TASK = 1;
+const MAX_SESSION_RESTARTS_PER_TASK = 1;
 
 const FRESH_ENTRY: UncoveredTurnLadderEntry = { sessionRestarts: 0 };
 
