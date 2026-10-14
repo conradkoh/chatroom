@@ -41,7 +41,6 @@ type DownloadMessage = {
   content: string;
   targetRole?: string | null | undefined;
   taskId?: string | null | undefined;
-  taskContent?: string | null | undefined;
   attachedTasks?: EnrichedMessageInput['attachedTasks'] | undefined;
   attachedBacklogItems?: EnrichedMessageInput['attachedBacklogItems'] | undefined;
   attachedMessages?: EnrichedMessageInput['attachedMessages'] | undefined;

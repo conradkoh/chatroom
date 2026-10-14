@@ -91,7 +91,7 @@ export const readContextEffect = (
           type: string;
           content: string;
           taskId?: string | undefined;
-          taskContent?: string | undefined;
+          task?: { _id: string; status: string; content: string } | undefined;
           attachedTasks?:
             | {
                 _id: string;

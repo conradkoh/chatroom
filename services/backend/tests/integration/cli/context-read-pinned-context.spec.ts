@@ -327,10 +327,13 @@ describe('Context Read — read-model window', () => {
     expect(contents).toContain(`message-${TOTAL - 1}`);
     // 200-window minus the two hidden messages.
     expect(context.messages).toHaveLength(198);
-    // Non-hidden task messages still expose their live task content.
+    // Non-hidden task messages still expose their live task on a nested `task`.
     const inProgress = context.messages.find((m) => m.content === `message-${IN_PROGRESS_INDEX}`);
-    expect(inProgress?.taskStatus).toBe('in_progress');
-    expect(inProgress?.taskContent).toBe(`task-${IN_PROGRESS_INDEX}`);
+    expect(inProgress?.task?.status).toBe('in_progress');
+    expect(inProgress?.task?.content).toBe(`task-${IN_PROGRESS_INDEX}`);
+    const completed = context.messages.find((m) => m.content === `message-${COMPLETED_INDEX}`);
+    expect(completed?.task?.status).toBe('completed');
+    expect(completed?.task?.content).toBe(`task-${COMPLETED_INDEX}`);
 
     // Reconstruct the pre-change window selection on the same data: skip
     // pending/acknowledged headers, fall back to the broad 200-row query when

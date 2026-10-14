@@ -1752,16 +1752,9 @@ export const getContextForRole = query({
     // Enrich messages with task information
     const enrichedMessages = await Promise.all(
       contextMessages.map(async (message) => {
-        let taskStatus: TaskStatus | undefined;
-        let taskContent: string | undefined;
-        // Get task status and content for this message
-        if (message.taskId) {
-          const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          if (task) {
-            taskStatus = task.status;
-            taskContent = task.content;
-          }
-        }
+        const task = message.taskId ? await ctx.db.get('chatroom_tasks', message.taskId) : null;
+        // Agents discover pending/acknowledged tasks only through get-next-task, not context read.
+        if (task && (task.status === 'pending' || task.status === 'acknowledged')) return null;
 
         const attachments = await enrichMessageAttachments(ctx, message);
 
@@ -1773,21 +1766,18 @@ export const getContextForRole = query({
           content: message.content,
           type: message.type,
           taskId: message.taskId?.toString(),
-          taskStatus,
-          taskContent,
+          task: task
+            ? { _id: task._id.toString(), status: task.status, content: task.content }
+            : undefined,
           ...attachments,
         };
       })
     );
 
-    // Filter out messages with pending/acknowledged tasks — agents should only
-    // discover these through get-next-task, not context read
-    const filteredMessages = enrichedMessages.filter((msg) => {
-      if (msg.taskStatus === 'pending' || msg.taskStatus === 'acknowledged') {
-        return false;
-      }
-      return true;
-    });
+    // Pending/acknowledged task messages were dropped above (see the inline skip).
+    const filteredMessages = enrichedMessages.filter(
+      (msg): msg is NonNullable<typeof msg> => msg !== null
+    );
 
     // Count pending tasks for this role
     const pendingTasks = await ctx.db
