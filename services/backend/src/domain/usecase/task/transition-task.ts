@@ -39,7 +39,6 @@ import { TERMINAL_TASK_STATUSES } from '../../entities/task';
 import type { TaskTransitionSource } from '../../entities/task-status-signal';
 import { requestEphemeralAgentRelease } from '../agent/request-ephemeral-agent-release';
 import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
-import { syncMessageReadModel } from '../message/message-read-model';
 
 // ============================================================================
 // TYPES
@@ -133,13 +132,6 @@ export async function transitionTask(
     await writeTaskStatusSignals(ctx, transitionedTask, {
       source: options?.source,
     });
-    if (transitionedTask.sourceMessageId)
-      await syncMessageReadModel(ctx, transitionedTask.sourceMessageId);
-    const linked = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
-      .collect();
-    for (const message of linked) await syncMessageReadModel(ctx, message._id);
   }
 
   // 1b. Update materialized task counts

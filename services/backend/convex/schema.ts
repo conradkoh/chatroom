@@ -559,6 +559,8 @@ export default defineSchema({
     ),
     isTimeline: v.boolean(),
     taskId: v.optional(v.id('chatroom_tasks')),
+    // @deprecated Denormalized copy of chatroom_tasks.status. No code reads or writes it any more;
+    // kept optional so historical rows still validate. Source of truth is chatroom_tasks.status.
     taskStatus: v.optional(
       v.union(
         v.literal('pending'),

@@ -1700,7 +1700,6 @@ export const getContextForRole = query({
             const headers = headerRows;
             const docs: Doc<'chatroom_messages'>[] = [];
             for (const header of headers) {
-              if (header.taskStatus === 'pending' || header.taskStatus === 'acknowledged') continue;
               const message = await ctx.db.get('chatroom_messages', header.messageId);
               if (message) docs.push(message);
             }
