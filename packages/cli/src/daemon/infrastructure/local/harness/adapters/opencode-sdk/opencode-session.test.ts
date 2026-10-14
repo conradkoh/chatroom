@@ -105,6 +105,25 @@ describe('OpencodeSdkSession', () => {
     expect(mockPrompt).toHaveBeenCalledWith({ sessionID: 'sess-123', text: 'design' });
   });
 
+  it('passes the [variant=…] suffix of modelID to switchModel as the variant', async () => {
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    session.onEvent(() => {});
+    deliverIdleAsync(session);
+
+    await session.prompt({
+      agent: 'builder',
+      parts: [{ type: 'text', text: 'build it' }],
+      model: { providerID: 'openai', modelID: 'gpt-5[variant=high]' },
+    });
+
+    expect(mockSwitchModel).toHaveBeenCalledWith({
+      sessionID: 'sess-123',
+      model: { providerID: 'openai', id: 'gpt-5', variant: 'high' },
+    });
+  });
+
   it('throws when prompting a closed session', async () => {
     const session = createSession();
     await session.close();

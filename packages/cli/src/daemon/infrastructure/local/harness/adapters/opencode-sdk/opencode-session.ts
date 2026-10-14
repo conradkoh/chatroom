@@ -7,6 +7,7 @@ import type {
   PromptInput,
 } from '../../../../../domain/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
+import { parseOpencodeSpawnModel } from '../../services/opencode-sdk/pure.js';
 
 /** Key used for the chatroom role overlay in the session instruction entries. */
 const CHATROOM_INSTRUCTION_KEY = 'chatroom-role';
@@ -140,9 +141,16 @@ export class OpencodeSdkSession implements DirectHarnessSession {
       });
     }
     if (input.model) {
+      // Constraint: decode `[variant=…]` from modelID with the same helper the spawn path uses
+      // (services/opencode-sdk/pure.ts), otherwise the variant is silently dropped.
+      const parsed = parseOpencodeSpawnModel(input.model.modelID);
       await this.client.session.switchModel({
         sessionID: this.opencodeSessionId,
-        model: { providerID: input.model.providerID, id: input.model.modelID },
+        model: {
+          providerID: input.model.providerID,
+          id: parsed.model,
+          ...(parsed.variant ? { variant: parsed.variant } : {}),
+        },
       });
     }
     if (input.system) {
