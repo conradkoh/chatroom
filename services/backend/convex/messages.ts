@@ -47,7 +47,6 @@ import { createTask as createTaskUsecase } from '../src/domain/usecase/task/crea
 import { deleteUserMessageOrTask as deleteUserMessageOrTaskUsecase } from '../src/domain/usecase/task/delete-user-message-or-task';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
-import { type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
 import { requestSyncOnHandoffToUser } from '../src/domain/usecase/workspace/request-sync-on-handoff-to-user';
 
@@ -150,32 +149,12 @@ async function enrichMessageAttachments(
 }
 
 /**
- * Enriches an array of chatroom messages with task status and attachments.
+ * Enriches an array of chatroom messages with attachments.
  * Used by the messageList module.
  */
 export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
-  // Batch task lookups: collect unique taskIds, fetch in parallel
-  const uniqueTaskIds = [...new Set(messages.flatMap((m) => (m.taskId != null ? [m.taskId] : [])))];
-  const taskMap = new Map<string, { status: string } | null>();
-  const taskResults = await Promise.all(
-    uniqueTaskIds.map(async (id) => {
-      const task = await ctx.db.get('chatroom_tasks', id);
-      return [id.toString(), task ? { status: task.status } : null] as const;
-    })
-  );
-  for (const [id, task] of taskResults) {
-    taskMap.set(id, task);
-  }
-
   const enrichedMessages = await Promise.all(
     messages.map(async (message) => {
-      // Use batched task lookup
-      let taskStatus: TaskStatus | undefined;
-      if (message.taskId) {
-        const task = taskMap.get(message.taskId.toString());
-        taskStatus = task?.status as TaskStatus | undefined;
-      }
-
       // Resolve attachments (shared helper)
       const attachments = await enrichMessageAttachments(ctx, message);
 
@@ -183,7 +162,6 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
 
       return {
         ...message,
-        ...(taskStatus && { taskStatus }),
         ...attachments,
         ...(enhancerOriginalContent && { enhancerOriginalContent }),
       };
@@ -1516,22 +1494,6 @@ export const getTaskDeliveryPrompt = query({
 // SENDER ROLE BASED QUERIES - For user-centric pagination
 // =============================================================================
 
-/** Enriches a message with its task status when a task is linked. */
-async function withTaskStatus<T extends { taskId?: Id<'chatroom_tasks'> | null | undefined }>(
-  ctx: QueryCtx,
-  message: T
-): Promise<T & { taskStatus?: TaskStatus | undefined }> {
-  let taskStatus: TaskStatus | undefined;
-  if (message.taskId) {
-    const task = await ctx.db.get('chatroom_tasks', message.taskId);
-    taskStatus = task?.status;
-  }
-  return {
-    ...message,
-    ...(taskStatus && { taskStatus }),
-  };
-}
-
 /** Returns messages filtered by sender role in descending order. */
 export const listBySenderRole = query({
   args: {
@@ -1590,10 +1552,7 @@ export const getLastUserMessage = query({
       return { last: null, prior: [] };
     }
 
-    const last = await withTaskStatus(ctx, userMessages[0]);
-    const prior = await Promise.all(userMessages.slice(1).map((m) => withTaskStatus(ctx, m)));
-
-    return { last, prior };
+    return { last: userMessages[0], prior: userMessages.slice(1) };
   },
 });
 
