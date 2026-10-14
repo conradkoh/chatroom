@@ -308,3 +308,71 @@ describe('workspace git unit row purge', () => {
     expect(await blobRows(otherMachineId)).toHaveLength(1);
   });
 });
+
+describe('legacy git-state blob rows', () => {
+  test('a status-less row and a legacy number-only PR row insert, read, and purge on removal', async () => {
+    const { sessionId: sid } = await createTestSession('test-legacy-blob');
+    const chatroomId = await createDuoTeamChatroom(sid);
+    const machineId = 'machine-legacy-blob';
+    const noStatusDir = '/test/legacy-blob-no-status';
+    const legacyPrDir = '/test/legacy-blob-legacy-pr';
+    await registerMachineWithDaemon(sid, machineId);
+
+    const noStatusWorkspaceId = await registerWorkspace(sid, chatroomId, machineId, noStatusDir);
+    const legacyPrWorkspaceId = await registerWorkspace(sid, chatroomId, machineId, legacyPrDir);
+
+    // Oldest shape: no `status` at all.
+    await t.run((ctx) =>
+      ctx.db.insert('chatroom_workspaceGitState', {
+        machineId,
+        workingDir: noStatusDir,
+        updatedAt: Date.now(),
+      })
+    );
+    // Legacy PR shape: `number` only, no canonical `prNumber`.
+    await t.run((ctx) =>
+      ctx.db.insert('chatroom_workspaceGitState', {
+        machineId,
+        workingDir: legacyPrDir,
+        status: 'available',
+        openPullRequests: [
+          {
+            number: 55,
+            title: 'legacy all pr',
+            url: 'https://example.test/pulls/55',
+            headRefName: 'feat/legacy',
+            state: 'OPEN',
+          },
+        ],
+        updatedAt: Date.now(),
+      })
+    );
+
+    // Both legacy shapes insert and read back.
+    const noStatusRows = await blobRows(machineId, noStatusDir);
+    expect(noStatusRows).toHaveLength(1);
+    expect(noStatusRows[0]!.status).toBeUndefined();
+
+    const legacyPrRows = await blobRows(machineId, legacyPrDir);
+    expect(legacyPrRows).toHaveLength(1);
+    expect(legacyPrRows[0]!.openPullRequests?.[0]).toMatchObject({
+      number: 55,
+      title: 'legacy all pr',
+    });
+    expect(legacyPrRows[0]!.openPullRequests?.[0]!.prNumber).toBeUndefined();
+
+    // Removal purges the blob row for the removed workspace only.
+    await t.mutation(api.workspaces.removeWorkspace, {
+      sessionId: sid,
+      workspaceId: noStatusWorkspaceId,
+    });
+    expect(await blobRows(machineId, noStatusDir)).toHaveLength(0);
+    expect(await blobRows(machineId, legacyPrDir)).toHaveLength(1);
+
+    await t.mutation(api.workspaces.removeWorkspace, {
+      sessionId: sid,
+      workspaceId: legacyPrWorkspaceId,
+    });
+    expect(await blobRows(machineId, legacyPrDir)).toHaveLength(0);
+  });
+});

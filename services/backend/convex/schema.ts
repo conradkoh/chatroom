@@ -1476,25 +1476,26 @@ export default defineSchema({
     .index('by_workspace_role_hour', ['machineId', 'workingDir', 'role', 'hourBucket']),
 
   /**
-   * Workspace git state pushed by the daemon on heartbeat.
-   * Stores branch, dirty status, diff stats, and recent commits.
-   * Keyed by machineId + workingDir (workspace-level, not chatroom-level).
-   *
-   * @deprecated legacy aggregate; still written during the unit-table transition; unit tables are canonical
+   * @deprecated Legacy whole-blob aggregate. No code reads or writes it on the git-state path.
+   * Rows are only deleted (workspace removal, machine cleanup). Superseded by the per-unit tables
+   * in WORKSPACE_GIT_UNIT_TABLE. Kept so existing rows still validate; no migration is run.
    */
   chatroom_workspaceGitState: defineTable({
     // Identity: unique workspace
     machineId: v.string(),
     workingDir: v.string(),
 
-    // Discriminated union status
-    status: v.union(v.literal('available'), v.literal('not_found'), v.literal('error')),
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
+    status: v.optional(v.union(v.literal('available'), v.literal('not_found'), v.literal('error'))),
 
     // Branch info (only when status === 'available')
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     branch: v.optional(v.string()),
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     isDirty: v.optional(v.boolean()),
 
     // Diff summary: git diff HEAD --stat (only when status === 'available')
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     diffStat: v.optional(
       v.object({
         filesChanged: v.number(),
@@ -1503,12 +1504,7 @@ export default defineSchema({
       })
     ),
 
-    /**
-     * @deprecated Use chatroom_workspaceRecentCommits instead.
-     * Kept as optional so legacy rows continue to validate until the
-     * `dropEmbeddedRecentCommits` migration runs against the deployment.
-     * After the migration has run on all environments, this field can be removed.
-     */
+    /** @deprecated Use chatroom_workspaceRecentCommits. */
     recentCommits: v.optional(
       v.array(
         v.object({
@@ -1520,12 +1516,11 @@ export default defineSchema({
         })
       )
     ),
-    /**
-     * @deprecated See `recentCommits` above.
-     */
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     hasMoreCommits: v.optional(v.boolean()),
 
     // Open pull requests for the current branch (only when status === 'available')
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     openPullRequests: v.optional(
       v.array(
         v.object({
@@ -1540,6 +1535,7 @@ export default defineSchema({
     ),
 
     // All pull requests (open, closed, merged) for the repository
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     allPullRequests: v.optional(
       v.array(
         v.object({
@@ -1561,6 +1557,7 @@ export default defineSchema({
     ),
 
     // Git remotes (only when status === 'available')
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     remotes: v.optional(
       v.array(
         v.object({
@@ -1571,14 +1568,18 @@ export default defineSchema({
     ),
 
     // Commits ahead of upstream tracking branch (unpushed)
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     commitsAhead: v.optional(v.number()),
     // Commits on upstream not in HEAD (unpulled)
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     commitsBehind: v.optional(v.number()),
 
     // Default branch name (e.g. 'main', 'master')
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     defaultBranch: v.optional(v.union(v.string(), v.null())),
 
     // CI/CD status checks for the current branch head commit
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     headCommitStatus: v.optional(
       v.union(
         v.object({
@@ -1597,6 +1598,7 @@ export default defineSchema({
     ),
 
     // CI/CD status checks for the latest default branch commit
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     defaultBranchStatus: v.optional(
       v.union(
         v.object({
@@ -1615,9 +1617,11 @@ export default defineSchema({
     ),
 
     // Error message (only when status === 'error')
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     errorMessage: v.optional(v.string()),
 
     // Pipeline mode - 'full' (heartbeat) or 'slim' (observed sync)
+    /** @deprecated Legacy blob field; nothing reads or writes it. */
     pipelineMode: v.optional(v.union(v.literal('full'), v.literal('slim'))),
 
     // Timestamp
