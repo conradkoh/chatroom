@@ -135,6 +135,7 @@ describe('listHandoffTemplates', () => {
       'triage',
       'uiux-engineer',
       'user',
+      'verifier',
     ]);
     expect(listing.templates.find((t) => t.toRole === 'triage')?.template).toContain(
       'Handoff Template (solo → triage)'
@@ -142,6 +143,26 @@ describe('listHandoffTemplates', () => {
     expect(listing.templates.find((t) => t.toRole === 'user')?.template).toContain(
       'Report Template (Solo → User)'
     );
+  });
+
+  test('solo verifier lists a complete verdict return template to solo', () => {
+    const listing = requireListing({ teamId: 'solo', role: 'verifier' });
+
+    expect(listing.receivesFrom).toEqual(['solo']);
+    expect(listing.returnsTo).toEqual(['solo']);
+    expect(listing.templates.map((template) => template.toRole)).toEqual(['solo']);
+    expect(listing.templates[0]?.template).toContain('Handoff Template (Verifier → solo)');
+    for (const heading of [
+      '## Verdict',
+      '## Objective',
+      '## Requirements',
+      '## Evidence',
+      '## Missing or unmet',
+      '## Scope and limits',
+      '## Handoff',
+    ]) {
+      expect(listing.templates[0]?.template).toContain(heading);
+    }
   });
 
   test('solo triage lists its return template to solo', () => {
@@ -190,7 +211,7 @@ describe('listHandoffTemplatesCommand / formatHandoffTemplateListing', () => {
   test('solo listing omits duplicate planner mappings and stays concise', () => {
     const output = formatHandoffTemplateListing(requireListing({ teamId: 'solo', role: 'solo' }));
     const templates = output.match(/^- `[^`]+` → `[^`]+`$/gm) ?? [];
-    expect(templates).toHaveLength(4);
+    expect(templates).toHaveLength(5);
   });
 
   test('unknown role/team throws a descriptive error', () => {

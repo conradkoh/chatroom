@@ -52,6 +52,58 @@ CHATROOM_HANDOFF_END
 \`\`\`"
 `;
 
+exports[`verifier handoff template snapshots > solo request renders the complete contract 1`] = `
+"---
+
+⚠️ **CRITICAL — Recipient visibility**
+
+The \`verifier\` agent **only** receives the text inside your \`handoff --next-role="verifier"\` command.
+
+They **cannot** see:
+- Anything you write in this agent session
+- Progress reports
+- Tool output
+
+Put your **complete** deliverable in the handoff message — not in session text.
+
+---
+
+## Handoff Template (solo → verifier)
+
+The verifier judges, from chatroom logs only, whether the user's last message was achieved; it executes nothing — no tests, builds, or repository inspection. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only in \`code\` or \`code:enhanced\` mode, never in \`chat\` mode. The verdict returns to \`solo\`.
+
+## Round
+<1 or 2; for 2, cite the round-1 verdict message id>
+
+## Mode
+<code | code:enhanced>
+
+## User message id
+<id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>
+
+## Context id
+<id from \`chatroom context read\`, or \`none\`>
+
+## Claimed outcome
+<requirement-by-requirement what you believe is complete>
+
+## Evidence pointers
+<builder handoff message ids, commits, PRs, and test results as quoted in those handoffs>
+
+## Known gaps
+<anything incomplete, or exactly \`None.\`>
+
+## Handoff
+Send this request to the verifier with the command below, then stop. The verdict returns to \`solo\`.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="solo" --next-role="verifier" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
 exports[`verifier handoff template snapshots > verifier to planner renders the complete contract 1`] = `
 "---
 
@@ -95,6 +147,55 @@ Run the normal handoff command to \`planner\` with this complete verdict, then s
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`verifier handoff template snapshots > verifier to solo renders the complete contract 1`] = `
+"---
+
+⚠️ **CRITICAL — Recipient visibility**
+
+The \`solo\` agent **only** receives the text inside your \`handoff --next-role="solo"\` command.
+
+They **cannot** see:
+- Anything you write in this agent session
+- Progress reports
+- Tool output
+
+Put your **complete** deliverable in the handoff message — not in session text.
+
+---
+
+## Handoff Template (Verifier → solo)
+
+Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs only and executes nothing (no tests, builds, or repository inspection), deciding every requirement from the evidence those logs actually contain. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
+
+## Verdict
+<exactly one of ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE as the value; ACHIEVED only if every requirement is met; NOT_ACHIEVED if any requirement is unmet (logs show it was not done, or contradict it); INCONCLUSIVE if none is unmet but any is unverified (logs are silent)>
+
+## Objective
+<user message id, any prior user messages used, objective in 1-2 sentences>
+
+## Requirements
+<numbered \`R1 — <requirement> — met | unmet | unverified — <evidence ref>\`>
+
+## Evidence
+<bullets: \`<message id or handoff> — "<short quote>" — supports R#\`>
+
+## Missing or unmet
+<per unmet or unverified requirement: what is missing and what evidence would resolve it; exactly \`None.\` if ACHIEVED>
+
+## Scope and limits
+<state "Verified from chatroom logs only. No tests, builds, or repository inspection were run."; log range read; whether the download was truncated; context id read and whether it matched the request>
+
+## Handoff
+Run the normal handoff command to \`solo\` with this complete verdict, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="solo" << 'CHATROOM_HANDOFF_END'
 ---MESSAGE---
 [Your message here]
 CHATROOM_HANDOFF_END

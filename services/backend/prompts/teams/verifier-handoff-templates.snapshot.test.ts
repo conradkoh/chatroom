@@ -31,6 +31,8 @@ describe('verifier handoff template snapshots', () => {
   test.each([
     ['planner request', getEntryPointToVerifierHandoffTemplate('planner')],
     ['verifier to planner', getVerifierToEntryPointHandoffTemplate('planner')],
+    ['solo request', getEntryPointToVerifierHandoffTemplate('solo')],
+    ['verifier to solo', getVerifierToEntryPointHandoffTemplate('solo')],
   ] as const)('%s renders the complete contract', (_variant, template) => {
     expect(template).toMatchSnapshot();
   });
