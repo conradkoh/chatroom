@@ -139,6 +139,89 @@ describe('OpencodeSdkSession', () => {
     expect(events.some((e) => e.type === 'session.execution.succeeded')).toBe(true);
   });
 
+  it('prompt() rejects with the structured error when session.execution.failed arrives', async () => {
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    session.onEvent(() => {}); // start consumer
+
+    const promptDone = session.prompt({ agent: 'build', parts: [{ type: 'text', text: 'hi' }] });
+    const assertion = expect(promptDone).rejects.toThrow('Agent not found: "build"');
+    await new Promise<void>((r) => setTimeout(r, 5));
+
+    session._receiveEvent({
+      type: 'session.execution.failed',
+      data: {
+        sessionID: 'sess-123',
+        error: { type: 'AgentNotFound', message: 'Agent not found: "build"' },
+      },
+    } as never);
+
+    await assertion;
+  });
+
+  it('prompt() falls back to the error type when a failed execution has no message', async () => {
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    session.onEvent(() => {});
+
+    const promptDone = session.prompt({ agent: 'build', parts: [{ type: 'text', text: 'hi' }] });
+    const assertion = expect(promptDone).rejects.toThrow('ProviderAuthError');
+    await new Promise<void>((r) => setTimeout(r, 5));
+
+    session._receiveEvent({
+      type: 'session.execution.failed',
+      data: { sessionID: 'sess-123', error: { type: 'ProviderAuthError', message: '' } },
+    } as never);
+
+    await assertion;
+  });
+
+  it('prompt() rejects when session.execution.interrupted arrives', async () => {
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    session.onEvent(() => {});
+
+    const promptDone = session.prompt({ agent: 'build', parts: [{ type: 'text', text: 'hi' }] });
+    const assertion = expect(promptDone).rejects.toThrow('Session execution was interrupted');
+    await new Promise<void>((r) => setTimeout(r, 5));
+
+    session._receiveEvent({
+      type: 'session.execution.interrupted',
+      data: { sessionID: 'sess-123', reason: 'user' },
+    } as never);
+
+    await assertion;
+  });
+
+  it('a failed turn does not settle the next turn', async () => {
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    session.onEvent(() => {});
+
+    const first = session.prompt({ agent: 'build', parts: [{ type: 'text', text: 'one' }] });
+    const firstAssertion = expect(first).rejects.toThrow('boom');
+    await new Promise<void>((r) => setTimeout(r, 5));
+    session._receiveEvent({
+      type: 'session.execution.failed',
+      data: { sessionID: 'sess-123', error: { type: 'Unknown', message: 'boom' } },
+    } as never);
+    await firstAssertion;
+
+    // The second turn must wait for its own terminal event, not reuse the first turn's outcome.
+    const second = session.prompt({ agent: 'build', parts: [{ type: 'text', text: 'two' }] });
+    let secondSettled = false;
+    void second.then(() => (secondSettled = true));
+    await new Promise<void>((r) => setTimeout(r, 5));
+    expect(secondSettled).toBe(false);
+
+    session._receiveEvent(turnDoneEvent() as never);
+    await expect(second).resolves.toBeUndefined();
+  });
+
   it('prompt() rejects when SSE idle times out', async () => {
     vi.useFakeTimers();
     mockPrompt.mockResolvedValue({});
