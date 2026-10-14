@@ -11,7 +11,7 @@
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
-import { VERIFIER_VERDICTS } from '../teams/verifier-handoff-templates';
+import { VERIFIER_TEST_RULE, VERIFIER_VERDICTS } from '../teams/verifier-handoff-templates';
 
 /** Advertised handoff target that triggers the gate. */
 const VERIFIER_ROLE = 'verifier';
@@ -61,8 +61,8 @@ export function appendVerifierGateGuidance(
     '',
     '<verifier-gate>',
     '## Verifier Gate (required in code and code:enhanced modes)',
-    "**Before your final handoff to `user`, get the `verifier` review.** It judges from chatroom logs only whether the user's last message was achieved; it executes nothing. This does not apply to Chat mode, and does not apply when you are handing off to builder/architect/researcher/triage/uiux-engineer.",
-    "1. Send the request with the `verifier` template in `<handoff-templates>` (round 1). Include the user's last message id, the context id, the mode, your claimed outcome, and evidence pointers (builder handoff ids, commits, test results quoted in the logs).",
+    `**Before your final handoff to \`user\`, get the \`verifier\` review.** It judges whether the user's last message was achieved, from chatroom logs and any test runs the user requested; it ${VERIFIER_TEST_RULE}. This does not apply to Chat mode, and does not apply when you are handing off to builder/architect/researcher/triage/uiux-engineer.`,
+    "1. Send the request with the `verifier` template in `<handoff-templates>` (round 1). Include the user's last message id, the context id, the mode, the Requested test runs (the user's test requests, or `None requested.`), your claimed outcome, and evidence pointers (builder handoff ids, commits, test results quoted in the logs).",
     `2. \`${ACHIEVED}\`: deliver to \`user\` and cite the verdict message id in the report (Summary or Proof of Completion).`,
     `3. \`${NOT_ACHIEVED}\`: treat "Missing or unmet" as rework${reworkClause}, then request round 2.`,
     `4. \`${INCONCLUSIVE}\`: ${inconclusiveClause}, or deliver with the gaps disclosed.`,

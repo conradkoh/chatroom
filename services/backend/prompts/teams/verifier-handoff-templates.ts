@@ -35,7 +35,7 @@ export function getEntryPointToVerifierHandoffTemplate(entryPointRole: string): 
 
 ## Handoff Template (${entryPoint} → verifier)
 
-The verifier judges, from chatroom logs only, whether the user's last message was achieved; it executes nothing — no tests, builds, or repository inspection. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only in \`code\` or \`code:enhanced\` mode, never in \`chat\` mode. The verdict returns to \`${entryPoint}\`.
+The verifier judges, from chatroom logs only, whether the user's last message was achieved. It ${VERIFIER_TEST_RULE}; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only in \`code\` or \`code:enhanced\` mode, never in \`chat\` mode. The verdict returns to \`${entryPoint}\`.
 
 ## Round
 <1 or 2; for 2, cite the round-1 verdict message id>
@@ -48,6 +48,9 @@ The verifier judges, from chatroom logs only, whether the user's last message wa
 
 ## Context id
 <id from \`chatroom context read\`, or \`none\`>
+
+## Requested test runs
+<the test commands the user explicitly asked for, one per line, or exactly \`None requested.\`>
 
 ## Claimed outcome
 <requirement-by-requirement what you believe is complete>
@@ -79,7 +82,7 @@ export function getVerifierToEntryPointHandoffTemplate(entryPointRole: string): 
 
 ## Handoff Template (Verifier → ${entryPoint})
 
-Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs only and executes nothing (no tests, builds, or repository inspection), deciding every requirement from the evidence those logs actually contain. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
+Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It ${VERIFIER_TEST_RULE}. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
 
 ## Verdict
 <exactly one of ${VERIFIER_VERDICTS.join(', ')} as the value; ${ACHIEVED} only if every requirement is met; ${NOT_ACHIEVED} if any requirement is unmet (logs show it was not done, or contradict it); ${INCONCLUSIVE} if none is unmet but any is unverified (logs are silent)>
@@ -91,13 +94,13 @@ Return one advisory verdict for the authoritative request. This review is non-bi
 <numbered \`R1 — <requirement> — met | unmet | unverified — <evidence ref>\`>
 
 ## Evidence
-<bullets: \`<message id or handoff> — "<short quote>" — supports R#\`>
+<bullets: \`<message id or handoff> — "<short quote>" — supports R#\`; for a requested test run, \`<command> — exit <result> — supports R#\`>
 
 ## Missing or unmet
 <per unmet or unverified requirement: what is missing and what evidence would resolve it; exactly \`None.\` if ${ACHIEVED}>
 
 ## Scope and limits
-<state "Verified from chatroom logs only. No tests, builds, or repository inspection were run."; log range read; whether the download was truncated; context id read and whether it matched the request>
+<state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; log range read; whether the download was truncated; context id read and whether it matched the request>
 
 ## Handoff
 Run the normal handoff command to \`${entryPoint}\` with this complete verdict, then stop.

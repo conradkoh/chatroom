@@ -104,6 +104,7 @@ describe('appendVerifierGateGuidance', () => {
     expect(output).toContain('<verifier-gate>');
     expect(output).toContain('</verifier-gate>');
     expect(output).toContain('## Verifier Gate (required in code and code:enhanced modes)');
+    expect(output).toContain('Requested test runs');
     // The leading blank line keeps the block visually separated from neighbours.
     expect(output.startsWith('existing line\n\n<verifier-gate>')).toBe(true);
   });

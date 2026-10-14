@@ -11,6 +11,7 @@ const requestHeadings = [
   '## Mode',
   '## User message id',
   '## Context id',
+  '## Requested test runs',
   '## Claimed outcome',
   '## Evidence pointers',
   '## Known gaps',
@@ -41,7 +42,8 @@ describe('verifier handoff template snapshots', () => {
     const template = getEntryPointToVerifierHandoffTemplate('planner');
 
     expect(template).toContain('from chatroom logs only');
-    expect(template).toContain('executes nothing');
+    expect(template).toContain('Requested test runs');
+    expect(template).toContain('runs no test the user did not ask for');
     expect(template).toContain('a claim, not as evidence');
     expect(template).toContain('never in `chat` mode');
     expect(template).toContain('The verdict returns to `planner`');
@@ -71,6 +73,6 @@ describe('verifier handoff template snapshots', () => {
 
     for (const verdict of VERIFIER_VERDICTS) expect(template).toContain(verdict);
     expect(template).toContain(VERIFIER_VERDICTS.join(', '));
-    expect(template).toContain('No tests, builds, or repository inspection');
+    expect(template).toContain('No tests were run; none were requested.');
   });
 });
