@@ -6,7 +6,9 @@ export const WORKSPACE_PACKAGE_JSON_RELATIVE_PATHS = [
   'package.json',
   'services/backend/package.json',
   'packages/shared/package.json',
+  'packages/cli/package.json',
   'apps/webapp/package.json',
+  'apps/local/package.json',
 ] as const;
 
 export const ROOT_PACKAGE_JSON_RELATIVE_PATH = 'package.json' as const;
