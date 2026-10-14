@@ -186,4 +186,54 @@ describe('handleSessionIdle', () => {
     expect(repo.dequeueNext).toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
+
+  // ── Rejected queued prompt ───────────────────────────────────────────────────
+
+  it('a rejected queued prompt is still marked processed so the queue advances', async () => {
+    (repo.dequeueNext as ReturnType<typeof vi.fn>).mockResolvedValue({ content: 'hello', seq: 2 });
+    (session.prompt as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('Agent not found: "build"')
+    );
+    const handle = makeHandle('row-1', session, journal, 'turn-abc');
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      handleSessionIdle(handle, journal, { agent: 'build' }, repo)
+    ).resolves.toBeUndefined();
+
+    expect(repo.markTurnProcessed).toHaveBeenCalledWith('row-1', 2);
+    expect(handle.currentTurn).toBeNull();
+    expect(repo.setGenerating).toHaveBeenCalledWith('row-1', false);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Queued message 2 for session row-1 failed'),
+      'Agent not found: "build"'
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('a failed generating reset does not stop a rejected queued prompt from being marked processed', async () => {
+    (repo.dequeueNext as ReturnType<typeof vi.fn>).mockResolvedValue({ content: 'hello', seq: 3 });
+    (session.prompt as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('interrupted'));
+    (repo.setGenerating as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('backend down'));
+    const handle = makeHandle('row-1', session, journal, 'turn-abc');
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      handleSessionIdle(handle, journal, { agent: 'build' }, repo)
+    ).resolves.toBeUndefined();
+
+    expect(repo.markTurnProcessed).toHaveBeenCalledWith('row-1', 3);
+    expect(handle.currentTurn).toBeNull();
+    consoleSpy.mockRestore();
+  });
+
+  it('a successful queued prompt is marked processed without resetting generating', async () => {
+    (repo.dequeueNext as ReturnType<typeof vi.fn>).mockResolvedValue({ content: 'hello', seq: 2 });
+    const handle = makeHandle('row-1', session, journal, 'turn-abc');
+
+    await handleSessionIdle(handle, journal, { agent: 'build' }, repo);
+
+    expect(repo.markTurnProcessed).toHaveBeenCalledWith('row-1', 2);
+    expect(repo.setGenerating).not.toHaveBeenCalled();
+  });
 });

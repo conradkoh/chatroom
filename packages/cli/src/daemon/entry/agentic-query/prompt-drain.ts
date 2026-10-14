@@ -164,16 +164,30 @@ async function deliverMessage(
   const { turnId } = await deps.sessionRepository.beginAssistantTurn(rowId);
   existingSession.currentTurn = { turnId, messageId: null };
 
-  await existingSession.session.prompt({
-    parts: [{ type: 'text', text: msg.content }],
-    agent: info.lastUsedConfig.agent,
-    ...(info.lastUsedConfig.model ? { model: info.lastUsedConfig.model } : {}),
-    system: renderAgenticQuerySystemPrompt({
-      convexUrl: daemonSession.convexUrl,
-      chatroomId: info.chatroomId,
-      queryId: info.agenticQueryId,
-    }),
-  });
+  try {
+    await existingSession.session.prompt({
+      parts: [{ type: 'text', text: msg.content }],
+      agent: info.lastUsedConfig.agent,
+      ...(info.lastUsedConfig.model ? { model: info.lastUsedConfig.model } : {}),
+      system: renderAgenticQuerySystemPrompt({
+        convexUrl: daemonSession.convexUrl,
+        chatroomId: info.chatroomId,
+        queryId: info.agenticQueryId,
+      }),
+    });
+  } catch (err) {
+    // A rejected turn is marked processed below so a deterministic failure (e.g. Agent not
+    // found) cannot stall the queue by being retried on every drain. Visibility is via this log.
+    console.warn(
+      `[agentic-query] prompt failed for session ${rowId} seq=${msg.seq}; marking processed so the queue advances: ${err instanceof Error ? err.message : String(err)}`
+    );
+    existingSession.currentTurn = null;
+    try {
+      await deps.sessionRepository.setGenerating(rowId, false);
+    } catch (resetErr) {
+      console.warn(`[agentic-query] setGenerating(false) failed for ${rowId}: ${resetErr}`);
+    }
+  }
 
   try {
     await deps.sessionRepository.markTurnProcessed(rowId, msg.seq);
