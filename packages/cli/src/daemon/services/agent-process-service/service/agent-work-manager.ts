@@ -8,6 +8,8 @@ import {
 import { WorkspaceTaskInboxEventType } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { Effect } from 'effect';
 
+import type { SerializedAgentOperations } from './agent-process-manager-service.js';
+import type { EnsureAgentProcessInput } from './ports/agent-process-lifecycle.js';
 import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
 import {
   buildAgentLifecycleRevisionKey,
@@ -49,6 +51,31 @@ import {
 import type { TaskDeliveryService } from '../../task-service/service/native-delivery/task-delivery-service.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from '../../task-service/service/native-task-injector.js';
+
+/** Starts allowed for one uncovered-turn restart: the first attempt plus two retries. */
+const MAX_RESPAWN_START_ATTEMPTS = 3;
+
+interface RespawnStartRequest {
+  readonly chatroomId: string;
+  readonly role: string;
+  readonly workingDir: string;
+  readonly startInput: EnsureAgentProcessInput;
+}
+
+/** A respawn whose start failed and still has retries left. */
+interface PendingRespawnStart {
+  /** Identifies this restart intent. A retry runs only while the same intent is pending. */
+  readonly restartId: number;
+  readonly request: RespawnStartRequest;
+  /** Start calls made so far, including the first attempt inside the restart. */
+  attempts: number;
+  timer?: ReturnType<typeof setTimeout> | undefined;
+}
+
+type RespawnStartOutcome =
+  | { readonly kind: 'started' }
+  | { readonly kind: 'start-failed'; readonly error: string }
+  | { readonly kind: 'skipped'; readonly reason: string };
 
 export type AgentWorkPass =
   | 'inbox-event'
@@ -115,6 +142,9 @@ export class AgentWorkManager {
   private readonly nativeTaskDeliveryQueue: NativeTaskDeliveryQueue;
   private readonly deliveryTaskService: TaskDeliveryService;
   private readonly recoveryGates = new Map<string, RoleRecoveryGate>();
+  /** Respawn starts that failed and still have retries, per role. Cleared on success, exhaustion, or cancellation. */
+  private readonly respawnStartRetries = new Map<string, PendingRespawnStart>();
+  private respawnRestartSeq = 0;
   private disposed = false;
 
   constructor(private readonly deps: AgentWorkManagerDependencies) {
@@ -188,6 +218,11 @@ export class AgentWorkManager {
   }
 
   async handleAgentStarted(event: AgentStartedEvent): Promise<void> {
+    // A start for this role means the agent is running again, so any pending respawn retry is moot.
+    this.cancelRespawnStart(
+      recoveryKey(event.chatroomId, event.role),
+      `agent_started:${event.reason ?? 'unknown'}`
+    );
     await this.waitForRoleRecovery(event.chatroomId, event.role);
     // A new agent process/session cannot still be executing the task recorded
     // by the previous process. Clear the local dedup marker before the first
@@ -585,13 +620,22 @@ export class AgentWorkManager {
       );
       return;
     }
+    const startInput: EnsureAgentProcessInput = {
+      chatroomId,
+      role,
+      agentHarness: harness as AgentHarness,
+      model,
+      workingDir,
+      reason: DaemonStartReasonCode.RESPAWN,
+      wantResume: false,
+    };
 
-    let failure: string | undefined;
+    let outcome: RespawnStartOutcome;
     try {
-      failure = await this.deps.runSerializedForAgent(
+      outcome = await this.deps.runSerializedForAgent(
         { chatroomId, role, workingDir },
         { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
-        async (ops, context) => {
+        async (ops, context): Promise<RespawnStartOutcome> => {
           const current = this.deps.agentMgr.getSlot(chatroomId, role);
           if (
             this.deps.agentMgr.isStopRequested(chatroomId, role) ||
@@ -601,7 +645,7 @@ export class AgentWorkManager {
             console.log(
               `[NativeDelivery:uncovered-restart-stale] chatroom=${chatroomId} role=${role} task=${task.taskId}`
             );
-            return undefined;
+            return { kind: 'skipped', reason: 'stale_slot' };
           }
           await this.prepareRoleRecovery({ chatroomId, role });
           await ops.stopAgent(
@@ -609,33 +653,146 @@ export class AgentWorkManager {
             context.signal
           );
           await this.recoverStoppedRole({ chatroomId, role, mode: 'automatic' });
-          const started = await ops.startAgent(
-            {
-              chatroomId,
-              role,
-              agentHarness: harness as AgentHarness,
-              model,
-              workingDir,
-              reason: DaemonStartReasonCode.RESPAWN,
-              wantResume: false,
-            },
-            context.signal
-          );
-          return started.success ? undefined : (started.error ?? 'start_rejected');
+          return this.attemptRespawnStart(ops, startInput, context.signal);
         }
       );
     } catch (error) {
-      failure = error instanceof Error ? error.message : String(error);
+      // Prepare, stop, or recover failed: the gate is still held, so retry the recovery.
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} error=${message}`
+      );
+      if (this.recoveryGates.has(recoveryKey(chatroomId, role))) {
+        this.scheduleRecoveryRetry(chatroomId, role);
+      }
+      return;
     }
 
-    if (failure === undefined) return;
-    console.error(
-      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} error=${failure}`
-    );
-    // The ladder already recorded this restart, so only the recovery gate is retried.
-    if (this.recoveryGates.has(recoveryKey(chatroomId, role))) {
-      this.scheduleRecoveryRetry(chatroomId, role);
+    if (outcome.kind === 'start-failed') {
+      console.error(
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} attempt=1 of ${MAX_RESPAWN_START_ATTEMPTS} error=${outcome.error}`
+      );
+      this.beginRespawnStartRetries({ chatroomId, role, workingDir, startInput });
     }
+  }
+
+  /** One start call inside a serialized section. Reports the result instead of throwing, so a failed start stays retryable. */
+  private async attemptRespawnStart(
+    ops: SerializedAgentOperations,
+    startInput: EnsureAgentProcessInput,
+    signal: AbortSignal
+  ): Promise<RespawnStartOutcome> {
+    try {
+      const started = await ops.startAgent(startInput, signal);
+      return started.success
+        ? { kind: 'started' }
+        : { kind: 'start-failed', error: started.error ?? 'start_rejected' };
+    } catch (error) {
+      return {
+        kind: 'start-failed',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /** Records a failed respawn start and arms the first retry. The ladder is not re-run. */
+  private beginRespawnStartRetries(request: RespawnStartRequest): void {
+    if (this.disposed) return;
+    const key = recoveryKey(request.chatroomId, request.role);
+    this.cancelRespawnStart(key, 'superseded_by_new_restart');
+    this.respawnRestartSeq += 1;
+    const pending: PendingRespawnStart = {
+      restartId: this.respawnRestartSeq,
+      request,
+      attempts: 1,
+    };
+    this.respawnStartRetries.set(key, pending);
+    this.armRespawnStartRetry(key, pending);
+  }
+
+  private armRespawnStartRetry(key: string, pending: PendingRespawnStart): void {
+    if (this.disposed) return;
+    // Same backoff shape as scheduleRecoveryRetry: the first retry waits 1s.
+    const delay = Math.min(30_000, 1_000 * 2 ** (pending.attempts - 1));
+    pending.timer = setTimeout(() => {
+      pending.timer = undefined;
+      void this.retryRespawnStart(key, pending.restartId).catch((error: unknown) => {
+        console.error(
+          `[NativeDelivery:uncovered-restart-error] chatroom=${pending.request.chatroomId} role=${pending.request.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+        );
+      });
+    }, delay);
+  }
+
+  /** Retries only the start step. Re-checks that the same restart intent is still pending. */
+  private async retryRespawnStart(key: string, restartId: number): Promise<void> {
+    const pending = this.respawnStartRetries.get(key);
+    if (!pending || pending.restartId !== restartId || this.disposed) return;
+    const { chatroomId, role, workingDir, startInput } = pending.request;
+    if (this.deps.agentMgr.isStopRequested(chatroomId, role)) {
+      this.cancelRespawnStart(key, 'stop_requested');
+      return;
+    }
+    const slot = this.deps.agentMgr.getSlot(chatroomId, role);
+    if (slot && isSlotRunning(slot.state)) {
+      this.cancelRespawnStart(key, 'agent_already_running');
+      return;
+    }
+
+    const outcome = await this.deps.runSerializedForAgent(
+      { chatroomId, role, workingDir },
+      { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
+      async (ops, context): Promise<RespawnStartOutcome> => {
+        // Re-check under the serialized section: the intent may have changed while queued.
+        if (this.respawnStartRetries.get(key)?.restartId !== restartId) {
+          return { kind: 'skipped', reason: 'superseded' };
+        }
+        if (this.deps.agentMgr.isStopRequested(chatroomId, role)) {
+          return { kind: 'skipped', reason: 'stop_requested' };
+        }
+        const current = this.deps.agentMgr.getSlot(chatroomId, role);
+        if (current && isSlotRunning(current.state)) {
+          return { kind: 'skipped', reason: 'agent_already_running' };
+        }
+        return this.attemptRespawnStart(ops, startInput, context.signal);
+      }
+    );
+
+    if (outcome.kind === 'skipped') {
+      this.cancelRespawnStart(key, outcome.reason);
+      return;
+    }
+    const current = this.respawnStartRetries.get(key);
+    if (current?.restartId !== restartId) return;
+    if (outcome.kind === 'started') {
+      this.cancelRespawnStart(key, 'started');
+      return;
+    }
+    current.attempts += 1;
+    if (current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
+      this.respawnStartRetries.delete(key);
+      console.error(
+        `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${chatroomId} role=${role} attempts=${current.attempts} error=${outcome.error}`
+      );
+      return;
+    }
+    console.error(
+      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} attempt=${current.attempts} of ${MAX_RESPAWN_START_ATTEMPTS} error=${outcome.error}`
+    );
+    this.armRespawnStartRetry(key, current);
+  }
+
+  /** Stops a pending respawn retry and logs why. A no-op when nothing is pending. */
+  private cancelRespawnStart(key: string, reason: string): void {
+    const pending = this.respawnStartRetries.get(key);
+    if (!pending) return;
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.timer = undefined;
+    this.respawnStartRetries.delete(key);
+    if (reason === 'started') return;
+    console.log(
+      `[NativeDelivery:uncovered-restart-cancelled] chatroom=${pending.request.chatroomId} role=${pending.request.role} attempts=${pending.attempts} reason=${reason}`
+    );
   }
 
   /** Re-validates the nudge target under the delivery mutex. Returns the reason to skip, or undefined. */
@@ -681,6 +838,11 @@ export class AgentWorkManager {
 
   dispose(): void {
     this.disposed = true;
+    for (const pending of this.respawnStartRetries.values()) {
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.timer = undefined;
+    }
+    this.respawnStartRetries.clear();
     for (const gate of this.recoveryGates.values()) {
       if (gate.retryTimer) clearTimeout(gate.retryTimer);
       gate.retryTimer = undefined;

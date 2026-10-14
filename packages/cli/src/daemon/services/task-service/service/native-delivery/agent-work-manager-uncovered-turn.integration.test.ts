@@ -62,7 +62,7 @@ function makeTask(): AssignedTaskWithContent {
 }
 
 /** A fake agent process manager: one mutable running slot, recorded prompts, stop and start. */
-function createFakeAgents() {
+function createFakeAgents(options: { startFailures?: number } = {}) {
   let pidSeq = 101;
   let sessionSeq = 1;
   let slot: FakeSlot | undefined = makeSlot(pidSeq, `sess-${sessionSeq}`);
@@ -112,6 +112,9 @@ function createFakeAgents() {
         },
         startAgent: async (input) => {
           starts.push({ reason: input.reason, wantResume: input.wantResume });
+          if (starts.length <= (options.startFailures ?? 0)) {
+            return { success: false, error: 'rate_limited' };
+          }
           pidSeq += 1;
           sessionSeq += 1;
           slot = makeSlot(pidSeq, `sess-${sessionSeq}`);
@@ -359,5 +362,109 @@ describe('uncovered-turn ladder, end to end', () => {
     await vi.waitFor(() => expect(second.nudges()).toHaveLength(2));
     expect(second.agents.starts).toHaveLength(0);
     second.dispose();
+  });
+
+  describe('respawn start retries', () => {
+    /** Gets a daemon to the point where its first restart has been requested and its start has failed. */
+    async function restartWithFailingStart(startFailures: number) {
+      const agents = createFakeAgents({ startFailures });
+      const d = createDaemon({ agents });
+      await d.start();
+      await vi.waitFor(() => expect(d.injections()).toHaveLength(1));
+      await d.turnEnded('completed', 'turn-1');
+      await vi.waitFor(() => expect(d.nudges()).toHaveLength(1));
+      // Let the nudge's send resolve and commit to the ladder before the next turn ends.
+      await vi.advanceTimersByTimeAsync(100);
+      await d.turnEnded('completed', 'turn-2');
+      await vi.waitFor(() => expect(agents.starts).toHaveLength(1));
+      return { agents, d };
+    }
+
+    test('a start that fails twice is retried, and the third start delivers into the new session', async () => {
+      vi.useFakeTimers();
+      try {
+        const { agents, d } = await restartWithFailingStart(2);
+        const decide = vi.spyOn(d.taskService, 'decideUncoveredTurnEnd');
+
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(agents.starts).toHaveLength(2);
+        await vi.advanceTimersByTimeAsync(2_000);
+        await vi.waitFor(() => expect(d.injections()).toHaveLength(2));
+
+        expect(agents.starts).toHaveLength(3);
+        expect(agents.starts.at(-1)).toEqual({ reason: 'daemon.respawn', wantResume: false });
+        // The ladder ran only for the two uncovered ends; retries never re-enter it.
+        expect(decide).toHaveBeenCalledTimes(0);
+        d.dispose();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test('a start that fails three times stops after three starts, logs exhaustion, and leaves the task pending', async () => {
+      vi.useFakeTimers();
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const { agents, d } = await restartWithFailingStart(3);
+
+        await vi.advanceTimersByTimeAsync(1_000);
+        await vi.advanceTimersByTimeAsync(2_000);
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(agents.starts).toHaveLength(3);
+        expect(errors).toHaveBeenCalledWith(
+          expect.stringContaining('[NativeDelivery:uncovered-restart-failed] attempts exhausted')
+        );
+        expect(d.taskService.taskInboxState.getForRole(CHATROOM, ROLE, TASK_ID)?.status).toBe(
+          'pending'
+        );
+        expect(d.injections()).toHaveLength(1);
+        d.dispose();
+      } finally {
+        errors.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
+    test('a user-initiated start during the retry window stops the retries', async () => {
+      vi.useFakeTimers();
+      const logs = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const { agents, d } = await restartWithFailingStart(99);
+
+        await d.manager.handleAgentStarted({
+          chatroomId: CHATROOM,
+          role: ROLE,
+          reason: 'user.start',
+        } as never);
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(agents.starts).toHaveLength(1);
+        expect(logs).toHaveBeenCalledWith(
+          expect.stringContaining('[NativeDelivery:uncovered-restart-cancelled]')
+        );
+        expect(logs).toHaveBeenCalledWith(
+          expect.stringContaining('reason=agent_started:user.start')
+        );
+        d.dispose();
+      } finally {
+        logs.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
+    test('no retry is scheduled after dispose', async () => {
+      vi.useFakeTimers();
+      try {
+        const { agents, d } = await restartWithFailingStart(99);
+
+        d.dispose();
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(agents.starts).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
