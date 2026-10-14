@@ -16,7 +16,15 @@ describe('team presets', () => {
   test('matches the supported duo and solo team shapes', () => {
     expect(TEAM_PRESETS.duo).toMatchObject({
       name: 'Duo',
-      roles: ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'builder'],
+      roles: [
+        'planner',
+        'architect',
+        'researcher',
+        'triage',
+        'uiux-engineer',
+        'verifier',
+        'builder',
+      ],
       entryPoint: 'planner',
     });
     expect(TEAM_PRESETS.solo).toMatchObject({

@@ -30,6 +30,7 @@ describe('listHandoffTemplates', () => {
         'uiux-engineer',
         'researcher',
         'triage',
+        'verifier',
       ])
     );
     expect(listing.returnsTo.map((r) => r.toLowerCase())).toEqual(
@@ -40,6 +41,7 @@ describe('listHandoffTemplates', () => {
         'researcher',
         'triage',
         'user',
+        'verifier',
       ])
     );
 
@@ -51,6 +53,7 @@ describe('listHandoffTemplates', () => {
       'triage',
       'uiux-engineer',
       'user',
+      'verifier',
     ]);
     for (const toRole of [
       'builder',
@@ -59,6 +62,7 @@ describe('listHandoffTemplates', () => {
       'researcher',
       'triage',
       'user',
+      'verifier',
     ]) {
       expect(
         listing.templates.find((t) => t.toRole.toLowerCase() === toRole)?.template
@@ -67,6 +71,26 @@ describe('listHandoffTemplates', () => {
     expect(listing.templates.find((t) => t.toRole === 'triage')?.template).toContain(
       'Handoff Template (planner → triage)'
     );
+  });
+
+  test('duo verifier lists a complete verdict return template to planner', () => {
+    const listing = requireListing({ teamId: 'duo', role: 'verifier' });
+
+    expect(listing.receivesFrom).toEqual(['planner']);
+    expect(listing.returnsTo).toEqual(['planner']);
+    expect(listing.templates.map((template) => template.toRole)).toEqual(['planner']);
+    expect(listing.templates[0]?.template).toContain('Handoff Template (Verifier → planner)');
+    for (const heading of [
+      '## Verdict',
+      '## Objective',
+      '## Requirements',
+      '## Evidence',
+      '## Missing or unmet',
+      '## Scope and limits',
+      '## Handoff',
+    ]) {
+      expect(listing.templates[0]?.template).toContain(heading);
+    }
   });
 
   test('duo triage lists a complete return template to planner', () => {

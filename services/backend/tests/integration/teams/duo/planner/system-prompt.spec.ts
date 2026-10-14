@@ -74,7 +74,7 @@ describe('Duo Team > Planner > System Prompt', () => {
     // Planner CAN hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toContain(
-      'Available targets: architect, researcher, triage, uiux-engineer, builder, user'
+      'Available targets: architect, researcher, triage, uiux-engineer, verifier, builder, user'
     );
     // Researcher nudge points to the researcher handoff template rather than restating its criteria
     expect(prompt).toContain('Ground new work first');
@@ -294,7 +294,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - After reviewing builder output, deliver results to the user
       - **Only you can hand off to \`user\`**
 
-      **Team composition:** Duo team — you coordinate with \`architect\`, \`researcher\`, \`triage\`, \`uiux-engineer\`, \`builder\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`architect\`, \`researcher\`, \`triage\`, \`uiux-engineer\`, \`verifier\`, \`builder\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -410,7 +410,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
 
       ### Handoff Options
-      Available targets: architect, researcher, triage, uiux-engineer, builder, user
+      Available targets: architect, researcher, triage, uiux-engineer, verifier, builder, user
 
       ### Commands
 
