@@ -3,18 +3,22 @@
  *
  * Verifies that when a workspace is removed from a chatroom, related
  * `chatroom_agentLastSentLaunchRequests` entries are purged to prevent
- * "ghost machines".
+ * "ghost machines", and that workspace removal / machine cleanup purge the
+ * per-unit git state tables (`chatroom_workspaceGitHead` … `…GitChecks`).
  *
- * Three cases:
+ * Cases:
  * 1. Removing the only workspace purges configs for that machine+chatroom
  * 2. Removing one workspace does NOT purge configs if the machine has another active workspace
  * 3. Removing a workspace does NOT affect configs for other machines
+ * 4. Removing a workspace purges only its own unit rows and legacy blob row
+ * 5. Machine cleanup purges all unit rows for that machine only
  */
 
 import { describe, expect, test } from 'vitest';
 
-import { api } from '../../convex/_generated/api';
+import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { WORKSPACE_GIT_UNIT_TABLE } from '../../src/domain/entities/workspace-git-state-unit';
 import { t } from '../../test.setup';
 import {
   createTestSession,
@@ -22,6 +26,11 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+
+/** Every per-unit table, derived from the kind→table SSOT. */
+const UNIT_TABLES = Object.values(WORKSPACE_GIT_UNIT_TABLE);
+
+type UnitTable = (typeof UNIT_TABLES)[number];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,6 +63,74 @@ async function getLaunchRequests(chatroomId: Id<'chatroom_rooms'>) {
       .query('chatroom_agentLastSentLaunchRequests')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect();
+  });
+}
+
+/** Insert one row into each per-unit git state table for the target. */
+async function seedUnitRows(machineId: string, workingDir: string) {
+  await t.run(async (ctx) => {
+    const base = { machineId, workingDir, updatedAt: Date.now() };
+    await ctx.db.insert('chatroom_workspaceGitHead', {
+      ...base,
+      status: 'available',
+      branch: 'main',
+    });
+    await ctx.db.insert('chatroom_workspaceGitWorktree', {
+      ...base,
+      isDirty: false,
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    });
+    await ctx.db.insert('chatroom_workspaceGitUpstream', {
+      ...base,
+      commitsAhead: 1,
+      commitsBehind: 0,
+    });
+    await ctx.db.insert('chatroom_workspaceGitRemotes', {
+      ...base,
+      remotes: [{ name: 'origin', url: 'https://example.test/repo.git' }],
+    });
+    await ctx.db.insert('chatroom_workspaceGitPullRequests', {
+      ...base,
+      openPullRequests: [],
+    });
+    await ctx.db.insert('chatroom_workspaceGitChecks', { ...base, headCommitStatus: null });
+  });
+}
+
+/** Insert one legacy git-state blob row for the target. */
+async function seedBlobRow(machineId: string, workingDir: string) {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_workspaceGitState', {
+      machineId,
+      workingDir,
+      status: 'available',
+      branch: 'main',
+      updatedAt: Date.now(),
+    });
+  });
+}
+
+/** Unit rows filtered by machine and, optionally, workingDir. */
+async function unitRows(table: UnitTable, machineId: string, workingDir?: string) {
+  return t.run(async (ctx) => {
+    const rows: { machineId: string; workingDir: string }[] = await (
+      ctx.db.query(table as any) as any
+    ).collect();
+    return rows.filter(
+      (row) =>
+        row.machineId === machineId && (workingDir === undefined || row.workingDir === workingDir)
+    );
+  });
+}
+
+/** Legacy blob rows filtered by machine and, optionally, workingDir. */
+async function blobRows(machineId: string, workingDir?: string) {
+  return t.run(async (ctx) => {
+    const rows = await ctx.db
+      .query('chatroom_workspaceGitState')
+      .withIndex('by_machine_workingDir', (q) => q.eq('machineId', machineId))
+      .collect();
+    return rows.filter((row) => workingDir === undefined || row.workingDir === workingDir);
   });
 }
 
@@ -154,5 +231,148 @@ describe('workspace removal cleanup', () => {
     const requestsAfter = await getLaunchRequests(chatroomId);
     expect(requestsAfter.filter((c) => c.machineId === machineIdA).length).toBe(0);
     expect(requestsAfter.filter((c) => c.machineId === machineIdB).length).toBeGreaterThan(0);
+  });
+});
+
+describe('workspace git unit row purge', () => {
+  test('removing a workspace purges its unit rows and blob row only', async () => {
+    const { sessionId: sid } = await createTestSession('test-git-unit-remove');
+    const chatroomId = await createDuoTeamChatroom(sid);
+    const machineId = 'machine-git-unit-remove';
+    const otherMachineId = 'machine-git-unit-remove-other';
+    const dirA = '/test/git-unit-a';
+    const dirB = '/test/git-unit-b';
+    await registerMachineWithDaemon(sid, machineId);
+    await registerMachineWithDaemon(sid, otherMachineId);
+
+    const workspaceId = await registerWorkspace(sid, chatroomId, machineId, dirA);
+
+    // Two workingDirs on the target machine plus a row on a second machine.
+    for (const [machine, dir] of [
+      [machineId, dirA],
+      [machineId, dirB],
+      [otherMachineId, dirA],
+    ] as const) {
+      await seedUnitRows(machine, dir);
+      await seedBlobRow(machine, dir);
+    }
+
+    await t.mutation(api.workspaces.removeWorkspace, { sessionId: sid, workspaceId });
+
+    for (const table of UNIT_TABLES) {
+      expect(await unitRows(table, machineId, dirA)).toHaveLength(0);
+      expect(await unitRows(table, machineId, dirB)).toHaveLength(1);
+      expect(await unitRows(table, otherMachineId, dirA)).toHaveLength(1);
+    }
+    expect(await blobRows(machineId, dirA)).toHaveLength(0);
+    expect(await blobRows(machineId, dirB)).toHaveLength(1);
+    expect(await blobRows(otherMachineId, dirA)).toHaveLength(1);
+  });
+
+  test('machine cleanup purges all unit rows for that machine only', async () => {
+    const { sessionId: sid } = await createTestSession('test-git-unit-cleanup');
+    const chatroomId = await createDuoTeamChatroom(sid);
+    const machineId = 'machine-git-unit-cleanup';
+    const otherMachineId = 'machine-git-unit-cleanup-other';
+    await registerMachineWithDaemon(sid, machineId);
+    await registerMachineWithDaemon(sid, otherMachineId);
+    await registerWorkspace(sid, chatroomId, machineId, '/test/git-unit-cleanup-a');
+
+    // Two workingDirs on the machine being cleaned up, one on the survivor.
+    for (const [machine, dir] of [
+      [machineId, '/test/git-unit-cleanup-a'],
+      [machineId, '/test/git-unit-cleanup-b'],
+      [otherMachineId, '/test/git-unit-cleanup-a'],
+    ] as const) {
+      await seedUnitRows(machine, dir);
+      await seedBlobRow(machine, dir);
+    }
+
+    // Machine cleanup selection is driven by machine capabilities recency.
+    await t.run(async (ctx) => {
+      const capabilities = await ctx.db
+        .query('chatroom_machineCapabilities')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      expect(capabilities).toBeDefined();
+      await ctx.db.patch(capabilities!._id, { lastSeenAt: Date.now() - 91 * 24 * 60 * 60 * 1000 });
+    });
+
+    await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+
+    for (const table of UNIT_TABLES) {
+      expect(await unitRows(table, machineId)).toHaveLength(0);
+      expect(await unitRows(table, otherMachineId)).toHaveLength(1);
+    }
+    expect(await blobRows(machineId)).toHaveLength(0);
+    expect(await blobRows(otherMachineId)).toHaveLength(1);
+  });
+});
+
+describe('legacy git-state blob rows', () => {
+  test('a status-less row and a legacy number-only PR row insert, read, and purge on removal', async () => {
+    const { sessionId: sid } = await createTestSession('test-legacy-blob');
+    const chatroomId = await createDuoTeamChatroom(sid);
+    const machineId = 'machine-legacy-blob';
+    const noStatusDir = '/test/legacy-blob-no-status';
+    const legacyPrDir = '/test/legacy-blob-legacy-pr';
+    await registerMachineWithDaemon(sid, machineId);
+
+    const noStatusWorkspaceId = await registerWorkspace(sid, chatroomId, machineId, noStatusDir);
+    const legacyPrWorkspaceId = await registerWorkspace(sid, chatroomId, machineId, legacyPrDir);
+
+    // Oldest shape: no `status` at all.
+    await t.run((ctx) =>
+      ctx.db.insert('chatroom_workspaceGitState', {
+        machineId,
+        workingDir: noStatusDir,
+        updatedAt: Date.now(),
+      })
+    );
+    // Legacy PR shape: `number` only, no canonical `prNumber`.
+    await t.run((ctx) =>
+      ctx.db.insert('chatroom_workspaceGitState', {
+        machineId,
+        workingDir: legacyPrDir,
+        status: 'available',
+        openPullRequests: [
+          {
+            number: 55,
+            title: 'legacy all pr',
+            url: 'https://example.test/pulls/55',
+            headRefName: 'feat/legacy',
+            state: 'OPEN',
+          },
+        ],
+        updatedAt: Date.now(),
+      })
+    );
+
+    // Both legacy shapes insert and read back.
+    const noStatusRows = await blobRows(machineId, noStatusDir);
+    expect(noStatusRows).toHaveLength(1);
+    expect(noStatusRows[0]!.status).toBeUndefined();
+
+    const legacyPrRows = await blobRows(machineId, legacyPrDir);
+    expect(legacyPrRows).toHaveLength(1);
+    expect(legacyPrRows[0]!.openPullRequests?.[0]).toMatchObject({
+      number: 55,
+      title: 'legacy all pr',
+    });
+    expect(legacyPrRows[0]!.openPullRequests?.[0]!.prNumber).toBeUndefined();
+
+    // Removal purges the blob row for the removed workspace only.
+    await t.mutation(api.workspaces.removeWorkspace, {
+      sessionId: sid,
+      workspaceId: noStatusWorkspaceId,
+    });
+    expect(await blobRows(machineId, noStatusDir)).toHaveLength(0);
+    expect(await blobRows(machineId, legacyPrDir)).toHaveLength(1);
+
+    await t.mutation(api.workspaces.removeWorkspace, {
+      sessionId: sid,
+      workspaceId: legacyPrWorkspaceId,
+    });
+    expect(await blobRows(machineId, legacyPrDir)).toHaveLength(0);
   });
 });

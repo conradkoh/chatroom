@@ -22,7 +22,6 @@ import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 vi.mock('../../api.js', () => ({
   api: {
     workspaces: {
-      upsertWorkspaceGitState: 'mock-upsertWorkspaceGitState',
       upsertRecentCommits: 'mock-upsertRecentCommits',
       getMissingCommitShasV2: 'mock-getMissingCommitShasV2',
       upsertCommitDetailV2: 'mock-upsertCommitDetailV2',

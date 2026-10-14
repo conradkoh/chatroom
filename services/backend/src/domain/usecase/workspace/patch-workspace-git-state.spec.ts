@@ -1,28 +1,20 @@
 /**
- * Unit tests for patchWorkspaceGitState (unit-scoped, change-driven git state writes).
+ * Unit tests for patchWorkspaceGitState (unit-row, change-driven git state writes).
  *
  * Each test uses its own machineId/workingDir: the test DB is shared across tests in this file.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 
 import { patchWorkspaceGitState } from './patch-workspace-git-state';
+import { findUnitRow } from './workspace-git-unit-rows';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
 import type { WorkspaceGitStateUnit } from '../../entities/workspace-git-state-unit';
 
-const FIXED_NOW = 1_800_000_000_000;
-
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(FIXED_NOW);
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-});
+const NOW = 1_800_000_000_000;
 
 interface Target {
   machineId: string;
@@ -45,10 +37,21 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   });
 }
 
+async function registerWorkspace(sessionId: SessionId, target: Target) {
+  const chatroomId = await createChatroom(sessionId);
+  return t.mutation(api.workspaces.registerWorkspace, {
+    sessionId,
+    chatroomId,
+    machineId: target.machineId,
+    workingDir: target.workingDir,
+    hostname: 'test-host',
+    registeredBy: 'user',
+  });
+}
+
 /** Registers a machine and an active workspace for a fresh target; returns the target and workspace id. */
 async function setupWorkspace(suffix: string) {
   const { sessionId } = await createSession(`patch-git-${suffix}`);
-  const chatroomId = await createChatroom(sessionId);
   const target: Target = {
     machineId: `patch-git-machine-${suffix}`,
     workingDir: `/tmp/patch-git-${suffix}`,
@@ -60,94 +63,108 @@ async function setupWorkspace(suffix: string) {
     os: 'linux',
     availableHarnesses: ['opencode'],
   });
-  const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
-    sessionId,
-    chatroomId,
-    machineId: target.machineId,
-    workingDir: target.workingDir,
-    hostname: 'test-host',
-    registeredBy: 'user',
-  });
+  const workspaceId = await registerWorkspace(sessionId, target);
   return { sessionId, workspaceId, target };
 }
 
-function patch(target: Target, unit: WorkspaceGitStateUnit, now = FIXED_NOW) {
+function patch(target: Target, unit: WorkspaceGitStateUnit, now = NOW) {
   return t.run(async (ctx) => patchWorkspaceGitState(ctx, { ...target, unit, now }));
 }
 
-async function readRows(target: Target) {
+/** Reads every unit row for the target via the production lookup. */
+async function readUnitRows(target: Target) {
+  return t.run(async (ctx) => ({
+    head: await findUnitRow(ctx, 'head', target),
+    worktree: await findUnitRow(ctx, 'worktree', target),
+    upstream: await findUnitRow(ctx, 'upstream', target),
+    remotes: await findUnitRow(ctx, 'remotes', target),
+    pullRequests: await findUnitRow(ctx, 'pullRequests', target),
+    checks: await findUnitRow(ctx, 'checks', target),
+  }));
+}
+
+/** Reads the legacy blob row for the target, if any. */
+async function readBlobRow(target: Target) {
   return t.run(async (ctx) =>
     ctx.db
       .query('chatroom_workspaceGitState')
       .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', target.machineId).eq('workingDir', target.workingDir)
       )
-      .collect()
+      .first()
   );
 }
 
+const WORKTREE_UNIT: WorkspaceGitStateUnit = {
+  kind: 'worktree',
+  isDirty: true,
+  diffStat: { filesChanged: 1, insertions: 2, deletions: 0 },
+};
+
+const UNITS: { kind: WorkspaceGitStateUnit['kind']; unit: WorkspaceGitStateUnit }[] = [
+  { kind: 'head', unit: { kind: 'head', status: 'available', branch: 'main' } },
+  { kind: 'worktree', unit: WORKTREE_UNIT },
+  { kind: 'upstream', unit: { kind: 'upstream', commitsAhead: 1, commitsBehind: 2 } },
+  {
+    kind: 'remotes',
+    unit: { kind: 'remotes', remotes: [{ name: 'origin', url: 'https://example.test/repo.git' }] },
+  },
+  {
+    kind: 'pullRequests',
+    unit: {
+      kind: 'pullRequests',
+      openPullRequests: [
+        {
+          prNumber: 7,
+          title: 'Fix',
+          url: 'https://example.test/7',
+          headRefName: 'fix',
+          state: 'OPEN',
+        },
+      ],
+    },
+  },
+  { kind: 'checks', unit: { kind: 'checks', headCommitStatus: null } },
+];
+
 describe('patchWorkspaceGitState', () => {
-  test('inserts a row on the first unit', async () => {
+  test('first write inserts a row for its kind only and never the blob', async () => {
     const { target } = await setupWorkspace('insert');
 
     const result = await patch(target, { kind: 'head', status: 'available', branch: 'main' });
 
     expect(result).toEqual({ applied: true });
-    const rows = await readRows(target);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
+    const rows = await readUnitRows(target);
+    expect(rows.head).toMatchObject({
       machineId: target.machineId,
       workingDir: target.workingDir,
       status: 'available',
       branch: 'main',
-      updatedAt: FIXED_NOW,
+      updatedAt: NOW,
     });
-  });
-
-  test('head-only patch leaves fields owned by other units untouched', async () => {
-    const { target } = await setupWorkspace('head-only');
-    await patch(target, { kind: 'upstream', commitsAhead: 2, commitsBehind: 1 });
-    await patch(target, { kind: 'head', status: 'available', branch: 'main' });
-
-    const result = await patch(target, { kind: 'head', status: 'available', branch: 'feature' });
-
-    expect(result).toEqual({ applied: true });
-    const [row] = await readRows(target);
-    expect(row).toMatchObject({ branch: 'feature', commitsAhead: 2, commitsBehind: 1 });
-  });
-
-  test('non-head unit never changes status', async () => {
-    const { target } = await setupWorkspace('non-head-status');
-    await patch(target, { kind: 'head', status: 'error', errorMessage: 'git failed' });
-
-    const result = await patch(target, {
-      kind: 'worktree',
-      isDirty: true,
-      diffStat: { filesChanged: 1, insertions: 2, deletions: 0 },
-    });
-
-    expect(result).toEqual({ applied: true });
-    const [row] = await readRows(target);
-    expect(row).toMatchObject({ status: 'error', errorMessage: 'git failed', isDirty: true });
+    expect(rows.worktree).toBeNull();
+    expect(rows.upstream).toBeNull();
+    expect(rows.remotes).toBeNull();
+    expect(rows.pullRequests).toBeNull();
+    expect(rows.checks).toBeNull();
+    expect(await readBlobRow(target)).toBeNull();
   });
 
   test('identical unit produces no write (updatedAt and _id unchanged)', async () => {
     const { target } = await setupWorkspace('identical');
-    await patch(target, { kind: 'head', status: 'available', branch: 'main' }, FIXED_NOW);
-    const [before] = await readRows(target);
+    await patch(target, { kind: 'head', status: 'available', branch: 'main' });
+    const before = (await readUnitRows(target)).head;
 
-    const later = FIXED_NOW + 5_000;
-    vi.setSystemTime(later);
     const result = await patch(
       target,
       { kind: 'head', status: 'available', branch: 'main' },
-      later
+      NOW + 5_000
     );
 
     expect(result).toEqual({ applied: false, reason: 'unchanged' });
-    const [after] = await readRows(target);
+    const after = (await readUnitRows(target)).head;
     expect(after!._id).toBe(before!._id);
-    expect(after!.updatedAt).toBe(FIXED_NOW);
+    expect(after!.updatedAt).toBe(NOW);
   });
 
   test('structurally equal object with different key order is unchanged', async () => {
@@ -167,63 +184,110 @@ describe('patchWorkspaceGitState', () => {
     expect(result).toEqual({ applied: false, reason: 'unchanged' });
   });
 
-  test('error to available clears errorMessage', async () => {
+  test('changed unit is applied, moves updatedAt, and replaces the row', async () => {
+    const { target } = await setupWorkspace('changed');
+    await patch(target, { kind: 'head', status: 'available', branch: 'main' });
+    const before = (await readUnitRows(target)).head;
+
+    const result = await patch(
+      target,
+      { kind: 'head', status: 'available', branch: 'feature' },
+      NOW + 5_000
+    );
+
+    expect(result).toEqual({ applied: true });
+    const after = (await readUnitRows(target)).head;
+    expect(after!.branch).toBe('feature');
+    expect(after!.updatedAt).toBe(NOW + 5_000);
+    expect(after!._id).toBe(before!._id);
+  });
+
+  test.each(UNITS)('writes only the $kind table', async ({ kind, unit }) => {
+    const { target } = await setupWorkspace(`only-${kind}`);
+
+    const result = await patch(target, unit);
+
+    expect(result).toEqual({ applied: true });
+    const rows = await readUnitRows(target);
+    for (const [rowKind, row] of Object.entries(rows)) {
+      if (rowKind === kind) expect(row).not.toBeNull();
+      else expect(row).toBeNull();
+    }
+  });
+
+  test('head error to available clears errorMessage', async () => {
     const { target } = await setupWorkspace('clear-error');
     await patch(target, { kind: 'head', status: 'error', errorMessage: 'boom' });
 
     const result = await patch(target, { kind: 'head', status: 'available', branch: 'main' });
 
     expect(result).toEqual({ applied: true });
-    const [row] = await readRows(target);
-    expect(row).toMatchObject({ status: 'available', branch: 'main' });
-    expect(row!.errorMessage).toBeUndefined();
+    const head = (await readUnitRows(target)).head;
+    expect(head).toMatchObject({ status: 'available', branch: 'main' });
+    expect(head!.errorMessage).toBeUndefined();
   });
 
-  test('legacy number-only PR rows compare equal after normalization', async () => {
-    const { target } = await setupWorkspace('legacy-pr');
-    await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_workspaceGitState', {
-        machineId: target.machineId,
-        workingDir: target.workingDir,
-        status: 'available',
-        openPullRequests: [
-          {
-            number: 7,
-            title: 'Fix',
-            url: 'https://example.test/7',
-            headRefName: 'fix',
-            state: 'OPEN',
-          },
-        ],
-        updatedAt: FIXED_NOW - 1_000,
-      });
-    });
+  test('head available to not_found clears branch', async () => {
+    const { target } = await setupWorkspace('clear-branch');
+    await patch(target, { kind: 'head', status: 'available', branch: 'main' });
 
-    const result = await patch(target, {
-      kind: 'pullRequests',
-      openPullRequests: [
-        {
-          prNumber: 7,
-          title: 'Fix',
-          url: 'https://example.test/7',
-          headRefName: 'fix',
-          state: 'OPEN',
-        },
-      ],
-    });
+    const result = await patch(target, { kind: 'head', status: 'not_found' });
 
-    expect(result).toEqual({ applied: false, reason: 'unchanged' });
-    const [row] = await readRows(target);
-    expect(row!.updatedAt).toBe(FIXED_NOW - 1_000);
+    expect(result).toEqual({ applied: true });
+    const head = (await readUnitRows(target)).head;
+    expect(head).toMatchObject({ status: 'not_found' });
+    expect(head!.branch).toBeUndefined();
   });
 
-  test('inactive workspace returns workspace_inactive and inserts no row', async () => {
+  test('non-head unit is stored without creating a head row', async () => {
+    const { target } = await setupWorkspace('non-head');
+
+    const result = await patch(target, WORKTREE_UNIT);
+
+    expect(result).toEqual({ applied: true });
+    const rows = await readUnitRows(target);
+    expect(rows.head).toBeNull();
+    expect(rows.worktree).toMatchObject({ isDirty: true });
+  });
+
+  test('inactive workspace returns workspace_inactive and writes no row', async () => {
     const { sessionId, workspaceId, target } = await setupWorkspace('inactive');
     await t.mutation(api.workspaces.removeWorkspace, { sessionId, workspaceId });
 
     const result = await patch(target, { kind: 'head', status: 'available', branch: 'main' });
 
     expect(result).toEqual({ applied: false, reason: 'workspace_inactive' });
-    expect(await readRows(target)).toHaveLength(0);
+    const rows = await readUnitRows(target);
+    for (const row of Object.values(rows)) expect(row).toBeNull();
+  });
+
+  test('writes when another active workspace row exists for the same directory', async () => {
+    const { sessionId } = await createSession('patch-git-two-rows');
+    const target: Target = {
+      machineId: 'patch-git-machine-two-rows',
+      workingDir: '/tmp/patch-git-two-rows',
+    };
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId: target.machineId,
+      hostname: 'test-host',
+      os: 'linux',
+      availableHarnesses: ['opencode'],
+    });
+
+    // First workspace is registered then removed, leaving a removed row for the directory.
+    const removedWorkspaceId = await registerWorkspace(sessionId, target);
+    await t.mutation(api.workspaces.removeWorkspace, {
+      sessionId,
+      workspaceId: removedWorkspaceId,
+    });
+
+    // A second workspace is registered for the same directory and stays active.
+    await registerWorkspace(sessionId, target);
+
+    const result = await patch(target, { kind: 'head', status: 'available', branch: 'main' });
+
+    expect(result).toEqual({ applied: true });
+    expect((await readUnitRows(target)).head).toMatchObject({ branch: 'main' });
   });
 });

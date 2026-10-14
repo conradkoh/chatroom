@@ -7,6 +7,7 @@ import {
   type Accessor,
   type Resource,
   type Permission,
+  type MachineWorkspaceRef,
 } from './check-access';
 
 // ─── Test Helpers ───────────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ function createMockDeps(overrides: Partial<CheckAccessDeps> = {}): CheckAccessDe
   return {
     getMachineByMachineId: async () => null,
     getChatroom: async () => null,
-    getWorkspacesForMachine: async () => [],
+    getWorkspacesForMachine: () => [],
     ...overrides,
   };
 }
@@ -65,7 +66,7 @@ describe('checkAccess — machine + write-access', () => {
 
   it('grants access when user owns a chatroom the machine is in', async () => {
     const deps = createMockDeps({
-      getWorkspacesForMachine: async () => [{ chatroomId: 'chat-1', machineId: 'machine-1' }],
+      getWorkspacesForMachine: () => [{ chatroomId: 'chat-1', machineId: 'machine-1' }],
       getChatroom: async () => ({ id: 'chat-1', ownerId: 'user-a' }),
     });
 
@@ -75,7 +76,7 @@ describe('checkAccess — machine + write-access', () => {
 
   it('denies access when user does not own any chatroom the machine is in', async () => {
     const deps = createMockDeps({
-      getWorkspacesForMachine: async () => [{ chatroomId: 'chat-1', machineId: 'machine-1' }],
+      getWorkspacesForMachine: () => [{ chatroomId: 'chat-1', machineId: 'machine-1' }],
       getChatroom: async () => ({ id: 'chat-1', ownerId: 'user-b' }),
     });
 
@@ -92,7 +93,7 @@ describe('checkAccess — machine + write-access', () => {
 
   it('grants access when user owns one of multiple chatrooms', async () => {
     const deps = createMockDeps({
-      getWorkspacesForMachine: async () => [
+      getWorkspacesForMachine: () => [
         { chatroomId: 'chat-1', machineId: 'machine-1' },
         { chatroomId: 'chat-2', machineId: 'machine-1' },
       ],
@@ -109,7 +110,7 @@ describe('checkAccess — machine + write-access', () => {
 
   it('handles missing chatroom gracefully', async () => {
     const deps = createMockDeps({
-      getWorkspacesForMachine: async () => [{ chatroomId: 'chat-gone', machineId: 'machine-1' }],
+      getWorkspacesForMachine: () => [{ chatroomId: 'chat-gone', machineId: 'machine-1' }],
       getChatroom: async () => null,
     });
 
@@ -135,7 +136,7 @@ describe('checkAccess — machine + read-access', () => {
 
   it('grants access via chatroom membership', async () => {
     const deps = createMockDeps({
-      getWorkspacesForMachine: async () => [{ chatroomId: 'chat-1', machineId: 'machine-1' }],
+      getWorkspacesForMachine: () => [{ chatroomId: 'chat-1', machineId: 'machine-1' }],
       getChatroom: async () => ({ id: 'chat-1', ownerId: 'user-a' }),
     });
 
@@ -271,5 +272,108 @@ describe('requireAccess', () => {
         permission: 'owner',
       })
     ).rejects.toThrow('Chatroom not found');
+  });
+});
+
+// ─── Machine + Write-Access: streaming / dedupe ─────────────────────────────
+
+describe('checkAccess — machine write-access streaming', () => {
+  const resource: Resource = { type: 'machine', id: 'machine-1' };
+  const permission: Permission = 'write-access';
+
+  /** A counting generator over the given refs; records how many refs were consumed. */
+  function refs(items: MachineWorkspaceRef[]) {
+    let consumed = 0;
+    const iterable: AsyncIterable<MachineWorkspaceRef> = {
+      async *[Symbol.asyncIterator]() {
+        for (const item of items) {
+          consumed += 1;
+          yield item;
+        }
+      },
+    };
+    return { iterable, consumed: () => consumed };
+  }
+
+  it('stops at the first owned chatroom and never reads later chatrooms', async () => {
+    const read: string[] = [];
+    const deps = createMockDeps({
+      getWorkspacesForMachine: () => [
+        { chatroomId: 'chat-a', machineId: 'machine-1' },
+        { chatroomId: 'chat-b', machineId: 'machine-1' },
+        { chatroomId: 'chat-c', machineId: 'machine-1' },
+      ],
+      getChatroom: async (id) => {
+        read.push(id);
+        return { id, ownerId: id === 'chat-b' ? 'user-a' : 'user-b' };
+      },
+    });
+
+    const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
+
+    expect(result).toEqual({ ok: true, permission: 'write-access' });
+    expect(read).toEqual(['chat-a', 'chat-b']);
+  });
+
+  it('reads each distinct chatroom at most once', async () => {
+    let getChatroomCalls = 0;
+    const deps = createMockDeps({
+      getWorkspacesForMachine: () => [
+        { chatroomId: 'chat-1', machineId: 'machine-1' },
+        { chatroomId: 'chat-1', machineId: 'machine-1' },
+        { chatroomId: 'chat-1', machineId: 'machine-1' },
+      ],
+      getChatroom: async (id) => {
+        getChatroomCalls += 1;
+        return { id, ownerId: 'user-a' };
+      },
+    });
+
+    const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
+
+    expect(result.ok).toBe(true);
+    expect(getChatroomCalls).toBe(1);
+  });
+
+  it('denies with the no-registrations reason for an empty iterator', async () => {
+    const { iterable, consumed } = refs([]);
+    const deps = createMockDeps({ getWorkspacesForMachine: () => iterable });
+
+    const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
+
+    expect(result).toEqual({ ok: false, reason: 'Machine has no workspace registrations' });
+    expect(consumed()).toBe(0);
+  });
+
+  it('denies with the not-owned-any reason when no chatroom is owned', async () => {
+    const { iterable } = refs([
+      { chatroomId: 'chat-1', machineId: 'machine-1' },
+      { chatroomId: 'chat-2', machineId: 'machine-1' },
+    ]);
+    const deps = createMockDeps({
+      getWorkspacesForMachine: () => iterable,
+      getChatroom: async (id) => ({ id, ownerId: 'user-b' }),
+    });
+
+    const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'User does not have access to any chatroom with this machine',
+    });
+  });
+
+  it('skips a missing chatroom and grants on a later owned one', async () => {
+    const deps = createMockDeps({
+      getWorkspacesForMachine: () => [
+        { chatroomId: 'chat-gone', machineId: 'machine-1' },
+        { chatroomId: 'chat-owned', machineId: 'machine-1' },
+      ],
+      getChatroom: async (id) => (id === 'chat-owned' ? { id, ownerId: 'user-a' } : null),
+    });
+
+    const result = await checkAccess(deps, { accessor: USER_A, resource, permission });
+
+    expect(result).toEqual({ ok: true, permission: 'write-access' });
   });
 });

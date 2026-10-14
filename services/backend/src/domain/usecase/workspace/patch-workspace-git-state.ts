@@ -1,21 +1,27 @@
 /**
  * Use Case: Patch Workspace Git State
  *
- * Applies one git-state unit to a workspace's `chatroom_workspaceGitState` row.
+ * Applies one git-state unit to its per-unit row (see `WORKSPACE_GIT_UNIT_TABLE`). Each unit owns its
+ * own table, so a patch reads the workspace rows and only its own unit row — never the whole git
+ * state.
  *
- * Writes are change-driven: the row's `updatedAt` only moves when at least one
- * field owned by the unit actually differs from what is stored. This lets the
- * daemon sync on every change without generating write churn for no-op pushes.
+ * Writes are change-driven: the row's `updatedAt` only moves when a field owned by the unit actually
+ * differs from what is stored. This lets the daemon sync on every change without generating write
+ * churn for no-op pushes.
  *
  * Constraints:
- * - Only the `head` unit may change `status`. Other units never write it.
+ * - Only the `head` unit defines `status`. Other units never store it, and this use case never
+ *   inserts a default `status`.
+ * - The row is written with `replace`, so a field the unit no longer sends (e.g. `branch` when head
+ *   becomes `not_found`, `errorMessage` when head becomes `available`) is cleared.
  * - The payload never carries `updatedAt`; the server stamps it on a real change.
- * - Fields not owned by the unit are left untouched (patch semantics).
+ * - Removed workspaces write nothing: their unit rows are purged on removal and a late daemon patch
+ *   must not resurrect them.
  */
 
-import type { Doc } from '../../../../convex/_generated/dataModel';
+import { findUnitRow, writeUnitRow } from './workspace-git-unit-rows';
+import type { WorkspaceGitUnitKind, WorkspaceGitUnitRow } from './workspace-git-unit-rows';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { isActiveWorkspace } from '../../entities/workspace';
 import type { WorkspaceGitStateUnit } from '../../entities/workspace-git-state-unit';
 
@@ -29,36 +35,28 @@ export interface PatchWorkspaceGitStateInput {
   now: number;
 }
 
-type GitStateRow = Doc<'chatroom_workspaceGitState'>;
-type GitStateFieldKey = Exclude<
-  keyof GitStateRow,
-  '_id' | '_creationTime' | 'machineId' | 'workingDir' | 'updatedAt'
->;
-/**
- * Row fields a unit may write. `errorMessage` is the only field a unit clears
- * (by setting it to `undefined`), so it alone admits `undefined`.
- */
-type GitStateFields = Partial<Pick<GitStateRow, Exclude<GitStateFieldKey, 'errorMessage'>>> & {
-  errorMessage?: string | undefined;
-};
+/** Row fields that are identity or timestamps, not part of the unit's payload. */
+type UnitRowMeta = '_id' | '_creationTime' | 'machineId' | 'workingDir' | 'updatedAt';
 
-/**
- * Maps a unit to the row fields it owns.
- *
- * Every unit variant's payload, minus `kind`, is exactly the set of row fields it
- * owns (see workspace-git-state-unit.ts), so the payload is the patch. The one
- * addition: a non-error head clears a previously stored `errorMessage`.
- */
-function unitToFields(unit: WorkspaceGitStateUnit): GitStateFields {
-  const { kind: _kind, ...fields } = unit;
-  return unit.kind === 'head' && unit.status !== 'error'
-    ? { ...fields, errorMessage: undefined }
-    : fields;
+/** The stored unit payload, with row metadata removed for the changed-check. */
+function stripRowMeta<T extends Record<UnitRowMeta, unknown>>(row: T): Omit<T, UnitRowMeta> {
+  const { _id, _creationTime, machineId, workingDir, updatedAt, ...fields } = row;
+  return fields;
+}
+
+type UnitFields = Omit<WorkspaceGitStateUnit, 'kind'>;
+
+/** True when the stored unit row already matches the incoming unit payload. */
+function isUnchanged(
+  existing: WorkspaceGitUnitRow<WorkspaceGitUnitKind> | null,
+  fields: UnitFields
+): boolean {
+  return existing !== null && canonicalJson(stripRowMeta(existing)) === canonicalJson(fields);
 }
 
 /**
  * Serializes a value with object keys sorted, so structurally equal values
- * compare equal regardless of key insertion order.
+ * compare equal regardless of key insertion order. `JSON.stringify` drops `undefined`.
  */
 function canonicalJson(value: unknown): string | undefined {
   return JSON.stringify(value, (_key, nested: unknown) => {
@@ -70,32 +68,22 @@ function canonicalJson(value: unknown): string | undefined {
 }
 
 /**
- * Legacy rows may carry only the raw gh `number` field. Normalize them to the
- * canonical `prNumber` shape so they compare equal to incoming units.
+ * True when any workspace row for (machineId, workingDir) is active. Stops at the first active row,
+ * so it never materializes every workspace row for the directory.
  */
-function normalizeStoredPullRequests(
-  stored: GitStateRow['openPullRequests']
-): GitStateFields['openPullRequests'] {
-  if (stored === undefined) return undefined;
-  return stored.map((pr) => ({
-    prNumber: pr.prNumber ?? pr.number ?? 0,
-    title: pr.title,
-    url: pr.url,
-    headRefName: pr.headRefName,
-    state: pr.state,
-  }));
-}
-
-function isFieldEqual(
-  key: GitStateFieldKey,
-  stored: GitStateRow[GitStateFieldKey],
-  next: GitStateFields[GitStateFieldKey]
-): boolean {
-  const normalizedStored =
-    key === 'openPullRequests'
-      ? normalizeStoredPullRequests(stored as GitStateRow['openPullRequests'])
-      : stored;
-  return canonicalJson(normalizedStored) === canonicalJson(next);
+async function hasActiveWorkspace(
+  ctx: MutationCtx,
+  machineId: string,
+  workingDir: string
+): Promise<boolean> {
+  for await (const ws of ctx.db
+    .query('chatroom_workspaces')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )) {
+    if (isActiveWorkspace(ws.removedAt)) return true;
+  }
+  return false;
 }
 
 export async function patchWorkspaceGitState(
@@ -104,42 +92,22 @@ export async function patchWorkspaceGitState(
 ): Promise<PatchWorkspaceGitStateResult> {
   const { machineId, workingDir, unit, now } = input;
 
-  const workspaces = await ctx.db
-    .query('chatroom_workspaces')
-    .withIndex('by_machine_workingDir', (q) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .collect();
-  if (!workspaces.some((ws) => isActiveWorkspace(ws.removedAt))) {
+  if (!(await hasActiveWorkspace(ctx, machineId, workingDir))) {
     return { applied: false, reason: 'workspace_inactive' };
   }
 
-  const fields = unitToFields(unit);
+  const { kind, ...fields } = unit;
+  const existing = await findUnitRow(ctx, kind, { machineId, workingDir });
 
-  const existing = await ctx.db
-    .query('chatroom_workspaceGitState')
-    .withIndex('by_machine_workingDir', (q) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .first();
-
-  if (!existing) {
-    // Non-head units cannot set `status`; a row created by them defaults to
-    // 'available' until the head unit reports the real status.
-    await ctx.db.insert(
-      'chatroom_workspaceGitState',
-      omitUndefined({ machineId, workingDir, status: 'available', ...fields, updatedAt: now })
-    );
-    return { applied: true };
-  }
-
-  const changed = (Object.keys(fields) as GitStateFieldKey[]).some(
-    (key) => !isFieldEqual(key, existing[key], fields[key])
-  );
-  if (!changed) {
+  if (isUnchanged(existing, fields)) {
     return { applied: false, reason: 'unchanged' };
   }
 
-  await ctx.db.patch('chatroom_workspaceGitState', existing._id, { ...fields, updatedAt: now });
+  await writeUnitRow(ctx, kind, existing === null ? null : existing._id, {
+    machineId,
+    workingDir,
+    ...fields,
+    updatedAt: now,
+  });
   return { applied: true };
 }

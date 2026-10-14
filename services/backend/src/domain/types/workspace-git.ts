@@ -85,12 +85,8 @@ export type WorkspaceGitState =
       commitsAhead: number;
       /** Number of commits on upstream not in HEAD (unpulled). 0 if no upstream. */
       commitsBehind: number;
-      /** Default branch name (e.g. 'main', 'master'). Null if gh unavailable. */
-      defaultBranch?: string | null | undefined;
       /** CI/CD status checks for the current branch head commit. */
       headCommitStatus?: CommitStatusSummary | null | undefined;
-      /** CI/CD status checks for the latest default branch commit. */
-      defaultBranchStatus?: CommitStatusSummary | null | undefined;
       /** Unix timestamp (ms) when this state was last pushed by the daemon. */
       updatedAt: number;
     }

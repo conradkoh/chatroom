@@ -10,6 +10,7 @@ import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import { deleteCliSessionLastUsedAt } from './lib/lastAtProjections';
 import { deleteObservedWorkspaceViewsForMachine } from '../src/domain/usecase/workspace/project-observed-workspace-view';
+import { deleteWorkspaceGitUnitRows } from '../src/domain/usecase/workspace/workspace-git-unit-rows';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -132,7 +133,8 @@ export const cleanupReadCursors = internalMutation({
  * - chatroom_machineStatus
  * - chatroom_machineModelFilters
  * - chatroom_agentLastSentLaunchRequests
- * - chatroom_workspaceGitState
+ * - chatroom_workspaceGitState (legacy git state blob)
+ * - chatroom_workspaceGitHead / Worktree / Upstream / Remotes / PullRequests / Checks (per-unit git state)
  * - chatroom_workspaceFileTree
  * - chatroom_workspaceFileContent
  * - chatroom_workspaceFullDiff
@@ -232,6 +234,10 @@ export const cleanupMachines = internalMutation({
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
       for (const row of gitStates) await ctx.db.delete('chatroom_workspaceGitState', row._id);
+
+      // Per-unit git state tables (chatroom_workspaceGitHead, Worktree,
+      // Upstream, Remotes, PullRequests, Checks) for this machine.
+      await deleteWorkspaceGitUnitRows(ctx, mid);
 
       const fileTrees = await ctx.db
         .query('chatroom_workspaceFileTree')

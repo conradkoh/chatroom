@@ -41,13 +41,20 @@ export interface AccessDenied {
 /** Result of an access check. */
 export type AccessResult = AccessGranted | AccessDenied;
 
+/** A workspace registration on a machine, used to resolve machine write-access. */
+export type MachineWorkspaceRef = { chatroomId: string; machineId: string };
+
 /** Database access for unified access checks. */
 export interface CheckAccessDeps {
   getMachineByMachineId: (id: string) => Promise<{ userId: string } | null>;
   getChatroom: (id: string) => Promise<{ id: string; ownerId: string } | null>;
+  /**
+   * Active workspaces registered on the machine. Streamed so callers can stop at the first match.
+   * Adapters must skip removed workspaces.
+   */
   getWorkspacesForMachine: (
     machineId: string
-  ) => Promise<{ chatroomId: string; machineId: string }[]>;
+  ) => Iterable<MachineWorkspaceRef> | AsyncIterable<MachineWorkspaceRef>;
 }
 
 // ─── Core Logic ─────────────────────────────────────────────────────────────
@@ -141,32 +148,36 @@ async function checkMachineOwner(
   return { ok: true, permission: 'owner' };
 }
 
+/**
+ * Non-owner machine access: grants `write-access` when the accessor owns any chatroom the machine
+ * has an active workspace in.
+ *
+ * Streams the machine's workspaces and returns at the first accessor-owned chatroom, reading each
+ * distinct chatroom at most once. A denial necessarily scans every workspace; success reads only
+ * the prefix up to the first owned chatroom.
+ */
 async function checkMachineWriteAccess(
   deps: CheckAccessDeps,
   accessor: Accessor,
   machineId: string
 ): Promise<AccessResult> {
-  const workspaces = await deps.getWorkspacesForMachine(machineId);
+  let sawWorkspace = false;
+  const visited = new Set<string>();
 
-  if (workspaces.length === 0) {
-    return { ok: false, reason: 'Machine has no workspace registrations' };
-  }
+  for await (const { chatroomId } of deps.getWorkspacesForMachine(machineId)) {
+    sawWorkspace = true;
+    if (visited.has(chatroomId)) continue;
+    visited.add(chatroomId);
 
-  const chatroomIds = [...new Set(workspaces.map((w) => w.chatroomId))];
-
-  for (const chatroomId of chatroomIds) {
     const chatroom = await deps.getChatroom(chatroomId);
-    if (!chatroom) continue;
-
-    if (chatroom.ownerId === accessor.id) {
+    if (chatroom?.ownerId === accessor.id) {
       return { ok: true, permission: 'write-access' };
     }
   }
 
-  return {
-    ok: false,
-    reason: 'User does not have access to any chatroom with this machine',
-  };
+  return sawWorkspace
+    ? { ok: false, reason: 'User does not have access to any chatroom with this machine' }
+    : { ok: false, reason: 'Machine has no workspace registrations' };
 }
 
 // ─── Chatroom Access ────────────────────────────────────────────────────────

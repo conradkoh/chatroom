@@ -33,7 +33,6 @@ vi.mock('../../api.js', () => ({
       getPendingRequests: 'mock-getPendingRequests',
       resetProcessingRequests: 'mock-resetProcessingRequests',
       updateRequestStatus: 'mock-updateRequestStatus',
-      upsertWorkspaceGitState: 'mock-upsertWorkspaceGitState',
       upsertRecentCommits: 'mock-upsertRecentCommits',
     },
     machines: {},

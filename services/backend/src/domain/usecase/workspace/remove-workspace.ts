@@ -8,7 +8,9 @@
  * references that point to a machine that is no longer associated with
  * the chatroom. This includes:
  * - chatroom_agentLastSentLaunchRequests that target the removed workspace
- * - chatroom_workspaceGitState (git state for this workspace)
+ * - chatroom_workspaceGitState (legacy git state blob for this workspace)
+ * - chatroom_workspaceGitHead / Worktree / Upstream / Remotes / PullRequests / Checks
+ *   (per-unit git state for this workspace)
  * - chatroom_workspaceFileTree / chatroom_workspaceFileTreeV2 (file tree snapshots)
  * - chatroom_workspaceFileTreeManifestV3 / chatroom_workspaceFileTreeShardV3 (sharded file trees)
  * - chatroom_workspaceFileTreeRequests (pending file tree requests)
@@ -17,6 +19,7 @@
  * Throws if the workspace document does not exist.
  */
 
+import { deleteWorkspaceGitUnitRows } from './workspace-git-unit-rows';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -109,7 +112,9 @@ async function purgeLastSentLaunchRequestsForWorkspace(
  * workspace registrations or agent restarts.
  *
  * Tables cleaned up:
- * - chatroom_workspaceGitState (git state for this workspace)
+ * - chatroom_workspaceGitState (legacy git state blob for this workspace)
+ * - chatroom_workspaceGitHead / Worktree / Upstream / Remotes / PullRequests / Checks
+ *   (per-unit git state for this workspace)
  * - chatroom_workspaceFileTree / chatroom_workspaceFileTreeV2 (file tree snapshots)
  * - chatroom_workspaceFileTreeManifestV3 / chatroom_workspaceFileTreeShardV3 (sharded file trees)
  * - chatroom_workspaceFileTreeRequests (pending file tree requests)
@@ -135,6 +140,10 @@ async function purgeWorkspaceScopedData(
   for (const state of gitStates) {
     await ctx.db.delete('chatroom_workspaceGitState', state._id);
   }
+
+  // Purge the per-unit git state tables (chatroom_workspaceGitHead, Worktree,
+  // Upstream, Remotes, PullRequests, Checks) for this workspace.
+  await deleteWorkspaceGitUnitRows(ctx, machineId, workingDir);
 
   // Purge chatroom_workspaceFileTree
   const fileTrees = await ctx.db

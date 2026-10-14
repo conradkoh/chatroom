@@ -1,42 +1,126 @@
 import { describe, expect, it } from 'vitest';
 
 import { toWorkspaceGitStateView } from './project-workspace-git-state';
-import type { Doc } from '../../../../convex/_generated/dataModel';
+import type { WorkspaceGitUnitRow, WorkspaceGitUnitRows } from './workspace-git-unit-rows';
 
-type GitStateRow = Doc<'chatroom_workspaceGitState'>;
+type HeadRow = WorkspaceGitUnitRow<'head'>;
+type WorktreeRow = WorkspaceGitUnitRow<'worktree'>;
+type UpstreamRow = WorkspaceGitUnitRow<'upstream'>;
+type RemotesRow = WorkspaceGitUnitRow<'remotes'>;
+type PullRequestsRow = WorkspaceGitUnitRow<'pullRequests'>;
+type ChecksRow = WorkspaceGitUnitRow<'checks'>;
 
-/** A stored row with only the identity and status fields set. Each test adds what it needs. */
-function row(overrides: Record<string, unknown> & { status: GitStateRow['status'] }): GitStateRow {
+const META = { _creationTime: 1, machineId: 'machine-1', workingDir: '/code/app' } as const;
+
+function headRow(overrides: Partial<HeadRow> = {}): HeadRow {
   return {
-    _id: 'gitstate-1',
-    _creationTime: 1,
-    machineId: 'machine-1',
-    workingDir: '/code/app',
+    ...META,
+    _id: 'head-1',
     updatedAt: 500,
+    status: 'available',
+    branch: 'feature',
     ...overrides,
-  } as unknown as GitStateRow;
+  } as unknown as HeadRow;
+}
+
+/** A head row with no `branch` (not_found/error, or an available row that has not reported one). */
+function headRowWithoutBranch(overrides: Partial<Omit<HeadRow, 'branch'>> = {}): HeadRow {
+  return {
+    ...META,
+    _id: 'head-1',
+    updatedAt: 500,
+    status: 'available',
+    ...overrides,
+  } as unknown as HeadRow;
+}
+
+function worktreeRow(overrides: Partial<WorktreeRow> = {}): WorktreeRow {
+  return {
+    ...META,
+    _id: 'worktree-1',
+    updatedAt: 500,
+    isDirty: true,
+    diffStat: { filesChanged: 2, insertions: 5, deletions: 1 },
+    ...overrides,
+  } as unknown as WorktreeRow;
+}
+
+function upstreamRow(overrides: Partial<UpstreamRow> = {}): UpstreamRow {
+  return {
+    ...META,
+    _id: 'upstream-1',
+    updatedAt: 500,
+    commitsAhead: 3,
+    commitsBehind: 1,
+    ...overrides,
+  } as unknown as UpstreamRow;
+}
+
+function remotesRow(overrides: Partial<RemotesRow> = {}): RemotesRow {
+  return {
+    ...META,
+    _id: 'remotes-1',
+    updatedAt: 500,
+    remotes: [{ name: 'origin', url: 'git@example.com:app.git' }],
+    ...overrides,
+  } as unknown as RemotesRow;
+}
+
+function pullRequestsRow(overrides: Partial<PullRequestsRow> = {}): PullRequestsRow {
+  return {
+    ...META,
+    _id: 'pull-requests-1',
+    updatedAt: 500,
+    openPullRequests: [
+      {
+        prNumber: 7,
+        title: 'Add thing',
+        url: 'https://example.test/pulls/7',
+        headRefName: 'feature',
+        state: 'OPEN',
+      },
+    ],
+    ...overrides,
+  } as unknown as PullRequestsRow;
+}
+
+function checksRow(overrides: Partial<ChecksRow> = {}): ChecksRow {
+  return {
+    ...META,
+    _id: 'checks-1',
+    updatedAt: 500,
+    headCommitStatus: null,
+    ...overrides,
+  } as unknown as ChecksRow;
+}
+
+/** A rows fixture with every unit absent; each test sets the rows it needs. */
+function rows(partial: Partial<WorkspaceGitUnitRows>): WorkspaceGitUnitRows {
+  return {
+    head: null,
+    worktree: null,
+    upstream: null,
+    remotes: null,
+    pullRequests: null,
+    checks: null,
+    ...partial,
+  };
 }
 
 describe('toWorkspaceGitStateView', () => {
-  it('is loading when no row has been pushed yet', () => {
-    expect(toWorkspaceGitStateView(null)).toEqual({ status: 'loading' });
+  it('is loading when no head row exists', () => {
+    expect(toWorkspaceGitStateView(rows({}))).toEqual({ status: 'loading' });
   });
 
-  it('maps an available row with every field set', () => {
+  it('maps an available state with every unit row present', () => {
     const view = toWorkspaceGitStateView(
-      row({
-        status: 'available',
-        branch: 'feature',
-        isDirty: true,
-        diffStat: { filesChanged: 2, insertions: 5, deletions: 1 },
-        openPullRequests: [{ prNumber: 7, title: 'Add thing' }],
-        remotes: [{ name: 'origin', url: 'git@example.com:app.git' }],
-        commitsAhead: 3,
-        commitsBehind: 1,
-        defaultBranch: 'main',
-        headCommitStatus: null,
-        defaultBranchStatus: null,
-        updatedAt: 900,
+      rows({
+        head: headRow({ updatedAt: 900 }),
+        worktree: worktreeRow(),
+        upstream: upstreamRow(),
+        remotes: remotesRow(),
+        pullRequests: pullRequestsRow(),
+        checks: checksRow(),
       })
     );
 
@@ -45,67 +129,82 @@ describe('toWorkspaceGitStateView', () => {
       branch: 'feature',
       isDirty: true,
       diffStat: { filesChanged: 2, insertions: 5, deletions: 1 },
-      openPullRequests: [{ prNumber: 7, title: 'Add thing' }],
+      openPullRequests: [
+        {
+          prNumber: 7,
+          title: 'Add thing',
+          url: 'https://example.test/pulls/7',
+          headRefName: 'feature',
+          state: 'OPEN',
+        },
+      ],
       remotes: [{ name: 'origin', url: 'git@example.com:app.git' }],
       commitsAhead: 3,
       commitsBehind: 1,
-      defaultBranch: 'main',
       headCommitStatus: null,
-      defaultBranchStatus: null,
       updatedAt: 900,
     });
   });
 
-  it('fills the defaults for an available row with no optional fields', () => {
-    expect(toWorkspaceGitStateView(row({ status: 'available' }))).toEqual({
+  it('fills the defaults for available with only the head row', () => {
+    expect(toWorkspaceGitStateView(rows({ head: headRow({ updatedAt: 500 }) }))).toEqual({
       status: 'available',
-      branch: 'HEAD',
+      branch: 'feature',
       isDirty: false,
       diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
       openPullRequests: [],
       remotes: [],
       commitsAhead: 0,
       commitsBehind: 0,
-      defaultBranch: null,
       headCommitStatus: null,
-      defaultBranchStatus: null,
       updatedAt: 500,
     });
   });
 
-  it('uses prNumber when present, falls back to number, and then to 0', () => {
+  it('defaults the branch label when the head row has no branch', () => {
+    const view = toWorkspaceGitStateView(rows({ head: headRowWithoutBranch() }));
+
+    expect(view.status === 'available' && view.branch).toBe('HEAD');
+  });
+
+  it('maps a not_found head to not_found and ignores the other unit rows', () => {
+    expect(
+      toWorkspaceGitStateView(
+        rows({
+          head: headRowWithoutBranch({ status: 'not_found', updatedAt: 321 }),
+          worktree: worktreeRow({ updatedAt: 999 }),
+          upstream: upstreamRow({ updatedAt: 999 }),
+        })
+      )
+    ).toEqual({ status: 'not_found', updatedAt: 321 });
+  });
+
+  it('maps an error head to its message and ignores the other unit rows', () => {
+    expect(
+      toWorkspaceGitStateView(
+        rows({
+          head: headRowWithoutBranch({ status: 'error', errorMessage: 'git not installed' }),
+          worktree: worktreeRow(),
+        })
+      )
+    ).toEqual({ status: 'error', message: 'git not installed', updatedAt: 500 });
+  });
+
+  it('uses a generic message for an error head with no message recorded', () => {
+    const view = toWorkspaceGitStateView(rows({ head: headRowWithoutBranch({ status: 'error' }) }));
+
+    expect(view).toEqual({ status: 'error', message: 'Unknown error', updatedAt: 500 });
+  });
+
+  it('takes updatedAt from the newest present row', () => {
     const view = toWorkspaceGitStateView(
-      row({
-        status: 'available',
-        openPullRequests: [{ prNumber: 4, number: 99 }, { number: 12 }, { title: 'no number' }],
+      rows({
+        head: headRow({ updatedAt: 100 }),
+        worktree: worktreeRow({ updatedAt: 900 }),
+        remotes: remotesRow({ updatedAt: 700 }),
       })
     );
 
-    expect(view.status === 'available' && view.openPullRequests.map((pr) => pr.prNumber)).toEqual([
-      4, 12, 0,
-    ]);
-  });
-
-  it('maps a not_found row to not_found with its timestamp', () => {
-    expect(toWorkspaceGitStateView(row({ status: 'not_found', updatedAt: 321 }))).toEqual({
-      status: 'not_found',
-      updatedAt: 321,
-    });
-  });
-
-  it('maps an error row to its message and timestamp', () => {
-    expect(
-      toWorkspaceGitStateView(
-        row({ status: 'error', errorMessage: 'git not installed', updatedAt: 42 })
-      )
-    ).toEqual({ status: 'error', message: 'git not installed', updatedAt: 42 });
-  });
-
-  it('uses a generic message for an error row with none recorded', () => {
-    expect(toWorkspaceGitStateView(row({ status: 'error', updatedAt: 42 }))).toEqual({
-      status: 'error',
-      message: 'Unknown error',
-      updatedAt: 42,
-    });
+    expect(view.status === 'available' && view.updatedAt).toBe(900);
   });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
+import { checkAccess } from '../../modules/auth/accessCheck';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -106,5 +108,124 @@ describe('security authz protections', () => {
         chatroomId: ownerChatroomId,
       })
     ).rejects.toThrow('Access denied');
+  });
+});
+
+// ─── Non-owner machine write-access (chatroom membership via the Convex adapter) ───
+
+/** Seed a workspace registration directly, so a chatroom other than the machine owner's can exist. */
+async function seedWorkspace(params: {
+  chatroomId: Id<'chatroom_rooms'>;
+  machineId: string;
+  workingDir: string;
+  removedAt?: number;
+}): Promise<void> {
+  await t.run((ctx) =>
+    ctx.db.insert('chatroom_workspaces', {
+      chatroomId: params.chatroomId,
+      machineId: params.machineId,
+      workingDir: params.workingDir,
+      hostname: 'test-host',
+      registeredBy: 'test',
+      registeredAt: Date.now(),
+      fileTreeSyncEnabled: false,
+      ...(params.removedAt === undefined ? {} : { removedAt: params.removedAt }),
+    })
+  );
+}
+
+/** The user a test session authenticates as (`loginAnon` is not idempotent, so read it back). */
+async function userIdForSession(sessionId: string): Promise<string> {
+  return t.run(async (ctx) => {
+    const session = await ctx.db
+      .query('sessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+      .first();
+    if (!session) throw new Error(`No session for ${sessionId}`);
+    return session.userId;
+  });
+}
+
+describe('machine write-access via chatroom membership (Convex adapter)', () => {
+  test('a non-owner who owns a chatroom with an active workspace gets write-access', async () => {
+    const { sessionId: ownerSession } = await createTestSession('test-sec-mwa-grant-owner');
+    const { sessionId: collaboratorSession } = await createTestSession('test-sec-mwa-grant-collab');
+    const machineId = 'machine-sec-mwa-grant';
+    await registerMachineWithDaemon(ownerSession, machineId);
+
+    const collaboratorChatroomId = await createDuoTeamChatroom(collaboratorSession);
+    await seedWorkspace({
+      chatroomId: collaboratorChatroomId,
+      machineId,
+      workingDir: '/test/mwa-collaborator',
+    });
+
+    const collaboratorUserId = await userIdForSession(collaboratorSession);
+
+    const result = await t.run((ctx) =>
+      checkAccess(ctx, {
+        accessor: { type: 'user', id: collaboratorUserId },
+        resource: { type: 'machine', id: machineId },
+        permission: 'write-access',
+      })
+    );
+
+    expect(result).toEqual({ ok: true, permission: 'write-access' });
+  });
+
+  test('removed workspaces are skipped so the machine reports no registrations', async () => {
+    const { sessionId: ownerSession } = await createTestSession('test-sec-mwa-removed-owner');
+    const { sessionId: strangerSession } = await createTestSession('test-sec-mwa-removed-stranger');
+    const machineId = 'machine-sec-mwa-removed';
+    await registerMachineWithDaemon(ownerSession, machineId);
+
+    const ownerChatroomId = await createDuoTeamChatroom(ownerSession);
+    await seedWorkspace({
+      chatroomId: ownerChatroomId,
+      machineId,
+      workingDir: '/test/mwa-removed',
+      removedAt: Date.now(),
+    });
+
+    const strangerUserId = await userIdForSession(strangerSession);
+
+    const result = await t.run((ctx) =>
+      checkAccess(ctx, {
+        accessor: { type: 'user', id: strangerUserId },
+        resource: { type: 'machine', id: machineId },
+        permission: 'write-access',
+      })
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'Machine has no workspace registrations' });
+  });
+
+  test('a non-owner with no owned chatroom is denied with the exact reason', async () => {
+    const { sessionId: ownerSession } = await createTestSession('test-sec-mwa-denied-owner');
+    const { sessionId: strangerSession } = await createTestSession('test-sec-mwa-denied-stranger');
+    const machineId = 'machine-sec-mwa-denied';
+    await registerMachineWithDaemon(ownerSession, machineId);
+
+    const ownerChatroomId = await createDuoTeamChatroom(ownerSession);
+    await seedWorkspace({
+      chatroomId: ownerChatroomId,
+      machineId,
+      workingDir: '/test/mwa-owner',
+    });
+
+    const strangerUserId = await userIdForSession(strangerSession);
+
+    const result = await t.run((ctx) =>
+      checkAccess(ctx, {
+        accessor: { type: 'user', id: strangerUserId },
+        resource: { type: 'machine', id: machineId },
+        permission: 'write-access',
+      })
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'User does not have access to any chatroom with this machine',
+    });
   });
 });

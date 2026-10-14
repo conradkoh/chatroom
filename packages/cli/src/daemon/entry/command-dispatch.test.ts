@@ -50,7 +50,6 @@ vi.mock('../../api.js', () => ({
       reportResult: 'mock-gitCloneReportResult',
     },
     workspaces: {
-      upsertWorkspaceGitState: 'mock-upsertWorkspaceGitState',
       upsertRecentCommits: 'mock-upsertRecentCommits',
       getPendingRequests: 'mock-getPendingRequests',
       resetProcessingRequests: 'mock-resetProcessingRequests',
