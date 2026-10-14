@@ -218,10 +218,13 @@ describe('runNativeInjectionEffect', () => {
       agentMgr: createAgentMgrMocks({
         resumeTurnForSlot: vi.fn().mockRejectedValue(new Error('resume failed')),
       }),
+      onTaskDelivered: vi.fn(),
     });
     const task = makeTask();
 
-    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
+    await expect(
+      Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps))
+    ).rejects.toThrow('resume failed');
 
     expect(deps.logEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -229,6 +232,7 @@ describe('runNativeInjectionEffect', () => {
         error: 'resume failed',
       })
     );
+    expect(deps.onTaskDelivered).not.toHaveBeenCalled();
   });
 
   test('startInNewSession cold-restarts before inject and emits sessionAugmented once', async () => {

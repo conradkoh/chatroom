@@ -302,7 +302,7 @@ function resumeHarnessWithPrompt(
         taskId: taskId as string,
         error,
       });
-      return;
+      return yield* Effect.fail(resumeResult.failure);
     }
 
     yield* Effect.tryPromise({
