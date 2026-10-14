@@ -13,14 +13,13 @@ const CLI_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..');
 
 describe('pi-sdk-package', () => {
   it('resolves the pinned @earendil-works/pi-coding-agent version from the chatroom-cli install', () => {
-    expect(getBundledPiSdkVersion(import.meta.url)).toBe('0.74.2');
+    expect(getBundledPiSdkVersion(import.meta.url)).toBe('1.2.0');
   });
 
   it('imports @earendil-works/pi-coding-agent from the chatroom-cli dependency graph', async () => {
     const sdk = await importBundledPiSdk(import.meta.url);
     expect(sdk.createAgentSession).toBeTypeOf('function');
-    expect(sdk.AuthStorage).toBeDefined();
-    expect(sdk.ModelRegistry).toBeDefined();
+    expect(sdk.ModelRuntime.create).toBeTypeOf('function');
   }, 15_000);
 
   it('formats load failures with chatroom-cli reinstall guidance', () => {
@@ -33,6 +32,6 @@ describe('pi-sdk-package', () => {
 
   it('resolveChatroomCliRoot works from the compiled dist layout', () => {
     const distFile = join(CLI_ROOT, 'dist', 'index.js');
-    expect(getBundledPiSdkVersion(pathToFileURL(distFile).href)).toBe('0.74.2');
+    expect(getBundledPiSdkVersion(pathToFileURL(distFile).href)).toBe('1.2.0');
   });
 });

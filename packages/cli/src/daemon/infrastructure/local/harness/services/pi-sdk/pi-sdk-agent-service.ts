@@ -16,7 +16,7 @@ import type { ChildProcess } from 'node:child_process';
 import type {
   AgentSession,
   AgentSessionEvent,
-  ModelRegistry,
+  ModelRuntime,
 } from '@earendil-works/pi-coding-agent';
 import { Effect } from 'effect';
 
@@ -117,12 +117,29 @@ function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
   ]);
 }
 
-function resolveRequiredModel(modelRegistry: ModelRegistry, model: string) {
+/**
+ * Builds the model runtime that backs auth checks, model listing and session creation.
+ *
+ * SDK 1.x replaces AuthStorage + ModelRegistry with ModelRuntime. create() uses the SDK's
+ * bundled catalog plus any cached models-store.json. Network refresh is off by default
+ * (allowModelNetwork), so it does not depend on connectivity. A rejection is still possible:
+ * isInstalled()/listModels() catch it, and session creation propagates it.
+ */
+async function createModelRuntime(): Promise<ModelRuntime> {
+  const sdk = await loadSdk();
+  return sdk.ModelRuntime.create();
+}
+
+/**
+ * Resolves `provider/id` via getModel, or a bare `id` by searching the chat models.
+ * getModels() is chat-only, matching the pre-1.x getAll() semantics.
+ */
+function resolveRequiredModel(modelRuntime: ModelRuntime, model: string) {
   const slash = model.indexOf('/');
   const resolved =
     slash === -1
-      ? modelRegistry.getAll().find((entry) => entry.id === model)
-      : modelRegistry.find(model.slice(0, slash), model.slice(slash + 1));
+      ? modelRuntime.getModels().find((entry) => entry.id === model)
+      : modelRuntime.getModel(model.slice(0, slash), model.slice(slash + 1));
   if (!resolved) {
     throw new Error(`Pi model not found: ${model}`);
   }
@@ -152,10 +169,8 @@ export class PiSdkAgentService extends BaseCLIAgentService {
 
   async isInstalled(): Promise<boolean> {
     try {
-      const { ModelRegistry, AuthStorage } = await loadSdk();
-      const authStorage = AuthStorage.create();
-      const modelRegistry = ModelRegistry.create(authStorage);
-      return modelRegistry.getAvailable().length > 0;
+      const modelRuntime = await createModelRuntime();
+      return (await modelRuntime.getAvailable()).length > 0;
     } catch (err) {
       console.warn(`[pi-sdk] unavailable: ${formatPiSdkLoadError(err)}`);
       return false;
@@ -180,10 +195,8 @@ export class PiSdkAgentService extends BaseCLIAgentService {
 
   async listModels(): Promise<string[]> {
     try {
-      const { ModelRegistry, AuthStorage } = await loadSdk();
-      const authStorage = AuthStorage.create();
-      const modelRegistry = ModelRegistry.create(authStorage);
-      return modelRegistry.getAvailable().map((entry) => `${entry.provider}/${entry.id}`);
+      const modelRuntime = await createModelRuntime();
+      return (await modelRuntime.getAvailable()).map((entry) => `${entry.provider}/${entry.id}`);
     } catch (err) {
       console.warn(`[pi-sdk] listModels failed:`, err instanceof Error ? err.message : err);
       return [];
@@ -195,17 +208,10 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     systemPrompt: string;
     harnessSessionId: string;
   }): Promise<AgentSession> {
-    const {
-      AuthStorage,
-      createAgentSession,
-      DefaultResourceLoader,
-      getAgentDir,
-      ModelRegistry,
-      SessionManager,
-    } = await loadSdk();
+    const { createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager } =
+      await loadSdk();
 
-    const authStorage = AuthStorage.create();
-    const modelRegistry = ModelRegistry.create(authStorage);
+    const modelRuntime = await createModelRuntime();
     const sessions = await SessionManager.list(args.workingDir, getPiSessionDir(args.workingDir));
     const match = sessions.find((s) => s.id === args.harnessSessionId);
     if (!match) {
@@ -223,8 +229,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       createAgentSession({
         cwd: args.workingDir,
         sessionManager: SessionManager.open(match.path, getPiSessionDir(args.workingDir)),
-        authStorage,
-        modelRegistry,
+        modelRuntime,
         resourceLoader,
       }),
       SESSION_CREATE_TIMEOUT_MS,
@@ -299,20 +304,13 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     systemPrompt: string;
     model: string;
   }): Promise<AgentSession> {
-    const {
-      AuthStorage,
-      createAgentSession,
-      DefaultResourceLoader,
-      getAgentDir,
-      ModelRegistry,
-      SessionManager,
-    } = await loadSdk();
+    const { createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager } =
+      await loadSdk();
 
-    const authStorage = AuthStorage.create();
-    const modelRegistry = ModelRegistry.create(authStorage);
+    const modelRuntime = await createModelRuntime();
     const model = requireHarnessModel(args.model, 'pi-sdk spawn');
     const parsed = parsePiSpawnModel(model);
-    const resolvedModel = resolveRequiredModel(modelRegistry, parsed.model ?? model);
+    const resolvedModel = resolveRequiredModel(modelRuntime, parsed.model ?? model);
     const thinkingLevel = resolvePiThinkingLevel(parsed?.thinking);
 
     const agentDir = getAgentDir();
@@ -329,8 +327,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
         model: resolvedModel,
         ...(thinkingLevel ? { thinkingLevel } : {}),
         sessionManager: SessionManager.create(getPiSessionDir(args.workingDir)),
-        authStorage,
-        modelRegistry,
+        modelRuntime,
         resourceLoader,
       }),
       SESSION_CREATE_TIMEOUT_MS,
